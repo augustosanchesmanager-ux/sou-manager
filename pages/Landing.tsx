@@ -135,10 +135,16 @@ const Landing: React.FC = () => {
       </div>
 
       <footer className="border-t border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark py-12 text-center">
-        <div className="flex items-center justify-center mb-4">
+        <div className="flex flex-col items-center justify-center mb-6 gap-4">
           <Logo iconOnly size="sm" className="opacity-50 grayscale hover:grayscale-0 transition-opacity" />
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Contato Profissional</p>
+            <a href="mailto:sanches.augusto@outlook.com" className="text-sm font-bold text-primary hover:underline">
+              sanches.augusto@outlook.com
+            </a>
+          </div>
         </div>
-        <p className="text-slate-400 text-sm">© {new Date().getFullYear()} Elite Tech Solutions. Todos os direitos reservados.</p>
+        <p className="text-slate-400 text-[10px] font-medium uppercase tracking-widest">© {new Date().getFullYear()} SOU MANA.GER. Todos os direitos reservados.</p>
       </footer>
     </div>
   );
