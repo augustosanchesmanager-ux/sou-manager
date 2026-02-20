@@ -23,6 +23,7 @@ import ShopSetup from './pages/onboarding/ShopSetup';
 import ProfessionalSetup from './pages/onboarding/ProfessionalSetup';
 import Landing from './pages/Landing';
 import ResetPassword from './pages/ResetPassword';
+import RegisterSuccess from './pages/RegisterSuccess';
 import Settings from './pages/Settings';
 import Support from './pages/Support';
 import Products from './pages/Products';
@@ -56,6 +57,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/register-success" element={<RegisterSuccess />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Protected Flow */}

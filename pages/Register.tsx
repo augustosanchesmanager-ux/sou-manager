@@ -63,8 +63,7 @@ const Register: React.FC = () => {
             });
 
             if (signUpError) throw signUpError;
-            setSuccess(true);
-            setTimeout(() => navigate('/onboarding/role'), 3000);
+            navigate('/register-success');
         } catch (err: any) {
             setError(err.message || 'Erro ao criar conta');
         } finally {
