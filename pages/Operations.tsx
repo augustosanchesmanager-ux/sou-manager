@@ -26,7 +26,7 @@ const Operations: React.FC = () => {
                         <span className="material-symbols-outlined text-2xl">event_available</span>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group hover:border-orange-500/50 cursor-pointer transition-all">
+                <div onClick={() => navigate('/orders')} className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between group hover:border-orange-500/50 cursor-pointer transition-all">
                     <div className="space-y-1">
                         <p className="text-slate-500 text-sm font-medium">Itens em Baixa</p>
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white">04 Alertas</h3>

@@ -52,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: 'analytics',
       children: [
         { name: 'Relatórios', path: '/reports' },
+        { name: 'Promoções', path: '/promotions' },
         { name: 'Suporte', path: '/support' },
       ]
     },

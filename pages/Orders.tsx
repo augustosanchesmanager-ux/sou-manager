@@ -180,8 +180,8 @@ const Orders: React.FC = () => {
 
             {/* New Order Modal */}
             {isOrderModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
+                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
                         <div className="p-6 border-b border-slate-200 dark:border-border-dark flex justify-between items-center shrink-0">
                             <h3 className="font-bold text-slate-900 dark:text-white">Solicitar Reposição</h3>
                             <button onClick={() => setIsOrderModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
@@ -230,8 +230,8 @@ const Orders: React.FC = () => {
 
             {/* Supplier Modal */}
             {isSupplierModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
+                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
                         <div className="p-6 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
                             <h3 className="font-bold">Gerenciar Fornecedores</h3>
                             <button onClick={() => setIsSupplierModalOpen(false)}><span className="material-symbols-outlined">close</span></button>

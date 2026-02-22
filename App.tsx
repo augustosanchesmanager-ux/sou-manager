@@ -28,6 +28,7 @@ import Settings from './pages/Settings';
 import Support from './pages/Support';
 import Products from './pages/Products';
 import SuperAdmin from './pages/SuperAdmin';
+import Promotions from './pages/Promotions';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Outlet } from 'react-router-dom';
@@ -87,6 +88,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/support" element={<Support />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/promotions" element={<Promotions />} />
           <Route path="/superadmin" element={<SuperAdmin />} />
         </Route>
       </Route>

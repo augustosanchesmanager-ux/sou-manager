@@ -4,7 +4,10 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { generateBusinessInsights } from '../services/geminiService';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
+import OnboardingChecklist from '../components/OnboardingChecklist';
+import DashboardAlerts from '../components/DashboardAlerts';
 
 const chartData = [
   { name: '1', value: 4000 },
@@ -21,6 +24,9 @@ interface DBClient {
   name: string;
   phone: string;
   email: string;
+  birthday?: string;
+  last_visit?: string;
+  avatar?: string;
 }
 
 interface DBStaff {
@@ -55,7 +61,12 @@ const Dashboard: React.FC = () => {
   const [staffList, setStaffList] = useState<DBStaff[]>([]);
   const [servicesList, setServicesList] = useState<DBService[]>([]);
   const [appointments, setAppointments] = useState<DBAppointment[]>([]);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Onboarding
+  const [profile, setProfile] = useState<any>(null);
+  const { user } = useAuth();
 
   // Quick Appointment States
   const [formData, setFormData] = useState({
@@ -78,19 +89,59 @@ const Dashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [clientsRes, staffRes, servicesRes, apptsRes] = await Promise.all([
-      supabase.from('clients').select('id, name, phone, email').order('name'),
+    const [clientsRes, staffRes, servicesRes, apptsRes, profileRes] = await Promise.all([
+      supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').order('name'),
       supabase.from('staff').select('id, name').eq('status', 'active'),
       supabase.from('services').select('id, name, duration').eq('active', true),
       supabase.from('appointments').select('*').neq('status', 'cancelled').order('start_time', { ascending: true }).limit(10),
+      user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
     ]);
 
-    if (clientsRes.data) setClients(clientsRes.data);
+    if (clientsRes.data) {
+      setClients(clientsRes.data);
+      // Process birthdays
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const bdays = clientsRes.data
+        .filter(c => c.birthday)
+        .map(c => {
+          const bDate = new Date(c.birthday + "T00:00:00");
+          let nextBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate());
+
+          if (nextBday < today) {
+            nextBday.setFullYear(today.getFullYear() + 1);
+          }
+
+          const diffTime = Math.abs(nextBday.getTime() - today.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          let lastVisitText = 'Sem registro';
+          if (c.last_visit) {
+            const lv = new Date(c.last_visit);
+            const diffVisit = Math.floor((today.getTime() - lv.getTime()) / (1000 * 60 * 60 * 24));
+            lastVisitText = diffVisit === 0 ? 'Hoje' : diffVisit === 1 ? 'Ontem' : `${diffVisit} Dias atrás`;
+          }
+
+          return {
+            ...c,
+            displayDate: bDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', ''),
+            daysUntil: diffDays,
+            lastVisitText,
+            status: diffDays <= 7 ? 'due_soon' : diffDays <= 30 ? 'visited_recently' : 'overdue'
+          };
+        })
+        .sort((a, b) => a.daysUntil - b.daysUntil)
+        .slice(0, 5); // top 5
+
+      setUpcomingBirthdays(bdays);
+    }
     if (staffRes.data) setStaffList(staffRes.data);
     if (servicesRes.data) setServicesList(servicesRes.data);
     if (apptsRes.data) setAppointments(apptsRes.data);
+    if (profileRes.data) setProfile(profileRes.data);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchData();
@@ -244,14 +295,8 @@ const Dashboard: React.FC = () => {
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const upcomingBirthdays = [
-    { name: 'Gabriel Costa', date: '02 Nov', daysUntil: 5, lastVisit: '1 Dia atrás', status: 'visited_recently', avatar: 'https://picsum.photos/203' },
-    { name: 'André Macedo', date: '28 Out', daysUntil: 0, lastVisit: '12 Dias atrás', status: 'due_soon', avatar: 'https://picsum.photos/201' },
-    { name: 'Juliana Paes', date: '05 Nov', daysUntil: 8, lastVisit: '45 Dias atrás', status: 'overdue', avatar: 'https://picsum.photos/205' },
-  ];
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Visão Geral Executiva</h2>
@@ -279,45 +324,16 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* ONBOARDING CHECKLIST */}
+      {profile && !profile.onboarding_completed && (
+        <OnboardingChecklist onComplete={() => setProfile({ ...profile, onboarding_completed: true })} />
+      )}
+
+      {/* ALERTAS DA BARBEARIA */}
+      <DashboardAlerts />
+
       {/* BLOCO SUPERIOR */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Lucro Real */}
-        <div className="col-span-1 lg:col-span-2 bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-white/5 flex flex-col justify-between relative overflow-hidden shadow-sm transition-colors">
-          <div>
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Lucro Real Mensal</p>
-                <h3 className="text-4xl font-bold mt-1 tracking-tight text-slate-900 dark:text-white">R$ 45.200,00</h3>
-              </div>
-              <div className="bg-accent/10 text-accent px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">trending_up</span>
-                +12.5%
-              </div>
-            </div>
-            <div className="h-32 w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3c83f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3c83f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: theme === 'dark' ? '#1F1F1F' : '#fff',
-                      borderColor: theme === 'dark' ? '#333' : '#e2e8f0',
-                      borderRadius: '8px',
-                      color: theme === 'dark' ? '#fff' : '#0f172a'
-                    }}
-                    itemStyle={{ color: theme === 'dark' ? '#fff' : '#0f172a' }}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="#3c83f6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* AGENDAMENTO RÁPIDO */}
         <div className="col-span-1 bg-white dark:bg-card-dark rounded-xl p-6 border border-primary/30 dark:border-primary/20 shadow-lg shadow-primary/5 transition-all">
@@ -445,7 +461,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Próximos Agendamentos */}
         <div className="bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-white/5 shadow-sm transition-colors">
           <div className="flex justify-between items-center mb-6">
@@ -523,7 +539,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-pink-500">cake</span>
-              <h3 className="font-bold text-slate-900 dark:text-white">Aniversariantes</h3>
+              <h3 className="font-bold text-slate-900 dark:text-white">Aniversariantes Próximos</h3>
             </div>
             <button
               onClick={() => navigate('/clients')}
@@ -533,50 +549,44 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
           <div className="space-y-4">
-            {upcomingBirthdays.map((person, idx) => (
+            {upcomingBirthdays.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">Nenhum aniversariante próximo.</p>
+            ) : upcomingBirthdays.map((person, idx) => (
               <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-800 bg-cover bg-center shrink-0" style={{ backgroundImage: `url(${person.avatar})` }}></div>
+                {person.avatar ? (
+                  <img src={person.avatar} alt={person.name} className="size-10 rounded-full border border-slate-200 dark:border-white/5 object-cover shrink-0" />
+                ) : (
+                  <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-slate-400">person</span>
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{person.name}</p>
-                    <span className="text-[10px] font-bold text-pink-500 bg-pink-500/10 px-1.5 py-0.5 rounded">{person.date}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${person.daysUntil === 0 ? 'bg-pink-500 text-white' : 'text-pink-500 bg-pink-500/10'}`}>
+                      {person.daysUntil === 0 ? 'Hoje' : person.displayDate}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 mt-0.5">
                     <span className="material-symbols-outlined text-[10px] text-slate-400">history</span>
-                    <p className="text-[10px] text-slate-500 truncate">Última visita: {person.lastVisit}</p>
+                    <p className="text-[10px] text-slate-500 truncate">Última visita: {person.lastVisitText}</p>
                   </div>
                 </div>
-                {person.status === 'overdue' && (
-                  <button title="Enviar Oferta" className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
-                    <span className="material-symbols-outlined text-sm">redeem</span>
+                {(person.status === 'overdue' || person.daysUntil === 0) && (
+                  <button onClick={() => window.open(`https://wa.me/55${person.phone.replace(/\D/g, '')}`, '_blank')} title="Enviar Oferta no WhatsApp" className="size-8 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center hover:bg-green-500 hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-sm">chat</span>
                   </button>
                 )}
               </div>
             ))}
           </div>
         </div>
-
-        {/* KPIs Adicionais */}
-        <div className="bg-white dark:bg-card-dark rounded-xl p-6 border border-slate-200 dark:border-white/5 flex flex-col justify-between shadow-sm transition-colors">
-          <div>
-            <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">NPS Médio</p>
-            <div className="flex items-end gap-2">
-              <h4 className="text-3xl font-bold text-slate-900 dark:text-white">8.8</h4>
-              <span className="text-slate-500 text-sm mb-1">/10</span>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-slate-100 dark:border-white/5">
-            <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">Ticket Médio</p>
-            <h4 className="text-2xl font-bold text-slate-900 dark:text-white">R$ 1.250,00</h4>
-            <p className="text-accent text-[10px] font-bold mt-1 uppercase">+4.2% vs mês anterior</p>
-          </div>
-        </div>
       </div>
 
       {/* New Client Modal */}
       {showNewClientModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+          <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">person_add</span>

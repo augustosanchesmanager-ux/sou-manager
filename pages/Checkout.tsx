@@ -471,8 +471,8 @@ const Checkout: React.FC = () => {
 
             {/* Client Selection Modal */}
             {isClientModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
                         <div className="p-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
                             <h3 className="font-bold text-slate-900 dark:text-white">Selecionar Cliente</h3>
                             <button onClick={() => setIsClientModalOpen(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
@@ -500,8 +500,8 @@ const Checkout: React.FC = () => {
 
             {/* Add Item Modal */}
             {isItemModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
                         <div className="p-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
                             <h3 className="font-bold text-slate-900 dark:text-white">Adicionar {itemModalTab === 'services' ? 'Serviço' : 'Produto'}</h3>
                             <button onClick={() => setIsItemModalOpen(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
