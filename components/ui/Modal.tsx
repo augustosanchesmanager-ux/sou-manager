@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
     isOpen: boolean;
@@ -19,12 +20,12 @@ const Modal: React.FC<ModalProps> = ({
 }) => {
     useEffect(() => {
         if (isOpen) {
-            document.body.style.overflow = 'hidden';
+            document.body.classList.add('modal-open');
         } else {
-            document.body.style.overflow = 'unset';
+            document.body.classList.remove('modal-open');
         }
         return () => {
-            document.body.style.overflow = 'unset';
+            document.body.classList.remove('modal-open');
         };
     }, [isOpen]);
 
@@ -39,12 +40,12 @@ const Modal: React.FC<ModalProps> = ({
         '4xl': 'max-w-4xl',
     };
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    const modalContent = (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in pointer-events-auto">
             <div
-                className={`my-auto bg-white dark:bg-card-dark w-full ${maxWidthClasses[maxWidth]} rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all`}
+                className={`bg-white dark:bg-card-dark w-full ${maxWidthClasses[maxWidth]} rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10`}
             >
-                <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5">
+                <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5 shrink-0">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
                     <button
                         onClick={onClose}
@@ -54,21 +55,23 @@ const Modal: React.FC<ModalProps> = ({
                     </button>
                 </header>
 
-                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                     {children}
                 </div>
 
                 {footer && (
-                    <footer className="px-6 py-4 border-t border-slate-200 dark:border-border-dark bg-slate-50/50 dark:bg-white/5 flex items-center justify-end gap-3">
+                    <footer className="px-6 py-4 border-t border-slate-200 dark:border-border-dark bg-slate-50/50 dark:bg-white/5 flex items-center justify-end gap-3 shrink-0">
                         {footer}
                     </footer>
                 )}
             </div>
 
             {/* Click outside to close */}
-            <div className="absolute inset-0 -z-10" onClick={onClose}></div>
+            <div className="absolute inset-0" onClick={onClose}></div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 
 export default Modal;

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 interface Product {
     id: string;
@@ -16,6 +18,7 @@ interface Product {
 }
 
 const Products: React.FC = () => {
+    const { tenantId } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -54,7 +57,7 @@ const Products: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const payload = { ...form };
+        const payload = { ...form, tenant_id: tenantId };
 
         let error;
         if (editingProduct) {
@@ -201,103 +204,94 @@ const Products: React.FC = () => {
             </div>
 
             {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center shrink-0">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                                {editingProduct ? 'Editar Produto' : 'Novo Produto'}
-                            </h3>
-                            <button onClick={() => { setShowModal(false); setEditingProduct(null); }} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase text-slate-500">Nome do Produto</label>
-                                    <input
-                                        required
-                                        type="text"
-                                        value={form.name}
-                                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase text-slate-500">Descrição</label>
-                                    <textarea
-                                        rows={2}
-                                        value={form.description}
-                                        onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold uppercase text-slate-500">Custo (R$)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.cost_price}
-                                            onChange={(e) => setForm({ ...form, cost_price: parseFloat(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold uppercase text-slate-500">Venda (R$)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.sale_price}
-                                            onChange={(e) => setForm({ ...form, sale_price: parseFloat(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold uppercase text-slate-500">Qtd em Estoque</label>
-                                        <input
-                                            type="number"
-                                            value={form.stock_quantity}
-                                            onChange={(e) => setForm({ ...form, stock_quantity: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold uppercase text-slate-500">Estoque Mínimo</label>
-                                        <input
-                                            type="number"
-                                            value={form.minimum_stock}
-                                            onChange={(e) => setForm({ ...form, minimum_stock: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 pt-2">
-                                    <input
-                                        type="checkbox"
-                                        id="auto_order"
-                                        checked={form.auto_generate_purchase_order}
-                                        onChange={(e) => setForm({ ...form, auto_generate_purchase_order: e.target.checked })}
-                                        className="size-4 accent-primary"
-                                    />
-                                    <label htmlFor="auto_order" className="text-sm text-slate-600 dark:text-slate-400 font-medium">Gerar pedido de compra automaticamente</label>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 p-6 pt-4 shrink-0">
-                                <Button variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setEditingProduct(null); }}>
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" className="flex-1">
-                                    {editingProduct ? 'Atualizar' : 'Salvar'}
-                                </Button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => { setShowModal(false); setEditingProduct(null); }}
+                title={editingProduct ? 'Editar Produto' : 'Novo Produto'}
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Produto</label>
+                        <input
+                            required
+                            type="text"
+                            value={form.name}
+                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
                     </div>
-                </div>
-            )}
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Descrição</label>
+                        <textarea
+                            rows={2}
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Custo (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={form.cost_price}
+                                onChange={(e) => setForm({ ...form, cost_price: parseFloat(e.target.value) })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Venda (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={form.sale_price}
+                                onChange={(e) => setForm({ ...form, sale_price: parseFloat(e.target.value) })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Qtd em Estoque</label>
+                            <input
+                                type="number"
+                                value={form.stock_quantity}
+                                onChange={(e) => setForm({ ...form, stock_quantity: parseInt(e.target.value) })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Estoque Mínimo</label>
+                            <input
+                                type="number"
+                                value={form.minimum_stock}
+                                onChange={(e) => setForm({ ...form, minimum_stock: parseInt(e.target.value) })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                        <input
+                            type="checkbox"
+                            id="auto_order"
+                            checked={form.auto_generate_purchase_order}
+                            onChange={(e) => setForm({ ...form, auto_generate_purchase_order: e.target.checked })}
+                            className="size-4 accent-primary"
+                        />
+                        <label htmlFor="auto_order" className="text-sm text-slate-600 dark:text-slate-400 font-medium">Gerar pedido de compra automaticamente</label>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                        <Button variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setEditingProduct(null); }}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit" className="flex-1">
+                            {editingProduct ? 'Atualizar' : 'Salvar'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };

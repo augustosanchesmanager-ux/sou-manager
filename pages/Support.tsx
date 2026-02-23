@@ -24,7 +24,7 @@ interface TicketMessage {
 }
 
 const Support: React.FC = () => {
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [messages, setMessages] = useState<TicketMessage[]>([]);
@@ -125,7 +125,8 @@ const Support: React.FC = () => {
                 subject: formData.subject,
                 description: formData.description,
                 priority: formData.priority,
-                status: 'open'
+                status: 'open',
+                tenant_id: tenantId
             })
             .select()
             .single();
@@ -155,7 +156,8 @@ const Support: React.FC = () => {
             .insert({
                 ticket_id: selectedTicket.id,
                 sender_id: user.id,
-                message: newMessage
+                message: newMessage,
+                tenant_id: tenantId
             })
             .select()
             .single();

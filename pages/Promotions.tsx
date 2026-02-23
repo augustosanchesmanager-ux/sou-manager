@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 interface Promotion {
     id: string;
@@ -22,6 +24,7 @@ interface ItemOption {
 }
 
 const Promotions: React.FC = () => {
+    const { tenantId } = useAuth();
     const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [services, setServices] = useState<ItemOption[]>([]);
     const [products, setProducts] = useState<ItemOption[]>([]);
@@ -62,7 +65,7 @@ const Promotions: React.FC = () => {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const payload = { ...form };
+        const payload = { ...form, tenant_id: tenantId } as any;
         if (payload.target_type === 'all') payload.target_id = null;
         if ((payload.target_type === 'service' || payload.target_type === 'product') && !payload.target_id) {
             setToast({ message: 'Selecione um item alvo', type: 'error' });
@@ -186,133 +189,125 @@ const Promotions: React.FC = () => {
                 </div>
             )}
 
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden transform scale-95 animate-scale-up">
-                        <div className="p-6 border-b border-slate-100 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">campaign</span>
-                                Nova Promoção
-                            </h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
+            {/* Modal */}
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title="Nova Promoção"
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Título da Promoção</label>
+                        <input
+                            type="text"
+                            required
+                            value={form.title}
+                            onChange={e => setForm({ ...form, title: e.target.value })}
+                            placeholder="Ex: Black Friday 2024"
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Aplica-se A</label>
+                            <select
+                                value={form.target_type}
+                                onChange={e => setForm({ ...form, target_type: e.target.value as any, target_id: '' })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="all">Todo o Sistema</option>
+                                <option value="service">Serviço Específico</option>
+                                <option value="product">Produto Específico</option>
+                            </select>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-6 space-y-4">
+                        {form.target_type !== 'all' && (
                             <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Título da Promoção</label>
-                                <input
-                                    type="text"
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Selecione</label>
+                                <select
                                     required
-                                    value={form.title}
-                                    onChange={e => setForm({ ...form, title: e.target.value })}
-                                    placeholder="Ex: Black Friday 2024"
+                                    value={form.target_id || ''}
+                                    onChange={e => setForm({ ...form, target_id: e.target.value })}
                                     className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Aplica-se A</label>
-                                    <select
-                                        value={form.target_type}
-                                        onChange={e => setForm({ ...form, target_type: e.target.value as any, target_id: '' })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    >
-                                        <option value="all">Todo o Sistema</option>
-                                        <option value="service">Serviço Específico</option>
-                                        <option value="product">Produto Específico</option>
-                                    </select>
-                                </div>
-
-                                {form.target_type !== 'all' && (
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Selecione</label>
-                                        <select
-                                            required
-                                            value={form.target_id || ''}
-                                            onChange={e => setForm({ ...form, target_id: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                        >
-                                            <option value="">-- Escolha --</option>
-                                            {form.target_type === 'service'
-                                                ? services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
-                                                : products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
-                                            }
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Tipo Desconto</label>
-                                    <select
-                                        value={form.discount_type}
-                                        onChange={e => setForm({ ...form, discount_type: e.target.value as any })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    >
-                                        <option value="percentage">Porcentagem (%)</option>
-                                        <option value="fixed">Valor Fixo (R$)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        step="0.01"
-                                        value={form.discount_value}
-                                        onChange={e => setForm({ ...form, discount_value: parseFloat(e.target.value) })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Início</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={form.start_date}
-                                        onChange={e => setForm({ ...form, start_date: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Término</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={form.end_date}
-                                        onChange={e => setForm({ ...form, end_date: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-border-dark">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                                 >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined text-sm">save</span>
-                                    Salvar Promoção
-                                </button>
+                                    <option value="">-- Escolha --</option>
+                                    {form.target_type === 'service'
+                                        ? services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+                                        : products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                                    }
+                                </select>
                             </div>
-                        </form>
+                        )}
                     </div>
-                </div>
-            )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Tipo Desconto</label>
+                            <select
+                                value={form.discount_type}
+                                onChange={e => setForm({ ...form, discount_type: e.target.value as any })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="percentage">Porcentagem (%)</option>
+                                <option value="fixed">Valor Fixo (R$)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor</label>
+                            <input
+                                type="number"
+                                required
+                                step="0.01"
+                                value={form.discount_value}
+                                onChange={e => setForm({ ...form, discount_value: parseFloat(e.target.value) })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Início</label>
+                            <input
+                                type="date"
+                                required
+                                value={form.start_date}
+                                onChange={e => setForm({ ...form, start_date: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Término</label>
+                            <input
+                                type="date"
+                                required
+                                value={form.end_date}
+                                onChange={e => setForm({ ...form, end_date: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-border-dark">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-sm">save</span>
+                            Salvar Promoção
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };

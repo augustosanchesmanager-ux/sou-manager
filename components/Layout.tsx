@@ -6,6 +6,7 @@ import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
 import Modal from './ui/Modal';
+import SupportWidget from './SupportWidget';
 import { supabase } from '../services/supabaseClient';
 
 const Layout: React.FC = () => {
@@ -86,7 +87,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content">
           <Outlet />
         </div>
 
@@ -99,6 +100,9 @@ const Layout: React.FC = () => {
         >
           <NotificationCenter onClose={() => setIsNotificationsOpen(false)} />
         </Modal>
+
+        {/* Widget de Suporte Flutuante */}
+        <SupportWidget />
       </main>
     </div>
   );

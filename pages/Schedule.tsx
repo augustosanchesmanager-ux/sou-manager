@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 const timeSlots = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 to 20:00
 
@@ -53,6 +55,7 @@ const statusColors: Record<string, string> = {
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
 const Schedule: React.FC = () => {
+  const { tenantId } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -209,6 +212,7 @@ const Schedule: React.FC = () => {
         name: formData.client,
         phone: formData.clientPhone || '',
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client)}&background=random`,
+        tenant_id: tenantId
       }).select().single();
       if (clientError) { setError('Erro ao cadastrar cliente.'); return; }
       clientId = newClient.id;
@@ -232,6 +236,7 @@ const Schedule: React.FC = () => {
       start_time: startTime.toISOString(),
       duration: Number(formData.duration),
       status: 'confirmed',
+      tenant_id: tenantId
     }).select().single();
 
     if (saveError) { setError('Erro ao salvar agendamento.'); return; }
@@ -243,7 +248,8 @@ const Schedule: React.FC = () => {
         client_id: clientId,
         staff_id: formData.staffId || null,
         status: 'open',
-        total: selectedService?.duration ? 0 : 0 // Price logic could be here, but we start at 0 and add item
+        total: selectedService?.duration ? 0 : 0, // Price logic could be here, but we start at 0 and add item
+        tenant_id: tenantId
       }).select().single();
 
       if (comanda && selectedService) {
@@ -255,7 +261,8 @@ const Schedule: React.FC = () => {
           service_id: selectedService.id,
           product_name: selectedService.name,
           quantity: 1,
-          unit_price: serviceData?.price || 0
+          unit_price: serviceData?.price || 0,
+          tenant_id: tenantId
         });
 
         // Update comanda total
@@ -416,183 +423,177 @@ const Schedule: React.FC = () => {
       </div>
 
       {/* New Appointment Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-          <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Novo Agendamento</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setError(null); }}
+        title="Novo Agendamento"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-500 text-sm mt-0.5">error</span>
+              <p className="text-xs text-red-600 dark:text-red-300 font-medium">{error}</p>
+            </div>
+          )}
+
+          {/* Client Autocomplete */}
+          <div className="relative" ref={searchWrapperRef}>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Cliente</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar ou cadastrar cliente..."
+                value={formData.client}
+                onChange={(e) => handleInputChange('client', e.target.value)}
+                onFocus={() => setShowClientSuggestions(true)}
+                className={`w-full bg-slate-50 dark:bg-background-dark border ${isNewClientMode ? 'border-primary' : 'border-slate-200 dark:border-border-dark'} rounded-lg p-2.5 pl-9 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none`}
+              />
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">search</span>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-              {error && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-                  <span className="material-symbols-outlined text-red-500 text-sm mt-0.5">error</span>
-                  <p className="text-xs text-red-600 dark:text-red-300 font-medium">{error}</p>
-                </div>
-              )}
-
-              {/* Client Autocomplete */}
-              <div className="relative" ref={searchWrapperRef}>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Cliente</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Buscar ou cadastrar cliente..."
-                    value={formData.client}
-                    onChange={(e) => handleInputChange('client', e.target.value)}
-                    onFocus={() => setShowClientSuggestions(true)}
-                    className={`w-full bg-slate-50 dark:bg-background-dark border ${isNewClientMode ? 'border-primary' : 'border-slate-200 dark:border-border-dark'} rounded-lg p-2.5 pl-9 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none`}
-                  />
-                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                </div>
-
-                {isNewClientMode && (
-                  <div className="mt-2 animate-fade-in bg-primary/5 p-3 rounded-lg border border-primary/20">
-                    <label className="block text-xs font-bold uppercase text-primary mb-1.5 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">person_add</span>
-                      Novo Cadastro
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="Telefone (Obrigatório)"
-                      value={formData.clientPhone}
-                      onChange={(e) => handleInputChange('clientPhone', e.target.value)}
-                      className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                    />
-                  </div>
-                )}
-
-                {showClientSuggestions && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
-                    {filteredClients.length > 0 ? (
-                      filteredClients.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => selectClient(c.name)}
-                          className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-50 dark:border-border-dark last:border-0"
-                        >
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">{c.name}</span>
-                          <span className="text-xs text-slate-500">{c.phone}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-center">
-                        <p className="text-xs text-slate-500 mb-2">Cliente não encontrado.</p>
-                        <button
-                          onClick={enableNewClientMode}
-                          className="w-full py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded text-xs font-bold uppercase transition-colors"
-                        >
-                          Cadastrar "{formData.client}"
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Service Select */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
-                <div className="relative">
-                  <select
-                    value={formData.service}
-                    onChange={(e) => handleInputChange('service', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
-                  >
-                    <option value="" disabled className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione um serviço...</option>
-                    {servicesList.map(s => (
-                      <option key={s.id} value={s.name} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{s.name} ({s.duration} min)</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Profissional</label>
-                <div className="relative">
-                  <select
-                    value={formData.staffId}
-                    onChange={(e) => handleInputChange('staffId', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
-                  >
-                    {staffList.map(r => (
-                      <option key={r.id} value={r.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{r.name} - {roleLabels[r.role] || r.role}</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+            {isNewClientMode && (
+              <div className="mt-2 animate-fade-in bg-primary/5 p-3 rounded-lg border border-primary/20">
+                <label className="block text-xs font-bold uppercase text-primary mb-1.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">person_add</span>
+                  Novo Cadastro
+                </label>
                 <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleInputChange('date', e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                  type="tel"
+                  placeholder="Telefone (Obrigatório)"
+                  value={formData.clientPhone}
+                  onChange={(e) => handleInputChange('clientPhone', e.target.value)}
+                  className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
                 />
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário</label>
-                  <div className="relative">
-                    <select
-                      value={formData.start}
-                      onChange={(e) => handleInputChange('start', Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+            {showClientSuggestions && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                {filteredClients.length > 0 ? (
+                  filteredClients.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => selectClient(c.name)}
+                      className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-50 dark:border-border-dark last:border-0"
                     >
-                      {Array.from({ length: 25 }, (_, i) => 8 + i * 0.5).map(slot => (
-                        <option key={slot} value={slot} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duração (h)</label>
-                  <div className="relative">
-                    <select
-                      value={formData.duration}
-                      onChange={(e) => handleInputChange('duration', Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{c.name}</span>
+                      <span className="text-xs text-slate-500">{c.phone}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-center">
+                    <p className="text-xs text-slate-500 mb-2">Cliente não encontrado.</p>
+                    <button
+                      onClick={enableNewClientMode}
+                      className="w-full py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded text-xs font-bold uppercase transition-colors"
                     >
-                      <option value="0.25" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">15 min</option>
-                      <option value="0.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">30 min</option>
-                      <option value="0.75" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">45 min</option>
-                      <option value="1" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h</option>
-                      <option value="1.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h 30m</option>
-                      <option value="2" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">2h</option>
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">hourglass_empty</span>
+                      Cadastrar "{formData.client}"
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
+            )}
+          </div>
 
-            <div className="p-4 border-t border-slate-200 dark:border-border-dark flex justify-end gap-3 bg-slate-50 dark:bg-white/5">
-              <button
-                onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setError(null); }}
-                className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+          {/* Service Select */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
+            <div className="relative">
+              <select
+                value={formData.service}
+                onChange={(e) => handleInputChange('service', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
               >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
-              >
-                Confirmar
-              </button>
+                <option value="" disabled className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione um serviço...</option>
+                {servicesList.map(s => (
+                  <option key={s.id} value={s.name} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{s.name} ({s.duration} min)</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
             </div>
           </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Profissional</label>
+            <div className="relative">
+              <select
+                value={formData.staffId}
+                onChange={(e) => handleInputChange('staffId', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+              >
+                {staffList.map(r => (
+                  <option key={r.id} value={r.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{r.name} - {roleLabels[r.role] || r.role}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => handleInputChange('date', e.target.value)}
+              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário</label>
+              <div className="relative">
+                <select
+                  value={formData.start}
+                  onChange={(e) => handleInputChange('start', Number(e.target.value))}
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                >
+                  {Array.from({ length: 25 }, (_, i) => 8 + i * 0.5).map(slot => (
+                    <option key={slot} value={slot} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
+                      {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duração (h)</label>
+              <div className="relative">
+                <select
+                  value={formData.duration}
+                  onChange={(e) => handleInputChange('duration', Number(e.target.value))}
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                >
+                  <option value="0.25" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">15 min</option>
+                  <option value="0.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">30 min</option>
+                  <option value="0.75" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">45 min</option>
+                  <option value="1" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h</option>
+                  <option value="1.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h 30m</option>
+                  <option value="2" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">2h</option>
+                </select>
+                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">hourglass_empty</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3">
+            <button
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setError(null); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+            >
+              Confirmar
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

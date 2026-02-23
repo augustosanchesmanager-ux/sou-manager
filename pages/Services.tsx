@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 
 interface Service {
   id: string;
@@ -14,6 +15,7 @@ interface Service {
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
 
 const Services: React.FC = () => {
+  const { tenantId } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -71,6 +73,7 @@ const Services: React.FC = () => {
       price: parseFloat(form.price) || 0,
       duration: parseInt(form.duration) || 30,
       active: form.active,
+      tenant_id: tenantId
     };
 
     if (editingService) {

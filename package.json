@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/genai": "^1.41.0",
     "@supabase/supabase-js": "^2.97.0",
+    "papaparse": "^5.5.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.0",
     "@types/node": "^22.14.0",
+    "@types/papaparse": "^5.5.2",
     "@vitejs/plugin-react": "^5.0.0",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.8.2",

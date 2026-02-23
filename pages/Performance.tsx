@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Performance: React.FC = () => {
     const navigate = useNavigate();
+    const [timeframe, setTimeframe] = useState<'mes' | '30d' | '90d'>('mes');
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto w-full animate-fade-in">
@@ -10,9 +11,9 @@ const Performance: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Performance da Unidade</h2>
                 <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg">
-                    <button className="px-3 py-1 text-xs font-medium bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-md shadow-sm transition-colors">Mês Atual</button>
-                    <button className="px-3 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">30 dias</button>
-                    <button className="px-3 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">90 dias</button>
+                    <button onClick={() => setTimeframe('mes')} className={`px-3 py-1 text-xs font-medium rounded-md shadow-sm transition-colors ${timeframe === 'mes' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Mês Atual</button>
+                    <button onClick={() => setTimeframe('30d')} className={`px-3 py-1 text-xs font-medium rounded-md shadow-sm transition-colors ${timeframe === '30d' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>30 dias</button>
+                    <button onClick={() => setTimeframe('90d')} className={`px-3 py-1 text-xs font-medium rounded-md shadow-sm transition-colors ${timeframe === '90d' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>90 dias</button>
                 </div>
             </div>
 
@@ -44,40 +45,40 @@ const Performance: React.FC = () => {
                         <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
                             <span className="material-symbols-outlined">account_balance_wallet</span>
                         </div>
-                        <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">+12.5% <span className="material-symbols-outlined text-xs">trending_up</span></span>
+                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">0% <span className="material-symbols-outlined text-xs">horizontal_rule</span></span>
                     </div>
                     <p className="text-slate-500 text-xs font-medium mb-1">Faturamento Mensal</p>
-                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">R$ 24.890,00</h3>
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">R$ 0,00</h3>
                 </div>
                 <div className="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-2 bg-primary/10 rounded-lg text-primary">
                             <span className="material-symbols-outlined">confirmation_number</span>
                         </div>
-                        <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">+3.2% <span className="material-symbols-outlined text-xs">trending_up</span></span>
+                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">0% <span className="material-symbols-outlined text-xs">horizontal_rule</span></span>
                     </div>
                     <p className="text-slate-500 text-xs font-medium mb-1">Ticket Médio</p>
-                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">R$ 82,40</h3>
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">R$ 0,00</h3>
                 </div>
                 <div className="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
                             <span className="material-symbols-outlined">calendar_today</span>
                         </div>
-                        <span className="text-xs font-bold text-red-500 flex items-center gap-1">-1.5% <span className="material-symbols-outlined text-xs">trending_down</span></span>
+                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">0% <span className="material-symbols-outlined text-xs">horizontal_rule</span></span>
                     </div>
                     <p className="text-slate-500 text-xs font-medium mb-1">Agendamentos</p>
-                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">412</h3>
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">0</h3>
                 </div>
                 <div className="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
                             <span className="material-symbols-outlined">loop</span>
                         </div>
-                        <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">+5.0% <span className="material-symbols-outlined text-xs">trending_up</span></span>
+                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">0% <span className="material-symbols-outlined text-xs">horizontal_rule</span></span>
                     </div>
                     <p className="text-slate-500 text-xs font-medium mb-1">Taxa de Retenção</p>
-                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">76%</h3>
+                    <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">0%</h3>
                 </div>
             </div>
 
@@ -101,11 +102,11 @@ const Performance: React.FC = () => {
                                     <stop offset="100%" stopColor="#3c83f6" stopOpacity={0}></stop>
                                 </linearGradient>
                             </defs>
-                            <path d="M0,150 Q100,120 200,140 T400,80 T600,100 T800,40 V200 H0 Z" fill="url(#chartGradient)"></path>
-                            <path d="M0,150 Q100,120 200,140 T400,80 T600,100 T800,40" fill="none" stroke="#3c83f6" strokeLinecap="round" strokeWidth="3"></path>
+                            <path d="M0,195 L800,195 V200 H0 Z" fill="url(#chartGradient)"></path>
+                            <path d="M0,195 L800,195" fill="none" stroke="#3c83f6" strokeLinecap="round" strokeWidth="3"></path>
                             {/* Tooltip Points */}
-                            <circle cx="400" cy="80" fill="#3c83f6" r="5"></circle>
-                            <circle cx="800" cy="40" fill="#3c83f6" r="5"></circle>
+                            <circle cx="0" cy="195" fill="#3c83f6" r="4"></circle>
+                            <circle cx="800" cy="195" fill="#3c83f6" r="4"></circle>
                         </svg>
                         <div className="flex justify-between mt-4 px-2">
                             <span className="text-[10px] font-bold text-slate-500">SEM 01</span>
@@ -123,83 +124,9 @@ const Performance: React.FC = () => {
                         <button onClick={() => navigate('/team')} className="text-slate-400 hover:text-primary transition-colors"><span className="material-symbols-outlined">more_vert</span></button>
                     </div>
                     <div className="space-y-5">
-                        {/* Barbeiro 01 */}
-                        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/team')}>
-                            <div className="relative">
-                                <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-primary/40">
-                                    <img className="w-full h-full object-cover" alt="Enzo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjANlSFyk7FpYF5oxUkP3aMB7Fk5TuhgR7uFtKehGOh4X-t_Yop58zuJQ5Jz53-sFIHZOwPm666L8yTAUGW1OBWujCo9Kb2SWLoa_o9ibZXZXY3FKkz4w1FO-iVmNG_7-5NMcv6YQovi0MPS2p5MrMcxwYiMpIa4Uw7ixYl8eeISetvSMsCwwH6Pt8OWo7Ig_T06aWSiYVvszq_9tSWp3ogPLnzv2vqgYvfg307YsAiGWCmEjIg6OSNeRjn_-KvqCkoMxj62sf_Kg" />
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white dark:border-surface-dark">1</div>
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-bold leading-none mb-1 group-hover:text-primary transition-colors text-slate-900 dark:text-white">Enzo Gabriel</h4>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex text-yellow-500 scale-75 -ml-2">
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-slate-400">4.9</span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm font-bold leading-none mb-1 text-slate-900 dark:text-white">R$ 8.420</p>
-                                <p className="text-[10px] font-medium text-emerald-500">Meta 105%</p>
-                            </div>
-                        </div>
-                        {/* Barbeiro 02 */}
-                        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/team')}>
-                            <div className="relative">
-                                <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-transparent">
-                                    <img className="w-full h-full object-cover" alt="Lucas" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMwltTlJwaqdz2pMmqLmJsJWwiYJA6LtwX9xruyDgFs7m_qUPIJ9hSjdJg8ck1Zd9B0KUZtWUo5nBA7XsKXuAqa7LznkOQmd7nYD3aeptAozUJ7z94pH7f2p7U4QGcjTy702EW4XfxLvLybr_aa1Lb17bYxjbsmj3sps3bFq2_L764YA1meVZxL9TCehzkPgc6_uEhMDC2XsJkx8-HvjHDaZ_qGFxsRmUiUDsfJWe4elq5MxcmetGyxjD3zpRCfTkk6PSV7_241YE" />
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-400 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white dark:border-surface-dark">2</div>
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-bold leading-none mb-1 group-hover:text-primary transition-colors text-slate-900 dark:text-white">Lucas Ferreira</h4>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex text-yellow-500 scale-75 -ml-2">
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star_half</span>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-slate-400">4.7</span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm font-bold leading-none mb-1 text-slate-900 dark:text-white">R$ 7.150</p>
-                                <p className="text-[10px] font-medium text-emerald-500">Meta 92%</p>
-                            </div>
-                        </div>
-                        {/* Barbeiro 03 */}
-                        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/team')}>
-                            <div className="relative">
-                                <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-transparent">
-                                    <img className="w-full h-full object-cover" alt="Andre" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzWpFV3pJlS17x9o0_z_slQUINLPOT7k6S2z4u0nJOSPfkU0KwUBRrUrGjST1XYSCKDz7d8DGymO3WSG6i3x-eu0R5QKH3syQgiaRVN-WvzZYlVPtcG84eUk5Hg-u-illziKYpembrO04NbpfEPVgV9CnDAqQAdftZBunlwGGtjt_vlpSsuAEZuno0PIe0rCefx_f0CwkWwsMlO7sEsXkmjb9Wv3u2m5MOGNfom3pVNpy3EX8DkQsDKt4_AaZg8cr5Uzib2gbNB9U" />
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-700 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white dark:border-surface-dark">3</div>
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-bold leading-none mb-1 group-hover:text-primary transition-colors text-slate-900 dark:text-white">André Costa</h4>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex text-yellow-500 scale-75 -ml-2">
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                        <span className="material-symbols-outlined">star</span>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-slate-400">5.0</span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm font-bold leading-none mb-1 text-slate-900 dark:text-white">R$ 6.890</p>
-                                <p className="text-[10px] font-medium text-yellow-500">Meta 88%</p>
-                            </div>
+                        <div className="py-8 text-center text-slate-500 flex flex-col items-center">
+                            <span className="material-symbols-outlined text-4xl mb-2 opacity-50">group_off</span>
+                            <p className="text-sm font-medium">Nenhum dado no período</p>
                         </div>
                     </div>
                     <button onClick={() => navigate('/team')} className="w-full mt-8 py-3 bg-slate-50 dark:bg-slate-800/50 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs font-bold transition-all">
@@ -216,32 +143,9 @@ const Performance: React.FC = () => {
                         <button onClick={() => navigate('/expenses')} className="text-xs font-bold text-primary">DETALHAR</button>
                     </div>
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded bg-red-500/10 text-red-500 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-sm">home</span>
-                                </div>
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Aluguel e Condomínio</span>
-                            </div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">R$ 4.200,00</span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded bg-red-500/10 text-red-500 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-sm">inventory</span>
-                                </div>
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Insumos (Cabelo/Barba)</span>
-                            </div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">R$ 1.850,00</span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded bg-red-500/10 text-red-500 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-sm">bolt</span>
-                                </div>
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Contas de Consumo (Luz/Água)</span>
-                            </div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white">R$ 940,00</span>
+                        <div className="py-6 text-center text-slate-500 flex flex-col items-center border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+                            <span className="material-symbols-outlined text-3xl mb-2 opacity-50">receipt_long</span>
+                            <p className="text-sm font-medium">Nenhuma despesa registrada</p>
                         </div>
                     </div>
                 </div>

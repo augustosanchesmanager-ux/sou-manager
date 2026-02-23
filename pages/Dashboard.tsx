@@ -8,16 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import DashboardAlerts from '../components/DashboardAlerts';
-
-const chartData = [
-  { name: '1', value: 4000 },
-  { name: '5', value: 3000 },
-  { name: '10', value: 5000 },
-  { name: '15', value: 2780 },
-  { name: '20', value: 7890 },
-  { name: '25', value: 6390 },
-  { name: '30', value: 8490 },
-];
+import DashboardReminders from '../components/DashboardReminders';
+import Modal from '../components/ui/Modal';
 
 interface DBClient {
   id: string;
@@ -54,6 +46,7 @@ const Dashboard: React.FC = () => {
   const [insight, setInsight] = useState<string>('');
   const [loadingInsight, setLoadingInsight] = useState(false);
   const { theme } = useTheme();
+  const { tenantId } = useAuth();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Data from Supabase
@@ -63,6 +56,8 @@ const Dashboard: React.FC = () => {
   const [appointments, setAppointments] = useState<DBAppointment[]>([]);
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState<{ name: string; value: number }[]>([]);
+  const [metrics, setMetrics] = useState({ revenue: 0, growth: 0, activeStaffPercent: 0 });
 
   // Onboarding
   const [profile, setProfile] = useState<any>(null);
@@ -89,12 +84,13 @@ const Dashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [clientsRes, staffRes, servicesRes, apptsRes, profileRes] = await Promise.all([
+    const [clientsRes, staffRes, servicesRes, apptsRes, profileRes, transRes] = await Promise.all([
       supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').order('name'),
       supabase.from('staff').select('id, name').eq('status', 'active'),
       supabase.from('services').select('id, name, duration').eq('active', true),
       supabase.from('appointments').select('*').neq('status', 'cancelled').order('start_time', { ascending: true }).limit(10),
       user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
+      supabase.from('transactions').select('*').eq('type', 'income').order('date', { ascending: true })
     ]);
 
     if (clientsRes.data) {
@@ -136,7 +132,50 @@ const Dashboard: React.FC = () => {
 
       setUpcomingBirthdays(bdays);
     }
-    if (staffRes.data) setStaffList(staffRes.data);
+
+    if (transRes.data) {
+      const now = new Date();
+      const thisMonth = now.getMonth();
+      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+
+      let thisMonthRev = 0;
+      let lastMonthRev = 0;
+
+      const grouped: Record<string, number> = {};
+
+      transRes.data.forEach(t => {
+        const d = new Date(t.date);
+        const day = d.getDate();
+        if (d.getMonth() === thisMonth) {
+          thisMonthRev += Number(t.amount || t.val) || 0;
+          const label = day.toString();
+          grouped[label] = (grouped[label] || 0) + (Number(t.amount || t.val) || 0);
+        } else if (d.getMonth() === lastMonth) {
+          lastMonthRev += Number(t.amount || t.val) || 0;
+        }
+      });
+
+      const growth = lastMonthRev > 0 ? ((thisMonthRev - lastMonthRev) / lastMonthRev) * 100 : 0;
+      setMetrics(prev => ({ ...prev, revenue: thisMonthRev, growth }));
+
+      // Fill chart data (1 to 30)
+      const cData = [];
+      for (let i = 1; i <= 30; i += 5) {
+        cData.push({ name: i.toString(), value: grouped[i.toString()] || 0 });
+      }
+      setChartData(cData);
+    }
+
+    // Active Staff based on today's appointments
+    if (staffRes.data) {
+      setStaffList(staffRes.data);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { data: todayAppts } = await supabase.from('appointments').select('staff_id').eq('status', 'confirmed').gte('start_time', `${todayStr}T00:00:00`);
+      const activeIds = new Set(todayAppts?.map(a => a.staff_id));
+      const percent = staffRes.data.length > 0 ? (activeIds.size / staffRes.data.length) * 100 : 0;
+      setMetrics(prev => ({ ...prev, activeStaffPercent: percent || 0 }));
+    }
+
     if (servicesRes.data) setServicesList(servicesRes.data);
     if (apptsRes.data) setAppointments(apptsRes.data);
     if (profileRes.data) setProfile(profileRes.data);
@@ -163,10 +202,10 @@ const Dashboard: React.FC = () => {
   const handleGenerateInsight = async () => {
     setLoadingInsight(true);
     const result = await generateBusinessInsights({
-      revenue: 45200,
-      growth: 12.5,
-      nps: 8.8,
-      activeStaff: 0.92
+      revenue: metrics.revenue,
+      growth: metrics.growth,
+      nps: 98, // Mocked for now
+      activeStaff: staffList.length
     });
     setInsight(result);
     setLoadingInsight(false);
@@ -191,6 +230,7 @@ const Dashboard: React.FC = () => {
       phone: newClientForm.phone,
       email: newClientForm.email,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newClientForm.name)}&background=random`,
+      tenant_id: tenantId
     }).select().single();
 
     if (error) {
@@ -228,7 +268,8 @@ const Dashboard: React.FC = () => {
       staff_name: selectedStaff.name,
       start_time: startTime.toISOString(),
       duration: selectedService.duration / 60,
-      status: 'confirmed'
+      status: 'confirmed',
+      tenant_id: tenantId
     }).select().single();
 
     if (saveError) {
@@ -243,7 +284,8 @@ const Dashboard: React.FC = () => {
         client_id: formData.selectedClientId || null,
         staff_id: formData.staffId,
         status: 'open',
-        total: 0
+        total: 0,
+        tenant_id: tenantId
       }).select().single();
 
       if (comanda) {
@@ -255,7 +297,8 @@ const Dashboard: React.FC = () => {
           service_id: formData.serviceId,
           product_name: selectedService.name,
           quantity: 1,
-          unit_price: serviceData?.price || 0
+          unit_price: serviceData?.price || 0,
+          tenant_id: tenantId
         });
 
         // Update comanda total
@@ -300,7 +343,7 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Visão Geral Executiva</h2>
-          <p className="text-slate-500 mt-1">Sua empresa está com crescimento de +12% este mês.</p>
+          <p className="text-slate-500 mt-1">Sua empresa está com crescimento de {metrics.growth.toFixed(0)}% este mês.</p>
         </div>
         <button
           onClick={handleGenerateInsight}
@@ -329,8 +372,11 @@ const Dashboard: React.FC = () => {
         <OnboardingChecklist onComplete={() => setProfile({ ...profile, onboarding_completed: true })} />
       )}
 
-      {/* ALERTAS DA BARBEARIA */}
-      <DashboardAlerts />
+      {/* ALERTAS DA BARBEARIA E LEMBRETES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <DashboardAlerts />
+        <DashboardReminders />
+      </div>
 
       {/* BLOCO SUPERIOR */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -450,10 +496,10 @@ const Dashboard: React.FC = () => {
           <div className="relative size-24">
             <svg className="size-full -rotate-90" viewBox="0 0 36 36">
               <path className="text-slate-200 dark:text-slate-800" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
-              <path className="text-primary" strokeDasharray="92, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
+              <path className="text-primary" strokeDasharray={`${metrics.activeStaffPercent}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
             </svg>
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-              <span className="text-xl font-bold text-slate-900 dark:text-white">92%</span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white">{metrics.activeStaffPercent.toFixed(0)}%</span>
             </div>
           </div>
           <p className="mt-4 text-[10px] font-bold text-accent uppercase tracking-wider">Online Agora</p>
@@ -584,70 +630,62 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* New Client Modal */}
-      {showNewClientModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-          <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">person_add</span>
-                Cadastrar Novo Cliente
-              </h3>
-              <button onClick={() => setShowNewClientModal(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <form onSubmit={handleCreateNewClient} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Carlos Oliveira"
-                  value={newClientForm.name}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone / WhatsApp</label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="(11) 99999-9999"
-                  value={newClientForm.phone}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">E-mail (Opcional)</label>
-                <input
-                  type="email"
-                  placeholder="exemplo@email.com"
-                  value={newClientForm.email}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewClientModal(false)}
-                  className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
-                >
-                  Cadastrar
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={showNewClientModal}
+        onClose={() => setShowNewClientModal(false)}
+        title="Cadastrar Novo Cliente"
+        maxWidth="md"
+      >
+        <form onSubmit={handleCreateNewClient} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+            <input
+              type="text"
+              required
+              placeholder="Ex: Carlos Oliveira"
+              value={newClientForm.name}
+              onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone / WhatsApp</label>
+            <input
+              type="tel"
+              required
+              placeholder="(11) 99999-9999"
+              value={newClientForm.phone}
+              onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">E-mail (Opcional)</label>
+            <input
+              type="email"
+              placeholder="exemplo@email.com"
+              value={newClientForm.email}
+              onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowNewClientModal(false)}
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+            >
+              Cadastrar
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

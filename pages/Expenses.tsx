@@ -1,26 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 interface Expense {
-    id: number;
+    id: string;
     description: string;
     category: string;
     amount: number;
     date: string;
     status: 'paid' | 'pending';
-    receiptUrl?: string;
+    receipt_url?: string;
 }
 
-const initialExpenses: Expense[] = [
-    { id: 1, description: 'Aluguel Sala Comercial', category: 'Infraestrutura', amount: 2500.00, date: '2023-10-05', status: 'paid' },
-    { id: 2, description: 'Conta de Energia (Enel)', category: 'Utilidades', amount: 450.20, date: '2023-10-10', status: 'pending' },
-    { id: 3, description: 'Compra de Shampoos', category: 'Estoque', amount: 890.50, date: '2023-10-12', status: 'paid' },
-    { id: 4, description: 'Internet Fibra', category: 'Utilidades', amount: 129.90, date: '2023-10-15', status: 'paid' },
-    { id: 5, description: 'Manutenção Cadeiras', category: 'Manutenção', amount: 350.00, date: '2023-10-20', status: 'pending' },
-];
-
 const Expenses: React.FC = () => {
-    const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+    const { user, tenantId } = useAuth();
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all');
@@ -35,6 +32,35 @@ const Expenses: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         status: 'pending'
     });
+
+    const fetchExpenses = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('type', 'expense')
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching expenses:', error);
+        } else if (data) {
+            // Map table columns to interface columns if necessary
+            // Assuming table has description, category, amount, date, status, type
+            setExpenses(data.map((item: any) => ({
+                id: item.id,
+                description: item.description || item.desc || '',
+                category: item.category || 'Outros',
+                amount: Number(item.amount || item.val || 0),
+                date: item.date,
+                status: item.status || 'paid', // Default to paid if not specified
+            })));
+        }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchExpenses();
+    }, [fetchExpenses]);
 
     const openEditModal = (expense: Expense) => {
         setEditingExpense(expense);
@@ -54,40 +80,60 @@ const Expenses: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const payload = {
+            description: formData.description,
+            category: formData.category,
+            amount: parseFloat(formData.amount),
+            date: formData.date,
+            status: formData.status,
+            type: 'expense',
+            method: 'Dinheiro', // Default for expenses if not specified
+            tenant_id: tenantId
+        };
+
         if (editingExpense) {
-            // Update existing
-            setExpenses(prev => prev.map(exp => exp.id === editingExpense.id ? {
-                ...exp,
-                description: formData.description,
-                category: formData.category,
-                amount: parseFloat(formData.amount),
-                date: formData.date,
-                status: formData.status as 'paid' | 'pending',
-            } : exp));
-            setToast({ message: 'Despesa atualizada!', type: 'success' });
+            const { error } = await supabase
+                .from('transactions')
+                .update(payload)
+                .eq('id', editingExpense.id);
+
+            if (error) {
+                setToast({ message: 'Erro ao atualizar despesa.', type: 'error' });
+            } else {
+                setToast({ message: 'Despesa atualizada!', type: 'success' });
+                fetchExpenses();
+                setIsModalOpen(false);
+            }
         } else {
-            // Create new
-            const newExpense: Expense = {
-                id: Date.now(),
-                description: formData.description,
-                category: formData.category,
-                amount: parseFloat(formData.amount),
-                date: formData.date,
-                status: formData.status as 'paid' | 'pending'
-            };
-            setExpenses([newExpense, ...expenses]);
-            setToast({ message: 'Despesa adicionada!', type: 'success' });
+            const { error } = await supabase
+                .from('transactions')
+                .insert(payload);
+
+            if (error) {
+                setToast({ message: 'Erro ao cadastrar despesa.', type: 'error' });
+            } else {
+                setToast({ message: 'Despesa cadastrada!', type: 'success' });
+                fetchExpenses();
+                setIsModalOpen(false);
+            }
         }
-        setIsModalOpen(false);
-        setEditingExpense(null);
-        setFormData({ description: '', category: 'Outros', amount: '', date: new Date().toISOString().split('T')[0], status: 'pending' });
     };
 
-    const handleDelete = (id: number) => {
-        setExpenses(prev => prev.filter(exp => exp.id !== id));
-        setToast({ message: 'Despesa removida.', type: 'info' });
+    const handleDelete = async (id: string) => {
+        const { error } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            setToast({ message: 'Erro ao remover despesa.', type: 'error' });
+        } else {
+            setToast({ message: 'Despesa removida.', type: 'info' });
+            fetchExpenses();
+        }
     };
 
     const filteredExpenses = expenses.filter(exp => {
@@ -103,7 +149,7 @@ const Expenses: React.FC = () => {
     const pendingTotal = expenses.filter(e => e.status === 'pending').reduce((sum, e) => sum + e.amount, 0);
 
     return (
-        <div className="space-y-8 animate-fade-in relative">
+        <div className="space-y-8 animate-fade-in relative pb-10">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -127,26 +173,26 @@ const Expenses: React.FC = () => {
                         <span className="material-symbols-outlined text-red-500">payments</span>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total de Saídas</p>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {totalExpenses.toFixed(2).replace('.', ',')}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="material-symbols-outlined text-emerald-500">check_circle</span>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pagas</p>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {paidTotal.toFixed(2).replace('.', ',')}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="material-symbols-outlined text-amber-500">schedule</span>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pendentes</p>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {pendingTotal.toFixed(2).replace('.', ',')}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
                 </div>
             </div>
 
             {/* Filters */}
-            <div className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="relative w-full md:w-96">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                     <input
@@ -177,7 +223,7 @@ const Expenses: React.FC = () => {
             </div>
 
             {/* Expenses Table */}
-            <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
@@ -190,11 +236,15 @@ const Expenses: React.FC = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
-                            {filteredExpenses.length > 0 ? filteredExpenses.map((expense) => (
+                        <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-slate-900 dark:text-white">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Carregando despesas...</td>
+                                </tr>
+                            ) : filteredExpenses.length > 0 ? filteredExpenses.map((expense) => (
                                 <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
                                     <td className="px-6 py-4">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{expense.description}</p>
+                                        <p className="text-sm font-bold">{expense.description}</p>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-xs font-bold">
@@ -204,8 +254,8 @@ const Expenses: React.FC = () => {
                                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                                         {new Date(expense.date).toLocaleDateString('pt-BR')}
                                     </td>
-                                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">
-                                        R$ {expense.amount.toFixed(2)}
+                                    <td className="px-6 py-4 text-sm font-bold">
+                                        R$ {expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${expense.status === 'paid'
@@ -218,10 +268,10 @@ const Expenses: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button onClick={() => openEditModal(expense)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors p-2" title="Editar">
-                                            <span className="material-symbols-outlined">edit</span>
+                                            <span className="material-symbols-outlined text-lg">edit</span>
                                         </button>
                                         <button onClick={() => handleDelete(expense.id)} className="text-slate-400 hover:text-red-500 transition-colors p-2" title="Excluir">
-                                            <span className="material-symbols-outlined">delete</span>
+                                            <span className="material-symbols-outlined text-lg">delete</span>
                                         </button>
                                     </td>
                                 </tr>
@@ -239,124 +289,113 @@ const Expenses: React.FC = () => {
             </div>
 
             {/* Add/Edit Expense Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-red-500">remove_circle</span>
-                                {editingExpense ? 'Editar Despesa' : 'Nova Saída'}
-                            </h3>
-                            <button onClick={() => { setIsModalOpen(false); setEditingExpense(null); }} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => { setIsModalOpen(false); setEditingExpense(null); }}
+                title={editingExpense ? 'Editar Despesa' : 'Nova Saída'}
+                maxWidth="lg"
+            >
+                <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descrição</label>
+                        <input
+                            type="text"
+                            required
+                            placeholder="Ex: Compra de Toalhas"
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                required
+                                placeholder="0.00"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            />
                         </div>
-
-                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-                            <form onSubmit={handleSave} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descrição</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="Ex: Compra de Toalhas"
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor (R$)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            required
-                                            placeholder="0.00"
-                                            value={formData.amount}
-                                            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            value={formData.date}
-                                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Categoria</label>
-                                    <select
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                                    >
-                                        <option value="Infraestrutura" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Infraestrutura</option>
-                                        <option value="Utilidades" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Utilidades (Luz/Água/Net)</option>
-                                        <option value="Estoque" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Estoque / Produtos</option>
-                                        <option value="Manutenção" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Manutenção</option>
-                                        <option value="Marketing" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Marketing</option>
-                                        <option value="Pessoal" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Pessoal / Salários</option>
-                                        <option value="Impostos" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Impostos</option>
-                                        <option value="Outros" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Outros</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="status"
-                                                value="paid"
-                                                checked={formData.status === 'paid'}
-                                                onChange={() => setFormData({ ...formData, status: 'paid' })}
-                                                className="text-emerald-500 focus:ring-emerald-500"
-                                            />
-                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pago</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="status"
-                                                value="pending"
-                                                checked={formData.status === 'pending'}
-                                                onChange={() => setFormData({ ...formData, status: 'pending' })}
-                                                className="text-amber-500 focus:ring-amber-500"
-                                            />
-                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pendente</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIsModalOpen(false); setEditingExpense(null); }}
-                                        className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
-                                    >
-                                        {editingExpense ? 'Atualizar' : 'Salvar Despesa'}
-                                    </button>
-                                </div>
-                            </form>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+                            <input
+                                type="date"
+                                required
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                            />
                         </div>
                     </div>
-                </div>
-            )}
+
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Categoria</label>
+                        <select
+                            value={formData.category}
+                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                        >
+                            <option value="Infraestrutura">Infraestrutura</option>
+                            <option value="Utilidades">Utilidades (Luz/Água/Net)</option>
+                            <option value="Estoque">Estoque / Produtos</option>
+                            <option value="Manutenção">Manutenção</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Pessoal">Pessoal / Salários</option>
+                            <option value="Impostos">Impostos</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
+                        <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="status"
+                                    value="paid"
+                                    checked={formData.status === 'paid'}
+                                    onChange={() => setFormData({ ...formData, status: 'paid' })}
+                                    className="text-emerald-500 focus:ring-emerald-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pago</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="status"
+                                    value="pending"
+                                    checked={formData.status === 'pending'}
+                                    onChange={() => setFormData({ ...formData, status: 'pending' })}
+                                    className="text-amber-500 focus:ring-amber-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pendente</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => { setIsModalOpen(false); setEditingExpense(null); }}
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all font-display"
+                        >
+                            {editingExpense ? 'Atualizar' : 'Salvar Despesa'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 };

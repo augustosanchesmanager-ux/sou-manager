@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
 
 interface Comanda {
     id: string;
@@ -348,67 +349,61 @@ const Comandas: React.FC = () => {
             </div>
 
             {/* === VIEW DETAILS MODAL === */}
-            {viewComanda && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">receipt_long</span>
-                                #{viewComanda.id.slice(0, 8)}
-                            </h3>
-                            <button onClick={() => setViewComanda(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
+            <Modal
+                isOpen={!!viewComanda}
+                onClose={() => setViewComanda(null)}
+                title={viewComanda ? `#${viewComanda.id.slice(0, 8)}` : ''}
+                maxWidth="md"
+            >
+                {viewComanda && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <img src={viewComanda.clients?.avatar} alt="" className="size-14 rounded-full border-2 border-slate-200 dark:border-border-dark" />
+                            <div>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white">{viewComanda.clients?.name}</p>
+                                <p className="text-xs text-slate-500">Atendido por {viewComanda.staff?.name || 'N/A'}</p>
+                            </div>
                         </div>
-                        <div className="p-6 space-y-4">
-                            <div className="flex items-center gap-4">
-                                <img src={viewComanda.clients?.avatar} alt="" className="size-14 rounded-full border-2 border-slate-200 dark:border-border-dark" />
-                                <div>
-                                    <p className="text-lg font-bold text-slate-900 dark:text-white">{viewComanda.clients?.name}</p>
-                                    <p className="text-xs text-slate-500">Atendido por {viewComanda.staff?.name || 'N/A'}</p>
-                                </div>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-4 space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Itens</p>
-                                {viewComanda.comanda_items.map((s, i) => (
-                                    <div key={i} className="flex justify-between items-center text-sm text-slate-700 dark:text-slate-300">
-                                        <div className="flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-primary text-sm">check</span>
-                                            {s.product_name} (x{s.quantity})
-                                        </div>
-                                        <span className="font-bold">R$ {(s.unit_price * s.quantity).toFixed(2)}</span>
+                        <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-4 space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Itens</p>
+                            {viewComanda.comanda_items.map((s, i) => (
+                                <div key={i} className="flex justify-between items-center text-sm text-slate-700 dark:text-slate-300">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary text-sm">check</span>
+                                        {s.product_name} (x{s.quantity})
                                     </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase">Data</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleDateString('pt-BR')}</p>
+                                    <span className="font-bold">R$ {(s.unit_price * s.quantity).toFixed(2)}</span>
                                 </div>
-                                <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase">Horário</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                                </div>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Data</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleDateString('pt-BR')}</p>
                             </div>
-                            <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-border-dark">
-                                <span className="text-sm font-bold text-slate-500 uppercase">Total</span>
-                                <span className="text-2xl font-black text-primary">R$ {(viewComanda.total || 0).toFixed(2)}</span>
+                            <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Horário</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
-                            <div className="flex gap-3 pt-2">
-                                <button onClick={() => handlePrint(viewComanda)} className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
-                                    <span className="material-symbols-outlined text-sm">print</span>
-                                    Imprimir
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-border-dark">
+                            <span className="text-sm font-bold text-slate-500 uppercase">Total</span>
+                            <span className="text-2xl font-black text-primary">R$ {(viewComanda.total || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => handlePrint(viewComanda)} className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                                <span className="material-symbols-outlined text-sm">print</span>
+                                Imprimir
+                            </button>
+                            {viewComanda.status === 'open' && (
+                                <button onClick={() => { setViewComanda(null); navigate(`/checkout/${viewComanda.id}`); }} className="flex-1 py-3 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors">
+                                    Editar / Pagar
                                 </button>
-                                {viewComanda.status === 'open' && (
-                                    <button onClick={() => { setViewComanda(null); navigate(`/checkout/${viewComanda.id}`); }} className="flex-1 py-3 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors">
-                                        Editar / Pagar
-                                    </button>
-                                )}
-                            </div>
+                            )}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </Modal>
         </div>
     );
 };

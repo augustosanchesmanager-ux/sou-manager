@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
+import { useAuth } from '../context/AuthContext';
+import Modal from '../components/ui/Modal';
 
 interface Supplier {
     id: string;
@@ -36,6 +38,7 @@ const statusColors: Record<string, string> = {
 };
 
 const Orders: React.FC = () => {
+    const { tenantId } = useAuth();
     const [orders, setOrders] = useState<PurchaseOrder[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -73,7 +76,8 @@ const Orders: React.FC = () => {
 
         const { error } = await supabase.from('purchase_orders').insert([{
             ...orderForm,
-            status: 'pending'
+            status: 'pending',
+            tenant_id: tenantId
         }]);
 
         if (error) {
@@ -98,7 +102,7 @@ const Orders: React.FC = () => {
 
     const handleSaveSupplier = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { error } = await supabase.from('suppliers').insert([supplierForm]);
+        const { error } = await supabase.from('suppliers').insert([{ ...supplierForm, tenant_id: tenantId }]);
 
         if (error) {
             setToast({ message: 'Erro ao cadastrar fornecedor', type: 'error' });
@@ -179,87 +183,79 @@ const Orders: React.FC = () => {
             </div>
 
             {/* New Order Modal */}
-            {isOrderModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
-                        <div className="p-6 border-b border-slate-200 dark:border-border-dark flex justify-between items-center shrink-0">
-                            <h3 className="font-bold text-slate-900 dark:text-white">Solicitar Reposição</h3>
-                            <button onClick={() => setIsOrderModalOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-slate-500">Produto</label>
-                                <select
-                                    value={orderForm.product_id}
-                                    onChange={(e) => setOrderForm({ ...orderForm, product_id: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                                >
-                                    <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione...</option>
-                                    {products.map(p => <option key={p.id} value={p.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{p.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-slate-500">Fornecedor</label>
-                                <select
-                                    value={orderForm.supplier_id}
-                                    onChange={(e) => setOrderForm({ ...orderForm, supplier_id: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                                >
-                                    <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione...</option>
-                                    {suppliers.map(s => <option key={s.id} value={s.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{s.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold uppercase text-slate-500">Quantidade</label>
-                                <input
-                                    type="number"
-                                    value={orderForm.quantity}
-                                    onChange={(e) => setOrderForm({ ...orderForm, quantity: parseInt(e.target.value) })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm"
-                                />
-                            </div>
-                            <Button className="w-full py-4 text-base" onClick={handleSaveOrder}>
-                                Confirmar Pedido
-                            </Button>
-                        </div>
+            <Modal
+                isOpen={isOrderModalOpen}
+                onClose={() => setIsOrderModalOpen(false)}
+                title="Solicitar Reposição"
+                maxWidth="md"
+            >
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-slate-500">Produto</label>
+                        <select
+                            value={orderForm.product_id}
+                            onChange={(e) => setOrderForm({ ...orderForm, product_id: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                        >
+                            <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione...</option>
+                            {products.map(p => <option key={p.id} value={p.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{p.name}</option>)}
+                        </select>
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-slate-500">Fornecedor</label>
+                        <select
+                            value={orderForm.supplier_id}
+                            onChange={(e) => setOrderForm({ ...orderForm, supplier_id: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                        >
+                            <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione...</option>
+                            {suppliers.map(s => <option key={s.id} value={s.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-slate-500">Quantidade</label>
+                        <input
+                            type="number"
+                            value={orderForm.quantity}
+                            onChange={(e) => setOrderForm({ ...orderForm, quantity: parseInt(e.target.value) })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none"
+                        />
+                    </div>
+                    <Button className="w-full py-4 text-base" onClick={handleSaveOrder}>
+                        Confirmar Pedido
+                    </Button>
                 </div>
-            )}
+            </Modal>
 
             {/* Supplier Modal */}
-            {isSupplierModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/50 backdrop-blur-sm">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-                        <div className="p-6 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
-                            <h3 className="font-bold">Gerenciar Fornecedores</h3>
-                            <button onClick={() => setIsSupplierModalOpen(false)}><span className="material-symbols-outlined">close</span></button>
-                        </div>
-                        <div className="p-6 overflow-y-auto space-y-4">
-                            <div className="space-y-2">
-                                {suppliers.map(s => (
-                                    <div key={s.id} className="p-3 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-border-dark flex justify-between items-center">
-                                        <div>
-                                            <p className="font-bold text-sm">{s.name}</p>
-                                            <p className="text-xs text-slate-500">{s.category}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <form onSubmit={handleSaveSupplier} className="pt-4 border-t border-slate-200 dark:border-border-dark space-y-3">
-                                <p className="text-xs font-bold uppercase text-slate-500">Novo Fornecedor</p>
-                                <input required placeholder="Nome" value={supplierForm.name} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2 text-sm" />
-                                <div className="grid grid-cols-2 gap-2">
-                                    <input placeholder="Email" value={supplierForm.email} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2 text-sm" />
-                                    <input placeholder="Telefone" value={supplierForm.phone} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2 text-sm" />
+            <Modal
+                isOpen={isSupplierModalOpen}
+                onClose={() => setIsSupplierModalOpen(false)}
+                title="Gerenciar Fornecedores"
+                maxWidth="lg"
+            >
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        {suppliers.map(s => (
+                            <div key={s.id} className="p-3 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-border-dark flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{s.name}</p>
+                                    <p className="text-xs text-slate-500">{s.category}</p>
                                 </div>
-                                <Button type="submit" size="sm" className="w-full">Cadastrar</Button>
-                            </form>
-                        </div>
+                            </div>
+                        ))}
                     </div>
+                    <form onSubmit={handleSaveSupplier} className="pt-4 border-t border-slate-200 dark:border-border-dark space-y-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Novo Fornecedor</p>
+                        <input required placeholder="Nome" value={supplierForm.name} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
+                        <div className="grid grid-cols-2 gap-2">
+                            <input placeholder="Email" value={supplierForm.email} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
+                            <input placeholder="Telefone" value={supplierForm.phone} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
+                        </div>
+                        <Button type="submit" size="sm" className="w-full">Cadastrar</Button>
+                    </form>
                 </div>
-            )}
+            </Modal>
         </div>
     );
 };

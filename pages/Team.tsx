@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 interface TeamMember {
     id: string;
@@ -20,6 +22,7 @@ const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', Bar
 
 const Team: React.FC = () => {
     const navigate = useNavigate();
+    const { tenantId } = useAuth();
     const [team, setTeam] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -29,7 +32,7 @@ const Team: React.FC = () => {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active' });
+    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
 
     const fetchTeam = useCallback(async () => {
         setLoading(true);
@@ -45,7 +48,7 @@ const Team: React.FC = () => {
 
     const openNewModal = () => {
         setEditingMember(null);
-        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active' });
+        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
         setShowModal(true);
     };
 
@@ -58,6 +61,7 @@ const Team: React.FC = () => {
             role: member.role,
             commission_rate: member.commission_rate.toString(),
             status: member.status,
+            password: '', // Não editamos senha por aqui
         });
         setShowModal(true);
     };
@@ -72,6 +76,7 @@ const Team: React.FC = () => {
             commission_rate: parseInt(form.commission_rate) || 0,
             status: form.status,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`,
+            tenant_id: tenantId
         };
 
         if (editingMember) {
@@ -79,9 +84,37 @@ const Team: React.FC = () => {
             if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
-            const { error } = await supabase.from('staff').insert(payload);
-            if (error) { setToast({ message: 'Erro ao salvar.', type: 'error' }); return; }
-            setToast({ message: 'Colaborador adicionado!', type: 'success' });
+            // Check for password
+            if (!form.password || form.password.length < 6) {
+                setToast({ message: 'A senha inicial deve ter pelo menos 6 caracteres.', type: 'error' });
+                return;
+            }
+
+            // Create via our edge function (which inserts cleanly and securely)
+            const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-create-user', {
+                body: {
+                    email: form.email,
+                    password: form.password,
+                    name: form.name,
+                    role: form.role,
+                    tenant_id: tenantId
+                }
+            });
+
+            if (edgeError) {
+                setToast({ message: `Erro ao criar login: ${edgeError.message}`, type: 'error' });
+                return;
+            }
+
+            // After creation, optionally update the extra operational details on the staff table that the function didn't set
+            if (edgeData?.user?.id) {
+                await supabase.from('staff').update({
+                    phone: form.phone,
+                    commission_rate: payload.commission_rate
+                }).eq('id', edgeData.user.id);
+            }
+
+            setToast({ message: 'Login cadastrado com sucesso!', type: 'success' });
         }
 
         setShowModal(false);
@@ -184,70 +217,70 @@ const Team: React.FC = () => {
             )}
 
             {/* Add/Edit Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5 shrink-0">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">{editingMember ? 'edit' : 'person_add'}</span>
-                                {editingMember ? 'Editar Colaborador' : 'Novo Colaborador'}
-                            </h3>
-                            <button onClick={() => { setShowModal(false); setEditingMember(null); }} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                                <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: João Silva" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email</label>
-                                    <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="email@barber.com" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
-                                    <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="(11) 99999-0000" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
-                                    <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                                        {roles.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Comissão (%)</label>
-                                    <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
-                                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                                    <option value="active" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Ativo</option>
-                                    <option value="inactive" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Inativo</option>
-                                </select>
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => { setShowModal(false); setEditingMember(null); }}
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
-                                <button type="submit"
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
-                                    {editingMember ? 'Salvar Alterações' : 'Adicionar'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => { setShowModal(false); setEditingMember(null); }}
+                title={editingMember ? 'Editar Colaborador' : 'Novo Colaborador'}
+                maxWidth="md"
+            >
+                <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+                        <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: João Silva" />
                     </div>
-                </div>
-            )}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email</label>
+                            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="email@barber.com" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
+                            <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="(11) 99999-0000" />
+                        </div>
+                    </div>
+                    {!editingMember && (
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial)</label>
+                            <input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="Mínimo 6 caracteres" />
+                            <p className="text-[10px] text-slate-400 mt-1">Essa será a senha que o colaborador usará para logar no sistema.</p>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
+                            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
+                                {roles.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Comissão (%)</label>
+                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
+                        <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
+                            <option value="active" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Ativo</option>
+                            <option value="inactive" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Inativo</option>
+                        </select>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <button type="button" onClick={() => { setShowModal(false); setEditingMember(null); }}
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
+                        <button type="submit"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
+                            {editingMember ? 'Salvar Alterações' : 'Adicionar'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

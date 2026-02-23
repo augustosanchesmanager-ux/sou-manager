@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 // Types
 interface CartItem {
@@ -31,6 +33,7 @@ interface Staff {
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { tenantId } = useAuth();
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // State
@@ -152,6 +155,7 @@ const Checkout: React.FC = () => {
                 subtotal: subtotal,
                 discount: discountValue,
                 total: total,
+                tenant_id: tenantId
             };
 
             if (currentComandaId) {
@@ -171,7 +175,8 @@ const Checkout: React.FC = () => {
                 product_name: item.name,
                 quantity: item.quantity,
                 unit_price: item.price,
-                staff_id: item.staff_id || null
+                staff_id: item.staff_id || null,
+                tenant_id: tenantId
             }));
 
             await supabase.from('comanda_items').insert(itemsToInsert);
@@ -192,7 +197,8 @@ const Checkout: React.FC = () => {
                     amount: total,
                     description: `Venda - Cliente: ${selectedClient.name}`,
                     payment_method: paymentMethod,
-                    date: new Date().toISOString()
+                    date: new Date().toISOString(),
+                    tenant_id: tenantId
                 });
             }
 
@@ -470,76 +476,69 @@ const Checkout: React.FC = () => {
             {/* --- MODALS --- */}
 
             {/* Client Selection Modal */}
-            {isClientModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-                        <div className="p-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
-                            <h3 className="font-bold text-slate-900 dark:text-white">Selecionar Cliente</h3>
-                            <button onClick={() => setIsClientModalOpen(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
-                        </div>
-                        <div className="p-4 overflow-y-auto custom-scrollbar">
-                            <div className="space-y-2">
-                                {clients.map(client => (
-                                    <button
-                                        key={client.id}
-                                        onClick={() => { setSelectedClient(client); setIsClientModalOpen(false); }}
-                                        className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
-                                    >
-                                        <img src={client.avatar} className="size-10 rounded-full" />
-                                        <div>
-                                            <p className="font-bold text-slate-900 dark:text-white text-sm">{client.name}</p>
-                                            <p className="text-xs text-slate-500">{client.phone || 'Sem telefone'}</p>
-                                        </div>
-                                    </button>
-                                ))}
+            <Modal
+                isOpen={isClientModalOpen}
+                onClose={() => setIsClientModalOpen(false)}
+                title="Selecionar Cliente"
+                maxWidth="md"
+            >
+                <div className="space-y-2">
+                    {clients.map(client => (
+                        <button
+                            key={client.id}
+                            onClick={() => { setSelectedClient(client); setIsClientModalOpen(false); }}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
+                        >
+                            <img src={client.avatar} className="size-10 rounded-full" />
+                            <div>
+                                <p className="font-bold text-slate-900 dark:text-white text-sm">{client.name}</p>
+                                <p className="text-xs text-slate-500">{client.phone || 'Sem telefone'}</p>
                             </div>
-                        </div>
-                    </div>
+                        </button>
+                    ))}
                 </div>
-            )}
+            </Modal>
 
             {/* Add Item Modal */}
-            {isItemModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh]">
-                        <div className="p-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center">
-                            <h3 className="font-bold text-slate-900 dark:text-white">Adicionar {itemModalTab === 'services' ? 'Serviço' : 'Produto'}</h3>
-                            <button onClick={() => setIsItemModalOpen(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
-                        </div>
+            <Modal
+                isOpen={isItemModalOpen}
+                onClose={() => setIsItemModalOpen(false)}
+                title={`Adicionar ${itemModalTab === 'services' ? 'Serviço' : 'Produto'}`}
+                maxWidth="lg"
+            >
+                <div className="space-y-4">
+                    <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-lg p-2">
+                        <input
+                            autoFocus
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder={`Buscar ${itemModalTab}...`}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
 
-                        <div className="p-4 bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
-                            <input
-                                autoFocus
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder={`Buscar ${itemModalTab}...`}
-                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                            />
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                            <div className="space-y-1">
-                                {filteredItems.map((item: any) => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
-                                        className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`size-8 rounded flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'}`}>
-                                                <span className="material-symbols-outlined text-lg">{itemModalTab === 'services' ? 'content_cut' : 'package_2'}</span>
-                                            </div>
-                                            <span className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</span>
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-1">
+                        <div className="space-y-1">
+                            {filteredItems.map((item: any) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
+                                    className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`size-8 rounded flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'}`}>
+                                            <span className="material-symbols-outlined text-lg">{itemModalTab === 'services' ? 'content_cut' : 'package_2'}</span>
                                         </div>
-                                        <span className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</span>
-                                    </button>
-                                ))}
-                            </div>
+                                        <span className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</span>
+                                    </div>
+                                    <span className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
-            )}
+            </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

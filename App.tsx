@@ -29,6 +29,7 @@ import Support from './pages/Support';
 import Products from './pages/Products';
 import SuperAdmin from './pages/SuperAdmin';
 import Promotions from './pages/Promotions';
+import BusinessIntelligence from './pages/BusinessIntelligence';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Outlet } from 'react-router-dom';
@@ -51,6 +52,15 @@ const ProtectedRoute: React.FC = () => {
   return <Outlet />;
 };
 
+const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const role = user?.user_metadata?.role || '';
+  if (role === 'Barber' || role === 'Receptionist') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
@@ -71,24 +81,27 @@ const AppRoutes: React.FC = () => {
         {/* Main Layout Routes */}
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/financial" element={<Financial />} />
-          <Route path="/expenses" element={<Expenses />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/services" element={<Services />} />
           <Route path="/checkout/:id?" element={<Checkout />} />
           <Route path="/comandas" element={<Comandas />} />
-          <Route path="/team" element={<Team />} />
-          <Route path="/performance" element={<Performance />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/operations" element={<Operations />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/orders/:id" element={<OrderDetails />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="/support" element={<Support />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/promotions" element={<Promotions />} />
+
+          {/* Manager / Admin Routes */}
+          <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
+          <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
+          <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+          <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
+          <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
+          <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
+          <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
+          <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
+          <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
+          <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
+          <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
+          <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
+          <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
+          <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
+          <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
           <Route path="/superadmin" element={<SuperAdmin />} />
         </Route>
       </Route>

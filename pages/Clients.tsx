@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as Papa from 'papaparse';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import { useAuth } from '../context/AuthContext';
 
 interface Client {
     id: string;
@@ -16,11 +19,19 @@ interface Client {
     birthday: string;
 }
 
+interface ParsedClient {
+    name: string;
+    phone: string;
+    email: string;
+    birthday: string;
+}
+
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
 
 const Clients: React.FC = () => {
     const navigate = useNavigate();
+    const { tenantId } = useAuth();
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -38,6 +49,11 @@ const Clients: React.FC = () => {
     // New Client Modal
     const [showModal, setShowModal] = useState(false);
     const [newForm, setNewForm] = useState({ name: '', email: '', phone: '', birthday: '' });
+
+    // Import/Export states
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [parsedData, setParsedData] = useState<ParsedClient[]>([]);
 
     // Delete Confirmation
     const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
@@ -93,8 +109,13 @@ const Clients: React.FC = () => {
             phone: newForm.phone,
             birthday: newForm.birthday,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newForm.name)}&background=random`,
+            tenant_id: tenantId,
         });
-        if (error) { setToast({ message: 'Erro ao salvar.', type: 'error' }); return; }
+        if (error) {
+            console.error('Erro ao salvar cliente:', error);
+            setToast({ message: `Erro ao salvar: ${error.message}`, type: 'error' });
+            return;
+        }
         setShowModal(false);
         setNewForm({ name: '', email: '', phone: '', birthday: '' });
         setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
@@ -130,6 +151,109 @@ const Clients: React.FC = () => {
         return new Date(d).toLocaleDateString('pt-BR');
     };
 
+    const handleExportCSV = () => {
+        if (processed.length === 0) {
+            setToast({ message: 'Nenhum cliente para exportar.', type: 'info' });
+            return;
+        }
+
+        const dataToExport = processed.map(c => ({
+            Nome: c.name,
+            Telefone: c.phone || '',
+            Email: c.email || '',
+            Aniversário: c.birthday ? formatDate(c.birthday) : '',
+            Última_Visita: c.last_visit ? formatDate(c.last_visit) : '',
+            Total_Gasto: c.total_spent ? c.total_spent.toFixed(2).replace('.', ',') : '0,00',
+            Status: c.status === 'active' ? 'Ativo' : 'Inativo'
+        }));
+
+        const csvString = Papa.unparse(dataToExport);
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `base_clientes_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const data = results.data as any[];
+                const mapped: ParsedClient[] = [];
+
+                data.forEach(row => {
+                    const nameStr = row.Nome || row.nome || row.Name || row.name || row.Cliente;
+                    const phoneStr = row.Telefone || row.telefone || row.Phone || row.phone || row.Celular || '';
+                    const emailStr = row.Email || row.email || row['E-mail'] || '';
+                    const bdayStr = row.Aniversário || row.aniversário || row.Aniversario || row.nascimento || row.Birthday || '';
+
+                    if (nameStr) {
+                        // parse pt-BR date
+                        let isoDate = '';
+                        if (bdayStr.includes('/')) {
+                            const parts = bdayStr.split('/');
+                            if (parts.length === 3) isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                        } else if (bdayStr.includes('-')) {
+                            isoDate = bdayStr;
+                        }
+
+                        mapped.push({
+                            name: nameStr,
+                            phone: String(phoneStr).trim(),
+                            email: String(emailStr).trim(),
+                            birthday: isoDate,
+                        });
+                    }
+                });
+
+                if (mapped.length > 0) {
+                    setParsedData(mapped);
+                    setIsImportModalOpen(true);
+                } else {
+                    setToast({ message: 'Nenhum cliente válido encontrado no CSV.', type: 'error' });
+                }
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            },
+            error: (error) => {
+                setToast({ message: `Erro ao ler CSV: ${error.message}`, type: 'error' });
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        });
+    };
+
+    const handleConfirmImport = async () => {
+        setLoading(true);
+        const toInsert = parsedData.map(c => ({
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            birthday: c.birthday ? c.birthday : null,
+            status: 'active',
+            tenant_id: tenantId,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`
+        }));
+
+        const { error } = await supabase.from('clients').insert(toInsert);
+
+        if (error) {
+            setToast({ message: `Erro ao importar: ${error.message}`, type: 'error' });
+        } else {
+            setToast({ message: `${toInsert.length} clientes importados com sucesso!`, type: 'success' });
+            setIsImportModalOpen(false);
+            setParsedData([]);
+            fetchClients();
+        }
+        setLoading(false);
+    };
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in">
             {/* Header */}
@@ -138,13 +262,24 @@ const Clients: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Clientes</h2>
                     <p className="text-slate-500 text-sm">{clients.length} cliente(s) cadastrado(s)</p>
                 </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all"
-                >
-                    <span className="material-symbols-outlined text-lg">person_add</span>
-                    Novo Cliente
-                </button>
+                <div className="flex flex-wrap gap-3">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+                        <span className="material-symbols-outlined text-sm">upload_file</span>
+                        Importar CSV
+                    </button>
+                    <input type="file" ref={fileInputRef} accept=".csv" className="hidden" onChange={handleFileUpload} />
+                    <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        Exportar Base
+                    </button>
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all"
+                    >
+                        <span className="material-symbols-outlined text-lg">person_add</span>
+                        Novo Cliente
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -283,115 +418,206 @@ const Clients: React.FC = () => {
             </div>
 
             {/* Detail Modal */}
-            {detailClient && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-lg rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5 shrink-0">
-                            <h3 className="font-bold text-slate-900 dark:text-white">Detalhes do Cliente</h3>
-                            <button onClick={() => setDetailClient(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><span className="material-symbols-outlined">close</span></button>
-                        </div>
-                        <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                            <div className="flex items-center gap-4">
-                                <div className="size-16 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center" style={{ backgroundImage: `url(${detailClient.avatar || ''})` }}></div>
-                                <div>
-                                    <h4 className="text-xl font-bold text-slate-900 dark:text-white">{detailClient.name}</h4>
-                                    <p className={`text-xs font-bold uppercase ${detailClient.status === 'active' ? 'text-emerald-500' : 'text-slate-400'}`}>{detailClient.status === 'active' ? 'Ativo' : 'Inativo'}</p>
-                                </div>
+            <Modal
+                isOpen={!!detailClient}
+                onClose={() => setDetailClient(null)}
+                title="Detalhes do Cliente"
+                maxWidth="md"
+            >
+                {detailClient && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <div className="size-16 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center" style={{ backgroundImage: `url(${detailClient.avatar || ''})` }}></div>
+                            <div>
+                                <h4 className="text-xl font-bold text-slate-900 dark:text-white">{detailClient.name}</h4>
+                                <p className={`text-xs font-bold uppercase ${detailClient.status === 'active' ? 'text-emerald-500' : 'text-slate-400'}`}>{detailClient.status === 'active' ? 'Ativo' : 'Inativo'}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.phone || '-'}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Email</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{detailClient.email || '-'}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Aniversário</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.birthday ? formatDate(detailClient.birthday) : '-'}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Total Gasto</p>
-                                    <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Última Visita</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(detailClient.last_visit)}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Último Serviço</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.last_service || '-'}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
-                                className="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors mt-2">
-                                Agendar para este Cliente
-                            </button>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.phone || '-'}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Email</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{detailClient.email || '-'}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Aniversário</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.birthday ? formatDate(detailClient.birthday) : '-'}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Total Gasto</p>
+                                <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Última Visita</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(detailClient.last_visit)}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Último Serviço</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.last_service || '-'}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
+                            className="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors mt-2">
+                            Agendar para este Cliente
+                        </button>
                     </div>
-                </div>
-            )}
+                )}
+            </Modal>
 
             {/* New Client Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-md rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50 dark:bg-white/5 shrink-0">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">person_add</span>
-                                Novo Cliente
-                            </h3>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><span className="material-symbols-outlined">close</span></button>
-                        </div>
-                        <form onSubmit={handleCreateClient} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                                <input type="text" required value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: Carlos Oliveira" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
-                                <input type="tel" required value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="(11) 99999-9999" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email (Opcional)</label>
-                                <input type="email" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="email@exemplo.com" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
-                                <input type="date" value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setShowModal(false)}
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
-                                <button type="submit"
-                                    className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar</button>
-                            </div>
-                        </form>
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title="Novo Cliente"
+                maxWidth="md"
+            >
+                <form onSubmit={handleCreateClient} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+                        <input type="text" required value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: Carlos Oliveira" />
                     </div>
-                </div>
-            )}
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
+                        <input type="tel" required value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="(11) 99999-9999" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email (Opcional)</label>
+                        <input type="email" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="email@exemplo.com" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
+                        <input type="date" value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <button type="button" onClick={() => setShowModal(false)}
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
+                        <button type="submit"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar</button>
+                    </div>
+                </form>
+            </Modal>
 
-            {/* Delete Confirmation */}
-            {deleteTarget && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-                    <div className="my-auto bg-white dark:bg-card-dark w-full max-w-sm rounded-xl shadow-2xl border border-slate-200 dark:border-border-dark p-6 text-center">
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                title="Confirmar Exclusão"
+                maxWidth="sm"
+            >
+                {deleteTarget && (
+                    <div className="text-center">
                         <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
                             <span className="material-symbols-outlined text-3xl">warning</span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Confirmar Exclusão</h3>
                         <p className="text-sm text-slate-500 mb-6">Tem certeza que deseja excluir <strong>{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
                         <div className="flex gap-3">
                             <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
                             <button onClick={handleDelete} className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">Excluir</button>
                         </div>
                     </div>
+                )}
+            </Modal>
+
+            {/* IMPORT PREVIEW MODAL */}
+            <Modal
+                isOpen={isImportModalOpen}
+                onClose={() => { setIsImportModalOpen(false); setParsedData([]); }}
+                title="Conciliação de Base de Clientes"
+                maxWidth="3xl"
+            >
+                <div className="space-y-4">
+                    <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                        <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Revisão de Dados</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">Encontramos <strong>{parsedData.length} clientes</strong> prontos para cadastro. Modifique os detalhes listados caso precise de algum ajuste fino, ou descarte para abortar a inserção no banco de dados.</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
+                        <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10 border-b border-slate-200 dark:border-border-dark">
+                                    <tr>
+                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nome Completo</th>
+                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Telefone</th>
+                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Email</th>
+                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nascimento</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-sm">
+                                    {parsedData.map((row, i) => (
+                                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/5">
+                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
+                                                <input
+                                                    type="text"
+                                                    value={row.name}
+                                                    onChange={e => {
+                                                        const copy = [...parsedData];
+                                                        copy[i].name = e.target.value;
+                                                        setParsedData(copy);
+                                                    }}
+                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[150px]"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
+                                                <input
+                                                    type="text"
+                                                    value={row.phone}
+                                                    onChange={e => {
+                                                        const copy = [...parsedData];
+                                                        copy[i].phone = e.target.value;
+                                                        setParsedData(copy);
+                                                    }}
+                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[130px]"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
+                                                <input
+                                                    type="email"
+                                                    value={row.email}
+                                                    onChange={e => {
+                                                        const copy = [...parsedData];
+                                                        copy[i].email = e.target.value;
+                                                        setParsedData(copy);
+                                                    }}
+                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[160px]"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
+                                                <input
+                                                    type="date"
+                                                    value={row.birthday}
+                                                    onChange={e => {
+                                                        const copy = [...parsedData];
+                                                        copy[i].birthday = e.target.value;
+                                                        setParsedData(copy);
+                                                    }}
+                                                    className="bg-slate-50 dark:bg-[#1A1A1A] text-xs font-bold rounded p-1 outline-none text-slate-700 dark:text-slate-300"
+                                                    style={{ colorScheme: 'dark' }}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-border-dark mt-6">
+                        <button type="button" onClick={() => { setIsImportModalOpen(false); setParsedData([]); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+                            Descartar Arquivo
+                        </button>
+                        <button type="button" onClick={handleConfirmImport} disabled={loading} className="px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
+                            {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${parsedData.length} Clientes`}
+                        </button>
+                    </div>
                 </div>
-            )}
+            </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

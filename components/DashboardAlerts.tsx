@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface AlertItem {
     id: string;
-    type: 'appointment' | 'stock' | 'comanda';
+    type: 'appointment' | 'stock' | 'comanda' | 'promotion';
     title: string;
     description: string;
     time?: string;
@@ -54,6 +54,12 @@ const DashboardAlerts: React.FC = () => {
                 .eq('status', 'open')
                 .lt('created_at', startOfDay);
 
+            // Fetch active promotions
+            const { data: promos } = await supabase
+                .from('promotions')
+                .select('id, title, end_date')
+                .eq('active', true);
+
             const newAlerts: AlertItem[] = [];
 
             appts?.forEach(apt => {
@@ -90,6 +96,17 @@ const DashboardAlerts: React.FC = () => {
                 });
             });
 
+            promos?.forEach(pro => {
+                newAlerts.push({
+                    id: `pro-${pro.id}`,
+                    type: 'promotion',
+                    title: 'Promoção Ativa',
+                    description: `${pro.title} (Até ${new Date(pro.end_date).toLocaleDateString('pt-BR')})`,
+                    actionPath: '/promotions',
+                    priority: 'low'
+                });
+            });
+
             // Sort by priority and time
             newAlerts.sort((a, b) => {
                 if (a.priority === 'high' && b.priority !== 'high') return -1;
@@ -105,7 +122,6 @@ const DashboardAlerts: React.FC = () => {
     };
 
     if (loading) return null;
-    if (alerts.length === 0) return null;
 
     return (
         <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden mb-6 animate-fade-in">
@@ -119,32 +135,39 @@ const DashboardAlerts: React.FC = () => {
                 </span>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-border-dark max-h-60 overflow-y-auto">
-                {alerts.map(alert => (
-                    <div
-                        key={alert.id}
-                        onClick={() => navigate(alert.actionPath)}
-                        className="p-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors flex items-center gap-3"
-                    >
-                        <div className={`p-2 rounded-lg shrink-0 ${alert.type === 'appointment' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
-                                alert.type === 'stock' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
-                                    'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                            }`}>
-                            <span className="material-symbols-outlined text-sm">
-                                {alert.type === 'appointment' ? 'event' : alert.type === 'stock' ? 'inventory_2' : 'receipt_long'}
-                            </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{alert.title}</p>
-                                {alert.time && <span className="text-[10px] font-bold text-slate-500">{alert.time}</span>}
-                            </div>
-                            <p className="text-xs text-slate-500 truncate">{alert.description}</p>
-                        </div>
-                        {alert.priority === 'high' && (
-                            <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></div>
-                        )}
+                {alerts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-slate-500">
+                        Nenhum alerta pendente no momento.
                     </div>
-                ))}
+                ) : (
+                    alerts.map(alert => (
+                        <div
+                            key={alert.id}
+                            onClick={() => navigate(alert.actionPath)}
+                            className="p-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors flex items-center gap-3"
+                        >
+                            <div className={`p-2 rounded-lg shrink-0 ${alert.type === 'appointment' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                                alert.type === 'stock' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
+                                    alert.type === 'promotion' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                        'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                                }`}>
+                                <span className="material-symbols-outlined text-sm">
+                                    {alert.type === 'appointment' ? 'event' : alert.type === 'stock' ? 'inventory_2' : alert.type === 'promotion' ? 'discount' : 'receipt_long'}
+                                </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{alert.title}</p>
+                                    {alert.time && <span className="text-[10px] font-bold text-slate-500">{alert.time}</span>}
+                                </div>
+                                <p className="text-xs text-slate-500 truncate">{alert.description}</p>
+                            </div>
+                            {alert.priority === 'high' && (
+                                <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></div>
+                            )}
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
