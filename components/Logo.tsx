@@ -1,12 +1,18 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 interface LogoProps {
   className?: string;
   iconOnly?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  clickable?: boolean;
 }
 
-const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'md' }) => {
+const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'md', clickable = true }) => {
+  const navigate = useNavigate();
+  const { session } = useAuth();
+
   const iconSizes = {
     sm: 'text-xl',
     md: 'text-2xl',
@@ -19,8 +25,22 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
     lg: 'p-2'
   };
 
+  const handleClick = () => {
+    if (!clickable) return;
+    if (session) {
+      navigate('/dashboard');
+    } else {
+      navigate('/');
+    }
+  };
+
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div
+      className={`flex items-center gap-3 ${clickable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
+      onClick={handleClick}
+      role={clickable ? 'link' : undefined}
+      title="Ir para o início"
+    >
       <div className={`bg-primary ${containerPadding[size]} rounded-lg flex items-center justify-center shadow-lg shadow-primary/20`}>
         <span className={`material-symbols-outlined text-white ${iconSizes[size]}`}>content_cut</span>
       </div>
