@@ -225,15 +225,21 @@ const Landing: React.FC = () => {
       </section>
 
       {/* ═══ SOBRE SECTION ═══ */}
-      <section id="sobre" className="py-32 px-6">
-        <div className="max-w-5xl mx-auto text-center">
+      <section id="sobre" className="py-32 px-6 relative">
+        {/* Imagem de fundo com overlay - wrapper isolado com overflow-hidden */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          <img src="/bg-sobre.jpg" alt="" className="w-full h-full object-cover object-center" />
+          <div className="absolute inset-0 bg-[#0E0C0A]/85" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0E0C0A] via-transparent to-[#0E0C0A]" />
+        </div>
+        <div className="max-w-5xl mx-auto text-center relative z-10">
           <span className="inline-block px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] mb-6">
             Quem somos
           </span>
           <h2 className="text-4xl lg:text-5xl font-black tracking-tight mb-8">
             Feito por quem entende<br /> o mercado de barbearia
           </h2>
-          <p className="text-slate-400 text-lg lg:text-xl max-w-3xl mx-auto leading-relaxed">
+          <p className="text-slate-300 text-lg lg:text-xl max-w-3xl mx-auto leading-relaxed">
             Nascemos da necessidade real. Cada funcionalidade foi desenhada junto com quem vive o dia a dia da cadeira, focando em simplicidade e resultados reais.
           </p>
 
@@ -245,7 +251,7 @@ const Landing: React.FC = () => {
             ].map(stat => (
               <div key={stat.value} className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
-                <div className="relative bg-[#1C1814] border border-[#2E2720] rounded-3xl p-10 transition-all duration-300">
+                <div className="relative bg-[#1C1814]/80 backdrop-blur-md border border-[#2E2720] rounded-3xl p-10 transition-all duration-300">
                   <p className="text-5xl font-black text-white mb-2">{stat.value}</p>
                   <p className="text-primary font-bold text-xs uppercase tracking-widest">{stat.label}</p>
                 </div>
@@ -256,8 +262,14 @@ const Landing: React.FC = () => {
       </section>
 
       {/* ═══ FUNCIONALIDADES ═══ */}
-      <section id="funcionalidades" className="py-32 px-6 bg-[#0A0907] relative">
-        <div className="max-w-6xl mx-auto">
+      <section id="funcionalidades" className="py-32 px-6 relative">
+        {/* Imagem de fundo com overlay - wrapper isolado */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          <img src="/bg-precos.jpg" alt="" className="w-full h-full object-cover object-center" />
+          <div className="absolute inset-0 bg-[#0A0907]/88" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0E0C0A] via-transparent to-[#0E0C0A]" />
+        </div>
+        <div className="max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
             <div className="max-w-xl">
               <span className="inline-block px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] mb-6">
@@ -267,7 +279,7 @@ const Landing: React.FC = () => {
                 Tudo o que sua barbearia<br /> precisa para <span className="text-primary italic">evoluir</span>
               </h2>
             </div>
-            <p className="text-slate-400 max-w-[340px] text-sm leading-relaxed">
+            <p className="text-slate-300 max-w-[340px] text-sm leading-relaxed">
               Substitua a confusão de papéis e planilhas por um ecossistema digital completo e intuitivo.
             </p>
           </div>
@@ -276,13 +288,13 @@ const Landing: React.FC = () => {
             {FEATURES.map(f => (
               <div
                 key={f.title}
-                className="group bg-[#1C1814] border border-[#2E2720] rounded-3xl p-8 hover:border-primary/50 transition-all duration-500"
+                className="group bg-[#1C1814]/70 backdrop-blur-md border border-[#2E2720] rounded-3xl p-8 hover:border-primary/50 transition-all duration-500"
               >
                 <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-8 group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-xl shadow-primary/5">
                   <span className="material-symbols-outlined text-3xl">{f.icon}</span>
                 </div>
                 <h3 className="font-black text-white text-xl mb-3 tracking-tight">{f.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+                <p className="text-slate-300 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -290,46 +302,51 @@ const Landing: React.FC = () => {
       </section>
 
       {/* ═══ PREÇOS SECTION ═══ */}
-      <section id="precos" className="py-32 px-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
+      <section id="precos" className="py-32 px-6 relative">
+        {/* Imagem de fundo com overlay - wrapper isolado */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          <img src="/bg-funcionalidades.jpg" alt="" className="w-full h-full object-cover object-center" />
+          <div className="absolute inset-0 bg-[#0E0C0A]/87" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0E0C0A] via-transparent to-[#0E0C0A]" />
+        </div>
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="text-center mb-20">
             <span className="inline-block px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] mb-6">
               Planos e Preços
             </span>
             <h2 className="text-4xl lg:text-6xl font-black tracking-tight mb-8">O investimento que se paga</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+            <p className="text-slate-300 max-w-2xl mx-auto text-lg">
               Escolha o plano ideal para o tamanho do seu negócio. Comece grátis e mude quando precisar.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-6">
             {PRICING_PLANS.map(plan => (
               <div
                 key={plan.name}
-                className={`flex flex-col bg-[#1C1814] border-2 rounded-[2.5rem] p-10 transition-all duration-300 ${plan.highlight ? 'border-primary shadow-2xl shadow-primary/10 scale-105 z-20' : 'border-[#2E2720] hover:border-[#42382D]'}`}
+                className={`flex flex-col backdrop-blur-md border-2 rounded-[2.5rem] p-10 transition-all duration-300 ${plan.highlight ? 'bg-[#1C1814]/90 border-primary shadow-2xl shadow-primary/20 -translate-y-4' : 'bg-[#1C1814]/70 border-[#2E2720] hover:border-[#42382D]'}`}
               >
                 {plan.highlight && (
                   <span className="self-start px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-6">Mais Popular</span>
                 )}
                 <h3 className="text-2xl font-black text-white mb-2">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-sm font-bold text-slate-500 italic">R$</span>
+                  <span className="text-sm font-bold text-slate-400 italic">R$</span>
                   <span className="text-5xl font-black text-white tracking-tighter">{plan.price}</span>
-                  <span className="text-sm font-bold text-slate-500">/mês</span>
+                  <span className="text-sm font-bold text-slate-400">/mês</span>
                 </div>
-                <p className="text-slate-400 text-sm mb-10 leading-relaxed font-bold">{plan.desc}</p>
+                <p className="text-slate-300 text-sm mb-10 leading-relaxed font-bold">{plan.desc}</p>
                 <div className="flex-1 space-y-4 mb-10">
                   {plan.features.map(feat => (
                     <div key={feat} className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-primary text-lg">check_circle</span>
-                      <span className="text-sm text-slate-300 font-medium">{feat}</span>
+                      <span className="text-sm text-slate-200 font-medium">{feat}</span>
                     </div>
                   ))}
                 </div>
                 <Link
                   to="/onboarding/role"
-                  className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light' : 'bg-white/5 text-white hover:bg-white/10'}`}
+                  className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
                 >
                   {plan.cta}
                 </Link>
