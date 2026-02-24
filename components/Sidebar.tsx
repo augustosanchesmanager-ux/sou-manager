@@ -80,7 +80,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           icon: 'payments',
           items: [
             { name: 'Visão Geral', path: '/financial' },
+            { name: 'Folha de Pagamento', path: '/payroll' },
             { name: 'Gestão de Saídas', path: '/expenses' },
+            { name: 'Gestão de Recibos', path: '/receipts' },
           ],
         },
       ]

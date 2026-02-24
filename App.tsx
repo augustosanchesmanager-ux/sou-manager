@@ -12,6 +12,8 @@ import Team from './pages/Team';
 import Reports from './pages/Reports';
 import Performance from './pages/Performance';
 import Expenses from './pages/Expenses';
+import Receipts from './pages/Receipts';
+import Payroll from './pages/Payroll';
 import Checkout from './pages/Checkout';
 import Comandas from './pages/Comandas';
 import Admin from './pages/Admin';
@@ -89,6 +91,8 @@ const AppRoutes: React.FC = () => {
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
           <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
+          <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
+          <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
           <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
           <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
           <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
