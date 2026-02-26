@@ -68,7 +68,7 @@ const Team: React.FC = () => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        const payload = {
+        const editableFields = {
             name: form.name,
             email: form.email,
             phone: form.phone,
@@ -76,12 +76,12 @@ const Team: React.FC = () => {
             commission_rate: parseInt(form.commission_rate) || 0,
             status: form.status,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`,
-            tenant_id: tenantId
         };
 
         if (editingMember) {
-            const { error } = await supabase.from('staff').update(payload).eq('id', editingMember.id);
-            if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
+            // UPDATE: Do NOT send tenant_id — it should never change and sending null breaks RLS
+            const { error } = await supabase.from('staff').update(editableFields).eq('id', editingMember.id);
+            if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message} (${error.code})`, type: 'error' }); return; }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
             // Check for password
@@ -110,7 +110,7 @@ const Team: React.FC = () => {
             if (edgeData?.user?.id) {
                 await supabase.from('staff').update({
                     phone: form.phone,
-                    commission_rate: payload.commission_rate
+                    commission_rate: editableFields.commission_rate
                 }).eq('id', edgeData.user.id);
             }
 
@@ -124,7 +124,10 @@ const Team: React.FC = () => {
 
     const handleDelete = async (id: string) => {
         const { error } = await supabase.from('staff').delete().eq('id', id);
-        if (!error) {
+        if (error) {
+            console.error('DELETE ERROR:', JSON.stringify(error));
+            setToast({ message: `Erro ao deletar: ${error.message} (${error.code})`, type: 'error' });
+        } else {
             setToast({ message: 'Colaborador removido.', type: 'info' });
             fetchTeam();
         }
