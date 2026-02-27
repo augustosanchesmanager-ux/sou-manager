@@ -18,6 +18,23 @@ const Login: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'user' | 'elite'>('user');
     const [isLocalhost, setIsLocalhost] = useState(false);
 
+    const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+    const getAuthErrorMessage = (err: any) => {
+        const rawMessage = err?.message || '';
+        const normalizedMessage = rawMessage.toLowerCase();
+
+        if (normalizedMessage.includes('invalid login credentials')) {
+            return 'E-mail ou senha inválidos. Revise os dados e tente novamente.';
+        }
+
+        if (normalizedMessage.includes('erro no banco de dados ao encontrar o usuário')) {
+            return 'Não foi possível localizar este acesso no Auth do Supabase. Confirme o e-mail sem espaços e valide no painel do Supabase se o usuário ainda existe em Authentication > Users.';
+        }
+
+        return rawMessage || 'Ocorreu um erro ao fazer login';
+    };
+
     useEffect(() => {
         const hostname = window.location.hostname;
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -31,15 +48,16 @@ const Login: React.FC = () => {
         setError(null);
 
         try {
+            const normalizedEmail = normalizeEmail(email);
             const { error: authError } = await supabase.auth.signInWithPassword({
-                email,
+                email: normalizedEmail,
                 password,
             });
 
             if (authError) throw authError;
             navigate('/dashboard');
         } catch (err: any) {
-            setError(err.message || 'Ocorreu um erro ao fazer login');
+            setError(getAuthErrorMessage(err));
         } finally {
             setLoading(false);
         }
@@ -50,13 +68,15 @@ const Login: React.FC = () => {
         setResetLoading(true);
         setError(null);
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+            const normalizedResetEmail = normalizeEmail(resetEmail);
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
                 redirectTo: `${window.location.origin}/reset-password`,
             });
             if (resetError) throw resetError;
             setResetSent(true);
+            setResetEmail(normalizedResetEmail);
         } catch (err: any) {
-            setError(err.message || 'Erro ao enviar e-mail de recuperação');
+            setError(getAuthErrorMessage(err));
         } finally {
             setResetLoading(false);
         }
@@ -140,12 +160,12 @@ const Login: React.FC = () => {
                                     <div className="relative group">
                                         <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'
                                             }`}>mail</span>
-                                        <input
-                                            type="email"
-                                            required
-                                            placeholder="seu@email.com"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
+                                            <input
+                                                type="email"
+                                                required
+                                                placeholder="seu@email.com"
+                                                value={email}
+                                                onChange={(e) => setEmail(normalizeEmail(e.target.value))}
                                             className={`w-full border rounded-lg py-3.5 pl-12 pr-4 text-sm outline-none transition-all ${isElite
                                                 ? 'bg-black/50 border-amber-500/20 text-amber-100 placeholder:text-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
                                                 : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'
@@ -229,7 +249,7 @@ const Login: React.FC = () => {
                                                 required
                                                 placeholder="seu@email.com"
                                                 value={resetEmail}
-                                                onChange={(e) => setResetEmail(e.target.value)}
+                                                onChange={(e) => setResetEmail(normalizeEmail(e.target.value))}
                                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-3.5 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                                             />
                                         </div>
