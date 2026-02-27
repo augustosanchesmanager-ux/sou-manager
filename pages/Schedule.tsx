@@ -89,15 +89,17 @@ const Schedule: React.FC = () => {
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
+    if (!tenantId) return;
+
     const [staffRes, servicesRes, clientsRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration').eq('active', true),
-      supabase.from('clients').select('id, name, phone').order('name'),
+      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      supabase.from('services').select('id, name, duration').eq('tenant_id', tenantId).eq('active', true),
+      supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
     ]);
     if (staffRes.data) setStaffList(staffRes.data);
     if (servicesRes.data) setServicesList(servicesRes.data);
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
-  }, []);
+  }, [tenantId]);
 
   // Fetch appointments for the selected date
   const fetchAppointments = useCallback(async () => {
@@ -108,9 +110,15 @@ const Schedule: React.FC = () => {
     const dayStart = `${year}-${month}-${day}T00:00:00`;
     const dayEnd = `${year}-${month}-${day}T23:59:59`;
 
+    if (!tenantId) {
+      setLoading(false);
+      return;
+    }
+
     const { data } = await supabase
       .from('appointments')
       .select('*')
+      .eq('tenant_id', tenantId)
       .gte('start_time', dayStart)
       .lte('start_time', dayEnd)
       .neq('status', 'cancelled');
@@ -133,7 +141,7 @@ const Schedule: React.FC = () => {
       setAppointments(mapped);
     }
     setLoading(false);
-  }, [selectedDate]);
+  }, [selectedDate, tenantId]);
 
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
