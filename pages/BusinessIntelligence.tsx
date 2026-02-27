@@ -1,4 +1,4 @@
-gimport React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -71,16 +71,27 @@ const BusinessIntelligence: React.FC = () => {
 
     /* ──── FETCH ──── */
     const fetchAll = useCallback(async () => {
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         const [txRes, aptRes, cliRes, stfRes, prdRes, ciRes, cmdRes] = await Promise.all([
-            supabase.from('transactions').select('*').order('date', { ascending: true }),
-            supabase.from('appointments').select('*').order('start_time', { ascending: false }),
-            supabase.from('clients').select('*').order('name'),
-            supabase.from('staff').select('id, name').eq('status', 'active'),
-            supabase.from('products').select('*'),
-            supabase.from('comanda_items').select('*'),
-            supabase.from('comandas').select('*').eq('status', 'paid'),
+            supabase.from('transactions').select('*').eq('tenant_id', tenantId).order('date', { ascending: true }),
+            supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time', { ascending: false }),
+            supabase.from('clients').select('*').eq('tenant_id', tenantId).order('name'),
+            supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
+            supabase.from('products').select('*').eq('tenant_id', tenantId),
+            supabase.from('comanda_items').select('*').eq('tenant_id', tenantId),
+            supabase.from('comandas').select('*').eq('tenant_id', tenantId).eq('status', 'paid'),
         ]);
+
+        [txRes, aptRes, cliRes, stfRes, prdRes, ciRes, cmdRes].forEach((res) => {
+            if (res.error) {
+                console.error('Erro ao carregar dados do BI:', res.error.message);
+            }
+        });
 
         if (txRes.data) setTransactions(txRes.data);
         if (aptRes.data) setAppointments(aptRes.data);
@@ -90,7 +101,7 @@ const BusinessIntelligence: React.FC = () => {
         if (ciRes.data) setCmdItems(ciRes.data);
         if (cmdRes.data) setComandas(cmdRes.data);
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
