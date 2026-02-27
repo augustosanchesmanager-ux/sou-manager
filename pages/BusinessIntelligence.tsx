@@ -89,6 +89,7 @@ const BusinessIntelligence: React.FC = () => {
 
         [txRes, aptRes, cliRes, stfRes, prdRes, ciRes, cmdRes].forEach((res) => {
             if (res.error) {
+                console.error('Supabase query error in BI page:', res.error.message);
                 console.error('Erro ao carregar dados do BI:', res.error.message);
             }
         });

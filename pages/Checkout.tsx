@@ -56,12 +56,17 @@ const Checkout: React.FC = () => {
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         const [clientsRes, staffRes, servicesRes, productsRes] = await Promise.all([
-            supabase.from('clients').select('id, name, avatar, phone').order('name'),
-            supabase.from('staff').select('id, name').eq('status', 'active'),
-            supabase.from('services').select('*').eq('active', true),
-            supabase.from('products').select('*').eq('active', true),
+            supabase.from('clients').select('id, name, avatar, phone').eq('tenant_id', tenantId).order('name'),
+            supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
+            supabase.from('services').select('*').eq('tenant_id', tenantId).eq('active', true),
+            supabase.from('products').select('*').eq('tenant_id', tenantId).eq('active', true),
         ]);
 
         if (clientsRes.data) setClients(clientsRes.data);
@@ -79,6 +84,7 @@ const Checkout: React.FC = () => {
           comanda_items(*)
         `)
                 .eq('id', comandaId)
+                .eq('tenant_id', tenantId)
                 .single();
 
             if (comanda && !comError) {
@@ -102,7 +108,7 @@ const Checkout: React.FC = () => {
             }
         }
         setLoading(false);
-    }, [comandaId]);
+    }, [comandaId, tenantId]);
 
     useEffect(() => {
         fetchData();
