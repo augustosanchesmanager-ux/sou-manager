@@ -42,6 +42,17 @@ const Login: React.FC = () => {
         }
     }, []);
 
+    const translateAuthError = (msg: string): string => {
+        if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) return 'E-mail ou senha incorretos.';
+        if (msg.includes('Email not confirmed')) return 'E-mail não confirmado. Verifique sua caixa de entrada.';
+        if (msg.includes('User not found')) return 'Usuário não encontrado.';
+        if (msg.includes('Too many requests')) return 'Muitas tentativas. Aguarde alguns minutos.';
+        if (msg.includes('Unable to process request')) return 'Não foi possível processar a solicitação. Tente novamente.';
+        if (msg.includes('Email rate limit exceeded')) return 'Limite de e-mails atingido. Tente novamente mais tarde.';
+        if (msg.includes('For security purposes') || msg.includes('only request')) return 'Por segurança, aguarde alguns segundos antes de tentar novamente.';
+        return msg;
+    };
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -160,12 +171,12 @@ const Login: React.FC = () => {
                                     <div className="relative group">
                                         <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'
                                             }`}>mail</span>
-                                            <input
-                                                type="email"
-                                                required
-                                                placeholder="seu@email.com"
-                                                value={email}
-                                                onChange={(e) => setEmail(normalizeEmail(e.target.value))}
+                                        <input
+                                            type="email"
+                                            required
+                                            placeholder="seu@email.com"
+                                            value={email}
+                                            onChange={(e) => setEmail(normalizeEmail(e.target.value))}
                                             className={`w-full border rounded-lg py-3.5 pl-12 pr-4 text-sm outline-none transition-all ${isElite
                                                 ? 'bg-black/50 border-amber-500/20 text-amber-100 placeholder:text-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
                                                 : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'

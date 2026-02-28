@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 
@@ -28,6 +29,7 @@ interface Comanda {
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>('all');
@@ -36,6 +38,12 @@ const Comandas: React.FC = () => {
 
     // Modal states
     const [viewComanda, setViewComanda] = useState<Comanda | null>(null);
+    const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    // Role check
+    const userRole = user?.user_metadata?.role || '';
+    const isManager = userRole === 'Gerente' || userRole === 'Manager' || userRole === 'Super Admin' || userRole === 'superadmin';
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -151,6 +159,34 @@ const Comandas: React.FC = () => {
     `);
         printWindow.document.close();
         printWindow.print();
+    };
+
+    const handleDelete = async (comanda: Comanda) => {
+        setDeleting(true);
+        try {
+            // First delete comanda_items
+            const { error: itemsError } = await supabase
+                .from('comanda_items')
+                .delete()
+                .eq('comanda_id', comanda.id);
+            if (itemsError) throw itemsError;
+
+            // Then delete the comanda
+            const { error } = await supabase
+                .from('comandas')
+                .delete()
+                .eq('id', comanda.id);
+            if (error) throw error;
+
+            setToast({ message: 'Comanda excluída com sucesso.', type: 'success' });
+            setDeleteComanda(null);
+            fetchData();
+        } catch (err: any) {
+            console.error(err);
+            setToast({ message: `Erro ao excluir comanda: ${err.message}`, type: 'error' });
+        } finally {
+            setDeleting(false);
+        }
     };
 
     return (
@@ -331,6 +367,15 @@ const Comandas: React.FC = () => {
                                                 >
                                                     <span className="material-symbols-outlined text-lg">print</span>
                                                 </button>
+                                                {isManager && (
+                                                    <button
+                                                        onClick={() => setDeleteComanda(comanda)}
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
+                                                        title="Excluir Comanda"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -400,6 +445,46 @@ const Comandas: React.FC = () => {
                                     Editar / Pagar
                                 </button>
                             )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* === DELETE CONFIRMATION MODAL === */}
+            <Modal
+                isOpen={!!deleteComanda}
+                onClose={() => setDeleteComanda(null)}
+                title="Excluir Comanda"
+                maxWidth="sm"
+            >
+                {deleteComanda && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg">
+                            <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
+                            <div>
+                                <p className="text-sm font-bold text-red-700 dark:text-red-400">Atenção!</p>
+                                <p className="text-xs text-red-600 dark:text-red-300">Esta ação não pode ser desfeita.</p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            Deseja realmente excluir a comanda <strong className="text-slate-900 dark:text-white">#{deleteComanda.id.slice(0, 8)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
+                        </p>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => setDeleteComanda(null)}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                disabled={deleting}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => handleDelete(deleteComanda)}
+                                disabled={deleting}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <span className="material-symbols-outlined text-sm">{deleting ? 'hourglass_empty' : 'delete'}</span>
+                                {deleting ? 'Excluindo...' : 'Excluir'}
+                            </button>
                         </div>
                     </div>
                 )}

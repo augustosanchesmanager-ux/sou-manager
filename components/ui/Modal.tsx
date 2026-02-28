@@ -41,7 +41,11 @@ const Modal: React.FC<ModalProps> = ({
     };
 
     const modalContent = (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in pointer-events-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in pointer-events-auto">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-0" onClick={onClose}></div>
+
+            {/* Modal Card — z-10 so it sits above the backdrop */}
             <div
                 className={`bg-white dark:bg-card-dark w-full ${maxWidthClasses[maxWidth]} rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10`}
             >
@@ -65,9 +69,6 @@ const Modal: React.FC<ModalProps> = ({
                     </footer>
                 )}
             </div>
-
-            {/* Click outside to close */}
-            <div className="absolute inset-0" onClick={onClose}></div>
         </div>
     );
 

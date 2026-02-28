@@ -81,7 +81,7 @@ const Team: React.FC = () => {
         if (editingMember) {
             // UPDATE: Do NOT send tenant_id — it should never change and sending null breaks RLS
             const { error } = await supabase.from('staff').update(editableFields).eq('id', editingMember.id);
-            if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message} (${error.code})`, type: 'error' }); return; }
+            if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message}`, type: 'error' }); return; }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
             // Check for password
@@ -90,8 +90,17 @@ const Team: React.FC = () => {
                 return;
             }
 
+            // Get the current session token to authenticate with the Edge Function
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) {
+                setToast({ message: 'Sessão expirada. Por favor, faça login novamente.', type: 'error' });
+                return;
+            }
+
             // Create via our edge function (which inserts cleanly and securely)
             const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-create-user', {
+                headers: { Authorization: `Bearer ${accessToken}` },
                 body: {
                     email: form.email,
                     password: form.password,
@@ -101,8 +110,20 @@ const Team: React.FC = () => {
                 }
             });
 
-            if (edgeError) {
-                setToast({ message: `Erro ao criar login: ${edgeError.message}`, type: 'error' });
+            if (edgeError || edgeData?.error) {
+                const msg = edgeData?.error || edgeError?.message || 'Erro desconhecido';
+                // Translate common errors to pt-br
+                let friendlyMsg = msg;
+                if (msg.includes('already registered') || msg.includes('User already registered')) {
+                    friendlyMsg = 'Este e-mail já está cadastrado no sistema.';
+                } else if (msg.includes('invalid email')) {
+                    friendlyMsg = 'E-mail inválido.';
+                } else if (msg.includes('Password should')) {
+                    friendlyMsg = 'A senha deve ter pelo menos 6 caracteres.';
+                } else if (msg.includes('status code')) {
+                    friendlyMsg = 'Erro ao criar usuário. Verifique os dados e tente novamente.';
+                }
+                setToast({ message: `Erro ao criar colaborador: ${friendlyMsg}`, type: 'error' });
                 return;
             }
 

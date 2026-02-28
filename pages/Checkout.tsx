@@ -60,8 +60,8 @@ const Checkout: React.FC = () => {
         const [clientsRes, staffRes, servicesRes, productsRes] = await Promise.all([
             supabase.from('clients').select('id, name, avatar, phone').order('name'),
             supabase.from('staff').select('id, name').eq('status', 'active'),
-            supabase.from('services').select('*').eq('active', true),
-            supabase.from('products').select('*').eq('active', true),
+            supabase.from('services').select('*').neq('active', false),
+            supabase.from('products').select('*').neq('active', false),
         ]);
 
         if (clientsRes.data) setClients(clientsRes.data);
@@ -115,17 +115,19 @@ const Checkout: React.FC = () => {
 
     // Handlers
     const handleAddItem = (item: any, type: 'service' | 'product') => {
+        const itemPrice = item.price ?? item.sale_price ?? 0;
         const newItem: CartItem = {
             id: Math.random().toString(36).substr(2, 9),
             type,
             name: item.name,
-            price: item.price,
+            price: itemPrice,
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
             staff_id: staff[0]?.id // Default to first available pro
         };
         setCart([...cart, newItem]);
+        setSearchTerm('');
         setIsItemModalOpen(false);
     };
 
@@ -502,40 +504,92 @@ const Checkout: React.FC = () => {
             {/* Add Item Modal */}
             <Modal
                 isOpen={isItemModalOpen}
-                onClose={() => setIsItemModalOpen(false)}
-                title={`Adicionar ${itemModalTab === 'services' ? 'Serviço' : 'Produto'}`}
+                onClose={() => { setIsItemModalOpen(false); setSearchTerm(''); }}
+                title="Adicionar Item"
                 maxWidth="lg"
             >
                 <div className="space-y-4">
-                    <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-lg p-2">
+                    {/* Tabs — switch between services and products INSIDE the modal */}
+                    <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
+                        <button
+                            onClick={() => { setItemModalTab('services'); setSearchTerm(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${itemModalTab === 'services'
+                                ? 'bg-primary text-white shadow-md'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                        >
+                            <span className="material-symbols-outlined text-sm">content_cut</span>
+                            Serviços
+                        </button>
+                        <button
+                            onClick={() => { setItemModalTab('products'); setSearchTerm(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${itemModalTab === 'products'
+                                ? 'bg-amber-500 text-white shadow-md'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                        >
+                            <span className="material-symbols-outlined text-sm">shopping_bag</span>
+                            Produtos
+                        </button>
+                    </div>
+
+                    {/* Search */}
+                    <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                         <input
                             autoFocus
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder={`Buscar ${itemModalTab}...`}
-                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            placeholder={`Buscar ${itemModalTab === 'services' ? 'serviço' : 'produto'}...`}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
                         />
                     </div>
 
-                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-1">
-                        <div className="space-y-1">
-                            {filteredItems.map((item: any) => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
-                                    className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`size-8 rounded flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'}`}>
-                                            <span className="material-symbols-outlined text-lg">{itemModalTab === 'services' ? 'content_cut' : 'package_2'}</span>
+                    {/* Items List */}
+                    <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                        {filteredItems.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                                <span className="material-symbols-outlined text-4xl mb-2">
+                                    {itemModalTab === 'services' ? 'content_cut' : 'inventory_2'}
+                                </span>
+                                <p className="text-sm font-medium">
+                                    {searchTerm
+                                        ? 'Nenhum resultado encontrado.'
+                                        : itemModalTab === 'services'
+                                            ? 'Nenhum serviço ativo cadastrado.'
+                                            : 'Nenhum produto ativo cadastrado.'}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                {filteredItems.map((item: any) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
+                                        className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`size-9 rounded-lg flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'
+                                                }`}>
+                                                <span className="material-symbols-outlined text-lg">
+                                                    {itemModalTab === 'services' ? 'content_cut' : 'package_2'}
+                                                </span>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</p>
+                                                {item.description && <p className="text-xs text-slate-500 truncate max-w-[220px]">{item.description}</p>}
+                                            </div>
                                         </div>
-                                        <span className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</span>
-                                    </div>
-                                    <span className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</span>
-                                </button>
-                            ))}
-                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className="font-bold text-slate-900 dark:text-white">
+                                                R$ {((item.price || item.sale_price) ?? 0).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </Modal>
