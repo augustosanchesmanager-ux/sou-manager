@@ -20,13 +20,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchTenantId = async (userId: string) => {
         try {
-            const { data, error } = await supabase
+            // First check profiles (for admins/owners)
+            const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
                 .select('tenant_id')
                 .eq('id', userId)
                 .single();
-            if (data && !error) {
-                setTenantId(data.tenant_id);
+
+            if (profileData && !profileError) {
+                setTenantId(profileData.tenant_id);
+                return;
+            }
+
+            // Then check staff (for barbers/receptionists)
+            const { data: staffData, error: staffError } = await supabase
+                .from('staff')
+                .select('tenant_id')
+                .eq('id', userId)
+                .single();
+
+            if (staffData && !staffError) {
+                setTenantId(staffData.tenant_id);
             }
         } catch (err) {
             console.error('Error fetching tenant_id:', err);

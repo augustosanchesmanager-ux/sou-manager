@@ -111,19 +111,35 @@ const Team: React.FC = () => {
             });
 
             if (edgeError || edgeData?.error) {
-                const msg = edgeData?.error || edgeError?.message || 'Erro desconhecido';
+                // Try to extract the real message from the Edge Function response body
+                let msg = edgeData?.error || edgeData?.message || edgeError?.message || 'Erro desconhecido';
+
+                // FunctionsHttpError wraps the response; try to parse the body
+                if (edgeError && typeof (edgeError as any).context?.json === 'function') {
+                    try {
+                        const body = await (edgeError as any).context.json();
+                        if (body?.error) msg = body.error;
+                        else if (body?.message) msg = body.message;
+                    } catch (_) { }
+                }
+
+                console.error('Edge function error:', { edgeError, edgeData, msg });
+
                 // Translate common errors to pt-br
                 let friendlyMsg = msg;
                 if (msg.includes('already registered') || msg.includes('User already registered')) {
                     friendlyMsg = 'Este e-mail já está cadastrado no sistema.';
                 } else if (msg.includes('invalid email')) {
                     friendlyMsg = 'E-mail inválido.';
-                } else if (msg.includes('Password should')) {
+                } else if (msg.includes('Password should') || msg.includes('password')) {
                     friendlyMsg = 'A senha deve ter pelo menos 6 caracteres.';
-                } else if (msg.includes('status code')) {
-                    friendlyMsg = 'Erro ao criar usuário. Verifique os dados e tente novamente.';
+                } else if (msg.includes('email_exists') || msg.includes('duplicate')) {
+                    friendlyMsg = 'Este e-mail já está cadastrado.';
+                } else if (msg.includes('not authorized') || msg.includes('Unauthorized') || msg.includes('403')) {
+                    friendlyMsg = 'Sem permissão. Certifique-se de estar logado como Gerente.';
                 }
                 setToast({ message: `Erro ao criar colaborador: ${friendlyMsg}`, type: 'error' });
+                console.error('Detalhe completo do erro:', msg);
                 return;
             }
 

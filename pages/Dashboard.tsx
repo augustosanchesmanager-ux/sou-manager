@@ -88,7 +88,7 @@ const Dashboard: React.FC = () => {
       supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').order('name'),
       supabase.from('staff').select('id, name').eq('status', 'active'),
       supabase.from('services').select('id, name, duration').eq('active', true),
-      supabase.from('appointments').select('*').neq('status', 'cancelled').order('start_time', { ascending: true }).limit(10),
+      supabase.from('appointments').select('*').neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
       user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
       supabase.from('transactions').select('*').eq('type', 'income').order('date', { ascending: true })
     ]);
@@ -393,6 +393,7 @@ const Dashboard: React.FC = () => {
                 <input
                   className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-transparent rounded-lg text-xs py-2 px-2 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
                   type="date"
+                  title="Data do Agendamento"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 />
@@ -401,6 +402,7 @@ const Dashboard: React.FC = () => {
                 <input
                   className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-transparent rounded-lg text-xs py-2 px-2 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
                   type="time"
+                  title="Hora do Agendamento"
                   value={formData.time}
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                 />
@@ -463,6 +465,7 @@ const Dashboard: React.FC = () => {
                 <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Barbeiro</label>
                 <select
                   value={formData.staffId}
+                  title="Selecionar Barbeiro"
                   onChange={(e) => setFormData({ ...formData, staffId: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg text-xs py-2 px-2 text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
                 >
@@ -473,6 +476,7 @@ const Dashboard: React.FC = () => {
                 <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Serviço</label>
                 <select
                   value={formData.serviceId}
+                  title="Selecionar Serviço"
                   onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg text-xs py-2 px-2 text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
                 >

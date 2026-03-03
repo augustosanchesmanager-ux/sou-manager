@@ -9,6 +9,7 @@ const Login: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
 
     const [showReset, setShowReset] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
@@ -191,7 +192,7 @@ const Login: React.FC = () => {
                                         <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'
                                             }`}>lock</span>
                                         <input
-                                            type="password"
+                                            type={showPassword ? 'text' : 'password'}
                                             required
                                             placeholder="••••••••"
                                             value={password}
@@ -201,8 +202,8 @@ const Login: React.FC = () => {
                                                 : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'
                                                 }`}
                                         />
-                                        <button type="button" className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 hover:text-amber-500' : 'text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
-                                            <span className="material-symbols-outlined text-lg">visibility</span>
+                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 hover:text-amber-500' : 'text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                                            <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
                                         </button>
                                     </div>
                                 </div>

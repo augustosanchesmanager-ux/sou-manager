@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.41.0",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.4",

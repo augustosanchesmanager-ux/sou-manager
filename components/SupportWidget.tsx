@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { generateSupportResponse } from '../services/geminiService';
 
 interface Message {
     id: string;
@@ -7,6 +8,7 @@ interface Message {
     timestamp: Date;
 }
 
+// O assistente agora utiliza a função generateSupportResponse via IA Gemini para respostas dinâmicas.
 const QUICK_REPLIES = [
     'Como cadastrar um cliente?',
     'Como fechar o caixa?',
@@ -15,30 +17,6 @@ const QUICK_REPLIES = [
     'Como gerar relatórios?',
 ];
 
-const BOT_RESPONSES: Record<string, string> = {
-    'como cadastrar um cliente?':
-        '📋 Para cadastrar um cliente:\n\n1. Vá em **Operacional → Cadastros → Clientes**\n2. Clique em **+ Novo Cliente**\n3. Preencha nome, telefone e e-mail\n4. Clique em **Salvar**\n\nPronto! O cliente estará disponível na agenda e no checkout.',
-
-    'como fechar o caixa?':
-        '💰 Para fechar o caixa:\n\n1. Vá em **Operacional → Vendas → Checkout / PDV**\n2. Veja o resumo de vendas do dia\n3. Confira os valores por método de pagamento\n4. Vá em **Gestão → Operações do Dia** para o fechamento completo',
-
-    'como agendar um horário?':
-        '📅 Para agendar:\n\n1. Vá em **Operacional → Vendas → Agendamentos**\n2. Clique no horário desejado ou em **+ Novo Agendamento**\n3. Selecione o profissional, cliente e serviço\n4. Confirme o agendamento',
-
-    'como adicionar um profissional?':
-        '👤 Para adicionar um profissional:\n\n1. Vá em **Operacional → Cadastros → Equipe / Profissionais**\n2. Clique em **+ Novo Profissional**\n3. Preencha os dados e defina a comissão\n4. Salve e ele aparecerá na agenda',
-
-    'como gerar relatórios?':
-        '📊 Para gerar relatórios:\n\n1. Vá em **Gestão → Relatórios**\n2. Selecione o tipo de relatório desejado\n3. Defina o período de análise\n4. Visualize os dados ou exporte em PDF',
-};
-
-function getBotReply(userMsg: string): string {
-    const lower = userMsg.toLowerCase().trim();
-    for (const [key, val] of Object.entries(BOT_RESPONSES)) {
-        if (lower.includes(key) || key.includes(lower)) return val;
-    }
-    return '🤖 Desculpe, ainda não tenho uma resposta específica para essa pergunta. Tente usar uma das sugestões rápidas ou acesse a página de **Suporte** no menu lateral para abrir um chamado.';
-}
 
 const SupportWidget: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -62,7 +40,7 @@ const SupportWidget: React.FC = () => {
         scrollToBottom();
     }, [messages, isTyping]);
 
-    const sendMessage = (text: string) => {
+    const sendMessage = async (text: string) => {
         if (!text.trim()) return;
 
         const userMessage: Message = {
@@ -76,17 +54,16 @@ const SupportWidget: React.FC = () => {
         setInput('');
         setIsTyping(true);
 
-        // Simulate AI thinking delay
-        setTimeout(() => {
-            const botReply: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: getBotReply(text),
-                timestamp: new Date(),
-            };
-            setMessages(prev => [...prev, botReply]);
-            setIsTyping(false);
-        }, 800 + Math.random() * 600);
+        const aiResponse = await generateSupportResponse(text);
+
+        const botReply: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: aiResponse,
+            timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, botReply]);
+        setIsTyping(false);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -118,8 +95,8 @@ const SupportWidget: React.FC = () => {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={`fixed bottom-6 right-6 z-50 size-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 ${isOpen
-                        ? 'bg-slate-700 hover:bg-slate-600 rotate-0'
-                        : 'bg-primary hover:bg-primary-light shadow-primary/40'
+                    ? 'bg-slate-700 hover:bg-slate-600 rotate-0'
+                    : 'bg-primary hover:bg-primary-light shadow-primary/40'
                     }`}
             >
                 <span className="material-symbols-outlined text-white text-2xl transition-transform duration-300">
@@ -155,8 +132,8 @@ const SupportWidget: React.FC = () => {
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                    ? 'bg-primary text-white rounded-br-md'
-                                    : 'bg-[#1C1814] text-slate-300 border border-[#2E2720] rounded-bl-md'
+                                ? 'bg-primary text-white rounded-br-md'
+                                : 'bg-[#1C1814] text-slate-300 border border-[#2E2720] rounded-bl-md'
                                 }`}>
                                 {renderContent(msg.content)}
                             </div>

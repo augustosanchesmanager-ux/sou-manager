@@ -57,6 +57,7 @@ const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbei
 const Schedule: React.FC = () => {
   const { tenantId } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Data from Supabase
@@ -64,7 +65,22 @@ const Schedule: React.FC = () => {
   const [servicesList, setServicesList] = useState<DBService[]>([]);
   const [clientsList, setClientsList] = useState<DBClient[]>([]);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
+  const [activePromotions, setActivePromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Week days (Mon-Sun of the week containing selectedDate)
+  const getWeekDays = (date: Date): Date[] => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0=Sun
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    return Array.from({ length: 7 }, (_, i) => {
+      const wd = new Date(monday);
+      wd.setDate(monday.getDate() + i);
+      return wd;
+    });
+  };
+  const weekDays = getWeekDays(selectedDate);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -89,30 +105,53 @@ const Schedule: React.FC = () => {
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
-    const [staffRes, servicesRes, clientsRes] = await Promise.all([
+    const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar').eq('status', 'active').in('role', ['Barber', 'Manager']),
       supabase.from('services').select('id, name, duration').eq('active', true),
       supabase.from('clients').select('id, name, phone').order('name'),
+      supabase.from('promotions').select('*').eq('active', true),
     ]);
     if (staffRes.data) setStaffList(staffRes.data);
     if (servicesRes.data) setServicesList(servicesRes.data);
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
+    if (promoRes.data) {
+      const now = new Date();
+      const validPromos = promoRes.data.filter((p: any) => {
+        const start = new Date(p.start_date);
+        const end = new Date(p.end_date);
+        end.setHours(23, 59, 59, 999);
+        return now >= start && now <= end;
+      });
+      setActivePromotions(validPromos);
+    }
   }, []);
 
-  // Fetch appointments for the selected date
+  // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
     setLoading(true);
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
-    const dayStart = `${year}-${month}-${day}T00:00:00`;
-    const dayEnd = `${year}-${month}-${day}T23:59:59`;
+
+    let rangeStart: string;
+    let rangeEnd: string;
+
+    if (viewMode === 'week') {
+      const days = getWeekDays(selectedDate);
+      const first = days[0];
+      const last = days[6];
+      rangeStart = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}T00:00:00`;
+      rangeEnd = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
+    } else {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      rangeStart = `${year}-${month}-${day}T00:00:00`;
+      rangeEnd = `${year}-${month}-${day}T23:59:59`;
+    }
 
     const { data } = await supabase
       .from('appointments')
       .select('*')
-      .gte('start_time', dayStart)
-      .lte('start_time', dayEnd)
+      .gte('start_time', rangeStart)
+      .lte('start_time', rangeEnd)
       .neq('status', 'cancelled');
 
     if (data) {
@@ -128,12 +167,13 @@ const Schedule: React.FC = () => {
           service: apt.service_name || 'Serviço',
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
-        };
+          date: apt.start_time, // keep raw ISO for week view filtering
+        } as any;
       });
       setAppointments(mapped);
     }
     setLoading(false);
-  }, [selectedDate]);
+  }, [selectedDate, viewMode]);
 
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
@@ -253,20 +293,36 @@ const Schedule: React.FC = () => {
       }).select().single();
 
       if (comanda && selectedService) {
-        // Fetch service price if possible, or use a default
+        // Fetch service price
         const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+        let finalPrice = serviceData?.price || 0;
+
+        // Apply promotion if exists
+        const promo = activePromotions.find(p =>
+          (p.target_type === 'all') ||
+          (p.target_type === 'service' && p.target_id === selectedService.id)
+        );
+
+        if (promo) {
+          if (promo.discount_type === 'fixed') {
+            finalPrice = Math.max(0, finalPrice - promo.discount_value);
+          } else {
+            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+          }
+        }
 
         await supabase.from('comanda_items').insert({
           comanda_id: comanda.id,
           service_id: selectedService.id,
           product_name: selectedService.name,
           quantity: 1,
-          unit_price: serviceData?.price || 0,
-          tenant_id: tenantId
+          unit_price: finalPrice,
+          tenant_id: tenantId,
+          staff_id: formData.staffId || null
         });
 
         // Update comanda total
-        await supabase.from('comandas').update({ total: serviceData?.price || 0 }).eq('id', comanda.id);
+        await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
       }
     }
 
@@ -289,21 +345,26 @@ const Schedule: React.FC = () => {
           <button
             onClick={() => {
               const newDate = new Date(selectedDate);
-              newDate.setDate(selectedDate.getDate() - 1);
+              newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
             className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-500 dark:text-slate-400"
           >
             <span className="material-symbols-outlined">chevron_left</span>
           </button>
-          <div className="flex items-center gap-2 px-2 text-slate-900 dark:text-white font-bold min-w-[180px] justify-center">
+          <div className="flex items-center gap-2 px-2 text-slate-900 dark:text-white font-bold min-w-[220px] justify-center">
             <span className="material-symbols-outlined text-primary">calendar_month</span>
-            <span>{formatDateDisplay(selectedDate)}</span>
+            <span className="text-sm">
+              {viewMode === 'week'
+                ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                : formatDateDisplay(selectedDate)
+              }
+            </span>
           </div>
           <button
             onClick={() => {
               const newDate = new Date(selectedDate);
-              newDate.setDate(selectedDate.getDate() + 1);
+              newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
             className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-500 dark:text-slate-400"
@@ -314,8 +375,20 @@ const Schedule: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
-            <button className="px-4 py-1.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm rounded-md text-xs font-bold transition-all">Dia</button>
-            <button className="px-4 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold transition-all">Semana</button>
+            <button
+              onClick={() => setViewMode('day')}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'day'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >Dia</button>
+            <button
+              onClick={() => setViewMode('week')}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'week'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >Semana</button>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
@@ -330,96 +403,197 @@ const Schedule: React.FC = () => {
       {/* Calendar Grid Container */}
       <div className="flex-1 bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col shadow-sm">
 
-        {/* Resources Header */}
-        <div className="flex border-b border-slate-200 dark:border-border-dark">
-          <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
-          <div className="flex-1 flex">
-            {staffList.length === 0 ? (
-              <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
-            ) : (
-              staffList.map(resource => (
-                <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
-                  <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
+        {viewMode === 'week' ? (
+          /* ===== WEEK VIEW ===== */
+          <>
+            {/* Week Header */}
+            <div className="flex border-b border-slate-200 dark:border-border-dark shrink-0">
+              <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5" />
+              {weekDays.map((day, i) => {
+                const isToday = day.toDateString() === new Date().toDateString();
+                const isSelected = day.toDateString() === selectedDate.toDateString();
+                const dayApts = appointments.filter(a => {
+                  const d = new Date((a as any).date);
+                  return d.toDateString() === day.toDateString();
+                });
+                return (
+                  <div
+                    key={i}
+                    onClick={() => { setSelectedDate(day); setViewMode('day'); }}
+                    className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+                      }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-slate-400'
+                      }`}>
+                      {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                    </p>
+                    <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-primary text-white' : 'text-slate-700 dark:text-white'
+                      }`}>
+                      {day.getDate()}
+                    </div>
+                    {dayApts.length > 0 && (
+                      <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                        {dayApts.length} aptos
+                      </span>
+                    )}
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Time Grid Scrollable Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                );
+              })}
             </div>
-          ) : (
-            <div className="flex min-h-[800px]">
-              {/* Time Axis */}
-              <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
-                {timeSlots.map(hour => (
-                  <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
-                    {hour}:00
-                  </div>
-                ))}
-              </div>
 
-              {/* Columns */}
-              <div className="flex-1 flex relative">
-                {/* Background Grid Lines */}
-                <div className="absolute inset-0 flex flex-col z-0">
-                  {timeSlots.map(hour => (
-                    <div key={hour} className="flex-1 border-b border-slate-100 dark:border-border-dark/50"></div>
-                  ))}
+            {/* Week Time Grid */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                 </div>
-
-                {staffList.map(resource => (
-                  <div key={resource.id} className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group">
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
-
-                    {/* Render Appointments */}
-                    {appointments
-                      .filter(apt => apt.staffId === resource.id)
-                      .map((apt, idx) => {
-                        const startOffset = (apt.start - 8) * (100 / 13);
-                        const height = apt.duration * (100 / 13);
-
-                        // Pick a color based on staff list index
-                        const staffIndex = staffList.findIndex(s => s.id === resource.id);
-                        const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
-                        const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
-                        const barberColor = barberColors[staffIndex % barberColors.length];
-                        const borderColor = borderColors[staffIndex % borderColors.length];
-
-                        return (
-                          <div
-                            key={apt.id}
-                            className={`absolute left-1 right-1 rounded-lg p-2 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md flex flex-col justify-center z-20 overflow-hidden`}
-                            style={{ top: `${startOffset}%`, height: `${height}%` }}
-                          >
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter">
-                                {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
-                              </span>
-                              {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[14px] text-white/90">check_circle</span>}
-                            </div>
-                            <p className="text-xs font-black text-white truncate leading-tight mt-0.5 drop-shadow-sm">{apt.client}</p>
-                            <p className="text-[10px] text-white/90 font-bold truncate drop-shadow-sm">{apt.service}</p>
+              ) : (
+                <div className="flex min-h-[800px]">
+                  {/* Time axis */}
+                  <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
+                    {timeSlots.map(hour => (
+                      <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
+                        {hour}:00
+                      </div>
+                    ))}
+                  </div>
+                  {/* Day Columns */}
+                  <div className="flex-1 flex">
+                    {weekDays.map((day, di) => {
+                      const dayApts = appointments.filter(a => {
+                        const d = new Date((a as any).date);
+                        return d.toDateString() === day.toDateString();
+                      });
+                      const isToday = day.toDateString() === new Date().toDateString();
+                      return (
+                        <div key={di} className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}>
+                          {/* Grid lines */}
+                          <div className="absolute inset-0 flex flex-col z-0">
+                            {timeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                           </div>
-                        );
-                      })
-                    }
+                          {/* Appointments */}
+                          {dayApts.map((apt, idx) => {
+                            const startOffset = (apt.start - 8) * (100 / 13);
+                            const height = apt.duration * (100 / 13);
+                            const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
+                            const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
+                            const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
+                            const barberColor = barberColors[Math.max(0, staffIdx) % barberColors.length];
+                            const borderColor = borderColors[Math.max(0, staffIdx) % borderColors.length];
+                            return (
+                              <div
+                                key={apt.id}
+                                className={`absolute left-0.5 right-0.5 rounded-md p-1 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm`}
+                                style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
+                              >
+                                <p className="text-[9px] font-black text-white truncate leading-tight">{apt.client}</p>
+                                <p className="text-[8px] text-white/80 truncate">{apt.service}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ===== DAY VIEW (original) ===== */
+          <>
+            {/* Resources Header */}
+            <div className="flex border-b border-slate-200 dark:border-border-dark">
+              <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
+              <div className="flex-1 flex">
+                {staffList.length === 0 ? (
+                  <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
+                ) : (
+                  staffList.map(resource => (
+                    <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
+                      <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
+                        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Time Grid Scrollable Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="flex min-h-[800px]">
+                  {/* Time Axis */}
+                  <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
+                    {timeSlots.map(hour => (
+                      <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
+                        {hour}:00
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Columns */}
+                  <div className="flex-1 flex relative">
+                    {/* Background Grid Lines */}
+                    <div className="absolute inset-0 flex flex-col z-0">
+                      {timeSlots.map(hour => (
+                        <div key={hour} className="flex-1 border-b border-slate-100 dark:border-border-dark/50"></div>
+                      ))}
+                    </div>
+
+                    {staffList.map(resource => (
+                      <div key={resource.id} className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group">
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
+
+                        {/* Render Appointments */}
+                        {appointments
+                          .filter(apt => apt.staffId === resource.id)
+                          .map((apt, idx) => {
+                            const startOffset = (apt.start - 8) * (100 / 13);
+                            const height = apt.duration * (100 / 13);
+
+                            // Pick a color based on staff list index
+                            const staffIndex = staffList.findIndex(s => s.id === resource.id);
+                            const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
+                            const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
+                            const barberColor = barberColors[staffIndex % barberColors.length];
+                            const borderColor = borderColors[staffIndex % borderColors.length];
+
+                            return (
+                              <div
+                                key={apt.id}
+                                className={`absolute left-1 right-1 rounded-lg p-2 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md flex flex-col justify-center z-20 overflow-hidden`}
+                                style={{ top: `${startOffset}%`, height: `${height}%` }}
+                              >
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter">
+                                    {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
+                                  </span>
+                                  {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[14px] text-white/90">check_circle</span>}
+                                </div>
+                                <p className="text-xs font-black text-white truncate leading-tight mt-0.5 drop-shadow-sm">{apt.client}</p>
+                                <p className="text-[10px] text-white/90 font-bold truncate drop-shadow-sm">{apt.service}</p>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* New Appointment Modal */}

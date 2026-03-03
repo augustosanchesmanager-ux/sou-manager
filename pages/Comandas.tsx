@@ -367,15 +367,13 @@ const Comandas: React.FC = () => {
                                                 >
                                                     <span className="material-symbols-outlined text-lg">print</span>
                                                 </button>
-                                                {isManager && (
-                                                    <button
-                                                        onClick={() => setDeleteComanda(comanda)}
-                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                                                        title="Excluir Comanda"
-                                                    >
-                                                        <span className="material-symbols-outlined text-lg">delete</span>
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => setDeleteComanda(comanda)}
+                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
+                                                    title="Excluir Comanda"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>

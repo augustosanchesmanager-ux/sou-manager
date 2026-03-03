@@ -1,27 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabaseClient';
 
 interface Receipt {
     id: string;
     number: string;
     date: string;
-    type: 'Salário' | 'Fornecedor' | 'Compra' | 'Despesa';
+    type: string;
     name: string;
     amount: number;
     paymentMethod: string;
     status: 'Pago' | 'Pendente' | 'Cancelado';
 }
 
-const mockReceipts: Receipt[] = [
-    { id: '1', number: 'REC-2026-001', date: '2026-02-24', type: 'Salário', name: 'João Silva', amount: 2500, paymentMethod: 'PIX', status: 'Pago' },
-    { id: '2', number: 'REC-2026-002', date: '2026-02-23', type: 'Fornecedor', name: 'Distribuidora XYZ', amount: 850, paymentMethod: 'Boleto', status: 'Pendente' },
-    { id: '3', number: 'REC-2026-003', date: '2026-02-22', type: 'Despesa', name: 'Energia Elétrica', amount: 350.50, paymentMethod: 'Débito Automático', status: 'Pago' },
-    { id: '4', number: 'REC-2026-004', date: '2026-02-21', type: 'Compra', name: 'Equipamentos', amount: 1200, paymentMethod: 'Cartão de Crédito', status: 'Cancelado' },
-];
-
 const Receipts: React.FC = () => {
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
+    const [receipts, setReceipts] = useState<Receipt[]>([]);
+    const [loading, setLoading] = useState(true);
 
     // Filters State
     const [filterType, setFilterType] = useState('Todos');
@@ -34,9 +30,58 @@ const Receipts: React.FC = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
 
+    const fetchReceipts = useCallback(async () => {
+        if (!tenantId) return;
+        setLoading(true);
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('date', { ascending: false });
+
+        if (data) {
+            const mappedReceipts: Receipt[] = data.map((tx: any) => {
+                let status: any = tx.status || 'Pago';
+                if (status !== 'Pago' && status !== 'Pendente' && status !== 'Cancelado') {
+                    status = status === 'paid' ? 'Pago' : (status === 'pending' ? 'Pendente' : 'Pago');
+                }
+
+                // Generates a short receipt number based on ID or date
+                const shortId = tx.id ? tx.id.substring(0, 6) : String(Math.floor(Math.random() * 999999));
+                const year = new Date(tx.date || new Date()).getFullYear();
+
+                let safeType = tx.category || (tx.type === 'income' ? 'Receita' : 'Despesa');
+                if (safeType === 'Pessoal') safeType = 'Salário';
+
+                return {
+                    id: tx.id,
+                    number: `REC-${year}-${shortId.toUpperCase()}`,
+                    date: tx.date || new Date().toISOString(),
+                    type: safeType,
+                    name: tx.description || 'Transação',
+                    amount: Number(tx.amount || tx.val || 0),
+                    paymentMethod: tx.payment_method || tx.method || 'Dinheiro',
+                    status: status
+                };
+            });
+            setReceipts(mappedReceipts);
+        } else {
+            console.error('Error fetching receipts:', error);
+        }
+        setLoading(false);
+    }, [tenantId]);
+
+    useEffect(() => {
+        fetchReceipts();
+    }, [fetchReceipts]);
+
     // Filter Logic
-    const filteredReceipts = mockReceipts.filter(receipt => {
-        const matchType = filterType === 'Todos' || receipt.type === filterType;
+    const filteredReceipts = receipts.filter(receipt => {
+        const matchType = filterType === 'Todos' ||
+            (filterType === 'Salário' && receipt.type === 'Salário') ||
+            (filterType === 'Receita' && receipt.type === 'Venda de Balcão') ||
+            (filterType === 'Despesa' && receipt.type !== 'Salário' && receipt.type !== 'Venda de Balcão');
         const matchStatus = filterStatus === 'Todos' || receipt.status === filterStatus;
         const matchName = receipt.name.toLowerCase().includes(searchName.toLowerCase()) ||
             receipt.number.toLowerCase().includes(searchName.toLowerCase());
@@ -101,12 +146,12 @@ const Receipts: React.FC = () => {
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
+                            title="Filtrar por Tipo"
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none cursor-pointer"
                         >
                             <option value="Todos">Todos os Tipos</option>
                             <option value="Salário">Salário</option>
-                            <option value="Fornecedor">Fornecedor</option>
-                            <option value="Compra">Compra</option>
+                            <option value="Receita">Receita</option>
                             <option value="Despesa">Despesa</option>
                         </select>
                     </div>
@@ -116,6 +161,7 @@ const Receipts: React.FC = () => {
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Status</label>
                         <select
                             value={filterStatus}
+                            title="Filtrar por Status"
                             onChange={(e) => setFilterStatus(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none cursor-pointer"
                         >
@@ -141,6 +187,7 @@ const Receipts: React.FC = () => {
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Inicial</label>
                         <input
                             type="date"
+                            title="Data Inicial"
                             value={filterPeriodStart}
                             onChange={(e) => setFilterPeriodStart(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
@@ -150,6 +197,7 @@ const Receipts: React.FC = () => {
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Final</label>
                         <input
                             type="date"
+                            title="Data Final"
                             value={filterPeriodEnd}
                             onChange={(e) => setFilterPeriodEnd(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
@@ -254,7 +302,7 @@ const Receipts: React.FC = () => {
                     </table>
                 </div>
                 <div className="px-6 py-4 border-t border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/[0.02]">
-                    <p className="text-xs font-medium text-slate-500">Mostrando {filteredReceipts.length} de {mockReceipts.length} registros</p>
+                    <p className="text-xs font-medium text-slate-500">Mostrando {filteredReceipts.length} de {receipts.length} registros</p>
                 </div>
             </div>
 

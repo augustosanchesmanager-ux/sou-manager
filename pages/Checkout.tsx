@@ -25,6 +25,18 @@ interface Client {
     phone?: string;
 }
 
+interface Promotion {
+    id: string;
+    title: string;
+    target_type: 'service' | 'product' | 'all';
+    target_id: string | null;
+    discount_type: 'percentage' | 'fixed';
+    discount_value: number;
+    start_date: string;
+    end_date: string;
+    active: boolean;
+}
+
 interface Staff {
     id: string;
     name: string;
@@ -47,27 +59,45 @@ const Checkout: React.FC = () => {
     const [itemModalTab, setItemModalTab] = useState<'services' | 'products'>('services');
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Duplicate comanda guard
+    const [duplicateComanda, setDuplicateComanda] = useState<{ id: string; created_at: string } | null>(null);
+    const [pendingClient, setPendingClient] = useState<Client | null>(null);
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+
     // DB Data
     const [clients, setClients] = useState<Client[]>([]);
     const [staff, setStaff] = useState<Staff[]>([]);
     const [services, setServices] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
+    const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
         setLoading(true);
-        const [clientsRes, staffRes, servicesRes, productsRes] = await Promise.all([
+        const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
             supabase.from('clients').select('id, name, avatar, phone').order('name'),
             supabase.from('staff').select('id, name').eq('status', 'active'),
             supabase.from('services').select('*').neq('active', false),
             supabase.from('products').select('*').neq('active', false),
+            supabase.from('promotions').select('*').eq('active', true),
         ]);
 
         if (clientsRes.data) setClients(clientsRes.data);
         if (staffRes.data) setStaff(staffRes.data);
         if (servicesRes.data) setServices(servicesRes.data);
         if (productsRes.data) setProducts(productsRes.data);
+        if (promoRes.data) {
+            const now = new Date();
+            const validPromos = promoRes.data.filter((p: any) => {
+                const start = new Date(p.start_date);
+                const end = new Date(p.end_date);
+                // Set end date to end of day
+                end.setHours(23, 59, 59, 999);
+                return now >= start && now <= end;
+            });
+            setActivePromotions(validPromos);
+        }
 
         // If editing a comanda
         if (comandaId) {
@@ -113,18 +143,77 @@ const Checkout: React.FC = () => {
     const discountValue = parseFloat(discount) || 0;
     const total = Math.max(0, subtotal - discountValue);
 
+    // Duplicate client check
+    const handleSelectClient = async (client: Client) => {
+        setIsClientModalOpen(false);
+        // Only check for duplicates when creating a new comanda (not editing)
+        if (!comandaId) {
+            const { data: openComandas } = await supabase
+                .from('comandas')
+                .select('id, created_at')
+                .eq('client_id', client.id)
+                .eq('status', 'open')
+                .limit(1);
+
+            if (openComandas && openComandas.length > 0) {
+                setPendingClient(client);
+                setDuplicateComanda(openComandas[0]);
+                setShowDuplicateModal(true);
+                return;
+            }
+        }
+        setSelectedClient(client);
+    };
+
+    const handleConfirmDuplicate = () => {
+        // User chose to proceed anyway
+        if (pendingClient) setSelectedClient(pendingClient);
+        setShowDuplicateModal(false);
+        setDuplicateComanda(null);
+        setPendingClient(null);
+    };
+
+    const handleGoToExisting = () => {
+        setShowDuplicateModal(false);
+        setDuplicateComanda(null);
+        setPendingClient(null);
+        if (duplicateComanda) navigate(`/checkout/${duplicateComanda.id}`);
+    };
+
     // Handlers
+    const calculateItemPrice = (item: any, type: 'service' | 'product') => {
+        let basePrice = Number(item.price ?? item.sale_price ?? 0);
+        if (isNaN(basePrice)) return 0;
+
+        // Find applicable promotion
+        const promo = activePromotions.find(p =>
+            (p.target_type === 'all') ||
+            (p.target_type === 'service' && type === 'service' && p.target_id === item.id) ||
+            (p.target_type === 'product' && type === 'product' && p.target_id === item.id)
+        );
+
+        if (promo) {
+            if (promo.discount_type === 'fixed') {
+                return Math.max(0, basePrice - promo.discount_value);
+            } else {
+                return basePrice * (1 - (promo.discount_value / 100));
+            }
+        }
+
+        return basePrice;
+    };
+
     const handleAddItem = (item: any, type: 'service' | 'product') => {
-        const itemPrice = item.price ?? item.sale_price ?? 0;
+        const finalPrice = calculateItemPrice(item, type);
         const newItem: CartItem = {
             id: Math.random().toString(36).substr(2, 9),
             type,
-            name: item.name,
-            price: itemPrice,
+            name: item.name || 'Item sem nome',
+            price: finalPrice,
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
-            staff_id: staff[0]?.id // Default to first available pro
+            staff_id: staff.length > 0 ? staff[0].id : ''
         };
         setCart([...cart, newItem]);
         setSearchTerm('');
@@ -139,6 +228,11 @@ const Checkout: React.FC = () => {
         setCart(cart.map(item => item.id === itemId ? { ...item, staff_id: proId } : item));
     };
 
+    const handlePriceChange = (itemId: string, newPrice: string) => {
+        const floatPrice = parseFloat(newPrice);
+        setCart(cart.map(item => item.id === itemId ? { ...item, price: isNaN(floatPrice) ? 0 : floatPrice } : item));
+    };
+
     const handleFinish = async () => {
         if (!selectedClient) {
             setToast({ message: 'Selecione um cliente.', type: 'error' });
@@ -150,22 +244,22 @@ const Checkout: React.FC = () => {
             let currentComandaId = comandaId;
 
             // 1. Create or Update Comanda
-            const comandaData = {
+            const comandaData: any = {
                 client_id: selectedClient.id,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
-                payment_method: paymentStatus === 'paid' ? paymentMethod : null,
-                subtotal: subtotal,
-                discount: discountValue,
                 total: total,
                 tenant_id: tenantId
             };
 
             if (currentComandaId) {
-                await supabase.from('comandas').update(comandaData).eq('id', currentComandaId);
+                const { error: updateError } = await supabase.from('comandas').update(comandaData).eq('id', currentComandaId);
+                if (updateError) throw updateError;
                 // Delete existing items to re-insert (simple sync strategy)
-                await supabase.from('comanda_items').delete().eq('comanda_id', currentComandaId);
+                const { error: delError } = await supabase.from('comanda_items').delete().eq('comanda_id', currentComandaId);
+                if (delError) throw delError;
             } else {
-                const { data: newC } = await supabase.from('comandas').insert(comandaData).select().single();
+                const { data: newC, error: insertError } = await supabase.from('comandas').insert(comandaData).select().single();
+                if (insertError) throw insertError;
                 currentComandaId = newC.id;
             }
 
@@ -177,11 +271,11 @@ const Checkout: React.FC = () => {
                 product_name: item.name,
                 quantity: item.quantity,
                 unit_price: item.price,
-                staff_id: item.staff_id || null,
                 tenant_id: tenantId
             }));
 
-            await supabase.from('comanda_items').insert(itemsToInsert);
+            const { error: itemsError } = await supabase.from('comanda_items').insert(itemsToInsert);
+            if (itemsError) throw itemsError;
 
             // 3. If PAID, finalize via RPC (this reduces stock and marks as paid in DB)
             if (paymentStatus === 'paid') {
@@ -192,7 +286,7 @@ const Checkout: React.FC = () => {
                 }
 
                 const { data: { user } } = await supabase.auth.getUser();
-                await supabase.from('transactions').insert({
+                const { error: transError } = await supabase.from('transactions').insert({
                     user_id: user?.id,
                     type: 'income',
                     category: 'Venda de Balcão',
@@ -202,6 +296,7 @@ const Checkout: React.FC = () => {
                     date: new Date().toISOString(),
                     tenant_id: tenantId
                 });
+                if (transError) throw transError;
             }
 
             setToast({ message: paymentStatus === 'paid' ? 'Venda realizada com sucesso!' : 'Comanda salva em aberto!', type: 'success' });
@@ -214,9 +309,9 @@ const Checkout: React.FC = () => {
                 }
             }, 1500);
 
-        } catch (err) {
-            console.error(err);
-            setToast({ message: 'Erro ao salvar operação.', type: 'error' });
+        } catch (err: any) {
+            console.error('Save error details:', err);
+            setToast({ message: err?.message ? `Erro: ${err.message}` : 'Erro ao salvar operação.', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -335,10 +430,11 @@ const Checkout: React.FC = () => {
                                                 <div className="flex items-center gap-1 mt-1">
                                                     <span className="text-[10px] text-slate-400 uppercase font-bold">Responsável:</span>
                                                     <select
-                                                        value={item.staff_id}
+                                                        value={item.staff_id || ''}
                                                         onChange={(e) => handleStaffChange(item.id, e.target.value)}
                                                         className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-primary [color-scheme:light] dark:[color-scheme:dark]"
                                                     >
+                                                        <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-400">Nenhum</option>
                                                         {staff.map(pro => (
                                                             <option key={pro.id} value={pro.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{pro.name}</option>
                                                         ))}
@@ -347,8 +443,24 @@ const Checkout: React.FC = () => {
                                             </div>
 
                                             {/* Price */}
-                                            <div className="text-right">
-                                                <p className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</p>
+                                            <div className="text-right flex flex-col items-end gap-1">
+                                                <div className="flex items-center gap-1">
+                                                    {activePromotions.some(p =>
+                                                        (p.target_type === 'all') ||
+                                                        (p.target_type === 'service' && item.type === 'service' && p.target_id === item.service_id) ||
+                                                        (p.target_type === 'product' && item.type === 'product' && p.target_id === item.product_id)
+                                                    ) && (
+                                                            <span className="bg-rose-500 text-white text-[9px] font-black px-1 rounded mr-1 animate-pulse">PROMO</span>
+                                                        )}
+                                                    <span className="text-sm font-bold text-slate-500">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={item.price}
+                                                        onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                                                        className="w-20 text-right bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                                                    />
+                                                </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
                                             </div>
 
@@ -485,10 +597,20 @@ const Checkout: React.FC = () => {
                 maxWidth="md"
             >
                 <div className="space-y-2">
-                    {clients.map(client => (
+                    <div className="relative mb-3">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Buscar cliente..."
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    {clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(client => (
                         <button
                             key={client.id}
-                            onClick={() => { setSelectedClient(client); setIsClientModalOpen(false); }}
+                            onClick={() => handleSelectClient(client)}
                             className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg transition-colors text-left"
                         >
                             <img src={client.avatar} className="size-10 rounded-full" />
@@ -583,7 +705,7 @@ const Checkout: React.FC = () => {
                                         </div>
                                         <div className="text-right shrink-0">
                                             <span className="font-bold text-slate-900 dark:text-white">
-                                                R$ {((item.price || item.sale_price) ?? 0).toFixed(2)}
+                                                R$ {Number(item.price ?? item.sale_price ?? 0).toFixed(2)}
                                             </span>
                                         </div>
                                     </button>
@@ -595,6 +717,60 @@ const Checkout: React.FC = () => {
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+            {/* === DUPLICATE CLIENT WARNING MODAL === */}
+            <Modal
+                isOpen={showDuplicateModal}
+                onClose={() => { setShowDuplicateModal(false); setPendingClient(null); setDuplicateComanda(null); }}
+                title="Comanda em Aberto Detectada"
+                maxWidth="sm"
+            >
+                <div className="space-y-5">
+                    {/* Warning Banner */}
+                    <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl">
+                        <span className="material-symbols-outlined text-amber-500 text-2xl shrink-0 mt-0.5">warning</span>
+                        <div>
+                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Atenção!</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-300 mt-0.5">
+                                O cliente <strong>{pendingClient?.name}</strong> já possui uma comanda em aberto.
+                                Revise antes de criar uma nova.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Existing Comanda Info */}
+                    {duplicateComanda && (
+                        <div className="bg-slate-50 dark:bg-background-dark rounded-xl p-4 border border-slate-200 dark:border-border-dark">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Comanda Existente</p>
+                            <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-primary">#{duplicateComanda.id.slice(0, 8)}</span>
+                                <span className="text-xs text-slate-500">
+                                    {new Date(duplicateComanda.created_at).toLocaleDateString('pt-BR')} às{' '}
+                                    {new Date(duplicateComanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col gap-3">
+                        <button
+                            onClick={handleGoToExisting}
+                            className="w-full py-3 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-sm">open_in_new</span>
+                            Ir para Comanda Existente
+                        </button>
+                        <button
+                            onClick={handleConfirmDuplicate}
+                            className="w-full py-3 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-sm">add_circle</span>
+                            Criar Nova Mesmo Assim
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

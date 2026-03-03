@@ -26,9 +26,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onClose }) => {
         if (!user) return;
         setIsLoading(true);
 
+        const todayStr = new Date().toISOString().split('T')[0];
+        const startOfDay = new Date(`${todayStr}T00:00:00`).toISOString();
+
         let query = supabase
             .from('notifications')
             .select('*')
+            .gte('created_at', startOfDay)
             .order('created_at', { ascending: false });
 
         if (filter === 'unread') {
@@ -79,19 +83,33 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ onClose }) => {
             .eq('id', id);
 
         if (!error) {
-            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+            if (filter === 'unread') {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+            } else {
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+            }
         }
     };
 
     const markAllAsRead = async () => {
         if (!user) return;
+
+        const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+        if (unreadIds.length === 0) return;
+
         const { error } = await supabase
             .from('notifications')
             .update({ read: true })
-            .eq('read', false);
+            .in('id', unreadIds);
 
         if (!error) {
-            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            if (filter === 'unread') {
+                setNotifications([]);
+            } else {
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            }
+        } else {
+            console.error('Erro ao marcar todas como lidas:', error);
         }
     };
 

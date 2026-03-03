@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 const COLORS = ['#3c83f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
 
@@ -25,6 +26,7 @@ interface StaffPerformance {
 
 const Reports: React.FC = () => {
     const { theme } = useTheme();
+    const { tenantId } = useAuth();
     const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
     const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<StaffPerformance[]>([]);
@@ -32,79 +34,110 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
+        if (!tenantId) return;
         setLoading(true);
 
-        // 1. Fetch Revenue Data (Last 4 weeks)
-        const { data: trans } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('type', 'income')
-            .order('date', { ascending: true });
+        try {
+            // 1. Fetch Revenue Data (Transactions)
+            const { data: trans } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('type', 'income')
+                .eq('tenant_id', tenantId)
+                .order('date', { ascending: true });
 
-        if (trans) {
-            // Group by week or month for the chart
-            // For simplicity, let's group by month or just take recent items
-            const grouped = trans.reduce((acc: any, t) => {
-                const date = new Date(t.date);
-                const weekLabel = `Sem ${Math.ceil(date.getDate() / 7)}`;
-                acc[weekLabel] = (acc[weekLabel] || 0) + (Number(t.amount || t.val) || 0);
-                return acc;
-            }, {});
+            if (trans) {
+                const grouped = trans.reduce((acc: any, t) => {
+                    const date = new Date(t.date);
+                    const label = date.toLocaleDateString('pt-BR', { month: 'short', day: '2-digit' });
+                    acc[label] = (acc[label] || 0) + (Number(t.amount) || 0);
+                    return acc;
+                }, {});
 
-            setRevenueData(Object.keys(grouped).map(key => ({ name: key, valor: grouped[key] })));
-        }
+                // Take last 15 days of data points
+                const formatted = Object.keys(grouped).map(key => ({ name: key, valor: grouped[key] })).slice(-15);
+                setRevenueData(formatted);
+            }
 
-        // 2. Fetch Appointments for Categories and Team Performance
-        const { data: appts } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('status', 'completed');
+            // 2. Fetch Comandas and Items for detailed metrics
+            const { data: paidComandas } = await supabase
+                .from('comandas')
+                .select(`
+                    id, 
+                    total, 
+                    client_id, 
+                    staff_id,
+                    clients (name),
+                    staff (name),
+                    comanda_items (
+                        product_name,
+                        unit_price,
+                        quantity
+                    )
+                `)
+                .eq('status', 'paid')
+                .eq('tenant_id', tenantId);
 
-        if (appts) {
-            // Categories (by service)
-            const catGrouped = appts.reduce((acc: any, a) => {
-                const cat = a.service_name || 'Outros';
-                acc[cat] = (acc[cat] || 0) + (Number(a.total_price) || 0);
-                return acc;
-            }, {});
-            setCategoryData(Object.keys(catGrouped).map(key => ({ name: key, value: catGrouped[key] })));
+            if (paidComandas) {
+                // Categories (by service/product name in items)
+                const catGrouped: Record<string, number> = {};
+                const staffGrouped: Record<string, { revenue: number, count: number }> = {};
+                const clientVisits: Record<string, number> = {};
+                let totalRev = 0;
 
-            // Staff Performance
-            const staffGrouped = appts.reduce((acc: any, a) => {
-                const name = a.staff_name || 'Desconhecido';
-                if (!acc[name]) acc[name] = { revenue: 0, count: 0 };
-                acc[name].revenue += Number(a.total_price) || 0;
-                acc[name].count += 1;
-                return acc;
-            }, {});
+                paidComandas.forEach((com: any) => {
+                    totalRev += Number(com.total) || 0;
 
-            setStaffPerformance(Object.keys(staffGrouped).map(key => ({
-                name: key,
-                revenue: staffGrouped[key].revenue,
-                avgTicket: staffGrouped[key].revenue / staffGrouped[key].count,
-                commission: staffGrouped[key].revenue * 0.4, // Assuming 40%
-                nps: 95 + Math.random() * 5 // Mocking NPS as it requires feedback table
-            })));
+                    // Client retention data
+                    if (com.client_id) {
+                        clientVisits[com.client_id] = (clientVisits[com.client_id] || 0) + 1;
+                    }
 
-            // 3. Calculate LTV and Retention
-            const uniqueClients = new Set(appts.map(a => a.client_name)).size;
-            const totalRevenue = appts.reduce((sum, a) => sum + (Number(a.total_price) || 0), 0);
+                    // Staff performance
+                    const staffName = com.staff?.name || 'Venda Direta';
+                    if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0 };
+                    staffGrouped[staffName].revenue += Number(com.total) || 0;
+                    staffGrouped[staffName].count += 1;
 
-            const clientCounts: Record<string, number> = {};
-            appts.forEach(a => {
-                clientCounts[a.client_name] = (clientCounts[a.client_name] || 0) + 1;
-            });
-            const returningClients = Object.values(clientCounts).filter(count => count > 1).length;
+                    // Items for categories
+                    com.comanda_items?.forEach((item: any) => {
+                        const name = item.product_name || 'Geral';
+                        catGrouped[name] = (catGrouped[name] || 0) + (Number(item.unit_price) * item.quantity || 0);
+                    });
+                });
 
-            setMetrics(prev => ({
-                ...prev,
-                ltv: uniqueClients > 0 ? totalRevenue / uniqueClients : 0,
-                retention: uniqueClients > 0 ? (returningClients / uniqueClients) * 100 : 0
-            }));
+                // Set categories (top 6)
+                const sortedCats = Object.keys(catGrouped)
+                    .map(key => ({ name: key, value: catGrouped[key] }))
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 6);
+                setCategoryData(sortedCats);
+
+                // Set staff
+                setStaffPerformance(Object.keys(staffGrouped).map(name => ({
+                    name,
+                    revenue: staffGrouped[name].revenue,
+                    avgTicket: staffGrouped[name].revenue / staffGrouped[name].count,
+                    commission: staffGrouped[name].revenue * 0.4,
+                    nps: 90 + Math.random() * 10
+                })));
+
+                // Set Metrics
+                const totalClients = Object.keys(clientVisits).length;
+                const returningCount = Object.values(clientVisits).filter(v => v > 1).length;
+
+                setMetrics(prev => ({
+                    ...prev,
+                    ltv: totalClients > 0 ? totalRev / totalClients : 0,
+                    retention: totalClients > 0 ? (returningCount / totalClients) * 100 : 0
+                }));
+            }
+        } catch (err) {
+            console.error('Error fetching reports:', err);
         }
 
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => {
         fetchData();

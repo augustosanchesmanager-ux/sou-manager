@@ -140,22 +140,37 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const userRole = user?.user_metadata?.role || '';
   const isOperationalOnly = userRole === 'Barber' || userRole === 'Receptionist';
 
-  const filteredMenu = menuStructure.filter(item => {
-    if (item.name === 'Super Admin') {
-      return userRole === 'Super Admin' || userRole === 'superadmin';
+  const filteredMenu = menuStructure.map(item => {
+    // Clone item to avoid modifying original structure
+    const newItem = { ...item };
+
+    if (newItem.name === 'Super Admin') {
+      const isSuper = userRole === 'Super Admin' || userRole === 'superadmin';
+      return isSuper ? newItem : null;
     }
-    if (isOperationalOnly && item.name === 'Gestão') {
-      return false; // Hide Gestão entirely
+
+    if (userRole === 'Barber') {
+      if (newItem.name === 'Gestão') return null; // Hide Gestão entirely
+      if (newItem.children) {
+        newItem.children = newItem.children.map(child => {
+          if ('type' in child && child.type === 'subgroup' && child.name === 'Cadastros') {
+            return {
+              ...child,
+              items: child.items.filter(i => i.name === 'Clientes')
+            };
+          }
+          return child;
+        }).filter(child => {
+          if ('type' in child && child.type === 'subgroup' && child.name === 'Cadastros') {
+            return child.items.length > 0;
+          }
+          return true;
+        });
+      }
     }
-    // Filter internal children (like Cadastros)
-    if (item.children && isOperationalOnly) {
-      item.children = item.children.filter(child => {
-        if (child.name === 'Cadastros') return false;
-        return true;
-      });
-    }
-    return true;
-  });
+
+    return newItem;
+  }).filter(Boolean) as MenuItem[];
 
   return (
     <>

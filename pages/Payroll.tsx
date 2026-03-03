@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabaseClient';
+import Toast from '../components/Toast';
 
 interface PayrollRecord {
-    id: string;
+    id: string; // Staff id
     professionalName: string;
     role: string;
     avatar: string;
@@ -12,58 +14,168 @@ interface PayrollRecord {
     discounts: number;
     netPay: number;
     status: 'Pendente' | 'Pago';
+    transactionId?: string;
 }
 
-const mockPayroll: PayrollRecord[] = [
-    {
-        id: '1',
-        professionalName: 'Marcus Vinícius',
-        role: 'Barbeiro Sênior',
-        avatar: 'https://i.pravatar.cc/150?u=marcus',
-        fixedSalary: 0,
-        commissions: 3500.00,
-        discounts: 150.00, // Vale 
-        netPay: 3350.00,
-        status: 'Pendente'
-    },
-    {
-        id: '2',
-        professionalName: 'Ana Souza',
-        role: 'Recepcionista',
-        avatar: 'https://i.pravatar.cc/150?u=ana',
-        fixedSalary: 2500.00,
-        commissions: 150.00,
-        discounts: 0,
-        netPay: 2650.00,
-        status: 'Pago'
-    },
-    {
-        id: '3',
-        professionalName: 'Carlos Silva',
-        role: 'Barbeiro',
-        avatar: 'https://i.pravatar.cc/150?u=carlos',
-        fixedSalary: 0,
-        commissions: 2800.00,
-        discounts: 300.00, // Materiais/Adiantamento
-        netPay: 2500.00,
-        status: 'Pendente'
-    }
-];
-
 const Payroll: React.FC = () => {
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
     // Filtros
-    const [filterMonth, setFilterMonth] = useState('2026-02');
+    const [filterMonth, setFilterMonth] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [searchName, setSearchName] = useState('');
 
     // Modal de Pagamento
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<PayrollRecord | null>(null);
     const [generateReceipt, setGenerateReceipt] = useState(true);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    const fetchData = useCallback(async () => {
+        if (!tenantId || !filterMonth) return;
+        setLoading(true);
+
+        const [yearStr, monthStr] = filterMonth.split('-');
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr);
+
+        const startOfMonth = new Date(year, month - 1, 1).toISOString();
+        const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+        try {
+            // 1. Fetch Staff
+            const { data: staffData } = await supabase
+                .from('staff')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .eq('status', 'active');
+
+            if (!staffData || staffData.length === 0) {
+                setPayrollRecords([]);
+                setLoading(false);
+                return;
+            }
+
+            // 2. Fetch Paid Comandas for the month
+            const { data: comandasData } = await supabase
+                .from('comandas')
+                .select('staff_id, total')
+                .eq('tenant_id', tenantId)
+                .eq('status', 'paid')
+                .gte('created_at', startOfMonth)
+                .lte('created_at', endOfMonth);
+
+            // 3. Fetch specific payroll payments in transactions 
+            const { data: transactionsData } = await supabase
+                .from('transactions')
+                .select('id, description, amount')
+                .eq('tenant_id', tenantId)
+                .eq('type', 'expense')
+                .eq('category', 'Pessoal')
+                .gte('date', startOfMonth)
+                .lte('date', endOfMonth);
+
+            // Map data
+            const records: PayrollRecord[] = staffData.map((staff: any) => {
+                // Calculate commissions
+                let staffCommissions = 0;
+                if (comandasData) {
+                    const staffSales = comandasData.filter((c: any) => c.staff_id === staff.id);
+                    const totalSales = staffSales.reduce((acc: number, curr: any) => acc + Number(curr.total), 0);
+                    // if commission_rate is 40%
+                    const rate = Number(staff.commission_rate || 40) / 100;
+                    staffCommissions = totalSales * rate;
+                }
+
+                // Temporary vales/discounts mock as 0 for now unless we add an 'expenses' loop
+                const fixed = Number(staff.fixed_salary || 0);
+                const discounts = 0;
+                let netPay = fixed + staffCommissions - discounts;
+
+                // Check if already paid
+                // We use description "Folha - [StaffId] - [YYYY-MM]" to identify
+                const payrollDesc = `Folha - ${staff.id} - ${filterMonth}`;
+                const paymentTx = transactionsData?.find((tx: any) => tx.description === payrollDesc);
+
+                if (paymentTx) {
+                    // netPay = Number(paymentTx.amount); // use the exact paid amount if already paid?
+                }
+
+                return {
+                    id: staff.id,
+                    professionalName: staff.name,
+                    role: staff.role || 'Profissional',
+                    avatar: staff.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}`,
+                    fixedSalary: fixed,
+                    commissions: staffCommissions,
+                    discounts: discounts,
+                    netPay: netPay,
+                    status: paymentTx ? 'Pago' : 'Pendente',
+                    transactionId: paymentTx?.id
+                };
+            });
+
+            setPayrollRecords(records);
+
+        } catch (error) {
+            console.error('Error computing payroll:', error);
+            setToast({ message: 'Erro ao carregar dados da folha.', type: 'error' });
+        }
+
+        setLoading(false);
+    }, [tenantId, filterMonth]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const openPaymentModal = (record: PayrollRecord) => {
+        if (record.status === 'Pago') return;
+        setSelectedRecord(record);
+        setIsPaymentModalOpen(true);
+    };
+
+    const handleConfirmPayment = async () => {
+        if (!selectedRecord || !user || !tenantId) return;
+
+        try {
+            const payrollDesc = `Folha - ${selectedRecord.id} - ${filterMonth}`;
+
+            // Insert into transactions to mark as Paid
+            const { error: txError } = await supabase.from('transactions').insert({
+                user_id: user.id,
+                type: 'expense',
+                category: 'Pessoal',
+                amount: selectedRecord.netPay,
+                description: payrollDesc,
+                payment_method: 'Transferência', // Default
+                date: new Date().toISOString(),
+                tenant_id: tenantId
+            });
+
+            if (txError) throw txError;
+
+            // Simple receipt alert since receipts table doesn't exist yet
+            if (generateReceipt) {
+                setToast({ message: 'Pagamento concluído e recibo simulado.', type: 'success' });
+            } else {
+                setToast({ message: 'Folha paga com sucesso!', type: 'success' });
+            }
+
+            setIsPaymentModalOpen(false);
+            fetchData(); // Refresh list
+        } catch (error: any) {
+            console.error('Payment error:', error);
+            setToast({ message: 'Erro ao processar pagamento.', type: 'error' });
+        }
+    };
 
     // Filter Logic
-    const filteredRecords = mockPayroll.filter(record =>
+    const filteredRecords = payrollRecords.filter(record =>
         record.professionalName.toLowerCase().includes(searchName.toLowerCase())
     );
 
@@ -73,46 +185,39 @@ const Payroll: React.FC = () => {
     const totalCommissions = filteredRecords.reduce((acc, curr) => acc + curr.commissions, 0);
     const totalDiscounts = filteredRecords.reduce((acc, curr) => acc + curr.discounts, 0);
 
-    const openPaymentModal = (record: PayrollRecord) => {
-        setSelectedRecord(record);
-        setIsPaymentModalOpen(true);
-    };
-
-    const handleConfirmPayment = () => {
-        // Lógica de Integração aqui:
-        // 1. Atualizar status na tabela "payroll" ou "transactions"
-        // 2. Se `generateReceipt` for true -> Inserir na tabela "receipts"
-
-        setIsPaymentModalOpen(false);
-        // Toast("Pagamento confirmado!")
-    };
-
     return (
         <div className="space-y-8 animate-fade-in relative pb-10">
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Folha de Pagamento</h2>
-                    <p className="text-slate-500 mt-1">Gestão de salários, comissões e emissão de recibos automáticos.</p>
+                    <p className="text-slate-500 mt-1">Gestão de salários, comissões de {filterMonth.split('-')[1]}/{filterMonth.split('-')[0]}.</p>
                 </div>
+                {/* No 'Criar Folha' button needed since we dynamically compute it */}
+                <button onClick={fetchData} className="bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <span className="material-symbols-outlined text-[20px]">refresh</span>
+                    Atualizar Cálculo
+                </button>
             </div>
 
             {/* Resumo Financeiro (KPIs) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pendente (APagar)</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pendente (Para Pagar)</p>
                     <h3 className="text-2xl font-black text-amber-500">R$ {totalToPay.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pago (Mês)</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total Pago</p>
                     <h3 className="text-2xl font-black text-emerald-500">R$ {totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissões Geradas</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissões Calculadas</p>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {totalCommissions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm border-l-4 border-l-red-500">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total de Descontos/Vales</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Vales (Lançados manual)</p>
                     <h3 className="text-2xl font-black text-red-500">R$ {totalDiscounts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
             </div>
@@ -129,7 +234,7 @@ const Payroll: React.FC = () => {
                     />
                 </div>
                 <div className="flex-1 relative">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Buscar Profissional</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Buscar Colaborador</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                         <input
@@ -160,7 +265,15 @@ const Payroll: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-slate-900 dark:text-white">
-                            {filteredRecords.map((record) => (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">Calculando folha...</td>
+                                </tr>
+                            ) : filteredRecords.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">Nenhum profissional encontrado.</td>
+                                </tr>
+                            ) : filteredRecords.map((record) => (
                                 <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-3">
@@ -187,7 +300,7 @@ const Payroll: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${record.status === 'Pago' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-500 dark:border-emerald-500/20' :
-                                                'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-500 dark:border-amber-500/20'
+                                            'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-500 dark:border-amber-500/20'
                                             }`}>
                                             <span className={`size-1.5 rounded-full ${record.status === 'Pago' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                                             {record.status}
@@ -245,18 +358,18 @@ const Payroll: React.FC = () => {
 
                         {/* Opções de Automação */}
                         <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-                            <label className="flex items-start gap-3 cursor-pointer">
+                            <label className="flex items-start gap-3 cursor-pointer opacity-50 cursor-not-allowed">
                                 <div className="mt-0.5">
                                     <input
                                         type="checkbox"
-                                        checked={generateReceipt}
-                                        onChange={(e) => setGenerateReceipt(e.target.checked)}
+                                        checked={true}
+                                        disabled
                                         className="size-4 rounded text-primary focus:ring-primary border-slate-300"
                                     />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-slate-900 dark:text-white">Gerar Recibo Automaticamente</p>
-                                    <p className="text-xs text-slate-500 mt-1">Ao marcar esta opção, um recibo oficial será criado na tela de "Gestão de Recibos" constando este pagamento, com assinatura digital vinculada.</p>
+                                    <p className="text-xs text-slate-500 mt-1">Ao marcar esta opção, um recibo oficial será criado assim que a funcionalidade avançada de recibos estiver publicada.</p>
                                 </div>
                             </label>
                         </div>
@@ -271,9 +384,9 @@ const Payroll: React.FC = () => {
                             </button>
                             <button
                                 onClick={handleConfirmPayment}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all font-display"
                             >
-                                {generateReceipt ? 'Confirmar e Gerar Recibo' : ' Confirmar Pagamento'}
+                                Confirmar Pagamento
                             </button>
                         </div>
                     </div>
