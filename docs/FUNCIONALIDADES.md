@@ -1,42 +1,134 @@
-# Funcionalidades Principais: SOU MANA.GER
+# 📄 Documentação de Funcionalidades - SOU MANA.GER
 
-O sistema é composto por módulos integrados que cobrem todas as necessidades de gestão de uma barbearia moderna.
+Esta documentação detalha todas as funcionalidades atuais do sistema **SOU MANA.GER**, refletindo as atualizações mais recentes de infraestrutura, segurança e o novo design **Neo-Premium Boutique Edition**.
 
-## 1. Dashboard Inteligente (BI)
+---
 
-- **Insights com IA**: Utiliza Google Gemini para analisar tendências e sugerir melhorias.
-- **Métricas em Tempo Real**: Faturamento, ticket médio, taxa de ocupação e performance da equipe.
-- **Alertas e Lembretes**: Notificações sobre estoque baixo, aniversariantes e agendamentos pendentes.
+## 🚀 1. Núcleo Operacional (O Coração da Barbearia)
 
-## 2. Agenda e Comandas
+### 📅 Agendamentos (`/schedule`)
 
-- **Grade Dinâmica**: Visualização clara de horários por profissional.
-- **Comandas Digitais**: Gestão de serviços e produtos consumidos em tempo real.
-- **Checkout Rápido**: Finalização de pagamentos com múltiplas formas (Dinheiro, Cartão, PIX).
+* **Calendário Interativo**: Visualização diária/semanal de horários com suporte a drag-and-drop.
+* **Gestão de Status**: Marcar como confirmado, em atendimento, finalizado ou cancelado.
+* **Agendamento Rápido**: Atalho no dashboard para criar novos horários em segundos.
+* **Conflitos**: Sistema inteligente que evita sobreposição de horários para o mesmo profissional.
 
-## 3. Gestão Financeira
+### 💳 Checkout / PDV (`/checkout`)
 
-- **Fluxo de Caixa**: Registro automático de receitas e lançamentos manuais de despesas.
-- **Relatórios Detalhados**: Exportação de dados para análise de lucratividade.
-- **Fechamento de Caixa**: Conferência diária de valores por método de pagamento.
+* **Terminal de Vendas**: Interface otimizada para finalização rápida de atendimentos e venda de produtos.
+* **Pagamentos Múltiplos**: Suporte a Dinheiro, PIX, Cartões e Crédito em conta.
+* **Baixa Automática**: Integração com estoque e financeiro ao finalizar uma venda.
+* **Emissão de Recibos**: Geração instantânea de comprovantes autenticados com marca d'água.
 
-## 4. CRM de Clientes
+### 📝 Comandas (`/comandas`)
 
-- **Histórico Completo**: Visualização de todos os serviços realizados e produtos comprados.
-- **Preferências**: Notas sobre preferências do cliente (ex: tipo de corte, bebidas favoritas).
-- **Fidelização**: Ferramentas para identificar e premiar os clientes mais frequentes.
+* **Controle de Consumo**: Gestão de produtos e serviços consumidos durante a permanência no local.
+* **Abertura via QR**: Integração com o Totem para clientes abrirem suas próprias comandas.
+* **Histórico de Comandas**: Consulta de tickets passados e auditoria de vendas detalhada.
 
-## 5. Gestão de Equipe e Performance
+---
 
-- **Comissões**: Cálculo automatizado de comissões por serviço e venda de produtos.
-- **Ranking de Performance**: Visualização de quem traz mais resultados para o negócio.
-- **Escalas**: Configuração de horários de trabalho e folgas.
+## 👥 2. Gestão de Cadastros (CRM & Recursos)
 
-## 6. Inventário e Produtos
+### 👤 Clientes (`/clients`)
 
-- **Controle de Estoque**: Entradas e saídas automatizadas.
-- **Aviso de Reposição**: Alertas automáticos quando o estoque atinge o nível mínimo.
+* **Ficha Completa**: Cadastro de nome, telefone, e-mail e data de nascimento.
+* **Faturamento Individual**: Visualização do total gasto e última visita por cliente.
+* **Importação/Exportação CSV**: Facilidade para migrar bases de dados existentes.
+* **Edição Premium**: Modal moderno para atualização completa de dados e preferências.
 
-## 7. Onboarding Personalizado
+### ✂️ Equipe & Profissionais (`/team`)
 
-- Fluxo de configuração inicial para novos tenats, permitindo ajustar o sistema às necessidades específicas do negócio logo no primeiro acesso.
+* **Gestão de Staff**: Cadastro de barbeiros, recepcionistas e gerentes com RLS seguro.
+* **Comissões**: Configuração individual de ganhos e participação percentual.
+* **Status em Tempo Real**: Monitoramento de quem está disponível ou em atendimento.
+
+### 📦 Produtos & Estoque (`/products`)
+
+* **Controle de Ativos**: Cadastro de produtos para venda e uso profissional.
+* **Alerta de Estoque Baixo**: Notificações automáticas quando itens atingem o nível crítico.
+* **Histórico de Movimentação**: Registro de entradas e saídas de produtos com auditoria.
+
+---
+
+## 📊 3. Gestão Estratégica & BI
+
+### 🧠 Visão de Negócio (BI) (`/bi`)
+
+* **Análise Preditiva**: Insights gerados via **IA (Gemini)** sobre tendências do negócio.
+* **Gráficos Avançados**: Visualização de faturamento, ticket médio e CAC (Custo de Aquisição de Clientes).
+* **Performance da Equipe**: Ranking de produtividade e lucratividade por profissional.
+
+### 📈 Relatórios (`/reports`)
+
+* **Financeiro**: Fluxo de caixa detalhado e DRE simplificado.
+* **Aniversariantes**: Listagem de clientes com data próxima para ações de marketing.
+* **Exportação**: Geração de PDFs e planilhas de todos os indicadores.
+
+---
+
+## 💰 4. Módulo Financeiro Avançado
+
+### 💵 Fluxo Financeiro (`/financial`)
+
+* **Controle de Saldo**: Monitoramento de entradas por método de pagamento.
+* **Conciliação**: Verificação de transações pendentes e confirmadas.
+
+### 📝 Gestão de Recibos (`/receipts`)
+
+* **Numeração Sequencial**: Controle fiscal e administrativo de comprovantes em conformidade.
+* **Assinatura Digital**: Recibos autenticados para segurança jurídica.
+* **Marca D'água Dinâmica**: Layout premium com logo da barbearia.
+
+### 📋 Folha de Pagamento (`/payroll`)
+
+* **Cálculo Automatizado**: Fechamento de quinzena/mês baseado em comissões e serviços realizados.
+* **Lançamentos Manuais**: Adição de bônus ou descontos personalizados.
+* **Comprovantes de Pagamento**: Geração de holerites detalhados para o staff.
+
+---
+
+## 🔄 5. Motor de Retorno Inteligente (Smart Return)
+
+O sistema analisa automaticamente o comportamento de cada cliente e identifica quando ele provavelmente está na hora de cortar novamente.
+
+* **Cálculo de Média**: Cada cliente possui um intervalo médio de retorno baseado no histórico.
+* **Níveis de Alerta**:
+  * 🟢 **Normal**: Recente (ex: João cortou há 10 dias, média 18).
+  * 🟡 **Ação Sugerida**: Próximo da média (ex: 20 dias).
+  * 🔴 **Crítico**: Ultrapassou a média (ex: 25 dias).
+* **Automações**: Sugestão de agendamento, envio de lembretes e geração de promoções automáticas.
+
+---
+
+## 🛡️ 6. Painéis de Controle & Especializados
+
+### 👑 Super Admin (`/admin`)
+
+* **Ecossistema SaaS**: Gestão de todos os tenants (unidades) cadastrados.
+* **Aprovação de Acessos**: Controle de novos cadastros (pendente, ativo, suspenso).
+* **Gestão de Planos**: Mudança de planos (Starter, Professional, Elite) diretamente no Admin.
+* **Console de Logs**: Monitoramento técnico da infraestrutura em tempo real.
+
+### 📱 Portal do Cliente (`/portal`)
+
+* **Painel do Cliente**: Consulta de atendimentos passados e agendamentos futuros.
+* **Avaliações & Feedbacks**: Sistema de classificação de 1 a 5 estrelas após o serviço.
+* **Agendamento Online**: Interface simplificada para o cliente marcar seu próprio horário.
+
+### 🏪 Totem / Kiosk (`/totem`)
+
+* **Autoatendimento**: Interface simplificada para tablets fixos na recepção.
+* **Check-in Rápido via QR**: Entrada do cliente identificada pelo sistema de forma autônoma.
+* **Abertura de Comandas**: Automação que agiliza o fluxo inicial do atendimento.
+
+---
+
+## 🎨 7. Design System & UX
+
+* **Neo-Premium Boutique**: Interface minimalista com tons de dourado, preto vulcânico e emerald.
+* **Dark/Light Mode**: Suporte total a temas claro e escuro.
+* **Responsividade**: Experiência fluida em computadores, tablets e smartphones.
+
+---
+*Documentação atualizada em: 05/03/2026*
