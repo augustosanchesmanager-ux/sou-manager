@@ -21,6 +21,7 @@ interface StaffPerformance {
     revenue: number;
     avgTicket: number;
     commission: number;
+    commissionRate: number;
     nps: number;
 }
 
@@ -59,7 +60,22 @@ const Reports: React.FC = () => {
                 setRevenueData(formatted);
             }
 
-            // 2. Fetch Comandas and Items for detailed metrics
+            // 2. Fetch staff commission rates
+            const { data: staffData } = await supabase
+                .from('staff')
+                .select('id, name, commission_rate')
+                .eq('tenant_id', tenantId);
+
+            const staffRates: Record<string, number> = {};
+            const staffNameToId: Record<string, string> = {};
+            if (staffData) {
+                staffData.forEach((s: any) => {
+                    staffRates[s.id] = Number(s.commission_rate) || 40;
+                    staffNameToId[s.name] = s.id;
+                });
+            }
+
+            // 3. Fetch Comandas and Items for detailed metrics
             const { data: paidComandas } = await supabase
                 .from('comandas')
                 .select(`
@@ -81,7 +97,7 @@ const Reports: React.FC = () => {
             if (paidComandas) {
                 // Categories (by service/product name in items)
                 const catGrouped: Record<string, number> = {};
-                const staffGrouped: Record<string, { revenue: number, count: number }> = {};
+                const staffGrouped: Record<string, { revenue: number, count: number, staffId: string }> = {};
                 const clientVisits: Record<string, number> = {};
                 let totalRev = 0;
 
@@ -95,7 +111,8 @@ const Reports: React.FC = () => {
 
                     // Staff performance
                     const staffName = com.staff?.name || 'Venda Direta';
-                    if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0 };
+                    const staffId = com.staff_id || '';
+                    if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0, staffId };
                     staffGrouped[staffName].revenue += Number(com.total) || 0;
                     staffGrouped[staffName].count += 1;
 
@@ -114,13 +131,18 @@ const Reports: React.FC = () => {
                 setCategoryData(sortedCats);
 
                 // Set staff
-                setStaffPerformance(Object.keys(staffGrouped).map(name => ({
-                    name,
-                    revenue: staffGrouped[name].revenue,
-                    avgTicket: staffGrouped[name].revenue / staffGrouped[name].count,
-                    commission: staffGrouped[name].revenue * 0.4,
-                    nps: 90 + Math.random() * 10
-                })));
+                setStaffPerformance(Object.keys(staffGrouped).map(name => {
+                    const group = staffGrouped[name];
+                    const rate = group.staffId ? (staffRates[group.staffId] || 40) : 40;
+                    return {
+                        name,
+                        revenue: group.revenue,
+                        avgTicket: group.revenue / group.count,
+                        commissionRate: rate,
+                        commission: group.revenue * (rate / 100),
+                        nps: 90 + Math.random() * 10
+                    };
+                }));
 
                 // Set Metrics
                 const totalClients = Object.keys(clientVisits).length;
@@ -300,20 +322,26 @@ const Reports: React.FC = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Profissional</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Faturamento</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Ticket Médio</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Comissão (40%)</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">% Comissão</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Comissão</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Satisfação</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">Processando dados...</td>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Processando dados...</td>
                                 </tr>
                             ) : staffPerformance.length > 0 ? staffPerformance.map((staff, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                     <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{staff.name}</td>
                                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300">R$ {staff.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300">R$ {staff.avgTicket.toFixed(2)}</td>
+                                    <td className="px-6 py-4">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                                            {staff.commissionRate}%
+                                        </span>
+                                    </td>
                                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300 font-bold">R$ {staff.commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-6 py-4">
                                         <span className="text-emerald-500 font-bold">{staff.nps.toFixed(0)}%</span>
@@ -321,7 +349,7 @@ const Reports: React.FC = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-500">Sem dados de desempenho para exibir.</td>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Sem dados de desempenho para exibir.</td>
                                 </tr>
                             )}
                         </tbody>

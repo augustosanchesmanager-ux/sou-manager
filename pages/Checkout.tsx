@@ -297,6 +297,24 @@ const Checkout: React.FC = () => {
                     tenant_id: tenantId
                 });
                 if (transError) throw transError;
+
+                // 4. Update Client Stats (Total Spent, Last Visit, Last Service)
+                const { data: clientData, error: clientFetchErr } = await supabase
+                    .from('clients')
+                    .select('total_spent')
+                    .eq('id', selectedClient.id)
+                    .single();
+
+                if (!clientFetchErr) {
+                    const newTotal = (clientData?.total_spent || 0) + total;
+                    const lastServiceStr = cart.length > 0 ? cart[0].name : '';
+
+                    await supabase.from('clients').update({
+                        total_spent: newTotal,
+                        last_visit: new Date().toISOString(),
+                        last_service: lastServiceStr
+                    }).eq('id', selectedClient.id);
+                }
             }
 
             setToast({ message: paymentStatus === 'paid' ? 'Venda realizada com sucesso!' : 'Comanda salva em aberto!', type: 'success' });

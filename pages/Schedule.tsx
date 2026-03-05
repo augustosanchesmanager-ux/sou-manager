@@ -34,6 +34,12 @@ interface CalendarAppointment {
   service: string;
   status: string;
   color: string;
+  staffName: string;
+  clientPhone: string;
+  price: number;
+  startTime: string;
+  notes: string;
+  date: string;
 }
 
 interface NewAppointmentForm {
@@ -85,6 +91,10 @@ const Schedule: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Detail Modal State
+  const [selectedAppointment, setSelectedAppointment] = useState<CalendarAppointment | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<NewAppointmentForm>({
@@ -167,8 +177,13 @@ const Schedule: React.FC = () => {
           service: apt.service_name || 'Serviço',
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
-          date: apt.start_time, // keep raw ISO for week view filtering
-        } as any;
+          staffName: apt.staff_name || '',
+          clientPhone: apt.client_phone || '',
+          price: apt.price || 0,
+          startTime: apt.start_time,
+          notes: apt.notes || '',
+          date: apt.start_time,
+        };
       });
       setAppointments(mapped);
     }
@@ -483,11 +498,19 @@ const Schedule: React.FC = () => {
                             return (
                               <div
                                 key={apt.id}
-                                className={`absolute left-0.5 right-0.5 rounded-md p-1 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm`}
+                                onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md`}
                                 style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
+                                title={`${apt.client} — ${apt.service}`}
                               >
-                                <p className="text-[9px] font-black text-white truncate leading-tight">{apt.client}</p>
-                                <p className="text-[8px] text-white/80 truncate">{apt.service}</p>
+                                <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
+                                  <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
+                                  {apt.client}
+                                </p>
+                                <p className="text-[9px] text-white/90 font-bold truncate drop-shadow-sm">
+                                  <span className="material-symbols-outlined text-[9px] align-middle mr-0.5">content_cut</span>
+                                  {apt.service}
+                                </p>
                               </div>
                             );
                           })}
@@ -571,17 +594,27 @@ const Schedule: React.FC = () => {
                             return (
                               <div
                                 key={apt.id}
-                                className={`absolute left-1 right-1 rounded-lg p-2 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md flex flex-col justify-center z-20 overflow-hidden`}
+                                onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                className={`absolute left-1 right-1 rounded-lg p-2 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-center z-20 overflow-hidden`}
                                 style={{ top: `${startOffset}%`, height: `${height}%` }}
+                                title={`${apt.client} — ${apt.service}`}
                               >
                                 <div className="flex items-center justify-between mb-0.5">
                                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter">
                                     {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
                                   </span>
                                   {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[14px] text-white/90">check_circle</span>}
+                                  {apt.status === 'completed' && <span className="material-symbols-outlined text-[14px] text-emerald-200">task_alt</span>}
+                                  {apt.status === 'pending' && <span className="material-symbols-outlined text-[14px] text-amber-200">schedule</span>}
                                 </div>
-                                <p className="text-xs font-black text-white truncate leading-tight mt-0.5 drop-shadow-sm">{apt.client}</p>
-                                <p className="text-[10px] text-white/90 font-bold truncate drop-shadow-sm">{apt.service}</p>
+                                <p className="text-xs font-black text-white truncate leading-tight mt-0.5 drop-shadow-sm">
+                                  <span className="material-symbols-outlined text-xs align-middle mr-0.5">person</span>
+                                  {apt.client}
+                                </p>
+                                <p className="text-[10px] text-white/90 font-bold truncate drop-shadow-sm">
+                                  <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">content_cut</span>
+                                  {apt.service}
+                                </p>
                               </div>
                             );
                           })
@@ -767,6 +800,129 @@ const Schedule: React.FC = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Appointment Detail Modal */}
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedAppointment(null); }}
+        title="Resumo do Atendimento"
+        maxWidth="md"
+      >
+        {selectedAppointment && (() => {
+          const apt = selectedAppointment;
+          const startDate = new Date(apt.startTime);
+          const endDate = new Date(startDate.getTime() + apt.duration * 60 * 60 * 1000);
+          const staff = staffList.find(s => s.id === apt.staffId);
+
+          const statusLabels: Record<string, string> = {
+            confirmed: 'Confirmado',
+            pending: 'Pendente',
+            completed: 'Concluído',
+          };
+          const statusBgColors: Record<string, string> = {
+            confirmed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+            pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+            completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+          };
+          const statusIcons: Record<string, string> = {
+            confirmed: 'check_circle',
+            pending: 'schedule',
+            completed: 'task_alt',
+          };
+
+          return (
+            <div className="space-y-5">
+              {/* Status Badge */}
+              <div className="flex justify-center">
+                <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${statusBgColors[apt.status] || 'bg-slate-100 text-slate-700'}`}>
+                  <span className="material-symbols-outlined text-base">{statusIcons[apt.status] || 'info'}</span>
+                  {statusLabels[apt.status] || apt.status}
+                </span>
+              </div>
+
+              {/* Client Info */}
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <div className="flex items-center gap-3">
+                  <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-primary text-2xl">person</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-black text-slate-900 dark:text-white truncate">{apt.client}</p>
+                    {apt.clientPhone && (
+                      <p className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
+                        <span className="material-symbols-outlined text-sm">phone</span>
+                        {apt.clientPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Service & Professional */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Serviço</p>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-lg">content_cut</span>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{apt.service}</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Profissional</p>
+                  <div className="flex items-center gap-2">
+                    {staff?.avatar ? (
+                      <div className="size-7 rounded-full bg-slate-200 bg-cover bg-center border border-slate-100 dark:border-slate-600" style={{ backgroundImage: `url(${staff.avatar})` }} />
+                    ) : (
+                      <span className="material-symbols-outlined text-primary text-lg">badge</span>
+                    )}
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{staff?.name || apt.staffName || '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark text-center">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">
+                    {startDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark text-center">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Horário</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">
+                    {startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — {endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark text-center">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Duração</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">
+                    {apt.duration >= 1 ? `${Math.floor(apt.duration)}h` : ''}{apt.duration % 1 !== 0 ? ` ${Math.round((apt.duration % 1) * 60)}min` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {apt.notes && (
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Observações</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{apt.notes}</p>
+                </div>
+              )}
+
+              {/* Action Button */}
+              <div className="pt-2 flex justify-center">
+                <button
+                  onClick={() => { setIsDetailModalOpen(false); setSelectedAppointment(null); }}
+                  className="px-8 py-2.5 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

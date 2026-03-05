@@ -32,12 +32,16 @@ import Products from './pages/Products';
 import SuperAdmin from './pages/SuperAdmin';
 import Promotions from './pages/Promotions';
 import BusinessIntelligence from './pages/BusinessIntelligence';
+import PendingApproval from './pages/PendingApproval';
+import KioskAdmin from './pages/KioskAdmin';
+import KioskPage from './pages/kiosk/KioskPage';
+import KioskClientPage from './pages/kiosk/KioskClientPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Outlet } from 'react-router-dom';
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -49,6 +53,11 @@ const ProtectedRoute: React.FC = () => {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Block pending or suspended users (Super Admins are always active)
+  if (!isSuperAdmin && (profileStatus === 'pending' || profileStatus === 'suspended')) {
+    return <Navigate to="/pending-approval" replace />;
   }
 
   return <Outlet />;
@@ -72,6 +81,11 @@ const AppRoutes: React.FC = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/register-success" element={<RegisterSuccess />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/pending-approval" element={<PendingApproval />} />
+
+      {/* Public Kiosk Routes — No auth required */}
+      <Route path="/kiosk/:tenantSlug" element={<KioskPage />} />
+      <Route path="/kiosk/:tenantSlug/client" element={<KioskClientPage />} />
 
       {/* Protected Flow */}
       <Route element={<ProtectedRoute />}>
@@ -106,6 +120,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
           <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
           <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
+          <Route path="/kiosk-admin" element={<ManagerRoute><KioskAdmin /></ManagerRoute>} />
           <Route path="/superadmin" element={<SuperAdmin />} />
         </Route>
       </Route>

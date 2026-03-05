@@ -63,6 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             { name: 'Serviços', path: '/services' },
             { name: 'Pedidos de Compra', path: '/orders' },
             { name: 'Promoções', path: '/promotions' },
+            { name: 'Totem + QR', path: '/kiosk-admin' },
           ],
         },
       ]
