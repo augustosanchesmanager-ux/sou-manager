@@ -573,121 +573,121 @@ const Checkout: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* RIGHT COLUMN: Payment */}
-            <div className="space-y-6 md:col-span-1">
-                <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-slate-400">receipt_long</span>
-                        Resumo Financeiro
-                    </h3>
+                {/* RIGHT COLUMN: Payment */}
+                <div className="space-y-6 md:col-span-1">
+                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-slate-400">receipt_long</span>
+                            Resumo Financeiro
+                        </h3>
 
-                    {/* Payment Status Toggle */}
-                    <div className="mb-6">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
-                        <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
-                            <button
-                                onClick={() => setPaymentStatus('paid')}
-                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
-                                    ? 'bg-emerald-500 text-white shadow-md'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-sm">check_circle</span>
-                                Finalizar
-                            </button>
-                            <button
-                                onClick={() => setPaymentStatus('pending')}
-                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
-                                    ? 'bg-amber-500 text-white shadow-md'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-sm">save</span>
-                                Salvar Aberta
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4 mb-6">
-                        <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                            <span>Subtotal</span>
-                            <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
-                            <span>Desconto (R$)</span>
-                            <input
-                                type="number"
-                                value={discount}
-                                onChange={(e) => setDiscount(e.target.value)}
-                                className="w-20 text-right bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
-                            />
-                        </div>
-                        <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
-                        <div className="flex justify-between items-end">
-                            <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
-                            <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
-                        </div>
-                    </div>
-
-                    {paymentStatus === 'paid' && (
-                        <div className="mb-8 animate-fade-in">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { id: 'credit', icon: 'credit_card', label: 'Crédito' },
-                                    { id: 'debit', icon: 'payments', label: 'Débito' },
-                                    { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
-                                    { id: 'cash', icon: 'attach_money', label: 'Dinheiro' },
-                                    { id: 'other', icon: 'more_horiz', label: 'Outros' }
-                                ].map(method => (
-                                    <button
-                                        key={method.id}
-                                        onClick={() => setPaymentMethod(method.id as any)}
-                                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
-                                    >
-                                        <span className="material-symbols-outlined">{method.icon}</span>
-                                        <span className="text-xs font-bold">{method.label}</span>
-                                    </button>
-                                ))}
+                        {/* Payment Status Toggle */}
+                        <div className="mb-6">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
+                            <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
+                                <button
+                                    onClick={() => setPaymentStatus('paid')}
+                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
+                                        ? 'bg-emerald-500 text-white shadow-md'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                >
+                                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                                    Finalizar
+                                </button>
+                                <button
+                                    onClick={() => setPaymentStatus('pending')}
+                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
+                                        ? 'bg-amber-500 text-white shadow-md'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                >
+                                    <span className="material-symbols-outlined text-sm">save</span>
+                                    Salvar Aberta
+                                </button>
                             </div>
-
-                            {paymentMethod === 'other' && (
-                                <div className="mt-3 animate-fade-in">
-                                    <input
-                                        type="text"
-                                        placeholder="Descreva a forma de pagamento..."
-                                        value={paymentDescription}
-                                        onChange={(e) => setPaymentDescription(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                    />
-                                </div>
-                            )}
                         </div>
-                    )}
 
-                    <button
-                        onClick={handleFinish}
-                        disabled={cart.length === 0 || loading}
-                        className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
-                            ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
-                            : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                            }`}
-                    >
-                        {loading ? (
-                            <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
-                        ) : (
-                            <>
-                                <span>{paymentStatus === 'paid' ? 'Confirmar e Fechar' : 'Salvar em Aberto'}</span>
-                                <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">
-                                    {paymentStatus === 'paid' ? 'check_circle' : 'save_as'}
-                                </span>
-                            </>
+                        <div className="space-y-4 mb-6">
+                            <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                                <span>Subtotal</span>
+                                <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
+                                <span>Desconto (R$)</span>
+                                <input
+                                    type="number"
+                                    value={discount}
+                                    onChange={(e) => setDiscount(e.target.value)}
+                                    className="w-20 text-right bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
+                                />
+                            </div>
+                            <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
+                            <div className="flex justify-between items-end">
+                                <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
+                                <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        {paymentStatus === 'paid' && (
+                            <div className="mb-8 animate-fade-in">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'credit', icon: 'credit_card', label: 'Crédito' },
+                                        { id: 'debit', icon: 'payments', label: 'Débito' },
+                                        { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
+                                        { id: 'cash', icon: 'attach_money', label: 'Dinheiro' },
+                                        { id: 'other', icon: 'more_horiz', label: 'Outros' }
+                                    ].map(method => (
+                                        <button
+                                            key={method.id}
+                                            onClick={() => setPaymentMethod(method.id as any)}
+                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
+                                        >
+                                            <span className="material-symbols-outlined">{method.icon}</span>
+                                            <span className="text-xs font-bold">{method.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {paymentMethod === 'other' && (
+                                    <div className="mt-3 animate-fade-in">
+                                        <input
+                                            type="text"
+                                            placeholder="Descreva a forma de pagamento..."
+                                            value={paymentDescription}
+                                            onChange={(e) => setPaymentDescription(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         )}
-                    </button>
+
+                        <button
+                            onClick={handleFinish}
+                            disabled={cart.length === 0 || loading}
+                            className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
+                                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                                }`}
+                        >
+                            {loading ? (
+                                <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
+                            ) : (
+                                <>
+                                    <span>{paymentStatus === 'paid' ? 'Confirmar e Fechar' : 'Salvar em Aberto'}</span>
+                                    <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">
+                                        {paymentStatus === 'paid' ? 'check_circle' : 'save_as'}
+                                    </span>
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </div> {/* END GRID */}
 
             {/* --- MODALS --- */}
 
