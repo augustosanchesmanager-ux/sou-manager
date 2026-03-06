@@ -174,7 +174,7 @@ const Schedule: React.FC = () => {
 
     const { data } = await supabase
       .from('appointments')
-      .select('*')
+      .select('*, clients!appointments_client_id_fkey(phone)')
       .gte('start_time', rangeStart)
       .lte('start_time', rangeEnd)
       .neq('status', 'cancelled');
@@ -193,7 +193,7 @@ const Schedule: React.FC = () => {
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
           staffName: apt.staff_name || '',
-          clientPhone: apt.client_phone || '',
+          clientPhone: (apt as any).clients?.phone || apt.client_phone || '',
           price: apt.price || 0,
           startTime: apt.start_time,
           notes: apt.notes || '',
@@ -489,6 +489,7 @@ const Schedule: React.FC = () => {
         service_id: selectedService?.id || null,
         staff_id: formData.staffId || null,
         service_name: formData.service,
+        client_phone: formData.clientPhone,
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
         duration: Number(formData.duration),
@@ -509,6 +510,7 @@ const Schedule: React.FC = () => {
         service_id: selectedService?.id || null,
         staff_id: formData.staffId || null,
         client_name: formData.client,
+        client_phone: formData.clientPhone,
         service_name: formData.service,
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
