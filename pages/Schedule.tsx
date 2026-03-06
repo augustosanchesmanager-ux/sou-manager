@@ -122,7 +122,7 @@ const Schedule: React.FC = () => {
   const fetchBaseData = useCallback(async () => {
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar').eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration, buffer').eq('active', true),
+      supabase.from('services').select('id, name, duration, buffer, price').eq('active', true),
       supabase.from('clients').select('id, name, phone').order('name'),
       supabase.from('promotions').select('*').eq('active', true),
     ]);
@@ -132,7 +132,7 @@ const Schedule: React.FC = () => {
     // Se a consulta de serviços falhar (ex: coluna buffer ausente), tenta sem o buffer
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase.from('services').select('id, name, duration').eq('active', true);
+      const retryServices = await supabase.from('services').select('id, name, duration, price').eq('active', true);
       if (retryServices.data) setServicesList(retryServices.data);
     } else if (servicesRes.data) {
       setServicesList(servicesRes.data);
@@ -493,6 +493,7 @@ const Schedule: React.FC = () => {
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
         duration: Number(formData.duration),
+        price: selectedService?.price || 0,
       }).eq('id', editingAppointmentId);
 
       if (updateError) { setError('Erro ao atualizar agendamento.'); return; }
@@ -515,6 +516,7 @@ const Schedule: React.FC = () => {
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
         duration: Number(formData.duration),
+        price: selectedService?.price || 0,
         status: 'confirmed',
         tenant_id: tenantId
       }).select().single();
