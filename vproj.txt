@@ -1,0 +1,8 @@
+Vercel CLI 50.17.1
+Fetching projects in augustosanchesmanager-uxs-projects
+> Projects found under augustosanchesmanager-uxs-projects  [1s]
+
+  Project Name   Latest Production URL                  Updated   Node Version   
+  sou-mana.ger   https://sou-manager-liart.vercel.app   21m       24.x           
+  sou-manager    https://soumanager.vercel.app          12h       24.x           
+

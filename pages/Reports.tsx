@@ -175,7 +175,7 @@ const Reports: React.FC = () => {
                             <span className="material-symbols-outlined text-amber-400">lock</span>
                             <span className="text-xs font-bold uppercase tracking-widest text-amber-400">Área Restrita</span>
                         </div>
-                        <h2 className="text-3xl font-black tracking-tight">Relatórios Gerenciais</h2>
+                        <h2 className="text-3xl font-black tracking-tight display-font">Relatórios Gerenciais</h2>
                         <p className="text-slate-300 mt-1 max-w-xl">Análises profundas de performance, retenção e lucratividade para tomada de decisão estratégica.</p>
                     </div>
                     <button className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-slate-100 transition-colors">
@@ -187,26 +187,26 @@ const Reports: React.FC = () => {
 
             {/* Strategic KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Custo de Aquisição (CAC)</p>
+                <div className="card-boutique p-6">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Custo de Aquisição (CAC)</p>
                     <div className="flex items-end gap-2">
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {metrics.cac.toFixed(2)}</h3>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white display-font">R$ {metrics.cac.toFixed(2)}</h3>
                         <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded mb-1">SETADO</span>
                     </div>
                     <p className="text-xs text-slate-400 mt-2">Custo médio para atrair um novo cliente.</p>
                 </div>
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Lifetime Value (LTV)</p>
+                <div className="card-boutique p-6">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Lifetime Value (LTV)</p>
                     <div className="flex items-end gap-2">
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {metrics.ltv.toFixed(0)}</h3>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white display-font">R$ {metrics.ltv.toFixed(0)}</h3>
                         <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded mb-1">DINÂMICO</span>
                     </div>
                     <p className="text-xs text-slate-400 mt-2">Valor médio gerado por cliente único.</p>
                 </div>
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Taxa de Retenção</p>
+                <div className="card-boutique p-6">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Taxa de Retenção</p>
                     <div className="flex items-end gap-2">
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white">{metrics.retention.toFixed(0)}%</h3>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white display-font">{metrics.retention.toFixed(0)}%</h3>
                         <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded mb-1">REAL</span>
                     </div>
                     <p className="text-xs text-slate-400 mt-2">Clientes que retornaram pelo menos uma vez.</p>
@@ -215,7 +215,7 @@ const Reports: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Revenue Evolution */}
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                <div className="card-boutique p-6 flex flex-col">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="font-bold text-slate-900 dark:text-white">Evolução de Faturamento</h3>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Dados Agregados</span>
@@ -254,9 +254,10 @@ const Reports: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Revenue by Category */}
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <h3 className="font-bold text-slate-900 dark:text-white mb-6">Faturamento por Serviço</h3>
+                <div className="card-boutique p-6 flex flex-col">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-slate-900 dark:text-white">Faturamento por Serviço</h3>
+                    </div>
                     <div className="flex flex-col md:flex-row items-center gap-8">
                         <div className="size-[250px]">
                             {loading ? (
@@ -311,9 +312,9 @@ const Reports: React.FC = () => {
             </div>
 
             {/* Performance Staff Table */}
-            <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
-                <div className="px-6 py-4 border-b border-slate-200 dark:border-border-dark">
-                    <h3 className="font-bold text-slate-900 dark:text-white">Performance da Equipe</h3>
+            <div className="card-boutique overflow-hidden mb-8">
+                <div className="px-6 py-5 border-b border-slate-100 dark:border-border-dark">
+                    <h3 className="font-bold text-slate-900 dark:text-white display-font tracking-tight">Performance da Equipe</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">

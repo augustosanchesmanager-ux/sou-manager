@@ -92,7 +92,7 @@ const Admin: React.FC = () => {
         setIsLoadingData(true);
         const { data } = await supabase
             .from('profiles')
-            .select('id, tenant_id, onboarding_completed, created_at')
+            .select('id, tenant_id, onboarding_completed, created_at, tenants(plan)')
             .order('created_at', { ascending: false });
 
         // Enrich with auth user data via user_metadata if available
@@ -108,7 +108,7 @@ const Admin: React.FC = () => {
                 email: authUser?.user?.email || p.id,
                 name: authUser?.user?.user_metadata?.shop_name || authUser?.user?.user_metadata?.first_name || 'Barbearia',
                 owner: `${authUser?.user?.user_metadata?.first_name || ''} ${authUser?.user?.user_metadata?.last_name || ''}`.trim() || 'Proprietário',
-                plan: authUser?.user?.user_metadata?.plan || 'free',
+                plan: (p as any).tenants?.plan || authUser?.user?.user_metadata?.plan || 'free',
                 staff: staffCount || 0,
                 revenue,
                 last: authUser?.user?.last_sign_in_at
@@ -737,155 +737,183 @@ const Admin: React.FC = () => {
                             </div>
                         )}
                     </div>
-                </div>
+                </div >
             )}
 
             {/* ─── GESTÃO DE ACESSOS ──────────────────────────────────── */}
-            {activeTab === 'access' && (
-                <div className="space-y-8 animate-fade-in">
+            {
+                activeTab === 'access' && (
+                    <div className="space-y-8 animate-fade-in">
 
-                    {/* Matriz de Planos */}
-                    <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5">
-                            <h4 className="text-xl font-black text-white tracking-tight">Matriz de Planos &amp; Funcionalidades</h4>
-                            <p className="text-sm text-slate-500 font-medium mt-1">Planos em definição — esta matriz reflete a estrutura atual prevista.</p>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                                        <th className="px-8 py-5">Funcionalidade</th>
-                                        <th className="px-8 py-5 text-center">Free</th>
-                                        <th className="px-8 py-5 text-center">Professional</th>
-                                        <th className="px-8 py-5 text-center text-amber-500">Elite</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {[
-                                        { feature: 'Agendamentos', free: true, pro: true, elite: true },
-                                        { feature: 'Cadastro de Clientes', free: true, pro: true, elite: true },
-                                        { feature: 'Relatórios Básicos', free: true, pro: true, elite: true },
-                                        { feature: 'Checkout / PDV', free: false, pro: true, elite: true },
-                                        { feature: 'Folha de Pagamento', free: false, pro: true, elite: true },
-                                        { feature: 'Inventário / Estoque', free: false, pro: true, elite: true },
-                                        { feature: 'Múltiplos Colaboradores', free: false, pro: true, elite: true },
-                                        { feature: 'Business Intelligence (BI)', free: false, pro: false, elite: true },
-                                        { feature: 'Insights de IA (Gemini)', free: false, pro: false, elite: true },
-                                        { feature: 'API Customizada', free: false, pro: false, elite: true },
-                                        { feature: 'Suporte Prioritário', free: false, pro: false, elite: true },
-                                    ].map((row, i) => (
-                                        <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                                            <td className="px-8 py-4 text-sm font-bold text-white">{row.feature}</td>
-                                            <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
-                                            <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
-                                            <td className="px-8 py-4 text-center">{row.elite ? <span className="material-symbols-outlined text-amber-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                        {/* Matriz de Planos */}
+                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/5">
+                                <h4 className="text-xl font-black text-white tracking-tight">Matriz de Planos &amp; Funcionalidades</h4>
+                                <p className="text-sm text-slate-500 font-medium mt-1">Planos em definição — esta matriz reflete a estrutura atual prevista.</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                            <th className="px-8 py-5">Funcionalidade</th>
+                                            <th className="px-8 py-5 text-center">Free</th>
+                                            <th className="px-8 py-5 text-center">Professional</th>
+                                            <th className="px-8 py-5 text-center text-amber-500">Elite</th>
                                         </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {[
+                                            { feature: 'Agendamentos Iniciais', free: true, pro: true, elite: true },
+                                            { feature: 'Cadastro de Clientes Premium', free: true, pro: true, elite: true },
+                                            { feature: 'Checkout / PDV Profissional', free: false, pro: true, elite: true },
+                                            { feature: 'Folha de Pagamento Auto', free: false, pro: true, elite: true },
+                                            { feature: 'Gestão de Recibos Digitais', free: false, pro: true, elite: true },
+                                            { feature: 'Motor de Retorno Inteligente', free: false, pro: false, elite: true },
+                                            { feature: 'IA Gemini: Insights Preditivos', free: false, pro: false, elite: true },
+                                            { feature: 'Totem / Kiosk Autoatendimento', free: false, pro: false, elite: true },
+                                            { feature: 'Gestão Multiloja (Dashboard)', free: false, pro: false, elite: true },
+                                            { feature: 'Suporte Prioritário VIP', free: false, pro: false, elite: true },
+                                        ].map((row, i) => (
+                                            <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="px-8 py-4 text-sm font-bold text-white">{row.feature}</td>
+                                                <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.elite ? <span className="material-symbols-outlined text-amber-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="p-4 border-t border-white/5 bg-amber-500/5">
+                                <p className="text-xs text-amber-500/70 font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">info</span>
+                                    A limitação por plano será ativada no código com base nos planos finalizados.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Plano por Barbearia */}
+                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/5">
+                                <h4 className="text-xl font-black text-white tracking-tight">Plano por Barbearia</h4>
+                                <p className="text-sm text-slate-500 font-medium mt-1">Altere o plano de cada tenant diretamente.</p>
+                            </div>
+                            {shops.length === 0 ? (
+                                <div className="py-12 flex flex-col items-center gap-3 text-slate-600">
+                                    <span className="material-symbols-outlined text-4xl">storefront</span>
+                                    <p className="text-sm font-bold">Carregue a aba Barbearias antes.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-white/5">
+                                    {shops.map((shop, i) => (
+                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-black text-amber-500 text-sm">
+                                                    {shop.name?.[0] || '?'}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-white">{shop.name}</p>
+                                                    <p className="text-[10px] text-slate-500 font-bold">{shop.owner} · {shop.staff} membros</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    id={`plan-select-${i}-${shop.id}`}
+                                                    title="Plano da barbearia"
+                                                    defaultValue={shop.plan || 'free'}
+                                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
+                                                >
+                                                    <option value="free">Free</option>
+                                                    <option value="pro">Professional</option>
+                                                    <option value="elite">Elite</option>
+                                                </select>
+                                                <button
+                                                    onClick={async () => {
+                                                        const select = document.getElementById(`plan-select-${i}-${shop.id}`) as HTMLSelectElement;
+                                                        const newPlan = select.value;
+
+                                                        setIsLoadingData(true);
+                                                        const { error } = await supabase.from('tenants').update({ plan: newPlan }).eq('id', shop.tenant_id);
+
+                                                        if (!error) {
+                                                            // Update local state immediately
+                                                            setShops(prev => prev.map(s => s.id === shop.id ? { ...s, plan: newPlan } : s));
+                                                            showToast(`Plano de "${shop.name}" atualizado para ${newPlan.toUpperCase()}!`);
+                                                        } else {
+                                                            console.error('Update plan error:', error);
+                                                            showToast(`Erro ao salvar: ${error.message}`, 'error');
+                                                        }
+                                                        setIsLoadingData(false);
+                                                    }}
+                                                    className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase rounded-lg hover:bg-amber-400 active:scale-95 transition-all font-mono"
+                                                >
+                                                    Salvar
+                                                </button>
+                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>{shop.status}</span>
+                                            </div>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
+                                </div>
+                            )}
                         </div>
-                        <div className="p-4 border-t border-white/5 bg-amber-500/5">
-                            <p className="text-xs text-amber-500/70 font-bold flex items-center gap-2">
-                                <span className="material-symbols-outlined text-sm">info</span>
-                                A limitação por plano será ativada no código com base nos planos finalizados.
-                            </p>
-                        </div>
-                    </div>
 
-                    {/* Plano por Barbearia */}
-                    <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5">
-                            <h4 className="text-xl font-black text-white tracking-tight">Plano por Barbearia</h4>
-                            <p className="text-sm text-slate-500 font-medium mt-1">Altere o plano de cada tenant diretamente.</p>
+                        {/* Permissões por Colaborador */}
+                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                            <div className="p-8 border-b border-white/5">
+                                <h4 className="text-xl font-black text-white tracking-tight">Permissões por Colaborador</h4>
+                                <p className="text-sm text-slate-500 font-medium mt-1">Altere o cargo de cada barbeiro/recepcionista (salvo diretamente no banco).</p>
+                            </div>
+                            {allUsers.filter(u => u.source === 'staff').length === 0 ? (
+                                <div className="py-12 text-center text-slate-600">
+                                    <span className="material-symbols-outlined text-4xl mb-2 block">group</span>
+                                    <p className="text-sm font-bold">Acesse a aba Usuários primeiro para carregar os dados.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-white/5">
+                                    {allUsers.filter(u => u.source === 'staff').map((u, i) => (
+                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-sm text-slate-400">
+                                                    {u.name?.[0]?.toUpperCase() || '?'}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-white">{u.name}</p>
+                                                    <p className="text-[10px] text-slate-500 font-bold">{u.email || '—'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    id={`role-select-${u.id}`}
+                                                    title="Cargo do colaborador"
+                                                    defaultValue={u.role || 'Barber'}
+                                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
+                                                >
+                                                    <option value="Barber">Barbeiro</option>
+                                                    <option value="Receptionist">Recepcionista</option>
+                                                    <option value="Manager">Gerente</option>
+                                                </select>
+                                                <button
+                                                    onClick={async () => {
+                                                        const select = document.getElementById(`role-select-${u.id}`) as HTMLSelectElement;
+                                                        const newRole = select.value;
+                                                        const { error } = await supabase.from('staff').update({ role: newRole }).eq('id', u.id);
+                                                        if (!error) showToast(`Cargo de "${u.name}" → ${newRole}.`);
+                                                        else showToast('Erro ao atualizar cargo.', 'error');
+                                                    }}
+                                                    className="px-3 py-2 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-lg hover:bg-emerald-400 transition-all font-mono"
+                                                >
+                                                    Salvar
+                                                </button>
+                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Ativo' || u.auth === 'Verificado' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-500 bg-white/5'}`}>{u.auth}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                        {shops.length === 0 ? (
-                            <div className="py-12 flex flex-col items-center gap-3 text-slate-600">
-                                <span className="material-symbols-outlined text-4xl">storefront</span>
-                                <p className="text-sm font-bold">Carregue a aba Barbearias antes.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-white/5">
-                                {shops.map((shop, i) => (
-                                    <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-black text-amber-500 text-sm">
-                                                {shop.name?.[0] || '?'}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-black text-white">{shop.name}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold">{shop.owner} · {shop.staff} membros</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <select
-                                                title="Plano da barbearia"
-                                                defaultValue={shop.plan || 'free'}
-                                                onChange={(e) => {
-                                                    showToast(`Plano de "${shop.name}" → ${e.target.value}. Requer edge function para persistir.`);
-                                                }}
-                                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
-                                            >
-                                                <option value="free">Free</option>
-                                                <option value="pro">Professional</option>
-                                                <option value="elite">Elite</option>
-                                            </select>
-                                            <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>{shop.status}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
-
-                    {/* Permissões por Colaborador */}
-                    <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5">
-                            <h4 className="text-xl font-black text-white tracking-tight">Permissões por Colaborador</h4>
-                            <p className="text-sm text-slate-500 font-medium mt-1">Altere o cargo de cada barbeiro/recepcionista (salvo diretamente no banco).</p>
-                        </div>
-                        {allUsers.filter(u => u.source === 'staff').length === 0 ? (
-                            <div className="py-12 text-center text-slate-600">
-                                <span className="material-symbols-outlined text-4xl mb-2 block">group</span>
-                                <p className="text-sm font-bold">Acesse a aba Usuários primeiro para carregar os dados.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-white/5">
-                                {allUsers.filter(u => u.source === 'staff').map((u, i) => (
-                                    <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-sm text-slate-400">
-                                                {u.name?.[0]?.toUpperCase() || '?'}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-black text-white">{u.name}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold">{u.email || '—'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <select
-                                                title="Cargo do colaborador"
-                                                defaultValue={u.role || 'Barber'}
-                                                onChange={async (e) => {
-                                                    const newRole = e.target.value;
-                                                    const { error } = await supabase.from('staff').update({ role: newRole }).eq('id', u.id);
-                                                    if (!error) showToast(`Cargo de "${u.name}" → ${newRole}.`);
-                                                    else showToast('Erro ao atualizar cargo.', 'error');
-                                                }}
-                                                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
-                                            >
-                                                <option value="Barber">Barbeiro</option>
-                                                <option value="Receptionist">Recepcionista</option>
-                                                <option value="Manager">Gerente</option>
-                                            </select>
-                                            <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Ativo' || u.auth === 'Verificado' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-500 bg-white/5'}`}>{u.auth}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                )
+            }
 
             {/* ─── MODAIS ─────────────────────────────────────────────── */}
 
@@ -1009,7 +1037,7 @@ const Admin: React.FC = () => {
                     ))}
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">Plano</label>
-                        <select value={newUnitForm.plan} onChange={e => setNewUnitForm({ ...newUnitForm, plan: e.target.value })}
+                        <select title="Selecione o plano" value={newUnitForm.plan} onChange={e => setNewUnitForm({ ...newUnitForm, plan: e.target.value })}
                             className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg p-3 text-sm text-white outline-none [color-scheme:dark]">
                             <option value="free">Free</option>
                             <option value="pro">Professional</option>
@@ -1035,15 +1063,17 @@ const Admin: React.FC = () => {
                         {/* KPI Row */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
-                                { label: 'Equipe', value: panelData.staff.length, icon: 'group', color: 'text-blue-400' },
-                                { label: 'Clientes', value: panelData.clients, icon: 'person', color: 'text-emerald-400' },
-                                { label: 'Agendamentos', value: panelData.appointments, icon: 'calendar_month', color: 'text-purple-400' },
-                                { label: 'Faturamento', value: fmt(panelData.revenue), icon: 'payments', color: 'text-amber-400' },
+                                { label: 'Equipe', value: panelData.staff.length, icon: 'group', bg: 'bg-blue-500/10', border: 'border-blue-500/30', color: 'text-blue-500' },
+                                { label: 'Clientes', value: panelData.clients, icon: 'person', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', color: 'text-emerald-500' },
+                                { label: 'Agendamentos', value: panelData.appointments, icon: 'calendar_month', bg: 'bg-violet-500/10', border: 'border-violet-500/30', color: 'text-violet-500' },
+                                { label: 'Faturamento', value: fmt(panelData.revenue), icon: 'payments', bg: 'bg-amber-500/10', border: 'border-amber-500/30', color: 'text-amber-500' },
                             ].map((kpi, i) => (
-                                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-                                    <span className={`material-symbols-outlined text-2xl ${kpi.color}`}>{kpi.icon}</span>
-                                    <p className="text-xs text-slate-500 font-black uppercase tracking-widest mt-1">{kpi.label}</p>
-                                    <p className="text-lg font-black text-white mt-0.5">{kpi.value}</p>
+                                <div key={i} className={`${kpi.bg} border ${kpi.border} rounded-2xl p-4 flex flex-col items-center gap-2`}>
+                                    <div className={`w-10 h-10 rounded-xl ${kpi.bg} border ${kpi.border} flex items-center justify-center`}>
+                                        <span className={`material-symbols-outlined text-xl ${kpi.color}`}>{kpi.icon}</span>
+                                    </div>
+                                    <p className="text-xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${kpi.color}`}>{kpi.label}</p>
                                 </div>
                             ))}
                         </div>

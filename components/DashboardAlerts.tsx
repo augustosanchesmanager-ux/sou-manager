@@ -124,8 +124,8 @@ const DashboardAlerts: React.FC = () => {
     if (loading) return null;
 
     return (
-        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden mb-6 animate-fade-in">
-            <div className="bg-amber-50 dark:bg-amber-900/20 px-4 py-3 border-b border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
+        <div className="card-boutique overflow-hidden mb-6 animate-fade-in flex flex-col">
+            <div className="bg-amber-50 dark:bg-amber-900/10 px-4 py-3 border-b border-amber-100 dark:border-amber-900/20 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-amber-500 text-lg">notifications_active</span>
                     <h3 className="text-sm font-bold text-amber-800 dark:text-amber-400">Lembretes e Alertas</h3>

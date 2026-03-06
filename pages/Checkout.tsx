@@ -16,6 +16,7 @@ interface CartItem {
     service_id?: string;
     product_id?: string;
     staff_id?: string;
+    usedCredit?: boolean;
 }
 
 interface Client {
@@ -70,6 +71,7 @@ const Checkout: React.FC = () => {
     const [services, setServices] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
     const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
+    const [chefClubInfo, setChefClubInfo] = useState<{ id: string; planName: string; credits: number } | null>(null);
     const [loading, setLoading] = useState(true);
 
     // Fetch initial data
@@ -162,7 +164,30 @@ const Checkout: React.FC = () => {
                 return;
             }
         }
-        setSelectedClient(client);
+        if (pendingClient) setSelectedClient(pendingClient);
+
+        // Check for Chef Club
+        const targetClient = pendingClient || client;
+        const { data: sub } = await supabase
+            .from('customer_subscriptions')
+            .select(`
+                id,
+                plan:customer_plans(name),
+                credits:customer_credits(available_credits)
+            `)
+            .eq('client_id', targetClient.id)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (sub) {
+            setChefClubInfo({
+                id: sub.id,
+                planName: (sub.plan as any).name,
+                credits: (sub.credits as any)?.[0]?.available_credits || 0
+            });
+        } else {
+            setChefClubInfo(null);
+        }
     };
 
     const handleConfirmDuplicate = () => {
@@ -213,7 +238,8 @@ const Checkout: React.FC = () => {
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
-            staff_id: staff.length > 0 ? staff[0].id : ''
+            staff_id: staff.length > 0 ? staff[0].id : '',
+            usedCredit: false
         };
         setCart([...cart, newItem]);
         setSearchTerm('');
@@ -315,6 +341,18 @@ const Checkout: React.FC = () => {
                         last_service: lastServiceStr
                     }).eq('id', selectedClient.id);
                 }
+            }
+
+            // 5. Deduct Chef Club Credits if used
+            const creditItems = cart.filter(item => (item as any).usedCredit);
+            if (creditItems.length > 0 && chefClubInfo) {
+                // Update available credits
+                const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
+                    p_subscription_id: chefClubInfo.id,
+                    p_amount: creditItems.length,
+                    p_reference: `Comanda #${currentComandaId}`
+                });
+                if (creditErr) console.error('Error deducting credits:', creditErr);
             }
 
             setToast({ message: paymentStatus === 'paid' ? 'Venda realizada com sucesso!' : 'Comanda salva em aberto!', type: 'success' });
@@ -480,6 +518,18 @@ const Checkout: React.FC = () => {
                                                     />
                                                 </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
+                                                {item.type === 'service' && chefClubInfo && chefClubInfo.credits > 0 && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const isUsed = !(item as any).usedCredit;
+                                                            setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
+                                                        }}
+                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-xs">workspace_premium</span>
+                                                        {(item as any).usedCredit ? 'Usando Crédito' : 'Usar Crédito'}
+                                                    </button>
+                                                )}
                                             </div>
 
                                             {/* Remove Action */}
@@ -500,109 +550,126 @@ const Checkout: React.FC = () => {
                             )}
                         </div>
                     </div>
-                </div>
 
-                {/* RIGHT COLUMN: Payment */}
-                <div className="space-y-6">
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-slate-400">receipt_long</span>
-                            Resumo Financeiro
-                        </h3>
-
-                        {/* Payment Status Toggle */}
-                        <div className="mb-6">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
-                            <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
-                                <button
-                                    onClick={() => setPaymentStatus('paid')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
-                                        ? 'bg-emerald-500 text-white shadow-md'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                                    Finalizar
-                                </button>
-                                <button
-                                    onClick={() => setPaymentStatus('pending')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
-                                        ? 'bg-amber-500 text-white shadow-md'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    <span className="material-symbols-outlined text-sm">save</span>
-                                    Salvar Aberta
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4 mb-6">
-                            <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                                <span>Subtotal</span>
-                                <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
-                                <span>Desconto (R$)</span>
-                                <input
-                                    type="number"
-                                    value={discount}
-                                    onChange={(e) => setDiscount(e.target.value)}
-                                    className="w-20 text-right bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
-                                />
-                            </div>
-                            <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
-                            <div className="flex justify-between items-end">
-                                <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
-                                <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
-                            </div>
-                        </div>
-
-                        {paymentStatus === 'paid' && (
-                            <div className="mb-8 animate-fade-in">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[
-                                        { id: 'credit', icon: 'credit_card', label: 'Crédito' },
-                                        { id: 'debit', icon: 'payments', label: 'Débito' },
-                                        { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
-                                        { id: 'cash', icon: 'attach_money', label: 'Dinheiro' }
-                                    ].map(method => (
-                                        <button
-                                            key={method.id}
-                                            onClick={() => setPaymentMethod(method.id as any)}
-                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
-                                        >
-                                            <span className="material-symbols-outlined">{method.icon}</span>
-                                            <span className="text-xs font-bold">{method.label}</span>
-                                        </button>
-                                    ))}
+                    {chefClubInfo && (
+                        <div className="mt-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center justify-between animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                    <span className="material-symbols-outlined">workspace_premium</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-amber-600 uppercase">Clube do Chefe - {chefClubInfo.planName}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold">Cliente possui créditos disponíveis para resgate.</p>
                                 </div>
                             </div>
-                        )}
-
-                        <button
-                            onClick={handleFinish}
-                            disabled={cart.length === 0 || loading}
-                            className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
-                                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
-                                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                                }`}
-                        >
-                            {loading ? (
-                                <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
-                            ) : (
-                                <>
-                                    <span>{paymentStatus === 'paid' ? 'Confirmar e Fechar' : 'Salvar em Aberto'}</span>
-                                    <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">
-                                        {paymentStatus === 'paid' ? 'check_circle' : 'save_as'}
-                                    </span>
-                                </>
-                            )}
-                        </button>
-                    </div>
+                            <div className="text-right">
+                                <p className="text-sm font-black text-amber-600">{chefClubInfo.credits}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Disponíveis</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
+            </div>
 
+            {/* RIGHT COLUMN: Payment */}
+            <div className="space-y-6">
+                <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-slate-400">receipt_long</span>
+                        Resumo Financeiro
+                    </h3>
+
+                    {/* Payment Status Toggle */}
+                    <div className="mb-6">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
+                        <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
+                            <button
+                                onClick={() => setPaymentStatus('paid')}
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
+                                    ? 'bg-emerald-500 text-white shadow-md'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                Finalizar
+                            </button>
+                            <button
+                                onClick={() => setPaymentStatus('pending')}
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
+                                    ? 'bg-amber-500 text-white shadow-md'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-sm">save</span>
+                                Salvar Aberta
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 mb-6">
+                        <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                            <span>Subtotal</span>
+                            <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
+                            <span>Desconto (R$)</span>
+                            <input
+                                type="number"
+                                value={discount}
+                                onChange={(e) => setDiscount(e.target.value)}
+                                className="w-20 text-right bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
+                        <div className="flex justify-between items-end">
+                            <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
+                            <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
+                        </div>
+                    </div>
+
+                    {paymentStatus === 'paid' && (
+                        <div className="mb-8 animate-fade-in">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { id: 'credit', icon: 'credit_card', label: 'Crédito' },
+                                    { id: 'debit', icon: 'payments', label: 'Débito' },
+                                    { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
+                                    { id: 'cash', icon: 'attach_money', label: 'Dinheiro' }
+                                ].map(method => (
+                                    <button
+                                        key={method.id}
+                                        onClick={() => setPaymentMethod(method.id as any)}
+                                        className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
+                                    >
+                                        <span className="material-symbols-outlined">{method.icon}</span>
+                                        <span className="text-xs font-bold">{method.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <button
+                        onClick={handleFinish}
+                        disabled={cart.length === 0 || loading}
+                        className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
+                            ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                            : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                            }`}
+                    >
+                        {loading ? (
+                            <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
+                        ) : (
+                            <>
+                                <span>{paymentStatus === 'paid' ? 'Confirmar e Fechar' : 'Salvar em Aberto'}</span>
+                                <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">
+                                    {paymentStatus === 'paid' ? 'check_circle' : 'save_as'}
+                                </span>
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* --- MODALS --- */}
@@ -789,6 +856,8 @@ const Checkout: React.FC = () => {
                     </div>
                 </div>
             </Modal>
+
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
     );
 };

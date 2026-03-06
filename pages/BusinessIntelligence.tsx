@@ -15,7 +15,7 @@ interface Client { id: string; name: string; created_at: string; last_visit: str
 interface Staff { id: string; name: string; }
 interface Product { id: string; name: string; stock_quantity: number; minimum_stock: number; price: number; }
 interface ComandaItem { id: string; product_id: string | null; service_id: string | null; product_name: string; quantity: number; unit_price: number; comanda_id: string; }
-interface Comanda { id: string; total: number; staff_id: string; status: string; created_at: string; }
+interface Comanda { id: string; total: number; staff_id: string; client_id: string; status: string; created_at: string; }
 
 type Period = 'today' | '7d' | '30d' | '90d' | 'custom';
 
@@ -200,10 +200,26 @@ const BusinessIntelligence: React.FC = () => {
         return gapCount > 0 ? totalGaps / gapCount : 0;
     }, [appointments]);
 
-    // Top Clients
+    // Top Clients (LTV - Lifetime Value)
     const topClients = useMemo(() => {
-        return [...clients].sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0)).slice(0, 5);
-    }, [clients]);
+        const spendMap: Record<string, number> = {};
+
+        // Soma todas as comandas pagas do cliente
+        comandas.forEach(cmd => {
+            if (cmd.client_id) {
+                spendMap[cmd.client_id] = (spendMap[cmd.client_id] || 0) + (Number(cmd.total) || 0);
+            }
+        });
+
+        return clients
+            .map(c => ({
+                ...c,
+                // Usa a soma calculada ou o valor do banco como fallback
+                real_spent: spendMap[c.id] || Number(c.total_spent) || 0
+            }))
+            .sort((a, b) => b.real_spent - a.real_spent)
+            .slice(0, 5);
+    }, [clients, comandas]);
 
     // ═══════ OPERATIONAL KPIs ═══════
     const totalAppts = filteredApts.length;
@@ -525,7 +541,7 @@ const BusinessIntelligence: React.FC = () => {
                                         <span className={`size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-amber-800/60'}`}>{i + 1}</span>
                                         <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[140px]">{c.name}</span>
                                     </div>
-                                    <span className="text-sm font-bold text-emerald-500">R$ {fmt(c.total_spent || 0)}</span>
+                                    <span className="text-sm font-bold text-emerald-500">R$ {fmt((c as any).real_spent || 0)}</span>
                                 </div>
                             ))}
                             {topClients.length === 0 && <p className="text-xs text-slate-400 text-center">Sem dados</p>}

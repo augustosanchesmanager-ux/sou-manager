@@ -48,25 +48,48 @@ const FEATURES = [
 const PRICING_PLANS = [
   {
     name: 'Gratuito',
-    price: '0,00',
-    desc: 'Para quem está começando e quer organizar o básico.',
-    features: ['Até 50 agendamentos/mês', 'Cadastro de Clientes', 'Agenda Básica', 'Suporte via E-mail'],
+    monthlyPrice: '0,00',
+    annualPrice: '0,00',
+    desc: 'Essencial para organizar sua barbearia com elegância.',
+    features: [
+      'Até 50 agendamentos/mês',
+      'Cadastro de Clientes Premium',
+      'Portal do Cliente (Agendamentos)',
+      'Relatórios Básicos de Venda',
+      'Suporte via E-mail'
+    ],
     cta: 'Começar Agora',
     highlight: false,
   },
   {
     name: 'Profissional',
-    price: '59,90',
-    desc: 'O essencial para uma gestão completa e eficiente.',
-    features: ['Agendamentos Ilimitados', 'Controle Financeiro Completo', 'Gestão de Equipe e Comissões', 'Relatórios de Vendas', 'Suporte via WhatsApp'],
+    monthlyPrice: '59,90',
+    annualPrice: '599,00',
+    desc: 'O motor operacional completo para seu negócio.',
+    features: [
+      'Agendamentos Ilimitados',
+      'Folha de Pagamento Automatizada',
+      'Checkout / PDV com Recibos',
+      'Gestão de Comissões e Equipe',
+      'Controle de Estoque Profissional',
+      'Suporte via WhatsApp'
+    ],
     cta: 'Escolher Profissional',
     highlight: true,
   },
   {
     name: 'Elite',
-    price: '99,90',
-    desc: 'Alta performance com inteligência de dados e automação.',
-    features: ['Tudo do Profissional', 'BI Dashboard Avançado', 'Automação de Estoque', 'Gestão Multiloja (Breve)', 'Suporte Prioritário'],
+    monthlyPrice: '99,90',
+    annualPrice: '999,00',
+    desc: 'Tecnologia de ponta com Inteligência Artificial.',
+    features: [
+      'Tudo do Profissional',
+      'Motor de Retorno Inteligente',
+      'IA Gemini: Insights Preditivos',
+      'Totem / Kiosk de Autoatendimento',
+      'Gestão Multiloja Dashboard',
+      'Suporte Prioritário VIP'
+    ],
     cta: 'Seja Elite Tech',
     highlight: false,
   },
@@ -77,6 +100,7 @@ const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [activeNav, setActiveNav] = useState('Home');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
   useEffect(() => {
     if (session) navigate('/dashboard');
@@ -310,48 +334,69 @@ const Landing: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0E0C0A] via-transparent to-[#0E0C0A]" />
         </div>
         <div className="max-w-6xl mx-auto relative z-10">
-          <div className="text-center mb-20">
-            <span className="inline-block px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-[0.2em] mb-6">
-              Planos e Preços
-            </span>
-            <h2 className="text-4xl lg:text-6xl font-black tracking-tight mb-8">O investimento que se paga</h2>
-            <p className="text-slate-300 max-w-2xl mx-auto text-lg">
-              Escolha o plano ideal para o tamanho do seu negócio. Comece grátis e mude quando precisar.
-            </p>
-          </div>
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl lg:text-5xl font-black text-white mb-6 display-font tracking-tight">Investimento <span className="text-primary italic">Inteligente</span></h2>
+              <p className="text-slate-400 max-w-2xl mx-auto font-bold mb-10">Escolha o plano ideal para a fase atual do seu negócio. Sem letras miúdas.</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-6">
-            {PRICING_PLANS.map(plan => (
-              <div
-                key={plan.name}
-                className={`flex flex-col backdrop-blur-md border-2 rounded-[2.5rem] p-10 transition-all duration-300 ${plan.highlight ? 'bg-[#1C1814]/90 border-primary shadow-2xl shadow-primary/20 -translate-y-4' : 'bg-[#1C1814]/70 border-[#2E2720] hover:border-[#42382D]'}`}
-              >
-                {plan.highlight && (
-                  <span className="self-start px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-6">Mais Popular</span>
-                )}
-                <h3 className="text-2xl font-black text-white mb-2">{plan.name}</h3>
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-sm font-bold text-slate-400 italic">R$</span>
-                  <span className="text-5xl font-black text-white tracking-tighter">{plan.price}</span>
-                  <span className="text-sm font-bold text-slate-400">/mês</span>
-                </div>
-                <p className="text-slate-300 text-sm mb-10 leading-relaxed font-bold">{plan.desc}</p>
-                <div className="flex-1 space-y-4 mb-10">
-                  {plan.features.map(feat => (
-                    <div key={feat} className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-primary text-lg">check_circle</span>
-                      <span className="text-sm text-slate-200 font-medium">{feat}</span>
-                    </div>
-                  ))}
-                </div>
-                <Link
-                  to="/onboarding/role"
-                  className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
+              {/* Toggle Billing */}
+              <div className="flex items-center justify-center gap-4 mb-12">
+                <span className={`text-sm font-bold ${billingCycle === 'monthly' ? 'text-white' : 'text-slate-500'}`}>Mensal</span>
+                <button
+                  onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
+                  className="w-14 h-7 bg-white/10 rounded-full relative p-1 transition-all border border-white/5"
                 >
-                  {plan.cta}
-                </Link>
+                  <div className={`size-5 rounded-full bg-primary transition-all duration-300 ${billingCycle === 'annual' ? 'translate-x-7' : 'translate-x-0'}`} />
+                </button>
+                <span className={`text-sm font-bold flex items-center gap-2 ${billingCycle === 'annual' ? 'text-white' : 'text-slate-500'}`}>
+                  Anual
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-black uppercase px-2 py-1 rounded-full border border-emerald-500/20">
+                    2 Meses Grátis
+                  </span>
+                </span>
               </div>
-            ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {PRICING_PLANS.map((plan) => (
+                <div
+                  key={plan.name}
+                  className={`flex flex-col p-10 rounded-[2.5rem] relative group transition-all duration-500 ${plan.highlight ? 'bg-gradient-to-br from-[#2E2720] to-[#1C1814] border-primary/50' : 'bg-[#1C1814] border-white/5'} border-2`}
+                >
+                  {plan.highlight && (
+                    <span className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-primary/30 z-20">Mais Popular</span>
+                  )}
+                  <h3 className="text-2xl font-black text-white mb-2">{plan.name}</h3>
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className="text-sm font-bold text-slate-400 italic">R$</span>
+                    <span className="text-5xl font-black text-white tracking-tighter">
+                      {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                    </span>
+                    <span className="text-sm font-bold text-slate-500">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
+                  </div>
+                  {billingCycle === 'annual' && plan.annualPrice !== '0,00' && (
+                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">
+                      Equivalente a R$ {(parseFloat(plan.annualPrice.replace(',', '.')) / 12).toFixed(2).replace('.', ',')}/mês
+                    </p>
+                  )}
+                  <p className="text-slate-400 text-sm mb-10 leading-relaxed font-bold">{plan.desc}</p>
+                  <div className="flex-1 space-y-4 mb-10">
+                    {plan.features.map(feat => (
+                      <div key={feat} className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-primary text-lg">check_circle</span>
+                        <span className="text-sm text-slate-200 font-medium">{feat}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    to="/onboarding/role"
+                    className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light transform hover:-translate-y-1' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
+                  >
+                    {plan.cta}
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

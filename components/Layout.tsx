@@ -40,7 +40,7 @@ const Layout: React.FC = () => {
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top Header */}
-        <header className="h-16 border-b border-slate-200 dark:border-border-dark px-4 sm:px-8 flex items-center justify-between shrink-0 bg-white/80 dark:bg-background-dark/50 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
+        <header className="h-16 border-b border-slate-200 dark:border-white/5 px-4 sm:px-8 flex items-center justify-between shrink-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             {/* Mobile Menu Button */}
             <button
@@ -75,8 +75,8 @@ const Layout: React.FC = () => {
             <div className="h-6 w-px bg-slate-200 dark:bg-border-dark mx-1"></div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">{displayName}</p>
-                <p className="text-[10px] text-primary">{displayPlan}</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white display-font">{displayName}</p>
+                <p className="text-[10px] text-primary tracking-widest uppercase font-bold">{displayPlan}</p>
               </div>
               <div
                 className="size-8 sm:size-10 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/40"

@@ -175,7 +175,7 @@ const Team: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Equipe</h2>
+                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">Equipe</h2>
                     <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} membro(s) ativo(s)</p>
                 </div>
                 <button onClick={openNewModal}
@@ -189,7 +189,7 @@ const Team: React.FC = () => {
             <div className="relative max-w-md">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
                 <input type="text" placeholder="Buscar colaborador..." value={search} onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white" />
+                    className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
             </div>
 
             {/* Team Cards */}
@@ -202,7 +202,7 @@ const Team: React.FC = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filtered.map(member => (
-                        <div key={member.id} className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 hover:shadow-lg transition-all group">
+                        <div key={member.id} className="card-boutique p-6 group relative">
                             <div className="flex items-start gap-4 mb-4">
                                 <div className="relative">
                                     <div className="size-14 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center"
@@ -210,7 +210,7 @@ const Team: React.FC = () => {
                                     <span className={`absolute -bottom-1 -right-1 size-4 rounded-full border-2 border-white dark:border-card-dark ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{member.name}</h4>
+                                    <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors display-font">{member.name}</h4>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         <span className="material-symbols-outlined text-sm text-slate-400">{roleIcons[member.role] || 'person'}</span>
                                         <span className="text-xs text-slate-500 font-bold">{roleLabels[member.role] || member.role}</span>
@@ -222,11 +222,11 @@ const Team: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Comissão</p>
-                                    <p className="text-lg font-bold text-slate-900 dark:text-white">{member.commission_rate}%</p>
+                                <div className="bg-slate-50 dark:bg-[#141414] border border-slate-100 dark:border-[#262626] p-3 rounded-xl">
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Comissão</p>
+                                    <p className="text-xl mt-0.5 font-bold text-slate-900 dark:text-white display-font">{member.commission_rate}%</p>
                                 </div>
-                                <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
+                                <div className="bg-slate-50 dark:bg-[#141414] border border-slate-100 dark:border-[#262626] p-3 rounded-xl">
                                     <p className="text-[10px] text-slate-500 uppercase font-bold">Status</p>
                                     <p className={`text-sm font-bold ${member.status === 'active' ? 'text-emerald-500' : 'text-slate-400'}`}>
                                         {member.status === 'active' ? 'Ativo' : 'Inativo'}

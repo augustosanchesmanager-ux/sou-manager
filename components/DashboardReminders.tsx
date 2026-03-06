@@ -15,9 +15,9 @@ const DashboardReminders = () => {
     };
 
     return (
-        <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl p-6 border border-amber-200 dark:border-amber-900/30 shadow-sm transition-all h-full flex flex-col mb-6 animate-fade-in">
+        <div className="card-boutique p-6 h-full flex flex-col mb-6 animate-fade-in">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-amber-900 dark:text-amber-500 flex items-center gap-2 text-sm">
+                <h3 className="font-bold text-amber-800 dark:text-amber-500 flex items-center gap-2 text-sm">
                     <span className="material-symbols-outlined text-lg">push_pin</span>
                     Lembretes Rápidos
                 </h3>

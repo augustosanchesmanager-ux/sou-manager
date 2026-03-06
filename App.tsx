@@ -32,10 +32,20 @@ import Products from './pages/Products';
 import SuperAdmin from './pages/SuperAdmin';
 import Promotions from './pages/Promotions';
 import BusinessIntelligence from './pages/BusinessIntelligence';
+import SmartReturn from './pages/SmartReturn';
+import StrategicDashboard from './pages/StrategicDashboard';
 import PendingApproval from './pages/PendingApproval';
 import KioskAdmin from './pages/KioskAdmin';
 import KioskPage from './pages/kiosk/KioskPage';
 import KioskClientPage from './pages/kiosk/KioskClientPage';
+import PortalLanding from './pages/portal/PortalLanding';
+import PortalLogin from './pages/portal/PortalLogin';
+import PortalApp from './pages/portal/PortalApp';
+import PortalSchedule from './pages/portal/PortalSchedule';
+import PortalAdmin from './pages/portal/PortalAdmin';
+import ChefClubPlans from './pages/ChefClubPlans';
+import ChefClubSubscriptions from './pages/ChefClubSubscriptions';
+import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Outlet } from 'react-router-dom';
@@ -87,6 +97,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/kiosk/:tenantSlug" element={<KioskPage />} />
       <Route path="/kiosk/:tenantSlug/client" element={<KioskClientPage />} />
 
+      {/* Public Portal Routes */}
+      <Route path="/c/:tenantSlug" element={<PortalLanding />} />
+      <Route path="/c/:tenantSlug/login" element={<PortalAuthProvider><PortalLogin /></PortalAuthProvider>} />
+      <Route path="/c/:tenantSlug/app" element={<PortalAuthProvider><PortalApp /></PortalAuthProvider>} />
+      <Route path="/c/:tenantSlug/app/schedule" element={<PortalAuthProvider><PortalSchedule /></PortalAuthProvider>} />
+
       {/* Protected Flow */}
       <Route element={<ProtectedRoute />}>
         {/* Onboarding Flow */}
@@ -97,10 +113,23 @@ const AppRoutes: React.FC = () => {
         {/* Main Layout Routes */}
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/strategic-dashboard" element={<StrategicDashboard />} />
           <Route path="/checkout/:id?" element={<Checkout />} />
           <Route path="/comandas" element={<Comandas />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/support" element={<Support />} />
+
+          {/* Admin Settings & Features */}
+          <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
+          <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
+          <Route path="/kiosk-admin" element={<ManagerRoute><KioskAdmin /></ManagerRoute>} />
+          <Route path="/portal-admin" element={<ManagerRoute><PortalAdmin /></ManagerRoute>} />
+          <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
+          <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
+          <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
+          <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
+          <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
+          <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />

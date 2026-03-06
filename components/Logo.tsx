@@ -34,22 +34,35 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
     }
   };
 
-  return (
-    <div
-      className={`flex items-center gap-3 ${clickable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
-      onClick={handleClick}
-      role={clickable ? 'link' : undefined}
-      title="Ir para o início"
-    >
-      <div className={`bg-primary ${containerPadding[size]} rounded-lg flex items-center justify-center shadow-lg shadow-primary/20`}>
+  const innerContent = (
+    <>
+      <div className={`bg-gradient-to-br from-primary to-primary-dark ${containerPadding[size]} rounded-xl flex items-center justify-center shadow-lg shadow-primary/30 border border-primary-light/20`}>
         <span className={`material-symbols-outlined text-white ${iconSizes[size]}`}>content_cut</span>
       </div>
       {!iconOnly && (
-        <div className="flex flex-col">
-          <h1 className={`text-slate-900 dark:text-white ${size === 'lg' ? 'text-xl' : 'text-lg'} font-bold leading-tight tracking-tight uppercase`}>SOU MANA.GER</h1>
-          <p className="text-primary text-[10px] font-bold tracking-[0.2em]">ELITE TECH</p>
+        <div className="flex flex-col text-left mt-0.5">
+          <h1 className={`text-slate-900 dark:text-white ${size === 'lg' ? 'text-2xl' : 'text-xl'} font-bold leading-none tracking-tight uppercase display-font`}>SOU MANA.GER</h1>
+          <p className="text-primary-dark dark:text-primary text-[10px] font-bold tracking-[0.25em] uppercase mt-0.5">Elite Tech</p>
         </div>
       )}
+    </>
+  );
+
+  if (clickable) {
+    return (
+      <button
+        className={`flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity ${className}`}
+        onClick={handleClick}
+        title="Ir para o início"
+      >
+        {innerContent}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-3 ${className}`} title="SOU MANA.GER Logo">
+      {innerContent}
     </div>
   );
 };

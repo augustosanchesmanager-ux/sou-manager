@@ -20,7 +20,7 @@ const SALE_RESPONSES: Record<string, string> = {
         '💰 Temos 3 planos pensados para o seu momento:\n\n1. **Gratuito**: Ideal para começar (agendamentos e clientes).\n2. **Profissional**: Gestão completa de vendas, financeiro e equipe.\n3. **Elite**: Para quem quer escala. Inclui BI Avançado, Automações e Suporte VIP.\n\nRole a página até a seção de **Preços** para ver os detalhes!',
 
     'o sistema tem bi?':
-        '📊 Sim! No plano **Elite**, você tem acesso ao nosso Dashboard de **Business Intelligence**. Ele analisa seu faturamento, retenção de clientes e performance da equipe sozinho, te dando insights prontos para agir.',
+        '📊 Sim! No plano **Elite**, você tem acesso ao nosso Dashboard de **Business Intelligence** com **Insights de IA (Gemini)**. Ele analisa seu faturamento e usa o **Motor de Retorno Inteligente** para identificar clientes sumidos, sugerindo ações para seu time agir na hora certa.',
 
     'como funciona o suporte?':
         '🛠️ Nosso suporte é humanizado! No plano Profissional e Elite, você tem canal direto via WhatsApp e e-mail. No plano Elite, o suporte é prioritário.',
@@ -29,7 +29,7 @@ const SALE_RESPONSES: Record<string, string> = {
         '✨ Com certeza! Você pode começar agora mesmo no plano **Gratuito** para conhecer a interface. Não pedimos cartão de crédito para começar.',
 
     'tem controle de estoque?':
-        '📦 Sim! Temos gestão completa de produtos e estoque. No plano Elite, o sistema até gera pedidos de compra automáticos quando o produto está acabando.',
+        '📦 Sim! Temos gestão completa de produtos e estoque. No plano **Elite**, o sistema conta com automação via Totem de Autoatendimento, facilitando a entrada e saída de produtos e o check-in rápido de clientes.',
 };
 
 function getSaleReply(userMsg: string): string {

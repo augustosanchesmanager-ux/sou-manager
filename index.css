@@ -1,44 +1,92 @@
-/* SOU MANA.GER — Global Styles */
+/* SOU MANA.GER — Global Styles (Neo-Premium Boutique Edition) */
+@import url('https://fonts.googleapis.com/css?family=Outfit:300,400,500,600,700,800|Plus+Jakarta+Sans:400,500,600,700&display=swap');
 @import "tailwindcss";
 
 /* ===== Custom Theme Config ===== */
 @theme {
-  --color-primary: #BE814B;
-  --color-primary-dark: #9E6A38;
-  --color-primary-light: #D4A06A;
-  --color-background-light: #f5f7f8;
-  --color-background-dark: #12100E;
-  --color-surface-dark: #1C1814;
-  --color-card-dark: #231F1A;
-  --color-border-dark: #2E2720;
-  --color-accent: #0bda5e;
+  /* Cores de Fundo (Light Mode = Pérola/Limpo, Dark = Oled/Carvão) */
+  --color-background-light: #FAFAF9;
+  /* Pedra quente / Bege claríssimo, foge do branco cru */
+  --color-surface-light: #FFFFFF;
+  --color-background-dark: #0A0A0A;
+  /* Black Absoluto, hiper-contraste */
+  --color-surface-dark: #121212;
+  --color-card-dark: #1A1A1A;
+  /* Cards levemente mais claros, mas ainda muito escuros */
+  --color-border-dark: #262626;
 
-  /* Barber Schedule Colors */
-  --color-barber-1: #3b82f6;
-  /* Blue */
-  --color-barber-2: #10b981;
+  /* Cores Primárias — O "Acento Boutique" Elite */
+  --color-primary: #E5A158;
+  /* Gold vibrante/Âmbar claro (Vivo sem ser Neon Extremo) */
+  --color-primary-dark: #D97706;
+  /* Um subtom de Ouro Envelhecido pro hover */
+  --color-primary-light: #FDE68A;
+  /* Reluzente/Destaque fino */
+
+  --color-accent: #10B981;
+  /* Esmeralda para pontos positivos e conclusões */
+
+  /* Cores da Barbearia (Acentos na Agenda) - Zero Roxo/Índigo - Regra Anti-IA */
+  --color-barber-1: #0EA5E9;
+  /* Sky Blue Vibrante */
+  --color-barber-2: #10B981;
   /* Emerald */
-  --color-barber-3: #8b5cf6;
-  /* Violet */
-  --color-barber-4: #f59e0b;
-  /* Amber */
-  --color-barber-5: #ef4444;
-  /* Red */
-  --color-barber-6: #ec4899;
-  /* Pink */
+  --color-barber-3: #F59E0B;
+  /* Amber Quente */
+  --color-barber-4: #EF4444;
+  /* Vermelho Sinal */
+  --color-barber-5: #F97316;
+  /* Laranja Energético */
+  --color-barber-6: #14B8A6;
+  /* Teal Oceânico */
 
-  --font-display: "Plus Jakarta Sans", sans-serif;
+  /* Fontes Premium */
+  --font-display: "Outfit", sans-serif;
   --font-sans: "Plus Jakarta Sans", sans-serif;
+
+  /* Sombras Boutique - Claras pro Light mode, Densas pro Dark mode */
+  --shadow-elite: 0 4px 30px rgba(0, 0, 0, 0.04);
+  --shadow-elite-md: 0 10px 40px rgba(0, 0, 0, 0.08);
+  --shadow-elite-dark: 0 8px 30px rgba(0, 0, 0, 0.4);
+
+  /* Raios de Borda mais macios porém controlados */
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
 }
 
 @variant dark (&:where(.dark, .dark *));
 
-/* ===== Base ===== */
+/* ===== Repaginada Base ===== */
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-sans);
+  background-color: var(--color-background-light);
+  color: #171717;
+  /* Texto quase preto, nunca 100% black */
+  transition: background-color 0.4s ease, color 0.4s ease;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Fix for native select dropdowns in dark mode */
+.dark body {
+  background-color: var(--color-background-dark);
+  color: #F5F5F5;
+  /* Branco quebrado, evita fadiga visual */
+}
+
+/* Tipografia Elite (Títulos e Números) */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.display-font {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  /* Um toque mais unito e premium */
+}
+
+/* Fix dropdowns em dark mode */
 select,
 option {
   color-scheme: light;
@@ -49,9 +97,10 @@ option {
   color-scheme: dark;
 }
 
-/* ===== Custom Scrollbar ===== */
+/* ===== Scrollbar Boutique ===== */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 5px;
+  height: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -59,29 +108,34 @@ option {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #3b4454;
+  background: #E5E5E5;
   border-radius: 10px;
 }
 
-/* Modal Scroll Lock */
-.modal-open {
-  overflow: hidden;
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333333;
 }
 
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+.modal-open,
 .modal-open .main-content {
   overflow: hidden;
 }
 
-/* ===== Material Icons ===== */
+/* Material Icons ajustados */
 .material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  /* Peso mais fino 'wght' 300 para elegância */
 }
 
-/* ===== Animations ===== */
-@keyframes fade-in {
+/* ===== Animações Fluídas (Spring/Cubic) ===== */
+@keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
 
   to {
@@ -91,5 +145,30 @@ option {
 }
 
 .animate-fade-in {
-  animation: fade-in 0.4s ease-out forwards;
+  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Componentes de classe utilitária p/ o Redesign */
+.card-boutique {
+  background-color: var(--color-surface-light);
+  border: 1px solid #F0F0F0;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-elite);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-boutique:hover {
+  box-shadow: var(--shadow-elite-md);
+  transform: translateY(-2px);
+}
+
+.dark .card-boutique {
+  background-color: var(--color-card-dark);
+  border: 1px solid var(--color-border-dark);
+  box-shadow: var(--shadow-elite-dark);
+}
+
+.dark .card-boutique:hover {
+  border-color: #333333;
+  /* Glow sutil na borda ao invés de sombra difusa na box */
 }

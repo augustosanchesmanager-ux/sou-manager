@@ -72,6 +72,12 @@ const Comandas: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
+    const getDisplayId = (id: string) => {
+        const hexStr = id.replace(/-/g, '').slice(0, 8);
+        const num = parseInt(hexStr, 16);
+        return isNaN(num) ? 1000 : (num % 89999) + 1000;
+    };
+
     const filteredComandas = comandas.filter(comanda => {
         const matchesStatus = filterStatus === 'all' || comanda.status === filterStatus;
         const matchesSearch =
@@ -89,10 +95,12 @@ const Comandas: React.FC = () => {
 
     // Export Functions
     const generateCSV = () => {
-        const headers = ["ID", "Cliente", "Profissional", "Serviços", "Total", "Status", "Data"];
+        const headers = ["Ações", "ID", "Cliente", "Data / Hora", "Profissional", "Serviços", "Total", "Status"];
         const rows = filteredComandas.map(c => [
-            c.id,
+            "",
+            getDisplayId(c.id).toString(),
             c.clients?.name,
+            new Date(c.created_at).toLocaleString('pt-BR'),
             c.staff?.name || 'N/A',
             c.comanda_items.map(i => i.product_name).join(" + "),
             (c.total || 0).toFixed(2),
@@ -130,7 +138,7 @@ const Comandas: React.FC = () => {
         if (!printWindow) return;
         printWindow.document.write(`
       <html>
-        <head><title>Comanda ${comanda.id.slice(0, 8)}</title>
+        <head><title>Comanda ${getDisplayId(comanda.id)}</title>
         <style>
           body { font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 350px; margin: 0 auto; }
           h1 { font-size: 18px; text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px; }
@@ -142,7 +150,7 @@ const Comandas: React.FC = () => {
           .footer { text-align: center; font-size: 10px; color: #666; margin-top: 20px; }
         </style></head>
         <body>
-          <h1>☆ COMANDA #${comanda.id.slice(0, 8)} ☆</h1>
+          <h1>☆ COMANDA #${getDisplayId(comanda.id)} ☆</h1>
           <div class="info"><strong>Cliente:</strong> ${comanda.clients?.name}</div>
           <div class="info"><strong>Profissional:</strong> ${comanda.staff?.name || 'N/A'}</div>
           <div class="info"><strong>Data:</strong> ${new Date(comanda.created_at).toLocaleDateString('pt-BR')}</div>
@@ -291,13 +299,13 @@ const Comandas: React.FC = () => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark">
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest w-24">Ações</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Comanda</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Consumo</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Responsável</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Total</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
@@ -307,13 +315,43 @@ const Comandas: React.FC = () => {
                                 filteredComandas.map((comanda) => (
                                     <tr key={comanda.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                                         <td className="px-6 py-4">
-                                            <span className="font-mono font-bold text-primary text-sm">#{comanda.id.slice(0, 8)}</span>
-                                            <p className="text-[10px] text-slate-500 mt-0.5">{new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                            <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => setViewComanda(comanda)} className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-max transition-colors" title="Ver Detalhes">
+                                                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                </button>
+                                                {comanda.status === 'open' && (
+                                                    <button onClick={() => navigate(`/checkout/${comanda.id}`)} className="p-1.5 text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-max transition-colors" title="Editar / Pagar">
+                                                        <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handlePrint(comanda)} className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 rounded-max transition-colors" title="Imprimir">
+                                                    <span className="material-symbols-outlined text-[18px]">print</span>
+                                                </button>
+                                                {isManager && (
+                                                    <button onClick={() => setDeleteComanda(comanda)} className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-max transition-colors" title="Excluir">
+                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <img src={comanda.clients?.avatar} alt={comanda.clients?.name} className="size-8 rounded-full border border-slate-200 dark:border-border-dark" />
-                                                <span className="font-bold text-sm text-slate-900 dark:text-white">{comanda.clients?.name}</span>
+                                            <span className="inline-flex items-center justify-center px-2 py-1 rounded bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 font-mono font-black text-slate-600 dark:text-slate-300 text-xs">
+                                                #{getDisplayId(comanda.id)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-start gap-3">
+                                                <img src={comanda.clients?.avatar} alt={comanda.clients?.name} className="size-9 rounded-full border border-slate-200 dark:border-border-dark mt-0.5" />
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-sm text-slate-900 dark:text-white leading-tight">{comanda.clients?.name}</span>
+                                                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 mt-0.5 tracking-tight uppercase">
+                                                        <span className="material-symbols-outlined text-[12px] text-primary">calendar_month</span>
+                                                        {new Date(comanda.created_at).toLocaleDateString('pt-BR')}
+                                                        <span className="mx-0.5 text-slate-300 dark:text-slate-600">•</span>
+                                                        <span className="material-symbols-outlined text-[12px] text-primary">schedule</span>
+                                                        {new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -325,12 +363,12 @@ const Comandas: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm text-slate-600 dark:text-slate-300">{comanda.staff?.name || '---'}</span>
+                                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{comanda.staff?.name || '---'}</span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="font-bold text-slate-900 dark:text-white">R$ {(comanda.total || 0).toFixed(2)}</span>
+                                            <span className="font-black text-slate-900 dark:text-white">R$ {(comanda.total || 0).toFixed(2)}</span>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 text-right">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${comanda.status === 'paid'
                                                 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                                                 : comanda.status === 'open'
@@ -341,40 +379,6 @@ const Comandas: React.FC = () => {
                                                     }`}></span>
                                                 {comanda.status === 'paid' ? 'Paga' : comanda.status === 'open' ? 'Aberta' : 'Cancelada'}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => setViewComanda(comanda)}
-                                                    className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                                                    title="Ver Detalhes"
-                                                >
-                                                    <span className="material-symbols-outlined text-lg">visibility</span>
-                                                </button>
-                                                {comanda.status === 'open' && (
-                                                    <button
-                                                        onClick={() => navigate(`/checkout/${comanda.id}`)}
-                                                        className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-all"
-                                                        title="Fechar Conta / Editar"
-                                                    >
-                                                        <span className="material-symbols-outlined text-lg">point_of_sale</span>
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => handlePrint(comanda)}
-                                                    className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                                                    title="Imprimir"
-                                                >
-                                                    <span className="material-symbols-outlined text-lg">print</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteComanda(comanda)}
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                                                    title="Excluir Comanda"
-                                                >
-                                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                                </button>
-                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -395,7 +399,7 @@ const Comandas: React.FC = () => {
             <Modal
                 isOpen={!!viewComanda}
                 onClose={() => setViewComanda(null)}
-                title={viewComanda ? `#${viewComanda.id.slice(0, 8)}` : ''}
+                title={viewComanda ? `Resumo #${getDisplayId(viewComanda.id)}` : ''}
                 maxWidth="md"
             >
                 {viewComanda && (
@@ -465,7 +469,7 @@ const Comandas: React.FC = () => {
                             </div>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Deseja realmente excluir a comanda <strong className="text-slate-900 dark:text-white">#{deleteComanda.id.slice(0, 8)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
+                            Deseja realmente excluir a comanda <strong className="text-slate-900 dark:text-white">#{getDisplayId(deleteComanda.id)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
                         </p>
                         <div className="flex gap-3 pt-2">
                             <button

@@ -35,6 +35,9 @@ Esta documentação detalha todas as funcionalidades atuais do sistema **SOU MAN
 * **Ficha Completa**: Cadastro de nome, telefone, e-mail e data de nascimento.
 * **Faturamento Individual**: Visualização do total gasto e última visita por cliente.
 * **Importação/Exportação CSV**: Facilidade para migrar bases de dados existentes.
+* **Ficha Completa**: Cadastro de nome, telefone, e-mail e data de nascimento.
+* **Faturamento Individual**: Visualização do total gasto e última visita por cliente.
+* **Importação/Exportação CSV**: Facilidade para migrar bases de dados existentes.
 * **Edição Premium**: Modal moderno para atualização completa de dados e preferências.
 
 ### ✂️ Equipe & Profissionais (`/team`)
@@ -42,6 +45,14 @@ Esta documentação detalha todas as funcionalidades atuais do sistema **SOU MAN
 * **Gestão de Staff**: Cadastro de barbeiros, recepcionistas e gerentes com RLS seguro.
 * **Comissões**: Configuração individual de ganhos e participação percentual.
 * **Status em Tempo Real**: Monitoramento de quem está disponível ou em atendimento.
+
+### 💎 Planos e Investimento
+
+| Plano | Mensal | Anual (2 meses OFF) | Foco |
+| :--- | :--- | :--- | :--- |
+| **Gratuito** | R$ 0,00 | R$ 0,00 | Iniciantes |
+| **Profissional** | R$ 59,90 | R$ 599,00 | Gestão Completa |
+| **Elite** | R$ 99,90 | R$ 999,00 | IA & Escala |
 
 ### 📦 Produtos & Estoque (`/products`)
 

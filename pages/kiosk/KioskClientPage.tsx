@@ -233,9 +233,10 @@ const KioskClientPage: React.FC = () => {
             if (!tenantData) { setError('Barbearia não encontrada.'); setLoading(false); return; }
 
             const { data: addon } = await supabase
-                .from('kiosk_addons')
-                .select('status, kiosk_theme')
+                .from('tenant_addons')
+                .select('status, limits')
                 .eq('tenant_id', tenantData.id)
+                .eq('addon_key', 'TOTEM_QR')
                 .single();
 
             if (!addon || addon.status !== 'enabled') { setAddonEnabled(false); setLoading(false); return; }
@@ -245,7 +246,7 @@ const KioskClientPage: React.FC = () => {
                 id: tenantData.id,
                 slug: tenantData.slug || tenantSlug || '',
                 name: tenantData.name || '',
-                theme: (addon.kiosk_theme as KioskTheme) || 'default',
+                theme: (addon.limits?.theme as KioskTheme) || 'default',
             });
         } catch { setError('Erro ao carregar.'); }
         finally { setLoading(false); }

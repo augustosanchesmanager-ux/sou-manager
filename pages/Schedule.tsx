@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -17,6 +18,7 @@ interface DBService {
   id: string;
   name: string;
   duration: number;
+  buffer?: number;
 }
 
 interface DBClient {
@@ -61,6 +63,7 @@ const statusColors: Record<string, string> = {
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
 const Schedule: React.FC = () => {
+  const navigate = useNavigate();
   const { tenantId } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -95,6 +98,7 @@ const Schedule: React.FC = () => {
   // Detail Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<CalendarAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<NewAppointmentForm>({
@@ -111,13 +115,14 @@ const Schedule: React.FC = () => {
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState<DBClient[]>([]);
   const [isNewClientMode, setIsNewClientMode] = useState(false);
+  const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar').eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration').eq('active', true),
+      supabase.from('services').select('id, name, duration, buffer').eq('active', true),
       supabase.from('clients').select('id, name, phone').order('name'),
       supabase.from('promotions').select('*').eq('active', true),
     ]);
@@ -214,6 +219,34 @@ const Schedule: React.FC = () => {
     }
   }, [isModalOpen, selectedDate, staffList]);
 
+  const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
+    try {
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('id')
+        .or(`phone.eq.${apt.clientPhone},name.eq.${apt.client}`)
+        .limit(1)
+        .single();
+
+      const clientId = clientData?.id || '';
+
+      navigate('/checkout', {
+        state: {
+          fromAppointment: true,
+          appointmentId: apt.id,
+          clientId: clientId,
+          clientName: apt.client,
+          serviceName: apt.service,
+          staffId: apt.staffId,
+          price: apt.price
+        }
+      });
+    } catch (err) {
+      console.error('Error navigating to checkout:', err);
+      navigate('/checkout');
+    }
+  };
+
   const handleInputChange = (field: keyof NewAppointmentForm, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError(null);
@@ -221,7 +254,8 @@ const Schedule: React.FC = () => {
     if (field === 'service') {
       const selectedService = servicesList.find(s => s.name === value);
       if (selectedService) {
-        setFormData(prev => ({ ...prev, service: value, duration: selectedService.duration / 60 }));
+        const fullDuration = (selectedService.duration + (selectedService.buffer || 0)) / 60;
+        setFormData(prev => ({ ...prev, service: value, duration: fullDuration }));
       }
     }
 
@@ -235,15 +269,171 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const selectClient = (clientName: string) => {
+  const selectClient = async (clientName: string) => {
     setFormData(prev => ({ ...prev, client: clientName, clientPhone: '' }));
     setShowClientSuggestions(false);
     setIsNewClientMode(false);
+
+    // Check for Chef Club Subscription
+    const client = clientsList.find(c => c.name === clientName);
+    if (client) {
+      const { data, error } = await supabase
+        .from('customer_subscriptions')
+        .select(`
+          status,
+          plan:customer_plans(name),
+          credits:customer_credits(available_credits)
+        `)
+        .eq('client_id', client.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (data) {
+        setChefClubInfo({
+          planName: (data.plan as any).name,
+          credits: (data.credits as any)?.[0]?.available_credits || 0,
+          status: data.status
+        });
+      } else {
+        setChefClubInfo(null);
+      }
+    }
   };
 
   const enableNewClientMode = () => {
     setIsNewClientMode(true);
     setShowClientSuggestions(false);
+    setChefClubInfo(null);
+  };
+
+  const handleEditAppointment = (apt: CalendarAppointment) => {
+    setEditingAppointmentId(apt.id);
+    const datePart = apt.startTime.split('T')[0];
+
+    setFormData({
+      client: apt.client,
+      clientPhone: apt.clientPhone,
+      service: apt.service,
+      staffId: apt.staffId,
+      date: datePart,
+      start: apt.start,
+      duration: apt.duration
+    });
+
+    setIsDetailModalOpen(false);
+    setIsModalOpen(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessário para permitir o drop
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropAppointment = async (e: React.DragEvent, dropStaffId: string) => {
+    e.preventDefault();
+    const aptId = e.dataTransfer.getData('aptId');
+    if (!aptId) return;
+
+    const apt = appointments.find(a => a.id === aptId);
+    if (!apt) return;
+
+    const columnRect = e.currentTarget.getBoundingClientRect();
+    const yPosition = e.clientY - columnRect.top;
+
+    // Calcula o novo horário (8:00 to 20:00 = 13 slots de 1 hora)
+    const totalHours = timeSlots.length;
+    const percentage = yPosition / columnRect.height;
+    const exactHour = 8 + (percentage * totalHours);
+
+    // Arredonda para blocos de 15 minutos mais próximos
+    const roundedHour = Math.floor(exactHour * 4) / 4;
+
+    if (roundedHour < 8 || roundedHour >= 21) {
+      setToast({ message: 'Horário fora de operação.', type: 'error' });
+      return;
+    }
+
+    // Calcula nova Start_time
+    const newHours = Math.floor(roundedHour);
+    const newMinutes = (roundedHour % 1) * 60;
+
+    const parts = apt.startTime.split('T');
+    const dateStr = parts[0];
+    const newStartTimeLine = new Date(`${dateStr}T${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}:00`);
+
+    // Validação Anti-Overbooking
+    const overlapping = appointments.filter(a =>
+      a.id !== apt.id &&
+      a.staffId === dropStaffId &&
+      a.date === apt.date &&
+      !(
+        (roundedHour + apt.duration) <= a.start ||
+        roundedHour >= (a.start + a.duration)
+      )
+    );
+
+    if (overlapping.length > 0) {
+      setToast({ message: 'Conflito de horário! Não é possível encaixar aqui.', type: 'error' });
+      return;
+    }
+
+    // Otimista Update UI
+    setAppointments(prev => prev.map(a =>
+      a.id === apt.id
+        ? { ...a, staffId: dropStaffId, start: roundedHour, startTime: newStartTimeLine.toISOString() }
+        : a
+    ));
+
+    try {
+      const selectedStaff = staffList.find(s => s.id === dropStaffId);
+
+      const { error } = await supabase.from('appointments').update({
+        staff_id: dropStaffId,
+        staff_name: selectedStaff?.name || apt.staffName,
+        start_time: newStartTimeLine.toISOString(),
+      }).eq('id', apt.id);
+
+      if (error) throw error;
+
+      // Update comanda if exists
+      await supabase.from('comandas').update({
+        staff_id: dropStaffId,
+      }).eq('appointment_id', apt.id).eq('status', 'open');
+
+      setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
+      fetchAppointments();
+    } catch (err) {
+      console.error('Error dragging appointment:', err);
+      fetchAppointments(); // Revert on failure
+      setToast({ message: 'Erro ao mover agendamento.', type: 'error' });
+    }
+  };
+
+  const handleCancelAppointment = async (appointmentId: string) => {
+    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      // Also cancel associated comanda if it exists and is open
+      await supabase
+        .from('comandas')
+        .update({ status: 'cancelled' })
+        .eq('appointment_id', appointmentId)
+        .eq('status', 'open');
+
+      setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
+      setIsDetailModalOpen(false);
+      fetchAppointments();
+    } catch (err) {
+      console.error('Error cancelling appointment:', err);
+      setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
+    }
   };
 
   const handleSave = async () => {
@@ -260,7 +450,6 @@ const Schedule: React.FC = () => {
     const selectedService = servicesList.find(s => s.name === formData.service);
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
 
-    // Save new client if needed
     let clientId: string | null = null;
     if (isNewClientMode) {
       const { data: newClient, error: clientError } = await supabase.from('clients').insert({
@@ -279,71 +468,90 @@ const Schedule: React.FC = () => {
 
     const startHours = Math.floor(formData.start);
     const startMinutes = (formData.start % 1) * 60;
-    const startTime = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`);
+    const startTimeLine = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`);
 
-    const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
-      client_id: clientId,
-      service_id: selectedService?.id || null,
-      staff_id: formData.staffId || null,
-      client_name: formData.client,
-      service_name: formData.service,
-      staff_name: selectedStaff?.name || '',
-      start_time: startTime.toISOString(),
-      duration: Number(formData.duration),
-      status: 'confirmed',
-      tenant_id: tenantId
-    }).select().single();
-
-    if (saveError) { setError('Erro ao salvar agendamento.'); return; }
-
-    // AUTOMATION: Create Comanda
-    if (savedApt) {
-      const { data: comanda } = await supabase.from('comandas').insert({
-        appointment_id: savedApt.id,
-        client_id: clientId,
+    if (editingAppointmentId) {
+      // UPDATE EXISTING
+      const { error: updateError } = await supabase.from('appointments').update({
+        service_id: selectedService?.id || null,
         staff_id: formData.staffId || null,
-        status: 'open',
-        total: selectedService?.duration ? 0 : 0, // Price logic could be here, but we start at 0 and add item
+        service_name: formData.service,
+        staff_name: selectedStaff?.name || '',
+        start_time: startTimeLine.toISOString(),
+        duration: Number(formData.duration),
+      }).eq('id', editingAppointmentId);
+
+      if (updateError) { setError('Erro ao atualizar agendamento.'); return; }
+
+      // Update comanda if exists
+      await supabase.from('comandas').update({
+        staff_id: formData.staffId || null,
+      }).eq('appointment_id', editingAppointmentId).eq('status', 'open');
+
+      setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+    } else {
+      // INSERT NEW
+      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
+        client_id: clientId,
+        service_id: selectedService?.id || null,
+        staff_id: formData.staffId || null,
+        client_name: formData.client,
+        service_name: formData.service,
+        staff_name: selectedStaff?.name || '',
+        start_time: startTimeLine.toISOString(),
+        duration: Number(formData.duration),
+        status: 'confirmed',
         tenant_id: tenantId
       }).select().single();
 
-      if (comanda && selectedService) {
-        // Fetch service price
-        const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
-        let finalPrice = serviceData?.price || 0;
+      if (saveError) { setError('Erro ao salvar agendamento.'); return; }
 
-        // Apply promotion if exists
-        const promo = activePromotions.find(p =>
-          (p.target_type === 'all') ||
-          (p.target_type === 'service' && p.target_id === selectedService.id)
-        );
+      if (savedApt) {
+        const { data: comanda } = await supabase.from('comandas').insert({
+          appointment_id: savedApt.id,
+          client_id: clientId,
+          staff_id: formData.staffId || null,
+          status: 'open',
+          total: 0,
+          tenant_id: tenantId
+        }).select().single();
 
-        if (promo) {
-          if (promo.discount_type === 'fixed') {
-            finalPrice = Math.max(0, finalPrice - promo.discount_value);
-          } else {
-            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+        if (comanda && selectedService) {
+          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+          let finalPrice = serviceData?.price || 0;
+
+          const promo = activePromotions.find(p =>
+            (p.target_type === 'all') ||
+            (p.target_type === 'service' && p.target_id === selectedService.id)
+          );
+
+          if (promo) {
+            if (promo.discount_type === 'fixed') {
+              finalPrice = Math.max(0, finalPrice - promo.discount_value);
+            } else {
+              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+            }
           }
+
+          await supabase.from('comanda_items').insert({
+            comanda_id: comanda.id,
+            service_id: selectedService.id,
+            product_name: selectedService.name,
+            quantity: 1,
+            unit_price: finalPrice,
+            tenant_id: tenantId,
+            staff_id: formData.staffId || null
+          });
+
+          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
         }
-
-        await supabase.from('comanda_items').insert({
-          comanda_id: comanda.id,
-          service_id: selectedService.id,
-          product_name: selectedService.name,
-          quantity: 1,
-          unit_price: finalPrice,
-          tenant_id: tenantId,
-          staff_id: formData.staffId || null
-        });
-
-        // Update comanda total
-        await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
       }
+      setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
     }
 
-    setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
     setIsModalOpen(false);
     setIsNewClientMode(false);
+    setEditingAppointmentId(null);
     setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1 });
     fetchAppointments();
   };
@@ -352,9 +560,49 @@ const Schedule: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
+  const exportToCSV = () => {
+    if (appointments.length === 0) {
+      setToast({ message: 'Não há agendamentos para exportar no período selecionado.', type: 'error' });
+      return;
+    }
+
+    const headers = ['Data', 'Início', 'Fim', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Duração (min)', 'Valor (R$)', 'Status'];
+
+    const rows = appointments.map(apt => {
+      const dateStr = apt.date.split('-').reverse().join('/');
+      const startHour = `${Math.floor(apt.start).toString().padStart(2, '0')}:${(apt.start % 1 === 0 ? '00' : '30')}`;
+      const endCalc = apt.start + apt.duration;
+      const endHour = `${Math.floor(endCalc).toString().padStart(2, '0')}:${(endCalc % 1 === 0 ? '00' : '30')}`;
+
+      return [
+        dateStr,
+        startHour,
+        endHour,
+        `"${apt.client}"`,
+        `"${apt.clientPhone || ''}"`,
+        `"${apt.service}"`,
+        `"${apt.staffName}"`,
+        apt.duration * 60,
+        apt.price || 0,
+        apt.status
+      ].join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // \uFEFF for BOM (UTF-8 Excel interpretation)
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `agenda_exportada_${selectedDate.toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setToast({ message: 'Agenda exportada com sucesso!', type: 'success' });
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
-      {/* Schedule Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 shrink-0">
         <div className="flex items-center gap-4 bg-white dark:bg-surface-dark p-1.5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
           <button
@@ -406,7 +654,20 @@ const Schedule: React.FC = () => {
             >Semana</button>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={exportToCSV}
+            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
+            title="Exportar agenda em CSV"
+          >
+            <span className="material-symbols-outlined text-lg">download</span>
+            <span className="hidden lg:inline">Exportar CSV</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingAppointmentId(null);
+              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1 }));
+              setIsModalOpen(true);
+            }}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 transition-all"
           >
             <span className="material-symbols-outlined text-lg">add</span>
@@ -415,225 +676,262 @@ const Schedule: React.FC = () => {
         </div>
       </div>
 
-      {/* Calendar Grid Container */}
-      <div className="flex-1 bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col shadow-sm">
-
-        {viewMode === 'week' ? (
-          /* ===== WEEK VIEW ===== */
-          <>
-            {/* Week Header */}
-            <div className="flex border-b border-slate-200 dark:border-border-dark shrink-0">
-              <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5" />
-              {weekDays.map((day, i) => {
-                const isToday = day.toDateString() === new Date().toDateString();
-                const isSelected = day.toDateString() === selectedDate.toDateString();
-                const dayApts = appointments.filter(a => {
-                  const d = new Date((a as any).date);
-                  return d.toDateString() === day.toDateString();
-                });
-                return (
-                  <div
-                    key={i}
-                    onClick={() => { setSelectedDate(day); setViewMode('day'); }}
-                    className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
-                      }`}
-                  >
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-slate-400'
-                      }`}>
-                      {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
-                    </p>
-                    <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-primary text-white' : 'text-slate-700 dark:text-white'
-                      }`}>
-                      {day.getDate()}
-                    </div>
-                    {dayApts.length > 0 && (
-                      <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                        {dayApts.length} aptos
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 flex-1 min-h-0">
+        {/* DASHBOARD INDICATORS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-1 gap-4 shrink-0 w-full xl:w-64 max-xl:mb-6 xl:overflow-y-auto custom-scrollbar xl:pr-1">
+          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Atendimentos</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">{appointments.length}</p>
             </div>
+            <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <span className="material-symbols-outlined text-2xl">event_available</span>
+            </div>
+          </div>
 
-            {/* Week Time Grid */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                </div>
-              ) : (
-                <div className="flex min-h-[800px]">
-                  {/* Time axis */}
-                  <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
-                    {timeSlots.map(hour => (
-                      <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
-                        {hour}:00
+          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Profissionais</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">{staffList.length}</p>
+            </div>
+            <div className="size-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+              <span className="material-symbols-outlined text-2xl">badge</span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ocupação Média</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">
+                {staffList.length > 0 ? Math.round((appointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * timeSlots.length)) * 100) : 0}%
+              </p>
+            </div>
+            <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+              <span className="material-symbols-outlined text-2xl">query_stats</span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Previsto</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                R$ {appointments.reduce((acc, curr) => acc + (curr.price || 0), 0).toFixed(2).replace('.', ',')}
+              </p>
+            </div>
+            <div className="relative z-10 size-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <span className="material-symbols-outlined text-2xl">payments</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col shadow-sm min-w-0">
+          {viewMode === 'week' ? (
+            <>
+              <div className="flex border-b border-slate-200 dark:border-border-dark shrink-0">
+                <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5" />
+                {weekDays.map((day, i) => {
+                  const isToday = day.toDateString() === new Date().toDateString();
+                  const isSelected = day.toDateString() === selectedDate.toDateString();
+                  const dayApts = appointments.filter(a => {
+                    const d = new Date((a as any).date);
+                    return d.toDateString() === day.toDateString();
+                  });
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => { setSelectedDate(day); setViewMode('day'); }}
+                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+                        }`}
+                    >
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-slate-400'
+                        }`}>
+                        {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                      </p>
+                      <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-primary text-white' : 'text-slate-700 dark:text-white'
+                        }`}>
+                        {day.getDate()}
                       </div>
-                    ))}
+                      {dayApts.length > 0 && (
+                        <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          {dayApts.length} aptos
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {loading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                   </div>
-                  {/* Day Columns */}
-                  <div className="flex-1 flex">
-                    {weekDays.map((day, di) => {
-                      const dayApts = appointments.filter(a => {
-                        const d = new Date((a as any).date);
-                        return d.toDateString() === day.toDateString();
-                      });
-                      const isToday = day.toDateString() === new Date().toDateString();
-                      return (
-                        <div key={di} className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}>
-                          {/* Grid lines */}
-                          <div className="absolute inset-0 flex flex-col z-0">
-                            {timeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
-                          </div>
-                          {/* Appointments */}
-                          {dayApts.map((apt, idx) => {
-                            const startOffset = (apt.start - 8) * (100 / 13);
-                            const height = apt.duration * (100 / 13);
-                            const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
-                            const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
-                            const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
-                            const barberColor = barberColors[Math.max(0, staffIdx) % barberColors.length];
-                            const borderColor = borderColors[Math.max(0, staffIdx) % borderColors.length];
-                            return (
-                              <div
-                                key={apt.id}
-                                onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
-                                className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md`}
-                                style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
-                                title={`${apt.client} — ${apt.service}`}
-                              >
-                                <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
-                                  <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
-                                  {apt.client}
-                                </p>
-                                <p className="text-[9px] text-white/90 font-bold truncate drop-shadow-sm">
-                                  <span className="material-symbols-outlined text-[9px] align-middle mr-0.5">content_cut</span>
-                                  {apt.service}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          /* ===== DAY VIEW (original) ===== */
-          <>
-            {/* Resources Header */}
-            <div className="flex border-b border-slate-200 dark:border-border-dark">
-              <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
-              <div className="flex-1 flex">
-                {staffList.length === 0 ? (
-                  <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
                 ) : (
-                  staffList.map(resource => (
-                    <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
-                      <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
-                      </div>
+                  <div className="flex min-h-[2600px]">
+                    <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
+                      {timeSlots.map(hour => (
+                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
+                          {hour}:00
+                        </div>
+                      ))}
                     </div>
-                  ))
+                    <div className="flex-1 flex">
+                      {weekDays.map((day, di) => {
+                        const dayApts = appointments.filter(a => {
+                          const d = new Date((a as any).date);
+                          return d.toDateString() === day.toDateString();
+                        });
+                        const isToday = day.toDateString() === new Date().toDateString();
+                        return (
+                          <div key={di} className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}>
+                            <div className="absolute inset-0 flex flex-col z-0">
+                              {timeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
+                            </div>
+                            {dayApts.map((apt, idx) => {
+                              const startOffset = (apt.start - 8) * (100 / 13);
+                              const height = apt.duration * (100 / 13);
+                              const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
+                              const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
+                              const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
+                              const barberColor = barberColors[Math.max(0, staffIdx) % barberColors.length];
+                              const borderColor = borderColors[Math.max(0, staffIdx) % borderColors.length];
+                              return (
+                                <div
+                                  key={apt.id}
+                                  onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md`}
+                                  style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
+                                  title={`${apt.client} — ${apt.service}`}
+                                >
+                                  <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
+                                    <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
+                                    {apt.client}
+                                  </p>
+                                  <p className="text-[9px] text-white/90 font-bold truncate drop-shadow-sm">
+                                    <span className="material-symbols-outlined text-[9px] align-middle mr-0.5">content_cut</span>
+                                    {apt.service}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-
-            {/* Time Grid Scrollable Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : (
-                <div className="flex min-h-[800px]">
-                  {/* Time Axis */}
-                  <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
-                    {timeSlots.map(hour => (
-                      <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
-                        {hour}:00
+            </>
+          ) : (
+            <>
+              <div className="flex border-b border-slate-200 dark:border-border-dark">
+                <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
+                <div className="flex-1 flex">
+                  {staffList.length === 0 ? (
+                    <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
+                  ) : (
+                    staffList.map(resource => (
+                      <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
+                        <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
+                          style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  )}
+                </div>
+              </div>
 
-                  {/* Columns */}
-                  <div className="flex-1 flex relative">
-                    {/* Background Grid Lines */}
-                    <div className="absolute inset-0 flex flex-col z-0">
+              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                {loading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[2600px]">
+                    <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {timeSlots.map(hour => (
-                        <div key={hour} className="flex-1 border-b border-slate-100 dark:border-border-dark/50"></div>
+                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
+                          {hour}:00
+                        </div>
                       ))}
                     </div>
 
-                    {staffList.map(resource => (
-                      <div key={resource.id} className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group">
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
-
-                        {/* Render Appointments */}
-                        {appointments
-                          .filter(apt => apt.staffId === resource.id)
-                          .map((apt, idx) => {
-                            const startOffset = (apt.start - 8) * (100 / 13);
-                            const height = apt.duration * (100 / 13);
-
-                            // Pick a color based on staff list index
-                            const staffIndex = staffList.findIndex(s => s.id === resource.id);
-                            const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
-                            const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
-                            const barberColor = barberColors[staffIndex % barberColors.length];
-                            const borderColor = borderColors[staffIndex % borderColors.length];
-
-                            return (
-                              <div
-                                key={apt.id}
-                                onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
-                                className={`absolute left-1 right-1 rounded-lg p-2 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-center z-20 overflow-hidden`}
-                                style={{ top: `${startOffset}%`, height: `${height}%` }}
-                                title={`${apt.client} — ${apt.service}`}
-                              >
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter">
-                                    {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
-                                  </span>
-                                  {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[14px] text-white/90">check_circle</span>}
-                                  {apt.status === 'completed' && <span className="material-symbols-outlined text-[14px] text-emerald-200">task_alt</span>}
-                                  {apt.status === 'pending' && <span className="material-symbols-outlined text-[14px] text-amber-200">schedule</span>}
-                                </div>
-                                <p className="text-xs font-black text-white truncate leading-tight mt-0.5 drop-shadow-sm">
-                                  <span className="material-symbols-outlined text-xs align-middle mr-0.5">person</span>
-                                  {apt.client}
-                                </p>
-                                <p className="text-[10px] text-white/90 font-bold truncate drop-shadow-sm">
-                                  <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">content_cut</span>
-                                  {apt.service}
-                                </p>
-                              </div>
-                            );
-                          })
-                        }
+                    <div className="flex-1 flex relative">
+                      <div className="absolute inset-0 flex flex-col z-0">
+                        {timeSlots.map(hour => (
+                          <div key={hour} className="flex-1 border-b border-slate-100 dark:border-border-dark/50"></div>
+                        ))}
                       </div>
-                    ))}
+
+                      {staffList.map(resource => (
+                        <div
+                          key={resource.id}
+                          className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group"
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDropAppointment(e, resource.id)}
+                        >
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
+                          {appointments
+                            .filter(apt => apt.staffId === resource.id)
+                            .map((apt, idx) => {
+                              const startOffset = (apt.start - 8) * (100 / 13);
+                              const height = apt.duration * (100 / 13);
+                              const staffIndex = staffList.findIndex(s => s.id === resource.id);
+                              const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
+                              const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
+                              const barberColor = barberColors[staffIndex % barberColors.length];
+                              const borderColor = borderColors[staffIndex % borderColors.length];
+
+                              return (
+                                <div
+                                  key={apt.id}
+                                  draggable
+                                  onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
+                                  onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80`}
+                                  style={{ top: `${startOffset}%`, height: `${height}%` }}
+                                  title={`${apt.client} — ${apt.service}`}
+                                >
+                                  <div className="flex items-center justify-between mb-0.5 shrink-0">
+                                    <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter leading-none">
+                                      {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
+                                    </span>
+                                    <div className="flex bg-black/10 rounded px-1 py-0.5">
+                                      {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
+                                      {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
+                                      {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
+                                    </div>
+                                  </div>
+                                  <p className="text-xs font-black text-white truncate leading-none drop-shadow-sm mt-0.5">
+                                    {apt.client}
+                                  </p>
+                                  <p className="text-[10px] text-white/90 font-bold truncate leading-none drop-shadow-sm mt-0.5">
+                                    {apt.service}
+                                  </p>
+                                </div>
+                              );
+                            })
+                          }
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* New Appointment Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setError(null); }}
-        title="Novo Agendamento"
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setError(null); }}
+        title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
         <div className="space-y-4">
@@ -644,7 +942,6 @@ const Schedule: React.FC = () => {
             </div>
           )}
 
-          {/* Client Autocomplete */}
           <div className="relative" ref={searchWrapperRef}>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Cliente</label>
             <div className="relative">
@@ -701,20 +998,34 @@ const Schedule: React.FC = () => {
                 )}
               </div>
             )}
+            {chefClubInfo && (
+              <div className="mt-2 animate-bounce-in bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 flex items-center justify-between">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                    Membro Clube do Chefe
+                  </label>
+                  <p className="text-xs font-bold text-slate-700 dark:text-amber-200">Plano {chefClubInfo.planName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-amber-600 uppercase">Créditos</p>
+                  <p className="text-lg font-black text-amber-600">{chefClubInfo.credits}</p>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Service Select */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
             <div className="relative">
               <select
                 value={formData.service}
                 onChange={(e) => handleInputChange('service', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
               >
-                <option value="" disabled className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Selecione um serviço...</option>
+                <option value="" disabled>Selecione um serviço...</option>
                 {servicesList.map(s => (
-                  <option key={s.id} value={s.name} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{s.name} ({s.duration} min)</option>
+                  <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
                 ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
@@ -727,10 +1038,10 @@ const Schedule: React.FC = () => {
               <select
                 value={formData.staffId}
                 onChange={(e) => handleInputChange('staffId', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
               >
                 {staffList.map(r => (
-                  <option key={r.id} value={r.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{r.name} - {roleLabels[r.role] || r.role}</option>
+                  <option key={r.id} value={r.id}>{r.name} - {roleLabels[r.role] || r.role}</option>
                 ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
@@ -754,13 +1065,29 @@ const Schedule: React.FC = () => {
                 <select
                   value={formData.start}
                   onChange={(e) => handleInputChange('start', Number(e.target.value))}
-                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
-                  {Array.from({ length: 25 }, (_, i) => 8 + i * 0.5).map(slot => (
-                    <option key={slot} value={slot} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
-                      {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'}
-                    </option>
-                  ))}
+                  {(() => {
+                    const allSlots = Array.from({ length: 25 }, (_, i) => 8 + i * 0.5);
+                    const aptsOnDay = appointments.filter(a =>
+                      a.date.startsWith(formData.date) &&
+                      a.staffId === formData.staffId &&
+                      a.id !== editingAppointmentId
+                    );
+
+                    return allSlots.map(slot => {
+                      const slotEnd = slot + formData.duration;
+                      const hasConflict = aptsOnDay.some(apt =>
+                        slot < (apt.start + apt.duration) && slotEnd > apt.start
+                      );
+
+                      return (
+                        <option key={slot} value={slot} disabled={hasConflict} className={hasConflict ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
+                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : ''}
+                        </option>
+                      );
+                    });
+                  })()}
                 </select>
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
               </div>
@@ -771,14 +1098,14 @@ const Schedule: React.FC = () => {
                 <select
                   value={formData.duration}
                   onChange={(e) => handleInputChange('duration', Number(e.target.value))}
-                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
-                  <option value="0.25" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">15 min</option>
-                  <option value="0.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">30 min</option>
-                  <option value="0.75" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">45 min</option>
-                  <option value="1" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h</option>
-                  <option value="1.5" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">1h 30m</option>
-                  <option value="2" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">2h</option>
+                  <option value="0.25">15 min</option>
+                  <option value="0.5">30 min</option>
+                  <option value="0.75">45 min</option>
+                  <option value="1">1h</option>
+                  <option value="1.5">1h 30m</option>
+                  <option value="2">2h</option>
                 </select>
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">hourglass_empty</span>
               </div>
@@ -796,13 +1123,12 @@ const Schedule: React.FC = () => {
               onClick={handleSave}
               className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
             >
-              Confirmar
+              {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Appointment Detail Modal */}
       <Modal
         isOpen={isDetailModalOpen}
         onClose={() => { setIsDetailModalOpen(false); setSelectedAppointment(null); }}
@@ -833,7 +1159,6 @@ const Schedule: React.FC = () => {
 
           return (
             <div className="space-y-5">
-              {/* Status Badge */}
               <div className="flex justify-center">
                 <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${statusBgColors[apt.status] || 'bg-slate-100 text-slate-700'}`}>
                   <span className="material-symbols-outlined text-base">{statusIcons[apt.status] || 'info'}</span>
@@ -841,7 +1166,6 @@ const Schedule: React.FC = () => {
                 </span>
               </div>
 
-              {/* Client Info */}
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                 <div className="flex items-center gap-3">
                   <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -859,7 +1183,6 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Service & Professional */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Serviço</p>
@@ -872,7 +1195,7 @@ const Schedule: React.FC = () => {
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Profissional</p>
                   <div className="flex items-center gap-2">
                     {staff?.avatar ? (
-                      <div className="size-7 rounded-full bg-slate-200 bg-cover bg-center border border-slate-100 dark:border-slate-600" style={{ backgroundImage: `url(${staff.avatar})` }} />
+                      <img src={staff.avatar} alt={staff.name || 'Avatar do profissional'} className="size-7 rounded-full bg-slate-200 object-cover object-center border border-slate-100 dark:border-slate-600" />
                     ) : (
                       <span className="material-symbols-outlined text-primary text-lg">badge</span>
                     )}
@@ -881,7 +1204,6 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Date & Time */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark text-center">
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
@@ -903,7 +1225,6 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Notes */}
               {apt.notes && (
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Observações</p>
@@ -911,13 +1232,52 @@ const Schedule: React.FC = () => {
                 </div>
               )}
 
-              {/* Action Button */}
-              <div className="pt-2 flex justify-center">
+              <div className="pt-4 flex justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    const text = apt.clientPhone
+                      ? `Olá ${apt.client.split(' ')[0]}! Passando para confirmar seu agendamento no dia ${new Date(apt.startTime).toLocaleDateString('pt-BR')} às ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} para o serviço ${apt.service}. Nos vemos lá! 😄`
+                      : '';
+                    const link = apt.clientPhone
+                      ? `https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`
+                      : `https://wa.me/?text=${encodeURIComponent(`Confirmação de agendamento para ${apt.client}`)}`;
+                    window.open(link, '_blank');
+                  }}
+                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                  WhatsApp
+                </button>
+
+                <button
+                  onClick={() => handleEditAppointment(apt)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">edit</span>
+                  Editar
+                </button>
+
+                <button
+                  onClick={() => handleNavigateToCheckout(apt)}
+                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">point_of_sale</span>
+                  Checkout
+                </button>
+
+                <button
+                  onClick={() => handleCancelAppointment(apt.id)}
+                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">delete</span>
+                  Cancelar
+                </button>
+
                 <button
                   onClick={() => { setIsDetailModalOpen(false); setSelectedAppointment(null); }}
-                  className="px-8 py-2.5 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
+                  className="w-full mt-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"
                 >
-                  Fechar
+                  Fechar Revisor
                 </button>
               </div>
             </div>
@@ -926,7 +1286,7 @@ const Schedule: React.FC = () => {
       </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </div>
+    </div >
   );
 };
 

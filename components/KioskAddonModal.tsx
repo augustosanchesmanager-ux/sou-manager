@@ -1,15 +1,18 @@
 import React from 'react';
 
-export type KioskAddonModalTheme = 'default' | 'sanchez';
+export type AddonModalTheme = 'default' | 'sanchez';
+export type AddonType = 'TOTEM_QR' | 'CLIENT_PORTAL';
 
-interface KioskAddonModalProps {
-    theme?: KioskAddonModalTheme;
+interface AddonModalProps {
+    addonType: AddonType;
+    theme?: AddonModalTheme;
     onActivate: () => void;
     onLearnMore?: () => void;
     onClose: () => void;
 }
 
-const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
+const AddonModal: React.FC<AddonModalProps> = ({
+    addonType,
     theme = 'default',
     onActivate,
     onLearnMore,
@@ -70,21 +73,51 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
             : '0 0 80px rgba(99,102,241,0.15), 0 40px 80px rgba(0,0,0,0.6)',
     };
 
-    const benefits = isSanchez
-        ? [
-            { icon: '👑', title: 'Totem do Chefe na recepção', desc: 'PC + TV mostrando a identidade premium da Sanchez Barber.' },
-            { icon: '📱', title: 'QR Code para o celular do cliente', desc: 'Agenda e avalia em 10 segundos sem fila.' },
-            { icon: '📊', title: 'NPS e feedback em tempo real', desc: 'Saiba o que os Chefes pensam a cada atendimento.' },
-        ]
-        : [
-            { icon: '🖥️', title: 'Totem na recepção da barbearia', desc: 'Tela grande, botões grandes, zero fricção para o cliente.' },
-            { icon: '📱', title: 'QR Code — Plano B mobile', desc: 'Se o totem estiver ocupado, o cliente usa o celular.' },
-            { icon: '⭐', title: 'Feedback e avaliações automáticas', desc: 'Nota do barbeiro + NPS da barbearia em cada visita.' },
-        ];
+    // ==========================================
+    // CONTENT DICTIONARY
+    // ==========================================
+    const content = {
+        TOTEM_QR: {
+            title: isSanchez ? '👑 Totem do Chefe — Agende e avalie em segundos' : '🖥️ Ative o Totem + QR (Autoatendimento)',
+            subtitle: isSanchez
+                ? <p style={{ color: colors.textSub, fontSize: '15px', marginBottom: '24px', lineHeight: 1.6 }}>"Aqui todo cliente é tratado como Chefe."<br /><span style={{ color: colors.textMuted, fontSize: '13px' }}>Agende o próximo horário e deixe seu feedback em segundos.</span></p>
+                : <p style={{ color: colors.textSub, fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>Instale um totem na recepção e deixe clientes agendarem e avaliarem sozinhos — sem precisar do celular.</p>,
+            benefits: isSanchez ? [
+                { icon: '👑', title: 'Totem do Chefe na recepção', desc: 'PC + TV mostrando a identidade premium da Sanchez Barber.' },
+                { icon: '📱', title: 'QR Code para o celular do cliente', desc: 'Agenda e avalia em 10 segundos sem fila.' },
+                { icon: '📊', title: 'NPS e feedback em tempo real', desc: 'Saiba o que os Chefes pensam a cada atendimento.' },
+            ] : [
+                { icon: '🖥️', title: 'Totem na recepção da barbearia', desc: 'Tela grande, botões grandes, zero fricção para o cliente.' },
+                { icon: '📱', title: 'QR Code — Plano B mobile', desc: 'Se o totem estiver ocupado, o cliente usa o celular.' },
+                { icon: '⭐', title: 'Feedback e avaliações automáticas', desc: 'Nota do barbeiro + NPS da barbearia em cada visita.' },
+            ],
+            howItWorks: isSanchez
+                ? ['Instale o Totem na recepção (PC + TV)', 'Cliente toca na tela e escolhe: Agendar ou Avaliar', 'Plano B: escaneia o QR e faz pelo celular em 10s']
+                : ['1 PC + internet na recepção (TV opcional)', 'Cliente interage diretamente na tela grande', 'QR Code garante fluxo mesmo sem totem disponível'],
+            btnText: isSanchez ? '👑 Ativar Totem do Chefe' : '✨ Ativar Totem + QR',
+        },
+        CLIENT_PORTAL: {
+            title: isSanchez ? '👑 Portal do Chefe — agende de casa, no seu tempo' : '📱 Ative o Portal do Cliente (Agendamento 24/7)',
+            subtitle: isSanchez
+                ? <p style={{ color: colors.textSub, fontSize: '15px', marginBottom: '24px', lineHeight: 1.6 }}>"Para o Chefe que quer praticidade 24 horas por dia."<br /><span style={{ color: colors.textMuted, fontSize: '13px' }}>Os seus melhores clientes marcam no conforto de casa.</span></p>
+                : <p style={{ color: colors.textSub, fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>Ofereça um app exclusivo para seus clientes agendarem a qualquer momento de casa, sem senha.</p>,
+            benefits: isSanchez ? [
+                { icon: '🏠', title: 'Agendamento de Casa', desc: 'O Chefe agenda e gerencia os horários no conforto do sofá.' },
+                { icon: '📱', title: 'Menos WhatsApp na Recepção', desc: 'Autoatendimento libera o seu tempo para o que importa.' },
+                { icon: '🔁', title: 'Mais retorno recorrente', desc: 'Lembretes fáceis e históricos na mão do cliente.' },
+            ] : [
+                { icon: '🏠', title: 'Agendamento de Casa', desc: 'Seu cliente agenda o serviço sem precisar mandar mensagem.' },
+                { icon: '📱', title: 'Menos mensagens/WhatsApp', desc: 'Automatize a recepção e poupe horas de atendimento manual.' },
+                { icon: '🔁', title: 'Mais retorno recorrente', desc: 'O cliente reagenda facilmente a qualquer hora do dia ou da noite.' },
+            ],
+            howItWorks: isSanchez
+                ? ['Compartilhe o link do Portal do Chefe no Instagram/WhatsApp', 'O cliente acessa e valida o celular com um código OTP', 'Ele agenda, reagenda ou avalia quando quiser']
+                : ['Divulgue o seu link exclusivo para seus clientes', 'Cliente faz login via número de telefone (sem senha complexa)', 'Cliente tem autonomia para ver agenda e remarcar conforme as regras'],
+            btnText: isSanchez ? '👑 Ativar Portal do Chefe' : '✨ Ativar Portal do Cliente',
+        }
+    };
 
-    const howItWorks = isSanchez
-        ? ['Instale o Totem na recepção (PC + TV)', 'Cliente toca na tela e escolhe: Agendar ou Avaliar', 'Plano B: escaneia o QR e faz pelo celular em 10s']
-        : ['1 PC + internet na recepção (TV opcional)', 'Cliente interage diretamente na tela grande', 'QR Code garante fluxo mesmo sem totem disponível'];
+    const currentContent = content[addonType];
 
     return (
         <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -122,29 +155,14 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
                     marginBottom: '8px',
                     lineHeight: 1.2,
                 }}>
-                    {isSanchez
-                        ? '👑 Totem do Chefe — Agende e avalie em segundos'
-                        : '🖥️ Ative o Totem + QR (Autoatendimento)'}
+                    {currentContent.title}
                 </h2>
 
-                {isSanchez && (
-                    <p style={{ color: colors.textSub, fontSize: '15px', marginBottom: '24px', lineHeight: 1.6 }}>
-                        "Aqui todo cliente é tratado como Chefe."<br />
-                        <span style={{ color: colors.textMuted, fontSize: '13px' }}>
-                            Agende o próximo horário e deixe seu feedback em segundos.
-                        </span>
-                    </p>
-                )}
-
-                {!isSanchez && (
-                    <p style={{ color: colors.textSub, fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
-                        Instale um totem na recepção e deixe clientes agendarem e avaliarem sozinhos — sem precisar do celular.
-                    </p>
-                )}
+                {currentContent.subtitle}
 
                 {/* Benefits */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-                    {benefits.map((b, i) => (
+                    {currentContent.benefits.map((b, i) => (
                         <div key={i} style={{
                             background: colors.cardBg,
                             border: `1px solid ${colors.cardBorder}`,
@@ -174,18 +192,19 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
                     <p style={{ color: colors.textSub, fontWeight: 700, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
                         ⚙️ Como funciona
                     </p>
-                    {howItWorks.map((step, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: i < howItWorks.length - 1 ? '8px' : 0 }}>
+                    {currentContent.howItWorks.map((step, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: i < currentContent.howItWorks.length - 1 ? '8px' : 0 }}>
                             <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: colors.primaryLight, border: `1px solid ${colors.cardBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', color: colors.primary, fontWeight: 700 }}>{i + 1}</div>
                             <p style={{ color: colors.textSub, fontSize: '13px', margin: 0, lineHeight: 1.5 }}>{step}</p>
                         </div>
                     ))}
                 </div>
 
-                {/* Requisitos */}
-                <p style={{ color: colors.textMuted, fontSize: '12px', marginBottom: '20px', textAlign: 'center' }}>
-                    📋 Requisito: 1 PC + conexão com a internet. TV/Monitor opcional para exibição.
-                </p>
+                {addonType === 'TOTEM_QR' && (
+                    <p style={{ color: colors.textMuted, fontSize: '12px', marginBottom: '20px', textAlign: 'center' }}>
+                        📋 Requisito: 1 PC + conexão com a internet. TV/Monitor opcional para exibição.
+                    </p>
+                )}
 
                 {/* Buttons */}
                 <div style={{ display: 'flex', gap: '12px' }}>
@@ -209,7 +228,6 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
                         </button>
                     )}
                     <button
-                        id="kiosk-addon-activate-btn"
                         onClick={onActivate}
                         style={{
                             flex: 2,
@@ -230,7 +248,7 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
                         onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.02)')}
                         onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
                     >
-                        {isSanchez ? '👑 Ativar Totem do Chefe' : '✨ Ativar add-on'}
+                        {currentContent.btnText}
                     </button>
                 </div>
 
@@ -242,4 +260,4 @@ const KioskAddonModal: React.FC<KioskAddonModalProps> = ({
     );
 };
 
-export default KioskAddonModal;
+export default AddonModal;
