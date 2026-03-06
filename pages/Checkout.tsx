@@ -397,10 +397,10 @@ const Checkout: React.FC = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
 
                 {/* LEFT COLUMN: Client & Cart */}
-                <div className="lg:col-span-2 space-y-4 lg:space-y-6">
+                <div className="md:col-span-2 space-y-4 lg:space-y-6">
 
                     {/* 1. Client Selection */}
                     <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 shadow-sm flex items-center justify-between">
@@ -576,7 +576,7 @@ const Checkout: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: Payment */}
-            <div className="space-y-6">
+            <div className="space-y-6 md:col-span-1">
                 <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                         <span className="material-symbols-outlined text-slate-400">receipt_long</span>
