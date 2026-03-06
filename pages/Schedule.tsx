@@ -126,8 +126,18 @@ const Schedule: React.FC = () => {
       supabase.from('clients').select('id, name, phone').order('name'),
       supabase.from('promotions').select('*').eq('active', true),
     ]);
+
     if (staffRes.data) setStaffList(staffRes.data);
-    if (servicesRes.data) setServicesList(servicesRes.data);
+
+    // Se a consulta de serviços falhar (ex: coluna buffer ausente), tenta sem o buffer
+    if (servicesRes.error) {
+      console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
+      const retryServices = await supabase.from('services').select('id, name, duration').eq('active', true);
+      if (retryServices.data) setServicesList(retryServices.data);
+    } else if (servicesRes.data) {
+      setServicesList(servicesRes.data);
+    }
+
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
     if (promoRes.data) {
       const now = new Date();
@@ -329,7 +339,7 @@ const Schedule: React.FC = () => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDropAppointment = async (e: React.DragEvent, dropStaffId: string) => {
+  const handleDropAppointment = async (e: React.DragEvent, dropStaffId: string, dropDate?: string) => {
     e.preventDefault();
     const aptId = e.dataTransfer.getData('aptId');
     if (!aptId) return;
@@ -357,15 +367,14 @@ const Schedule: React.FC = () => {
     const newHours = Math.floor(roundedHour);
     const newMinutes = (roundedHour % 1) * 60;
 
-    const parts = apt.startTime.split('T');
-    const dateStr = parts[0];
+    const dateStr = dropDate || apt.startTime.split('T')[0];
     const newStartTimeLine = new Date(`${dateStr}T${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}:00`);
 
     // Validação Anti-Overbooking
     const overlapping = appointments.filter(a =>
       a.id !== apt.id &&
       a.staffId === dropStaffId &&
-      a.date === apt.date &&
+      a.date === dateStr &&
       !(
         (roundedHour + apt.duration) <= a.start ||
         roundedHour >= (a.start + a.duration)
@@ -380,7 +389,7 @@ const Schedule: React.FC = () => {
     // Otimista Update UI
     setAppointments(prev => prev.map(a =>
       a.id === apt.id
-        ? { ...a, staffId: dropStaffId, start: roundedHour, startTime: newStartTimeLine.toISOString() }
+        ? { ...a, staffId: dropStaffId, start: roundedHour, startTime: newStartTimeLine.toISOString(), date: dateStr }
         : a
     ));
 
@@ -391,17 +400,21 @@ const Schedule: React.FC = () => {
         staff_id: dropStaffId,
         staff_name: selectedStaff?.name || apt.staffName,
         start_time: newStartTimeLine.toISOString(),
+        duration: apt.duration,
       }).eq('id', apt.id);
 
-      if (error) throw error;
+      if (error) {
+        setToast({ message: 'Erro ao salvar alteração no banco.', type: 'error' });
+        fetchAppointments(); // Reverte
+      } else {
+        // Update comanda if exists
+        await supabase.from('comandas').update({
+          staff_id: dropStaffId,
+        }).eq('appointment_id', apt.id).eq('status', 'open');
 
-      // Update comanda if exists
-      await supabase.from('comandas').update({
-        staff_id: dropStaffId,
-      }).eq('appointment_id', apt.id).eq('status', 'open');
-
-      setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
-      fetchAppointments();
+        setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
+        fetchAppointments(); // Refresh for safety
+      }
     } catch (err) {
       console.error('Error dragging appointment:', err);
       fetchAppointments(); // Revert on failure
@@ -784,7 +797,20 @@ const Schedule: React.FC = () => {
                         });
                         const isToday = day.toDateString() === new Date().toDateString();
                         return (
-                          <div key={di} className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}>
+                          <div
+                            key={di}
+                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-primary/[0.02]' : ''}`}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => {
+                              const aptId = e.dataTransfer.getData('aptId');
+                              const apt = appointments.find(a => a.id === aptId);
+                              if (apt) {
+                                const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+                                handleDropAppointment(e, apt.staffId, dateStr);
+                              }
+                            }}
+                          >
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                             <div className="absolute inset-0 flex flex-col z-0">
                               {timeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
@@ -799,8 +825,10 @@ const Schedule: React.FC = () => {
                               return (
                                 <div
                                   key={apt.id}
+                                  draggable
+                                  onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
-                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
                                   title={`${apt.client} — ${apt.service}`}
                                 >
@@ -1021,12 +1049,16 @@ const Schedule: React.FC = () => {
               <select
                 value={formData.service}
                 onChange={(e) => handleInputChange('service', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
               >
                 <option value="" disabled>Selecione um serviço...</option>
-                {servicesList.map(s => (
-                  <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
-                ))}
+                {servicesList.length > 0 ? (
+                  servicesList.map(s => (
+                    <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
+                  ))
+                ) : (
+                  <option disabled>Nenhum serviço disponível</option>
+                )}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
             </div>
