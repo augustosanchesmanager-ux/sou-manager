@@ -1267,12 +1267,21 @@ const Schedule: React.FC = () => {
               <div className="pt-4 flex justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2 flex-wrap">
                 <button
                   onClick={() => {
-                    const text = apt.clientPhone
-                      ? `Olá ${apt.client.split(' ')[0]}! Passando para confirmar seu agendamento no dia ${new Date(apt.startTime).toLocaleDateString('pt-BR')} às ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} para o serviço ${apt.service}. Nos vemos lá! 😄`
-                      : '';
-                    const link = apt.clientPhone
-                      ? `https://wa.me/55${apt.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`
-                      : `https://wa.me/?text=${encodeURIComponent(`Confirmação de agendamento para ${apt.client}`)}`;
+                    if (!apt.clientPhone) {
+                      setToast({ message: 'Cliente sem telefone cadastrado.', type: 'error' });
+                      return;
+                    }
+                    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
+                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+
+📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
+⏰ *Hora:* ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+💈 *Serviço:* ${apt.service}
+🧔 *Profissional:* ${staff?.name || apt.staffName}
+
+Podemos confirmar? 😄`;
+                    const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
                     window.open(link, '_blank');
                   }}
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
