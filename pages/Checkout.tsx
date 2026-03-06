@@ -54,6 +54,7 @@ const Checkout: React.FC = () => {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
     const [paymentMethod, setPaymentMethod] = useState<'credit' | 'debit' | 'cash' | 'pix' | 'other'>('credit');
+    const [paymentDescription, setPaymentDescription] = useState<string>('');
     const [discount, setDiscount] = useState<string>('0');
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -317,7 +318,9 @@ const Checkout: React.FC = () => {
                     type: 'income',
                     category: 'Venda de Balcão',
                     amount: total,
-                    description: `Venda - Cliente: ${selectedClient.name}`,
+                    description: paymentMethod === 'other' && paymentDescription
+                        ? `Venda - Cliente: ${selectedClient.name} (${paymentDescription})`
+                        : `Venda - Cliente: ${selectedClient.name}`,
                     payment_method: paymentMethod,
                     date: new Date().toISOString(),
                     tenant_id: tenantId
@@ -394,53 +397,54 @@ const Checkout: React.FC = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
                 {/* LEFT COLUMN: Client & Cart */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-2 space-y-4 lg:space-y-6">
 
                     {/* 1. Client Selection */}
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-sm">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-1">
+                            <div className="size-10 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center shrink-0">
                                 <span className="material-symbols-outlined text-slate-400">person</span>
-                                Cliente
-                            </h3>
-                            {!selectedClient && (
-                                <button
-                                    onClick={() => setIsClientModalOpen(true)}
-                                    className="text-primary text-sm font-bold hover:underline"
-                                >
-                                    Buscar Cliente
-                                </button>
-                            )}
-                            {selectedClient && !comandaId && (
-                                <button
-                                    onClick={() => setSelectedClient(null)}
-                                    className="text-red-500 text-xs font-bold hover:underline"
-                                >
-                                    Trocar
-                                </button>
+                            </div>
+                            {selectedClient ? (
+                                <div className="flex-1 flex items-center gap-3">
+                                    <img src={selectedClient.avatar} alt={selectedClient.name} className="size-10 rounded-full border border-slate-200 dark:border-slate-700" />
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{selectedClient.name}</p>
+                                        <p className="text-xs text-slate-500">{selectedClient.phone || 'Sem telefone'}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Cliente não selecionado</p>
+                                    <p className="text-xs text-slate-500">Obrigatório para finalizar venda</p>
+                                </div>
                             )}
                         </div>
 
-                        {selectedClient ? (
-                            <div className="flex items-center gap-4 bg-slate-50 dark:bg-background-dark p-4 rounded-lg border border-slate-100 dark:border-border-dark">
-                                <img src={selectedClient.avatar} alt={selectedClient.name} className="size-12 rounded-full border-2 border-white dark:border-slate-700" />
-                                <div>
-                                    <p className="text-lg font-bold text-slate-900 dark:text-white">{selectedClient.name}</p>
-                                    <p className="text-xs text-slate-500">{selectedClient.phone || 'Sem telefone'}</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div
-                                onClick={() => setIsClientModalOpen(true)}
-                                className="border-2 border-dashed border-slate-200 dark:border-border-dark rounded-lg p-8 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
-                            >
-                                <span className="material-symbols-outlined text-3xl mb-2">person_search</span>
-                                <span className="font-bold text-sm">Clique para selecionar um cliente</span>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-3 shrink-0">
+                            {!selectedClient ? (
+                                <button
+                                    onClick={() => setIsClientModalOpen(true)}
+                                    className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-sm">search</span>
+                                    Buscar
+                                </button>
+                            ) : (
+                                !comandaId && (
+                                    <button
+                                        onClick={() => setSelectedClient(null)}
+                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors flex items-center justify-center"
+                                        title="Remover cliente"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">close</span>
+                                    </button>
+                                )
+                            )}
+                        </div>
                     </div>
 
                     {/* 2. Cart Items */}
@@ -635,7 +639,8 @@ const Checkout: React.FC = () => {
                                     { id: 'credit', icon: 'credit_card', label: 'Crédito' },
                                     { id: 'debit', icon: 'payments', label: 'Débito' },
                                     { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
-                                    { id: 'cash', icon: 'attach_money', label: 'Dinheiro' }
+                                    { id: 'cash', icon: 'attach_money', label: 'Dinheiro' },
+                                    { id: 'other', icon: 'more_horiz', label: 'Outros' }
                                 ].map(method => (
                                     <button
                                         key={method.id}
@@ -647,6 +652,18 @@ const Checkout: React.FC = () => {
                                     </button>
                                 ))}
                             </div>
+
+                            {paymentMethod === 'other' && (
+                                <div className="mt-3 animate-fade-in">
+                                    <input
+                                        type="text"
+                                        placeholder="Descreva a forma de pagamento..."
+                                        value={paymentDescription}
+                                        onChange={(e) => setPaymentDescription(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 
