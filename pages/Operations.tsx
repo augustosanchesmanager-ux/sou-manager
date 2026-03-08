@@ -22,13 +22,21 @@ interface Product {
 
 const Operations: React.FC = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { tenantId } = useAuth();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [lowStockItems, setLowStockItems] = useState<Product[]>([]);
     const [stats, setStats] = useState({ attended: 0, avgTicket: 0 });
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
+        if (!tenantId) {
+            setAppointments([]);
+            setLowStockItems([]);
+            setStats({ attended: 0, avgTicket: 0 });
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         const today = new Date();
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
@@ -38,6 +46,7 @@ const Operations: React.FC = () => {
         const { data: appts } = await supabase
             .from('appointments')
             .select('*')
+            .eq('tenant_id', tenantId)
             .gte('start_time', startOfDay)
             .lte('start_time', endOfDay)
             .neq('status', 'cancelled')
@@ -47,6 +56,7 @@ const Operations: React.FC = () => {
         const { data: products } = await supabase
             .from('products')
             .select('*')
+            .eq('tenant_id', tenantId)
             .or('stock.lte.min_stock,stock.lte.5')
             .limit(5);
 
@@ -54,6 +64,7 @@ const Operations: React.FC = () => {
         const { data: completed } = await supabase
             .from('appointments')
             .select('id, total_price') // Assuming there's a total_price or similar
+            .eq('tenant_id', tenantId)
             .eq('status', 'completed')
             .gte('start_time', startOfDay)
             .lte('start_time', endOfDay);
@@ -69,7 +80,7 @@ const Operations: React.FC = () => {
         }
 
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => {
         fetchData();

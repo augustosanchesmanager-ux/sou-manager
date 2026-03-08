@@ -18,7 +18,7 @@ interface OnboardingChecklistProps {
 
 const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete }) => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
     const [steps, setSteps] = useState<ChecklistStep[]>([
         { id: 'services', title: 'Cadastrar Serviços', description: 'Adicione os serviços que você oferece.', path: '/services', completed: false },
         { id: 'staff', title: 'Cadastrar Colaboradores', description: 'Adicione sua equipe ao sistema.', path: '/team', completed: false },
@@ -29,18 +29,22 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user || !tenantId) return;
         checkProgress();
-    }, [user]);
+    }, [tenantId, user]);
 
     const checkProgress = async () => {
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             // Check if user has services
-            const { count: servicesCount } = await supabase.from('services').select('*', { count: 'exact', head: true });
-            const { count: staffCount } = await supabase.from('staff').select('*', { count: 'exact', head: true });
-            const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true });
-            const { count: aptsCount } = await supabase.from('appointments').select('*', { count: 'exact', head: true });
+            const { count: servicesCount } = await supabase.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+            const { count: staffCount } = await supabase.from('staff').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+            const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+            const { count: aptsCount } = await supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
 
             setSteps(prev => prev.map(step => {
                 if (step.id === 'services') return { ...step, completed: (servicesCount || 0) > 0 };

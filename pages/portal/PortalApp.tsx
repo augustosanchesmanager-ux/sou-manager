@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
+import { portalApi } from '../../services/portalApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { LogOut, Calendar, Clock, User, AlertCircle, X, Star } from 'lucide-react';
 
 const PortalApp: React.FC = () => {
     const { tenantSlug } = useParams<{ tenantSlug: string }>();
     const navigate = useNavigate();
-    const { token, client, tenantId, logout } = usePortalAuth();
+    const { token, client, tenantId: authTenantId, logout } = usePortalAuth();
 
     const [tenant, setTenant] = useState<any>(null);
     const [upcomingAppt, setUpcomingAppt] = useState<any>(null);
@@ -32,7 +33,7 @@ const PortalApp: React.FC = () => {
             return;
         }
         loadPortalData();
-    }, [tenantSlug, token]);
+    }, [tenantSlug, token, client]);
 
     const loadPortalData = async () => {
         try {
@@ -44,6 +45,11 @@ const PortalApp: React.FC = () => {
                 .single();
 
             if (!tenantData) throw new Error('Tenant não encontrado');
+            if (authTenantId && tenantData.id !== authTenantId) throw new Error('Sessão inválida para este tenant');
+            if (!token || !client) throw new Error('Sessão não encontrada');
+
+            const validation = await portalApi.validateSession(tenantData.id, client.id, token);
+            if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
             // 2. Access Limits
             const { data: addon } = await supabase
@@ -130,7 +136,16 @@ const PortalApp: React.FC = () => {
         if (!actionAppt || !actionType) return;
         setActionLoading(true);
         try {
-            await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', actionAppt.id);
+            if (!tenant || !client || !token) throw new Error('Sessão inválida');
+            const validation = await portalApi.validateSession(tenant.id, client.id, token);
+            if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
+
+            await supabase
+                .from('appointments')
+                .update({ status: 'cancelled' })
+                .eq('id', actionAppt.id)
+                .eq('tenant_id', tenant.id)
+                .eq('client_id', client.id);
 
             if (actionType === 'reschedule') {
                 navigate(`/c/${tenantSlug}/app/schedule`);
@@ -152,6 +167,10 @@ const PortalApp: React.FC = () => {
         if (!reviewAppt || rating === 0) return;
         setReviewLoading(true);
         try {
+            if (!tenant || !client || !token) throw new Error('Sessão inválida');
+            const validation = await portalApi.validateSession(tenant.id, client.id, token);
+            if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
+
             // First submit to feedback_barber
             await supabase.from('feedback_barber').insert({
                 tenant_id: tenant.id,

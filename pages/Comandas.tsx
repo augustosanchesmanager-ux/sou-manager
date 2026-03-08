@@ -29,7 +29,7 @@ interface Comanda {
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>('all');
@@ -42,13 +42,18 @@ const Comandas: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
 
     // Role check
-    const userRole = user?.user_metadata?.role || '';
-    const isManager = userRole === 'Gerente' || userRole === 'Manager' || userRole === 'Super Admin' || userRole === 'superadmin';
+    const isManager = canAccessSuperAdmin || accessRole === 'manager';
 
     const fetchData = useCallback(async () => {
+        if (!tenantId && !canAccessSuperAdmin) {
+            setComandas([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('comandas')
                 .select(`
                     *,
@@ -58,6 +63,11 @@ const Comandas: React.FC = () => {
                 `)
                 .order('created_at', { ascending: false });
 
+            if (!canAccessSuperAdmin) {
+                query = query.eq('tenant_id', tenantId);
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
             if (data) setComandas(data as any);
         } catch (err) {
@@ -66,7 +76,7 @@ const Comandas: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [canAccessSuperAdmin, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -170,20 +180,29 @@ const Comandas: React.FC = () => {
     };
 
     const handleDelete = async (comanda: Comanda) => {
+        if (!tenantId && !canAccessSuperAdmin) return;
         setDeleting(true);
         try {
             // First delete comanda_items
-            const { error: itemsError } = await supabase
+            let deleteItemsQuery = supabase
                 .from('comanda_items')
                 .delete()
                 .eq('comanda_id', comanda.id);
+            if (!canAccessSuperAdmin) {
+                deleteItemsQuery = deleteItemsQuery.eq('tenant_id', tenantId);
+            }
+            const { error: itemsError } = await deleteItemsQuery;
             if (itemsError) throw itemsError;
 
             // Then delete the comanda
-            const { error } = await supabase
+            let deleteComandaQuery = supabase
                 .from('comandas')
                 .delete()
                 .eq('id', comanda.id);
+            if (!canAccessSuperAdmin) {
+                deleteComandaQuery = deleteComandaQuery.eq('tenant_id', tenantId);
+            }
+            const { error } = await deleteComandaQuery;
             if (error) throw error;
 
             setToast({ message: 'Comanda excluída com sucesso.', type: 'success' });

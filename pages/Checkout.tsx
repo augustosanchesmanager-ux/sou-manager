@@ -77,13 +77,23 @@ const Checkout: React.FC = () => {
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
+        if (!tenantId) {
+            setClients([]);
+            setStaff([]);
+            setServices([]);
+            setProducts([]);
+            setActivePromotions([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
-            supabase.from('clients').select('id, name, avatar, phone').order('name'),
-            supabase.from('staff').select('id, name').eq('status', 'active'),
-            supabase.from('services').select('*').neq('active', false),
-            supabase.from('products').select('*').neq('active', false),
-            supabase.from('promotions').select('*').eq('active', true),
+            supabase.from('clients').select('id, name, avatar, phone').eq('tenant_id', tenantId).order('name'),
+            supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
+            supabase.from('services').select('*').eq('tenant_id', tenantId).neq('active', false),
+            supabase.from('products').select('*').eq('tenant_id', tenantId).neq('active', false),
+            supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
         ]);
 
         if (clientsRes.data) setClients(clientsRes.data);
@@ -112,6 +122,7 @@ const Checkout: React.FC = () => {
           comanda_items(*)
         `)
                 .eq('id', comandaId)
+                .eq('tenant_id', tenantId)
                 .single();
 
             if (comanda && !comError) {
@@ -135,7 +146,7 @@ const Checkout: React.FC = () => {
             }
         }
         setLoading(false);
-    }, [comandaId]);
+    }, [comandaId, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -155,6 +166,7 @@ const Checkout: React.FC = () => {
                 .from('comandas')
                 .select('id, created_at')
                 .eq('client_id', client.id)
+                .eq('tenant_id', tenantId)
                 .eq('status', 'open')
                 .limit(1);
 
@@ -265,6 +277,10 @@ const Checkout: React.FC = () => {
             setToast({ message: 'Selecione um cliente.', type: 'error' });
             return;
         }
+        if (!tenantId) {
+            setToast({ message: 'Tenant inválido para finalizar operação.', type: 'error' });
+            return;
+        }
 
         setLoading(true);
         try {
@@ -279,10 +295,18 @@ const Checkout: React.FC = () => {
             };
 
             if (currentComandaId) {
-                const { error: updateError } = await supabase.from('comandas').update(comandaData).eq('id', currentComandaId);
+                const { error: updateError } = await supabase
+                    .from('comandas')
+                    .update(comandaData)
+                    .eq('id', currentComandaId)
+                    .eq('tenant_id', tenantId);
                 if (updateError) throw updateError;
                 // Delete existing items to re-insert (simple sync strategy)
-                const { error: delError } = await supabase.from('comanda_items').delete().eq('comanda_id', currentComandaId);
+                const { error: delError } = await supabase
+                    .from('comanda_items')
+                    .delete()
+                    .eq('comanda_id', currentComandaId)
+                    .eq('tenant_id', tenantId);
                 if (delError) throw delError;
             } else {
                 const { data: newC, error: insertError } = await supabase.from('comandas').insert(comandaData).select().single();
@@ -332,6 +356,7 @@ const Checkout: React.FC = () => {
                     .from('clients')
                     .select('total_spent')
                     .eq('id', selectedClient.id)
+                    .eq('tenant_id', tenantId)
                     .single();
 
                 if (!clientFetchErr) {
@@ -342,7 +367,7 @@ const Checkout: React.FC = () => {
                         total_spent: newTotal,
                         last_visit: new Date().toISOString(),
                         last_service: lastServiceStr
-                    }).eq('id', selectedClient.id);
+                    }).eq('id', selectedClient.id).eq('tenant_id', tenantId);
                 }
             }
 

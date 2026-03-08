@@ -5,7 +5,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 
-const timeSlots = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 to 20:00
+
 
 interface DBStaff {
   id: string;
@@ -98,6 +98,19 @@ const Schedule: React.FC = () => {
   // Detail Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<CalendarAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
+  const displayEndHour = React.useMemo(() => {
+    if (appointments.length === 0) return 20;
+    const maxAptEndTime = Math.max(...appointments.map(a => a.start + a.duration));
+    return Math.min(23, Math.max(20, Math.ceil(maxAptEndTime - 1)));
+  }, [appointments]);
+
+  const dynamicTimeSlots = React.useMemo(() => {
+    return Array.from({ length: displayEndHour - 8 + 1 }, (_, i) => i + 8);
+  }, [displayEndHour]);
+
+  const totalSlots = dynamicTimeSlots.length;
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
 
   // Form State
@@ -120,11 +133,19 @@ const Schedule: React.FC = () => {
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
+    if (!tenantId) {
+      setStaffList([]);
+      setServicesList([]);
+      setClientsList([]);
+      setFilteredClients([]);
+      return;
+    }
+
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration, buffer, price').eq('active', true),
-      supabase.from('clients').select('id, name, phone').order('name'),
-      supabase.from('promotions').select('*').eq('active', true),
+      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      supabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
+      supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
+      supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
     if (staffRes.data) setStaffList(staffRes.data);
@@ -132,7 +153,7 @@ const Schedule: React.FC = () => {
     // Se a consulta de serviços falhar (ex: coluna buffer ausente), tenta sem o buffer
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase.from('services').select('id, name, duration, price').eq('active', true);
+      const retryServices = await supabase.from('services').select('id, name, duration, price').eq('tenant_id', tenantId).eq('active', true);
       if (retryServices.data) setServicesList(retryServices.data);
     } else if (servicesRes.data) {
       setServicesList(servicesRes.data);
@@ -149,10 +170,16 @@ const Schedule: React.FC = () => {
       });
       setActivePromotions(validPromos);
     }
-  }, []);
+  }, [tenantId]);
 
   // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
+    if (!tenantId) {
+      setAppointments([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     let rangeStart: string;
@@ -160,21 +187,25 @@ const Schedule: React.FC = () => {
 
     if (viewMode === 'week') {
       const days = getWeekDays(selectedDate);
-      const first = days[0];
-      const last = days[6];
-      rangeStart = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}T00:00:00`;
-      rangeEnd = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
+      const first = new Date(days[0]);
+      first.setHours(0, 0, 0, 0);
+      const last = new Date(days[6]);
+      last.setHours(23, 59, 59, 999);
+      rangeStart = first.toISOString();
+      rangeEnd = last.toISOString();
     } else {
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      rangeStart = `${year}-${month}-${day}T00:00:00`;
-      rangeEnd = `${year}-${month}-${day}T23:59:59`;
+      const dStart = new Date(selectedDate);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(selectedDate);
+      dEnd.setHours(23, 59, 59, 999);
+      rangeStart = dStart.toISOString();
+      rangeEnd = dEnd.toISOString();
     }
 
     const { data } = await supabase
       .from('appointments')
       .select('*, clients!appointments_client_id_fkey(phone)')
+      .eq('tenant_id', tenantId)
       .gte('start_time', rangeStart)
       .lte('start_time', rangeEnd)
       .neq('status', 'cancelled');
@@ -203,7 +234,7 @@ const Schedule: React.FC = () => {
       setAppointments(mapped);
     }
     setLoading(false);
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, tenantId, viewMode]);
 
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
@@ -231,9 +262,15 @@ const Schedule: React.FC = () => {
 
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
+      if (!tenantId) {
+        navigate('/checkout');
+        return;
+      }
+
       const { data: clientData } = await supabase
         .from('clients')
         .select('id')
+        .eq('tenant_id', tenantId)
         .or(`phone.eq.${apt.clientPhone},name.eq.${apt.client}`)
         .limit(1)
         .single();
@@ -350,15 +387,15 @@ const Schedule: React.FC = () => {
     const columnRect = e.currentTarget.getBoundingClientRect();
     const yPosition = e.clientY - columnRect.top;
 
-    // Calcula o novo horário (8:00 to 20:00 = 13 slots de 1 hora)
-    const totalHours = timeSlots.length;
+    // Calcula o novo horário dinamicamente
+    const totalHours = dynamicTimeSlots.length;
     const percentage = yPosition / columnRect.height;
     const exactHour = 8 + (percentage * totalHours);
 
     // Arredonda para blocos de 15 minutos mais próximos
     const roundedHour = Math.floor(exactHour * 4) / 4;
 
-    if (roundedHour < 8 || roundedHour >= 21) {
+    if (roundedHour < 8 || roundedHour >= (displayEndHour + 1)) {
       setToast({ message: 'Horário fora de operação.', type: 'error' });
       return;
     }
@@ -374,7 +411,7 @@ const Schedule: React.FC = () => {
     const overlapping = appointments.filter(a =>
       a.id !== apt.id &&
       a.staffId === dropStaffId &&
-      a.date === dateStr &&
+      new Date(a.date).toDateString() === new Date(dateStr).toDateString() &&
       !(
         (roundedHour + apt.duration) <= a.start ||
         roundedHour >= (a.start + a.duration)
@@ -394,6 +431,12 @@ const Schedule: React.FC = () => {
     ));
 
     try {
+      if (!tenantId) {
+        setToast({ message: 'Tenant inválido para mover agendamento.', type: 'error' });
+        fetchAppointments();
+        return;
+      }
+
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
 
       const { error } = await supabase.from('appointments').update({
@@ -401,7 +444,7 @@ const Schedule: React.FC = () => {
         staff_name: selectedStaff?.name || apt.staffName,
         start_time: newStartTimeLine.toISOString(),
         duration: apt.duration,
-      }).eq('id', apt.id);
+      }).eq('id', apt.id).eq('tenant_id', tenantId);
 
       if (error) {
         setToast({ message: 'Erro ao salvar alteração no banco.', type: 'error' });
@@ -410,7 +453,7 @@ const Schedule: React.FC = () => {
         // Update comanda if exists
         await supabase.from('comandas').update({
           staff_id: dropStaffId,
-        }).eq('appointment_id', apt.id).eq('status', 'open');
+        }).eq('appointment_id', apt.id).eq('tenant_id', tenantId).eq('status', 'open');
 
         setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
         fetchAppointments(); // Refresh for safety
@@ -424,12 +467,17 @@ const Schedule: React.FC = () => {
 
   const handleCancelAppointment = async (appointmentId: string) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('appointments')
         .update({ status: 'cancelled' })
-        .eq('id', appointmentId);
+        .eq('id', appointmentId)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 
@@ -438,6 +486,7 @@ const Schedule: React.FC = () => {
         .from('comandas')
         .update({ status: 'cancelled' })
         .eq('appointment_id', appointmentId)
+        .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
@@ -450,6 +499,11 @@ const Schedule: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!tenantId) {
+      setError('Tenant inválido para salvar agendamento.');
+      return;
+    }
+
     if (!formData.client || !formData.service) {
       setError("Por favor, preencha o nome do cliente e o serviço.");
       return;
@@ -483,7 +537,11 @@ const Schedule: React.FC = () => {
     const startMinutes = (formData.start % 1) * 60;
     const startTimeLine = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`);
 
+    const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+
     if (editingAppointmentId) {
+      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+
       // UPDATE EXISTING
       const { error: updateError } = await supabase.from('appointments').update({
         service_id: selectedService?.id || null,
@@ -492,19 +550,26 @@ const Schedule: React.FC = () => {
         client_phone: formData.clientPhone,
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
+        end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
         price: selectedService?.price || 0,
-      }).eq('id', editingAppointmentId);
+      }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
-      if (updateError) { setError('Erro ao atualizar agendamento.'); return; }
+      if (updateError) {
+        console.error('Erro ao atualizar agendamento:', updateError);
+        setError(`Erro ao atualizar agendamento: ${updateError.message}`);
+        return;
+      }
 
       // Update comanda if exists
       await supabase.from('comandas').update({
         staff_id: formData.staffId || null,
-      }).eq('appointment_id', editingAppointmentId).eq('status', 'open');
+      }).eq('appointment_id', editingAppointmentId).eq('tenant_id', tenantId).eq('status', 'open');
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
+      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+
       // INSERT NEW
       const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
         client_id: clientId,
@@ -515,13 +580,18 @@ const Schedule: React.FC = () => {
         service_name: formData.service,
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
+        end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
         price: selectedService?.price || 0,
         status: 'confirmed',
         tenant_id: tenantId
       }).select().single();
 
-      if (saveError) { setError('Erro ao salvar agendamento.'); return; }
+      if (saveError) {
+        console.error('Erro ao salvar agendamento:', saveError);
+        setError(`Erro ao salvar agendamento: ${saveError.message}`);
+        return;
+      }
 
       if (savedApt) {
         const { data: comanda } = await supabase.from('comandas').insert({
@@ -720,7 +790,7 @@ const Schedule: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ocupação Média</p>
               <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {staffList.length > 0 ? Math.round((appointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * timeSlots.length)) * 100) : 0}%
+                {staffList.length > 0 ? Math.round((appointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * totalSlots)) * 100) : 0}%
               </p>
             </div>
             <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
@@ -787,7 +857,7 @@ const Schedule: React.FC = () => {
                 ) : (
                   <div className="flex min-h-[2600px]">
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
-                      {timeSlots.map(hour => (
+                      {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
                           {hour}:00
                         </div>
@@ -816,11 +886,11 @@ const Schedule: React.FC = () => {
                           >
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                             <div className="absolute inset-0 flex flex-col z-0">
-                              {timeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
+                              {dynamicTimeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
                             {dayApts.map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / 13);
-                              const height = apt.duration * (100 / 13);
+                              const startOffset = (apt.start - 8) * (100 / totalSlots);
+                              const height = apt.duration * (100 / totalSlots);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
                               const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
@@ -886,7 +956,7 @@ const Schedule: React.FC = () => {
                 ) : (
                   <div className="flex min-h-[2600px]">
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
-                      {timeSlots.map(hour => (
+                      {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
                           {hour}:00
                         </div>
@@ -895,7 +965,7 @@ const Schedule: React.FC = () => {
 
                     <div className="flex-1 flex relative">
                       <div className="absolute inset-0 flex flex-col z-0">
-                        {timeSlots.map(hour => (
+                        {dynamicTimeSlots.map(hour => (
                           <div key={hour} className="flex-1 border-b border-slate-100 dark:border-border-dark/50"></div>
                         ))}
                       </div>
@@ -911,8 +981,8 @@ const Schedule: React.FC = () => {
                           {appointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / 13);
-                              const height = apt.duration * (100 / 13);
+                              const startOffset = (apt.start - 8) * (100 / totalSlots);
+                              const height = apt.duration * (100 / totalSlots);
                               const staffIndex = staffList.findIndex(s => s.id === resource.id);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
@@ -957,6 +1027,44 @@ const Schedule: React.FC = () => {
               </div>
             </>
           )}
+        </div>
+
+        {/* Próximos Agendamentos Oculto em telas menores de lg (1024px) */}
+        <div className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 bg-white dark:bg-[#121316] rounded-2xl border border-slate-200 dark:border-[#262A33] overflow-hidden shadow-sm">
+          <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-[#262A33]">
+            <h3 className="text-slate-900 dark:text-white font-bold text-sm">Próximos Agendamentos</h3>
+            <button className="text-primary dark:text-[#C6A45A] text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all">Ver Todos</button>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
+            {appointments
+              .filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled' && (new Date(apt.date).toDateString() === new Date().toDateString() || new Date(apt.date) >= new Date()))
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.start - b.start)
+              .slice(0, 10)
+              .map(apt => {
+                const staff = staffList.find(s => s.id === apt.staffId);
+                return (
+                  <div
+                    key={apt.id}
+                    onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                    className="bg-slate-50 dark:bg-[#181A1F] p-3 rounded-xl flex gap-3 items-center group cursor-pointer hover:bg-slate-100 dark:hover:bg-[#181A1F]/80 transition-all border border-transparent dark:hover:border-[#262A33]"
+                  >
+                    <div className="bg-slate-200 dark:bg-[#262A33] text-primary dark:text-[#C6A45A] font-black text-xs px-2 py-1.5 rounded-lg shrink-0 text-center min-w-[44px]">
+                      {Math.floor(apt.start).toString().padStart(2, '0')}:{(apt.start % 1) === 0 ? '00' : '30'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-900 dark:text-white text-sm font-bold truncate">{apt.client}</p>
+                      <p className="text-slate-500 dark:text-[#A7AFB7] text-[10px] uppercase tracking-wider mt-0.5 truncate">
+                        {apt.service} • {staff?.name?.split(' ')[0] || apt.staffName?.split(' ')[0]}
+                      </p>
+                    </div>
+                    <span className="material-symbols-outlined text-slate-400 dark:text-[#A7AFB7] text-lg opacity-0 group-hover:opacity-100 transition-opacity">more_vert</span>
+                  </div>
+                );
+              })}
+            {appointments.filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled').length === 0 && (
+              <div className="text-center text-slate-500 dark:text-[#A7AFB7] py-10 text-xs font-medium">Nenhum agendamento futuro</div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1104,12 +1212,17 @@ const Schedule: React.FC = () => {
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    const allSlots = Array.from({ length: 25 }, (_, i) => 8 + i * 0.5);
-                    const aptsOnDay = appointments.filter(a =>
-                      a.date.startsWith(formData.date) &&
-                      a.staffId === formData.staffId &&
-                      a.id !== editingAppointmentId
-                    );
+                    // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
+                    const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
+                    const aptsOnDay = appointments.filter(a => {
+                      const aptDate = new Date(a.date);
+                      const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
+                      return aptDate.getFullYear() === fDate.getFullYear() &&
+                        aptDate.getMonth() === fDate.getMonth() &&
+                        aptDate.getDate() === fDate.getDate() &&
+                        a.staffId === formData.staffId &&
+                        a.id !== editingAppointmentId;
+                    });
 
                     return allSlots.map(slot => {
                       const slotEnd = slot + formData.duration;

@@ -43,8 +43,53 @@ Deno.serve(async (req: Request) => {
             });
         }
 
+        const { data: callerProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('tenant_id, role')
+            .eq('id', callerUser.id)
+            .maybeSingle();
+
+        const { data: callerStaff } = await supabaseAdmin
+            .from('staff')
+            .select('tenant_id, role')
+            .eq('id', callerUser.id)
+            .maybeSingle();
+
+        const callerRole = String(callerProfile?.role || callerStaff?.role || '').toLowerCase().trim();
+        const callerTenantId = callerProfile?.tenant_id || callerStaff?.tenant_id || null;
+        const isSuperAdmin = callerRole === 'super admin' || callerRole === 'superadmin';
+        const isManagerLike =
+            callerRole === 'manager' ||
+            callerRole === 'gerente' ||
+            callerRole === 'owner' ||
+            callerRole === 'admin';
+
+        if (!isSuperAdmin && !isManagerLike) {
+            return new Response(JSON.stringify({ error: 'Forbidden: insufficient privileges' }), {
+                status: 403,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
         const { email, password, name, role, tenant_id } = await req.json();
-        console.log('Creating user:', { email, name, role, tenant_id });
+        const normalizedRequestedRole = String(role || 'Barber').trim();
+        const normalizedRequestedRoleLower = normalizedRequestedRole.toLowerCase();
+        if (!isSuperAdmin && (normalizedRequestedRoleLower === 'super admin' || normalizedRequestedRoleLower === 'superadmin')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: only super admin can assign super admin role' }), {
+                status: 403,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const resolvedTenantId = isSuperAdmin ? (tenant_id || callerTenantId) : callerTenantId;
+        if (!resolvedTenantId) {
+            return new Response(JSON.stringify({ error: 'Missing tenant context for user creation' }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        console.log('Creating user:', { email, name, role: normalizedRequestedRole, tenant_id: resolvedTenantId });
 
         if (!email || !password || !name) {
             return new Response(JSON.stringify({ error: 'Missing required fields: email, password, name' }), {
@@ -68,7 +113,7 @@ Deno.serve(async (req: Request) => {
             email,
             password,
             email_confirm: true,
-            user_metadata: { name, role, tenant_id }
+            user_metadata: { name, role: normalizedRequestedRole, tenant_id: resolvedTenantId }
         });
 
         newUser = createdUser;
@@ -108,11 +153,11 @@ Deno.serve(async (req: Request) => {
             id: newUser.user!.id,
             name,
             email,
-            role: role || 'Barber',
+            role: normalizedRequestedRole || 'Barber',
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
             status: 'active',
             commission_rate: 40,
-            tenant_id,
+            tenant_id: resolvedTenantId,
         });
 
         if (staffError) {

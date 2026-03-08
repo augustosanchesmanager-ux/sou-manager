@@ -16,16 +16,23 @@ interface AlertItem {
 const DashboardAlerts: React.FC = () => {
     const [alerts, setAlerts] = useState<AlertItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (user) {
+        if (user && tenantId) {
             fetchAlerts();
+        } else {
+            setAlerts([]);
         }
-    }, [user]);
+    }, [user, tenantId]);
 
     const fetchAlerts = async () => {
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
             const todayStr = new Date().toISOString().split('T')[0];
@@ -36,6 +43,7 @@ const DashboardAlerts: React.FC = () => {
             const { data: appts } = await supabase
                 .from('appointments')
                 .select('id, client_name, start_time')
+                .eq('tenant_id', tenantId)
                 .eq('status', 'confirmed')
                 .gte('start_time', startOfDay)
                 .lte('start_time', endOfDay)
@@ -45,12 +53,14 @@ const DashboardAlerts: React.FC = () => {
             const { data: products } = await supabase
                 .from('products')
                 .select('id, name, stock, min_stock')
+                .eq('tenant_id', tenantId)
                 .lte('stock', 5); // Fallback logic for low stock
 
             // Fetch open comandas from previous days (pending payment)
             const { data: comandas } = await supabase
                 .from('comandas')
                 .select('id, client_id, created_at')
+                .eq('tenant_id', tenantId)
                 .eq('status', 'open')
                 .lt('created_at', startOfDay);
 
@@ -58,6 +68,7 @@ const DashboardAlerts: React.FC = () => {
             const { data: promos } = await supabase
                 .from('promotions')
                 .select('id, title, end_date')
+                .eq('tenant_id', tenantId)
                 .eq('active', true);
 
             const newAlerts: AlertItem[] = [];

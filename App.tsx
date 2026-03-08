@@ -51,7 +51,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Outlet } from 'react-router-dom';
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading, profileStatus, isSuperAdmin } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
 
   if (loading) {
     return (
@@ -65,6 +65,23 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
+        <div className="max-w-md w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-2xl p-6 text-center">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Falha de seguranca da sessao</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{authError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
+          >
+            Recarregar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Block pending or suspended users (Super Admins are always active)
   if (!isSuperAdmin && (profileStatus === 'pending' || profileStatus === 'suspended')) {
     return <Navigate to="/pending-approval" replace />;
@@ -74,9 +91,16 @@ const ProtectedRoute: React.FC = () => {
 };
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const role = user?.user_metadata?.role || '';
-  if (role === 'Barber' || role === 'Receptionist') {
+  const { accessRole } = useAuth();
+  if (accessRole === 'barber' || accessRole === 'receptionist') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+};
+
+const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canAccessSuperAdmin } = useAuth();
+  if (!canAccessSuperAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -137,20 +161,14 @@ const AppRoutes: React.FC = () => {
           <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
           <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
           <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
-          <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
           <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
-          <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
           <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
-          <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
           <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
           <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
           <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
-          <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
           <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
           <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
-          <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
-          <Route path="/kiosk-admin" element={<ManagerRoute><KioskAdmin /></ManagerRoute>} />
-          <Route path="/superadmin" element={<SuperAdmin />} />
+          <Route path="/superadmin" element={<SuperAdminRoute><SuperAdmin /></SuperAdminRoute>} />
         </Route>
       </Route>
 

@@ -293,14 +293,23 @@ const Dashboard: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (!tenantId) {
+      setClients([]);
+      setStaffList([]);
+      setAppointments([]);
+      setLoading(false);
+      setToast({ message: 'Tenant invalido para carregar dashboard.', type: 'error' });
+      return;
+    }
+
     setLoading(true);
     const [clientsRes, staffRes, servicesRes, apptsRes, profileRes, transRes] = await Promise.all([
-      supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').order('name'),
-      supabase.from('staff').select('id, name').eq('status', 'active'),
+      supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').eq('tenant_id', tenantId).order('name'),
+      supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
       supabase.from('services').select('id, name, duration').eq('active', true),
-      supabase.from('appointments').select('*').neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
+      supabase.from('appointments').select('*').eq('tenant_id', tenantId).neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
       user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
-      supabase.from('transactions').select('*').eq('type', 'income').order('date', { ascending: true })
+      supabase.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true })
     ]);
 
     if (clientsRes.data) {
@@ -380,7 +389,12 @@ const Dashboard: React.FC = () => {
     if (staffRes.data) {
       setStaffList(staffRes.data);
       const todayStr = new Date().toISOString().split('T')[0];
-      const { data: todayAppts } = await supabase.from('appointments').select('staff_id').eq('status', 'confirmed').gte('start_time', `${todayStr}T00:00:00`);
+      const { data: todayAppts } = await supabase
+        .from('appointments')
+        .select('staff_id')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'confirmed')
+        .gte('start_time', `${todayStr}T00:00:00`);
       const activeIds = new Set(todayAppts?.map(a => a.staff_id));
       const percent = staffRes.data.length > 0 ? (activeIds.size / staffRes.data.length) * 100 : 0;
       setMetrics(prev => ({ ...prev, activeStaffPercent: percent || 0 }));
@@ -390,7 +404,7 @@ const Dashboard: React.FC = () => {
     if (apptsRes.data) setAppointments(apptsRes.data);
     if (profileRes.data) setProfile(profileRes.data);
     setLoading(false);
-  }, [user]);
+  }, [tenantId, user]);
 
   useEffect(() => {
     fetchData();
@@ -427,6 +441,10 @@ const Dashboard: React.FC = () => {
 
   const handleCreateNewClient = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tenantId) {
+      setToast({ message: 'Tenant invalido para cadastrar cliente.', type: 'error' });
+      return;
+    }
 
     // Check for duplicate
     const existing = clients.find(c => c.name.toLowerCase() === newClientForm.name.toLowerCase() && c.phone === newClientForm.phone);
@@ -457,6 +475,10 @@ const Dashboard: React.FC = () => {
 
   const handleConfirmAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tenantId) {
+      setToast({ message: 'Tenant invalido para criar agendamento.', type: 'error' });
+      return;
+    }
 
     const clientName = formData.clientSearch;
     const selectedService = servicesList.find(s => s.id === formData.serviceId);
@@ -512,7 +534,11 @@ const Dashboard: React.FC = () => {
         });
 
         // Update comanda total
-        await supabase.from('comandas').update({ total: serviceData?.price || 0 }).eq('id', comanda.id);
+        await supabase
+          .from('comandas')
+          .update({ total: serviceData?.price || 0 })
+          .eq('id', comanda.id)
+          .eq('tenant_id', tenantId);
       }
     }
 
@@ -526,7 +552,12 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCancelAppointment = async (id: string) => {
-    const { error } = await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', id);
+    if (!tenantId) return;
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
     if (!error) {
       setToast({ message: 'Agendamento cancelado.', type: 'info' });
       fetchData();
@@ -535,7 +566,12 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCompleteAppointment = async (id: string) => {
-    const { error } = await supabase.from('appointments').update({ status: 'completed' }).eq('id', id);
+    if (!tenantId) return;
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'completed' })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
     if (!error) {
       setToast({ message: 'Agendamento concluído!', type: 'success' });
       fetchData();
@@ -552,6 +588,9 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
+          <p className="text-primary font-black text-xs uppercase tracking-[0.2em] mb-1">
+            SEJA BEM VINDO, {user?.user_metadata?.shop_name || user?.user_metadata?.first_name || 'MINHA BARBEARIA'}
+          </p>
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">Visão Geral Executiva</h2>
           <p className="text-slate-500 mt-1">Sua empresa está com crescimento de {metrics.growth.toFixed(0)}% este mês.</p>
         </div>

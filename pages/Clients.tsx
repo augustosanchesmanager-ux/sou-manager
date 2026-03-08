@@ -64,28 +64,45 @@ const Clients: React.FC = () => {
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
 
     const fetchClients = useCallback(async () => {
+        if (!tenantId) {
+            setClients([]);
+            setChefClubMap({});
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        const { data, error } = await supabase.from('clients').select('*').order('name');
+        const { data, error } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('name');
         if (data) {
             setClients(data);
 
             // Fetch subscription badges
-            const { data: subs } = await supabase
-                .from('customer_subscriptions')
-                .select('client_id, plan:customer_plans(name)')
-                .eq('status', 'active');
+            const clientIds = data.map(c => c.id);
+            if (clientIds.length > 0) {
+                const { data: subs } = await supabase
+                    .from('customer_subscriptions')
+                    .select('client_id, plan:customer_plans(name)')
+                    .eq('status', 'active')
+                    .in('client_id', clientIds);
 
-            if (subs) {
-                const map: Record<string, string> = {};
-                subs.forEach(s => {
-                    map[s.client_id] = (s.plan as any).name;
-                });
-                setChefClubMap(map);
+                if (subs) {
+                    const map: Record<string, string> = {};
+                    subs.forEach(s => {
+                        map[s.client_id] = (s.plan as any).name;
+                    });
+                    setChefClubMap(map);
+                }
+            } else {
+                setChefClubMap({});
             }
         }
         if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
 
@@ -121,6 +138,10 @@ const Clients: React.FC = () => {
     // CRUD
     const handleCreateClient = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!tenantId) {
+            setToast({ message: 'Tenant invalido para cadastro de cliente.', type: 'error' });
+            return;
+        }
         const { error } = await supabase.from('clients').insert({
             name: newForm.name,
             email: newForm.email,
@@ -147,8 +168,12 @@ const Clients: React.FC = () => {
 
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!editingId) return;
-        const { error } = await supabase.from('clients').update(editForm).eq('id', editingId);
+        if (!editingId || !tenantId) return;
+        const { error } = await supabase
+            .from('clients')
+            .update(editForm)
+            .eq('id', editingId)
+            .eq('tenant_id', tenantId);
         if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
         setEditingId(null);
         setEditForm({});
@@ -157,8 +182,12 @@ const Clients: React.FC = () => {
     };
 
     const handleDelete = async () => {
-        if (!deleteTarget) return;
-        const { error } = await supabase.from('clients').delete().eq('id', deleteTarget.id);
+        if (!deleteTarget || !tenantId) return;
+        const { error } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', deleteTarget.id)
+            .eq('tenant_id', tenantId);
         if (error) { setToast({ message: 'Erro ao excluir.', type: 'error' }); return; }
         setDeleteTarget(null);
         setToast({ message: 'Cliente excluído.', type: 'info' });
@@ -249,6 +278,10 @@ const Clients: React.FC = () => {
     };
 
     const handleConfirmImport = async () => {
+        if (!tenantId) {
+            setToast({ message: 'Tenant invalido para importar clientes.', type: 'error' });
+            return;
+        }
         setLoading(true);
         const toInsert = parsedData.map(c => ({
             name: c.name,

@@ -6,7 +6,7 @@ import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 
 const Admin: React.FC = () => {
-    const { user, loading } = useAuth();
+    const { user, loading, canAccessSuperAdmin } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'shops' | 'users' | 'access' | 'tickets' | 'system' | 'requests'>('overview');
 
     // Real data
@@ -196,7 +196,7 @@ const Admin: React.FC = () => {
         </div>
     );
 
-    if (user?.user_metadata?.role !== 'Super Admin') return <Navigate to="/dashboard" replace />;
+    if (!canAccessSuperAdmin) return <Navigate to="/dashboard" replace />;
 
     const filteredShops = shops.filter(s =>
         s.name?.toLowerCase().includes(searchShop.toLowerCase()) ||

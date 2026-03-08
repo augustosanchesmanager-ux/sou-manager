@@ -9,6 +9,8 @@ import Button from './ui/Button';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 interface ChildItem {
@@ -32,10 +34,16 @@ interface MenuItem {
   children?: ChildOrSubGroup[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+interface MenuCategory {
+  title: string;
+  icon: string;
+  items: MenuItem[];
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { signOut, user, accessRole, canAccessSuperAdmin } = useAuth();
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
@@ -43,124 +51,140 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
   // Menu Definition structure
-  const menuStructure: MenuItem[] = [
-    { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard' },
-    { name: 'Visão Operacional', icon: 'dashboard', path: '/dashboard' },
+  const menuCategories: MenuCategory[] = [
     {
-      name: 'Atalhos Rápidos',
-      icon: 'bolt',
-      children: [
-        { name: 'Agendamentos', path: '/schedule' },
-        { name: 'Clientes', path: '/clients' },
-        { name: 'Comandas', path: '/comandas' },
-        { name: 'Checkout / PDV', path: '/checkout' },
+      title: 'DASHBOARD',
+      icon: 'dashboard',
+      items: [
+        { name: 'Dashboard', icon: 'dashboard', path: '/dashboard' } // Usando Visão Operacional como Dashboard base
       ]
     },
     {
-      name: 'Operacional',
-      icon: 'storefront',
-      children: [
+      title: 'NEGÓCIO',
+      icon: 'business_center',
+      items: [
+        { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard' },
+        { name: 'Visão de Negócio', icon: 'query_stats', path: '/bi' },
+        { name: 'Relatórios', icon: 'summarize', path: '/reports' }
+      ]
+    },
+    {
+      title: 'OPERAÇÃO',
+      icon: 'sync_alt',
+      items: [
+        { name: 'Agendamentos', icon: 'calendar_month', path: '/schedule' },
+        { name: 'Clientes', icon: 'group', path: '/clients' },
+        { name: 'Comandas', icon: 'receipt', path: '/comandas' },
+        { name: 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout' },
+        { name: 'Operações do Dia', icon: 'assignment', path: '/operations' },
+      ]
+    },
+    {
+      title: 'CRESCIMENTO',
+      icon: 'trending_up',
+      items: [
+        { name: 'Motor de Retorno 🧠', icon: 'psychology', path: '/smart-return' },
         {
-          type: 'subgroup' as const,
-          name: 'Vendas',
-          icon: 'sell',
-          items: [
-            { name: 'Comandas', path: '/comandas' },
-            { name: 'Agendamentos', path: '/schedule' },
-            { name: 'Checkout / PDV', path: '/checkout' },
-          ],
-        },
-        {
-          type: 'subgroup' as const,
-          name: 'Cadastros',
-          icon: 'folder_open',
-          items: [
-            { name: 'Clientes', path: '/clients' },
-            { name: 'Equipe / Profissionais', path: '/team' },
-            { name: 'Produtos & Estoque', path: '/products' },
-            { name: 'Serviços', path: '/services' },
-            { name: 'Pedidos de Compra', path: '/orders' },
-            // Funcionalidades Adicionais
-            { name: 'Promoções', path: '/promotions' },
-            { name: 'Totem Atendimento', path: '/kiosk-admin' },
-            { name: 'Portal do Cliente', path: '/portal-admin' },
-          ],
-        },
-        {
-          type: 'subgroup' as const,
           name: 'Clube do Chefe 👑',
           icon: 'workspace_premium',
-          items: [
+          children: [
             { name: 'Planos', path: '/chef-club-plans' },
             { name: 'Assinaturas', path: '/chef-club-subscriptions' },
-          ],
-        },
+          ]
+        }
       ]
     },
     {
-      name: 'Gestão',
-      icon: 'analytics',
-      children: [
-        { name: 'Visão de Negócio (BI)', path: '/bi' },
-        { name: 'Motor de Retorno 🧠', path: '/smart-return' },
-        { name: 'Operações do Dia', path: '/operations' },
-        { name: 'Relatórios', path: '/reports' },
+      title: 'ADMINISTRAÇÃO',
+      icon: 'admin_panel_settings',
+      items: [
         {
-          type: 'subgroup' as const,
-          name: 'Financeiro',
-          icon: 'payments',
-          items: [
-            { name: 'Visão Geral', path: '/financial' },
-            { name: 'Folha de Pagamento', path: '/payroll' },
-            { name: 'Gestão de Saídas', path: '/expenses' },
-            { name: 'Gestão de Recibos', path: '/receipts' },
-          ],
-        },
+          name: 'Cadastros',
+          icon: 'folder_open',
+          children: [
+            { name: 'Serviços', path: '/services' },
+            { name: 'Produtos', path: '/products' },
+            { name: 'Profissionais', path: '/team' },
+            { name: 'Categorias', path: '/categories' },
+            { name: 'Fornecedores', path: '/suppliers' },
+          ]
+        }
       ]
     },
-    { name: 'Super Admin', icon: 'admin_panel_settings', path: '/admin' },
+    {
+      title: 'FINANCEIRO',
+      icon: 'payments',
+      items: [
+        { name: 'Visão Geral', icon: 'account_balance_wallet', path: '/financial' },
+        { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow' },
+        { name: 'Folha de Pagamento', icon: 'payments', path: '/payroll' },
+        { name: 'Gestão de Saídas', icon: 'money_off', path: '/expenses' },
+        { name: 'Gestão de Recibos', icon: 'receipt_long', path: '/receipts' },
+        { name: 'Comissões', icon: 'percent', path: '/commissions' },
+      ]
+    }
+  ];
+
+  // System items go at the bottom
+  const systemItems: MenuItem[] = [
+    { name: 'Configurações', icon: 'settings', path: '/settings' },
+    { name: 'Suporte', icon: 'support_agent', path: '/support' },
   ];
 
   // Auto-expand group if current path is inside it
   useEffect(() => {
     const currentPath = location.pathname;
-    menuStructure.forEach(item => {
-      if (item.children) {
-        const hasChildActive = item.children.some(child => {
-          if ('type' in child && child.type === 'subgroup') {
-            return child.items.some(i => i.path === currentPath);
+
+    const checkExpandables = (items: MenuItem[] | ChildOrSubGroup[]) => {
+      items.forEach(item => {
+        if ('children' in item && item.children) {
+          const hasActiveChild = checkIsGroupActive(item.children);
+          if (hasActiveChild && !expandedGroups.includes(item.name)) {
+            setExpandedGroups(prev => [...prev, item.name]);
           }
-          return (child as ChildItem).path === currentPath;
-        });
-        if (hasChildActive && !expandedGroups.includes(item.name)) {
-          setExpandedGroups(prev => [...prev, item.name]);
+          checkExpandables(item.children); // recursively check
+        } else if ('type' in item && item.type === 'subgroup') {
+          const hasActiveChild = item.items.some(i => i.path === currentPath);
+          if (hasActiveChild && !expandedGroups.includes(item.name)) {
+            setExpandedGroups(prev => [...prev, item.name]);
+          }
         }
-        // Also auto-expand subgroups
-        item.children.forEach(child => {
-          if ('type' in child && child.type === 'subgroup') {
-            const subActive = child.items.some(i => i.path === currentPath);
-            if (subActive && !expandedGroups.includes(child.name)) {
-              setExpandedGroups(prev => [...prev, child.name]);
-            }
-          }
-        });
+      });
+    };
+
+    menuCategories.forEach(category => {
+      // Check if category has active child
+      const hasActiveChild = category.items.some(item => {
+        if (item.path && isActive(item.path)) return true;
+        if (item.children && checkIsGroupActive(item.children)) return true;
+        return false;
+      });
+      if (hasActiveChild && !expandedGroups.includes(category.title)) {
+        setExpandedGroups(prev => [...prev, category.title]);
       }
+      checkExpandables(category.items);
     });
   }, [location.pathname]);
 
   const toggleGroup = (name: string) => {
+    if (isCollapsed && onToggleCollapse) {
+      onToggleCollapse(); // expand sidebar if user clicks a group
+    }
     setExpandedGroups(prev =>
       prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]
     );
   };
 
   const isActive = (path: string) => location.pathname === path;
-  const isGroupActive = (children: ChildOrSubGroup[]) => children.some(child => {
-    if ('type' in child && child.type === 'subgroup') {
-      return child.items.some(i => i.path === location.pathname);
-    }
-    return (child as ChildItem).path === location.pathname;
-  });
+
+  const checkIsGroupActive = (children: ChildOrSubGroup[]): boolean => {
+    return children.some(child => {
+      if ('type' in child && child.type === 'subgroup') {
+        return child.items.some(i => i.path === location.pathname);
+      }
+      return (child as ChildItem).path === location.pathname;
+    });
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -176,7 +200,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       if (error) throw error;
       setIsPlanModalOpen(false);
       setIsProfileModalOpen(false);
-      // Force refresh or notification would be good here
       window.location.reload();
     } catch (err) {
       console.error('Erro ao mudar plano:', err);
@@ -185,237 +208,300 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  // Filter menu items based on role
-  const userRole = user?.user_metadata?.role || '';
-  const isOperationalOnly = userRole === 'Barber' || userRole === 'Receptionist';
+  const userRole = canAccessSuperAdmin
+    ? 'Super Admin'
+    : accessRole === 'barber'
+      ? 'Barber'
+      : accessRole === 'receptionist'
+        ? 'Receptionist'
+        : accessRole === 'manager'
+          ? 'Manager'
+          : '';
+  const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
 
-  const filteredMenu = menuStructure.map(item => {
-    // Clone item to avoid modifying original structure
-    const newItem = { ...item };
-
-    if (newItem.name === 'Super Admin') {
-      const isSuper = userRole === 'Super Admin' || userRole === 'superadmin';
-      return isSuper ? newItem : null;
-    }
-
-    if (userRole === 'Barber') {
-      if (newItem.name === 'Gestão') return null; // Hide Gestão entirely
-      if (newItem.children) {
-        newItem.children = newItem.children.map(child => {
-          if ('type' in child && child.type === 'subgroup' && child.name === 'Cadastros') {
-            return {
-              ...child,
-              items: child.items.filter(i => i.name === 'Clientes')
-            };
-          }
-          return child;
-        }).filter(child => {
-          if ('type' in child && child.type === 'subgroup' && child.name === 'Cadastros') {
-            return child.items.length > 0;
-          }
-          return true;
-        });
+  // Filter based on role
+  const filteredCategories = menuCategories.map(category => {
+    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'DASHBOARD') {
+      if (category.title === 'ADMINISTRAÇÃO') {
+        // specific logic for Barber if needed, returning null for now as per previous logic (mostly hidden)
+        return null;
       }
+      return null; // hide everything else for barbers
     }
+    // Deep clone and filter items
+    const filteredItems = category.items.map(item => {
+      if (userRole === 'Barber' && item.children) {
+        // remove specific children logic here if needed
+        return item;
+      }
+      return item;
+    }).filter(Boolean) as MenuItem[];
 
-    return newItem;
-  }).filter(Boolean) as MenuItem[];
+    if (filteredItems.length === 0) return null;
+
+    return { ...category, items: filteredItems };
+  }).filter(Boolean) as MenuCategory[];
 
   return (
     <>
-      {/* Mobile Backdrop */}
       <div
-        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
 
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-white dark:bg-[#0A0A0A] border-r border-slate-200 dark:border-[#1A1A1A]
-        flex flex-col h-screen shrink-0 transition-transform duration-300 shadow-2xl lg:shadow-none
+        bg-white dark:bg-[#121316] border-r lg:border border-slate-200 dark:border-[#262A33]
+        flex flex-col h-screen shrink-0 transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
+        shadow-2xl lg:shadow-sm overflow-visible
+        lg:my-4 lg:ml-4 lg:h-[calc(100vh-2rem)] lg:rounded-[2rem]
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
         lg:translate-x-0
+        ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[280px] w-[280px]'}
       `}>
-        <div className="p-6 flex items-center justify-between lg:justify-start gap-3">
-          <Logo />
-          {/* Close button for mobile */}
-          <button onClick={onClose} className="lg:hidden text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+        <div className={`p-5 flex items-center justify-between lg:justify-start gap-3 h-16 shrink-0 ${isCollapsed ? 'lg:justify-center' : ''}`}>
+          {(!isCollapsed || !window.matchMedia('(min-width: 1024px)').matches) ? (
+            <Logo />
+          ) : (
+            <div className="size-8 bg-primary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-primary/20 shrink-0">
+              M
+            </div>
+          )}
+          <button onClick={onClose} className="lg:hidden text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar">
-          {filteredMenu.map((item) => {
-            // Render Item with Children (Group)
-            if (item.children) {
-              const isExpanded = expandedGroups.includes(item.name);
-              const groupActive = isGroupActive(item.children);
-
-              return (
-                <div key={item.name} className="flex flex-col gap-1">
-                  <button
-                    onClick={() => toggleGroup(item.name)}
-                    className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all group ${groupActive
-                      ? 'text-primary bg-primary/5 dark:bg-primary/10 font-medium'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`material-symbols-outlined ${groupActive ? 'text-primary' : ''}`}>{item.icon}</span>
-                      <span className="text-sm">{item.name}</span>
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar overflow-x-hidden">
+          {filteredCategories.map((category, idx) => (
+            <div key={idx} className="flex flex-col gap-1">
+              {/* Category Title Toggle */}
+              <button
+                onClick={() => toggleGroup(category.title)}
+                className={`
+                 flex items-center px-2 py-1 mb-1 transition-all duration-300 group focus:outline-none
+                 ${isCollapsed ? 'justify-center mx-auto' : 'justify-between w-full hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg'}
+                `}
+                disabled={isCollapsed}
+              >
+                {isCollapsed ? (
+                  <div className="w-6 border-b-2 border-slate-200 dark:border-white/10 mt-2" />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className={`material-symbols-outlined text-[16px] transition-colors
+                        ${expandedGroups.includes(category.title) ? 'text-primary dark:text-[#C6A45A]' : 'text-slate-400 dark:text-[#A7AFB7]/50'}
+                      `}>
+                        {category.icon}
+                      </span>
+                      <span className={`text-[10px] font-black tracking-[0.15em] uppercase transition-colors
+                        ${expandedGroups.includes(category.title) ? 'text-primary dark:text-[#C6A45A]' : 'text-slate-400 dark:text-[#A7AFB7]/60 group-hover:text-slate-600 dark:group-hover:text-[#A7AFB7]'}
+                      `}>
+                        {category.title}
+                      </span>
                     </div>
-                    <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${isExpanded ? 'rotate-180 text-primary' : ''}`}>
+                    <span className={`material-symbols-outlined text-[14px] transition-transform duration-300
+                      ${expandedGroups.includes(category.title) ? 'rotate-180 text-primary dark:text-[#C6A45A]' : 'text-slate-400 dark:text-[#A7AFB7]/50 group-hover:text-slate-500'}
+                    `}>
                       expand_more
                     </span>
-                  </button>
+                  </>
+                )}
+              </button>
 
-                  {/* Submenu */}
-                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <div className="flex flex-col gap-1 pl-4 border-l border-slate-700 ml-5 my-1">
-                      {item.children.map(child => {
-                        // Sub-grupo aninhado (ex: Vendas)
-                        if ('type' in child && child.type === 'subgroup') {
-                          const isSubExpanded = expandedGroups.includes(child.name);
-                          const subActive = child.items.some(i => isActive(i.path));
-                          return (
-                            <div key={child.name} className="flex flex-col gap-0.5">
-                              <button
-                                onClick={() => toggleGroup(child.name)}
-                                className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition-all text-sm ${subActive
-                                  ? 'text-white bg-white/10'
-                                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-base">{child.icon}</span>
-                                  <span className="font-medium">{child.name}</span>
-                                </div>
-                                <span className={`material-symbols-outlined text-base transition-transform duration-200 ${isSubExpanded ? 'rotate-180' : ''}`}>
-                                  expand_more
-                                </span>
-                              </button>
-                              <div className={`overflow-hidden transition-all duration-200 ${isSubExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                <div className="flex flex-col gap-0.5 pl-3 border-l border-slate-700/60 ml-4 my-0.5">
-                                  {child.items.map(subItem => (
-                                    <Link
-                                      key={subItem.path}
-                                      to={subItem.path}
-                                      onClick={onClose}
-                                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-sm ${isActive(subItem.path)
-                                        ? 'bg-primary text-white font-medium shadow-md shadow-primary/20'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#1A1A1A]'
-                                        }`}
-                                    >
-                                      {subItem.name}
-                                    </Link>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
-                        // Item simples
-                        const simpleChild = child as ChildItem;
-                        return (
-                          <Link
-                            key={simpleChild.path}
-                            to={simpleChild.path}
-                            onClick={onClose}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all text-sm ${isActive(simpleChild.path)
-                              ? 'bg-primary text-white font-medium shadow-md shadow-primary/20 scale-[0.98]'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#1A1A1A]'
-                              }`}
-                          >
-                            {simpleChild.name}
-                          </Link>
-                        );
-                      })}
+              {/* Category Items Accordion */}
+              <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] flex flex-col gap-1
+                ${expandedGroups.includes(category.title) || isCollapsed ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}
+              `}>
+
+                {/* Category Items */}
+                {category.items.map((item) => {
+
+                  // Group Item
+                  if (item.children) {
+                    const isExpanded = expandedGroups.includes(item.name);
+                    const groupActive = checkIsGroupActive(item.children);
+
+                    return (
+                      <div key={item.name} className="flex flex-col relative group/menuitem">
+                        <button
+                          onClick={() => toggleGroup(item.name)}
+                          className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
+                          ${groupActive
+                              ? 'bg-primary/5 dark:bg-[#181A1F] text-primary dark:text-[#F5F5F5]'
+                              : 'text-slate-600 dark:text-[#A7AFB7] hover:bg-slate-50 dark:hover:bg-[#181A1F] hover:text-slate-900 dark:hover:text-[#F5F5F5]'}
+                          ${isCollapsed ? 'justify-center' : 'justify-between'}
+                        `}
+                        >
+                          {groupActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary dark:bg-[#C6A45A] rounded-r-full shadow-[2px_0_8px_rgba(198,164,90,0.5)]" />}
+                          <div className="flex items-center gap-3">
+                            <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-primary dark:text-[#C6A45A]' : ''}`}>{item.icon}</span>
+                            {!isCollapsed && <span className={`text-sm tracking-tight ${groupActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
+                          </div>
+                          {!isCollapsed && (
+                            <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${isExpanded ? 'rotate-180 text-primary dark:text-[#C6A45A]' : 'text-slate-400 dark:text-[#A7AFB7]'}`}>
+                              expand_more
+                            </span>
+                          )}
+                        </button>
+
+                        {/* Tooltip for collapsed mode */}
+                        {isCollapsed && (
+                          <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none">
+                            {item.name}
+                            {/* Arrow */}
+                            <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900 dark:border-r-white"></div>
+                          </div>
+                        )}
+
+                        {/* Submenu */}
+                        <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] ${isExpanded && !isCollapsed ? 'max-h-[800px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                          <div className="flex flex-col gap-0.5 relative ml-6 pl-3 border-l-2 border-slate-100 dark:border-[#262A33]">
+                            {item.children.map(child => {
+                              if ('type' in child && child.type === 'subgroup') {
+                                // Nested subgroup omitted for brevity, but easily added if needed back
+                                return null;
+                              }
+                              const simpleChild = child as ChildItem;
+                              const isChildActive = isActive(simpleChild.path);
+                              return (
+                                <Link
+                                  key={simpleChild.path}
+                                  to={simpleChild.path}
+                                  onClick={onClose}
+                                  className={`flex items-center w-full px-3 py-2 rounded-lg transition-all text-sm relative group/subitem
+                                  ${isChildActive
+                                      ? 'text-primary dark:text-[#C6A45A] font-bold bg-primary/5 dark:bg-white/5'
+                                      : 'text-slate-500 dark:text-[#A7AFB7] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#181A1F]'}
+                                  `}
+                                >
+                                  {isChildActive && <div className="absolute -left-[14px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary" />}
+                                  {simpleChild.name}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Single Item
+                  const isSingleActive = isActive(item.path!);
+                  return (
+                    <div key={item.path} className="relative group/menuitem">
+                      <Link
+                        to={item.path!}
+                        onClick={onClose}
+                        className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
+                          ${isSingleActive
+                            ? 'bg-primary/5 dark:bg-[#181A1F] text-primary dark:text-[#F5F5F5]'
+                            : 'text-slate-600 dark:text-[#A7AFB7] hover:bg-slate-50 dark:hover:bg-[#181A1F] hover:text-slate-900 dark:hover:text-[#F5F5F5]'}
+                          ${isCollapsed ? 'justify-center' : 'justify-start'}
+                          `}
+                      >
+                        {isSingleActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary dark:bg-[#C6A45A] rounded-r-full shadow-[2px_0_8px_rgba(198,164,90,0.5)]" />}
+                        <div className="flex items-center gap-3">
+                          <span className={`material-symbols-outlined text-[20px] ${isSingleActive ? 'text-primary dark:text-[#C6A45A]' : ''} transition-colors duration-300`}>{item.icon}</span>
+                          {!isCollapsed && <span className={`text-sm tracking-tight transition-all duration-300 ${isSingleActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
+                        </div>
+                      </Link>
+
+                      {/* Tooltip for collapsed mode */}
+                      {isCollapsed && (
+                        <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none">
+                          {item.name}
+                          <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900 dark:border-r-white"></div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-              );
-            }
-
-            // Render Single Item
-            return (
-              <Link
-                key={item.path}
-                to={item.path!}
-                onClick={onClose}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${isActive(item.path!)
-                  ? 'bg-primary text-white shadow-md shadow-primary/20 scale-[0.98]'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] hover:text-slate-900 dark:hover:text-white'
-                  }`}
-              >
-                <span className={`material-symbols-outlined ${isActive(item.path!) ? '' : 'text-slate-400 group-hover:text-primary transition-colors'}`}>{item.icon}</span>
-                <span className="text-sm font-medium">{item.name}</span>
-              </Link>
-            );
-          })}
-
-          <div className="mt-auto pt-10">
-            <Link
-              to="/support"
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${isActive('/support')
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <span className={`material-symbols-outlined ${isActive('/support') ? '' : 'text-slate-400 group-hover:text-primary transition-colors'}`}>support_agent</span>
-              <span className="text-sm font-medium">Suporte</span>
-            </Link>
-            {!isOperationalOnly && (
-              <Link
-                to="/settings"
-                onClick={onClose}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${isActive('/settings')
-                  ? 'bg-primary text-white shadow-md shadow-primary/20'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1A1A1A] hover:text-slate-900 dark:hover:text-white'
-                  }`}
-              >
-                <span className={`material-symbols-outlined ${isActive('/settings') ? '' : 'text-slate-400 group-hover:text-primary transition-colors'}`}>settings</span>
-                <span className="text-sm font-medium">Configurações</span>
-              </Link>
-            )}
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 transition-all group mt-2"
-            >
-              <span className="material-symbols-outlined">logout</span>
-              <span className="text-sm font-medium">Sair</span>
-            </button>
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-200 dark:border-[#1A1A1A]">
+        {/* System Settings (Sticky Bottom) */}
+        <div className={`mt-auto shrink-0 flex flex-col gap-1 p-3 border-t border-slate-200 dark:border-[#262A33] transition-all bg-white dark:bg-[#121316] ${isCollapsed ? 'items-center' : ''}`}>
+          {systemItems.map(item => {
+            const isSystemActive = isActive(item.path!);
+            if (item.name === 'Configurações' && isOperationalOnly) return null;
+
+            return (
+              <div key={item.path} className="relative group/menuitem w-full">
+                <Link
+                  to={item.path!}
+                  onClick={onClose}
+                  className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
+                          ${isSystemActive
+                      ? 'bg-primary/5 dark:bg-[#181A1F] text-primary dark:text-[#F5F5F5]'
+                      : 'text-slate-600 dark:text-[#A7AFB7] hover:bg-slate-50 dark:hover:bg-[#181A1F] hover:text-slate-900 dark:hover:text-[#F5F5F5]'}
+                          ${isCollapsed ? 'justify-center' : 'justify-start'}
+                          `}
+                >
+                  {isSystemActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary dark:bg-[#C6A45A] rounded-r-full shadow-[2px_0_8px_rgba(198,164,90,0.5)]" />}
+                  <div className="flex items-center gap-3">
+                    <span className={`material-symbols-outlined text-[20px] transition-colors duration-300 ${isSystemActive ? 'text-primary dark:text-[#C6A45A]' : ''}`}>{item.icon}</span>
+                    {!isCollapsed && <span className={`text-sm tracking-tight transition-all duration-300 ${isSystemActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
+                  </div>
+                </Link>
+
+                {/* Tooltip for collapsed mode */}
+                {isCollapsed && (
+                  <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none">
+                    {item.name}
+                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900 dark:border-r-white"></div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
           <button
             onClick={() => setIsProfileModalOpen(true)}
-            className="w-full bg-slate-50 dark:bg-[#141414] p-3 rounded-2xl flex items-center gap-3 transition-all border border-slate-100 dark:border-[#262626] hover:border-primary/30 group"
+            className={`w-full mt-2 rounded-2xl flex items-center gap-3 transition-all border group relative text-left
+                ${isCollapsed ? 'p-1.5 border-transparent hover:bg-slate-50 dark:hover:bg-[#181A1F]' : 'p-3 bg-slate-50 dark:bg-[#181A1F] border-slate-100 dark:border-[#262A33] hover:border-primary/30 dark:hover:border-[#C6A45A]/50'}
+            `}
           >
-            <div className={`size-9 rounded-full flex items-center justify-center border transition-transform group-hover:scale-110 ${user?.user_metadata?.role === 'Super Admin'
-              ? 'bg-amber-100 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30'
-              : 'bg-primary/20 border-primary/40'
-              }`}>
-              <span className={`material-symbols-outlined text-xl ${user?.user_metadata?.role === 'Super Admin' ? 'text-amber-600 dark:text-amber-500' : 'text-primary'
-                }`}>
-                {user?.user_metadata?.role === 'Super Admin' ? 'workspace_premium' : 'admin_panel_settings'}
-              </span>
+            <div className={`rounded-full flex items-center justify-center border-2 dark:border-[#C6A45A]/80 transition-transform group-hover:scale-105 shrink-0 bg-cover bg-center
+               ${isCollapsed ? 'size-9' : 'size-11'}
+               ${canAccessSuperAdmin
+                 ? 'bg-amber-100 dark:bg-amber-500/10 border-amber-300 dark:border-[#C6A45A] text-amber-600'
+                 : 'bg-primary/10 border-primary/30 text-primary dark:text-[#C6A45A]'}
+              `}
+              style={{ backgroundImage: user?.user_metadata?.avatar ? `url(${user.user_metadata.avatar})` : 'none' }}>
+              {!user?.user_metadata?.avatar && (
+                <span className="material-symbols-outlined text-xl">
+                  {canAccessSuperAdmin ? 'workspace_premium' : 'person'}
+                </span>
+              )}
             </div>
-            <div className="flex flex-col text-left truncate">
-              <p className="text-xs font-bold text-slate-900 dark:text-white truncate display-font">
-                {user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` : 'Marcus Vinicius'}
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-bold uppercase tracking-wider">
-                {user?.user_metadata?.role === 'Super Admin' ? 'SUPER ADMIN ELITE' : `Plano ${(user?.user_metadata?.plan || 'Premium').toUpperCase()}`}
-              </p>
-            </div>
-            <span className="material-symbols-outlined text-slate-400 text-sm ml-auto group-hover:text-primary transition-colors">more_vert</span>
+            {!isCollapsed && (
+              <>
+                <div className="flex flex-col text-left truncate flex-1 leading-tight">
+                  <p className="text-sm font-bold text-slate-900 dark:text-[#F5F5F5] truncate display-font">
+                    {user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` : 'Utilizador'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-[#A7AFB7] truncate font-medium mt-0.5">
+                    {user?.email || 'usuario@email.com'}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 dark:text-[#A7AFB7] text-sm shrink-0 group-hover:text-primary dark:group-hover:text-[#C6A45A] transition-colors">more_vert</span>
+              </>
+            )}
+
+            {isCollapsed && (
+              <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none">
+                Meu Perfil
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900 dark:border-r-white"></div>
+              </div>
+            )}
           </button>
         </div>
 
-        {/* Modal de Perfil - Os "Três Botões" solicitados */}
+
+        {/* Modals reused from original */}
         <Modal
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
@@ -490,6 +576,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Modals code kept practically identical to preserve component logic */}
               {[
                 { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agendamentos e Clientes', icon: 'bolt', color: 'slate' },
                 { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },

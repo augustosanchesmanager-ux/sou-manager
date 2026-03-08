@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
+import { portalApi } from '../../services/portalApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { ChevronLeft, Scissors, User, Calendar as CalendarIcon, Clock, CheckCircle } from 'lucide-react';
 
@@ -53,6 +54,8 @@ const PortalSchedule: React.FC = () => {
     const loadInitialData = async () => {
         setLoading(true);
         try {
+            if (!token || !client) throw new Error('Sessão inválida');
+
             // 1. Get tenant
             const { data: tenantData } = await supabase
                 .from('tenants')
@@ -61,6 +64,10 @@ const PortalSchedule: React.FC = () => {
                 .single();
 
             if (!tenantData) throw new Error('Tenant não encontrado');
+            if (authTenantId && authTenantId !== tenantData.id) throw new Error('Sessão inválida para este tenant');
+
+            const validation = await portalApi.validateSession(tenantData.id, client.id, token);
+            if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
             // 2. Addons limits
             const { data: addon } = await supabase
@@ -144,6 +151,10 @@ const PortalSchedule: React.FC = () => {
         setSubmitting(true);
 
         try {
+            if (!token) throw new Error('Sessão inválida');
+            const validation = await portalApi.validateSession(tenant.id, client.id, token);
+            if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
+
             const start = new Date(selectedSlot.datetime);
             const end = addMinutes(start, selectedService.duration_minutes);
 

@@ -35,12 +35,21 @@ const Team: React.FC = () => {
     const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
 
     const fetchTeam = useCallback(async () => {
+        if (!tenantId) {
+            setTeam([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
-        const { data, error } = await supabase.from('staff').select('*').order('name');
+        const { data, error } = await supabase
+            .from('staff')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('name');
         if (data) setTeam(data);
         if (error) setToast({ message: 'Erro ao carregar equipe.', type: 'error' });
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
@@ -80,10 +89,23 @@ const Team: React.FC = () => {
 
         if (editingMember) {
             // UPDATE: Do NOT send tenant_id — it should never change and sending null breaks RLS
-            const { error } = await supabase.from('staff').update(editableFields).eq('id', editingMember.id);
+            if (!tenantId) {
+                setToast({ message: 'Tenant inválido para atualizar colaborador.', type: 'error' });
+                return;
+            }
+            const { error } = await supabase
+                .from('staff')
+                .update(editableFields)
+                .eq('id', editingMember.id)
+                .eq('tenant_id', tenantId);
             if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message}`, type: 'error' }); return; }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
+            if (!tenantId) {
+                setToast({ message: 'Tenant inválido para criar colaborador.', type: 'error' });
+                return;
+            }
+
             // Check for password
             if (!form.password || form.password.length < 6) {
                 setToast({ message: 'A senha inicial deve ter pelo menos 6 caracteres.', type: 'error' });
@@ -145,10 +167,14 @@ const Team: React.FC = () => {
 
             // After creation, optionally update the extra operational details on the staff table that the function didn't set
             if (edgeData?.user?.id) {
-                await supabase.from('staff').update({
-                    phone: form.phone,
-                    commission_rate: editableFields.commission_rate
-                }).eq('id', edgeData.user.id);
+                await supabase
+                    .from('staff')
+                    .update({
+                        phone: form.phone,
+                        commission_rate: editableFields.commission_rate
+                    })
+                    .eq('id', edgeData.user.id)
+                    .eq('tenant_id', tenantId);
             }
 
             setToast({ message: 'Login cadastrado com sucesso!', type: 'success' });
@@ -160,7 +186,15 @@ const Team: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('staff').delete().eq('id', id);
+        if (!tenantId) {
+            setToast({ message: 'Tenant inválido para remover colaborador.', type: 'error' });
+            return;
+        }
+        const { error } = await supabase
+            .from('staff')
+            .delete()
+            .eq('id', id)
+            .eq('tenant_id', tenantId);
         if (error) {
             console.error('DELETE ERROR:', JSON.stringify(error));
             setToast({ message: `Erro ao deletar: ${error.message} (${error.code})`, type: 'error' });
