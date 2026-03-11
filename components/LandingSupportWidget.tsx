@@ -114,7 +114,7 @@ const LandingSupportWidget: React.FC = () => {
         <>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`fixed bottom-6 right-6 z-50 size-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 ${isOpen
+                className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 size-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 ${isOpen
                     ? 'bg-slate-700 hover:bg-slate-600'
                     : 'bg-primary hover:bg-primary-light shadow-primary/40'
                     }`}
@@ -127,7 +127,7 @@ const LandingSupportWidget: React.FC = () => {
                 )}
             </button>
 
-            <div className={`fixed bottom-24 right-6 z-50 w-[350px] max-h-[500px] rounded-2xl overflow-hidden flex flex-col shadow-2xl shadow-black/60 border border-[#2E2720] transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-90 opacity-0 pointer-events-none'
+            <div className={`fixed bottom-20 inset-x-3 sm:bottom-24 sm:inset-x-auto sm:right-6 z-50 w-auto sm:w-[350px] max-h-[500px] rounded-2xl overflow-hidden flex flex-col shadow-2xl shadow-black/60 border border-[#2E2720] transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-90 opacity-0 pointer-events-none'
                 }`}>
                 <div className="bg-[#1C1814] px-5 py-4 flex items-center gap-3 border-b border-[#2E2720]">
                     <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center">

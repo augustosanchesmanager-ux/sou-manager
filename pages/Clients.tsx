@@ -362,19 +362,19 @@ const Clients: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Clientes</h2>
                     <p className="text-slate-500 text-sm">{clients.length} cliente(s) cadastrado(s)</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-3 w-full md:w-auto">
+                    <button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
                         <span className="material-symbols-outlined text-sm">upload_file</span>
                         Importar CSV
                     </button>
                     <input type="file" ref={fileInputRef} accept=".csv" className="hidden" title="Arquivo CSV" onChange={handleFileUpload} />
-                    <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+                    <button onClick={handleExportCSV} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
                         <span className="material-symbols-outlined text-sm">download</span>
                         Exportar Base
                     </button>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all"
                     >
                         <span className="material-symbols-outlined text-lg">person_add</span>
                         Novo Cliente
@@ -415,7 +415,10 @@ const Clients: React.FC = () => {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <div className="sm:hidden px-4 py-2 border-b border-slate-100 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                            Deslize para ver mais colunas
+                        </div>
+                        <table className="w-full min-w-[760px]">
                             <thead className="bg-slate-50 dark:bg-white/5">
                                 <tr className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
                                     <th className="px-5 py-3">
@@ -485,7 +488,7 @@ const Clients: React.FC = () => {
                                             <div className="flex items-center justify-end gap-1">
                                                 <button
                                                     onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
-                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                    className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
                                                     title="Virar Assinante"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">workspace_premium</span>
@@ -505,13 +508,13 @@ const Clients: React.FC = () => {
                                                             credits: (sub.credits as any)?.[0]?.available_credits || 0
                                                         });
                                                     }
-                                                }} className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
+                                                }} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
                                                     <span className="material-symbols-outlined text-lg">visibility</span>
                                                 </button>
-                                                <button onClick={() => handleEditClick(client)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors" title="Editar">
+                                                <button onClick={() => handleEditClick(client)} className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors" title="Editar">
                                                     <span className="material-symbols-outlined text-lg">edit</span>
                                                 </button>
-                                                <button onClick={() => setDeleteTarget(client)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Excluir">
+                                                <button onClick={() => setDeleteTarget(client)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Excluir">
                                                     <span className="material-symbols-outlined text-lg">delete</span>
                                                 </button>
                                             </div>

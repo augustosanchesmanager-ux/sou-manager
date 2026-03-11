@@ -406,7 +406,7 @@ const Orders: React.FC = () => {
                             </div>
 
                             {/* SUPPLIER INFO */}
-                            <div className="grid grid-cols-2 gap-12 mb-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 mb-10">
                                 <div>
                                     <p className="text-[10px] font-black uppercase text-slate-400 mb-2 border-b border-slate-100 pb-1">Para (Fornecedor)</p>
                                     <p className="text-base font-black text-slate-900">{selectedOrder.suppliers?.name}</p>
@@ -424,8 +424,8 @@ const Orders: React.FC = () => {
                             </div>
 
                             {/* ITEM TABLE */}
-                            <div className="mb-10">
-                                <table className="w-full border-collapse">
+                            <div className="mb-10 overflow-x-auto">
+                                <table className="w-full min-w-[640px] border-collapse">
                                     <thead>
                                         <tr className="bg-slate-100 border-y-2 border-slate-900">
                                             <th className="px-4 py-3 text-left text-[10px] font-black uppercase">Ref</th>

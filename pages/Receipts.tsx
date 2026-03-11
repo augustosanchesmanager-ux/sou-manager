@@ -115,7 +115,7 @@ const Receipts: React.FC = () => {
                     <p className="text-slate-500 mt-1">Emissão, controle e impressão de recibos da barbearia.</p>
                 </div>
                 <button
-                    className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 transition-all"
+                    className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
                 >
                     <span className="material-symbols-outlined">receipt_long</span>
                     + EMITIR NOVO RECIBO
@@ -208,8 +208,11 @@ const Receipts: React.FC = () => {
 
             {/* Table */}
             <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+                <div className="sm:hidden px-4 py-2 border-b border-slate-100 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Deslize para ver toda a tabela
+                </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full min-w-[920px] text-left border-collapse">
                         <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
                             <tr>
                                 <th className="px-6 py-5 text-[11px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Nº do Recibo</th>
@@ -244,7 +247,7 @@ const Receipts: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <p className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[150px]">{receipt.name}</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px] sm:max-w-[150px]">{receipt.name}</p>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
                                         <div className="flex items-center gap-1.5">
@@ -272,17 +275,17 @@ const Receipts: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <button onClick={() => openViewModal(receipt)} className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors" title="Visualizar">
+                                        <div className="flex items-center justify-end gap-0.5 sm:gap-1">
+                                            <button onClick={() => openViewModal(receipt)} className="p-1.5 sm:p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors" title="Visualizar">
                                                 <span className="material-symbols-outlined text-[20px]">visibility</span>
                                             </button>
-                                            <button className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors" title="Imprimir">
+                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors" title="Imprimir">
                                                 <span className="material-symbols-outlined text-[20px]">print</span>
                                             </button>
-                                            <button className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 rounded-lg transition-colors" title="Baixar PDF">
+                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 rounded-lg transition-colors" title="Baixar PDF">
                                                 <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
                                             </button>
-                                            <button className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 dark:hover:text-amber-400 rounded-lg transition-colors" title="Reemitir">
+                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 dark:hover:text-amber-400 rounded-lg transition-colors" title="Reemitir">
                                                 <span className="material-symbols-outlined text-[20px]">cached</span>
                                             </button>
                                         </div>

@@ -702,7 +702,7 @@ const Schedule: React.FC = () => {
           >
             <span className="material-symbols-outlined">chevron_left</span>
           </button>
-          <div className="flex items-center gap-2 px-2 text-slate-900 dark:text-white font-bold min-w-[220px] justify-center">
+          <div className="flex items-center gap-2 px-2 text-slate-900 dark:text-white font-bold min-w-0 justify-center">
             <span className="material-symbols-outlined text-primary">calendar_month</span>
             <span className="text-sm">
               {viewMode === 'week'
@@ -1356,7 +1356,7 @@ const Schedule: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark text-center">
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
                   <p className="text-sm font-black text-slate-900 dark:text-white">

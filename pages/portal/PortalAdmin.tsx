@@ -125,20 +125,20 @@ const PortalAdmin: React.FC = () => {
             )}
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shrink-0">
+                <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-5 flex items-center justify-between shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Portal do Cliente</h1>
                         <p className="text-sm text-slate-500 mt-1">Gerencie seu aplicativo web para clientes</p>
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-8">
+                <main className="flex-1 overflow-y-auto p-4 sm:p-8">
                     {loading ? (
                         <div className="flex items-center justify-center h-full">
                             <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
                         </div>
                     ) : !isEnabled ? (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-8 max-w-2xl text-center shadow-sm mx-auto mt-12">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-2xl text-center shadow-sm mx-auto mt-12">
                             <div className="w-16 h-16 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                 <Smartphone size={28} className="text-indigo-600" />
                             </div>
@@ -157,28 +157,30 @@ const PortalAdmin: React.FC = () => {
                         <div className="max-w-4xl mx-auto flex flex-col gap-6">
 
                             {/* Tabs */}
-                            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+                            <div className="-mx-1 overflow-x-auto">
+                                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl min-w-max">
                                 <button
                                     onClick={() => setActiveTab('overview')}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'overview' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${activeTab === 'overview' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     <BarChart2 size={16} /> Visão Geral
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('link')}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'link' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${activeTab === 'link' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     <LinkIcon size={16} /> Compartilhamento
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('settings')}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'settings' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${activeTab === 'settings' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     <Settings size={16} /> Configurações
                                 </button>
+                            </div>
                             </div>
 
                             {/* Content Overview */}
@@ -208,7 +210,7 @@ const PortalAdmin: React.FC = () => {
                                     <h3 className="text-lg font-bold text-slate-800 mb-2">Link do seu Portal</h3>
                                     <p className="text-sm text-slate-500 mb-6">Coloque este link na bio do Instagram ou envie pelo WhatsApp.</p>
 
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                         <input
                                             readOnly
                                             value={portalLink}
@@ -216,7 +218,7 @@ const PortalAdmin: React.FC = () => {
                                         />
                                         <button
                                             onClick={handleCopy}
-                                            className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-colors border border-indigo-100"
+                                            className="w-full sm:w-auto bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors border border-indigo-100"
                                         >
                                             {copied ? <><Check size={18} /> Copiado</> : <><Copy size={18} /> Copiar</>}
                                         </button>

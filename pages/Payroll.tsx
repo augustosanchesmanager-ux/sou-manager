@@ -250,8 +250,11 @@ const Payroll: React.FC = () => {
 
             {/* Tabela de Folha */}
             <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+                <div className="sm:hidden px-4 py-2 border-b border-slate-100 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Deslize para ver toda a folha
+                </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full min-w-[940px] text-left border-collapse">
                         <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
                             <tr>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Profissional</th>
@@ -312,7 +315,8 @@ const Payroll: React.FC = () => {
                                                 onClick={() => openPaymentModal(record)}
                                                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-xs font-bold rounded-lg transition-colors shadow-md"
                                             >
-                                                PAGAR E RECIBO
+                                                <span className="sm:hidden">PAGAR</span>
+                                                <span className="hidden sm:inline">PAGAR E RECIBO</span>
                                             </button>
                                         ) : (
                                             <button className="px-4 py-2 bg-slate-100 dark:bg-white/5 text-slate-400 text-xs font-bold rounded-lg cursor-not-allowed">

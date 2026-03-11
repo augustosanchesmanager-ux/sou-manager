@@ -82,8 +82,8 @@ const ShopSetup: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="col-span-2 space-y-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="col-span-1 sm:col-span-2 space-y-1.5">
                                     <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Rua</label>
                                     <input type="text" placeholder="Rua..." className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium" />
                                 </div>

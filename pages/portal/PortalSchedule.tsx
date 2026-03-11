@@ -354,7 +354,7 @@ const PortalSchedule: React.FC = () => {
                                     <p className={`text-xs mt-1 ${t.textSub}`}>Tente selecionar outro dia ou profissional.</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {slots.map((slot, i) => {
                                         const isSelected = selectedSlot?.datetime === slot.datetime;
                                         return (
