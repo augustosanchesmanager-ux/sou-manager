@@ -28,6 +28,16 @@ interface Comanda {
     }[];
 }
 
+const CANCEL_REASON_OTHER = '__other__';
+const CANCEL_REASON_OPTIONS = [
+    'Cliente desistiu',
+    'Cliente não compareceu',
+    'Erro no lançamento',
+    'Pagamento recusado',
+    'Solicitação do profissional',
+    'Falta de produto/serviço'
+] as const;
+
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { tenantId, canAccessSuperAdmin } = useAuth();
@@ -42,6 +52,7 @@ const Comandas: React.FC = () => {
     const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
+    const [cancelReasonOther, setCancelReasonOther] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
@@ -180,7 +191,7 @@ const Comandas: React.FC = () => {
 
     const handleDelete = async (comanda: Comanda) => {
         if (!tenantId && !canAccessSuperAdmin) return;
-        const reason = cancelReason.trim();
+        const reason = cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim();
         if (!reason) {
             setToast({ message: 'Informe o motivo do cancelamento.', type: 'error' });
             return;
@@ -224,6 +235,7 @@ const Comandas: React.FC = () => {
             }
             setDeleteComanda(null);
             setCancelReason('');
+            setCancelReasonOther('');
             fetchData();
         } catch (err: any) {
             console.error(err);
@@ -368,6 +380,7 @@ const Comandas: React.FC = () => {
                                                         onClick={() => {
                                                             setDeleteComanda(comanda);
                                                             setCancelReason('');
+                                                            setCancelReasonOther('');
                                                         }}
                                                         className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-max transition-colors"
                                                         title="Cancelar Comanda"
@@ -501,6 +514,7 @@ const Comandas: React.FC = () => {
                 onClose={() => {
                     setDeleteComanda(null);
                     setCancelReason('');
+                    setCancelReasonOther('');
                 }}
                 title="Cancelar Comanda"
                 maxWidth="sm"
@@ -521,19 +535,35 @@ const Comandas: React.FC = () => {
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                                 Motivo do cancelamento
                             </label>
-                            <textarea
+                            <select
                                 value={cancelReason}
                                 onChange={(e) => setCancelReason(e.target.value)}
-                                rows={3}
-                                placeholder="Descreva o motivo..."
-                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none resize-none"
-                            />
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="">Selecione um motivo</option>
+                                {CANCEL_REASON_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                                <option value={CANCEL_REASON_OTHER}>Outros</option>
+                            </select>
+                            {cancelReason === CANCEL_REASON_OTHER && (
+                                <textarea
+                                    value={cancelReasonOther}
+                                    onChange={(e) => setCancelReasonOther(e.target.value)}
+                                    rows={3}
+                                    placeholder="Descreva o motivo..."
+                                    className="mt-3 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none resize-none"
+                                />
+                            )}
                         </div>
                         <div className="flex gap-3 pt-2">
                             <button
                                 onClick={() => {
                                     setDeleteComanda(null);
                                     setCancelReason('');
+                                    setCancelReasonOther('');
                                 }}
                                 className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                                 disabled={deleting}
@@ -542,7 +572,7 @@ const Comandas: React.FC = () => {
                             </button>
                             <button
                                 onClick={() => handleDelete(deleteComanda)}
-                                disabled={deleting || !cancelReason.trim()}
+                                disabled={deleting || !(cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim())}
                                 className="flex-1 py-3 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <span className="material-symbols-outlined text-sm">{deleting ? 'hourglass_empty' : 'delete'}</span>
