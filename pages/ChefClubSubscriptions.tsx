@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
@@ -16,6 +17,8 @@ interface Subscription {
 
 const ChefClubSubscriptions: React.FC = () => {
     const { tenantId } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -58,6 +61,14 @@ const ChefClubSubscriptions: React.FC = () => {
         if (tenantId) fetchSubscriptions();
     }, [tenantId]);
 
+    useEffect(() => {
+        const stateToast = (location.state as any)?.toast;
+        if (stateToast?.message) {
+            setToast(stateToast);
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location, navigate]);
+
     const filtered = subscriptions.filter(s => {
         const matchesSearch = s.client.name.toLowerCase().includes(search.toLowerCase()) || s.client.phone.includes(search);
         const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
@@ -96,6 +107,13 @@ const ChefClubSubscriptions: React.FC = () => {
                         <p className="text-slate-500 text-sm font-medium">Controle de membros e saldo de créditos</p>
                     </div>
                 </div>
+                <button
+                    onClick={() => navigate('/chef-club-subscriptions/new?from=subscriptions')}
+                    className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-primary/20 transition-all"
+                >
+                    <span className="material-symbols-outlined">person_add</span>
+                    Novo Assinante
+                </button>
             </div>
 
             {/* Filters */}

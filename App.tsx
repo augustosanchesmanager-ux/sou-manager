@@ -29,6 +29,8 @@ import RegisterSuccess from './pages/RegisterSuccess';
 import Settings from './pages/Settings';
 import Support from './pages/Support';
 import Products from './pages/Products';
+import Categories from './pages/Categories';
+import Suppliers from './pages/Suppliers';
 import SuperAdmin from './pages/SuperAdmin';
 import Promotions from './pages/Promotions';
 import BusinessIntelligence from './pages/BusinessIntelligence';
@@ -45,6 +47,7 @@ import PortalSchedule from './pages/portal/PortalSchedule';
 import PortalAdmin from './pages/portal/PortalAdmin';
 import ChefClubPlans from './pages/ChefClubPlans';
 import ChefClubSubscriptions from './pages/ChefClubSubscriptions';
+import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -154,6 +157,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
           <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
+          <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
@@ -167,6 +171,8 @@ const AppRoutes: React.FC = () => {
           <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
           <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
           <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
+          <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
+          <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
           <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
           <Route path="/superadmin" element={<SuperAdminRoute><SuperAdmin /></SuperAdminRoute>} />
         </Route>

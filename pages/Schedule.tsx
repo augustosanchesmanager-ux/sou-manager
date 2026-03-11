@@ -1146,6 +1146,9 @@ const Schedule: React.FC = () => {
                     Membro Clube do Chefe
                   </label>
                   <p className="text-xs font-bold text-slate-700 dark:text-amber-200">Plano {chefClubInfo.planName}</p>
+                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">
+                    {chefClubInfo.status === 'active' ? 'Membro ativo' : 'Assinatura pendente'}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black text-amber-600 uppercase">Créditos</p>

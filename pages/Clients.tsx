@@ -57,6 +57,7 @@ const Clients: React.FC = () => {
 
     // Delete Confirmation
     const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Detail View
     const [detailClient, setDetailClient] = useState<Client | null>(null);
@@ -183,15 +184,62 @@ const Clients: React.FC = () => {
 
     const handleDelete = async () => {
         if (!deleteTarget || !tenantId) return;
-        const { error } = await supabase
-            .from('clients')
-            .delete()
-            .eq('id', deleteTarget.id)
-            .eq('tenant_id', tenantId);
-        if (error) { setToast({ message: 'Erro ao excluir.', type: 'error' }); return; }
-        setDeleteTarget(null);
-        setToast({ message: 'Cliente excluído.', type: 'info' });
-        fetchClients();
+        setDeleting(true);
+
+        const clientId = deleteTarget.id;
+        const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
+
+        const cleanupByClientId = async (table: string) => {
+            const { error } = await supabase.from(table).delete().eq('client_id', clientId);
+            if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
+                console.warn(`Falha ao limpar dependencias em ${table}:`, error);
+            }
+        };
+
+        try {
+            const { data: clientComandas, error: comandasReadError } = await supabase
+                .from('comandas')
+                .select('id')
+                .eq('client_id', clientId);
+
+            if (!comandasReadError && clientComandas && clientComandas.length > 0) {
+                const comandaIds = clientComandas.map((c: { id: string }) => c.id);
+                const { error: itemsError } = await supabase
+                    .from('comanda_items')
+                    .delete()
+                    .in('comanda_id', comandaIds);
+                if (itemsError && !ignoredCleanupErrorCodes.has(String(itemsError.code || ''))) {
+                    console.warn('Falha ao limpar comanda_items:', itemsError);
+                }
+            }
+
+            await cleanupByClientId('appointments');
+            await cleanupByClientId('portal_sessions');
+            await cleanupByClientId('feedback_barber');
+            await cleanupByClientId('feedback_shop');
+            await cleanupByClientId('kiosk_sessions');
+            await cleanupByClientId('customer_credits');
+            await cleanupByClientId('customer_subscriptions');
+            await cleanupByClientId('comandas');
+
+            const { error } = await supabase
+                .from('clients')
+                .delete()
+                .eq('id', clientId)
+                .eq('tenant_id', tenantId);
+
+            if (error) {
+                console.error('DELETE CLIENT ERROR:', JSON.stringify(error));
+                setToast({ message: `Erro ao excluir: ${error.message} (${error.code || 'sem-codigo'})`, type: 'error' });
+                return;
+            }
+
+            setDeleteTarget(null);
+            setToast({ message: 'Cliente excluído.', type: 'info' });
+            fetchClients();
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const formatDate = (d: string) => {
@@ -435,6 +483,13 @@ const Clients: React.FC = () => {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
+                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                    title="Virar Assinante"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">workspace_premium</span>
+                                                </button>
                                                 <button onClick={async () => {
                                                     setDetailClient(client);
                                                     setDetailChefClub(null);
@@ -650,8 +705,20 @@ const Clients: React.FC = () => {
                         </div>
                         <p className="text-sm text-slate-500 mb-6">Tem certeza que deseja excluir <strong>{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
                         <div className="flex gap-3">
-                            <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
-                            <button onClick={handleDelete} className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">Excluir</button>
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={deleting}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors disabled:opacity-60"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deleting}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60"
+                            >
+                                {deleting ? 'Excluindo...' : 'Excluir'}
+                            </button>
                         </div>
                     </div>
                 )}

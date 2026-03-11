@@ -156,6 +156,7 @@ const Checkout: React.FC = () => {
     const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const discountValue = parseFloat(discount) || 0;
     const total = Math.max(0, subtotal - discountValue);
+    const appliedCreditsCount = cart.filter(item => item.usedCredit).length;
 
     // Duplicate client check
     const handleSelectClient = async (client: Client) => {
@@ -243,17 +244,26 @@ const Checkout: React.FC = () => {
 
     const handleAddItem = (item: any, type: 'service' | 'product') => {
         const finalPrice = calculateItemPrice(item, type);
+        const canSuggestCredit = type === 'service' && !!chefClubInfo;
+        const hasCreditsAvailable = canSuggestCredit && appliedCreditsCount < (chefClubInfo?.credits || 0);
+        const shouldUseCredit = !!(hasCreditsAvailable && window.confirm('Cliente assinante detectado. Aplicar 1 crédito neste serviço agora?'));
+
         const newItem: CartItem = {
             id: Math.random().toString(36).substr(2, 9),
             type,
             name: item.name || 'Item sem nome',
-            price: finalPrice,
+            price: shouldUseCredit ? 0 : finalPrice,
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
             staff_id: staff.length > 0 ? staff[0].id : '',
-            usedCredit: false
+            usedCredit: shouldUseCredit
         };
+
+        if (shouldUseCredit) {
+            setToast({ message: 'Crédito aplicado automaticamente neste item. Você pode ajustar manualmente se quiser.', type: 'info' });
+        }
+
         setCart([...cart, newItem]);
         setSearchTerm('');
         setIsItemModalOpen(false);
@@ -551,6 +561,11 @@ const Checkout: React.FC = () => {
                                                     <button
                                                         onClick={() => {
                                                             const isUsed = !(item as any).usedCredit;
+                                                            const currentUsed = cart.filter(c => c.usedCredit).length;
+                                                            if (isUsed && currentUsed >= chefClubInfo.credits) {
+                                                                setToast({ message: 'Sem créditos suficientes para aplicar em mais serviços.', type: 'error' });
+                                                                return;
+                                                            }
                                                             setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
                                                         }}
                                                         className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
@@ -589,6 +604,7 @@ const Checkout: React.FC = () => {
                                 <div>
                                     <p className="text-xs font-black text-amber-600 uppercase">Clube do Chefe - {chefClubInfo.planName}</p>
                                     <p className="text-[10px] text-slate-500 font-bold">Cliente possui créditos disponíveis para resgate.</p>
+                                    <p className="text-[10px] text-amber-700 font-black">Aplicados nesta comanda: {appliedCreditsCount}</p>
                                 </div>
                             </div>
                             <div className="text-right">
