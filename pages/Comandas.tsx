@@ -10,6 +10,7 @@ interface Comanda {
     client_id: string;
     appointment_id?: string;
     status: 'open' | 'paid' | 'cancelled';
+    cancellation_reason?: string | null;
     total: number;
     created_at: string;
     clients: {
@@ -29,7 +30,7 @@ interface Comanda {
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
+    const { tenantId, canAccessSuperAdmin } = useAuth();
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>('all');
@@ -40,9 +41,7 @@ const Comandas: React.FC = () => {
     const [viewComanda, setViewComanda] = useState<Comanda | null>(null);
     const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
     const [deleting, setDeleting] = useState(false);
-
-    // Role check
-    const isManager = canAccessSuperAdmin || accessRole === 'manager';
+    const [cancelReason, setCancelReason] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
@@ -181,36 +180,54 @@ const Comandas: React.FC = () => {
 
     const handleDelete = async (comanda: Comanda) => {
         if (!tenantId && !canAccessSuperAdmin) return;
+        const reason = cancelReason.trim();
+        if (!reason) {
+            setToast({ message: 'Informe o motivo do cancelamento.', type: 'error' });
+            return;
+        }
+
         setDeleting(true);
         try {
-            // First delete comanda_items
-            let deleteItemsQuery = supabase
-                .from('comanda_items')
-                .delete()
-                .eq('comanda_id', comanda.id);
-            if (!canAccessSuperAdmin) {
-                deleteItemsQuery = deleteItemsQuery.eq('tenant_id', tenantId);
-            }
-            const { error: itemsError } = await deleteItemsQuery;
-            if (itemsError) throw itemsError;
-
-            // Then delete the comanda
-            let deleteComandaQuery = supabase
+            let usedFallback = false;
+            let cancelComandaQuery = supabase
                 .from('comandas')
-                .delete()
+                .update({
+                    status: 'cancelled',
+                    cancellation_reason: reason
+                })
                 .eq('id', comanda.id);
             if (!canAccessSuperAdmin) {
-                deleteComandaQuery = deleteComandaQuery.eq('tenant_id', tenantId);
+                cancelComandaQuery = cancelComandaQuery.eq('tenant_id', tenantId);
             }
-            const { error } = await deleteComandaQuery;
+            let { error } = await cancelComandaQuery;
+
+            if (error && `${error.message}`.toLowerCase().includes('cancellation_reason')) {
+                let fallbackQuery = supabase
+                    .from('comandas')
+                    .update({ status: 'cancelled' })
+                    .eq('id', comanda.id);
+                if (!canAccessSuperAdmin) {
+                    fallbackQuery = fallbackQuery.eq('tenant_id', tenantId);
+                }
+                const fallbackResult = await fallbackQuery;
+                error = fallbackResult.error;
+                if (!error) {
+                    usedFallback = true;
+                    setToast({ message: 'Comanda cancelada. Motivo não foi salvo (coluna não encontrada no banco).', type: 'info' });
+                }
+            }
+
             if (error) throw error;
 
-            setToast({ message: 'Comanda excluída com sucesso.', type: 'success' });
+            if (!usedFallback) {
+                setToast({ message: 'Comanda cancelada com sucesso.', type: 'success' });
+            }
             setDeleteComanda(null);
+            setCancelReason('');
             fetchData();
         } catch (err: any) {
             console.error(err);
-            setToast({ message: `Erro ao excluir comanda: ${err.message}`, type: 'error' });
+            setToast({ message: `Erro ao cancelar comanda: ${err.message}`, type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -346,8 +363,15 @@ const Comandas: React.FC = () => {
                                                 <button onClick={() => handlePrint(comanda)} className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 rounded-max transition-colors" title="Imprimir">
                                                     <span className="material-symbols-outlined text-[18px]">print</span>
                                                 </button>
-                                                {isManager && (
-                                                    <button onClick={() => setDeleteComanda(comanda)} className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-max transition-colors" title="Excluir">
+                                                {comanda.status === 'open' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setDeleteComanda(comanda);
+                                                            setCancelReason('');
+                                                        }}
+                                                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-max transition-colors"
+                                                        title="Cancelar Comanda"
+                                                    >
                                                         <span className="material-symbols-outlined text-[18px]">delete</span>
                                                     </button>
                                                 )}
@@ -471,11 +495,14 @@ const Comandas: React.FC = () => {
                 )}
             </Modal>
 
-            {/* === DELETE CONFIRMATION MODAL === */}
+            {/* === CANCEL COMANDA MODAL === */}
             <Modal
                 isOpen={!!deleteComanda}
-                onClose={() => setDeleteComanda(null)}
-                title="Excluir Comanda"
+                onClose={() => {
+                    setDeleteComanda(null);
+                    setCancelReason('');
+                }}
+                title="Cancelar Comanda"
                 maxWidth="sm"
             >
                 {deleteComanda && (
@@ -484,27 +511,42 @@ const Comandas: React.FC = () => {
                             <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
                             <div>
                                 <p className="text-sm font-bold text-red-700 dark:text-red-400">Atenção!</p>
-                                <p className="text-xs text-red-600 dark:text-red-300">Esta ação não pode ser desfeita.</p>
+                                <p className="text-xs text-red-600 dark:text-red-300">A comanda será marcada como cancelada.</p>
                             </div>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Deseja realmente excluir a comanda <strong className="text-slate-900 dark:text-white">#{getDisplayId(deleteComanda.id)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
+                            Deseja realmente cancelar a comanda <strong className="text-slate-900 dark:text-white">#{getDisplayId(deleteComanda.id)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
                         </p>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                Motivo do cancelamento
+                            </label>
+                            <textarea
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                rows={3}
+                                placeholder="Descreva o motivo..."
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none resize-none"
+                            />
+                        </div>
                         <div className="flex gap-3 pt-2">
                             <button
-                                onClick={() => setDeleteComanda(null)}
+                                onClick={() => {
+                                    setDeleteComanda(null);
+                                    setCancelReason('');
+                                }}
                                 className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                                 disabled={deleting}
                             >
-                                Cancelar
+                                Voltar
                             </button>
                             <button
                                 onClick={() => handleDelete(deleteComanda)}
-                                disabled={deleting}
+                                disabled={deleting || !cancelReason.trim()}
                                 className="flex-1 py-3 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <span className="material-symbols-outlined text-sm">{deleting ? 'hourglass_empty' : 'delete'}</span>
-                                {deleting ? 'Excluindo...' : 'Excluir'}
+                                {deleting ? 'Cancelando...' : 'Confirmar Cancelamento'}
                             </button>
                         </div>
                     </div>
