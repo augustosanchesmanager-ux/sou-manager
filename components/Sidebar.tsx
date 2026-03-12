@@ -38,6 +38,7 @@ interface MenuCategory {
   title: string;
   icon: string;
   items: MenuItem[];
+  compact?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse }) => {
@@ -55,8 +56,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     {
       title: 'DASHBOARD',
       icon: 'dashboard',
+      compact: true,
       items: [
-        { name: 'Dashboard', icon: 'dashboard', path: '/dashboard' } // Usando Visão Operacional como Dashboard base
+        { name: 'Inicio', icon: 'dashboard', path: '/dashboard' }
       ]
     },
     {
@@ -285,6 +287,39 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         <nav className="flex-1 px-3 py-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {filteredCategories.map((category, idx) => (
             <div key={idx} className="flex flex-col gap-1">
+              {category.compact ? (
+                category.items.map((item) => {
+                  const isCompactActive = item.path ? isActive(item.path) : false;
+                  return (
+                    <div key={item.path || item.name} className="relative group/menuitem">
+                      <Link
+                        to={item.path!}
+                        onClick={onClose}
+                        className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
+                          ${isCompactActive
+                            ? 'bg-primary/5 dark:bg-[#181A1F] text-primary dark:text-[#F5F5F5]'
+                            : 'text-slate-600 dark:text-[#A7AFB7] hover:bg-slate-50 dark:hover:bg-[#181A1F] hover:text-slate-900 dark:hover:text-[#F5F5F5]'}
+                          ${isCollapsed ? 'justify-center' : 'justify-start'}
+                        `}
+                      >
+                        {isCompactActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary dark:bg-[#C6A45A] rounded-r-full shadow-[2px_0_8px_rgba(198,164,90,0.5)]" />}
+                        <div className="flex items-center gap-3">
+                          <span className={`material-symbols-outlined text-[20px] ${isCompactActive ? 'text-primary dark:text-[#C6A45A]' : ''} transition-colors duration-300`}>{item.icon}</span>
+                          {!isCollapsed && <span className={`text-sm tracking-tight transition-all duration-300 ${isCompactActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
+                        </div>
+                      </Link>
+
+                      {isCollapsed && (
+                        <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none">
+                          {item.name}
+                          <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900 dark:border-r-white"></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <>
               {/* Category Title Toggle */}
               <button
                 onClick={() => toggleGroup(category.title)}
@@ -428,6 +463,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                   );
                 })}
               </div>
+                </>
+              )}
             </div>
           ))}
         </nav>
