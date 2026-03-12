@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -22,6 +22,7 @@ const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', Bar
 
 const Team: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { tenantId } = useAuth();
     const [team, setTeam] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
@@ -52,6 +53,13 @@ const Team: React.FC = () => {
     }, [tenantId]);
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
+
+    useEffect(() => {
+        const shouldOpenNew = Boolean((location.state as { openNewTeamMember?: boolean } | null)?.openNewTeamMember);
+        if (!shouldOpenNew) return;
+        openNewModal();
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
 
     const filtered = team.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
 

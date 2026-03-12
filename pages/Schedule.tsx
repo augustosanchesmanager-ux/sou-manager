@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 
 
@@ -65,6 +66,7 @@ const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbei
 
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tenantId } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -124,6 +126,17 @@ const Schedule: React.FC = () => {
     start: 8,
     duration: 1
   });
+
+  useEffect(() => {
+    const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
+    if (!shouldOpenNew) return;
+
+    setEditingAppointmentId(null);
+    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1 }));
+    setIsModalOpen(true);
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   // Client Autocomplete State
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
@@ -1253,8 +1266,7 @@ const Schedule: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
-            <input
-              type="date"
+            <DatePickerInput
               value={formData.date}
               onChange={(e) => handleInputChange('date', e.target.value)}
               className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"

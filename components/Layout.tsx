@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Logo from './Logo';
 import ThemeToggle from './ThemeToggle';
@@ -7,10 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
 import Modal from './ui/Modal';
 import SupportWidget from './SupportWidget';
+import MobileBottomNav, { isMobileBottomNavRoute } from './MobileBottomNav';
 import { supabase } from '../services/supabaseClient';
 
 const Layout: React.FC = () => {
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
@@ -33,14 +36,19 @@ const Layout: React.FC = () => {
 
   const displayName = user?.user_metadata?.shop_name || user?.user_metadata?.first_name || 'Minha Barbearia';
   const displayPlan = user?.user_metadata?.plan ? `Plano ${user.user_metadata.plan.charAt(0).toUpperCase() + user.user_metadata.plan.slice(1)}` : 'Plano Free';
+  const showMobileBottomNav = isMobileBottomNavRoute(location.pathname);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display transition-colors duration-300">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+    <div className="flex h-screen overflow-hidden bg-[#F7F7F5] dark:bg-[#0F0F11] text-slate-900 dark:text-white font-display transition-colors duration-300">
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Top Header */}
-        <header className="h-16 border-b border-slate-200 dark:border-white/5 px-4 sm:px-8 flex items-center justify-between shrink-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
+        <header className="h-16 border-b border-slate-200 dark:border-[#262A33] px-4 sm:px-8 flex items-center justify-between shrink-0 bg-[#F7F7F5]/80 dark:bg-[#0F0F11]/80 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             {/* Mobile Menu Button */}
             <button
@@ -48,6 +56,17 @@ const Layout: React.FC = () => {
               className="lg:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
             >
               <span className="material-symbols-outlined">menu</span>
+            </button>
+
+            {/* Desktop Collapse Button */}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="hidden lg:flex p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+              title={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
+            >
+              <span className="material-symbols-outlined">
+                {isSidebarCollapsed ? 'menu_open' : 'menu'}
+              </span>
             </button>
 
             <div className="relative w-full hidden md:block">
@@ -87,9 +106,11 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content">
+        <div className={`flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content ${showMobileBottomNav ? 'pb-24 md:pb-24 lg:pb-8' : ''}`}>
           <Outlet />
         </div>
+
+        <MobileBottomNav />
 
         {/* Notificações Modal */}
         <Modal
@@ -102,7 +123,7 @@ const Layout: React.FC = () => {
         </Modal>
 
         {/* Widget de Suporte Flutuante */}
-        <SupportWidget />
+        <SupportWidget avoidBottomNav={showMobileBottomNav} />
       </main>
     </div>
   );

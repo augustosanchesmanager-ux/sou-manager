@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import * as Papa from 'papaparse';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 
 interface Client {
@@ -31,6 +32,7 @@ type SortDir = 'asc' | 'desc';
 
 const Clients: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { tenantId } = useAuth();
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,6 +56,13 @@ const Clients: React.FC = () => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [parsedData, setParsedData] = useState<ParsedClient[]>([]);
+
+    useEffect(() => {
+        const shouldOpenNew = Boolean((location.state as { openNewClient?: boolean } | null)?.openNewClient);
+        if (!shouldOpenNew) return;
+        setShowModal(true);
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
 
     // Delete Confirmation
     const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
@@ -631,7 +640,7 @@ const Clients: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
-                        <input type="date" value={editForm.birthday || ''} onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
+                        <DatePickerInput value={editForm.birthday || ''} onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
                     </div>
@@ -681,7 +690,7 @@ const Clients: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
-                        <input type="date" value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
+                        <DatePickerInput value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
                     </div>
@@ -791,8 +800,7 @@ const Clients: React.FC = () => {
                                                 />
                                             </td>
                                             <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
-                                                <input
-                                                    type="date"
+                                                <DatePickerInput
                                                     value={row.birthday}
                                                     onChange={e => {
                                                         const copy = [...parsedData];

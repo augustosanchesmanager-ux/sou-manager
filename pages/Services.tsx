@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,8 @@ interface Service {
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
 
 const Services: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { tenantId } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,13 @@ const Services: React.FC = () => {
   }, [tenantId]);
 
   useEffect(() => { fetchServices(); }, [fetchServices]);
+
+  useEffect(() => {
+    const shouldOpenNew = Boolean((location.state as { openNewService?: boolean } | null)?.openNewService);
+    if (!shouldOpenNew) return;
+    openNewForm();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   const filtered = services.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());

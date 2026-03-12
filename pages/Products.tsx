@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
@@ -18,6 +19,8 @@ interface Product {
 }
 
 const Products: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const { tenantId } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -39,6 +42,14 @@ const Products: React.FC = () => {
     useEffect(() => {
         fetchProducts();
     }, []);
+
+    useEffect(() => {
+        const shouldOpenNew = Boolean((location.state as { openNewProduct?: boolean } | null)?.openNewProduct);
+        if (!shouldOpenNew) return;
+        setEditingProduct(null);
+        setShowModal(true);
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
 
     const fetchProducts = async () => {
         setLoading(true);
