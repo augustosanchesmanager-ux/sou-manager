@@ -19,6 +19,7 @@ interface DBService {
   name: string;
   duration: number;
   buffer?: number;
+  price?: number;
 }
 
 interface DBClient {
@@ -150,13 +151,68 @@ const Schedule: React.FC = () => {
 
     if (staffRes.data) setStaffList(staffRes.data);
 
-    // Se a consulta de serviços falhar (ex: coluna buffer ausente), tenta sem o buffer
+    // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase.from('services').select('id, name, duration, price').eq('tenant_id', tenantId).eq('active', true);
-      if (retryServices.data) setServicesList(retryServices.data);
-    } else if (servicesRes.data) {
+      const retryServices = await supabase
+        .from('services')
+        .select('id, name, duration, price')
+        .eq('tenant_id', tenantId)
+        .neq('active', false)
+        .order('name');
+
+      if (retryServices.data) {
+        setServicesList(retryServices.data);
+      } else {
+        const legacyServices = await supabase
+          .from('services')
+          .select('id, name, duration_minutes, price')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (legacyServices.data) {
+          setServicesList(
+            legacyServices.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration: Number(s.duration_minutes) || 30,
+              price: Number(s.price) || 0,
+            }))
+          );
+        }
+      }
+    } else if (servicesRes.data && servicesRes.data.length > 0) {
       setServicesList(servicesRes.data);
+    } else {
+      const retryServices = await supabase
+        .from('services')
+        .select('id, name, duration, price')
+        .eq('tenant_id', tenantId)
+        .neq('active', false)
+        .order('name');
+
+      if (retryServices.data && retryServices.data.length > 0) {
+        setServicesList(retryServices.data);
+      } else {
+        const legacyServices = await supabase
+          .from('services')
+          .select('id, name, duration_minutes, price')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (legacyServices.data) {
+          setServicesList(
+            legacyServices.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration: Number(s.duration_minutes) || 30,
+              price: Number(s.price) || 0,
+            }))
+          );
+        }
+      }
     }
 
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }

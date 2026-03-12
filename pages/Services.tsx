@@ -31,12 +31,23 @@ const Services: React.FC = () => {
   const [form, setForm] = useState({ name: '', category: 'Cabelo', price: '', duration: '30', active: true });
 
   const fetchServices = useCallback(async () => {
+    if (!tenantId) {
+      setServices([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const { data, error } = await supabase.from('services').select('*').order('name');
+    const { data, error } = await supabase
+      .from('services')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('name');
+
     if (data) setServices(data);
     if (error) setToast({ message: 'Erro ao carregar serviços.', type: 'error' });
     setLoading(false);
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => { fetchServices(); }, [fetchServices]);
 
@@ -77,7 +88,11 @@ const Services: React.FC = () => {
     };
 
     if (editingService) {
-      const { error } = await supabase.from('services').update(payload).eq('id', editingService.id);
+      const { error } = await supabase
+        .from('services')
+        .update(payload)
+        .eq('id', editingService.id)
+        .eq('tenant_id', tenantId);
       if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
       setToast({ message: 'Serviço atualizado!', type: 'success' });
     } else {
@@ -92,7 +107,13 @@ const Services: React.FC = () => {
   };
 
   const handleToggleActive = async (service: Service) => {
-    const { error } = await supabase.from('services').update({ active: !service.active }).eq('id', service.id);
+    if (!tenantId) return;
+
+    const { error } = await supabase
+      .from('services')
+      .update({ active: !service.active })
+      .eq('id', service.id)
+      .eq('tenant_id', tenantId);
     if (!error) {
       setServices(prev => prev.map(s => s.id === service.id ? { ...s, active: !s.active } : s));
       setToast({ message: service.active ? 'Serviço desativado.' : 'Serviço ativado!', type: 'info' });
@@ -100,7 +121,13 @@ const Services: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('services').delete().eq('id', id);
+    if (!tenantId) return;
+
+    const { error } = await supabase
+      .from('services')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
     if (!error) {
       setToast({ message: 'Serviço excluído.', type: 'info' });
       fetchServices();

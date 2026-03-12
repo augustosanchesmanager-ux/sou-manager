@@ -88,6 +88,8 @@ interface DBService {
   id: string;
   name: string;
   duration: number;
+  duration_minutes?: number;
+  price?: number;
 }
 
 interface DBAppointment {
@@ -306,7 +308,7 @@ const Dashboard: React.FC = () => {
     const [clientsRes, staffRes, servicesRes, apptsRes, profileRes, transRes] = await Promise.all([
       supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').eq('tenant_id', tenantId).order('name'),
       supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
-      supabase.from('services').select('id, name, duration').eq('active', true),
+      supabase.from('services').select('id, name, duration, price').eq('tenant_id', tenantId).eq('active', true).order('name'),
       supabase.from('appointments').select('*').eq('tenant_id', tenantId).neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
       user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
       supabase.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true })
@@ -400,7 +402,74 @@ const Dashboard: React.FC = () => {
       setMetrics(prev => ({ ...prev, activeStaffPercent: percent || 0 }));
     }
 
-    if (servicesRes.data) setServicesList(servicesRes.data);
+    if (servicesRes.error) {
+      const legacyServices = await supabase
+        .from('services')
+        .select('id, name, duration_minutes, price')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (legacyServices.data) {
+        setServicesList(
+          legacyServices.data.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            duration: Number(s.duration_minutes) || 30,
+            duration_minutes: Number(s.duration_minutes) || 30,
+            price: Number(s.price) || 0,
+          }))
+        );
+      } else {
+        setServicesList([]);
+      }
+    } else if (servicesRes.data && servicesRes.data.length > 0) {
+      setServicesList(
+        servicesRes.data.map((s: any) => ({
+          ...s,
+          duration: Number(s.duration) || 30,
+          price: Number(s.price) || 0,
+        }))
+      );
+    } else {
+      const fallbackServices = await supabase
+        .from('services')
+        .select('id, name, duration, price')
+        .eq('tenant_id', tenantId)
+        .neq('active', false)
+        .order('name');
+
+      if (fallbackServices.data && fallbackServices.data.length > 0) {
+        setServicesList(
+          fallbackServices.data.map((s: any) => ({
+            ...s,
+            duration: Number(s.duration) || 30,
+            price: Number(s.price) || 0,
+          }))
+        );
+      } else {
+        const legacyServices = await supabase
+          .from('services')
+          .select('id, name, duration_minutes, price')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (legacyServices.data) {
+          setServicesList(
+            legacyServices.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration: Number(s.duration_minutes) || 30,
+              duration_minutes: Number(s.duration_minutes) || 30,
+              price: Number(s.price) || 0,
+            }))
+          );
+        } else {
+          setServicesList([]);
+        }
+      }
+    }
     if (apptsRes.data) setAppointments(apptsRes.data);
     if (profileRes.data) setProfile(profileRes.data);
     setLoading(false);
@@ -499,7 +568,7 @@ const Dashboard: React.FC = () => {
       service_name: selectedService.name,
       staff_name: selectedStaff.name,
       start_time: startTime.toISOString(),
-      duration: selectedService.duration / 60,
+      duration: (Number(selectedService.duration ?? selectedService.duration_minutes) || 30) / 60,
       status: 'confirmed',
       tenant_id: tenantId
     }).select().single();
@@ -522,7 +591,12 @@ const Dashboard: React.FC = () => {
 
       if (comanda) {
         // Fetch service price
-        const { data: serviceData } = await supabase.from('services').select('price').eq('id', formData.serviceId).single();
+        const { data: serviceData } = await supabase
+          .from('services')
+          .select('price')
+          .eq('id', formData.serviceId)
+          .eq('tenant_id', tenantId)
+          .single();
 
         await supabase.from('comanda_items').insert({
           comanda_id: comanda.id,
