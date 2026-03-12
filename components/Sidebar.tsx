@@ -242,6 +242,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     return { ...category, items: filteredItems };
   }).filter(Boolean) as MenuCategory[];
 
+  if (canAccessSuperAdmin) {
+    filteredCategories.push({
+      title: 'MASTER',
+      icon: 'shield_person',
+      items: [
+        { name: 'Administracao Geral', icon: 'shield_person', path: '/superadmin' },
+      ]
+    });
+  }
+
   return (
     <>
       <div
