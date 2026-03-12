@@ -9,6 +9,8 @@ import {
   Landmark,
   TrendingUp,
 } from 'lucide-react';
+import Modal from '../components/ui/Modal';
+import Toast from '../components/Toast';
 import FilterBar from '../components/financial/FilterBar';
 import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import CashFlowChart from '../components/financial/CashFlowChart';
@@ -20,6 +22,26 @@ import { cashFlowEntries, financialAccounts } from '../components/financial/mock
 import { CashFlowEntry, EnrichedCashFlowEntry, FilterState, SummaryCardData } from '../components/financial/types';
 
 type ScreenState = 'sucesso' | 'loading' | 'erro' | 'vazio';
+type EntryModalMode = 'entrada' | 'saida';
+
+interface TransactionForm {
+  date: string;
+  description: string;
+  category: string;
+  accountId: string;
+  costCenter: string;
+  paymentMethod: string;
+  status: 'realizado' | 'previsto' | 'vencido';
+  value: string;
+}
+
+interface TransferForm {
+  date: string;
+  fromAccountId: string;
+  toAccountId: string;
+  value: string;
+  description: string;
+}
 
 const now = new Date('2026-03-11T10:00:00');
 
@@ -43,8 +65,31 @@ const screenStateConfig: Record<ScreenState, string> = {
 };
 
 const Financial: React.FC = () => {
+  const [entries, setEntries] = useState<CashFlowEntry[]>(cashFlowEntries);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [screenState, setScreenState] = useState<ScreenState>('loading');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [entryModalMode, setEntryModalMode] = useState<EntryModalMode>('entrada');
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [entryForm, setEntryForm] = useState<TransactionForm>({
+    date: new Date().toISOString().slice(0, 10),
+    description: '',
+    category: '',
+    accountId: financialAccounts[0]?.id || '',
+    costCenter: '',
+    paymentMethod: 'PIX',
+    status: 'realizado',
+    value: '',
+  });
+  const [transferForm, setTransferForm] = useState<TransferForm>({
+    date: new Date().toISOString().slice(0, 10),
+    fromAccountId: financialAccounts[0]?.id || '',
+    toAccountId: financialAccounts[1]?.id || financialAccounts[0]?.id || '',
+    value: '',
+    description: 'Transferência entre contas',
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setScreenState('sucesso'), 900);
@@ -66,19 +111,19 @@ const Financial: React.FC = () => {
   );
 
   const categoryOptions = useMemo(() => {
-    const unique = Array.from(new Set(cashFlowEntries.map((entry) => entry.category))).sort();
+    const unique = Array.from(new Set(entries.map((entry) => entry.category))).sort();
     return [{ value: 'todas', label: 'Todas as categorias' }, ...unique.map((value) => ({ value, label: value }))];
-  }, []);
+  }, [entries]);
 
   const costCenterOptions = useMemo(() => {
-    const unique = Array.from(new Set(cashFlowEntries.map((entry) => entry.costCenter))).sort();
+    const unique = Array.from(new Set(entries.map((entry) => entry.costCenter))).sort();
     return [{ value: 'todos', label: 'Todos os centros' }, ...unique.map((value) => ({ value, label: value }))];
-  }, []);
+  }, [entries]);
 
   const paymentOptions = useMemo(() => {
-    const unique = Array.from(new Set(cashFlowEntries.map((entry) => entry.paymentMethod))).sort();
+    const unique = Array.from(new Set(entries.map((entry) => entry.paymentMethod))).sort();
     return [{ value: 'todas', label: 'Todas as formas' }, ...unique.map((value) => ({ value, label: value }))];
-  }, []);
+  }, [entries]);
 
   const periodFilteredEntries = useMemo(() => {
     const filterByPeriod = (entry: CashFlowEntry) => {
@@ -114,8 +159,8 @@ const Financial: React.FC = () => {
       return true;
     };
 
-    return cashFlowEntries.filter(filterByPeriod);
-  }, [filters.customEnd, filters.customStart, filters.period]);
+    return entries.filter(filterByPeriod);
+  }, [entries, filters.customEnd, filters.customStart, filters.period]);
 
   const filteredEntries = useMemo(() => {
     return periodFilteredEntries
@@ -292,7 +337,132 @@ const Financial: React.FC = () => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const resetEntryForm = (mode: EntryModalMode) => {
+    setEntryForm({
+      date: new Date().toISOString().slice(0, 10),
+      description: '',
+      category: mode === 'entrada' ? 'Receita de servicos' : 'Despesa operacional',
+      accountId: financialAccounts[0]?.id || '',
+      costCenter: mode === 'entrada' ? 'Comercial' : 'Administrativo',
+      paymentMethod: 'PIX',
+      status: 'realizado',
+      value: '',
+    });
+  };
+
+  const openEntryModal = (mode: EntryModalMode) => {
+    setEditingEntryId(null);
+    setEntryModalMode(mode);
+    resetEntryForm(mode);
+    setIsEntryModalOpen(true);
+  };
+
+  const openEditModal = (entry: EnrichedCashFlowEntry) => {
+    setEditingEntryId(entry.id);
+    setEntryModalMode(entry.type === 'entrada' ? 'entrada' : 'saida');
+    setEntryForm({
+      date: entry.date,
+      description: entry.description,
+      category: entry.category,
+      accountId: entry.accountId,
+      costCenter: entry.costCenter,
+      paymentMethod: entry.paymentMethod,
+      status: entry.status,
+      value: String(entry.value),
+    });
+    setIsEntryModalOpen(true);
+  };
+
+  const handleEntrySubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const parsedValue = Number(entryForm.value);
+
+    if (!entryForm.description || !entryForm.category || !entryForm.accountId || !entryForm.costCenter || !entryForm.paymentMethod || parsedValue <= 0) {
+      setToast({ message: 'Preencha todos os campos obrigatórios.', type: 'error' });
+      return;
+    }
+
+    if (editingEntryId) {
+      setEntries((prev) =>
+        prev.map((item) =>
+          item.id === editingEntryId
+            ? {
+                ...item,
+                ...entryForm,
+                type: entryModalMode,
+                value: parsedValue,
+              }
+            : item,
+        ),
+      );
+      setToast({ message: 'Lançamento atualizado com sucesso.', type: 'success' });
+    } else {
+      const newEntry: CashFlowEntry = {
+        id: `mov-${Date.now()}`,
+        date: entryForm.date,
+        description: entryForm.description,
+        category: entryForm.category,
+        accountId: entryForm.accountId,
+        costCenter: entryForm.costCenter,
+        paymentMethod: entryForm.paymentMethod,
+        status: entryForm.status,
+        value: parsedValue,
+        type: entryModalMode,
+      };
+      setEntries((prev) => [...prev, newEntry]);
+      setToast({ message: `${entryModalMode === 'entrada' ? 'Entrada' : 'Saída'} registrada com sucesso.`, type: 'success' });
+    }
+
+    setIsEntryModalOpen(false);
+    setEditingEntryId(null);
+  };
+
+  const handleTransferSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const amount = Number(transferForm.value);
+
+    if (!transferForm.fromAccountId || !transferForm.toAccountId || transferForm.fromAccountId === transferForm.toAccountId || amount <= 0) {
+      setToast({ message: 'Informe contas diferentes e valor válido para transferir.', type: 'error' });
+      return;
+    }
+
+    const baseId = Date.now();
+    const outbound: CashFlowEntry = {
+      id: `mov-${baseId}-out`,
+      date: transferForm.date,
+      description: `${transferForm.description} (saída)`,
+      category: 'Transferencia interna',
+      accountId: transferForm.fromAccountId,
+      costCenter: 'Tesouraria',
+      type: 'saida',
+      paymentMethod: 'Transferencia',
+      status: 'realizado',
+      value: amount,
+    };
+    const inbound: CashFlowEntry = {
+      id: `mov-${baseId}-in`,
+      date: transferForm.date,
+      description: `${transferForm.description} (entrada)`,
+      category: 'Transferencia interna',
+      accountId: transferForm.toAccountId,
+      costCenter: 'Tesouraria',
+      type: 'entrada',
+      paymentMethod: 'Transferencia',
+      status: 'realizado',
+      value: amount,
+    };
+
+    setEntries((prev) => [...prev, outbound, inbound]);
+    setIsTransferModalOpen(false);
+    setToast({ message: 'Transferência registrada com sucesso.', type: 'success' });
+  };
+
   const handleExport = () => {
+    if (tableEntries.length === 0) {
+      setToast({ message: 'Nenhum dado para exportar com os filtros atuais.', type: 'info' });
+      return;
+    }
+
     const header = ['Data', 'Descricao', 'Categoria', 'Conta', 'Tipo', 'Forma', 'Status', 'Valor'];
     const rows = tableEntries.map((item) => [
       new Date(item.date).toLocaleDateString('pt-BR'),
@@ -314,6 +484,26 @@ const Financial: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setToast({ message: 'Relatório exportado em CSV.', type: 'success' });
+  };
+
+  const handleView = (entry: EnrichedCashFlowEntry) => {
+    setToast({ message: `Lançamento: ${entry.description} (${entry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`, type: 'info' });
+  };
+
+  const handleDuplicate = (entry: EnrichedCashFlowEntry) => {
+    const duplicated: CashFlowEntry = {
+      ...entry,
+      id: `mov-${Date.now()}`,
+      description: `${entry.description} (copia)`,
+    };
+    setEntries((prev) => [...prev, duplicated]);
+    setToast({ message: 'Lançamento duplicado.', type: 'success' });
+  };
+
+  const handleDelete = (entry: EnrichedCashFlowEntry) => {
+    setEntries((prev) => prev.filter((item) => item.id !== entry.id));
+    setToast({ message: 'Lançamento excluído.', type: 'info' });
   };
 
   const renderLoadingState = () => (
@@ -333,7 +523,10 @@ const Financial: React.FC = () => {
       title="Nao foi possivel carregar o fluxo de caixa"
       description="Houve uma falha temporaria de sincronizacao. Tente novamente em alguns instantes."
       actionLabel="Tentar novamente"
-      onAction={() => setScreenState('loading')}
+      onAction={() => {
+        setScreenState('loading');
+        window.setTimeout(() => setScreenState('sucesso'), 800);
+      }}
     />
   );
 
@@ -341,6 +534,7 @@ const Financial: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-8 animate-fade-in">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <header className="sticky top-0 z-20 rounded-2xl border border-slate-200/80 dark:border-border-dark bg-gradient-to-r from-white/98 to-slate-50/95 dark:from-[#111111]/95 dark:to-[#151515]/95 backdrop-blur-sm p-5">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div>
@@ -349,15 +543,24 @@ const Financial: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition-colors inline-flex items-center gap-2">
+            <button
+              onClick={() => openEntryModal('entrada')}
+              className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition-colors inline-flex items-center gap-2"
+            >
               <BanknoteArrowUp size={16} />
               Nova entrada
             </button>
-            <button className="h-10 px-4 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors inline-flex items-center gap-2">
+            <button
+              onClick={() => openEntryModal('saida')}
+              className="h-10 px-4 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors inline-flex items-center gap-2"
+            >
               <BanknoteArrowDown size={16} />
               Nova saída
             </button>
-            <button className="h-10 px-4 rounded-xl bg-slate-900 dark:bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors inline-flex items-center gap-2">
+            <button
+              onClick={() => setIsTransferModalOpen(true)}
+              className="h-10 px-4 rounded-xl bg-slate-900 dark:bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors inline-flex items-center gap-2"
+            >
               <ArrowRightLeft size={16} />
               Transferência
             </button>
@@ -455,7 +658,13 @@ const Financial: React.FC = () => {
 
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Movimentações financeiras</h3>
-                    <CashFlowTable entries={tableEntries} />
+                    <CashFlowTable
+                      entries={tableEntries}
+                      onView={handleView}
+                      onEdit={openEditModal}
+                      onDuplicate={handleDuplicate}
+                      onDelete={handleDelete}
+                    />
                   </div>
                 </div>
 
@@ -481,6 +690,128 @@ const Financial: React.FC = () => {
           Filtros combináveis ativos: leitura rápida para tomada de decisão operacional.
         </p>
       </footer>
+
+      <Modal
+        isOpen={isEntryModalOpen}
+        onClose={() => {
+          setIsEntryModalOpen(false);
+          setEditingEntryId(null);
+        }}
+        title={editingEntryId ? 'Editar lançamento' : entryModalMode === 'entrada' ? 'Nova entrada' : 'Nova saída'}
+        maxWidth="lg"
+      >
+        <form onSubmit={handleEntrySubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+              <input type="date" value={entryForm.date} onChange={(e) => setEntryForm((prev) => ({ ...prev, date: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor</label>
+              <input type="number" step="0.01" value={entryForm.value} onChange={(e) => setEntryForm((prev) => ({ ...prev, value: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" placeholder="0,00" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descrição</label>
+            <input value={entryForm.description} onChange={(e) => setEntryForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" placeholder="Ex: Recebimento de clientes" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Categoria</label>
+              <input value={entryForm.category} onChange={(e) => setEntryForm((prev) => ({ ...prev, category: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Centro de custo</label>
+              <input value={entryForm.costCenter} onChange={(e) => setEntryForm((prev) => ({ ...prev, costCenter: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Conta</label>
+              <select value={entryForm.accountId} onChange={(e) => setEntryForm((prev) => ({ ...prev, accountId: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm">
+                {financialAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Forma de pagamento</label>
+              <input value={entryForm.paymentMethod} onChange={(e) => setEntryForm((prev) => ({ ...prev, paymentMethod: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
+              <select value={entryForm.status} onChange={(e) => setEntryForm((prev) => ({ ...prev, status: e.target.value as TransactionForm['status'] }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm">
+                <option value="realizado">Realizado</option>
+                <option value="previsto">Previsto</option>
+                <option value="vencido">Vencido</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setIsEntryModalOpen(false)} className="px-4 h-10 rounded-xl border border-slate-300 dark:border-border-dark text-sm font-semibold text-slate-600 dark:text-slate-300">
+              Cancelar
+            </button>
+            <button type="submit" className="px-4 h-10 rounded-xl bg-primary text-white text-sm font-bold">
+              {editingEntryId ? 'Salvar alterações' : entryModalMode === 'entrada' ? 'Registrar entrada' : 'Registrar saída'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} title="Nova transferência" maxWidth="md">
+        <form onSubmit={handleTransferSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descrição</label>
+            <input value={transferForm.description} onChange={(e) => setTransferForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Conta origem</label>
+              <select value={transferForm.fromAccountId} onChange={(e) => setTransferForm((prev) => ({ ...prev, fromAccountId: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm">
+                {financialAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Conta destino</label>
+              <select value={transferForm.toAccountId} onChange={(e) => setTransferForm((prev) => ({ ...prev, toAccountId: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm">
+                {financialAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+              <input type="date" value={transferForm.date} onChange={(e) => setTransferForm((prev) => ({ ...prev, date: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Valor</label>
+              <input type="number" step="0.01" value={transferForm.value} onChange={(e) => setTransferForm((prev) => ({ ...prev, value: e.target.value }))} className="w-full h-11 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-background-dark px-3 text-sm" placeholder="0,00" />
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setIsTransferModalOpen(false)} className="px-4 h-10 rounded-xl border border-slate-300 dark:border-border-dark text-sm font-semibold text-slate-600 dark:text-slate-300">
+              Cancelar
+            </button>
+            <button type="submit" className="px-4 h-10 rounded-xl bg-primary text-white text-sm font-bold">
+              Confirmar transferência
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

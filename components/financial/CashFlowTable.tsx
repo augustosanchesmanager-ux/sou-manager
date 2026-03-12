@@ -4,6 +4,10 @@ import { EnrichedCashFlowEntry } from './types';
 
 interface CashFlowTableProps {
   entries: EnrichedCashFlowEntry[];
+  onView: (entry: EnrichedCashFlowEntry) => void;
+  onEdit: (entry: EnrichedCashFlowEntry) => void;
+  onDuplicate: (entry: EnrichedCashFlowEntry) => void;
+  onDelete: (entry: EnrichedCashFlowEntry) => void;
 }
 
 const statusStyles = {
@@ -12,7 +16,7 @@ const statusStyles = {
   vencido: 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20',
 };
 
-const CashFlowTable: React.FC<CashFlowTableProps> = ({ entries }) => {
+const CashFlowTable: React.FC<CashFlowTableProps> = ({ entries, onView, onEdit, onDuplicate, onDelete }) => {
   return (
     <article className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark overflow-hidden">
       <div className="overflow-x-auto">
@@ -61,16 +65,32 @@ const CashFlowTable: React.FC<CashFlowTableProps> = ({ entries }) => {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" title="Visualizar">
+                    <button
+                      onClick={() => onView(entry)}
+                      className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      title="Visualizar"
+                    >
                       <Eye size={15} />
                     </button>
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" title="Editar">
+                    <button
+                      onClick={() => onEdit(entry)}
+                      className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      title="Editar"
+                    >
                       <Pencil size={15} />
                     </button>
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" title="Duplicar">
+                    <button
+                      onClick={() => onDuplicate(entry)}
+                      className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      title="Duplicar"
+                    >
                       <Copy size={15} />
                     </button>
-                    <button className="p-2 rounded-lg text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors" title="Excluir">
+                    <button
+                      onClick={() => onDelete(entry)}
+                      className="p-2 rounded-lg text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      title="Excluir"
+                    >
                       <Trash2 size={15} />
                     </button>
                   </div>
