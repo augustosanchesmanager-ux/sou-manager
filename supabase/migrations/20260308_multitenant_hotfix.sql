@@ -151,6 +151,7 @@ WITH CHECK (
 
 DROP POLICY IF EXISTS public_select_tenant_addons ON public.tenant_addons;
 DROP POLICY IF EXISTS "Public can view active addons to access public routes" ON public.tenant_addons;
+DROP POLICY IF EXISTS public_view_enabled_tenant_addons ON public.tenant_addons;
 CREATE POLICY public_view_enabled_tenant_addons
 ON public.tenant_addons
 FOR SELECT

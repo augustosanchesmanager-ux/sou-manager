@@ -31,4 +31,5 @@ CREATE POLICY "public_insert_appointments" ON appointments FOR INSERT WITH CHECK
 
 -- 6. Garantir que tenant_addons seja visível anonimamente
 DROP POLICY IF EXISTS "Public can view active addons to access public routes" ON tenant_addons;
+DROP POLICY IF EXISTS "public_select_tenant_addons" ON tenant_addons;
 CREATE POLICY "public_select_tenant_addons" ON tenant_addons FOR SELECT USING (true);

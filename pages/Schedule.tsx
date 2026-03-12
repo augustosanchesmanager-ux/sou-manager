@@ -5,6 +5,19 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
+import {
+  ExistingAppointmentsAction,
+  ScheduleBlock,
+  ScheduleBlockInput,
+  blockAppliesToDate,
+  blockMatchesProfessional,
+  blockOverlapsTimeRange,
+  detectBlockConflicts,
+  getBlocksForDate,
+  isDateFullyBlocked,
+  scheduleBlocksApi,
+  toDateKey,
+} from '../services/scheduleBlocksApi';
 
 
 
@@ -56,6 +69,21 @@ interface NewAppointmentForm {
   duration: number;
 }
 
+interface ScheduleBlockForm {
+  type: 'full_day' | 'time_range';
+  professionalScope: 'all' | 'specific';
+  professionalId: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
+  notes: string;
+  recurrence: 'none' | 'weekly';
+  recurrenceUntil: string;
+  actionForExisting: ExistingAppointmentsAction;
+}
+
 const statusColors: Record<string, string> = {
   confirmed: 'bg-blue-500',
   pending: 'bg-amber-500',
@@ -67,7 +95,7 @@ const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbei
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenantId } = useAuth();
+  const { tenantId, user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -77,8 +105,12 @@ const Schedule: React.FC = () => {
   const [servicesList, setServicesList] = useState<DBService[]>([]);
   const [clientsList, setClientsList] = useState<DBClient[]>([]);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
+  const [scheduleBlockHistory, setScheduleBlockHistory] = useState<ScheduleBlock[]>([]);
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockSaving, setBlockSaving] = useState(false);
+  const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -93,10 +125,46 @@ const Schedule: React.FC = () => {
     });
   };
   const weekDays = getWeekDays(selectedDate);
+  const selectedDateKey = toDateKey(selectedDate);
+
+  const toHourDecimal = (time: string) => {
+    const [hour, minute] = time.split(':').map(Number);
+    return hour + (minute / 60);
+  };
+
+  const startOfRangeDate = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfRangeDate = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [impactPreview, setImpactPreview] = useState<CalendarAppointment[]>([]);
+  const [blockForm, setBlockForm] = useState<ScheduleBlockForm>({
+    type: 'full_day',
+    professionalScope: 'all',
+    professionalId: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+    startTime: '12:00',
+    endTime: '13:00',
+    reason: 'Agenda fechada',
+    notes: '',
+    recurrence: 'none',
+    recurrenceUntil: '',
+    actionForExisting: 'keep',
+  });
 
   // Detail Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<CalendarAppointment | null>(null);
@@ -305,8 +373,44 @@ const Schedule: React.FC = () => {
     setLoading(false);
   }, [selectedDate, tenantId, viewMode]);
 
+  const fetchScheduleBlocks = useCallback(async () => {
+    if (!tenantId) {
+      setScheduleBlocks([]);
+      setScheduleBlockHistory([]);
+      return;
+    }
+
+    let rangeStartDate: Date;
+    let rangeEndDate: Date;
+
+    if (viewMode === 'week') {
+      const days = getWeekDays(selectedDate);
+      rangeStartDate = startOfRangeDate(days[0]);
+      rangeEndDate = endOfRangeDate(days[6]);
+    } else {
+      rangeStartDate = startOfRangeDate(selectedDate);
+      rangeEndDate = endOfRangeDate(selectedDate);
+    }
+
+    const rangeStart = toDateKey(rangeStartDate);
+    const rangeEnd = toDateKey(rangeEndDate);
+
+    try {
+      const [activeBlocks, history] = await Promise.all([
+        scheduleBlocksApi.listByRange(tenantId, { startDate: rangeStart, endDate: rangeEnd }),
+        scheduleBlocksApi.listHistory(tenantId, 100),
+      ]);
+      setScheduleBlocks(activeBlocks);
+      setScheduleBlockHistory(history);
+    } catch (err) {
+      console.error('Erro ao buscar bloqueios da agenda:', err);
+      setToast({ message: 'Não foi possível carregar os bloqueios da agenda.', type: 'error' });
+    }
+  }, [selectedDate, tenantId, viewMode]);
+
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+  useEffect(() => { fetchScheduleBlocks(); }, [fetchScheduleBlocks]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -492,6 +596,16 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    const blockDateKey = toDateKey(dateStr);
+    const hasBlockConflict = scheduleBlocks.some((block) =>
+      doesBlockMatchDateAndStaff(block, blockDateKey, dropStaffId) &&
+      blockOverlapsTimeRange(block, roundedHour, roundedHour + apt.duration),
+    );
+    if (hasBlockConflict) {
+      setToast({ message: 'Não é possível mover: existe bloqueio de agenda nesse período.', type: 'error' });
+      return;
+    }
+
     // Otimista Update UI
     setAppointments(prev => prev.map(a =>
       a.id === apt.id
@@ -567,6 +681,198 @@ const Schedule: React.FC = () => {
     }
   };
 
+  const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
+    return blockAppliesToDate(block, dateKey) && blockMatchesProfessional(block, staffId);
+  };
+
+  const isAppointmentInsideBlock = (apt: CalendarAppointment, draft: ScheduleBlockInput) => {
+    const aptDate = toDateKey(apt.startTime);
+    const aptEnd = apt.start + apt.duration;
+
+    const inDateRange = aptDate >= draft.start_date && aptDate <= draft.end_date;
+    if (!inDateRange) return false;
+
+    if (draft.professional_id && apt.staffId !== draft.professional_id) return false;
+    if (draft.block_type === 'full_day') return true;
+
+    const startHour = toHourDecimal(draft.start_time || '00:00');
+    const endHour = toHourDecimal(draft.end_time || '00:00');
+    return apt.start < endHour && aptEnd > startHour;
+  };
+
+  const buildBlockPayloadFromForm = (): ScheduleBlockInput | null => {
+    if (!blockForm.reason.trim()) {
+      setBlockError('Informe o motivo do bloqueio.');
+      return null;
+    }
+
+    if (!blockForm.startDate || !blockForm.endDate) {
+      setBlockError('Informe a data inicial e final.');
+      return null;
+    }
+
+    if (blockForm.endDate < blockForm.startDate) {
+      setBlockError('A data final não pode ser anterior à data inicial.');
+      return null;
+    }
+
+    if (blockForm.type === 'time_range' && blockForm.endTime <= blockForm.startTime) {
+      setBlockError('O horário final deve ser maior que o horário inicial.');
+      return null;
+    }
+
+    if (blockForm.recurrence === 'weekly' && blockForm.endDate !== blockForm.startDate) {
+      setBlockError('Recorrência semanal exige bloqueio de um único dia por vez.');
+      return null;
+    }
+
+    if (blockForm.recurrence === 'weekly' && blockForm.recurrenceUntil && blockForm.recurrenceUntil < blockForm.startDate) {
+      setBlockError('A data final da recorrência deve ser maior ou igual à data inicial.');
+      return null;
+    }
+
+    return {
+      professional_id: blockForm.professionalScope === 'specific' ? blockForm.professionalId : null,
+      block_type: blockForm.type,
+      start_date: blockForm.startDate,
+      end_date: blockForm.endDate,
+      start_time: blockForm.type === 'time_range' ? blockForm.startTime : null,
+      end_time: blockForm.type === 'time_range' ? blockForm.endTime : null,
+      reason: blockForm.reason.trim(),
+      notes: blockForm.notes.trim() || null,
+      recurrence_type: blockForm.recurrence,
+      recurrence_until: blockForm.recurrence === 'weekly' ? (blockForm.recurrenceUntil || null) : null,
+      existing_appointments_action: blockForm.actionForExisting,
+    };
+  };
+
+  const resetBlockForm = () => {
+    const today = toDateKey(new Date());
+    setEditingBlockId(null);
+    setImpactPreview([]);
+    setBlockError(null);
+    setBlockForm({
+      type: 'full_day',
+      professionalScope: 'all',
+      professionalId: staffList[0]?.id || '',
+      startDate: today,
+      endDate: today,
+      startTime: '12:00',
+      endTime: '13:00',
+      reason: 'Agenda fechada',
+      notes: '',
+      recurrence: 'none',
+      recurrenceUntil: '',
+      actionForExisting: 'keep',
+    });
+  };
+
+  const handleOpenCreateBlockModal = () => {
+    resetBlockForm();
+    setIsBlockModalOpen(true);
+  };
+
+  const handleEditBlock = (block: ScheduleBlock) => {
+    setEditingBlockId(block.id);
+    setBlockError(null);
+    setImpactPreview([]);
+    setBlockForm({
+      type: block.block_type,
+      professionalScope: block.professional_id ? 'specific' : 'all',
+      professionalId: block.professional_id || staffList[0]?.id || '',
+      startDate: block.start_date,
+      endDate: block.end_date,
+      startTime: (block.start_time || '12:00').slice(0, 5),
+      endTime: (block.end_time || '13:00').slice(0, 5),
+      reason: block.reason,
+      notes: block.notes || '',
+      recurrence: block.recurrence_type,
+      recurrenceUntil: block.recurrence_until || '',
+      actionForExisting: block.existing_appointments_action,
+    });
+    setIsBlockModalOpen(true);
+  };
+
+  const handleDeleteBlock = async (block: ScheduleBlock) => {
+    if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
+    try {
+      await scheduleBlocksApi.remove(block.id, user?.id || null);
+      setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
+      fetchScheduleBlocks();
+    } catch (err) {
+      console.error('Erro ao remover bloqueio:', err);
+      setToast({ message: 'Não foi possível remover o bloqueio.', type: 'error' });
+    }
+  };
+
+  const handleSaveBlock = async () => {
+    if (!tenantId) {
+      setBlockError('Tenant inválido para salvar bloqueio.');
+      return;
+    }
+
+    const payload = buildBlockPayloadFromForm();
+    if (!payload) return;
+
+    if (payload.professional_id && !payload.professional_id.trim()) {
+      setBlockError('Selecione um profissional.');
+      return;
+    }
+
+    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active' && block.id !== editingBlockId);
+    const conflicts = detectBlockConflicts(activeBlocks, payload);
+    if (conflicts.length > 0) {
+      setBlockError(`Já existe bloqueio sobreposto (${conflicts.length}). Edite o bloqueio existente ou ajuste o período.`);
+      return;
+    }
+
+    const impacted = appointments.filter((apt) => apt.status !== 'cancelled' && isAppointmentInsideBlock(apt, payload));
+    setImpactPreview(impacted);
+
+    if (impacted.length > 0) {
+      const confirmed = window.confirm(`Existem ${impacted.length} agendamentos impactados. Deseja confirmar o bloqueio mesmo assim?`);
+      if (!confirmed) {
+        setBlockError('Operação cancelada para revisar agendamentos impactados.');
+        return;
+      }
+    }
+
+    setBlockSaving(true);
+    try {
+      if (editingBlockId) {
+        await scheduleBlocksApi.update(editingBlockId, payload);
+      } else {
+        await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
+      }
+
+      if (payload.existing_appointments_action === 'cancel' && impacted.length > 0) {
+        const impactedIds = impacted.map((apt) => apt.id);
+        await supabase
+          .from('appointments')
+          .update({ status: 'cancelled' })
+          .in('id', impactedIds)
+          .eq('tenant_id', tenantId);
+      }
+
+      if (payload.existing_appointments_action === 'review' && impacted.length > 0) {
+        setToast({ message: `${impacted.length} agendamentos exigem revisão manual.`, type: 'info' });
+      }
+
+      setIsBlockModalOpen(false);
+      resetBlockForm();
+      await Promise.all([fetchAppointments(), fetchScheduleBlocks()]);
+      setToast({
+        message: editingBlockId ? 'Bloqueio atualizado com sucesso.' : 'Agenda fechada com sucesso.',
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.error('Erro ao salvar bloqueio:', err);
+      setBlockError(err?.message || 'Não foi possível salvar o bloqueio.');
+    } finally {
+      setBlockSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
@@ -607,6 +913,17 @@ const Schedule: React.FC = () => {
     const startTimeLine = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`);
 
     const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+    const selectedDateKeyForSave = toDateKey(formData.date);
+    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
+    const hasBlockConflict = activeBlocks.some((block) =>
+      doesBlockMatchDateAndStaff(block, selectedDateKeyForSave, formData.staffId) &&
+      blockOverlapsTimeRange(block, formData.start, formData.start + Number(formData.duration)),
+    );
+
+    if (hasBlockConflict) {
+      setError('Existe um bloqueio de agenda nesse período. Escolha outro horário.');
+      return;
+    }
 
     if (editingAppointmentId) {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
@@ -819,6 +1136,26 @@ const Schedule: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setShowOnlyBlocks(prev => !prev)}
+            className={`border px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all ${showOnlyBlocks
+              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+              : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300'
+              }`}
+            title="Exibir apenas bloqueios na grade"
+          >
+            <span className="material-symbols-outlined text-lg">block</span>
+            <span className="hidden lg:inline">Somente Bloqueios</span>
+          </button>
+
+          <button
+            onClick={handleOpenCreateBlockModal}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
+          >
+            <span className="material-symbols-outlined text-lg">event_busy</span>
+            <span className="hidden sm:inline">Fechar agenda</span>
+          </button>
+
+          <button
             onClick={() => {
               setEditingAppointmentId(null);
               setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1 }));
@@ -893,11 +1230,14 @@ const Schedule: React.FC = () => {
                     const d = new Date((a as any).date);
                     return d.toDateString() === day.toDateString();
                   });
+                  const dayKey = toDateKey(day);
+                  const hasDayBlock = scheduleBlocks.some((block) => block.block_type === 'full_day' && blockAppliesToDate(block, dayKey));
                   return (
                     <div
                       key={i}
                       onClick={() => { setSelectedDate(day); setViewMode('day'); }}
                       className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+                        } ${hasDayBlock ? 'bg-red-50/70 dark:bg-red-900/10' : ''
                         }`}
                     >
                       <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-slate-400'
@@ -908,9 +1248,14 @@ const Schedule: React.FC = () => {
                         }`}>
                         {day.getDate()}
                       </div>
-                      {dayApts.length > 0 && (
+                      {dayApts.length > 0 && !showOnlyBlocks && (
                         <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
                           {dayApts.length} aptos
+                        </span>
+                      )}
+                      {hasDayBlock && (
+                        <span className="text-[9px] font-bold bg-red-500/10 text-red-600 dark:text-red-300 px-1.5 py-0.5 rounded-full">
+                          Agenda fechada
                         </span>
                       )}
                     </div>
@@ -938,11 +1283,14 @@ const Schedule: React.FC = () => {
                           const d = new Date((a as any).date);
                           return d.toDateString() === day.toDateString();
                         });
+                        const dayKey = toDateKey(day);
+                        const dayBlocks = getBlocksForDate(scheduleBlocks, dayKey);
+                        const isDayFullyBlocked = dayBlocks.some((block) => block.block_type === 'full_day' && !block.professional_id);
                         const isToday = day.toDateString() === new Date().toDateString();
                         return (
                           <div
                             key={di}
-                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-primary/[0.02]' : ''}`}
+                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-primary/[0.02]' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const aptId = e.dataTransfer.getData('aptId');
@@ -954,10 +1302,26 @@ const Schedule: React.FC = () => {
                             }}
                           >
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
+                            {dayBlocks
+                              .filter((block) => block.block_type === 'time_range' && !block.professional_id)
+                              .map((block) => {
+                                const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
+                                const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
+                                const top = (start - 8) * (100 / totalSlots);
+                                const height = (end - start) * (100 / totalSlots);
+                                return (
+                                  <div
+                                    key={block.id}
+                                    className="absolute left-0 right-0 bg-red-400/20 border-y border-red-500/30 z-[1]"
+                                    style={{ top: `${top}%`, height: `${Math.max(height, 2)}%` }}
+                                    title={`Agenda fechada: ${block.reason}`}
+                                  />
+                                );
+                              })}
                             <div className="absolute inset-0 flex flex-col z-0">
                               {dynamicTimeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
-                            {dayApts.map((apt, idx) => {
+                            {!showOnlyBlocks && dayApts.map((apt, idx) => {
                               const startOffset = (apt.start - 8) * (100 / totalSlots);
                               const height = apt.duration * (100 / totalSlots);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
@@ -1047,7 +1411,7 @@ const Schedule: React.FC = () => {
                           onDrop={(e) => handleDropAppointment(e, resource.id)}
                         >
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
-                          {appointments
+                          {!showOnlyBlocks && appointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
                               const startOffset = (apt.start - 8) * (100 / totalSlots);
@@ -1088,6 +1452,30 @@ const Schedule: React.FC = () => {
                               );
                             })
                           }
+                          {getBlocksForDate(scheduleBlocks, selectedDateKey, resource.id).map((block) => {
+                            if (block.block_type === 'full_day') {
+                              return (
+                                <div
+                                  key={block.id}
+                                  className="absolute inset-0 bg-red-400/15 border border-red-500/30 z-[5] pointer-events-none"
+                                  title={`Agenda fechada: ${block.reason}`}
+                                />
+                              );
+                            }
+
+                            const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
+                            const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
+                            const top = (start - 8) * (100 / totalSlots);
+                            const height = (end - start) * (100 / totalSlots);
+                            return (
+                              <div
+                                key={block.id}
+                                className="absolute left-0 right-0 bg-red-400/20 border-y border-red-500/40 z-[6] pointer-events-none"
+                                style={{ top: `${top}%`, height: `${Math.max(height, 2)}%` }}
+                                title={`${block.reason}${block.notes ? ` - ${block.notes}` : ''}`}
+                              />
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
@@ -1294,16 +1682,20 @@ const Schedule: React.FC = () => {
                         a.staffId === formData.staffId &&
                         a.id !== editingAppointmentId;
                     });
+                    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
+                    const blocksOnDay = getBlocksForDate(activeBlocks, formData.date, formData.staffId);
 
                     return allSlots.map(slot => {
                       const slotEnd = slot + formData.duration;
                       const hasConflict = aptsOnDay.some(apt =>
                         slot < (apt.start + apt.duration) && slotEnd > apt.start
                       );
+                      const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
+                      const isDisabled = hasConflict || hasBlock;
 
                       return (
-                        <option key={slot} value={slot} disabled={hasConflict} className={hasConflict ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : ''}
+                        <option key={slot} value={slot} disabled={isDisabled} className={isDisabled ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
+                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
                         </option>
                       );
                     });
@@ -1345,6 +1737,234 @@ const Schedule: React.FC = () => {
             >
               {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
             </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isBlockModalOpen}
+        onClose={() => { setIsBlockModalOpen(false); resetBlockForm(); }}
+        title={editingBlockId ? 'Editar fechamento de agenda' : 'Fechar agenda'}
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {blockError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-xs text-red-700 dark:text-red-300 font-semibold">{blockError}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Tipo de bloqueio</label>
+              <select
+                value={blockForm.type}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, type: e.target.value as 'full_day' | 'time_range' }))}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              >
+                <option value="full_day">Dia inteiro</option>
+                <option value="time_range">Intervalo de horário</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Profissional</label>
+              <select
+                value={blockForm.professionalScope === 'all' ? 'all' : blockForm.professionalId}
+                onChange={(e) => {
+                  if (e.target.value === 'all') {
+                    setBlockForm(prev => ({ ...prev, professionalScope: 'all', professionalId: '' }));
+                  } else {
+                    setBlockForm(prev => ({ ...prev, professionalScope: 'specific', professionalId: e.target.value }));
+                  }
+                }}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              >
+                <option value="all">Todos</option>
+                {staffList.map(staff => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data inicial</label>
+              <DatePickerInput
+                value={blockForm.startDate}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, startDate: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data final</label>
+              <DatePickerInput
+                value={blockForm.endDate}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, endDate: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              />
+            </div>
+          </div>
+
+          {blockForm.type === 'time_range' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Hora inicial</label>
+                <input
+                  type="time"
+                  value={blockForm.startTime}
+                  onChange={(e) => setBlockForm(prev => ({ ...prev, startTime: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Hora final</label>
+                <input
+                  type="time"
+                  value={blockForm.endTime}
+                  onChange={(e) => setBlockForm(prev => ({ ...prev, endTime: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Motivo</label>
+              <input
+                type="text"
+                value={blockForm.reason}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Agenda fechada, Almoço, Feriado..."
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Ação para agendamentos existentes</label>
+              <select
+                value={blockForm.actionForExisting}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, actionForExisting: e.target.value as ExistingAppointmentsAction }))}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              >
+                <option value="keep">Manter e bloquear apenas novos</option>
+                <option value="review">Bloquear e revisar manualmente</option>
+                <option value="cancel">Cancelar agendamentos impactados</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observação interna</label>
+            <textarea
+              value={blockForm.notes}
+              onChange={(e) => setBlockForm(prev => ({ ...prev, notes: e.target.value }))}
+              rows={2}
+              className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Recorrência</label>
+              <select
+                value={blockForm.recurrence}
+                onChange={(e) => setBlockForm(prev => ({ ...prev, recurrence: e.target.value as 'none' | 'weekly' }))}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+              >
+                <option value="none">Sem recorrência</option>
+                <option value="weekly">Repetir semanalmente</option>
+              </select>
+            </div>
+            {blockForm.recurrence === 'weekly' && (
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Repetir até</label>
+                <DatePickerInput
+                  value={blockForm.recurrenceUntil}
+                  onChange={(e) => setBlockForm(prev => ({ ...prev, recurrenceUntil: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm"
+                />
+              </div>
+            )}
+          </div>
+
+          {impactPreview.length > 0 && (
+            <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
+              <p className="text-xs font-black uppercase text-amber-700 dark:text-amber-300 mb-2">
+                {impactPreview.length} agendamentos impactados
+              </p>
+              <div className="max-h-28 overflow-y-auto space-y-1">
+                {impactPreview.slice(0, 10).map((apt) => (
+                  <p key={apt.id} className="text-xs text-amber-800 dark:text-amber-200">
+                    {new Date(apt.startTime).toLocaleDateString('pt-BR')} {Math.floor(apt.start).toString().padStart(2, '0')}:{apt.start % 1 === 0 ? '00' : '30'} - {apt.client}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-200 dark:border-white/10">
+            <button
+              onClick={() => { setIsBlockModalOpen(false); resetBlockForm(); }}
+              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveBlock}
+              disabled={blockSaving}
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 transition-all"
+            >
+              {blockSaving ? 'Salvando...' : editingBlockId ? 'Salvar Bloqueio' : 'Confirmar Bloqueio'}
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-slate-200 dark:border-white/10">
+            <p className="text-xs font-black uppercase text-slate-500 mb-2">Histórico de bloqueios</p>
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {scheduleBlockHistory.length === 0 && (
+                <p className="text-xs text-slate-500">Nenhum bloqueio cadastrado.</p>
+              )}
+              {scheduleBlockHistory.map((block) => {
+                const isInactive = block.status !== 'active';
+                const professional = block.professional_id
+                  ? staffList.find((s) => s.id === block.professional_id)?.name || 'Profissional'
+                  : 'Todos';
+                return (
+                  <div key={block.id} className={`p-2 rounded-lg border ${isInactive ? 'border-slate-200 opacity-60' : 'border-slate-300 dark:border-slate-700'} bg-slate-50 dark:bg-white/5`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {block.reason} - {professional}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {new Date(`${block.start_date}T12:00:00`).toLocaleDateString('pt-BR')} ate {new Date(`${block.end_date}T12:00:00`).toLocaleDateString('pt-BR')}
+                          {block.block_type === 'time_range' ? ` (${(block.start_time || '').slice(0, 5)}-${(block.end_time || '').slice(0, 5)})` : ' (Dia inteiro)'}
+                        </p>
+                      </div>
+                      {!isInactive && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleEditBlock(block)}
+                            className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/20 text-blue-600"
+                            title="Editar bloqueio"
+                          >
+                            <span className="material-symbols-outlined text-base">edit</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBlock(block)}
+                            className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600"
+                            title="Remover bloqueio"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </Modal>

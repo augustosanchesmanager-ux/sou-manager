@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
 import { portalApi } from '../../services/portalApi';
+import {
+    blockOverlapsTimeRange,
+    getBlocksForDate,
+    scheduleBlocksApi,
+} from '../../services/scheduleBlocksApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { ChevronLeft, Scissors, User, Calendar as CalendarIcon, Clock, CheckCircle } from 'lucide-react';
 
@@ -119,6 +124,20 @@ const PortalSchedule: React.FC = () => {
 
             const { data: booked } = await query;
             const bookedRanges = (booked || []).map(a => ({ start: new Date(a.start_time), end: new Date(a.end_time) }));
+            const allBlocks = await scheduleBlocksApi.listByRange(tenant.id, {
+                startDate: dateStr,
+                endDate: dateStr,
+            });
+            const blocksForDate = getBlocksForDate(
+                allBlocks,
+                dateStr,
+                selectedBarber && selectedBarber.id !== 'any' ? selectedBarber.id : null,
+            );
+            const hasFullDayBlock = blocksForDate.some(block => block.block_type === 'full_day');
+            if (hasFullDayBlock) {
+                setSlots([]);
+                return;
+            }
 
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             const startHour = isToday ? Math.max(9, new Date().getHours() + 1) : 9;
@@ -133,7 +152,10 @@ const PortalSchedule: React.FC = () => {
                     if (dtEnd.getHours() >= endHour) break;
 
                     const conflict = bookedRanges.some(r => dt < r.end && dtEnd > r.start);
-                    if (!conflict) {
+                    const startHourDecimal = h + (m / 60);
+                    const endHourDecimal = startHourDecimal + (duration / 60);
+                    const blocked = blocksForDate.some(block => blockOverlapsTimeRange(block, startHourDecimal, endHourDecimal));
+                    if (!conflict && !blocked) {
                         generated.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, datetime: dt.toISOString() });
                     }
                 }
@@ -157,6 +179,17 @@ const PortalSchedule: React.FC = () => {
 
             const start = new Date(selectedSlot.datetime);
             const end = addMinutes(start, selectedService.duration_minutes);
+            const dateKey = start.toISOString().split('T')[0];
+            const blocks = await scheduleBlocksApi.listByRange(tenant.id, { startDate: dateKey, endDate: dateKey });
+            const blocksForDate = getBlocksForDate(
+                blocks,
+                dateKey,
+                selectedBarber && selectedBarber.id !== 'any' ? selectedBarber.id : null,
+            );
+            const startDecimal = start.getHours() + (start.getMinutes() / 60);
+            const endDecimal = end.getHours() + (end.getMinutes() / 60);
+            const blocked = blocksForDate.some((block) => blockOverlapsTimeRange(block, startDecimal, endDecimal));
+            if (blocked) throw new Error('Este horário foi bloqueado e não está mais disponível.');
 
             await supabase.from('appointments').insert({
                 tenant_id: tenant.id,
