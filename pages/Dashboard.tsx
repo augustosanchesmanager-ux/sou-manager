@@ -10,6 +10,7 @@ import OnboardingChecklist from '../components/OnboardingChecklist';
 import DashboardAlerts from '../components/DashboardAlerts';
 import DashboardReminders from '../components/DashboardReminders';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 
 /* ─── Smart Return Widget (mini-engine embutido) ─── */
 interface SmartWidgetClient { id: string; name: string; phone: string; last_visit?: string; }
@@ -715,9 +716,8 @@ const Dashboard: React.FC = () => {
           <form onSubmit={handleConfirmAppointment} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
-                <input
+                <DatePickerInput
                   className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-transparent rounded-lg text-xs py-2 px-2 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
-                  type="date"
                   title="Data do Agendamento"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}

@@ -1,145 +1,83 @@
-# 📄 Documentação de Funcionalidades - SOU MANA.GER
+# Documentacao de Funcionalidades - SOU MANA.GER
 
-Esta documentação detalha todas as funcionalidades atuais do sistema **SOU MANA.GER**, refletindo as atualizações mais recentes de infraestrutura, segurança e o novo design **Neo-Premium Boutique Edition**.
+Documento de status funcional do sistema com base no codigo atual.
 
----
+Atualizado em: 09/03/2026
 
-## 🚀 1. Núcleo Operacional (O Coração da Barbearia)
+## 1) Funcoes ativas
 
-### 📅 Agendamentos (`/schedule`)
+### 1.1 Acesso, seguranca e perfis
+- `Login` (`/login`): autenticacao com Supabase Auth.
+- `Cadastro` (`/register`) e `Recuperacao de senha` (`/reset-password`): fluxo operacional.
+- `Bloqueio por status de perfil` (`/pending-approval`): usuarios pendentes/suspensos nao entram no app principal.
+- `RBAC por rota`: restricao para gerente e super admin em rotas especificas.
 
-* **Calendário Interativo**: Visualização diária/semanal de horários com suporte a drag-and-drop.
-* **Gestão de Status**: Marcar como confirmado, em atendimento, finalizado ou cancelado.
-* **Agendamento Rápido**: Atalho no dashboard para criar novos horários em segundos.
-* **Conflitos**: Sistema inteligente que evita sobreposição de horários para o mesmo profissional.
+### 1.2 Operacao diaria
+- `Dashboard` (`/dashboard`): KPIs, agenda do dia, atalhos operacionais e insight IA.
+- `Agenda` (`/schedule`): CRUD de agendamentos, vinculo com cliente/profissional/servico e atualizacao de status.
+- `Checkout / PDV` (`/checkout/:id?`): venda com servicos/produtos, comanda e registro de transacao.
+- `Comandas` (`/comandas`): listagem, detalhamento de itens e fechamento.
 
-### 💳 Checkout / PDV (`/checkout`)
+### 1.3 Cadastros
+- `Clientes` (`/clients`): cadastro, edicao, busca e historico relacionado.
+- `Equipe` (`/team`): cadastro e manutencao de profissionais.
+- `Servicos` (`/services`): cadastro/edicao/ativacao.
+- `Produtos` (`/products`): cadastro e controle operacional de estoque.
+- `Promocoes` (`/promotions`): criacao, edicao e aplicacao por tipo.
 
-* **Terminal de Vendas**: Interface otimizada para finalização rápida de atendimentos e venda de produtos.
-* **Pagamentos Múltiplos**: Suporte a Dinheiro, PIX, Cartões e Crédito em conta.
-* **Baixa Automática**: Integração com estoque e financeiro ao finalizar uma venda.
-* **Emissão de Recibos**: Geração instantânea de comprovantes autenticados com marca d'água.
+### 1.4 Financeiro e gestao
+- `Financeiro` (`/financial`): entradas/saidas e consolidacao.
+- `Despesas` (`/expenses`): lancamentos e filtros.
+- `Recibos` (`/receipts`): consulta de recibos baseada em transacoes.
+- `Relatorios` (`/reports`): visao consolidada de resultados.
+- `Operacoes` (`/operations`) e `Pedidos` (`/orders`): acompanhamento operacional e compras/reposicao.
 
-### 📝 Comandas (`/comandas`)
+### 1.5 Inteligencia e estrategia
+- `BI` (`/bi`): analise de indicadores e insights com Gemini (com fallback quando IA nao configurada).
+- `Smart Return` (`/smart-return`): identificacao de clientes em risco de nao retorno.
+- `Strategic Dashboard` (`/strategic-dashboard`): indicadores estrategicos por periodo.
 
-* **Controle de Consumo**: Gestão de produtos e serviços consumidos durante a permanência no local.
-* **Abertura via QR**: Integração com o Totem para clientes abrirem suas próprias comandas.
-* **Histórico de Comandas**: Consulta de tickets passados e auditoria de vendas detalhada.
+### 1.6 SaaS, suporte e governanca
+- `Admin` (`/admin`): visao de usuarios, tenants, chamados e operacao administrativa.
+- `Super Admin` (`/superadmin`): controle global de acessos e visao de requests.
+- `Suporte` (`/support`): abertura e resposta de tickets com mensagens.
+- `Configuracoes` (`/settings`): preferencias da unidade e parametros basicos.
 
----
+### 1.7 Kiosk (Totem) e Portal do Cliente
+- `Kiosk Publico` (`/kiosk/:tenantSlug` e `/kiosk/:tenantSlug/client`): identificacao, agendamento e feedback.
+- `Kiosk Admin` (`/kiosk-admin`): dispositivos, addons e monitoramento do modulo.
+- `Portal Cliente` (`/c/:tenantSlug`, `/c/:tenantSlug/login`, `/c/:tenantSlug/app`, `/c/:tenantSlug/app/schedule`): login OTP, agenda e feedback.
+- `Portal Admin` (`/portal-admin`): administracao de addons do portal.
 
-## 👥 2. Gestão de Cadastros (CRM & Recursos)
+### 1.8 Modulos de plano/assinatura
+- `Chef Club Plans` (`/chef-club-plans`): gerenciamento de planos.
+- `Chef Club Subscriptions` (`/chef-club-subscriptions`): acompanhamento de assinaturas ativas/inativas.
 
-### 👤 Clientes (`/clients`)
+## 2) Funcoes em ajuste
 
-* **Ficha Completa**: Cadastro de nome, telefone, e-mail e data de nascimento.
-* **Faturamento Individual**: Visualização do total gasto e última visita por cliente.
-* **Importação/Exportação CSV**: Facilidade para migrar bases de dados existentes.
-* **Ficha Completa**: Cadastro de nome, telefone, e-mail e data de nascimento.
-* **Faturamento Individual**: Visualização do total gasto e última visita por cliente.
-* **Importação/Exportação CSV**: Facilidade para migrar bases de dados existentes.
-* **Edição Premium**: Modal moderno para atualização completa de dados e preferências.
+### 2.1 Onboarding inicial
+- `RoleSelection`, `ShopSetup` e `ProfessionalSetup` (`/onboarding/*`) estao com fluxo visual pronto, mas sem persistencia completa no banco.
+- Evidencia no codigo: comentarios `Logic to create ... would go here` nos arquivos de onboarding.
 
-### ✂️ Equipe & Profissionais (`/team`)
+### 2.2 Performance da unidade
+- `Performance` (`/performance`) esta em modo demonstrativo, com cards/graficos estaticos e sem carga real de dados.
 
-* **Gestão de Staff**: Cadastro de barbeiros, recepcionistas e gerentes com RLS seguro.
-* **Comissões**: Configuração individual de ganhos e participação percentual.
-* **Status em Tempo Real**: Monitoramento de quem está disponível ou em atendimento.
+### 2.3 Detalhe de pedido
+- `OrderDetails` (`/orders/:id`) atualmente exibe estrutura fixa/exemplo e nao carrega dados dinamicos do pedido selecionado.
 
-### 💎 Planos e Investimento
+### 2.4 Folha de pagamento
+- `Payroll` (`/payroll`) funciona no calculo base e registro de pagamento, mas ainda tem itens parciais:
+- descontos/vales estao mockados em `0`;
+- recibo avancado esta simulado (mensagem de "recibo simulado").
 
-| Plano | Mensal | Anual (2 meses OFF) | Foco |
-| :--- | :--- | :--- | :--- |
-| **Gratuito** | R$ 0,00 | R$ 0,00 | Iniciantes |
-| **Profissional** | R$ 59,90 | R$ 599,00 | Gestão Completa |
-| **Elite** | R$ 99,90 | R$ 999,00 | IA & Escala |
+### 2.5 Ajustes pontuais em modulos ativos
+- `Admin`: acao de menu por usuario ainda retorna mensagem "em breve".
+- `Dashboard`: campo de NPS enviado para IA com valor mockado.
+- `Strategic Dashboard`: estimativa de receita por barbeiro usa proxy quando nao ha preco no appointment.
 
-### 📦 Produtos & Estoque (`/products`)
+## 3) Observacoes de operacao
+- Portal e Kiosk dependem de addon habilitado por tenant (`tenant_addons`). Quando desabilitado, a tela mostra indisponibilidade de acesso (comportamento esperado).
+- Recursos de IA dependem de `VITE_GEMINI_API_KEY` valida.
 
-* **Controle de Ativos**: Cadastro de produtos para venda e uso profissional.
-* **Alerta de Estoque Baixo**: Notificações automáticas quando itens atingem o nível crítico.
-* **Histórico de Movimentação**: Registro de entradas e saídas de produtos com auditoria.
-
----
-
-## 📊 3. Gestão Estratégica & BI
-
-### 🧠 Visão de Negócio (BI) (`/bi`)
-
-* **Análise Preditiva**: Insights gerados via **IA (Gemini)** sobre tendências do negócio.
-* **Gráficos Avançados**: Visualização de faturamento, ticket médio e CAC (Custo de Aquisição de Clientes).
-* **Performance da Equipe**: Ranking de produtividade e lucratividade por profissional.
-
-### 📈 Relatórios (`/reports`)
-
-* **Financeiro**: Fluxo de caixa detalhado e DRE simplificado.
-* **Aniversariantes**: Listagem de clientes com data próxima para ações de marketing.
-* **Exportação**: Geração de PDFs e planilhas de todos os indicadores.
-
----
-
-## 💰 4. Módulo Financeiro Avançado
-
-### 💵 Fluxo Financeiro (`/financial`)
-
-* **Controle de Saldo**: Monitoramento de entradas por método de pagamento.
-* **Conciliação**: Verificação de transações pendentes e confirmadas.
-
-### 📝 Gestão de Recibos (`/receipts`)
-
-* **Numeração Sequencial**: Controle fiscal e administrativo de comprovantes em conformidade.
-* **Assinatura Digital**: Recibos autenticados para segurança jurídica.
-* **Marca D'água Dinâmica**: Layout premium com logo da barbearia.
-
-### 📋 Folha de Pagamento (`/payroll`)
-
-* **Cálculo Automatizado**: Fechamento de quinzena/mês baseado em comissões e serviços realizados.
-* **Lançamentos Manuais**: Adição de bônus ou descontos personalizados.
-* **Comprovantes de Pagamento**: Geração de holerites detalhados para o staff.
-
----
-
-## 🔄 5. Motor de Retorno Inteligente (Smart Return)
-
-O sistema analisa automaticamente o comportamento de cada cliente e identifica quando ele provavelmente está na hora de cortar novamente.
-
-* **Cálculo de Média**: Cada cliente possui um intervalo médio de retorno baseado no histórico.
-* **Níveis de Alerta**:
-  * 🟢 **Normal**: Recente (ex: João cortou há 10 dias, média 18).
-  * 🟡 **Ação Sugerida**: Próximo da média (ex: 20 dias).
-  * 🔴 **Crítico**: Ultrapassou a média (ex: 25 dias).
-* **Automações**: Sugestão de agendamento, envio de lembretes e geração de promoções automáticas.
-
----
-
-## 🛡️ 6. Painéis de Controle & Especializados
-
-### 👑 Super Admin (`/admin`)
-
-* **Ecossistema SaaS**: Gestão de todos os tenants (unidades) cadastrados.
-* **Aprovação de Acessos**: Controle de novos cadastros (pendente, ativo, suspenso).
-* **Gestão de Planos**: Mudança de planos (Starter, Professional, Elite) diretamente no Admin.
-* **Console de Logs**: Monitoramento técnico da infraestrutura em tempo real.
-
-### 📱 Portal do Cliente (`/portal`)
-
-* **Painel do Cliente**: Consulta de atendimentos passados e agendamentos futuros.
-* **Avaliações & Feedbacks**: Sistema de classificação de 1 a 5 estrelas após o serviço.
-* **Agendamento Online**: Interface simplificada para o cliente marcar seu próprio horário.
-
-### 🏪 Totem / Kiosk (`/totem`)
-
-* **Autoatendimento**: Interface simplificada para tablets fixos na recepção.
-* **Check-in Rápido via QR**: Entrada do cliente identificada pelo sistema de forma autônoma.
-* **Abertura de Comandas**: Automação que agiliza o fluxo inicial do atendimento.
-
----
-
-## 🎨 7. Design System & UX
-
-* **Neo-Premium Boutique**: Interface minimalista com tons de dourado, preto vulcânico e emerald.
-* **Dark/Light Mode**: Suporte total a temas claro e escuro.
-* **Responsividade**: Experiência fluida em computadores, tablets e smartphones.
-
----
-*Documentação atualizada em: 05/03/2026*
+## 4) Proxima revisao sugerida
+- Atualizar este documento sempre que uma funcionalidade sair do estado "em ajuste" para "ativa".

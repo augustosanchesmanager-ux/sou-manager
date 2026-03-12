@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
+import DatePickerInput from '../ui/DatePickerInput';
 import { FilterState } from './types';
 
 interface SelectOption {
@@ -90,8 +91,8 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
       {filters.period === 'personalizado' && (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="date" value={filters.customStart} onChange={(e) => onChange('customStart', e.target.value)} className={baseInputClassName} />
-          <input type="date" value={filters.customEnd} onChange={(e) => onChange('customEnd', e.target.value)} className={baseInputClassName} />
+          <DatePickerInput value={filters.customStart} onChange={(e) => onChange('customStart', e.target.value)} className={baseInputClassName} />
+          <DatePickerInput value={filters.customEnd} onChange={(e) => onChange('customEnd', e.target.value)} className={baseInputClassName} />
         </div>
       )}
     </section>

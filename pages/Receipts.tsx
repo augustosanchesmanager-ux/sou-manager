@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 
@@ -13,6 +14,30 @@ interface Receipt {
     paymentMethod: string;
     status: 'Pago' | 'Pendente' | 'Cancelado';
 }
+
+const buildShopAddress = (metadata: Record<string, any> | undefined) => {
+    if (!metadata) return [];
+
+    const streetLine = [metadata.street, metadata.number ? `, ${metadata.number}` : '', metadata.complement ? ` - ${metadata.complement}` : '']
+        .join('')
+        .trim();
+
+    const neighborhoodLine = [metadata.neighborhood, metadata.city, metadata.state]
+        .filter(Boolean)
+        .join(' - ');
+
+    const zipLine = metadata.zip_code ? `CEP ${metadata.zip_code}` : '';
+
+    return [streetLine, neighborhoodLine, zipLine].filter(Boolean);
+};
+
+const getInitials = (value: string) =>
+    value
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('') || 'SM';
 
 const Receipts: React.FC = () => {
     const { user, tenantId } = useAuth();
@@ -29,6 +54,12 @@ const Receipts: React.FC = () => {
     // Modal / View State
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+
+    const shopName = user?.user_metadata?.shop_name || user?.user_metadata?.company_name || 'Minha Barbearia';
+    const businessType = user?.user_metadata?.business_type || 'Barbearia';
+    const shopDocument = user?.user_metadata?.document || user?.user_metadata?.cnpj || '';
+    const shopAddressLines = buildShopAddress(user?.user_metadata);
+    const shopInitials = getInitials(shopName);
 
     const fetchReceipts = useCallback(async () => {
         if (!tenantId) return;
@@ -183,25 +214,23 @@ const Receipts: React.FC = () => {
 
                 {/* Period - optional second row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Inicial</label>
-                        <input
-                            type="date"
-                            title="Data Inicial"
-                            value={filterPeriodStart}
-                            onChange={(e) => setFilterPeriodStart(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Final</label>
-                        <input
-                            type="date"
-                            title="Data Final"
-                            value={filterPeriodEnd}
-                            onChange={(e) => setFilterPeriodEnd(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                        />
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Inicial</label>
+                          <DatePickerInput
+                              title="Data Inicial"
+                              value={filterPeriodStart}
+                              onChange={(e) => setFilterPeriodStart(e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Data Final</label>
+                          <DatePickerInput
+                              title="Data Final"
+                              value={filterPeriodEnd}
+                              onChange={(e) => setFilterPeriodEnd(e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                          />
                     </div>
                 </div>
             </div>
@@ -337,16 +366,21 @@ const Receipts: React.FC = () => {
                                     <img src={user.user_metadata.logo_url} alt="Logo" className="w-20 h-20 object-contain rounded-lg shadow-sm print:shadow-none bg-white" />
                                 ) : (
                                     <div className="bg-slate-900 text-white w-16 h-16 flex items-center justify-center font-black text-2xl tracking-tighter shrink-0 print:border print:border-black print:text-black print:bg-transparent">
-                                        SM
+                                        {shopInitials}
                                     </div>
                                 )}
                                 <div>
-                                    <h2 className="text-2xl font-black uppercase tracking-wider text-slate-900">{user?.user_metadata?.company_name || 'Sou Mana.ger'}</h2>
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Barbearia Premium</p>
+                                    <h2 className="text-2xl font-black uppercase tracking-wider text-slate-900">{shopName}</h2>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">{businessType}</p>
                                     <div className="text-xs text-slate-500 mt-2 space-y-0.5 opacity-80">
-                                        <p>CNPJ: {user?.user_metadata?.cnpj || '00.000.000/0001-00'}</p>
-                                        <p>{user?.user_metadata?.address || 'Av. Principal, 1000 - Centro'}</p>
-                                        <p>{user?.user_metadata?.city || 'Cidade - Estado'}, {user?.user_metadata?.zip_code || '00000-000'}</p>
+                                        {shopDocument && (
+                                            <p>{user?.user_metadata?.person_type === 'pf' ? 'CPF' : 'CNPJ'}: {shopDocument}</p>
+                                        )}
+                                        {shopAddressLines.length > 0 ? (
+                                            shopAddressLines.map((line) => <p key={line}>{line}</p>)
+                                        ) : (
+                                            <p>Complete os dados cadastrais da barbearia nas configurações.</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -382,7 +416,7 @@ const Receipts: React.FC = () => {
                         {/* Corpo */}
                         <div className="space-y-6 text-[15px] leading-relaxed text-slate-700 bg-white">
                             <p className="text-lg">
-                                Recebi(emos) de <span className="font-bold text-slate-900 text-lg uppercase px-1">Sou Mana.ger Barbearia Premium</span>, a quantia de <span className="font-bold text-slate-900 text-lg underline decoration-slate-200 underline-offset-4 px-1">R$ {selectedReceipt?.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> (valor por extenso).
+                                Recebi(emos) de <span className="font-bold text-slate-900 text-lg uppercase px-1">{shopName}</span>, a quantia de <span className="font-bold text-slate-900 text-lg underline decoration-slate-200 underline-offset-4 px-1">R$ {selectedReceipt?.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> (valor por extenso).
                             </p>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-slate-100">
@@ -429,12 +463,12 @@ const Receipts: React.FC = () => {
                                 {/* Assinatura Digital do Emissor (Simulação logada) */}
                                 <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center">
                                     <div className="border border-blue-500 text-blue-600 bg-blue-50 text-[8px] font-bold px-2 py-0.5 rounded-sm mt-2 uppercase tracking-widest shadow-sm -rotate-2">
-                                        ✔ Autenticado: {user?.user_metadata?.company_name || 'Sou Mana.ger'}
+                                        ✔ Autenticado: {shopName}
                                         <br /> IP: 192.168.1.1
                                     </div>
                                 </div>
                                 <div className="border-t border-slate-300 mb-3 relative z-10"></div>
-                                <p className="font-bold text-slate-900 uppercase text-sm relative z-10">{user?.user_metadata?.company_name || 'Sou Mana.ger'}</p>
+                                <p className="font-bold text-slate-900 uppercase text-sm relative z-10">{shopName}</p>
                                 <p className="text-xs text-slate-500 uppercase tracking-wider mt-1 relative z-10">Emissor</p>
                             </div>
                         </div>

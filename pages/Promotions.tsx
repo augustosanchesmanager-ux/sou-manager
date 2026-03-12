@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 
 interface Promotion {
@@ -268,25 +269,23 @@ const Promotions: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Início</label>
-                            <input
-                                type="date"
-                                required
-                                value={form.start_date}
-                                onChange={e => setForm({ ...form, start_date: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Término</label>
-                            <input
-                                type="date"
-                                required
-                                value={form.end_date}
-                                onChange={e => setForm({ ...form, end_date: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                            />
+                          <div>
+                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Início</label>
+                              <DatePickerInput
+                                  required
+                                  value={form.start_date}
+                                  onChange={e => setForm({ ...form, start_date: e.target.value })}
+                                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                              />
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Término</label>
+                              <DatePickerInput
+                                  required
+                                  value={form.end_date}
+                                  onChange={e => setForm({ ...form, end_date: e.target.value })}
+                                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                              />
                         </div>
                     </div>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
 import { supabase } from '../../../services/supabaseClient';
+import DatePickerInput from '../../../components/ui/DatePickerInput';
 
 interface Client {
     id: string;
@@ -235,9 +236,9 @@ const KioskIdentify: React.FC<KioskIdentifyProps> = ({ tenantId, onIdentified })
                                 value={maskPhone(phone)}
                                 readOnly
                             />
-                            <input
-                                type="date"
+                            <DatePickerInput
                                 style={{ ...inputStyle, fontSize: '14px', letterSpacing: 'normal' }}
+                                buttonStyle={{ color: theme.textMuted }}
                                 placeholder="Aniversário (opcional)"
                                 value={birthday}
                                 onChange={e => setBirthday(e.target.value)}
