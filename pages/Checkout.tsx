@@ -396,11 +396,7 @@ const Checkout: React.FC = () => {
             setToast({ message: paymentStatus === 'paid' ? 'Venda realizada com sucesso!' : 'Comanda salva em aberto!', type: 'success' });
 
             setTimeout(() => {
-                if (paymentStatus === 'pending') {
-                    navigate('/comandas');
-                } else {
-                    navigate('/financial');
-                }
+                navigate('/comandas', { replace: true });
             }, 1500);
 
         } catch (err: any) {
