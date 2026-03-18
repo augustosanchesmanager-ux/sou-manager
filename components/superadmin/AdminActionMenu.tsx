@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, ShieldOff, UserLock, WalletCards } from 'lucide-react';
+import { Building2, ShieldAlert, ShieldCheck, Users, WalletCards } from 'lucide-react';
 import { QuickAction } from './types';
 
 interface AdminActionMenuProps {
@@ -9,17 +9,19 @@ interface AdminActionMenuProps {
 }
 
 const actionMenuItems: QuickAction[] = [
-  { id: 'menu-block-user', label: 'Bloquear usuario', description: 'Desativa acesso imediatamente.', tone: 'danger' },
-  { id: 'menu-unblock-user', label: 'Desbloquear usuario', description: 'Libera acesso com justificativa.', tone: 'success' },
-  { id: 'menu-suspend-company', label: 'Suspender empresa', description: 'Congela tenant por risco financeiro.', tone: 'danger' },
-  { id: 'menu-approve-subscription', label: 'Aprovar assinatura', description: 'Conclui a fila de upgrade e ativacao.', tone: 'default' },
+  { id: 'go-companies', label: 'Abrir empresas', description: 'Vai para a base real de tenants cadastrados.', tone: 'default' },
+  { id: 'go-users', label: 'Revisar usuarios', description: 'Mostra os perfis e acessos ativos da plataforma.', tone: 'default' },
+  { id: 'go-subscriptions', label: 'Ver solicitacoes', description: 'Abre a fila real de mudanca de plano e acesso.', tone: 'default' },
+  { id: 'go-audit', label: 'Abrir auditoria', description: 'Leva direto para os eventos auditados do ambiente.', tone: 'success' },
+  { id: 'go-logs', label: 'Abrir alertas', description: 'Mostra a fila de riscos, tickets e monitoramento.', tone: 'danger' },
 ];
 
 const iconMap = {
-  'Bloquear usuario': UserLock,
-  'Desbloquear usuario': ShieldCheck,
-  'Suspender empresa': ShieldOff,
-  'Aprovar assinatura': WalletCards,
+  'Abrir empresas': Building2,
+  'Revisar usuarios': Users,
+  'Ver solicitacoes': WalletCards,
+  'Abrir auditoria': ShieldCheck,
+  'Abrir alertas': ShieldAlert,
 };
 
 const AdminActionMenu: React.FC<AdminActionMenuProps> = ({ isOpen, onClose, onSelect }) => {
@@ -32,8 +34,8 @@ const AdminActionMenu: React.FC<AdminActionMenuProps> = ({ isOpen, onClose, onSe
         className="absolute right-6 top-28 w-[22rem] rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl dark:border-[#262A33] dark:bg-[#15171c]"
         onClick={(event) => event.stopPropagation()}
       >
-        <p className="text-sm font-bold text-slate-950 dark:text-white">Nova acao administrativa</p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Escolha uma operacao sensivel. Todas as acoes geram auditoria.</p>
+        <p className="text-sm font-bold text-slate-950 dark:text-white">Atalhos administrativos</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Acesso rapido aos blocos reais da operacao master.</p>
 
         <div className="mt-4 space-y-2">
           {actionMenuItems.map((item) => {

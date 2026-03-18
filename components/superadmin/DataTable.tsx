@@ -86,7 +86,7 @@ function DataTable<T>({
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 dark:border-[#262A33]">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Ordenacao e filtros inline preparados para integracao real.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Use a paginacao para navegar pelos registros do recorte atual.</p>
             <div className="flex gap-2">
               <button
                 className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-primary hover:text-primary disabled:opacity-40 dark:border-white/10 dark:text-slate-300"

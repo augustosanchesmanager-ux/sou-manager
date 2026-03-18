@@ -62,7 +62,7 @@ const SuperAdminHeader: React.FC<SuperAdminHeaderProps> = ({
           </Button>
           <Button variant="primary" size="md" className="rounded-xl" onClick={onOpenActionMenu}>
             <ShieldEllipsis className="h-4 w-4" />
-            Nova acao administrativa
+            Atalhos administrativos
           </Button>
         </div>
       </div>

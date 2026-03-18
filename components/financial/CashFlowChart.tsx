@@ -19,9 +19,12 @@ interface CashFlowChartProps {
   data: Array<{ label: string; entradas: number; saidas: number; saldo: number }>;
 }
 
+const formatCurrency = (value: number) =>
+  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 const CashFlowChart: React.FC<CashFlowChartProps> = ({ title, subtitle, data, variant }) => {
   return (
-    <article className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark p-5 h-[320px]">
+    <article className="h-[320px] rounded-2xl border border-slate-200/80 bg-white p-5 dark:border-border-dark dark:bg-card-dark">
       <div className="mb-4">
         <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
@@ -33,10 +36,10 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ title, subtitle, data, va
             <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="#cbd5e1" opacity={0.35} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
             <Legend iconType="circle" />
             <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[8, 8, 0, 0]} />
-            <Bar dataKey="saidas" name="Saídas" fill="#f97316" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="saidas" name="Saidas" fill="#f97316" radius={[8, 8, 0, 0]} />
           </BarChart>
         ) : (
           <AreaChart data={data}>
@@ -49,7 +52,7 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ title, subtitle, data, va
             <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="#cbd5e1" opacity={0.35} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
             <Area type="monotone" dataKey="saldo" name="Saldo" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#saldoFill)" />
           </AreaChart>
         )}
