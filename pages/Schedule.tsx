@@ -67,6 +67,7 @@ interface NewAppointmentForm {
   date: string;
   start: number;
   duration: number;
+  notes: string;
 }
 
 interface ScheduleBlockForm {
@@ -192,7 +193,8 @@ const Schedule: React.FC = () => {
     staffId: '',
     date: new Date().toISOString().split('T')[0],
     start: 8,
-    duration: 1
+    duration: 1,
+    notes: '',
   });
 
   useEffect(() => {
@@ -200,7 +202,7 @@ const Schedule: React.FC = () => {
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
-    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1 }));
+    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
     setIsModalOpen(true);
 
     navigate(location.pathname, { replace: true, state: null });
@@ -489,35 +491,41 @@ const Schedule: React.FC = () => {
     }
   };
 
+  const loadChefClubInfo = async (clientName: string) => {
+    const client = clientsList.find(c => c.name === clientName);
+    if (!client) {
+      setChefClubInfo(null);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('customer_subscriptions')
+      .select(`
+        status,
+        plan:customer_plans(name),
+        credits:customer_credits(available_credits)
+      `)
+      .eq('client_id', client.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (data) {
+      setChefClubInfo({
+        planName: (data.plan as any).name,
+        credits: (data.credits as any)?.[0]?.available_credits || 0,
+        status: data.status
+      });
+      return;
+    }
+
+    setChefClubInfo(null);
+  };
+
   const selectClient = async (clientName: string) => {
     setFormData(prev => ({ ...prev, client: clientName, clientPhone: '' }));
     setShowClientSuggestions(false);
     setIsNewClientMode(false);
-
-    // Check for Chef Club Subscription
-    const client = clientsList.find(c => c.name === clientName);
-    if (client) {
-      const { data, error } = await supabase
-        .from('customer_subscriptions')
-        .select(`
-          status,
-          plan:customer_plans(name),
-          credits:customer_credits(available_credits)
-        `)
-        .eq('client_id', client.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (data) {
-        setChefClubInfo({
-          planName: (data.plan as any).name,
-          credits: (data.credits as any)?.[0]?.available_credits || 0,
-          status: data.status
-        });
-      } else {
-        setChefClubInfo(null);
-      }
-    }
+    await loadChefClubInfo(clientName);
   };
 
   const enableNewClientMode = () => {
@@ -537,9 +545,11 @@ const Schedule: React.FC = () => {
       staffId: apt.staffId,
       date: datePart,
       start: apt.start,
-      duration: apt.duration
+      duration: apt.duration,
+      notes: apt.notes || '',
     });
 
+    void loadChefClubInfo(apt.client);
     setIsDetailModalOpen(false);
     setIsModalOpen(true);
   };
@@ -934,6 +944,7 @@ const Schedule: React.FC = () => {
         staff_id: formData.staffId || null,
         service_name: formData.service,
         client_phone: formData.clientPhone,
+        notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
         end_time: endTimeLine.toISOString(),
@@ -964,6 +975,7 @@ const Schedule: React.FC = () => {
         client_name: formData.client,
         client_phone: formData.clientPhone,
         service_name: formData.service,
+        notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: startTimeLine.toISOString(),
         end_time: endTimeLine.toISOString(),
@@ -1025,7 +1037,7 @@ const Schedule: React.FC = () => {
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
-    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1 });
+    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
     fetchAppointments();
   };
 
@@ -1158,7 +1170,8 @@ const Schedule: React.FC = () => {
           <button
             onClick={() => {
               setEditingAppointmentId(null);
-              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1 }));
+              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+              setChefClubInfo(null);
               setIsModalOpen(true);
             }}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 transition-all"
@@ -1527,7 +1540,7 @@ const Schedule: React.FC = () => {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -1724,9 +1737,20 @@ const Schedule: React.FC = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">ObservaÃ§Ãµes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => handleInputChange('notes', e.target.value)}
+              rows={4}
+              placeholder="Adicione detalhes importantes do atendimento..."
+              className="w-full resize-none bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
