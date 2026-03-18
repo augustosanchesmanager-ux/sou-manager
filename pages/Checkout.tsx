@@ -287,6 +287,10 @@ const Checkout: React.FC = () => {
             setToast({ message: 'Selecione um cliente.', type: 'error' });
             return;
         }
+        if (cart.length === 0) {
+            setToast({ message: 'Adicione pelo menos um item antes de finalizar a comanda.', type: 'error' });
+            return;
+        }
         if (!tenantId) {
             setToast({ message: 'Tenant inválido para finalizar operação.', type: 'error' });
             return;
@@ -295,10 +299,13 @@ const Checkout: React.FC = () => {
         setLoading(true);
         try {
             let currentComandaId = comandaId;
+            const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
+            const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
 
             // 1. Create or Update Comanda
             const comandaData: any = {
                 client_id: selectedClient.id,
+                staff_id: comandaStaffId,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
                 total: total,
                 tenant_id: tenantId
@@ -332,6 +339,7 @@ const Checkout: React.FC = () => {
                 product_name: item.name,
                 quantity: item.quantity,
                 unit_price: item.price,
+                staff_id: item.staff_id || null,
                 tenant_id: tenantId
             }));
 

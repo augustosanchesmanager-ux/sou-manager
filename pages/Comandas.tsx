@@ -22,6 +22,7 @@ interface Comanda {
     };
     comanda_items: {
         id: string;
+        staff_id?: string | null;
         product_name: string;
         quantity: number;
         unit_price: number;
@@ -69,7 +70,7 @@ const Comandas: React.FC = () => {
                     *,
                     clients(name, avatar),
                     staff(name),
-                    comanda_items(id, product_name, quantity, unit_price)
+                    comanda_items(id, staff_id, product_name, quantity, unit_price)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -96,6 +97,28 @@ const Comandas: React.FC = () => {
         const hexStr = id.replace(/-/g, '').slice(0, 8);
         const num = parseInt(hexStr, 16);
         return isNaN(num) ? 1000 : (num % 89999) + 1000;
+    };
+
+    const getResponsibleLabel = (comanda: Comanda) => {
+        if (comanda.staff?.name) {
+            return comanda.staff.name;
+        }
+
+        const assignedStaffIds = Array.from(new Set(
+            comanda.comanda_items
+                .map(item => item.staff_id)
+                .filter((staffId): staffId is string => Boolean(staffId))
+        ));
+
+        if (assignedStaffIds.length > 1) {
+            return 'Múltiplos profissionais';
+        }
+
+        if (assignedStaffIds.length === 1) {
+            return 'Profissional vinculado';
+        }
+
+        return '---';
     };
 
     const filteredComandas = comandas.filter(comanda => {
@@ -419,7 +442,7 @@ const Comandas: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{comanda.staff?.name || '---'}</span>
+                                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{getResponsibleLabel(comanda)}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="font-black text-slate-900 dark:text-white">R$ {(comanda.total || 0).toFixed(2)}</span>
@@ -464,7 +487,7 @@ const Comandas: React.FC = () => {
                             <img src={viewComanda.clients?.avatar} alt="" className="size-14 rounded-full border-2 border-slate-200 dark:border-border-dark" />
                             <div>
                                 <p className="text-lg font-bold text-slate-900 dark:text-white">{viewComanda.clients?.name}</p>
-                                <p className="text-xs text-slate-500">Atendido por {viewComanda.staff?.name || 'N/A'}</p>
+                                <p className="text-xs text-slate-500">Atendido por {getResponsibleLabel(viewComanda)}</p>
                             </div>
                         </div>
                         <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-4 space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">

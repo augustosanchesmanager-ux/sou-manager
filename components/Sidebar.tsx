@@ -104,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           name: 'Cadastros',
           icon: 'folder_open',
           children: [
+            { name: 'Monitoramento Supabase', path: '/admin/supabase-monitoring' },
             { name: 'Serviços', path: '/services' },
             { name: 'Produtos', path: '/products' },
             { name: 'Profissionais', path: '/team' },

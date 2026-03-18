@@ -14,12 +14,14 @@ import Performance from './pages/Performance';
 import Expenses from './pages/Expenses';
 import Receipts from './pages/Receipts';
 import Payroll from './pages/Payroll';
+import Cashflow from './pages/Cashflow';
 import Checkout from './pages/Checkout';
 import Comandas from './pages/Comandas';
 import Admin from './pages/Admin';
 import Operations from './pages/Operations';
 import Orders from './pages/Orders';
 import OrderDetails from './pages/OrderDetails';
+import Commissions from './pages/Commissions';
 import RoleSelection from './pages/onboarding/RoleSelection';
 import ShopSetup from './pages/onboarding/ShopSetup';
 import ProfessionalSetup from './pages/onboarding/ProfessionalSetup';
@@ -36,6 +38,7 @@ import Promotions from './pages/Promotions';
 import BusinessIntelligence from './pages/BusinessIntelligence';
 import SmartReturn from './pages/SmartReturn';
 import StrategicDashboard from './pages/StrategicDashboard';
+import SupabaseMonitoring from './pages/SupabaseMonitoring';
 import PendingApproval from './pages/PendingApproval';
 import KioskAdmin from './pages/KioskAdmin';
 import KioskPage from './pages/kiosk/KioskPage';
@@ -148,6 +151,7 @@ const AppRoutes: React.FC = () => {
 
           {/* Admin Settings & Features */}
           <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
+          <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} />
           <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
           <Route path="/kiosk-admin" element={<ManagerRoute><KioskAdmin /></ManagerRoute>} />
           <Route path="/portal-admin" element={<ManagerRoute><PortalAdmin /></ManagerRoute>} />
@@ -161,9 +165,11 @@ const AppRoutes: React.FC = () => {
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
+          <Route path="/cashflow" element={<ManagerRoute><Cashflow /></ManagerRoute>} />
           <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
           <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
           <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
+          <Route path="/commissions" element={<ManagerRoute><Commissions /></ManagerRoute>} />
           <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
           <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
           <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />

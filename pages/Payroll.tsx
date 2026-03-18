@@ -60,14 +60,19 @@ const Payroll: React.FC = () => {
                 return;
             }
 
-            // 2. Fetch Paid Comandas for the month
-            const { data: comandasData } = await supabase
-                .from('comandas')
-                .select('staff_id, total')
+            // 2. Fetch paid items for the month and use comanda staff only as fallback
+            const { data: commissionItemsData } = await supabase
+                .from('comanda_items')
+                .select(`
+                    staff_id,
+                    quantity,
+                    unit_price,
+                    comandas!inner(created_at, status, staff_id)
+                `)
                 .eq('tenant_id', tenantId)
-                .eq('status', 'paid')
-                .gte('created_at', startOfMonth)
-                .lte('created_at', endOfMonth);
+                .eq('comandas.status', 'paid')
+                .gte('comandas.created_at', startOfMonth)
+                .lte('comandas.created_at', endOfMonth);
 
             // 3. Fetch specific payroll payments in transactions 
             const { data: transactionsData } = await supabase
@@ -83,9 +88,16 @@ const Payroll: React.FC = () => {
             const records: PayrollRecord[] = staffData.map((staff: any) => {
                 // Calculate commissions
                 let staffCommissions = 0;
-                if (comandasData) {
-                    const staffSales = comandasData.filter((c: any) => c.staff_id === staff.id);
-                    const totalSales = staffSales.reduce((acc: number, curr: any) => acc + Number(curr.total), 0);
+                if (commissionItemsData) {
+                    const staffSales = commissionItemsData.filter((item: any) => {
+                        const effectiveStaffId = item.staff_id || item.comandas?.staff_id || null;
+                        return effectiveStaffId === staff.id;
+                    });
+                    const totalSales = staffSales.reduce((acc: number, curr: any) => {
+                        const quantity = Number(curr.quantity || 0);
+                        const unitPrice = Number(curr.unit_price || 0);
+                        return acc + (quantity * unitPrice);
+                    }, 0);
                     // if commission_rate is 40%
                     const rate = Number(staff.commission_rate || 40) / 100;
                     staffCommissions = totalSales * rate;
