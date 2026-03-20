@@ -15,6 +15,18 @@ interface Expense {
     receipt_url?: string;
 }
 
+const getTodayIsoDate = () => new Date().toISOString().split('T')[0];
+
+const normalizeDateForInput = (value?: string | null) => {
+    if (!value) return getTodayIsoDate();
+    return value.includes('T') ? value.split('T')[0] : value;
+};
+
+const normalizeDateForDb = (value: string) => {
+    if (!value) return new Date().toISOString();
+    return value.includes('T') ? value : new Date(`${value}T00:00:00`).toISOString();
+};
+
 const Expenses: React.FC = () => {
     const { user, tenantId } = useAuth();
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -30,16 +42,23 @@ const Expenses: React.FC = () => {
         description: '',
         category: 'Outros',
         amount: '',
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayIsoDate(),
         status: 'pending'
     });
 
     const fetchExpenses = useCallback(async () => {
+        if (!tenantId) {
+            setExpenses([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         const { data, error } = await supabase
             .from('transactions')
             .select('*')
             .eq('type', 'expense')
+            .eq('tenant_id', tenantId)
             .order('date', { ascending: false });
 
         if (error) {
@@ -52,12 +71,12 @@ const Expenses: React.FC = () => {
                 description: item.description || item.desc || '',
                 category: item.category || 'Outros',
                 amount: Number(item.amount || item.val || 0),
-                date: item.date,
+                date: item.date || item.created_at || new Date().toISOString(),
                 status: item.status || 'paid', // Default to paid if not specified
             })));
         }
         setLoading(false);
-    }, []);
+    }, [tenantId]);
 
     useEffect(() => {
         fetchExpenses();
@@ -69,7 +88,7 @@ const Expenses: React.FC = () => {
             description: expense.description,
             category: expense.category,
             amount: expense.amount.toString(),
-            date: expense.date,
+            date: normalizeDateForInput(expense.date),
             status: expense.status,
         });
         setIsModalOpen(true);
@@ -77,21 +96,33 @@ const Expenses: React.FC = () => {
 
     const openNewModal = () => {
         setEditingExpense(null);
-        setFormData({ description: '', category: 'Outros', amount: '', date: new Date().toISOString().split('T')[0], status: 'pending' });
+        setFormData({ description: '', category: 'Outros', amount: '', date: getTodayIsoDate(), status: 'pending' });
         setIsModalOpen(true);
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!tenantId || !user) {
+            setToast({ message: 'Sessao invalida para cadastrar despesa.', type: 'error' });
+            return;
+        }
+
+        const amount = parseFloat(formData.amount);
+        if (Number.isNaN(amount) || amount <= 0) {
+            setToast({ message: 'Informe um valor valido para a despesa.', type: 'error' });
+            return;
+        }
+
         const payload = {
+            user_id: user.id,
             description: formData.description,
             category: formData.category,
-            amount: parseFloat(formData.amount),
-            date: formData.date,
+            amount,
+            date: normalizeDateForDb(formData.date),
             status: formData.status,
             type: 'expense',
-            method: 'Dinheiro', // Default for expenses if not specified
+            payment_method: 'Dinheiro',
             tenant_id: tenantId
         };
 
@@ -99,9 +130,11 @@ const Expenses: React.FC = () => {
             const { error } = await supabase
                 .from('transactions')
                 .update(payload)
-                .eq('id', editingExpense.id);
+                .eq('id', editingExpense.id)
+                .eq('tenant_id', tenantId);
 
             if (error) {
+                console.error('Error updating expense:', error);
                 setToast({ message: 'Erro ao atualizar despesa.', type: 'error' });
             } else {
                 setToast({ message: 'Despesa atualizada!', type: 'success' });
@@ -114,6 +147,7 @@ const Expenses: React.FC = () => {
                 .insert(payload);
 
             if (error) {
+                console.error('Error creating expense:', error);
                 setToast({ message: 'Erro ao cadastrar despesa.', type: 'error' });
             } else {
                 setToast({ message: 'Despesa cadastrada!', type: 'success' });
@@ -124,12 +158,19 @@ const Expenses: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
+        if (!tenantId) {
+            setToast({ message: 'Sessao invalida para remover despesa.', type: 'error' });
+            return;
+        }
+
         const { error } = await supabase
             .from('transactions')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('tenant_id', tenantId);
 
         if (error) {
+            console.error('Error deleting expense:', error);
             setToast({ message: 'Erro ao remover despesa.', type: 'error' });
         } else {
             setToast({ message: 'Despesa removida.', type: 'info' });
