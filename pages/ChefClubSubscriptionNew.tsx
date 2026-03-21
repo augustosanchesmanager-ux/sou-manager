@@ -24,7 +24,12 @@ interface ExistingSubscription {
     plan_id: string;
 }
 
-const toDateOnly = (d: Date) => d.toISOString().split('T')[0];
+const toDateOnly = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 const ChefClubSubscriptionNew: React.FC = () => {
     const { tenantId } = useAuth();
@@ -97,8 +102,14 @@ const ChefClubSubscriptionNew: React.FC = () => {
     const today = new Date();
     const nextBilling = new Date(today);
     nextBilling.setDate(nextBilling.getDate() + 30);
+    const [nextBillingDate, setNextBillingDate] = useState(toDateOnly(nextBilling));
+    const [initialCredits, setInitialCredits] = useState(0);
 
-    const applyCreditsForSubscription = async (subscriptionId: string, clientId: string, plan: PlanOption) => {
+    useEffect(() => {
+        setInitialCredits(selectedPlan?.service_credits || 0);
+    }, [selectedPlanId, selectedPlan]);
+
+    const applyCreditsForSubscription = async (subscriptionId: string, clientId: string, credits: number) => {
         const { error } = await supabase
             .from('customer_credits')
             .upsert(
@@ -106,7 +117,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
                     subscription_id: subscriptionId,
                     tenant_id: tenantId,
                     client_id: clientId,
-                    available_credits: plan.service_credits,
+                    available_credits: credits,
                     used_credits: 0,
                     period_start: today.toISOString(),
                     period_end: null
@@ -119,6 +130,8 @@ const ChefClubSubscriptionNew: React.FC = () => {
 
     const createSubscription = async () => {
         if (!tenantId || !selectedClient || !selectedPlan) return;
+        const parsedInitialCredits = Number(initialCredits);
+        const billingDate = new Date(`${nextBillingDate}T12:00:00`);
 
         const { data, error } = await supabase
             .from('customer_subscriptions')
@@ -129,8 +142,8 @@ const ChefClubSubscriptionNew: React.FC = () => {
                 status: 'active',
                 started_at: today.toISOString(),
                 cycle_start: today.toISOString(),
-                cycle_end: nextBilling.toISOString(),
-                next_billing_date: toDateOnly(nextBilling)
+                cycle_end: billingDate.toISOString(),
+                next_billing_date: nextBillingDate
             })
             .select('id')
             .single();
@@ -140,7 +153,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
             return;
         }
 
-        const creditsError = await applyCreditsForSubscription(data.id, selectedClient.id, selectedPlan);
+        const creditsError = await applyCreditsForSubscription(data.id, selectedClient.id, parsedInitialCredits);
         if (creditsError) {
             setToast({ message: `Assinatura criada, mas houve erro ao lançar créditos: ${creditsError.message}`, type: 'error' });
             return;
@@ -158,6 +171,8 @@ const ChefClubSubscriptionNew: React.FC = () => {
 
     const replaceSubscriptionPlan = async () => {
         if (!tenantId || !selectedClient || !selectedPlan || !existingSubscription) return;
+        const parsedInitialCredits = Number(initialCredits);
+        const billingDate = new Date(`${nextBillingDate}T12:00:00`);
 
         if (existingSubscription.plan_id === selectedPlan.id) {
             setToast({ message: 'Este cliente já está ativo neste plano.', type: 'info' });
@@ -170,8 +185,8 @@ const ChefClubSubscriptionNew: React.FC = () => {
                 plan_id: selectedPlan.id,
                 status: 'active',
                 cycle_start: today.toISOString(),
-                cycle_end: nextBilling.toISOString(),
-                next_billing_date: toDateOnly(nextBilling)
+                cycle_end: billingDate.toISOString(),
+                next_billing_date: nextBillingDate
             })
             .eq('id', existingSubscription.id)
             .eq('tenant_id', tenantId);
@@ -181,7 +196,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
             return;
         }
 
-        const creditsError = await applyCreditsForSubscription(existingSubscription.id, selectedClient.id, selectedPlan);
+        const creditsError = await applyCreditsForSubscription(existingSubscription.id, selectedClient.id, parsedInitialCredits);
         if (creditsError) {
             setToast({ message: `Plano trocado, mas houve erro ao atualizar créditos: ${creditsError.message}`, type: 'error' });
             return;
@@ -199,6 +214,18 @@ const ChefClubSubscriptionNew: React.FC = () => {
 
     const handleConfirm = async () => {
         if (!tenantId || !selectedClient || !selectedPlan) return;
+        const parsedInitialCredits = Number(initialCredits);
+
+        if (!nextBillingDate) {
+            setToast({ message: 'Defina a proxima cobranca antes de confirmar.', type: 'info' });
+            return;
+        }
+
+        if (!Number.isFinite(parsedInitialCredits) || parsedInitialCredits < 0) {
+            setToast({ message: 'Informe uma quantidade valida de creditos iniciais.', type: 'info' });
+            return;
+        }
+
         setSaving(true);
         setExistingSubscription(null);
 
@@ -344,11 +371,23 @@ const ChefClubSubscriptionNew: React.FC = () => {
                             </div>
                             <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-4">
                                 <p className="text-[10px] uppercase font-black text-slate-500">Créditos Iniciais</p>
-                                <p className="text-sm font-bold text-amber-600 mt-1">{selectedPlan?.service_credits || 0}</p>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={initialCredits}
+                                    onChange={e => setInitialCredits(Math.max(0, Number(e.target.value)))}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm font-bold text-amber-600 mt-2 outline-none focus:ring-1 focus:ring-primary"
+                                />
                             </div>
                             <div className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-4">
                                 <p className="text-[10px] uppercase font-black text-slate-500">Próxima Cobrança</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{nextBilling.toLocaleDateString('pt-BR')}</p>
+                                <input
+                                    type="date"
+                                    value={nextBillingDate}
+                                    onChange={e => setNextBillingDate(e.target.value)}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm font-bold text-slate-900 dark:text-white mt-2 outline-none focus:ring-1 focus:ring-primary"
+                                />
                             </div>
                         </div>
 
