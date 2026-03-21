@@ -589,6 +589,7 @@ const Schedule: React.FC = () => {
 
     const dateStr = dropDate || apt.startTime.split('T')[0];
     const newStartTimeLine = new Date(`${dateStr}T${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}:00`);
+    const newEndTimeLine = new Date(newStartTimeLine.getTime() + apt.duration * 60 * 60 * 1000);
 
     // Validação Anti-Overbooking
     const overlapping = appointments.filter(a =>
@@ -619,7 +620,14 @@ const Schedule: React.FC = () => {
     // Otimista Update UI
     setAppointments(prev => prev.map(a =>
       a.id === apt.id
-        ? { ...a, staffId: dropStaffId, start: roundedHour, startTime: newStartTimeLine.toISOString(), date: dateStr }
+        ? {
+          ...a,
+          staffId: dropStaffId,
+          staffName: staffList.find(s => s.id === dropStaffId)?.name || apt.staffName,
+          start: roundedHour,
+          startTime: newStartTimeLine.toISOString(),
+          date: newStartTimeLine.toISOString(),
+        }
         : a
     ));
 
@@ -636,6 +644,7 @@ const Schedule: React.FC = () => {
         staff_id: dropStaffId,
         staff_name: selectedStaff?.name || apt.staffName,
         start_time: newStartTimeLine.toISOString(),
+        end_time: newEndTimeLine.toISOString(),
         duration: apt.duration,
       }).eq('id', apt.id).eq('tenant_id', tenantId);
 
@@ -937,16 +946,20 @@ const Schedule: React.FC = () => {
 
     if (editingAppointmentId) {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      const updatedStartIso = startTimeLine.toISOString();
+      const updatedAppointmentDate = updatedStartIso;
 
       // UPDATE EXISTING
       const { error: updateError } = await supabase.from('appointments').update({
         service_id: selectedService?.id || null,
         staff_id: formData.staffId || null,
+        client_id: clientId,
+        client_name: formData.client,
         service_name: formData.service,
         client_phone: formData.clientPhone,
         notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
-        start_time: startTimeLine.toISOString(),
+        start_time: updatedStartIso,
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
         price: selectedService?.price || 0,
@@ -962,6 +975,25 @@ const Schedule: React.FC = () => {
       await supabase.from('comandas').update({
         staff_id: formData.staffId || null,
       }).eq('appointment_id', editingAppointmentId).eq('tenant_id', tenantId).eq('status', 'open');
+
+      setAppointments(prev => prev.map((apt) =>
+        apt.id === editingAppointmentId
+          ? {
+            ...apt,
+            staffId: formData.staffId,
+            staffName: selectedStaff?.name || '',
+            start: formData.start,
+            duration: Number(formData.duration),
+            client: formData.client,
+            clientPhone: formData.clientPhone || '',
+            service: formData.service,
+            price: selectedService?.price || 0,
+            startTime: updatedStartIso,
+            notes: formData.notes.trim(),
+            date: updatedAppointmentDate,
+          }
+          : apt
+      ));
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
