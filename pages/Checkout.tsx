@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import {
+    ensureAppSupportsModule,
+    getScopedClient,
+    requireTenantContext,
+    supabase,
+} from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -46,7 +51,7 @@ interface Staff {
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { tenantId } = useAuth();
+    const { appSlug, schema, tenantId } = useAuth();
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // State
@@ -88,65 +93,90 @@ const Checkout: React.FC = () => {
         }
 
         setLoading(true);
-        const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
-            supabase.from('clients').select('id, name, avatar, phone').eq('tenant_id', tenantId).order('name'),
-            supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
-            supabase.from('services').select('*').eq('tenant_id', tenantId).neq('active', false),
-            supabase.from('products').select('*').eq('tenant_id', tenantId).neq('active', false),
-            supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
-        ]);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'comandas',
+                operation: 'load checkout data',
+            });
+            const client = getScopedClient(currentAppSlug);
 
-        if (clientsRes.data) setClients(clientsRes.data);
-        if (staffRes.data) setStaff(staffRes.data);
-        if (servicesRes.data) setServices(servicesRes.data);
-        if (productsRes.data) setProducts(productsRes.data);
-        if (promoRes.data) {
+            const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
+                client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
+                client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
+                client.from('services').select('*').eq('tenant_id', resolvedTenantId).neq('active', false),
+                client.from('products').select('*').eq('tenant_id', resolvedTenantId).neq('active', false),
+                client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
+            ]);
+
+            if (clientsRes.error) throw clientsRes.error;
+            if (staffRes.error) throw staffRes.error;
+            if (servicesRes.error) throw servicesRes.error;
+            if (productsRes.error) throw productsRes.error;
+            if (promoRes.error) throw promoRes.error;
+
+            setClients((clientsRes.data || []) as Client[]);
+            setStaff((staffRes.data || []) as Staff[]);
+            setServices(servicesRes.data || []);
+            setProducts(productsRes.data || []);
+
             const now = new Date();
-            const validPromos = promoRes.data.filter((p: any) => {
+            const validPromos = (promoRes.data || []).filter((p: any) => {
                 const start = new Date(p.start_date);
                 const end = new Date(p.end_date);
-                // Set end date to end of day
                 end.setHours(23, 59, 59, 999);
                 return now >= start && now <= end;
             });
             setActivePromotions(validPromos);
-        }
 
-        // If editing a comanda
-        if (comandaId) {
-            const { data: comanda, error: comError } = await supabase
-                .from('comandas')
-                .select(`
+            if (comandaId) {
+                const { data: comanda, error: comError } = await client
+                    .from('comandas')
+                    .select(`
           *,
           clients(id, name, avatar, phone),
           comanda_items(*)
         `)
-                .eq('id', comandaId)
-                .eq('tenant_id', tenantId)
-                .single();
+                    .eq('id', comandaId)
+                    .eq('tenant_id', resolvedTenantId)
+                    .single();
 
-            if (comanda && !comError) {
-                setSelectedClient(comanda.clients);
-                setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
-                setPaymentMethod(comanda.payment_method || 'credit');
-                setDiscount(String(comanda.discount || 0));
+                if (comError) throw comError;
 
-                const mappedItems: CartItem[] = comanda.comanda_items.map((item: any) => ({
-                    id: item.id,
-                    dbId: item.id,
-                    type: item.service_id ? 'service' : 'product',
-                    name: item.product_name,
-                    price: item.unit_price,
-                    quantity: item.quantity,
-                    service_id: item.service_id,
-                    product_id: item.product_id,
-                    staff_id: item.staff_id
-                }));
-                setCart(mappedItems);
+                if (comanda) {
+                    setSelectedClient(comanda.clients);
+                    setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
+                    setPaymentMethod(comanda.payment_method || 'credit');
+                    setDiscount(String(comanda.discount || 0));
+
+                    const mappedItems: CartItem[] = comanda.comanda_items.map((item: any) => ({
+                        id: item.id,
+                        dbId: item.id,
+                        type: item.service_id ? 'service' : 'product',
+                        name: item.product_name,
+                        price: item.unit_price,
+                        quantity: item.quantity,
+                        service_id: item.service_id,
+                        product_id: item.product_id,
+                        staff_id: item.staff_id
+                    }));
+                    setCart(mappedItems);
+                }
             }
+        } catch (error) {
+            console.error('Error loading checkout data:', error);
+            setToast({ message: 'Erro ao carregar dados do checkout.', type: 'error' });
+            setClients([]);
+            setStaff([]);
+            setServices([]);
+            setProducts([]);
+            setActivePromotions([]);
         }
         setLoading(false);
-    }, [comandaId, tenantId]);
+    }, [appSlug, comandaId, schema, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -161,46 +191,70 @@ const Checkout: React.FC = () => {
     // Duplicate client check
     const handleSelectClient = async (client: Client) => {
         setIsClientModalOpen(false);
-        // Only check for duplicates when creating a new comanda (not editing)
-        if (!comandaId) {
-            const { data: openComandas } = await supabase
-                .from('comandas')
-                .select('id, created_at')
-                .eq('client_id', client.id)
-                .eq('tenant_id', tenantId)
-                .eq('status', 'open')
-                .limit(1);
-
-            if (openComandas && openComandas.length > 0) {
-                setPendingClient(client);
-                setDuplicateComanda(openComandas[0]);
-                setShowDuplicateModal(true);
-                return;
-            }
+        if (!tenantId) {
+            setToast({ message: 'Tenant invalido para selecionar cliente.', type: 'error' });
+            return;
         }
-        if (pendingClient) setSelectedClient(pendingClient);
 
-        // Check for Chef Club
-        const targetClient = pendingClient || client;
-        const { data: sub } = await supabase
-            .from('customer_subscriptions')
-            .select(`
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'comandas',
+                operation: 'select checkout client',
+            });
+            const clientDb = getScopedClient(currentAppSlug);
+
+            if (!comandaId) {
+                const { data: openComandas, error: openComandasError } = await clientDb
+                    .from('comandas')
+                    .select('id, created_at')
+                    .eq('client_id', client.id)
+                    .eq('tenant_id', resolvedTenantId)
+                    .eq('status', 'open')
+                    .limit(1);
+
+                if (openComandasError) throw openComandasError;
+
+                if (openComandas && openComandas.length > 0) {
+                    setPendingClient(client);
+                    setDuplicateComanda(openComandas[0]);
+                    setShowDuplicateModal(true);
+                    return;
+                }
+            }
+
+            if (pendingClient) setSelectedClient(pendingClient);
+
+            const targetClient = pendingClient || client;
+            const { data: sub, error: subError } = await clientDb
+                .from('customer_subscriptions')
+                .select(`
                 id,
                 plan:customer_plans(name),
                 credits:customer_credits(available_credits)
             `)
             .eq('client_id', targetClient.id)
+            .eq('tenant_id', resolvedTenantId)
             .eq('status', 'active')
             .maybeSingle();
 
-        if (sub) {
-            setChefClubInfo({
-                id: sub.id,
-                planName: (sub.plan as any).name,
-                credits: (sub.credits as any)?.[0]?.available_credits || 0
-            });
-        } else {
-            setChefClubInfo(null);
+            if (subError) throw subError;
+
+            if (sub) {
+                setChefClubInfo({
+                    id: sub.id,
+                    planName: (sub.plan as any).name,
+                    credits: (sub.credits as any)?.[0]?.available_credits || 0
+                });
+            } else {
+                setChefClubInfo(null);
+            }
+        } catch (error) {
+            console.error('Error selecting checkout client:', error);
+            setToast({ message: 'Erro ao carregar dados do cliente.', type: 'error' });
         }
     };
 
@@ -298,6 +352,15 @@ const Checkout: React.FC = () => {
 
         setLoading(true);
         try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'comandas',
+                operation: 'finish checkout',
+            });
+            const client = getScopedClient(currentAppSlug);
             let currentComandaId = comandaId;
             const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
@@ -308,25 +371,25 @@ const Checkout: React.FC = () => {
                 staff_id: comandaStaffId,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
                 total: total,
-                tenant_id: tenantId
+                tenant_id: resolvedTenantId
             };
 
             if (currentComandaId) {
-                const { error: updateError } = await supabase
+                const { error: updateError } = await client
                     .from('comandas')
                     .update(comandaData)
                     .eq('id', currentComandaId)
-                    .eq('tenant_id', tenantId);
+                    .eq('tenant_id', resolvedTenantId);
                 if (updateError) throw updateError;
                 // Delete existing items to re-insert (simple sync strategy)
-                const { error: delError } = await supabase
+                const { error: delError } = await client
                     .from('comanda_items')
                     .delete()
                     .eq('comanda_id', currentComandaId)
-                    .eq('tenant_id', tenantId);
+                    .eq('tenant_id', resolvedTenantId);
                 if (delError) throw delError;
             } else {
-                const { data: newC, error: insertError } = await supabase.from('comandas').insert(comandaData).select().single();
+                const { data: newC, error: insertError } = await client.from('comandas').insert(comandaData).select().single();
                 if (insertError) throw insertError;
                 currentComandaId = newC.id;
             }
@@ -340,10 +403,10 @@ const Checkout: React.FC = () => {
                 quantity: item.quantity,
                 unit_price: item.price,
                 staff_id: item.staff_id || null,
-                tenant_id: tenantId
+                tenant_id: resolvedTenantId
             }));
 
-            const { error: itemsError } = await supabase.from('comanda_items').insert(itemsToInsert);
+            const { error: itemsError } = await client.from('comanda_items').insert(itemsToInsert);
             if (itemsError) throw itemsError;
 
             // 3. If PAID, finalize via RPC (this reduces stock and marks as paid in DB)
@@ -354,8 +417,9 @@ const Checkout: React.FC = () => {
                     throw rpcError;
                 }
 
-                const { data: { user } } = await supabase.auth.getUser();
-                const { error: transError } = await supabase.from('transactions').insert({
+                try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    const { error: transError } = await client.from('transactions').insert({
                     user_id: user?.id,
                     type: 'income',
                     category: 'Venda de Balcão',
@@ -365,27 +429,42 @@ const Checkout: React.FC = () => {
                         : `Venda - Cliente: ${selectedClient.name}`,
                     payment_method: paymentMethod,
                     date: new Date().toISOString(),
-                    tenant_id: tenantId
+                    tenant_id: resolvedTenantId
                 });
-                if (transError) throw transError;
+                    if (transError) {
+                    console.warn('Checkout finalized without transaction record:', transError);
+                    }
+                } catch (transactionError) {
+                    console.warn('Checkout finalized but transaction logging failed:', transactionError);
+                }
 
                 // 4. Update Client Stats (Total Spent, Last Visit, Last Service)
-                const { data: clientData, error: clientFetchErr } = await supabase
+                try {
+                    const { data: clientData, error: clientFetchErr } = await client
                     .from('clients')
                     .select('total_spent')
                     .eq('id', selectedClient.id)
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', resolvedTenantId)
                     .single();
 
-                if (!clientFetchErr) {
+                    if (!clientFetchErr) {
                     const newTotal = (clientData?.total_spent || 0) + total;
                     const lastServiceStr = cart.length > 0 ? cart[0].name : '';
 
-                    await supabase.from('clients').update({
+                    const { error: clientUpdateError } = await client.from('clients').update({
                         total_spent: newTotal,
                         last_visit: new Date().toISOString(),
                         last_service: lastServiceStr
-                    }).eq('id', selectedClient.id).eq('tenant_id', tenantId);
+                    }).eq('id', selectedClient.id).eq('tenant_id', resolvedTenantId);
+
+                    if (clientUpdateError) {
+                        console.warn('Checkout finalized without client stats update:', clientUpdateError);
+                    }
+                    } else {
+                    console.warn('Checkout finalized without loading client stats:', clientFetchErr);
+                    }
+                } catch (clientStatsError) {
+                    console.warn('Checkout finalized but client stats update failed:', clientStatsError);
                 }
             }
 
