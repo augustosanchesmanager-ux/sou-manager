@@ -30,6 +30,9 @@ interface Comanda {
     }[];
 }
 
+type SortField = 'date' | 'client' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 const CANCEL_REASON_OTHER = '__other__';
 const CANCEL_REASON_OPTIONS = [
     'Cliente desistiu',
@@ -75,6 +78,16 @@ const isSameLocalDay = (value: string, compareDate = new Date()) => {
         && date.getDate() === compareDate.getDate();
 };
 
+const getStatusSortValue = (status: Comanda['status']) => {
+    const orderMap: Record<Comanda['status'], number> = {
+        open: 0,
+        paid: 1,
+        cancelled: 2
+    };
+
+    return orderMap[status] ?? 99;
+};
+
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { tenantId, canAccessSuperAdmin } = useAuth();
@@ -84,6 +97,8 @@ const Comandas: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Modal states
@@ -185,6 +200,28 @@ const Comandas: React.FC = () => {
         return matchesStatus && matchesSearch;
     });
 
+    const sortedComandas = [...filteredComandas].sort((first, second) => {
+        let comparison = 0;
+
+        if (sortField === 'date') {
+            comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
+        }
+
+        if (sortField === 'client') {
+            comparison = (first.clients?.name || '').localeCompare(second.clients?.name || '', 'pt-BR', { sensitivity: 'base' });
+        }
+
+        if (sortField === 'status') {
+            comparison = getStatusSortValue(first.status) - getStatusSortValue(second.status);
+        }
+
+        if (comparison === 0) {
+            comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
+        }
+
+        return sortDirection === 'asc' ? comparison : comparison * -1;
+    });
+
     // KPIs
     const openCount = dateFilteredComandas.filter(c => c.status === 'open').length;
     const paidMetricCount = dateFilteredComandas.filter(
@@ -206,7 +243,7 @@ const Comandas: React.FC = () => {
     // Export Functions
     const generateCSV = () => {
         const headers = ["Ações", "ID", "Cliente", "Data / Hora", "Profissional", "Serviços", "Total", "Status"];
-        const rows = filteredComandas.map(c => [
+        const rows = sortedComandas.map(c => [
             "",
             getDisplayId(c.id).toString(),
             c.clients?.name,
@@ -229,7 +266,7 @@ const Comandas: React.FC = () => {
 
     const copyToClipboard = () => {
         const headers = ["ID", "Cliente", "Profissional", "Serviços", "Total", "Status", "Data"];
-        const rows = filteredComandas.map(c => [
+        const rows = sortedComandas.map(c => [
             c.id,
             c.clients?.name,
             c.staff?.name || 'N/A',
@@ -450,7 +487,7 @@ const Comandas: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex flex-col xl:flex-row gap-3 xl:items-end xl:justify-between">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full xl:w-auto">
                             <div className="space-y-1">
                                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                                     Data inicial
@@ -474,6 +511,35 @@ const Comandas: React.FC = () => {
                                     className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
                                     containerClassName="w-full sm:w-52"
                                 />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Ordenar por
+                                </label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={sortField}
+                                        onChange={(e) => setSortField(e.target.value as SortField)}
+                                        className="w-full min-w-[180px] bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    >
+                                        <option value="date">Data</option>
+                                        <option value="client">Cliente</option>
+                                        <option value="status">Status</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')}
+                                        className="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                                        title={sortDirection === 'asc' ? 'Ordenação crescente' : 'Ordenação decrescente'}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">
+                                            {sortDirection === 'asc' ? 'south' : 'north'}
+                                        </span>
+                                        <span className="text-xs font-bold uppercase tracking-wider">
+                                            {sortDirection === 'asc' ? 'Cresc.' : 'Decresc.'}
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -511,6 +577,7 @@ const Comandas: React.FC = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest w-24">Ações</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Comanda</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Data</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Consumo</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Responsável</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Total</th>
@@ -519,9 +586,9 @@ const Comandas: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                             {loading ? (
-                                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500 text-sm">Carregando...</td></tr>
-                            ) : filteredComandas.length > 0 ? (
-                                filteredComandas.map((comanda) => (
+                                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm">Carregando...</td></tr>
+                            ) : sortedComandas.length > 0 ? (
+                                sortedComandas.map((comanda) => (
                                     <tr key={comanda.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
@@ -573,6 +640,17 @@ const Comandas: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-1">
+                                                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                                    {new Date(comanda.created_at).toLocaleDateString('pt-BR')}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                    <span className="material-symbols-outlined text-[12px] text-primary">schedule</span>
+                                                    {new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1">
                                                 {comanda.comanda_items.slice(0, 2).map((item, idx) => (
                                                     <span key={idx} className="text-xs font-medium text-slate-600 dark:text-slate-300">• {item.product_name}</span>
                                                 ))}
@@ -600,7 +678,7 @@ const Comandas: React.FC = () => {
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500 text-sm">Nenhuma comanda encontrada.</td></tr>
+                                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm">Nenhuma comanda encontrada.</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -609,7 +687,7 @@ const Comandas: React.FC = () => {
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-slate-200 dark:border-border-dark flex items-center justify-between bg-slate-50 dark:bg-white/5">
                     <div className="flex flex-col gap-1">
-                        <p className="text-xs text-slate-500 font-medium">Mostrando {filteredComandas.length} registros</p>
+                        <p className="text-xs text-slate-500 font-medium">Mostrando {sortedComandas.length} registros</p>
                         <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">{dateFilterDescription}</p>
                     </div>
                 </div>
