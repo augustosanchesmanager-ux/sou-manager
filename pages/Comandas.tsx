@@ -32,6 +32,14 @@ interface Comanda {
 
 type SortField = 'date' | 'client' | 'status';
 type SortDirection = 'asc' | 'desc';
+type ComandasPreferences = {
+    filterStatus: 'all' | 'open' | 'paid' | 'cancelled';
+    searchTerm: string;
+    dateFrom: string;
+    dateTo: string;
+    sortField: SortField;
+    sortDirection: SortDirection;
+};
 
 const CANCEL_REASON_OTHER = '__other__';
 const CANCEL_REASON_OPTIONS = [
@@ -88,17 +96,60 @@ const getStatusSortValue = (status: Comanda['status']) => {
     return orderMap[status] ?? 99;
 };
 
+const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences';
+
+const loadComandasPreferences = (): ComandasPreferences => {
+    const defaultPreferences: ComandasPreferences = {
+        filterStatus: 'all',
+        searchTerm: '',
+        dateFrom: '',
+        dateTo: '',
+        sortField: 'date',
+        sortDirection: 'desc'
+    };
+
+    if (typeof window === 'undefined') {
+        return defaultPreferences;
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(COMANDAS_PREFERENCES_KEY);
+        if (!rawValue) return defaultPreferences;
+
+        const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
+
+        return {
+            filterStatus: ['all', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
+                ? parsed.filterStatus as ComandasPreferences['filterStatus']
+                : defaultPreferences.filterStatus,
+            searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
+            dateFrom: typeof parsed.dateFrom === 'string' ? parsed.dateFrom : defaultPreferences.dateFrom,
+            dateTo: typeof parsed.dateTo === 'string' ? parsed.dateTo : defaultPreferences.dateTo,
+            sortField: ['date', 'client', 'status'].includes(parsed.sortField || '')
+                ? parsed.sortField as SortField
+                : defaultPreferences.sortField,
+            sortDirection: ['asc', 'desc'].includes(parsed.sortDirection || '')
+                ? parsed.sortDirection as SortDirection
+                : defaultPreferences.sortDirection
+        };
+    } catch (error) {
+        console.error('Erro ao carregar preferências de comandas:', error);
+        return defaultPreferences;
+    }
+};
+
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { tenantId, canAccessSuperAdmin } = useAuth();
+    const preferences = loadComandasPreferences();
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>('all');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [sortField, setSortField] = useState<SortField>('date');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>(preferences.filterStatus);
+    const [searchTerm, setSearchTerm] = useState(preferences.searchTerm);
+    const [dateFrom, setDateFrom] = useState(preferences.dateFrom);
+    const [dateTo, setDateTo] = useState(preferences.dateTo);
+    const [sortField, setSortField] = useState<SortField>(preferences.sortField);
+    const [sortDirection, setSortDirection] = useState<SortDirection>(preferences.sortDirection);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Modal states
@@ -145,6 +196,21 @@ const Comandas: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const nextPreferences: ComandasPreferences = {
+            filterStatus,
+            searchTerm,
+            dateFrom,
+            dateTo,
+            sortField,
+            sortDirection
+        };
+
+        window.localStorage.setItem(COMANDAS_PREFERENCES_KEY, JSON.stringify(nextPreferences));
+    }, [dateFrom, dateTo, filterStatus, searchTerm, sortDirection, sortField]);
 
     const getDisplayId = (id: string) => {
         const hexStr = id.replace(/-/g, '').slice(0, 8);
