@@ -4,6 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 
 interface Comanda {
     id: string;
@@ -39,6 +40,41 @@ const CANCEL_REASON_OPTIONS = [
     'Falta de produto/serviço'
 ] as const;
 
+const formatDateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value: string, endOfDay = false) => {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    const parsedDate = new Date(
+        year,
+        month - 1,
+        day,
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+    );
+
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const isSameLocalDay = (value: string, compareDate = new Date()) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+
+    return date.getFullYear() === compareDate.getFullYear()
+        && date.getMonth() === compareDate.getMonth()
+        && date.getDate() === compareDate.getDate();
+};
+
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { tenantId, canAccessSuperAdmin } = useAuth();
@@ -46,6 +82,8 @@ const Comandas: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Modal states
@@ -121,20 +159,49 @@ const Comandas: React.FC = () => {
         return '---';
     };
 
-    const filteredComandas = comandas.filter(comanda => {
+    const hasDateFilter = Boolean(dateFrom || dateTo);
+    const todayFilterValue = formatDateInputValue(new Date());
+
+    const dateFilteredComandas = comandas.filter((comanda) => {
+        const createdAt = new Date(comanda.created_at);
+        if (Number.isNaN(createdAt.getTime())) return false;
+
+        const startDate = parseDateInputValue(dateFrom);
+        const endDate = parseDateInputValue(dateTo, true);
+
+        if (startDate && createdAt < startDate) return false;
+        if (endDate && createdAt > endDate) return false;
+
+        return true;
+    });
+
+    const filteredComandas = dateFilteredComandas.filter(comanda => {
         const matchesStatus = filterStatus === 'all' || comanda.status === filterStatus;
-        const matchesSearch =
-            comanda.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            comanda.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            comanda.staff?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+        const matchesSearch = !normalizedSearchTerm
+            || comanda.clients?.name?.toLowerCase().includes(normalizedSearchTerm)
+            || comanda.id.toLowerCase().includes(normalizedSearchTerm)
+            || comanda.staff?.name?.toLowerCase().includes(normalizedSearchTerm);
         return matchesStatus && matchesSearch;
     });
 
     // KPIs
-    const openCount = comandas.filter(c => c.status === 'open').length;
-    const paidToday = comandas.filter(c => c.status === 'paid' && new Date(c.created_at).toDateString() === new Date().toDateString()).length;
-    const totalOpen = comandas.filter(c => c.status === 'open').reduce((sum, c) => sum + (c.total || 0), 0);
-    const avgTicket = comandas.length > 0 ? comandas.reduce((sum, c) => sum + (c.total || 0), 0) / comandas.length : 0;
+    const openCount = dateFilteredComandas.filter(c => c.status === 'open').length;
+    const paidMetricCount = dateFilteredComandas.filter(
+        (c) => c.status === 'paid' && (hasDateFilter || isSameLocalDay(c.created_at))
+    ).length;
+    const paidMetricLabel = hasDateFilter ? 'Finalizadas no Periodo' : 'Finalizadas (Hoje)';
+    const totalOpen = dateFilteredComandas.filter(c => c.status === 'open').reduce((sum, c) => sum + (c.total || 0), 0);
+    const avgTicket = dateFilteredComandas.length > 0
+        ? dateFilteredComandas.reduce((sum, c) => sum + (c.total || 0), 0) / dateFilteredComandas.length
+        : 0;
+    const dateFilterDescription = !hasDateFilter
+        ? 'Periodo completo'
+        : dateFrom && dateTo
+            ? `${new Date(`${dateFrom}T00:00:00`).toLocaleDateString('pt-BR')} ate ${new Date(`${dateTo}T00:00:00`).toLocaleDateString('pt-BR')}`
+            : dateFrom
+                ? `A partir de ${new Date(`${dateFrom}T00:00:00`).toLocaleDateString('pt-BR')}`
+                : `Ate ${new Date(`${dateTo}T00:00:00`).toLocaleDateString('pt-BR')}`;
 
     // Export Functions
     const generateCSV = () => {
@@ -174,6 +241,23 @@ const Comandas: React.FC = () => {
         const tsvContent = [headers.join("\t"), ...rows.map(e => e.join("\t"))].join("\n");
         navigator.clipboard.writeText(tsvContent);
         setToast({ message: 'Dados copiados! Cole no Excel ou Google Sheets (Ctrl+V).', type: 'success' });
+    };
+
+    const applyTodayFilter = () => {
+        setDateFrom(todayFilterValue);
+        setDateTo(todayFilterValue);
+    };
+
+    const applyLast7DaysFilter = () => {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 6);
+        setDateFrom(formatDateInputValue(startDate));
+        setDateTo(todayFilterValue);
+    };
+
+    const clearDateFilters = () => {
+        setDateFrom('');
+        setDateTo('');
     };
 
     const handlePrint = (comanda: Comanda) => {
@@ -315,9 +399,9 @@ const Comandas: React.FC = () => {
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Finalizadas (Hoje)</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{paidMetricLabel}</p>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{loading ? '...' : String(paidToday).padStart(2, '0')}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{loading ? '...' : String(paidMetricCount).padStart(2, '0')}</h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
@@ -337,31 +421,85 @@ const Comandas: React.FC = () => {
 
             {/* Filters Bar */}
             <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 dark:bg-white/5">
-                    <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
-                        {(['all', 'open', 'paid', 'cancelled'] as const).map(status => {
-                            const labels: Record<string, string> = { all: 'Todas', open: 'Abertas', paid: 'Pagas', cancelled: 'Canceladas' };
-                            const colors: Record<string, string> = { all: 'bg-primary', open: 'bg-blue-500', paid: 'bg-emerald-500', cancelled: 'bg-slate-500' };
-                            return (
-                                <button
-                                    key={status}
-                                    onClick={() => setFilterStatus(status)}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${filterStatus === status ? `${colors[status]} text-white shadow-md` : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                                >
-                                    {labels[status]}
-                                </button>
-                            );
-                        })}
+                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex flex-col gap-4 bg-slate-50 dark:bg-white/5">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
+                        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                            {(['all', 'open', 'paid', 'cancelled'] as const).map(status => {
+                                const labels: Record<string, string> = { all: 'Todas', open: 'Abertas', paid: 'Pagas', cancelled: 'Canceladas' };
+                                const colors: Record<string, string> = { all: 'bg-primary', open: 'bg-blue-500', paid: 'bg-emerald-500', cancelled: 'bg-slate-500' };
+                                return (
+                                    <button
+                                        key={status}
+                                        onClick={() => setFilterStatus(status)}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${filterStatus === status ? `${colors[status]} text-white shadow-md` : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                                    >
+                                        {labels[status]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="relative w-full md:w-80">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                            <input
+                                type="text"
+                                placeholder="Buscar comanda, cliente..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
                     </div>
-                    <div className="relative w-full md:w-80">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                        <input
-                            type="text"
-                            placeholder="Buscar comanda, cliente..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
-                        />
+                    <div className="flex flex-col xl:flex-row gap-3 xl:items-end xl:justify-between">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Data inicial
+                                </label>
+                                <DatePickerInput
+                                    value={dateFrom}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    max={dateTo || undefined}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    containerClassName="w-full sm:w-52"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Data final
+                                </label>
+                                <DatePickerInput
+                                    value={dateTo}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    min={dateFrom || undefined}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    containerClassName="w-full sm:w-52"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={applyTodayFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            >
+                                Hoje
+                            </button>
+                            <button
+                                type="button"
+                                onClick={applyLast7DaysFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            >
+                                Ultimos 7 dias
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearDateFilters}
+                                disabled={!hasDateFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Limpar
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -470,7 +608,10 @@ const Comandas: React.FC = () => {
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-slate-200 dark:border-border-dark flex items-center justify-between bg-slate-50 dark:bg-white/5">
-                    <p className="text-xs text-slate-500 font-medium">Mostrando {filteredComandas.length} registros</p>
+                    <div className="flex flex-col gap-1">
+                        <p className="text-xs text-slate-500 font-medium">Mostrando {filteredComandas.length} registros</p>
+                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">{dateFilterDescription}</p>
+                    </div>
                 </div>
             </div>
 
