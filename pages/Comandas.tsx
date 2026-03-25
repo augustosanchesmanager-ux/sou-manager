@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import {
+    ensureAppSupportsModule,
+    getScopedClient,
+    requireTenantContext,
+    supabase,
+} from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -140,7 +145,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId, canAccessSuperAdmin } = useAuth();
+    const { appSlug, schema, tenantId, canAccessSuperAdmin } = useAuth();
     const preferences = loadComandasPreferences();
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [loading, setLoading] = useState(true);
@@ -168,7 +173,19 @@ const Comandas: React.FC = () => {
 
         setLoading(true);
         try {
-            let query = supabase
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const client = getScopedClient(currentAppSlug);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'load comandas',
+                }).tenantId;
+
+            let query = client
                 .from('comandas')
                 .select(`
                     *,
@@ -178,8 +195,8 @@ const Comandas: React.FC = () => {
                 `)
                 .order('created_at', { ascending: false });
 
-            if (!canAccessSuperAdmin) {
-                query = query.eq('tenant_id', tenantId);
+            if (resolvedTenantId) {
+                query = query.eq('tenant_id', resolvedTenantId);
             }
 
             const { data, error } = await query;
@@ -191,7 +208,7 @@ const Comandas: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [canAccessSuperAdmin, tenantId]);
+    }, [appSlug, canAccessSuperAdmin, schema, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -409,26 +426,38 @@ const Comandas: React.FC = () => {
 
         setDeleting(true);
         try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const client = getScopedClient(currentAppSlug);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'cancel comanda',
+                }).tenantId;
+
             let usedFallback = false;
-            let cancelComandaQuery = supabase
+            let cancelComandaQuery = client
                 .from('comandas')
                 .update({
                     status: 'cancelled',
                     cancellation_reason: reason
                 })
                 .eq('id', comanda.id);
-            if (!canAccessSuperAdmin) {
-                cancelComandaQuery = cancelComandaQuery.eq('tenant_id', tenantId);
+            if (resolvedTenantId) {
+                cancelComandaQuery = cancelComandaQuery.eq('tenant_id', resolvedTenantId);
             }
             let { error } = await cancelComandaQuery;
 
             if (error && `${error.message}`.toLowerCase().includes('cancellation_reason')) {
-                let fallbackQuery = supabase
+                let fallbackQuery = client
                     .from('comandas')
                     .update({ status: 'cancelled' })
                     .eq('id', comanda.id);
-                if (!canAccessSuperAdmin) {
-                    fallbackQuery = fallbackQuery.eq('tenant_id', tenantId);
+                if (resolvedTenantId) {
+                    fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
                 }
                 const fallbackResult = await fallbackQuery;
                 error = fallbackResult.error;
