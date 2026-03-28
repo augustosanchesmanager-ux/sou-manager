@@ -48,6 +48,26 @@ interface Staff {
     name: string;
 }
 
+interface QuickProductForm {
+    name: string;
+    description: string;
+    cost_price: string;
+    sale_price: string;
+    stock_quantity: string;
+    minimum_stock: string;
+    auto_generate_purchase_order: boolean;
+}
+
+const createInitialQuickProductForm = (): QuickProductForm => ({
+    name: '',
+    description: '',
+    cost_price: '0',
+    sale_price: '0',
+    stock_quantity: '0',
+    minimum_stock: '0',
+    auto_generate_purchase_order: false,
+});
+
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -63,8 +83,11 @@ const Checkout: React.FC = () => {
     const [discount, setDiscount] = useState<string>('0');
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+    const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
     const [itemModalTab, setItemModalTab] = useState<'services' | 'products'>('services');
     const [searchTerm, setSearchTerm] = useState('');
+    const [quickProductForm, setQuickProductForm] = useState<QuickProductForm>(createInitialQuickProductForm);
+    const [isSavingQuickProduct, setIsSavingQuickProduct] = useState(false);
 
     // Duplicate comanda guard
     const [duplicateComanda, setDuplicateComanda] = useState<{ id: string; created_at: string } | null>(null);
@@ -325,6 +348,75 @@ const Checkout: React.FC = () => {
 
     const handleRemoveItem = (id: string) => {
         setCart(cart.filter(item => item.id !== id));
+    };
+
+    const handleOpenQuickProductModal = () => {
+        setQuickProductForm(createInitialQuickProductForm());
+        setIsQuickProductModalOpen(true);
+    };
+
+    const handleCloseQuickProductModal = () => {
+        if (isSavingQuickProduct) return;
+        setIsQuickProductModalOpen(false);
+        setQuickProductForm(createInitialQuickProductForm());
+    };
+
+    const handleCreateProductDuringCheckout = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!tenantId) {
+            setToast({ message: 'Tenant invalido para cadastrar produto.', type: 'error' });
+            return;
+        }
+
+        setIsSavingQuickProduct(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'products', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'products',
+                operation: 'create product during checkout',
+            });
+            const client = getScopedClient(currentAppSlug);
+
+            const payload = {
+                tenant_id: resolvedTenantId,
+                name: quickProductForm.name.trim(),
+                description: quickProductForm.description.trim(),
+                cost_price: Number(quickProductForm.cost_price) || 0,
+                sale_price: Number(quickProductForm.sale_price) || 0,
+                stock_quantity: parseInt(quickProductForm.stock_quantity, 10) || 0,
+                minimum_stock: parseInt(quickProductForm.minimum_stock, 10) || 0,
+                auto_generate_purchase_order: quickProductForm.auto_generate_purchase_order,
+                active: true,
+            };
+
+            const { data: createdProduct, error } = await client
+                .from('products')
+                .insert([payload])
+                .select('*')
+                .single();
+
+            if (error) throw error;
+
+            setProducts(prev => {
+                const nextProducts = [...prev, createdProduct];
+                nextProducts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+                return nextProducts;
+            });
+
+            setToast({ message: 'Produto criado e adicionado a venda.', type: 'success' });
+            handleAddItem(createdProduct, 'product');
+            setQuickProductForm(createInitialQuickProductForm());
+            setIsQuickProductModalOpen(false);
+        } catch (error) {
+            console.error('Error creating product during checkout:', error);
+            setToast({ message: 'Erro ao cadastrar produto durante a venda.', type: 'error' });
+        } finally {
+            setIsSavingQuickProduct(false);
+        }
     };
 
     const handleStaffChange = (itemId: string, proId: string) => {
@@ -894,6 +986,22 @@ const Checkout: React.FC = () => {
                         />
                     </div>
 
+                    {itemModalTab === 'products' && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/70 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/5">
+                            <div>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Nao encontrou o produto?</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele ja entra na venda.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleOpenQuickProductModal}
+                                className="shrink-0 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600"
+                            >
+                                + Novo Produto
+                            </button>
+                        </div>
+                    )}
+
                     {/* Items List */}
                     <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                         {filteredItems.length === 0 ? (
@@ -908,6 +1016,15 @@ const Checkout: React.FC = () => {
                                             ? 'Nenhum serviço ativo cadastrado.'
                                             : 'Nenhum produto ativo cadastrado.'}
                                 </p>
+                                {itemModalTab === 'products' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenQuickProductModal}
+                                        className="mt-4 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600"
+                                    >
+                                        Cadastrar produto agora
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-1">
@@ -940,6 +1057,109 @@ const Checkout: React.FC = () => {
                         )}
                     </div>
                 </div>
+            </Modal>
+
+            <Modal
+                isOpen={isQuickProductModalOpen}
+                onClose={handleCloseQuickProductModal}
+                title="Cadastrar Produto"
+                maxWidth="lg"
+            >
+                <form onSubmit={handleCreateProductDuringCheckout} className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Produto</label>
+                        <input
+                            autoFocus
+                            required
+                            type="text"
+                            value={quickProductForm.name}
+                            onChange={(e) => setQuickProductForm((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Descricao</label>
+                        <textarea
+                            rows={2}
+                            value={quickProductForm.description}
+                            onChange={(e) => setQuickProductForm((prev) => ({ ...prev, description: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Custo (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={quickProductForm.cost_price}
+                                onChange={(e) => setQuickProductForm((prev) => ({ ...prev, cost_price: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Venda (R$)</label>
+                            <input
+                                required
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={quickProductForm.sale_price}
+                                onChange={(e) => setQuickProductForm((prev) => ({ ...prev, sale_price: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Qtd em Estoque</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={quickProductForm.stock_quantity}
+                                onChange={(e) => setQuickProductForm((prev) => ({ ...prev, stock_quantity: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Estoque Minimo</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={quickProductForm.minimum_stock}
+                                onChange={(e) => setQuickProductForm((prev) => ({ ...prev, minimum_stock: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                    </div>
+                    <label className="flex items-center gap-2 pt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
+                        <input
+                            type="checkbox"
+                            checked={quickProductForm.auto_generate_purchase_order}
+                            onChange={(e) => setQuickProductForm((prev) => ({ ...prev, auto_generate_purchase_order: e.target.checked }))}
+                            className="size-4 accent-primary"
+                        />
+                        Gerar pedido de compra automaticamente
+                    </label>
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={handleCloseQuickProductModal}
+                            disabled={isSavingQuickProduct}
+                            className="flex-1 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSavingQuickProduct}
+                            className="flex-1 rounded-lg bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isSavingQuickProduct ? 'Salvando...' : 'Salvar e Adicionar'}
+                        </button>
+                    </div>
+                </form>
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
