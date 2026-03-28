@@ -58,6 +58,14 @@ interface QuickProductForm {
     auto_generate_purchase_order: boolean;
 }
 
+interface QuickServiceForm {
+    name: string;
+    category: string;
+    price: string;
+    duration: string;
+    active: boolean;
+}
+
 interface CheckoutLocationState {
     fromAppointment?: boolean;
     appointmentId?: string;
@@ -78,6 +86,16 @@ const createInitialQuickProductForm = (): QuickProductForm => ({
     auto_generate_purchase_order: false,
 });
 
+const createInitialQuickServiceForm = (serviceName = ''): QuickServiceForm => ({
+    name: serviceName,
+    category: 'Cabelo',
+    price: '0',
+    duration: '30',
+    active: true,
+});
+
+const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
+
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const location = useLocation();
@@ -96,10 +114,13 @@ const Checkout: React.FC = () => {
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
+    const [isQuickServiceModalOpen, setIsQuickServiceModalOpen] = useState(false);
     const [itemModalTab, setItemModalTab] = useState<'services' | 'products'>('services');
     const [searchTerm, setSearchTerm] = useState('');
     const [quickProductForm, setQuickProductForm] = useState<QuickProductForm>(createInitialQuickProductForm);
+    const [quickServiceForm, setQuickServiceForm] = useState<QuickServiceForm>(createInitialQuickServiceForm);
     const [isSavingQuickProduct, setIsSavingQuickProduct] = useState(false);
+    const [isSavingQuickService, setIsSavingQuickService] = useState(false);
 
     // Duplicate comanda guard
     const [duplicateComanda, setDuplicateComanda] = useState<{ id: string; created_at: string } | null>(null);
@@ -418,10 +439,21 @@ const Checkout: React.FC = () => {
         setIsQuickProductModalOpen(true);
     };
 
+    const handleOpenQuickServiceModal = () => {
+        setQuickServiceForm(createInitialQuickServiceForm(searchTerm.trim()));
+        setIsQuickServiceModalOpen(true);
+    };
+
     const handleCloseQuickProductModal = () => {
         if (isSavingQuickProduct) return;
         setIsQuickProductModalOpen(false);
         setQuickProductForm(createInitialQuickProductForm());
+    };
+
+    const handleCloseQuickServiceModal = () => {
+        if (isSavingQuickService) return;
+        setIsQuickServiceModalOpen(false);
+        setQuickServiceForm(createInitialQuickServiceForm());
     };
 
     const handleCreateProductDuringCheckout = async (e: React.FormEvent) => {
@@ -479,6 +511,61 @@ const Checkout: React.FC = () => {
             setToast({ message: 'Erro ao cadastrar produto durante a venda.', type: 'error' });
         } finally {
             setIsSavingQuickProduct(false);
+        }
+    };
+
+    const handleCreateServiceDuringCheckout = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!tenantId) {
+            setToast({ message: 'Tenant invalido para cadastrar servico.', type: 'error' });
+            return;
+        }
+
+        setIsSavingQuickService(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'services', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'services',
+                operation: 'create service during checkout',
+            });
+            const client = getScopedClient(currentAppSlug);
+
+            const payload = {
+                tenant_id: resolvedTenantId,
+                name: quickServiceForm.name.trim(),
+                category: quickServiceForm.category,
+                price: Number(quickServiceForm.price) || 0,
+                duration: parseInt(quickServiceForm.duration, 10) || 30,
+                active: quickServiceForm.active,
+            };
+
+            const { data: createdService, error } = await client
+                .from('services')
+                .insert([payload])
+                .select('*')
+                .single();
+
+            if (error) throw error;
+
+            setServices(prev => {
+                const nextServices = [...prev, createdService];
+                nextServices.sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+                return nextServices;
+            });
+
+            setToast({ message: 'Servico criado e adicionado a venda.', type: 'success' });
+            handleAddItem(createdService, 'service');
+            setQuickServiceForm(createInitialQuickServiceForm());
+            setIsQuickServiceModalOpen(false);
+        } catch (error) {
+            console.error('Error creating service during checkout:', error);
+            setToast({ message: 'Erro ao cadastrar servico durante a venda.', type: 'error' });
+        } finally {
+            setIsSavingQuickService(false);
         }
     };
 
@@ -1078,6 +1165,22 @@ const Checkout: React.FC = () => {
                         </div>
                     )}
 
+                    {itemModalTab === 'services' && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3">
+                            <div>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Nao encontrou o servico?</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele ja entra na venda.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleOpenQuickServiceModal}
+                                className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90"
+                            >
+                                + Novo Servico
+                            </button>
+                        </div>
+                    )}
+
                     {/* Items List */}
                     <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                         {filteredItems.length === 0 ? (
@@ -1092,6 +1195,15 @@ const Checkout: React.FC = () => {
                                             ? 'Nenhum serviço ativo cadastrado.'
                                             : 'Nenhum produto ativo cadastrado.'}
                                 </p>
+                                {itemModalTab === 'services' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenQuickServiceModal}
+                                        className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
+                                    >
+                                        Cadastrar servico agora
+                                    </button>
+                                )}
                                 {itemModalTab === 'products' && (
                                     <button
                                         type="button"
@@ -1233,6 +1345,94 @@ const Checkout: React.FC = () => {
                             className="flex-1 rounded-lg bg-amber-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {isSavingQuickProduct ? 'Salvando...' : 'Salvar e Adicionar'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                isOpen={isQuickServiceModalOpen}
+                onClose={handleCloseQuickServiceModal}
+                title="Cadastrar Servico"
+                maxWidth="lg"
+            >
+                <form onSubmit={handleCreateServiceDuringCheckout} className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Servico</label>
+                        <input
+                            autoFocus
+                            required
+                            type="text"
+                            value={quickServiceForm.name}
+                            onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Categoria</label>
+                            <select
+                                value={quickServiceForm.category}
+                                onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, category: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:[color-scheme:dark]"
+                            >
+                                {serviceCategories.map((category) => (
+                                    <option key={category} value={category}>
+                                        {category}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Preco (R$)</label>
+                            <input
+                                required
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={quickServiceForm.price}
+                                onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, price: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase text-slate-500">Duracao (min)</label>
+                            <input
+                                required
+                                type="number"
+                                min="1"
+                                value={quickServiceForm.duration}
+                                onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, duration: e.target.value }))}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                            />
+                        </div>
+                        <label className="flex items-center gap-2 pt-7 text-sm font-medium text-slate-600 dark:text-slate-400">
+                            <input
+                                type="checkbox"
+                                checked={quickServiceForm.active}
+                                onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, active: e.target.checked }))}
+                                className="size-4 accent-primary"
+                            />
+                            Servico ativo
+                        </label>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={handleCloseQuickServiceModal}
+                            disabled={isSavingQuickService}
+                            className="flex-1 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSavingQuickService}
+                            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isSavingQuickService ? 'Salvando...' : 'Salvar e Adicionar'}
                         </button>
                     </div>
                 </form>
