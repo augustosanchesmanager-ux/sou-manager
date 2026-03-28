@@ -73,6 +73,33 @@ const Clients: React.FC = () => {
     const [detailChefClub, setDetailChefClub] = useState<{ planName: string; credits: number; status: string } | null>(null);
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
 
+    const openClientDetails = useCallback(async (client: Client) => {
+        setDetailClient(client);
+        setDetailChefClub(null);
+
+        const { data } = await supabase
+            .from('customer_subscriptions')
+            .select(`
+                status,
+                plan:customer_plans(name),
+                credits:customer_credits(available_credits)
+            `)
+            .eq('client_id', client.id)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (data) {
+            setDetailChefClub({
+                planName: (data.plan as any).name,
+                credits: (data.credits as any)?.[0]?.available_credits || 0,
+                status: data.status
+            });
+            return;
+        }
+
+        setDetailChefClub(null);
+    }, []);
+
     const fetchClients = useCallback(async () => {
         if (!tenantId) {
             setClients([]);
@@ -115,6 +142,23 @@ const Clients: React.FC = () => {
     }, [tenantId]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
+
+    useEffect(() => {
+        const state = location.state as { openClientId?: string; clientSearch?: string } | null;
+        if (!state) return;
+
+        if (state.clientSearch) {
+            setSearch(state.clientSearch);
+        }
+
+        if (state.openClientId && clients.length > 0) {
+            const targetClient = clients.find((client) => client.id === state.openClientId);
+            if (targetClient) {
+                void openClientDetails(targetClient);
+                navigate(location.pathname, { replace: true, state: null });
+            }
+        }
+    }, [clients, location.pathname, location.state, navigate, openClientDetails]);
 
     // Filtering & Sorting
     const processed = clients
@@ -502,22 +546,7 @@ const Clients: React.FC = () => {
                                                 >
                                                     <span className="material-symbols-outlined text-lg">workspace_premium</span>
                                                 </button>
-                                                <button onClick={async () => {
-                                                    setDetailClient(client);
-                                                    setDetailChefClub(null);
-                                                    const { data: sub } = await supabase
-                                                        .from('customer_subscriptions')
-                                                        .select('plan:customer_plans(name), status, credits:customer_credits(available_credits)')
-                                                        .eq('client_id', client.id)
-                                                        .maybeSingle();
-                                                    if (sub) {
-                                                        setDetailChefClub({
-                                                            planName: (sub.plan as any).name,
-                                                            status: sub.status,
-                                                            credits: (sub.credits as any)?.[0]?.available_credits || 0
-                                                        });
-                                                    }
-                                                }} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
+                                                <button onClick={() => void openClientDetails(client)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
                                                     <span className="material-symbols-outlined text-lg">visibility</span>
                                                 </button>
                                                 <button onClick={() => handleEditClick(client)} className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors" title="Editar">

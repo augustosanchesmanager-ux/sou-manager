@@ -44,6 +44,7 @@ interface DBClient {
 
 interface CalendarAppointment {
   id: string;
+  clientId?: string | null;
   staffId: string;
   start: number;
   duration: number;
@@ -57,6 +58,35 @@ interface CalendarAppointment {
   startTime: string;
   notes: string;
   date: string;
+  source?: string | null;
+  channel?: string | null;
+}
+
+type DisplayMode = 'calendar' | 'list';
+type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
+type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
+
+interface AppointmentFiltersState {
+  date: string;
+  period: ListPeriod;
+  professional: string;
+  status: string;
+  service: string;
+  origin: string;
+  search: string;
+  quickChip: QuickChip;
+}
+
+interface EnrichedAppointment extends CalendarAppointment {
+  normalizedStatus: string;
+  statusLabel: string;
+  statusIcon: string;
+  statusBadgeClassName: string;
+  originLabel: string;
+  isOverdue: boolean;
+  shortNotes: string;
+  searchIndex: string;
+  hasOpenComanda: boolean;
 }
 
 interface NewAppointmentForm {
@@ -86,18 +116,122 @@ interface ScheduleBlockForm {
 }
 
 const statusColors: Record<string, string> = {
+  scheduled: 'bg-slate-500',
   confirmed: 'bg-blue-500',
   pending: 'bg-amber-500',
+  in_progress: 'bg-violet-500',
   completed: 'bg-emerald-500',
+  cancelled: 'bg-rose-500',
+  no_show: 'bg-slate-600',
 };
 
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
+
+const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
+  scheduled: {
+    label: 'Agendado',
+    icon: 'event',
+    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  },
+  pending: {
+    label: 'Pendente',
+    icon: 'schedule',
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  },
+  confirmed: {
+    label: 'Confirmado',
+    icon: 'check_circle',
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  },
+  in_progress: {
+    label: 'Em atendimento',
+    icon: 'content_cut',
+    badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  },
+  completed: {
+    label: 'Finalizado',
+    icon: 'task_alt',
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  },
+  cancelled: {
+    label: 'Cancelado',
+    icon: 'cancel',
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  },
+  no_show: {
+    label: 'Não compareceu',
+    icon: 'person_off',
+    badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+  },
+};
+
+const normalizeAppointmentStatus = (status: string | null | undefined) => {
+  const normalized = `${status || 'pending'}`.toLowerCase();
+  return appointmentStatusMeta[normalized] ? normalized : 'pending';
+};
+
+const getAppointmentStatusMeta = (status: string | null | undefined) => {
+  const normalized = normalizeAppointmentStatus(status);
+  return {
+    normalized,
+    ...appointmentStatusMeta[normalized],
+  };
+};
+
+const getOriginLabel = (source?: string | null, channel?: string | null) => {
+  const normalizedSource = `${source || ''}`.toLowerCase();
+  const normalizedChannel = `${channel || ''}`.toLowerCase();
+
+  if (normalizedChannel === 'whatsapp') return 'WhatsApp';
+  if (normalizedChannel === 'admin') return 'Admin';
+  if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return 'Totem';
+  if (normalizedSource === 'kiosk' && normalizedChannel === 'qr') return 'QR';
+  if (normalizedSource === 'kiosk') return 'Totem';
+  return 'App';
+};
+
+const getShortNotes = (notes: string) => {
+  const clean = (notes || '').trim();
+  if (clean.length <= 60) return clean;
+  return `${clean.slice(0, 57)}...`;
+};
+
+const isAppointmentOverdue = (appointment: CalendarAppointment) => {
+  const status = normalizeAppointmentStatus(appointment.status);
+  if (status === 'in_progress' || status === 'completed' || status === 'cancelled') return false;
+  const startDate = new Date(appointment.startTime);
+  return !Number.isNaN(startDate.getTime()) && startDate.getTime() < Date.now();
+};
+
+const getDecimalTimeLabel = (value: number) => {
+  const hours = Math.floor(value);
+  const minutes = Math.round((value % 1) * 60);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const getAppointmentEndLabel = (appointment: CalendarAppointment) =>
+  getDecimalTimeLabel(appointment.start + appointment.duration);
+
+const getDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value: string, endOfDay = false) => {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+};
 
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenantId, user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -109,9 +243,20 @@ const Schedule: React.FC = () => {
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [scheduleBlockHistory, setScheduleBlockHistory] = useState<ScheduleBlock[]>([]);
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
+  const [openComandasByAppointment, setOpenComandasByAppointment] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [blockSaving, setBlockSaving] = useState(false);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
+  const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
+    date: getDateInputValue(new Date()),
+    period: 'today',
+    professional: 'all',
+    status: 'all',
+    service: 'all',
+    origin: 'all',
+    search: '',
+    quickChip: 'all',
+  });
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -145,6 +290,34 @@ const Schedule: React.FC = () => {
     return d;
   };
 
+  const getListRange = useCallback(() => {
+    const now = new Date();
+    if (listFilters.period === 'tomorrow') {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      return { start: startOfRangeDate(tomorrow), end: endOfRangeDate(tomorrow) };
+    }
+
+    if (listFilters.period === 'week') {
+      const start = startOfRangeDate(now);
+      const end = endOfRangeDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6));
+      return { start, end };
+    }
+
+    if (listFilters.period === 'month') {
+      const start = startOfRangeDate(now);
+      const end = endOfRangeDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      return { start, end };
+    }
+
+    if (listFilters.period === 'custom') {
+      const customDate = parseDateInputValue(listFilters.date) || selectedDate;
+      return { start: startOfRangeDate(customDate), end: endOfRangeDate(customDate) };
+    }
+
+    return { start: startOfRangeDate(now), end: endOfRangeDate(now) };
+  }, [listFilters.date, listFilters.period, selectedDate]);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +342,9 @@ const Schedule: React.FC = () => {
 
   // Detail Modal State
   const [selectedAppointment, setSelectedAppointment] = useState<CalendarAppointment | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+  const isDetailModalOpen = false;
+  const setIsDetailModalOpen = (_open: boolean) => {};
 
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
   const displayEndHour = React.useMemo(() => {
@@ -315,6 +490,7 @@ const Schedule: React.FC = () => {
   const fetchAppointments = useCallback(async () => {
     if (!tenantId) {
       setAppointments([]);
+      setOpenComandasByAppointment({});
       setLoading(false);
       return;
     }
@@ -324,7 +500,11 @@ const Schedule: React.FC = () => {
     let rangeStart: string;
     let rangeEnd: string;
 
-    if (viewMode === 'week') {
+    if (displayMode === 'list') {
+      const listRange = getListRange();
+      rangeStart = listRange.start.toISOString();
+      rangeEnd = listRange.end.toISOString();
+    } else if (viewMode === 'week') {
       const days = getWeekDays(selectedDate);
       const first = new Date(days[0]);
       first.setHours(0, 0, 0, 0);
@@ -343,11 +523,11 @@ const Schedule: React.FC = () => {
 
     const { data } = await supabase
       .from('appointments')
-      .select('*, clients!appointments_client_id_fkey(phone)')
+      .select('*, clients!appointments_client_id_fkey(phone), source, channel')
       .eq('tenant_id', tenantId)
       .gte('start_time', rangeStart)
       .lte('start_time', rangeEnd)
-      .neq('status', 'cancelled');
+      .order('start_time', { ascending: true });
 
     if (data) {
       const mapped: CalendarAppointment[] = data.map(apt => {
@@ -355,6 +535,7 @@ const Schedule: React.FC = () => {
         const startHour = d.getHours() + d.getMinutes() / 60;
         return {
           id: apt.id,
+          clientId: apt.client_id || null,
           staffId: apt.staff_id,
           start: startHour,
           duration: Number(apt.duration) || 1,
@@ -368,12 +549,34 @@ const Schedule: React.FC = () => {
           startTime: apt.start_time,
           notes: apt.notes || '',
           date: apt.start_time,
+          source: apt.source || null,
+          channel: apt.channel || null,
         };
       });
       setAppointments(mapped);
+
+      const appointmentIds = mapped.map((apt) => apt.id);
+      if (appointmentIds.length > 0) {
+        const { data: comandas } = await supabase
+          .from('comandas')
+          .select('id, appointment_id')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'open')
+          .in('appointment_id', appointmentIds);
+
+        const nextOpenComandasByAppointment: Record<string, string> = {};
+        (comandas || []).forEach((comanda: any) => {
+          if (comanda.appointment_id) {
+            nextOpenComandasByAppointment[comanda.appointment_id] = comanda.id;
+          }
+        });
+        setOpenComandasByAppointment(nextOpenComandasByAppointment);
+      } else {
+        setOpenComandasByAppointment({});
+      }
     }
     setLoading(false);
-  }, [selectedDate, tenantId, viewMode]);
+  }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
@@ -550,7 +753,7 @@ const Schedule: React.FC = () => {
     });
 
     void loadChefClubInfo(apt.client);
-    setIsDetailModalOpen(false);
+    setIsDetailDrawerOpen(false);
     setIsModalOpen(true);
   };
 
@@ -692,7 +895,7 @@ const Schedule: React.FC = () => {
         .eq('status', 'open');
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
-      setIsDetailModalOpen(false);
+      closeDetailDrawer();
       fetchAppointments();
     } catch (err) {
       console.error('Error cancelling appointment:', err);
@@ -815,7 +1018,7 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(block.id, user?.id || null);
+      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -859,7 +1062,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(editingBlockId, payload);
+        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
@@ -1118,6 +1321,122 @@ const Schedule: React.FC = () => {
     setToast({ message: 'Agenda exportada com sucesso!', type: 'success' });
   };
 
+  const enrichedAppointments = React.useMemo<EnrichedAppointment[]>(() => {
+    return appointments.map((apt) => {
+      const statusMeta = getAppointmentStatusMeta(apt.status);
+      const originLabel = getOriginLabel(apt.source, apt.channel);
+      const shortNotes = getShortNotes(apt.notes || '');
+      const isOverdue = isAppointmentOverdue(apt);
+      return {
+        ...apt,
+        normalizedStatus: statusMeta.normalized,
+        statusLabel: statusMeta.label,
+        statusIcon: statusMeta.icon,
+        statusBadgeClassName: statusMeta.badge,
+        originLabel,
+        isOverdue,
+        shortNotes,
+        searchIndex: `${apt.client} ${apt.clientPhone} ${apt.service} ${apt.staffName} ${shortNotes}`.toLowerCase(),
+        hasOpenComanda: Boolean(openComandasByAppointment[apt.id]),
+      };
+    });
+  }, [appointments, openComandasByAppointment]);
+
+  const appointmentsForSummary = React.useMemo(() => {
+    return enrichedAppointments.filter((apt) => {
+      const selectedFilterDate = parseDateInputValue(listFilters.date);
+      const matchesDate = !selectedFilterDate || new Date(apt.startTime).toDateString() === selectedFilterDate.toDateString();
+      const matchesProfessional = listFilters.professional === 'all' || apt.staffId === listFilters.professional;
+      const matchesStatus = listFilters.status === 'all' || apt.normalizedStatus === listFilters.status;
+      const matchesService = listFilters.service === 'all' || apt.service === listFilters.service;
+      const matchesOrigin = listFilters.origin === 'all' || apt.originLabel === listFilters.origin;
+      const matchesQuickChip =
+        listFilters.quickChip === 'all' ||
+        (listFilters.quickChip === 'today' && new Date(apt.startTime).toDateString() === new Date().toDateString()) ||
+        (listFilters.quickChip === 'pending' && apt.normalizedStatus === 'pending') ||
+        (listFilters.quickChip === 'confirmed' && apt.normalizedStatus === 'confirmed') ||
+        (listFilters.quickChip === 'in_progress' && apt.normalizedStatus === 'in_progress') ||
+        (listFilters.quickChip === 'overdue' && apt.isOverdue) ||
+        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
+      return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
+    });
+  }, [enrichedAppointments, listFilters]);
+
+  const filteredListAppointments = React.useMemo(() => {
+    const searchTerm = listFilters.search.trim().toLowerCase();
+    return appointmentsForSummary
+      .filter((apt) => !searchTerm || apt.searchIndex.includes(searchTerm))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [appointmentsForSummary, listFilters.search]);
+
+  const summaryCards = React.useMemo(() => [
+    { key: 'total', label: 'Total', value: appointmentsForSummary.length, tone: 'text-slate-700 dark:text-slate-100' },
+    { key: 'confirmed', label: 'Confirmados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'confirmed').length, tone: 'text-blue-600 dark:text-blue-300' },
+    { key: 'pending', label: 'Pendentes', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'pending').length, tone: 'text-amber-600 dark:text-amber-300' },
+    { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-violet-600 dark:text-violet-300' },
+    { key: 'completed', label: 'Finalizados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'completed').length, tone: 'text-emerald-600 dark:text-emerald-300' },
+    { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled').length, tone: 'text-rose-600 dark:text-rose-300' },
+    { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
+  ], [appointmentsForSummary]);
+
+  const originOptions = React.useMemo(() => Array.from(new Set(enrichedAppointments.map((apt) => apt.originLabel))).sort(), [enrichedAppointments]);
+
+  const selectedAppointmentDetails = React.useMemo(() => {
+    if (!selectedAppointment) return null;
+    return enrichedAppointments.find((apt) => apt.id === selectedAppointment.id) || null;
+  }, [enrichedAppointments, selectedAppointment]);
+
+  const handleOpenAppointmentDetails = (apt: CalendarAppointment) => {
+    setSelectedAppointment(apt);
+    setIsDetailDrawerOpen(true);
+  };
+
+  const closeDetailDrawer = () => {
+    setIsDetailDrawerOpen(false);
+    setSelectedAppointment(null);
+  };
+
+  const handleAppointmentStatusChange = async (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
+    if (!tenantId) return;
+    if (!window.confirm(`Deseja ${confirmationLabel.toLowerCase()} este agendamento?`)) return;
+
+    try {
+      const { error: updateError } = await supabase
+        .from('appointments')
+        .update({ status: nextStatus })
+        .eq('id', appointment.id)
+        .eq('tenant_id', tenantId);
+
+      if (updateError) throw updateError;
+
+      setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: nextStatus, color: statusColors[nextStatus] || apt.color } : apt));
+      setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: nextStatus, color: statusColors[nextStatus] || prev.color } : prev);
+      setToast({ message: `${confirmationLabel} com sucesso.`, type: 'success' });
+    } catch (err) {
+      console.error('Erro ao atualizar status do agendamento:', err);
+      setToast({ message: 'Erro ao atualizar status do agendamento.', type: 'error' });
+    }
+  };
+
+  const handleOpenClient = (appointment: CalendarAppointment) => {
+    if (appointment.clientId) {
+      navigate('/clients', { state: { openClientId: appointment.clientId } });
+      return;
+    }
+
+    navigate('/clients', { state: { clientSearch: appointment.clientPhone || appointment.client } });
+  };
+
+  const handleOpenComanda = async (appointment: CalendarAppointment) => {
+    const openComandaId = openComandasByAppointment[appointment.id];
+    if (openComandaId) {
+      navigate(`/checkout/${openComandaId}`);
+      return;
+    }
+
+    await handleNavigateToCheckout(appointment);
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 shrink-0">
@@ -1153,23 +1472,41 @@ const Schedule: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
           <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
             <button
-              onClick={() => setViewMode('day')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'day'
+              onClick={() => setDisplayMode('calendar')}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${displayMode === 'calendar'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
-            >Dia</button>
+            >Calendário</button>
             <button
-              onClick={() => setViewMode('week')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'week'
+              onClick={() => setDisplayMode('list')}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${displayMode === 'list'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
-            >Semana</button>
+            >Lista</button>
           </div>
+          {displayMode === 'calendar' && (
+            <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
+              <button
+                onClick={() => setViewMode('day')}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'day'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >Dia</button>
+              <button
+                onClick={() => setViewMode('week')}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'week'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >Semana</button>
+            </div>
+          )}
           <button
             onClick={exportToCSV}
             className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
@@ -1179,25 +1516,29 @@ const Schedule: React.FC = () => {
             <span className="hidden lg:inline">Exportar CSV</span>
           </button>
 
-          <button
-            onClick={() => setShowOnlyBlocks(prev => !prev)}
-            className={`border px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all ${showOnlyBlocks
-              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
-              : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300'
-              }`}
-            title="Exibir apenas bloqueios na grade"
-          >
-            <span className="material-symbols-outlined text-lg">block</span>
-            <span className="hidden lg:inline">Somente Bloqueios</span>
-          </button>
+          {displayMode === 'calendar' && (
+            <>
+              <button
+                onClick={() => setShowOnlyBlocks(prev => !prev)}
+                className={`border px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all ${showOnlyBlocks
+                  ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                  : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300'
+                  }`}
+                title="Exibir apenas bloqueios na grade"
+              >
+                <span className="material-symbols-outlined text-lg">block</span>
+                <span className="hidden lg:inline">Somente Bloqueios</span>
+              </button>
 
-          <button
-            onClick={handleOpenCreateBlockModal}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
-          >
-            <span className="material-symbols-outlined text-lg">event_busy</span>
-            <span className="hidden sm:inline">Fechar agenda</span>
-          </button>
+              <button
+                onClick={handleOpenCreateBlockModal}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
+              >
+                <span className="material-symbols-outlined text-lg">event_busy</span>
+                <span className="hidden sm:inline">Fechar agenda</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => {
@@ -1214,6 +1555,7 @@ const Schedule: React.FC = () => {
         </div>
       </div>
 
+      {displayMode === 'calendar' ? (
       <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 flex-1 min-h-0">
         {/* DASHBOARD INDICATORS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-1 gap-4 shrink-0 w-full xl:w-64 max-xl:mb-6 xl:overflow-y-auto custom-scrollbar xl:pr-1">
@@ -1379,7 +1721,7 @@ const Schedule: React.FC = () => {
                                   key={apt.id}
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
-                                  onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                  onClick={() => handleOpenAppointmentDetails(apt)}
                                   className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
                                   title={`${apt.client} — ${apt.service}`}
@@ -1472,7 +1814,7 @@ const Schedule: React.FC = () => {
                                   key={apt.id}
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
-                                  onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                                  onClick={() => handleOpenAppointmentDetails(apt)}
                                   className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
                                   title={`${apt.client} — ${apt.service}`}
@@ -1547,7 +1889,7 @@ const Schedule: React.FC = () => {
                 return (
                   <div
                     key={apt.id}
-                    onClick={() => { setSelectedAppointment(apt); setIsDetailModalOpen(true); }}
+                    onClick={() => handleOpenAppointmentDetails(apt)}
                     className="bg-slate-50 dark:bg-[#181A1F] p-3 rounded-xl flex gap-3 items-center group cursor-pointer hover:bg-slate-100 dark:hover:bg-[#181A1F]/80 transition-all border border-transparent dark:hover:border-[#262A33]"
                   >
                     <div className="bg-slate-200 dark:bg-[#262A33] text-primary dark:text-[#C6A45A] font-black text-xs px-2 py-1.5 rounded-lg shrink-0 text-center min-w-[44px]">
@@ -1569,6 +1911,224 @@ const Schedule: React.FC = () => {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
+          <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
+                <select
+                  value={listFilters.period}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="today">Hoje</option>
+                  <option value="tomorrow">Amanhã</option>
+                  <option value="week">Próximos 7 dias</option>
+                  <option value="month">Este mês</option>
+                  <option value="custom">Data específica</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
+                <DatePickerInput
+                  value={listFilters.date}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
+                <select
+                  value={listFilters.professional}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
+                <select
+                  value={listFilters.status}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                <select
+                  value={listFilters.service}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
+                <select
+                  value={listFilters.origin}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todas</option>
+                  {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={listFilters.search}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
+                    placeholder="Nome do cliente ou telefone"
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
+                  />
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: 'Todos' },
+                { key: 'today', label: 'Hoje' },
+                { key: 'pending', label: 'Pendentes' },
+                { key: 'confirmed', label: 'Confirmados' },
+                { key: 'in_progress', label: 'Em atendimento' },
+                { key: 'overdue', label: 'Atrasados' },
+                { key: 'without_comanda', label: 'Sem comanda' },
+              ].map((chip) => (
+                <button
+                  key={chip.key}
+                  onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${listFilters.quickChip === chip.key
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                    }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 xl:grid-cols-7 gap-3">
+            {summaryCards.map((card) => (
+              <div key={card.key} className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{card.label}</p>
+                <p className={`text-2xl font-black ${card.tone}`}>{card.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden lg:block bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 dark:bg-white/[0.03] border-b border-slate-200 dark:border-border-dark">
+                  <tr className="text-left">
+                    {['Horário', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Status', 'Observação', 'Origem', 'Ações'].map((label) => (
+                      <th key={label} className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {filteredListAppointments.map((apt) => (
+                    <tr key={apt.id} className={`${apt.isOverdue ? 'bg-red-50/80 dark:bg-red-900/10' : 'hover:bg-slate-50 dark:hover:bg-white/[0.02]'} transition-colors`}>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(apt.start)}</span>
+                          <span className="text-[11px] text-slate-500">até {getAppointmentEndLabel(apt)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{apt.client}</span>
+                          {apt.isOverdue && <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-300">Atrasado</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.clientPhone || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.service}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.staffName || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${apt.statusBadgeClassName}`}>
+                          <span className="material-symbols-outlined text-[14px]">{apt.statusIcon}</span>
+                          {apt.statusLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300" title={apt.notes || ''}>{apt.shortNotes || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.originLabel}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <button onClick={() => handleOpenAppointmentDetails(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Ver detalhes"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
+                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-amber-500 hover:bg-amber-500/10" title="Editar"><span className="material-symbols-outlined text-[18px]">edit</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="p-2 rounded-lg text-slate-500 hover:text-blue-500 hover:bg-blue-500/10" title="Confirmar"><span className="material-symbols-outlined text-[18px]">check_circle</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-violet-500 hover:bg-violet-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
+                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
+                          <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
+                          <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
+                          <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!loading && filteredListAppointments.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">Nenhum agendamento encontrado com os filtros atuais.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="lg:hidden space-y-3">
+            {filteredListAppointments.map((apt) => (
+              <div key={apt.id} className={`bg-white dark:bg-surface-dark rounded-2xl border p-4 shadow-sm ${apt.isOverdue ? 'border-red-300 dark:border-red-800 bg-red-50/60 dark:bg-red-900/10' : 'border-slate-200 dark:border-border-dark'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(apt.start)}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{apt.client}</p>
+                    <p className="text-xs text-slate-500">{apt.clientPhone || 'Sem telefone'}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${apt.statusBadgeClassName}`}>
+                    <span className="material-symbols-outlined text-[14px]">{apt.statusIcon}</span>
+                    {apt.statusLabel}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                  <p><strong>Serviço:</strong> {apt.service}</p>
+                  <p><strong>Profissional:</strong> {apt.staffName || '-'}</p>
+                  <p><strong>Origem:</strong> {apt.originLabel}</p>
+                  <p title={apt.notes || ''}><strong>Obs.:</strong> {apt.shortNotes || '-'}</p>
+                </div>
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  <button onClick={() => handleOpenAppointmentDetails(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Detalhes</button>
+                  <button onClick={() => handleEditAppointment(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Editar</button>
+                  <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
+                  <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold">Iniciar</button>
+                  <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
+                  <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
+                  <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
+                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
+                </div>
+              </div>
+            ))}
+            {!loading && filteredListAppointments.length === 0 && (
+              <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-8 text-center text-sm text-slate-500">
+                Nenhum agendamento encontrado com os filtros atuais.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Modal
         isOpen={isModalOpen}
@@ -2189,6 +2749,82 @@ Podemos confirmar? 😄`;
           );
         })()}
       </Modal>
+
+      {isDetailDrawerOpen && selectedAppointmentDetails && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button className="absolute inset-0 bg-black/40" onClick={closeDetailDrawer} aria-label="Fechar detalhes" />
+          <div className="relative w-full max-w-xl h-full bg-white dark:bg-[#111318] border-l border-slate-200 dark:border-border-dark shadow-2xl flex flex-col">
+            <div className="p-5 border-b border-slate-200 dark:border-border-dark flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500">Detalhes do atendimento</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.client}</h3>
+              </div>
+              <button onClick={closeDetailDrawer} className="size-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${selectedAppointmentDetails.statusBadgeClassName}`}>
+                  <span className="material-symbols-outlined text-sm">{selectedAppointmentDetails.statusIcon}</span>
+                  {selectedAppointmentDetails.statusLabel}
+                </span>
+                {selectedAppointmentDetails.isOverdue && (
+                  <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <span className="material-symbols-outlined text-sm">warning</span>
+                    Atrasado
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Cliente</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.client}</p>
+                  <p className="text-sm text-slate-500">{selectedAppointmentDetails.clientPhone || 'Sem telefone'}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Profissional</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.staffName || '-'}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Serviço</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.service}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Origem</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.originLabel}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{new Date(selectedAppointmentDetails.startTime).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Horário</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(selectedAppointmentDetails.start)} - {getAppointmentEndLabel(selectedAppointmentDetails)}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observação</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
+              <button onClick={() => handleEditAppointment(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
+              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado')} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
+              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado')} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
+              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado')} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+              <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
+              <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
+              <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div >
