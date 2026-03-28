@@ -1456,6 +1456,26 @@ const Schedule: React.FC = () => {
     await handleNavigateToCheckout(appointment);
   };
 
+  const handleSendWhatsApp = (appointment: CalendarAppointment) => {
+    if (!appointment.clientPhone) {
+      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
+      return;
+    }
+
+    const cleanPhone = appointment.clientPhone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+
+📅 *Data:* ${new Date(appointment.startTime).toLocaleDateString('pt-BR')}
+⏰ *Hora:* ${new Date(appointment.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+💈 *Serviço:* ${appointment.service}
+🧔 *Profissional:* ${appointment.staffName}
+
+Podemos confirmar? 😄`;
+
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 shrink-0">
@@ -2836,6 +2856,7 @@ Podemos confirmar? 😄`;
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado')} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado')} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado')} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+              <button onClick={() => handleSendWhatsApp(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
               <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
