@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
     ensureAppSupportsModule,
     getScopedClient,
@@ -58,6 +58,16 @@ interface QuickProductForm {
     auto_generate_purchase_order: boolean;
 }
 
+interface CheckoutLocationState {
+    fromAppointment?: boolean;
+    appointmentId?: string;
+    clientId?: string;
+    clientName?: string;
+    serviceName?: string;
+    staffId?: string;
+    price?: number;
+}
+
 const createInitialQuickProductForm = (): QuickProductForm => ({
     name: '',
     description: '',
@@ -70,8 +80,10 @@ const createInitialQuickProductForm = (): QuickProductForm => ({
 
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
+    const location = useLocation();
     const navigate = useNavigate();
     const { appSlug, schema, tenantId } = useAuth();
+    const checkoutState = (location.state as CheckoutLocationState | null) || null;
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // State
@@ -101,6 +113,7 @@ const Checkout: React.FC = () => {
     const [products, setProducts] = useState<any[]>([]);
     const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
     const [chefClubInfo, setChefClubInfo] = useState<{ id: string; planName: string; credits: number } | null>(null);
+    const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
 
     // Fetch initial data
@@ -174,6 +187,7 @@ const Checkout: React.FC = () => {
                     setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
                     setPaymentMethod(comanda.payment_method || 'credit');
                     setDiscount(String(comanda.discount || 0));
+                    setRelatedAppointmentId(comanda.appointment_id || null);
 
                     const mappedItems: CartItem[] = comanda.comanda_items.map((item: any) => ({
                         id: item.id,
@@ -204,6 +218,55 @@ const Checkout: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (comandaId || !checkoutState?.fromAppointment || loading) return;
+
+        if (checkoutState.appointmentId) {
+            setRelatedAppointmentId(checkoutState.appointmentId);
+        }
+
+        if (!selectedClient) {
+            const matchedClient =
+                clients.find((client) => client.id === checkoutState.clientId) ||
+                clients.find((client) =>
+                    (checkoutState.clientName && client.name.toLowerCase() === checkoutState.clientName.toLowerCase())
+                ) ||
+                null;
+
+            if (matchedClient) {
+                setSelectedClient(matchedClient);
+            }
+        }
+
+        if (cart.length === 0 && checkoutState.serviceName) {
+            const matchedService = services.find((service) => service.name === checkoutState.serviceName);
+
+            if (matchedService) {
+                const finalPrice = typeof checkoutState.price === 'number' && checkoutState.price > 0
+                    ? checkoutState.price
+                    : calculateItemPrice(matchedService, 'service');
+
+                setCart([{
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'service',
+                    name: matchedService.name || checkoutState.serviceName,
+                    price: finalPrice,
+                    quantity: 1,
+                    service_id: matchedService.id,
+                    staff_id: checkoutState.staffId || '',
+                }]);
+            }
+        }
+    }, [
+        cart.length,
+        checkoutState,
+        clients,
+        comandaId,
+        loading,
+        selectedClient,
+        services,
+    ]);
 
     // Calculations
     const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -461,6 +524,7 @@ const Checkout: React.FC = () => {
             const comandaData: any = {
                 client_id: selectedClient.id,
                 staff_id: comandaStaffId,
+                appointment_id: relatedAppointmentId,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
                 total: total,
                 tenant_id: resolvedTenantId
@@ -507,6 +571,18 @@ const Checkout: React.FC = () => {
 
                 if (rpcError) {
                     throw rpcError;
+                }
+
+                if (relatedAppointmentId) {
+                    const { error: appointmentSyncError } = await client
+                        .from('appointments')
+                        .update({ status: 'completed' })
+                        .eq('id', relatedAppointmentId)
+                        .eq('tenant_id', resolvedTenantId);
+
+                    if (appointmentSyncError) {
+                        console.warn('Checkout finalized without appointment sync:', appointmentSyncError);
+                    }
                 }
 
                 try {

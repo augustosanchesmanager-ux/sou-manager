@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { generateBusinessInsights } from '../services/geminiService';
 import { useTheme } from '../context/ThemeContext';
@@ -821,14 +821,14 @@ const Dashboard: React.FC = () => {
 
         {/* PRÓXIMOS AGENDAMENTOS */}
         <div className="card-boutique p-6">
-          <div className="flex justify-between items-center mb-6">
+          <div className="relative z-10 flex justify-between items-center mb-6">
             <h3 className="font-bold text-slate-900 dark:text-white">Próximos Agendamentos</h3>
-            <button
-              onClick={() => navigate('/schedule')}
-              className="text-primary text-xs font-bold uppercase tracking-wider hover:text-blue-600 dark:hover:text-white transition-colors"
+            <Link
+              to="/schedule"
+              className="relative z-20 inline-flex items-center text-primary text-xs font-bold uppercase tracking-wider hover:text-blue-600 dark:hover:text-white transition-colors"
             >
               Ver Todos
-            </button>
+            </Link>
           </div>
           <div className="space-y-4">
             {loading ? (

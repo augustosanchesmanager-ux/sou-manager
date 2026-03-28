@@ -645,6 +645,25 @@ const Schedule: React.FC = () => {
         return;
       }
 
+      const { data: existingComanda, error: existingComandaError } = await supabase
+        .from('comandas')
+        .select('id, status')
+        .eq('tenant_id', tenantId)
+        .eq('appointment_id', apt.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingComandaError) {
+        throw existingComandaError;
+      }
+
+      if (existingComanda?.id && existingComanda.status !== 'cancelled') {
+        setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+        navigate(`/checkout/${existingComanda.id}`);
+        return;
+      }
+
       const { data: clientData } = await supabase
         .from('clients')
         .select('id')
