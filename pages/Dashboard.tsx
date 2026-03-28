@@ -127,8 +127,8 @@ const M_COLORS: Record<string, string> = {
   red: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/30',
   indigo: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/30',
 };
-interface MPProps { revenue: number; clientsCount: number; todayAppts: number; growth: number; activeStaffPct: number; }
-const MetricsPanel: React.FC<MPProps> = ({ revenue, clientsCount, todayAppts, growth, activeStaffPct }) => {
+interface MPProps { revenue: number; clientsCount: number; todayAppts: number; growth: number; activeStaffPct: number; avgTicket: number; }
+const MetricsPanel: React.FC<MPProps> = ({ revenue, clientsCount, todayAppts, growth, activeStaffPct, avgTicket }) => {
   const SK = 'sou_manager_metrics_v1';
   const [metrics, setMetrics] = React.useState<DashboardMetric[]>(() => {
     try { const s = localStorage.getItem(SK); return s ? JSON.parse(s) : DEFAULT_METRICS; } catch { return DEFAULT_METRICS; }
@@ -138,10 +138,9 @@ const MetricsPanel: React.FC<MPProps> = ({ revenue, clientsCount, todayAppts, gr
   const [customLabel, setCustomLabel] = React.useState('');
 
   const resolveVal = (type: MetricType): number => {
-    const avg = clientsCount > 0 ? revenue / clientsCount : 0;
     const map: Record<MetricType, number> = {
       revenue, clients: clientsCount, appointments: todayAppts,
-      avg_ticket: avg, growth, retention: 68, team: activeStaffPct, custom: 0,
+      avg_ticket: avgTicket, growth, retention: 68, team: activeStaffPct, custom: 0,
     };
     return map[type] ?? 0;
   };
@@ -266,7 +265,7 @@ const Dashboard: React.FC = () => {
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<{ name: string; value: number }[]>([]);
-  const [metrics, setMetrics] = useState({ revenue: 0, growth: 0, activeStaffPercent: 0 });
+  const [metrics, setMetrics] = useState({ revenue: 0, growth: 0, activeStaffPercent: 0, todayAppointments: 0, avgTicket: 0 });
 
   // Onboarding
   const [profile, setProfile] = useState<any>(null);
@@ -357,28 +356,34 @@ const Dashboard: React.FC = () => {
 
     if (transRes.data) {
       const now = new Date();
-      const thisMonth = now.getMonth();
-      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+      const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
       let thisMonthRev = 0;
       let lastMonthRev = 0;
+      let thisMonthIncomeCount = 0;
 
       const grouped: Record<string, number> = {};
 
       transRes.data.forEach(t => {
         const d = new Date(t.date);
         const day = d.getDate();
-        if (d.getMonth() === thisMonth) {
-          thisMonthRev += Number(t.amount || t.val) || 0;
+        const amount = Number(t.amount || t.val) || 0;
+
+        if (d >= startOfThisMonth && d < startOfNextMonth) {
+          thisMonthRev += amount;
+          thisMonthIncomeCount += 1;
           const label = day.toString();
-          grouped[label] = (grouped[label] || 0) + (Number(t.amount || t.val) || 0);
-        } else if (d.getMonth() === lastMonth) {
-          lastMonthRev += Number(t.amount || t.val) || 0;
+          grouped[label] = (grouped[label] || 0) + amount;
+        } else if (d >= startOfLastMonth && d < startOfThisMonth) {
+          lastMonthRev += amount;
         }
       });
 
       const growth = lastMonthRev > 0 ? ((thisMonthRev - lastMonthRev) / lastMonthRev) * 100 : 0;
-      setMetrics(prev => ({ ...prev, revenue: thisMonthRev, growth }));
+      const avgTicket = thisMonthIncomeCount > 0 ? thisMonthRev / thisMonthIncomeCount : 0;
+      setMetrics(prev => ({ ...prev, revenue: thisMonthRev, growth, avgTicket }));
 
       // Fill chart data (1 to 30)
       const cData = [];
@@ -392,15 +397,25 @@ const Dashboard: React.FC = () => {
     if (staffRes.data) {
       setStaffList(staffRes.data);
       const todayStr = new Date().toISOString().split('T')[0];
-      const { data: todayAppts } = await supabase
+      const [{ data: todayAppts }, { count: todayApptsCount }] = await Promise.all([
+        supabase
         .from('appointments')
         .select('staff_id')
         .eq('tenant_id', tenantId)
         .eq('status', 'confirmed')
-        .gte('start_time', `${todayStr}T00:00:00`);
+        .gte('start_time', `${todayStr}T00:00:00`)
+        .lt('start_time', `${todayStr}T23:59:59`),
+        supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .neq('status', 'cancelled')
+        .gte('start_time', `${todayStr}T00:00:00`)
+        .lt('start_time', `${todayStr}T23:59:59`)
+      ]);
       const activeIds = new Set(todayAppts?.map(a => a.staff_id));
       const percent = staffRes.data.length > 0 ? (activeIds.size / staffRes.data.length) * 100 : 0;
-      setMetrics(prev => ({ ...prev, activeStaffPercent: percent || 0 }));
+      setMetrics(prev => ({ ...prev, activeStaffPercent: percent || 0, todayAppointments: todayApptsCount || 0 }));
     }
 
     if (servicesRes.error) {
@@ -695,9 +710,10 @@ const Dashboard: React.FC = () => {
       <MetricsPanel
         revenue={metrics.revenue}
         clientsCount={clients.length}
-        todayAppts={appointments.length}
+        todayAppts={metrics.todayAppointments}
         growth={metrics.growth}
         activeStaffPct={metrics.activeStaffPercent}
+        avgTicket={metrics.avgTicket}
       />
 
       {/* ONBOARDING CHECKLIST */}
