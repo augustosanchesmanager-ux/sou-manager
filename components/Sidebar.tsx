@@ -77,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { name: 'Agendamentos', icon: 'calendar_month', path: '/schedule' },
         { name: 'Clientes', icon: 'group', path: '/clients' },
         { name: 'Comandas', icon: 'receipt', path: '/comandas' },
-        { name: 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout' },
+        { name: 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv' },
         { name: 'Operações do Dia', icon: 'assignment', path: '/operations' },
       ]
     },

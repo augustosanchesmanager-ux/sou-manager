@@ -9,6 +9,7 @@ import {
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import { generateIdempotencyKey } from '../src/utils/idempotency';
 
 // Types
 interface CartItem {
@@ -76,6 +77,8 @@ interface CheckoutLocationState {
     price?: number;
 }
 
+type CheckoutEntryMode = 'edit_comanda' | 'open_comanda' | 'pdv';
+
 const createInitialQuickProductForm = (): QuickProductForm => ({
     name: '',
     description: '',
@@ -102,6 +105,75 @@ const Checkout: React.FC = () => {
     const navigate = useNavigate();
     const { appSlug, schema, tenantId } = useAuth();
     const checkoutState = (location.state as CheckoutLocationState | null) || null;
+    const searchParams = new URLSearchParams(location.search);
+    const requestedMode = searchParams.get('mode');
+    const checkoutEntryMode: CheckoutEntryMode = comandaId
+        ? 'edit_comanda'
+        : checkoutState?.fromAppointment || requestedMode === 'comanda'
+            ? 'open_comanda'
+            : 'pdv';
+    const checkoutCopy = checkoutEntryMode === 'edit_comanda'
+        ? {
+            title: 'Fechamento de Comanda',
+            subtitle: 'Revise os itens, ajuste o consumo e conclua a cobranca.',
+            orderLabel: 'Comanda',
+            clientRequiredError: 'Selecione o cliente vinculado a esta comanda.',
+            clientEmptyTitle: 'Cliente da comanda',
+            clientEmptyHelper: 'Selecione o cliente responsavel por esta comanda.',
+            itemSectionTitle: 'Itens da Comanda',
+            actionToggleLabel: 'Acao da comanda',
+            primaryPaidLabel: 'Fechar agora',
+            primaryOpenLabel: 'Manter aberta',
+            successPaid: 'Comanda fechada com sucesso!',
+            successOpen: 'Comanda atualizada e mantida em aberto!',
+            emptyCartMessage: 'Nenhum item lancado na comanda',
+            itemRequiredError: 'Adicione pelo menos um item antes de finalizar a comanda.',
+            finalButtonPaidLabel: 'Confirmar e fechar',
+            finalButtonOpenLabel: 'Atualizar e manter aberta',
+            summaryTitle: 'Resumo da cobranca',
+            redirectPath: '/comandas',
+        }
+        : checkoutEntryMode === 'open_comanda'
+            ? {
+                title: 'Abrir Comanda',
+                subtitle: 'Inicie uma comanda operacional para acompanhar consumo e fechar depois.',
+                orderLabel: 'Nova comanda',
+                clientRequiredError: 'Selecione o cliente antes de abrir a comanda.',
+                clientEmptyTitle: 'Cliente da comanda',
+                clientEmptyHelper: 'Obrigatorio para abrir a comanda.',
+                itemSectionTitle: 'Itens iniciais da Comanda',
+                actionToggleLabel: 'Destino da comanda',
+                primaryPaidLabel: 'Fechar agora',
+                primaryOpenLabel: 'Salvar aberta',
+                successPaid: 'Comanda fechada com sucesso!',
+                successOpen: 'Comanda aberta com sucesso!',
+                emptyCartMessage: 'Adicione os primeiros itens para abrir a comanda',
+                itemRequiredError: 'Adicione pelo menos um item antes de salvar a comanda.',
+                finalButtonPaidLabel: 'Abrir e fechar agora',
+                finalButtonOpenLabel: 'Abrir comanda',
+                summaryTitle: 'Resumo da comanda',
+                redirectPath: '/comandas',
+            }
+            : {
+                title: 'Checkout / PDV',
+                subtitle: 'Lance produtos e servicos para uma venda imediata no caixa.',
+                orderLabel: 'Operacao',
+                clientRequiredError: 'Selecione um cliente para concluir a operacao.',
+                clientEmptyTitle: 'Cliente nao selecionado',
+                clientEmptyHelper: 'Obrigatorio para concluir a operacao no fluxo atual.',
+                itemSectionTitle: 'Itens da Operacao',
+                actionToggleLabel: 'Acao da operacao',
+                primaryPaidLabel: 'Concluir venda',
+                primaryOpenLabel: 'Salvar aberta',
+                successPaid: 'Venda realizada com sucesso!',
+                successOpen: 'Operacao salva em aberto!',
+                emptyCartMessage: 'Nenhum item lancado na operacao',
+                itemRequiredError: 'Adicione pelo menos um item antes de concluir a operacao.',
+                finalButtonPaidLabel: 'Concluir venda',
+                finalButtonOpenLabel: 'Salvar operacao',
+                summaryTitle: 'Resumo financeiro',
+                redirectPath: '/checkout?mode=pdv',
+            };
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // State
@@ -136,6 +208,36 @@ const Checkout: React.FC = () => {
     const [chefClubInfo, setChefClubInfo] = useState<{ id: string; planName: string; credits: number } | null>(null);
     const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
+    const finishLockRef = React.useRef(false);
+    const comandaRequestKeyRef = React.useRef(generateIdempotencyKey('comanda'));
+    const supportsOpenComandaState = checkoutEntryMode !== 'pdv';
+    const incomeCategory = checkoutEntryMode === 'pdv'
+        ? 'Venda de Balcao'
+        : checkoutEntryMode === 'open_comanda'
+            ? 'Fechamento de Comanda'
+            : 'Fechamento de Atendimento';
+
+    const resetComandaRequestKey = () => {
+        comandaRequestKeyRef.current = generateIdempotencyKey('comanda');
+    };
+
+    const resetOperationalState = useCallback(() => {
+        if (comandaId) return;
+
+        setSelectedClient(null);
+        setCart([]);
+        setDiscount('0');
+        setPaymentMethod('credit');
+        setPaymentDescription('');
+        setChefClubInfo(null);
+        setDuplicateComanda(null);
+        setPendingClient(null);
+        setShowDuplicateModal(false);
+        setSearchTerm('');
+        setRelatedAppointmentId(null);
+        setPaymentStatus(checkoutEntryMode === 'open_comanda' ? 'pending' : 'paid');
+        resetComandaRequestKey();
+    }, [checkoutEntryMode, comandaId]);
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
@@ -192,11 +294,7 @@ const Checkout: React.FC = () => {
             if (comandaId) {
                 const { data: comanda, error: comError } = await client
                     .from('comandas')
-                    .select(`
-          *,
-          clients(id, name, avatar, phone),
-          comanda_items(*)
-        `)
+                    .select('*')
                     .eq('id', comandaId)
                     .eq('tenant_id', resolvedTenantId)
                     .single();
@@ -204,13 +302,32 @@ const Checkout: React.FC = () => {
                 if (comError) throw comError;
 
                 if (comanda) {
-                    setSelectedClient(comanda.clients);
+                    const [{ data: selectedClientData, error: selectedClientError }, { data: comandaItems, error: itemsError }] = await Promise.all([
+                        comanda.client_id
+                            ? client
+                                .from('clients')
+                                .select('id, name, avatar, phone')
+                                .eq('id', comanda.client_id)
+                                .eq('tenant_id', resolvedTenantId)
+                                .maybeSingle()
+                            : Promise.resolve({ data: null, error: null }),
+                        client
+                            .from('comanda_items')
+                            .select('*')
+                            .eq('comanda_id', comanda.id)
+                            .eq('tenant_id', resolvedTenantId),
+                    ]);
+
+                    if (selectedClientError) throw selectedClientError;
+                    if (itemsError) throw itemsError;
+
+                    setSelectedClient(selectedClientData || null);
                     setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
                     setPaymentMethod(comanda.payment_method || 'credit');
                     setDiscount(String(comanda.discount || 0));
                     setRelatedAppointmentId(comanda.appointment_id || null);
 
-                    const mappedItems: CartItem[] = comanda.comanda_items.map((item: any) => ({
+                    const mappedItems: CartItem[] = (comandaItems || []).map((item: any) => ({
                         id: item.id,
                         dbId: item.id,
                         type: item.service_id ? 'service' : 'product',
@@ -239,6 +356,11 @@ const Checkout: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (comandaId) return;
+        setPaymentStatus(checkoutEntryMode === 'open_comanda' ? 'pending' : 'paid');
+    }, [checkoutEntryMode, comandaId]);
 
     useEffect(() => {
         if (comandaId || !checkoutState?.fromAppointment || loading) return;
@@ -300,6 +422,7 @@ const Checkout: React.FC = () => {
         setIsClientModalOpen(false);
         if (!tenantId) {
             setToast({ message: 'Tenant invalido para selecionar cliente.', type: 'error' });
+            finishLockRef.current = false;
             return;
         }
 
@@ -314,7 +437,7 @@ const Checkout: React.FC = () => {
             });
             const clientDb = getScopedClient(currentAppSlug);
 
-            if (!comandaId) {
+            if (!comandaId && supportsOpenComandaState) {
                 const { data: openComandas, error: openComandasError } = await clientDb
                     .from('comandas')
                     .select('id, created_at')
@@ -335,26 +458,41 @@ const Checkout: React.FC = () => {
 
             if (pendingClient) setSelectedClient(pendingClient);
 
-            const targetClient = pendingClient || client;
-            const { data: sub, error: subError } = await clientDb
-                .from('customer_subscriptions')
-                .select(`
-                id,
-                plan:customer_plans(name),
-                credits:customer_credits(available_credits)
-            `)
-            .eq('client_id', targetClient.id)
-            .eq('tenant_id', resolvedTenantId)
-            .eq('status', 'active')
-            .maybeSingle();
+        const targetClient = pendingClient || client;
+        setSelectedClient(targetClient);
+        const { data: sub, error: subError } = await clientDb
+            .from('customer_subscriptions')
+            .select('id, plan_id')
+                .eq('client_id', targetClient.id)
+                .eq('tenant_id', resolvedTenantId)
+                .eq('status', 'active')
+                .maybeSingle();
 
             if (subError) throw subError;
 
             if (sub) {
+                const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
+                    clientDb
+                        .from('customer_plans')
+                        .select('name')
+                        .eq('id', sub.plan_id)
+                        .eq('tenant_id', resolvedTenantId)
+                        .maybeSingle(),
+                    clientDb
+                        .from('customer_credits')
+                        .select('available_credits')
+                        .eq('subscription_id', sub.id)
+                        .eq('tenant_id', resolvedTenantId)
+                        .maybeSingle(),
+                ]);
+
+                if (planError) throw planError;
+                if (creditsError) throw creditsError;
+
                 setChefClubInfo({
                     id: sub.id,
-                    planName: (sub.plan as any).name,
-                    credits: (sub.credits as any)?.[0]?.available_credits || 0
+                    planName: plan?.name || 'Plano ativo',
+                    credits: credits?.available_credits || 0
                 });
             } else {
                 setChefClubInfo(null);
@@ -579,12 +717,16 @@ const Checkout: React.FC = () => {
     };
 
     const handleFinish = async () => {
+        if (finishLockRef.current) return;
+        finishLockRef.current = true;
         if (!selectedClient) {
-            setToast({ message: 'Selecione um cliente.', type: 'error' });
+            setToast({ message: checkoutCopy.clientRequiredError, type: 'error' });
+            finishLockRef.current = false;
             return;
         }
         if (cart.length === 0) {
-            setToast({ message: 'Adicione pelo menos um item antes de finalizar a comanda.', type: 'error' });
+            setToast({ message: checkoutCopy.itemRequiredError, type: 'error' });
+            finishLockRef.current = false;
             return;
         }
         if (!tenantId) {
@@ -632,9 +774,72 @@ const Checkout: React.FC = () => {
                     .eq('tenant_id', resolvedTenantId);
                 if (delError) throw delError;
             } else {
-                const { data: newC, error: insertError } = await client.from('comandas').insert(comandaData).select().single();
-                if (insertError) throw insertError;
-                currentComandaId = newC.id;
+                let existingComanda: { id: string } | null = null;
+
+                if (relatedAppointmentId) {
+                    const { data } = await client
+                        .from('comandas')
+                        .select('id')
+                        .eq('tenant_id', resolvedTenantId)
+                        .eq('appointment_id', relatedAppointmentId)
+                        .limit(1)
+                        .maybeSingle();
+                    existingComanda = data;
+                }
+
+                if (!existingComanda && paymentStatus === 'pending') {
+                    const { data } = await client
+                        .from('comandas')
+                        .select('id')
+                        .eq('tenant_id', resolvedTenantId)
+                        .eq('client_id', selectedClient.id)
+                        .eq('status', 'open')
+                        .limit(1)
+                        .maybeSingle();
+                    existingComanda = data;
+                }
+
+                if (existingComanda) {
+                    currentComandaId = existingComanda.id;
+                    const { error: syncError } = await client
+                        .from('comandas')
+                        .update(comandaData)
+                        .eq('id', currentComandaId)
+                        .eq('tenant_id', resolvedTenantId);
+                    if (syncError) throw syncError;
+
+                    const { error: delError } = await client
+                        .from('comanda_items')
+                        .delete()
+                        .eq('comanda_id', currentComandaId)
+                        .eq('tenant_id', resolvedTenantId);
+                    if (delError) throw delError;
+                } else {
+                    const { data: newC, error: insertError } = await client
+                        .from('comandas')
+                        .insert({ ...comandaData, idempotency_key: comandaRequestKeyRef.current })
+                        .select()
+                        .single();
+
+                    if (insertError) {
+                        if (insertError.code === '23505') {
+                            const { data: duplicatedComanda } = await client
+                                .from('comandas')
+                                .select('id')
+                                .eq('tenant_id', resolvedTenantId)
+                                .eq('idempotency_key', comandaRequestKeyRef.current)
+                                .limit(1)
+                                .maybeSingle();
+
+                            if (!duplicatedComanda) throw insertError;
+                            currentComandaId = duplicatedComanda.id;
+                        } else {
+                            throw insertError;
+                        }
+                    } else {
+                        currentComandaId = newC.id;
+                    }
+                }
             }
 
             // 2. Insert Items
@@ -677,11 +882,11 @@ const Checkout: React.FC = () => {
                     const { error: transError } = await client.from('transactions').insert({
                     user_id: user?.id,
                     type: 'income',
-                    category: 'Venda de Balcão',
+                    category: incomeCategory,
                     amount: total,
                     description: paymentMethod === 'other' && paymentDescription
-                        ? `Venda - Cliente: ${selectedClient.name} (${paymentDescription})`
-                        : `Venda - Cliente: ${selectedClient.name}`,
+                        ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
+                        : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
                     payment_method: paymentMethod,
                     date: new Date().toISOString(),
                     tenant_id: resolvedTenantId
@@ -735,16 +940,20 @@ const Checkout: React.FC = () => {
                 if (creditErr) console.error('Error deducting credits:', creditErr);
             }
 
-            setToast({ message: paymentStatus === 'paid' ? 'Venda realizada com sucesso!' : 'Comanda salva em aberto!', type: 'success' });
+            setToast({ message: paymentStatus === 'paid' ? checkoutCopy.successPaid : checkoutCopy.successOpen, type: 'success' });
 
             setTimeout(() => {
-                navigate('/comandas', { replace: true });
+                if (checkoutEntryMode === 'pdv' && !comandaId) {
+                    resetOperationalState();
+                }
+                navigate(checkoutCopy.redirectPath, { replace: true });
             }, 1500);
 
         } catch (err: any) {
             console.error('Save error details:', err);
             setToast({ message: err?.message ? `Erro: ${err.message}` : 'Erro ao salvar operação.', type: 'error' });
         } finally {
+            finishLockRef.current = false;
             setLoading(false);
         }
     };
@@ -760,14 +969,22 @@ const Checkout: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                         <span className="material-symbols-outlined text-4xl text-primary">point_of_sale</span>
-                        {comandaId ? 'Editar Comanda' : 'Checkout Pós-Atendimento'}
+                        {checkoutCopy.title}
                     </h1>
-                    <p className="text-slate-500 mt-1">{comandaId ? 'Ajuste os itens ou finalize o pagamento.' : 'Finalize o atendimento, lance comissões e produtos.'}</p>
+                    <p className="text-slate-500 mt-1">{checkoutCopy.subtitle}</p>
                 </div>
                 <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pedido</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{checkoutCopy.orderLabel}</p>
                     <p className="text-xl font-mono font-bold text-slate-900 dark:text-white">#{comandaId ? comandaId.slice(0, 8) : 'NOVO'}</p>
                 </div>
+            </div>
+
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-border-dark dark:bg-card-dark dark:text-slate-300">
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                    {checkoutEntryMode === 'edit_comanda' ? 'Fluxo de fechamento' : checkoutEntryMode === 'open_comanda' ? 'Fluxo de abertura de comanda' : 'Fluxo de caixa / pdv'}
+                </p>
+                <p className="mt-1 font-semibold text-slate-900 dark:text-white">{checkoutCopy.title}</p>
+                <p className="mt-1">{checkoutCopy.subtitle}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
@@ -791,8 +1008,8 @@ const Checkout: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="flex-1">
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Cliente não selecionado</p>
-                                    <p className="text-xs text-slate-500">Obrigatório para finalizar venda</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{checkoutCopy.clientEmptyTitle}</p>
+                                    <p className="text-xs text-slate-500">{checkoutCopy.clientEmptyHelper}</p>
                                 </div>
                             )}
                         </div>
@@ -825,7 +1042,7 @@ const Checkout: React.FC = () => {
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                 <span className="material-symbols-outlined text-slate-400">shopping_cart</span>
-                                Itens do Pedido
+                                {checkoutCopy.itemSectionTitle}
                             </h3>
                             <div className="flex gap-2">
                                 <button
@@ -927,7 +1144,8 @@ const Checkout: React.FC = () => {
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                                     <span className="material-symbols-outlined text-6xl mb-4">remove_shopping_cart</span>
-                                    <p className="text-sm font-medium">O carrinho está vazio</p>
+                                    <p className="text-sm font-medium">{checkoutCopy.emptyCartMessage}</p>
+                                    <p className="hidden text-sm font-medium">O carrinho está vazio</p>
                                 </div>
                             )}
                         </div>
@@ -958,33 +1176,36 @@ const Checkout: React.FC = () => {
                     <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                             <span className="material-symbols-outlined text-slate-400">receipt_long</span>
-                            Resumo Financeiro
+                            {checkoutCopy.summaryTitle}
                         </h3>
 
                         {/* Payment Status Toggle */}
                         <div className="mb-6">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
+                            <label className="hidden text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
+                            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{checkoutCopy.actionToggleLabel}</p>
                             <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
                                 <button
                                     onClick={() => setPaymentStatus('paid')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
+                                    className={`${supportsOpenComandaState ? 'flex-1' : 'w-full'} py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
                                         ? 'bg-emerald-500 text-white shadow-md'
                                         : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                         }`}
                                 >
                                     <span className="material-symbols-outlined text-sm">check_circle</span>
-                                    Finalizar
+                                    {checkoutCopy.primaryPaidLabel}
                                 </button>
-                                <button
-                                    onClick={() => setPaymentStatus('pending')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
-                                        ? 'bg-amber-500 text-white shadow-md'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    <span className="material-symbols-outlined text-sm">save</span>
-                                    Salvar Aberta
-                                </button>
+                                {supportsOpenComandaState && (
+                                    <button
+                                        onClick={() => setPaymentStatus('pending')}
+                                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'pending'
+                                            ? 'bg-amber-500 text-white shadow-md'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">save</span>
+                                        {checkoutCopy.primaryOpenLabel}
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -1057,7 +1278,7 @@ const Checkout: React.FC = () => {
                                 <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
                             ) : (
                                 <>
-                                    <span>{paymentStatus === 'paid' ? 'Confirmar e Fechar' : 'Salvar em Aberto'}</span>
+                                    <span>{paymentStatus === 'paid' ? checkoutCopy.finalButtonPaidLabel : checkoutCopy.finalButtonOpenLabel}</span>
                                     <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">
                                         {paymentStatus === 'paid' ? 'check_circle' : 'save_as'}
                                     </span>

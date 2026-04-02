@@ -28,8 +28,7 @@ const MobileBottomNav: React.FC = () => {
   const navigate = useNavigate();
   const { accessRole, canAccessSuperAdmin } = useAuth();
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
-
-  if (!isMobileBottomNavRoute(location.pathname)) return null;
+  const shouldRender = isMobileBottomNavRoute(location.pathname);
 
   const isManager = canAccessSuperAdmin || accessRole === 'manager';
   const isOperational = accessRole === 'barber' || accessRole === 'receptionist';
@@ -41,7 +40,7 @@ const MobileBottomNav: React.FC = () => {
       { label: 'Novo Serviço', icon: 'content_cut', path: '/services', state: { openNewService: true }, role: 'manager' },
       { label: 'Novo Produto', icon: 'inventory_2', path: '/products', state: { openNewProduct: true }, role: 'manager' },
       { label: 'Novo Profissional', icon: 'badge', path: '/team', state: { openNewTeamMember: true }, role: 'manager' },
-      { label: 'Nova Comanda', icon: 'point_of_sale', path: '/checkout', role: 'all' },
+      { label: 'Nova Comanda', icon: 'point_of_sale', path: '/checkout?mode=comanda', role: 'all' },
     ];
 
     if (isManager) return allActions;
@@ -52,12 +51,12 @@ const MobileBottomNav: React.FC = () => {
   const navItems = [
     { key: 'home', icon: 'home', path: '/dashboard' },
     { key: 'agenda', icon: 'calendar_month', path: '/schedule' },
-    { key: 'checkout', icon: 'point_of_sale', path: '/checkout' },
+    { key: 'checkout', icon: 'point_of_sale', path: '/checkout?mode=pdv' },
     { key: 'profile', icon: 'person', path: '/settings' },
   ];
 
   const isActive = (path: string): boolean => {
-    if (path === '/checkout') return location.pathname.startsWith('/checkout');
+    if (path.startsWith('/checkout')) return location.pathname.startsWith('/checkout');
     return location.pathname === path;
   };
 
@@ -65,6 +64,8 @@ const MobileBottomNav: React.FC = () => {
     setIsQuickMenuOpen(false);
     navigate(path, state ? { state } : undefined);
   };
+
+  if (!shouldRender) return null;
 
   return (
     <>
