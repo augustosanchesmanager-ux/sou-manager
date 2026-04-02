@@ -451,7 +451,9 @@ const Comandas: React.FC = () => {
 
             if (clientsResult.error) throw clientsResult.error;
             if (staffResult.error) throw staffResult.error;
-            if (appointmentsResult.error) throw appointmentsResult.error;
+            if (appointmentsResult.error) {
+                console.warn('Nao foi possivel enriquecer as comandas com agendamentos:', appointmentsResult.error);
+            }
 
             const clientsById = ((clientsResult.data || []) as ClientLookup[]).reduce<Record<string, ClientLookup>>((acc, clientRow) => {
                 acc[clientRow.id] = clientRow;
@@ -463,7 +465,7 @@ const Comandas: React.FC = () => {
                 return acc;
             }, {});
 
-            const appointmentsById = ((appointmentsResult.data || []) as AppointmentLookup[]).reduce<Record<string, AppointmentLookup>>((acc, appointmentRow) => {
+            const appointmentsById = (((appointmentsResult.error ? [] : appointmentsResult.data) || []) as AppointmentLookup[]).reduce<Record<string, AppointmentLookup>>((acc, appointmentRow) => {
                 acc[appointmentRow.id] = appointmentRow;
                 return acc;
             }, {});
