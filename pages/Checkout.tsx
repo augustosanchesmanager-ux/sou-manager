@@ -9,7 +9,6 @@ import {
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
-import { generateIdempotencyKey } from '../src/utils/idempotency';
 
 // Types
 interface CartItem {
@@ -78,6 +77,11 @@ interface CheckoutLocationState {
 }
 
 type CheckoutEntryMode = 'edit_comanda' | 'open_comanda' | 'pdv';
+
+const generateIdempotencyKey = (prefix = 'req') => {
+    const randomPart = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `${prefix}-${randomPart}`;
+};
 
 const createInitialQuickProductForm = (): QuickProductForm => ({
     name: '',
