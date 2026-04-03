@@ -10,6 +10,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import Button from '../components/ui/Button';
+import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 
 type ComandaStatus = 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -379,7 +380,7 @@ const Comandas: React.FC = () => {
 
         setLoading(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const client = getScopedClient(currentAppSlug);
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
@@ -808,7 +809,7 @@ const Comandas: React.FC = () => {
 
         setDeleting(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const client = getScopedClient(currentAppSlug);
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
