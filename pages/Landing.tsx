@@ -90,7 +90,7 @@ const PRICING_PLANS = [
       'Gestão Multiloja Dashboard',
       'Suporte Prioritário VIP'
     ],
-    cta: 'Seja Elite Tech',
+    cta: 'Conhecer o Plano Elite',
     highlight: false,
   },
 ];
@@ -171,10 +171,10 @@ const Landing: React.FC = () => {
               to="/login"
               className="hidden sm:block text-sm font-bold text-white/80 hover:text-white transition-colors"
             >
-              Acessar Conta
+              Acessar Plataforma
             </Link>
             <Link
-              to="/onboarding/role"
+              to="/login"
               className="px-6 py-2.5 bg-primary hover:bg-primary-light text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-primary/30 hover:-translate-y-0.5"
             >
               Começar Agora
@@ -197,12 +197,12 @@ const Landing: React.FC = () => {
           </h1>
 
           <p className="text-slate-300 text-lg lg:text-xl mb-10 max-w-[540px] leading-relaxed animate-fade-in" style={{ animationDelay: '200ms' }}>
-            O <span className="font-bold text-white">SOU MANA.GER</span> é a inteligência que sua barbearia precisa para crescer de forma organizada, estratégica e lucrativa.
+            O <span className="font-bold text-white">SMG - Sou.Manager</span> e a inteligencia que sua barbearia precisa para crescer de forma organizada, estrategica e lucrativa.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 mb-20 animate-fade-in" style={{ animationDelay: '300ms' }}>
             <Link
-              to="/onboarding/role"
+              to="/login"
               className="flex items-center justify-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-white font-black rounded-2xl transition-all shadow-2xl shadow-primary/40 hover:-translate-y-1"
             >
               Agende uma Demo
@@ -452,7 +452,7 @@ const Landing: React.FC = () => {
                   <span className="material-symbols-outlined">chat_bubble</span>
                 </a>
                 <Link
-                  to="/onboarding/role"
+                  to="/login"
                   className="mt-4 p-8 bg-primary text-white rounded-[2rem] text-center font-black text-xl shadow-2xl shadow-primary/30 hover:scale-[1.02] transition-all"
                 >
                   Começar agora 🚀
@@ -494,10 +494,10 @@ const Landing: React.FC = () => {
           </div>
           <div className="pt-10 border-t border-[#2E2720] flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] text-center md:text-left">
-              © {new Date().getFullYear()} SOU MANA.GER. Todos os direitos reservados.
+              © {new Date().getFullYear()} SMG - Sou.Manager. Todos os direitos reservados.
             </p>
             <div className="flex items-center gap-6">
-              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">ELITE TECH ECOSYSTEM</span>
+              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">SMG - SOU.MANAGER</span>
             </div>
           </div>
         </div>

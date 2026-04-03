@@ -18,6 +18,7 @@ import {
   scheduleBlocksApi,
   toDateKey,
 } from '../services/scheduleBlocksApi';
+import { generateIdempotencyKey } from '../src/utils/idempotency';
 
 
 
@@ -245,6 +246,7 @@ const Schedule: React.FC = () => {
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
   const [openComandasByAppointment, setOpenComandasByAppointment] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [appointmentSaving, setAppointmentSaving] = useState(false);
   const [blockSaving, setBlockSaving] = useState(false);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
@@ -389,6 +391,16 @@ const Schedule: React.FC = () => {
   const [isNewClientMode, setIsNewClientMode] = useState(false);
   const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
+  const appointmentSaveLockRef = useRef(false);
+  const appointmentRequestKeyRef = useRef(generateIdempotencyKey('appointment'));
+  const appointmentClientRequestKeyRef = useRef(generateIdempotencyKey('schedule-client'));
+  const appointmentComandaRequestKeyRef = useRef(generateIdempotencyKey('schedule-comanda'));
+
+  const resetAppointmentRequestKeys = () => {
+    appointmentRequestKeyRef.current = generateIdempotencyKey('appointment');
+    appointmentClientRequestKeyRef.current = generateIdempotencyKey('schedule-client');
+    appointmentComandaRequestKeyRef.current = generateIdempotencyKey('schedule-comanda');
+  };
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
@@ -497,54 +509,105 @@ const Schedule: React.FC = () => {
 
     setLoading(true);
 
-    let rangeStart: string;
-    let rangeEnd: string;
+    try {
+      let rangeStart: string;
+      let rangeEnd: string;
 
-    if (displayMode === 'list') {
-      const listRange = getListRange();
-      rangeStart = listRange.start.toISOString();
-      rangeEnd = listRange.end.toISOString();
-    } else if (viewMode === 'week') {
-      const days = getWeekDays(selectedDate);
-      const first = new Date(days[0]);
-      first.setHours(0, 0, 0, 0);
-      const last = new Date(days[6]);
-      last.setHours(23, 59, 59, 999);
-      rangeStart = first.toISOString();
-      rangeEnd = last.toISOString();
-    } else {
-      const dStart = new Date(selectedDate);
-      dStart.setHours(0, 0, 0, 0);
-      const dEnd = new Date(selectedDate);
-      dEnd.setHours(23, 59, 59, 999);
-      rangeStart = dStart.toISOString();
-      rangeEnd = dEnd.toISOString();
-    }
+      if (displayMode === 'list') {
+        const listRange = getListRange();
+        rangeStart = listRange.start.toISOString();
+        rangeEnd = listRange.end.toISOString();
+      } else if (viewMode === 'week') {
+        const days = getWeekDays(selectedDate);
+        const first = new Date(days[0]);
+        first.setHours(0, 0, 0, 0);
+        const last = new Date(days[6]);
+        last.setHours(23, 59, 59, 999);
+        rangeStart = first.toISOString();
+        rangeEnd = last.toISOString();
+      } else {
+        const dStart = new Date(selectedDate);
+        dStart.setHours(0, 0, 0, 0);
+        const dEnd = new Date(selectedDate);
+        dEnd.setHours(23, 59, 59, 999);
+        rangeStart = dStart.toISOString();
+        rangeEnd = dEnd.toISOString();
+      }
 
-    const { data } = await supabase
-      .from('appointments')
-      .select('*, clients!appointments_client_id_fkey(phone), source, channel')
-      .eq('tenant_id', tenantId)
-      .gte('start_time', rangeStart)
-      .lte('start_time', rangeEnd)
-      .order('start_time', { ascending: true });
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .gte('start_time', rangeStart)
+        .lte('start_time', rangeEnd);
 
-    if (data) {
-      const mapped: CalendarAppointment[] = data.map(apt => {
+      let appointmentRows = data || [];
+
+      if (error) {
+        console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
+
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('tenant_id', tenantId);
+
+        if (fallbackError) {
+          throw fallbackError;
+        }
+
+        appointmentRows = (fallbackData || []).filter((apt: any) => {
+          const startTime = new Date(apt.start_time).getTime();
+          return !Number.isNaN(startTime)
+            && startTime >= new Date(rangeStart).getTime()
+            && startTime <= new Date(rangeEnd).getTime();
+        });
+      }
+
+      appointmentRows = [...appointmentRows].sort(
+        (first: any, second: any) => new Date(first.start_time).getTime() - new Date(second.start_time).getTime(),
+      );
+      const clientIds = Array.from(
+        new Set(
+          appointmentRows
+            .map((apt: any) => apt.client_id)
+            .filter((clientId: string | null | undefined): clientId is string => Boolean(clientId))
+        )
+      );
+
+      let clientsById: Record<string, DBClient> = {};
+      if (clientIds.length > 0) {
+        const { data: appointmentClients, error: appointmentClientsError } = await supabase
+          .from('clients')
+          .select('id, name, phone')
+          .in('id', clientIds);
+
+        if (appointmentClientsError) {
+          throw appointmentClientsError;
+        }
+
+        clientsById = (appointmentClients || []).reduce<Record<string, DBClient>>((acc, client) => {
+          acc[client.id] = client;
+          return acc;
+        }, {});
+      }
+
+      const mapped: CalendarAppointment[] = appointmentRows.map((apt: any) => {
         const d = new Date(apt.start_time);
         const startHour = d.getHours() + d.getMinutes() / 60;
+        const clientRecord = apt.client_id ? clientsById[apt.client_id] : undefined;
+
         return {
           id: apt.id,
           clientId: apt.client_id || null,
           staffId: apt.staff_id,
           start: startHour,
           duration: Number(apt.duration) || 1,
-          client: apt.client_name || 'Cliente',
+          client: apt.client_name || clientRecord?.name || 'Cliente',
           service: apt.service_name || 'Serviço',
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
           staffName: apt.staff_name || '',
-          clientPhone: (apt as any).clients?.phone || apt.client_phone || '',
+          clientPhone: clientRecord?.phone || apt.client_phone || '',
           price: apt.price || 0,
           startTime: apt.start_time,
           notes: apt.notes || '',
@@ -557,12 +620,16 @@ const Schedule: React.FC = () => {
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const { data: comandas } = await supabase
+        const { data: comandas, error: comandasError } = await supabase
           .from('comandas')
           .select('id, appointment_id')
           .eq('tenant_id', tenantId)
           .eq('status', 'open')
           .in('appointment_id', appointmentIds);
+
+        if (comandasError) {
+          throw comandasError;
+        }
 
         const nextOpenComandasByAppointment: Record<string, string> = {};
         (comandas || []).forEach((comanda: any) => {
@@ -574,8 +641,14 @@ const Schedule: React.FC = () => {
       } else {
         setOpenComandasByAppointment({});
       }
+    } catch (err) {
+      console.error('Erro ao carregar agendamentos:', err);
+      setAppointments([]);
+      setOpenComandasByAppointment({});
+      setToast({ message: 'Erro ao carregar agendamentos.', type: 'error' });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
@@ -641,7 +714,7 @@ const Schedule: React.FC = () => {
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
       if (!tenantId) {
-        navigate('/checkout');
+        navigate('/checkout?mode=pdv');
         return;
       }
 
@@ -674,7 +747,7 @@ const Schedule: React.FC = () => {
 
       const clientId = clientData?.id || '';
 
-      navigate('/checkout', {
+      navigate('/checkout?mode=comanda', {
         state: {
           fromAppointment: true,
           appointmentId: apt.id,
@@ -687,7 +760,7 @@ const Schedule: React.FC = () => {
       });
     } catch (err) {
       console.error('Error navigating to checkout:', err);
-      navigate('/checkout');
+      navigate('/checkout?mode=pdv');
     }
   };
 
@@ -720,22 +793,40 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data } = await supabase
+    const { data: subscription, error: subscriptionError } = await supabase
       .from('customer_subscriptions')
-      .select(`
-        status,
-        plan:customer_plans(name),
-        credits:customer_credits(available_credits)
-      `)
+      .select('id, plan_id, status')
       .eq('client_id', client.id)
+      .eq('tenant_id', tenantId)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (data) {
+    if (subscriptionError) {
+      console.error('Erro ao carregar assinatura Chef Club:', subscriptionError);
+      setChefClubInfo(null);
+      return;
+    }
+
+    if (subscription) {
+      const [{ data: plan }, { data: credits }] = await Promise.all([
+        supabase
+          .from('customer_plans')
+          .select('name')
+          .eq('id', subscription.plan_id)
+          .eq('tenant_id', tenantId)
+          .maybeSingle(),
+        supabase
+          .from('customer_credits')
+          .select('available_credits')
+          .eq('subscription_id', subscription.id)
+          .eq('tenant_id', tenantId)
+          .maybeSingle(),
+      ]);
+
       setChefClubInfo({
-        planName: (data.plan as any).name,
-        credits: (data.credits as any)?.[0]?.available_credits || 0,
-        status: data.status
+        planName: plan?.name || 'Plano ativo',
+        credits: credits?.available_credits || 0,
+        status: subscription.status
       });
       return;
     }
@@ -1115,6 +1206,7 @@ const Schedule: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (appointmentSaveLockRef.current) return;
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
       return;
@@ -1130,20 +1222,61 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    appointmentSaveLockRef.current = true;
+    setAppointmentSaving(true);
+
+    try {
     const selectedService = servicesList.find(s => s.name === formData.service);
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
 
     let clientId: string | null = null;
     if (isNewClientMode) {
-      const { data: newClient, error: clientError } = await supabase.from('clients').insert({
-        name: formData.client,
-        phone: formData.clientPhone || '',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client)}&background=random`,
-        tenant_id: tenantId
-      }).select().single();
-      if (clientError) { setError('Erro ao cadastrar cliente.'); return; }
-      clientId = newClient.id;
-      setClientsList(prev => [...prev, newClient]);
+      const normalizedPhone = (formData.clientPhone || '').trim();
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id, name, phone, avatar')
+        .eq('tenant_id', tenantId)
+        .eq('phone', normalizedPhone)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingClient) {
+        clientId = existingClient.id;
+        setClientsList(prev => prev.some(client => client.id === existingClient.id) ? prev : [...prev, existingClient]);
+      } else {
+        const { data: newClient, error: clientError } = await supabase.from('clients').insert({
+          name: formData.client.trim(),
+          phone: normalizedPhone,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client.trim())}&background=random`,
+          tenant_id: tenantId,
+          idempotency_key: appointmentClientRequestKeyRef.current
+        }).select().single();
+        if (clientError) {
+          if (clientError.code === '23505') {
+            const { data: duplicatedClient } = await supabase
+              .from('clients')
+              .select('id, name, phone, avatar')
+              .eq('tenant_id', tenantId)
+              .eq('idempotency_key', appointmentClientRequestKeyRef.current)
+              .limit(1)
+              .maybeSingle();
+
+            if (duplicatedClient) {
+              clientId = duplicatedClient.id;
+              setClientsList(prev => prev.some(client => client.id === duplicatedClient.id) ? prev : [...prev, duplicatedClient]);
+            } else {
+              setError('Erro ao cadastrar cliente.');
+              return;
+            }
+          } else {
+            setError('Erro ao cadastrar cliente.');
+            return;
+          }
+        } else {
+          clientId = newClient.id;
+          setClientsList(prev => [...prev, newClient]);
+        }
+      }
     } else {
       const existing = clientsList.find(c => c.name.toLowerCase() === formData.client.toLowerCase());
       if (existing) clientId = existing.id;
@@ -1220,79 +1353,164 @@ const Schedule: React.FC = () => {
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      const startIso = startTimeLine.toISOString();
+      const endIso = endTimeLine.toISOString();
 
-      // INSERT NEW
-      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
-        client_id: clientId,
-        service_id: selectedService?.id || null,
-        staff_id: formData.staffId || null,
-        client_name: formData.client,
-        client_phone: formData.clientPhone,
-        service_name: formData.service,
-        notes: formData.notes.trim(),
-        staff_name: selectedStaff?.name || '',
-        start_time: startTimeLine.toISOString(),
-        end_time: endTimeLine.toISOString(),
-        duration: Number(formData.duration),
-        price: selectedService?.price || 0,
-        status: 'confirmed',
-        tenant_id: tenantId
-      }).select().single();
+      const { data: existingAppointment } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('staff_id', formData.staffId || null)
+        .eq('client_name', formData.client)
+        .eq('service_name', formData.service)
+        .eq('start_time', startIso)
+        .limit(1)
+        .maybeSingle();
 
-      if (saveError) {
-        console.error('Erro ao salvar agendamento:', saveError);
-        setError(`Erro ao salvar agendamento: ${saveError.message}`);
-        return;
+      let savedApt = existingAppointment;
+
+      if (!savedApt) {
+        const { data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert({
+          client_id: clientId,
+          service_id: selectedService?.id || null,
+          staff_id: formData.staffId || null,
+          client_name: formData.client,
+          client_phone: formData.clientPhone,
+          service_name: formData.service,
+          notes: formData.notes.trim(),
+          staff_name: selectedStaff?.name || '',
+          start_time: startIso,
+          end_time: endIso,
+          duration: Number(formData.duration),
+          price: selectedService?.price || 0,
+          status: 'confirmed',
+          tenant_id: tenantId,
+          idempotency_key: appointmentRequestKeyRef.current
+        }).select().single();
+
+        if (saveError) {
+          if (saveError.code === '23505') {
+            const { data: duplicatedAppointment } = await supabase
+              .from('appointments')
+              .select('id')
+              .eq('tenant_id', tenantId)
+              .eq('idempotency_key', appointmentRequestKeyRef.current)
+              .limit(1)
+              .maybeSingle();
+
+            if (duplicatedAppointment) {
+              savedApt = duplicatedAppointment;
+            } else {
+              console.error('Erro ao salvar agendamento:', saveError);
+              setError(`Erro ao salvar agendamento: ${saveError.message}`);
+              return;
+            }
+          } else {
+            console.error('Erro ao salvar agendamento:', saveError);
+            setError(`Erro ao salvar agendamento: ${saveError.message}`);
+            return;
+          }
+        } else {
+          savedApt = insertedAppointment;
+        }
       }
 
       if (savedApt) {
-        const { data: comanda } = await supabase.from('comandas').insert({
-          appointment_id: savedApt.id,
-          client_id: clientId,
-          staff_id: formData.staffId || null,
-          status: 'open',
-          total: 0,
-          tenant_id: tenantId
-        }).select().single();
+        const { data: existingComanda } = await supabase
+          .from('comandas')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('appointment_id', savedApt.id)
+          .limit(1)
+          .maybeSingle();
 
-        if (comanda && selectedService) {
-          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
-          let finalPrice = serviceData?.price || 0;
+        let comanda = existingComanda;
 
-          const promo = activePromotions.find(p =>
-            (p.target_type === 'all') ||
-            (p.target_type === 'service' && p.target_id === selectedService.id)
-          );
-
-          if (promo) {
-            if (promo.discount_type === 'fixed') {
-              finalPrice = Math.max(0, finalPrice - promo.discount_value);
-            } else {
-              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-            }
+        if (!comanda) {
+          const { data: newComanda, error: newComandaError } = await supabase.from('comandas').insert({
+            appointment_id: savedApt.id,
+            client_id: clientId,
+            staff_id: formData.staffId || null,
+            status: 'open',
+            total: 0,
+            tenant_id: tenantId,
+            idempotency_key: appointmentComandaRequestKeyRef.current
+          }).select().single();
+          if (newComandaError && newComandaError.code !== '23505') {
+            console.error('Erro ao criar comanda do agendamento:', newComandaError);
+            setError(`Erro ao criar comanda: ${newComandaError.message}`);
+            return;
           }
 
-          await supabase.from('comanda_items').insert({
-            comanda_id: comanda.id,
-            service_id: selectedService.id,
-            product_name: selectedService.name,
-            quantity: 1,
-            unit_price: finalPrice,
-            tenant_id: tenantId,
-            staff_id: formData.staffId || null
-          });
+          comanda = newComanda;
 
-          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
+          if (!comanda) {
+            const { data: duplicatedComanda } = await supabase
+              .from('comandas')
+              .select('id')
+              .eq('tenant_id', tenantId)
+              .eq('idempotency_key', appointmentComandaRequestKeyRef.current)
+              .limit(1)
+              .maybeSingle();
+            comanda = duplicatedComanda;
+          }
+        }
+
+        if (comanda && selectedService) {
+          const { data: existingComandaItem } = await supabase
+            .from('comanda_items')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('comanda_id', comanda.id)
+            .eq('service_id', selectedService.id)
+            .limit(1)
+            .maybeSingle();
+
+          if (!existingComandaItem) {
+            const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+            let finalPrice = serviceData?.price || 0;
+
+            const promo = activePromotions.find(p =>
+              (p.target_type === 'all') ||
+              (p.target_type === 'service' && p.target_id === selectedService.id)
+            );
+
+            if (promo) {
+              if (promo.discount_type === 'fixed') {
+                finalPrice = Math.max(0, finalPrice - promo.discount_value);
+              } else {
+                finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+              }
+            }
+
+            await supabase.from('comanda_items').insert({
+              comanda_id: comanda.id,
+              service_id: selectedService.id,
+              product_name: selectedService.name,
+              quantity: 1,
+              unit_price: finalPrice,
+              tenant_id: tenantId,
+              staff_id: formData.staffId || null
+            });
+
+            await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
+          }
         }
       }
-      setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+
+      setToast({ message: existingAppointment ? 'Esse agendamento ja existia. Duplicidade bloqueada.' : 'Agendamento criado com sucesso!', type: existingAppointment ? 'info' : 'success' });
     }
 
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
+    resetAppointmentRequestKeys();
     setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
     fetchAppointments();
+    } finally {
+      appointmentSaveLockRef.current = false;
+      setAppointmentSaving(false);
+    }
   };
 
   const formatDateDisplay = (date: Date) => {
@@ -2171,7 +2389,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); resetAppointmentRequestKeys(); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2381,16 +2599,17 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); resetAppointmentRequestKeys(); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+              disabled={appointmentSaving}
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
+              {appointmentSaving ? 'Salvando...' : editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
             </button>
           </div>
         </div>
