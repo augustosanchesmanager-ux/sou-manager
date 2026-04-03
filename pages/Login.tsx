@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
+import { buildAppUrl, isInstitutionalHostname } from '../src/lib/apps/publicUrl';
+import { resolvePrimaryAppForUser } from '../src/lib/supabase/tenant';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -18,6 +20,7 @@ const Login: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState<'user' | 'elite'>('user');
     const [isLocalhost, setIsLocalhost] = useState(false);
+    const isLocalDemoMode = isLocalhost && !import.meta.env.VITE_SUPABASE_URL;
 
     const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -61,12 +64,23 @@ const Login: React.FC = () => {
 
         try {
             const normalizedEmail = normalizeEmail(email);
-            const { error: authError } = await supabase.auth.signInWithPassword({
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email: normalizedEmail,
                 password,
             });
 
             if (authError) throw authError;
+            if (authData.user && isInstitutionalHostname(window.location.hostname)) {
+                try {
+                    const targetAppSlug = await resolvePrimaryAppForUser(authData.user);
+                    window.location.assign(buildAppUrl(targetAppSlug));
+                } catch (redirectError) {
+                    console.error('Nao foi possivel resolver o app principal apos o login:', redirectError);
+                    window.location.assign(buildAppUrl('barber'));
+                }
+                return;
+            }
+
             navigate('/dashboard');
         } catch (err: any) {
             setError(getAuthErrorMessage(err));
@@ -156,6 +170,14 @@ const Login: React.FC = () => {
                                     {isElite ? 'Área exclusiva para administradores do sistema' : 'Acesse sua conta para gerenciar sua barbearia'}
                                 </p>
                             </div>
+
+                            {isLocalDemoMode && !isElite && (
+                                <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Acesso de teste local</p>
+                                    <p className="mt-2 text-sm font-medium text-emerald-950 dark:text-emerald-100">E-mail: teste@soumanager.local</p>
+                                    <p className="text-sm font-medium text-emerald-950 dark:text-emerald-100">Senha: 12345678</p>
+                                </div>
+                            )}
 
                             <form onSubmit={handleLogin} className="space-y-6">
                                 {error && (

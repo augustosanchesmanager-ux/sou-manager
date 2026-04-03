@@ -54,7 +54,33 @@ import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppProvider } from './src/context/AppContext';
+import { TenantProvider } from './src/context/TenantContext';
+import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { Outlet } from 'react-router-dom';
+
+const InstitutionalAppRedirect: React.FC = () => {
+  const { loading, session, tenant, memberships, isSuperAdmin } = useAuth();
+
+  React.useEffect(() => {
+    if (loading || !session || isSuperAdmin || !isInstitutionalHostname(window.location.hostname)) {
+      return;
+    }
+
+    const targetAppSlug =
+      memberships.find((membership) => membership.isPrimary && membership.tenant?.app_slug)?.tenant?.app_slug ||
+      memberships.find((membership) => membership.tenant?.app_slug)?.tenant?.app_slug ||
+      tenant?.app_slug;
+
+    if (!targetAppSlug) {
+      return;
+    }
+
+    window.location.replace(buildAppUrl(targetAppSlug, window.location.hash || '/dashboard'));
+  }, [isSuperAdmin, loading, memberships, session, tenant]);
+
+  return null;
+};
 
 const ProtectedRoute: React.FC = () => {
   const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
@@ -93,7 +119,12 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <InstitutionalAppRedirect />
+      <Outlet />
+    </>
+  );
 };
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -193,11 +224,15 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
-      </AuthProvider>
+      <AppProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <HashRouter>
+              <AppRoutes />
+            </HashRouter>
+          </TenantProvider>
+        </AuthProvider>
+      </AppProvider>
     </ThemeProvider>
   );
 };

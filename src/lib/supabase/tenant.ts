@@ -221,6 +221,17 @@ const selectMembershipForApp = (
   return null;
 };
 
+const selectPrimaryMembership = (
+  memberships: UserTenantMembership[],
+): UserTenantMembership | null => {
+  const primaryMembership = memberships.find((membership) => membership.isPrimary && membership.tenant);
+  if (primaryMembership) {
+    return primaryMembership;
+  }
+
+  return memberships.find((membership) => membership.tenant) || memberships[0] || null;
+};
+
 export const resolveTenantForUser = async (
   user: User,
   appSlug: AppSlug,
@@ -236,6 +247,16 @@ export const resolveTenantForUser = async (
   }
 
   return fetchLegacyTenantState(user.id);
+};
+
+export const resolvePrimaryAppForUser = async (user: User): Promise<AppSlug> => {
+  const memberships = await fetchMembershipsFromUserTenants(user.id);
+  if (memberships.length > 0) {
+    return selectPrimaryMembership(memberships)?.tenant?.app_slug || DEFAULT_APP_SLUG;
+  }
+
+  const legacyState = await fetchLegacyTenantState(user.id);
+  return legacyState.tenant?.app_slug || DEFAULT_APP_SLUG;
 };
 
 export const requireTenantId = (
