@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
+import { isInstitutionalHostname } from '../src/lib/apps/publicUrl';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -18,6 +19,7 @@ const Login: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState<'user' | 'elite'>('user');
     const [isLocalhost, setIsLocalhost] = useState(false);
+    const isLocalDemoMode = isLocalhost && !import.meta.env.VITE_SUPABASE_URL;
 
     const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -26,14 +28,14 @@ const Login: React.FC = () => {
         const normalizedMessage = rawMessage.toLowerCase();
 
         if (normalizedMessage.includes('invalid login credentials')) {
-            return 'E-mail ou senha inválidos. Revise os dados e tente novamente.';
+            return 'E-mail ou senha invalidos. Revise os dados e tente novamente.';
         }
 
-        if (normalizedMessage.includes('erro no banco de dados ao encontrar o usuário')) {
-            return 'Não foi possível localizar este acesso no Auth do Supabase. Confirme o e-mail sem espaços e valide no painel do Supabase se o usuário ainda existe em Authentication > Users.';
+        if (normalizedMessage.includes('erro no banco de dados ao encontrar o usuario')) {
+            return 'Nao foi possivel localizar este acesso no Auth do Supabase. Confirme o e-mail sem espacos e valide no painel do Supabase se o usuario ainda existe em Authentication > Users.';
         }
 
-        return rawMessage || 'Ocorreu um erro ao fazer login';
+        return rawMessage || 'Ocorreu um erro ao fazer login.';
     };
 
     useEffect(() => {
@@ -43,17 +45,6 @@ const Login: React.FC = () => {
         }
     }, []);
 
-    const translateAuthError = (msg: string): string => {
-        if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) return 'E-mail ou senha incorretos.';
-        if (msg.includes('Email not confirmed')) return 'E-mail não confirmado. Verifique sua caixa de entrada.';
-        if (msg.includes('User not found')) return 'Usuário não encontrado.';
-        if (msg.includes('Too many requests')) return 'Muitas tentativas. Aguarde alguns minutos.';
-        if (msg.includes('Unable to process request')) return 'Não foi possível processar a solicitação. Tente novamente.';
-        if (msg.includes('Email rate limit exceeded')) return 'Limite de e-mails atingido. Tente novamente mais tarde.';
-        if (msg.includes('For security purposes') || msg.includes('only request')) return 'Por segurança, aguarde alguns segundos antes de tentar novamente.';
-        return msg;
-    };
-
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -61,13 +52,19 @@ const Login: React.FC = () => {
 
         try {
             const normalizedEmail = normalizeEmail(email);
-            const { error: authError } = await supabase.auth.signInWithPassword({
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email: normalizedEmail,
                 password,
             });
 
             if (authError) throw authError;
-            navigate('/dashboard');
+
+            if (authData.user && isInstitutionalHostname(window.location.hostname)) {
+                navigate('/select-system', { replace: true });
+                return;
+            }
+
+            navigate('/dashboard', { replace: true });
         } catch (err: any) {
             setError(getAuthErrorMessage(err));
         } finally {
@@ -79,12 +76,15 @@ const Login: React.FC = () => {
         e.preventDefault();
         setResetLoading(true);
         setError(null);
+
         try {
             const normalizedResetEmail = normalizeEmail(resetEmail);
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
                 redirectTo: `${window.location.origin}/reset-password`,
             });
+
             if (resetError) throw resetError;
+
             setResetSent(true);
             setResetEmail(normalizedResetEmail);
         } catch (err: any) {
@@ -95,13 +95,16 @@ const Login: React.FC = () => {
     };
 
     const isElite = activeTab === 'elite';
+    const isCentralPortal = isInstitutionalHostname(window.location.hostname);
+    const subtitle = isElite
+        ? 'Area exclusiva para administradores do sistema.'
+        : (isCentralPortal
+            ? 'Entre no portal central e escolha qual sistema deseja acessar.'
+            : 'Acesse sua conta para entrar diretamente neste sistema.');
 
     return (
-        <div className={`min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden transition-all duration-700 ${isElite ? 'bg-[#050505]' : 'bg-background-light dark:bg-background-dark'
-            }`}>
-            {/* Background Glow */}
-            <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none transition-all duration-700 ${isElite ? 'bg-amber-500/10' : 'bg-primary/20'
-                }`}></div>
+        <div className={`min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden transition-all duration-700 ${isElite ? 'bg-[#050505]' : 'bg-background-light dark:bg-background-dark'}`}>
+            <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none transition-all duration-700 ${isElite ? 'bg-amber-500/10' : 'bg-primary/20'}`}></div>
 
             {isElite && (
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
@@ -116,7 +119,6 @@ const Login: React.FC = () => {
                     ? 'bg-black/80 border-amber-500/30 ring-1 ring-amber-500/20'
                     : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark'
                     }`}>
-                    {/* Elite Accent Strip */}
                     {isElite && (
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
                     )}
@@ -131,7 +133,7 @@ const Login: React.FC = () => {
                                     }`}
                             >
                                 <span className="material-symbols-outlined text-lg">person</span>
-                                Usuário
+                                Usuario
                             </button>
                             <button
                                 onClick={() => setActiveTab('elite')}
@@ -152,10 +154,16 @@ const Login: React.FC = () => {
                                 <h2 className={`text-xl font-bold transition-colors ${isElite ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
                                     {isElite ? 'Acesso Restrito Elite' : 'Bem-vindo de volta'}
                                 </h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                                    {isElite ? 'Área exclusiva para administradores do sistema' : 'Acesse sua conta para gerenciar sua barbearia'}
-                                </p>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{subtitle}</p>
                             </div>
+
+                            {isLocalDemoMode && !isElite && (
+                                <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Acesso de teste local</p>
+                                    <p className="mt-2 text-sm font-medium text-emerald-950 dark:text-emerald-100">E-mail: teste@soumanager.local</p>
+                                    <p className="text-sm font-medium text-emerald-950 dark:text-emerald-100">Senha: 12345678</p>
+                                </div>
+                            )}
 
                             <form onSubmit={handleLogin} className="space-y-6">
                                 {error && (
@@ -170,8 +178,7 @@ const Login: React.FC = () => {
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">E-mail</label>
                                     <div className="relative group">
-                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'
-                                            }`}>mail</span>
+                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'}`}>mail</span>
                                         <input
                                             type="email"
                                             required
@@ -189,12 +196,11 @@ const Login: React.FC = () => {
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Senha</label>
                                     <div className="relative group">
-                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'
-                                            }`}>lock</span>
+                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'}`}>lock</span>
                                         <input
                                             type={showPassword ? 'text' : 'password'}
                                             required
-                                            placeholder="••••••••"
+                                            placeholder="........"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             className={`w-full border rounded-lg py-3.5 pl-12 pr-12 text-sm outline-none transition-all ${isElite
@@ -202,7 +208,11 @@ const Login: React.FC = () => {
                                                 : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'
                                                 }`}
                                         />
-                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 hover:text-amber-500' : 'text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 hover:text-amber-500' : 'text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+                                        >
                                             <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
                                         </button>
                                     </div>
@@ -232,7 +242,7 @@ const Login: React.FC = () => {
                                         : 'bg-primary hover:bg-blue-600 text-white shadow-primary/20'
                                         }`}
                                 >
-                                    {loading ? 'Validando...' : (isElite ? 'Autenticar Elite' : 'Entrar no Sistema')}
+                                    {loading ? 'Validando...' : (isElite ? 'Autenticar Elite' : (isCentralPortal ? 'Entrar na Plataforma' : 'Entrar no Sistema'))}
                                     <span className="material-symbols-outlined text-lg">{isElite ? 'verified_user' : 'login'}</span>
                                 </button>
                             </form>
@@ -241,7 +251,7 @@ const Login: React.FC = () => {
                         <div className="animate-fade-in">
                             <div className="text-center mb-8">
                                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Recuperar Senha</h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Enviaremos um link de recuperação para o seu e-mail</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Enviaremos um link de recuperacao para o seu e-mail.</p>
                             </div>
 
                             {!resetSent ? (
@@ -289,8 +299,8 @@ const Login: React.FC = () => {
                                     <div className="size-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
                                         <span className="material-symbols-outlined text-3xl">check_circle</span>
                                     </div>
-                                    <h3 className="font-bold text-slate-900 dark:text-white mb-2">E-mail Enviado!</h3>
-                                    <p className="text-sm text-slate-500 mb-6">Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.</p>
+                                    <h3 className="font-bold text-slate-900 dark:text-white mb-2">E-mail enviado</h3>
+                                    <p className="text-sm text-slate-500 mb-6">Verifique sua caixa de entrada e siga as instrucoes para redefinir sua senha.</p>
                                     <button
                                         onClick={() => setShowReset(false)}
                                         className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-all"
@@ -304,7 +314,7 @@ const Login: React.FC = () => {
 
                     <div className="mt-8 pt-6 border-t border-slate-200 dark:border-border-dark text-center">
                         <p className={`text-sm transition-colors ${isElite ? 'text-slate-600' : 'text-slate-600 dark:text-slate-500'}`}>
-                            Ainda não tem conta? <Link to="/register" className={`font-bold transition-colors ${isElite ? 'text-amber-500/70 hover:text-amber-500' : 'text-slate-900 dark:text-white hover:text-primary'}`}>Criar conta</Link>
+                            Ainda nao tem conta? <Link to="/register" className={`font-bold transition-colors ${isElite ? 'text-amber-500/70 hover:text-amber-500' : 'text-slate-900 dark:text-white hover:text-primary'}`}>Criar conta</Link>
                         </p>
                     </div>
                 </div>
@@ -312,7 +322,7 @@ const Login: React.FC = () => {
 
             <footer className="mt-8 text-center z-10">
                 <p className={`text-[10px] uppercase tracking-[0.2em] font-bold transition-colors ${isElite ? 'text-amber-500/30' : 'text-slate-500 dark:text-slate-600'}`}>
-                    {isElite ? 'Protocolo de Segurança Nível 5 Ativado' : 'Gestão Profissional para Barbearias de Elite'}
+                    {isElite ? 'Protocolo de seguranca nivel 5 ativado' : 'Portal de acesso SMG - Sou.Manager'}
                 </p>
             </footer>
         </div>
