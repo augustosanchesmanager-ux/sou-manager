@@ -43,6 +43,7 @@ import PendingApproval from './pages/PendingApproval';
 import KioskAdmin from './pages/KioskAdmin';
 import KioskPage from './pages/kiosk/KioskPage';
 import KioskClientPage from './pages/kiosk/KioskClientPage';
+import SystemSelector from './pages/SystemSelector';
 import PortalLanding from './pages/portal/PortalLanding';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalApp from './pages/portal/PortalApp';
@@ -54,7 +55,29 @@ import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppProvider } from './src/context/AppContext';
+import { TenantProvider } from './src/context/TenantContext';
+import { isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { Outlet } from 'react-router-dom';
+
+const HomeRoute: React.FC = () => {
+  const { session, loading } = useAuth();
+  const institutionalHost = isInstitutionalHostname(window.location.hostname);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (institutionalHost) {
+    return session ? <Navigate to="/select-system" replace /> : <Landing />;
+  }
+
+  return <Navigate to={session ? '/dashboard' : '/login'} replace />;
+};
 
 const ProtectedRoute: React.FC = () => {
   const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
@@ -93,7 +116,11 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+    </>
+  );
 };
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -116,7 +143,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<HomeRoute />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register-success" element={<RegisterSuccess />} />
@@ -135,6 +162,8 @@ const AppRoutes: React.FC = () => {
 
       {/* Protected Flow */}
       <Route element={<ProtectedRoute />}>
+        <Route path="/select-system" element={<SystemSelector />} />
+
         {/* Onboarding Flow */}
         <Route path="/onboarding/role" element={<RoleSelection />} />
         <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
@@ -193,11 +222,15 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
-      </AuthProvider>
+      <AppProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <HashRouter>
+              <AppRoutes />
+            </HashRouter>
+          </TenantProvider>
+        </AuthProvider>
+      </AppProvider>
     </ThemeProvider>
   );
 };

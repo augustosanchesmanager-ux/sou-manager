@@ -1,13 +1,22 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { type Session, type User } from '@supabase/supabase-js';
+import {
+    DEFAULT_APP_SLUG,
+    resolveSchemaForApp,
+    type AppSlug,
+    type SupabaseSchemaName,
+} from '../src/lib/supabase/schemas';
 import { supabase } from '../services/supabaseClient';
+import { useAppOptional } from '../src/context/AppContext';
+import { useTenantOptional } from '../src/context/TenantContext';
+import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/supabase/tenant';
 
-type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
+export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
 
-interface AuthContextType {
+interface AuthSessionContextType {
     session: Session | null;
     user: User | null;
-    tenantId: string | null;
+    resolvedTenantId: string | null;
     accessRole: AccessRole;
     canAccessSuperAdmin: boolean;
     isSuperAdmin: boolean;
@@ -17,7 +26,29 @@ interface AuthContextType {
     signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export interface AuthContextType {
+    session: Session | null;
+    user: User | null;
+    tenantId: string | null;
+    tenantSlug: string | null;
+    tenant: TenantRecord | null;
+    tenantRole: TenantRole;
+    memberships: UserTenantMembership[];
+    accessRole: AccessRole;
+    canAccessSuperAdmin: boolean;
+    isSuperAdmin: boolean;
+    profileStatus: 'pending' | 'active' | 'suspended' | null;
+    authError: string | null;
+    tenantError: string | null;
+    loading: boolean;
+    tenantLoading: boolean;
+    appSlug: AppSlug;
+    schema: SupabaseSchemaName;
+    signOut: () => Promise<void>;
+    refreshTenant: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthSessionContextType | undefined>(undefined);
 
 interface AccessContextResult {
     tenantId: string | null;
@@ -26,24 +57,32 @@ interface AccessContextResult {
     canAccessSuperAdmin: boolean;
 }
 
+const deriveAccessRole = (rawRole: string | null | undefined, isSuperAdmin: boolean): AccessRole => {
+    const normalized = (rawRole || '').toLowerCase().trim();
+    if (isSuperAdmin) return 'superadmin';
+    if (normalized === 'manager' || normalized === 'gerente' || normalized === 'owner' || normalized === 'admin') return 'manager';
+    if (normalized === 'barber') return 'barber';
+    if (normalized === 'receptionist') return 'receptionist';
+    return 'unknown';
+};
+
+const toAccessRoleFromTenantRole = (tenantRole: TenantRole): AccessRole => {
+    if (tenantRole === 'superadmin') return 'superadmin';
+    if (tenantRole === 'manager') return 'manager';
+    if (tenantRole === 'barber') return 'barber';
+    if (tenantRole === 'receptionist') return 'receptionist';
+    return 'unknown';
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
-    const [tenantId, setTenantId] = useState<string | null>(null);
+    const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(null);
     const [accessRole, setAccessRole] = useState<AccessRole>('unknown');
     const [canAccessSuperAdmin, setCanAccessSuperAdmin] = useState(false);
     const [profileStatus, setProfileStatus] = useState<'pending' | 'active' | 'suspended' | null>(null);
     const [authError, setAuthError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-
-    const deriveAccessRole = (rawRole: string | null | undefined, isSuperAdmin: boolean): AccessRole => {
-        const normalized = (rawRole || '').toLowerCase().trim();
-        if (isSuperAdmin) return 'superadmin';
-        if (normalized === 'manager' || normalized === 'gerente' || normalized === 'owner' || normalized === 'admin') return 'manager';
-        if (normalized === 'barber') return 'barber';
-        if (normalized === 'receptionist') return 'receptionist';
-        return 'unknown';
-    };
 
     const fetchAccessContext = async (userId: string): Promise<AccessContextResult> => {
         try {
@@ -51,9 +90,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!rpcError && rpcData) {
                 const role = deriveAccessRole(rpcData.access_role, Boolean(rpcData.is_super_admin));
                 const status = (rpcData.profile_status || null) as 'pending' | 'active' | 'suspended' | null;
-                const resolvedTenantId = rpcData.tenant_id || null;
+                const tenantId = rpcData.tenant_id || null;
                 return {
-                    tenantId: resolvedTenantId,
+                    tenantId,
                     accessRole: role,
                     profileStatus: status,
                     canAccessSuperAdmin: Boolean(rpcData.is_super_admin) || role === 'superadmin',
@@ -113,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         let requestCounter = 0;
 
         const clearAuthState = () => {
-            setTenantId(null);
+            setResolvedTenantId(null);
             setAccessRole('unknown');
             setCanAccessSuperAdmin(false);
             setProfileStatus(null);
@@ -136,33 +175,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(true);
             setAuthError(null);
 
-            const authContext = await fetchAccessContext(nextSession.user.id);
-            if (!isMounted || requestId !== requestCounter) return;
+            try {
+                const authContext = await fetchAccessContext(nextSession.user.id);
+                if (!isMounted || requestId !== requestCounter) return;
 
-            setTenantId(authContext.tenantId);
-            setAccessRole(authContext.accessRole);
-            setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
-            setProfileStatus(authContext.profileStatus);
-
-            if (!authContext.canAccessSuperAdmin && !authContext.tenantId) {
-                setAuthError('Nao foi possivel determinar o tenant da sessao. Faca login novamente.');
-            }
-
-            if (
-                !authContext.canAccessSuperAdmin &&
-                authContext.accessRole !== 'unknown' &&
-                authContext.profileStatus == null
-            ) {
-                setAuthError('Nao foi possivel carregar o status do perfil. Faca login novamente.');
-            }
-
-            if (isMounted && requestId === requestCounter) {
-                setLoading(false);
+                setResolvedTenantId(authContext.tenantId);
+                setAccessRole(authContext.accessRole);
+                setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
+                setProfileStatus(authContext.profileStatus);
+            } catch (err) {
+                console.error('Failed to load auth session context:', err);
+                if (isMounted && requestId === requestCounter) {
+                    setAuthError('Nao foi possivel carregar o contexto de autenticacao. Faca login novamente.');
+                }
+            } finally {
+                if (isMounted && requestId === requestCounter) {
+                    setLoading(false);
+                }
             }
         };
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            void applySession(session);
+        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+            void applySession(currentSession);
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -179,21 +213,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut();
     };
 
-    const isSuperAdmin = canAccessSuperAdmin;
-
     return (
         <AuthContext.Provider
             value={{
                 session,
                 user,
-                tenantId,
+                resolvedTenantId,
                 accessRole,
                 canAccessSuperAdmin,
-                isSuperAdmin,
+                isSuperAdmin: canAccessSuperAdmin,
                 profileStatus,
                 authError,
                 loading,
-                signOut
+                signOut,
             }}
         >
             {children}
@@ -201,10 +233,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 };
 
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
+export const useAuth = (): AuthContextType => {
+    const authSessionContext = useContext(AuthContext);
+    if (authSessionContext === undefined) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
-    return context;
+
+    const tenantContext = useTenantOptional();
+    const appContext = useAppOptional();
+
+    const appSlug = appContext?.appSlug ?? DEFAULT_APP_SLUG;
+    const schema = appContext?.schema ?? resolveSchemaForApp(appSlug);
+    const tenantId = tenantContext?.tenantId ?? authSessionContext.resolvedTenantId ?? null;
+    const tenantRole = tenantContext?.role ?? 'unknown';
+    const mergedAccessRole =
+        authSessionContext.accessRole !== 'unknown'
+            ? authSessionContext.accessRole
+            : toAccessRoleFromTenantRole(tenantRole);
+    const tenantLoading = tenantContext?.loading ?? false;
+    const loading = authSessionContext.loading || (Boolean(authSessionContext.session) && tenantLoading);
+    const authError =
+        authSessionContext.authError ||
+        (
+            !authSessionContext.canAccessSuperAdmin &&
+            Boolean(authSessionContext.session) &&
+            !loading &&
+            !tenantId
+                ? 'Nao foi possivel determinar o tenant da sessao. Faca login novamente.'
+                : null
+        );
+
+    return {
+        session: authSessionContext.session,
+        user: authSessionContext.user,
+        tenantId,
+        tenantSlug: tenantContext?.tenantSlug ?? null,
+        tenant: tenantContext?.tenant ?? null,
+        tenantRole,
+        memberships: tenantContext?.memberships ?? [],
+        accessRole: mergedAccessRole,
+        canAccessSuperAdmin: authSessionContext.canAccessSuperAdmin,
+        isSuperAdmin: authSessionContext.isSuperAdmin,
+        profileStatus: authSessionContext.profileStatus,
+        authError,
+        tenantError: tenantContext?.error ?? null,
+        loading,
+        tenantLoading,
+        appSlug,
+        schema,
+        signOut: authSessionContext.signOut,
+        refreshTenant: tenantContext?.refreshTenant ?? (async () => {}),
+    };
 };
