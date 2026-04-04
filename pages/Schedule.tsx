@@ -128,6 +128,17 @@ const statusColors: Record<string, string> = {
 
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
+const isMissingIdempotencyColumnError = (
+  error: { code?: string | null; message?: string | null } | null | undefined,
+): boolean => {
+  if (!error) {
+    return false;
+  }
+
+  const message = `${error.message || ''}`.toLowerCase();
+  return (error.code === 'PGRST204' || error.code === '42703') && message.includes('idempotency_key');
+};
+
 const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
   scheduled: {
     label: 'Agendado',
@@ -1128,7 +1139,7 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
+      await scheduleBlocksApi.remove(block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -1172,7 +1183,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
+        await scheduleBlocksApi.update(editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
@@ -1244,13 +1255,19 @@ const Schedule: React.FC = () => {
         clientId = existingClient.id;
         setClientsList(prev => prev.some(client => client.id === existingClient.id) ? prev : [...prev, existingClient]);
       } else {
-        const { data: newClient, error: clientError } = await supabase.from('clients').insert({
+        const clientPayload = {
           name: formData.client.trim(),
           phone: normalizedPhone,
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client.trim())}&background=random`,
           tenant_id: tenantId,
+        };
+        let { data: newClient, error: clientError } = await supabase.from('clients').insert({
+          ...clientPayload,
           idempotency_key: appointmentClientRequestKeyRef.current
         }).select().single();
+        if (isMissingIdempotencyColumnError(clientError)) {
+          ({ data: newClient, error: clientError } = await supabase.from('clients').insert(clientPayload).select().single());
+        }
         if (clientError) {
           if (clientError.code === '23505') {
             const { data: duplicatedClient } = await supabase
@@ -1370,7 +1387,7 @@ const Schedule: React.FC = () => {
       let savedApt = existingAppointment;
 
       if (!savedApt) {
-        const { data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert({
+        const appointmentPayload = {
           client_id: clientId,
           service_id: selectedService?.id || null,
           staff_id: formData.staffId || null,
@@ -1383,10 +1400,17 @@ const Schedule: React.FC = () => {
           end_time: endIso,
           duration: Number(formData.duration),
           price: selectedService?.price || 0,
-          status: 'confirmed',
+          status: 'confirmed' as const,
           tenant_id: tenantId,
+        };
+        let { data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert({
+          ...appointmentPayload,
           idempotency_key: appointmentRequestKeyRef.current
         }).select().single();
+
+        if (isMissingIdempotencyColumnError(saveError)) {
+          ({ data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert(appointmentPayload).select().single());
+        }
 
         if (saveError) {
           if (saveError.code === '23505') {
@@ -1427,15 +1451,21 @@ const Schedule: React.FC = () => {
         let comanda = existingComanda;
 
         if (!comanda) {
-          const { data: newComanda, error: newComandaError } = await supabase.from('comandas').insert({
+          const comandaPayload = {
             appointment_id: savedApt.id,
             client_id: clientId,
             staff_id: formData.staffId || null,
-            status: 'open',
+            status: 'open' as const,
             total: 0,
             tenant_id: tenantId,
+          };
+          let { data: newComanda, error: newComandaError } = await supabase.from('comandas').insert({
+            ...comandaPayload,
             idempotency_key: appointmentComandaRequestKeyRef.current
           }).select().single();
+          if (isMissingIdempotencyColumnError(newComandaError)) {
+            ({ data: newComanda, error: newComandaError } = await supabase.from('comandas').insert(comandaPayload).select().single());
+          }
           if (newComandaError && newComandaError.code !== '23505') {
             console.error('Erro ao criar comanda do agendamento:', newComandaError);
             setError(`Erro ao criar comanda: ${newComandaError.message}`);
