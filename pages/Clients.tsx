@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as Papa from 'papaparse';
-import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -33,7 +32,7 @@ type SortDir = 'asc' | 'desc';
 const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -70,35 +69,71 @@ const Clients: React.FC = () => {
 
     // Detail View
     const [detailClient, setDetailClient] = useState<Client | null>(null);
-    const [detailChefClub, setDetailChefClub] = useState<{ planName: string; credits: number; status: string } | null>(null);
+    const [detailChefClub, setDetailChefClub] = useState<{
+        planName: string;
+        credits: number;
+        status: string;
+        balances: Array<{ benefitLabel: string; availableCredits: number }>;
+    } | null>(null);
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
 
     const openClientDetails = useCallback(async (client: Client) => {
         setDetailClient(client);
         setDetailChefClub(null);
 
-        const { data } = await supabase
-            .from('customer_subscriptions')
-            .select(`
-                status,
-                plan:customer_plans(name),
-                credits:customer_credits(available_credits)
-            `)
-            .eq('client_id', client.id)
-            .eq('status', 'active')
-            .maybeSingle();
+        try {
+            const { tenantId: resolvedTenantId, client: scopedClient } = requireModuleAccess(
+                'clients',
+                'customer_subscriptions',
+                'load client chef club details',
+            );
 
-        if (data) {
-            setDetailChefClub({
-                planName: (data.plan as any).name,
-                credits: (data.credits as any)?.[0]?.available_credits || 0,
-                status: data.status
-            });
-            return;
+            const { data: subscription, error } = await scopedClient
+                .from('customer_subscriptions')
+                .select('id, status, plan_id')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('client_id', client.id)
+                .eq('status', 'active')
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (subscription?.id) {
+                const [planRes, balancesRes] = await Promise.all([
+                    scopedClient
+                        .from('customer_plans')
+                        .select('name')
+                        .eq('tenant_id', resolvedTenantId)
+                        .eq('id', subscription.plan_id)
+                        .maybeSingle(),
+                    scopedClient
+                        .from('customer_credits')
+                        .select('benefit_label, available_credits')
+                        .eq('tenant_id', resolvedTenantId)
+                        .eq('subscription_id', subscription.id),
+                ]);
+
+                if (planRes.error) throw planRes.error;
+                if (balancesRes.error) throw balancesRes.error;
+
+                const balances = (balancesRes.data as any[] | undefined) || [];
+                setDetailChefClub({
+                    planName: planRes.data?.name || 'Plano ativo',
+                    credits: balances.reduce((acc, balance) => acc + (Number(balance?.available_credits) || 0), 0),
+                    status: subscription.status,
+                    balances: balances.map((balance) => ({
+                        benefitLabel: balance.benefit_label || 'Benefício',
+                        availableCredits: Number(balance.available_credits) || 0,
+                    })),
+                });
+                return;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar Clube do Chefe do cliente:', error);
         }
 
         setDetailChefClub(null);
-    }, []);
+    }, [requireModuleAccess]);
 
     const fetchClients = useCallback(async () => {
         if (!tenantId) {
@@ -109,37 +144,65 @@ const Clients: React.FC = () => {
         }
 
         setLoading(true);
-        const { data, error } = await supabase
-            .from('clients')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('name');
-        if (data) {
-            setClients(data);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'clients',
+                'clients',
+                'load clients',
+            );
 
-            // Fetch subscription badges
-            const clientIds = data.map(c => c.id);
-            if (clientIds.length > 0) {
-                const { data: subs } = await supabase
-                    .from('customer_subscriptions')
-                    .select('client_id, plan:customer_plans(name)')
-                    .eq('status', 'active')
-                    .in('client_id', clientIds);
+            const { data, error } = await client
+                .from('clients')
+                .select('*')
+                .eq('tenant_id', resolvedTenantId)
+                .order('name');
 
-                if (subs) {
-                    const map: Record<string, string> = {};
-                    subs.forEach(s => {
-                        map[s.client_id] = (s.plan as any).name;
-                    });
-                    setChefClubMap(map);
-                }
-            } else {
+            if (error) throw error;
+
+            const resolvedClients = data || [];
+            setClients(resolvedClients);
+
+            const clientIds = resolvedClients.map(c => c.id);
+            if (clientIds.length === 0) {
                 setChefClubMap({});
+                setLoading(false);
+                return;
             }
+
+            const { data: subs, error: subscriptionsError } = await client
+                .from('customer_subscriptions')
+                .select('client_id, plan_id')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('status', 'active')
+                .in('client_id', clientIds);
+
+            if (subscriptionsError) throw subscriptionsError;
+
+            const planIds = Array.from(new Set(((subs || []) as Array<{ plan_id: string }>).map((subscription) => subscription.plan_id).filter(Boolean)));
+            const { data: plans, error: plansError } = planIds.length > 0
+                ? await client
+                    .from('customer_plans')
+                    .select('id, name')
+                    .eq('tenant_id', resolvedTenantId)
+                    .in('id', planIds)
+                : { data: [], error: null };
+
+            if (plansError) throw plansError;
+
+            const planById = new Map(((plans || []) as Array<{ id: string; name: string }>).map((plan) => [plan.id, plan.name]));
+            const map: Record<string, string> = {};
+            ((subs || []) as Array<{ client_id: string; plan_id: string }>).forEach((subscription) => {
+                map[subscription.client_id] = planById.get(subscription.plan_id) || 'Plano ativo';
+            });
+            setChefClubMap(map);
+        } catch (error) {
+            console.error('Erro ao carregar clientes:', error);
+            setClients([]);
+            setChefClubMap({});
+            setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         }
-        if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         setLoading(false);
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
 
@@ -192,27 +255,33 @@ const Clients: React.FC = () => {
     // CRUD
     const handleCreateClient = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!tenantId) {
-            setToast({ message: 'Tenant invalido para cadastro de cliente.', type: 'error' });
-            return;
-        }
-        const { error } = await supabase.from('clients').insert({
-            name: newForm.name,
-            email: newForm.email,
-            phone: newForm.phone,
-            birthday: newForm.birthday,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newForm.name)}&background=random`,
-            tenant_id: tenantId,
-        });
-        if (error) {
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'clients',
+                'clients',
+                'create client',
+            );
+
+            const { error } = await client.from('clients').insert({
+                name: newForm.name,
+                email: newForm.email,
+                phone: newForm.phone,
+                birthday: newForm.birthday,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newForm.name)}&background=random`,
+                tenant_id: resolvedTenantId,
+            });
+
+            if (error) throw error;
+
+            setShowModal(false);
+            setNewForm({ name: '', email: '', phone: '', birthday: '' });
+            setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
+            void fetchClients();
+        } catch (error) {
             console.error('Erro ao salvar cliente:', error);
-            setToast({ message: `Erro ao salvar: ${error.message}`, type: 'error' });
-            return;
+            const message = error instanceof Error ? error.message : 'Erro inesperado ao salvar cliente.';
+            setToast({ message: `Erro ao salvar: ${message}`, type: 'error' });
         }
-        setShowModal(false);
-        setNewForm({ name: '', email: '', phone: '', birthday: '' });
-        setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
-        fetchClients();
     };
 
     const handleEditClick = (client: Client) => {
@@ -222,42 +291,67 @@ const Clients: React.FC = () => {
 
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!editingId || !tenantId) return;
-        const { error } = await supabase
-            .from('clients')
-            .update(editForm)
-            .eq('id', editingId)
-            .eq('tenant_id', tenantId);
-        if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
-        setEditingId(null);
-        setEditForm({});
-        setToast({ message: 'Cliente atualizado!', type: 'success' });
-        fetchClients();
+        if (!editingId) return;
+
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'clients',
+                'clients',
+                'update client',
+            );
+
+            const { error } = await client
+                .from('clients')
+                .update(editForm)
+                .eq('id', editingId)
+                .eq('tenant_id', resolvedTenantId);
+
+            if (error) throw error;
+
+            setEditingId(null);
+            setEditForm({});
+            setToast({ message: 'Cliente atualizado!', type: 'success' });
+            void fetchClients();
+        } catch (error) {
+            console.error('Erro ao atualizar cliente:', error);
+            setToast({ message: 'Erro ao atualizar.', type: 'error' });
+        }
     };
 
     const handleDelete = async () => {
-        if (!deleteTarget || !tenantId) return;
+        if (!deleteTarget) return;
         setDeleting(true);
 
         const clientId = deleteTarget.id;
         const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
 
-        const cleanupByClientId = async (table: string) => {
-            const { error } = await supabase.from(table).delete().eq('client_id', clientId);
-            if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
-                console.warn(`Falha ao limpar dependencias em ${table}:`, error);
-            }
-        };
-
         try {
-            const { data: clientComandas, error: comandasReadError } = await supabase
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'clients',
+                'clients',
+                'delete client',
+            );
+
+            const cleanupByClientId = async (table: string) => {
+                const { error } = await client
+                    .from(table)
+                    .delete()
+                    .eq('client_id', clientId)
+                    .eq('tenant_id', resolvedTenantId);
+                if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
+                    console.warn(`Falha ao limpar dependencias em ${table}:`, error);
+                }
+            };
+
+            const { data: clientComandas, error: comandasReadError } = await client
                 .from('comandas')
                 .select('id')
-                .eq('client_id', clientId);
+                .eq('client_id', clientId)
+                .eq('tenant_id', resolvedTenantId);
 
             if (!comandasReadError && clientComandas && clientComandas.length > 0) {
                 const comandaIds = clientComandas.map((c: { id: string }) => c.id);
-                const { error: itemsError } = await supabase
+                const { error: itemsError } = await client
                     .from('comanda_items')
                     .delete()
                     .in('comanda_id', comandaIds);
@@ -275,11 +369,11 @@ const Clients: React.FC = () => {
             await cleanupByClientId('customer_subscriptions');
             await cleanupByClientId('comandas');
 
-            const { error } = await supabase
+            const { error } = await client
                 .from('clients')
                 .delete()
                 .eq('id', clientId)
-                .eq('tenant_id', tenantId);
+                .eq('tenant_id', resolvedTenantId);
 
             if (error) {
                 console.error('DELETE CLIENT ERROR:', JSON.stringify(error));
@@ -289,7 +383,7 @@ const Clients: React.FC = () => {
 
             setDeleteTarget(null);
             setToast({ message: 'Cliente excluído.', type: 'info' });
-            fetchClients();
+            void fetchClients();
         } finally {
             setDeleting(false);
         }
@@ -379,30 +473,36 @@ const Clients: React.FC = () => {
     };
 
     const handleConfirmImport = async () => {
-        if (!tenantId) {
-            setToast({ message: 'Tenant invalido para importar clientes.', type: 'error' });
-            return;
-        }
         setLoading(true);
-        const toInsert = parsedData.map(c => ({
-            name: c.name,
-            phone: c.phone,
-            email: c.email,
-            birthday: c.birthday ? c.birthday : null,
-            status: 'active',
-            tenant_id: tenantId,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`
-        }));
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'clients',
+                'clients',
+                'import clients',
+            );
 
-        const { error } = await supabase.from('clients').insert(toInsert);
+            const toInsert = parsedData.map(c => ({
+                name: c.name,
+                phone: c.phone,
+                email: c.email,
+                birthday: c.birthday ? c.birthday : null,
+                status: 'active',
+                tenant_id: resolvedTenantId,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`
+            }));
 
-        if (error) {
-            setToast({ message: `Erro ao importar: ${error.message}`, type: 'error' });
-        } else {
+            const { error } = await client.from('clients').insert(toInsert);
+
+            if (error) throw error;
+
             setToast({ message: `${toInsert.length} clientes importados com sucesso!`, type: 'success' });
             setIsImportModalOpen(false);
             setParsedData([]);
-            fetchClients();
+            void fetchClients();
+        } catch (error) {
+            console.error('Erro ao importar clientes:', error);
+            const message = error instanceof Error ? error.message : 'Erro inesperado ao importar clientes.';
+            setToast({ message: `Erro ao importar: ${message}`, type: 'error' });
         }
         setLoading(false);
     };
@@ -607,22 +707,32 @@ const Clients: React.FC = () => {
                                 <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
                             </div>
                             {detailChefClub && (
-                                <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                            <span className="material-symbols-outlined">workspace_premium</span>
+                                <>
+                                    <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                                <span className="material-symbols-outlined">workspace_premium</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-amber-600 font-black uppercase">Clube do Chefe</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailChefClub.planName}</p>
+                                                <p className="text-[10px] text-slate-500 font-bold">Status: {detailChefClub.status === 'active' ? 'Ativo' : 'Pendente'}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] text-amber-600 font-black uppercase">Clube do Chefe</p>
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{detailChefClub.planName}</p>
-                                            <p className="text-[10px] text-slate-500 font-bold">Status: {detailChefClub.status === 'active' ? 'Ativo' : 'Pendente'}</p>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black text-amber-600 leading-none">{detailChefClub.credits}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Benefícios</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-black text-amber-600 leading-none">{detailChefClub.credits}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Créditos</p>
+                                    <div className="col-span-2 mt-3 grid grid-cols-2 gap-2">
+                                        {detailChefClub.balances.map((balance) => (
+                                            <div key={balance.benefitLabel} className="rounded-lg border border-amber-500/10 bg-white/70 dark:bg-white/5 p-2">
+                                                <p className="text-[9px] uppercase font-black text-slate-500">{balance.benefitLabel}</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{balance.availableCredits} disponível(is)</p>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
+                                </>
                             )}
                             <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
                                 <p className="text-[10px] text-slate-500 uppercase font-bold">Última Visita</p>

@@ -1,22 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    ensureAppSupportsModule,
-    getScopedClient,
-    requireTenantContext,
-} from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import Button from '../components/ui/Button';
-import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 
 type ComandaStatus = 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
 type ConsumptionType = 'all' | 'service' | 'product' | 'mixed';
+type RetroPaymentMethod = 'credit' | 'debit' | 'cash' | 'pix' | 'other';
 
 interface ComandaItem {
     id: string;
@@ -50,6 +45,15 @@ interface Comanda {
     comanda_items: ComandaItem[];
     staff_ids: string[];
     staff_names: string[];
+    chef_club_original_total?: number | null;
+    chef_club_savings_total?: number | null;
+    chef_club_summary?: {
+        originalSubtotal?: number;
+        savingsTotal?: number;
+        finalTotal?: number;
+        appliedItems?: number;
+        appliedQuantity?: number;
+    } | null;
 }
 
 interface ClientLookup {
@@ -346,7 +350,7 @@ const KpiCard: React.FC<{
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { appSlug, schema, tenantId, canAccessSuperAdmin } = useAuth();
+    const { tenantId, canAccessSuperAdmin, requireModuleAccess } = useAuth();
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
@@ -364,12 +368,17 @@ const Comandas: React.FC = () => {
     const [consumptionType, setConsumptionType] = useState<ConsumptionType>(preferences.consumptionType);
     const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(preferences.advancedFiltersOpen);
     const [selectedComandaId, setSelectedComandaId] = useState<string | null>(null);
+    const [selectedRetroComandaIds, setSelectedRetroComandaIds] = useState<string[]>([]);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [cancelReasonOther, setCancelReasonOther] = useState('');
+    const [showRetroCloseModal, setShowRetroCloseModal] = useState(false);
+    const [retroClosing, setRetroClosing] = useState(false);
+    const [retroPaymentMethod, setRetroPaymentMethod] = useState<RetroPaymentMethod>('other');
+    const [retroPaymentDescription, setRetroPaymentDescription] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
@@ -380,17 +389,12 @@ const Comandas: React.FC = () => {
 
         setLoading(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
-            const resolvedTenantId = canAccessSuperAdmin
-                ? null
-                : requireTenantContext({
-                    tenantId,
-                    appSlug: currentAppSlug,
-                    schema,
-                    table: 'comandas',
-                    operation: 'load comandas',
-                }).tenantId;
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'comandas',
+                'comandas',
+                'load comandas',
+                { allowMissingTenant: canAccessSuperAdmin },
+            );
 
             let query = client
                 .from('comandas')
@@ -518,7 +522,7 @@ const Comandas: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [appSlug, canAccessSuperAdmin, schema, tenantId]);
+    }, [canAccessSuperAdmin, requireModuleAccess, tenantId]);
 
     useEffect(() => {
         void fetchData();
@@ -660,7 +664,13 @@ const Comandas: React.FC = () => {
         }
     }, [selectedComandaId, sortedComandas]);
 
+    useEffect(() => {
+        setSelectedRetroComandaIds((currentIds) => currentIds.filter((id) => comandas.some((comanda) => comanda.id === id && comanda.status === 'open')));
+    }, [comandas]);
+
     const selectedComanda = sortedComandas.find((comanda) => comanda.id === selectedComandaId) || null;
+    const selectedRetroComandas = sortedComandas.filter((comanda) => selectedRetroComandaIds.includes(comanda.id) && comanda.status === 'open');
+    const selectedRetroTotal = selectedRetroComandas.reduce((sum, comanda) => sum + comanda.total, 0);
 
     const tabs = [
         { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
@@ -809,17 +819,12 @@ const Comandas: React.FC = () => {
 
         setDeleting(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
-            const resolvedTenantId = canAccessSuperAdmin
-                ? null
-                : requireTenantContext({
-                    tenantId,
-                    appSlug: currentAppSlug,
-                    schema,
-                    table: 'comandas',
-                    operation: 'cancel comanda',
-                }).tenantId;
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'comandas',
+                'comandas',
+                'cancel comanda',
+                { allowMissingTenant: canAccessSuperAdmin },
+            );
 
             let usedFallback = false;
             let cancelQuery = client.from('comandas').update({
@@ -859,6 +864,98 @@ const Comandas: React.FC = () => {
         }
     };
 
+    const toggleRetroSelection = (comandaId: string) => {
+        setSelectedRetroComandaIds((currentIds) => (
+            currentIds.includes(comandaId)
+                ? currentIds.filter((id) => id !== comandaId)
+                : [...currentIds, comandaId]
+        ));
+    };
+
+    const handleRetroClose = async () => {
+        if (selectedRetroComandas.length === 0) {
+            setToast({ message: 'Selecione ao menos uma comanda aberta para o fechamento retroativo.', type: 'info' });
+            return;
+        }
+
+        setRetroClosing(true);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'comandas',
+                'comandas',
+                'retro close comandas',
+                { allowMissingTenant: canAccessSuperAdmin },
+            );
+
+            let successCount = 0;
+            let failureCount = 0;
+
+            for (const comanda of selectedRetroComandas) {
+                try {
+                    const { error: closeError } = await client.rpc('close_order', { p_comanda_id: comanda.id });
+                    if (closeError) throw closeError;
+
+                    if (comanda.appointment_id) {
+                        let appointmentQuery = client
+                            .from('appointments')
+                            .update({ status: 'completed' })
+                            .eq('id', comanda.appointment_id);
+
+                        if (resolvedTenantId) {
+                            appointmentQuery = appointmentQuery.eq('tenant_id', resolvedTenantId);
+                        }
+
+                        const { error: appointmentError } = await appointmentQuery;
+                        if (appointmentError) {
+                            console.warn('Retro close without appointment sync:', appointmentError);
+                        }
+                    }
+
+                    const transactionPayload = {
+                        type: 'income',
+                        category: 'Fechamento Retroativo de Comanda',
+                        amount: comanda.total,
+                        description: retroPaymentDescription.trim()
+                            ? `Fechamento retroativo - ${comanda.clients.name} (${retroPaymentDescription.trim()})`
+                            : `Fechamento retroativo - ${comanda.clients.name}`,
+                        payment_method: retroPaymentMethod,
+                        date: new Date().toISOString(),
+                        tenant_id: resolvedTenantId || null,
+                    };
+
+                    const { error: transactionError } = await client.from('transactions').insert(transactionPayload);
+                    if (transactionError) {
+                        console.warn('Retro close without transaction record:', transactionError);
+                    }
+
+                    successCount += 1;
+                } catch (error) {
+                    console.error(`Erro ao fechar retroativamente a comanda ${comanda.id}:`, error);
+                    failureCount += 1;
+                }
+            }
+
+            if (successCount > 0) {
+                setToast({
+                    message: failureCount > 0
+                        ? `${successCount} comandas fechadas retroativamente. ${failureCount} falharam.`
+                        : `${successCount} comandas fechadas retroativamente com sucesso.`,
+                    type: failureCount > 0 ? 'info' : 'success',
+                });
+            } else {
+                setToast({ message: 'Nao foi possivel fechar as comandas selecionadas.', type: 'error' });
+            }
+
+            setShowRetroCloseModal(false);
+            setRetroPaymentDescription('');
+            setRetroPaymentMethod('other');
+            setSelectedRetroComandaIds([]);
+            await fetchData();
+        } finally {
+            setRetroClosing(false);
+        }
+    };
+
     return (
         <div className="space-y-6 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -882,6 +979,16 @@ const Comandas: React.FC = () => {
                             <div className="mt-4 flex flex-col gap-2">
                                 <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add_circle" className="w-full justify-center">
                                     Abrir Comanda
+                                </Button>
+                                <Button
+                                    variant="warning"
+                                    onClick={() => setShowRetroCloseModal(true)}
+                                    leftIcon="history_toggle_off"
+                                    className="w-full justify-center"
+                                    disabled={selectedRetroComandas.length === 0}
+                                    title="Fecha comandas antigas sem consumir o saldo atual do Clube do Chefe"
+                                >
+                                    Fechar retroativo {selectedRetroComandas.length > 0 ? `(${selectedRetroComandas.length})` : ''}
                                 </Button>
                                 <Button
                                     variant="secondary"
@@ -1104,6 +1211,20 @@ const Comandas: React.FC = () => {
                                             <div className="grid gap-4 lg:grid-cols-[1.7fr_1.45fr_0.9fr_0.95fr_1.15fr] lg:items-center">
                                                 <div className="min-w-0">
                                                     <div className="flex items-start gap-3">
+                                                        {comanda.status === 'open' && (
+                                                            <label
+                                                                className="mt-1 inline-flex shrink-0 cursor-pointer items-center"
+                                                                onClick={(event) => event.stopPropagation()}
+                                                                title="Selecionar para fechamento retroativo"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedRetroComandaIds.includes(comanda.id)}
+                                                                    onChange={() => toggleRetroSelection(comanda.id)}
+                                                                    className="size-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                                                />
+                                                            </label>
+                                                        )}
                                                         <div className="relative shrink-0">
                                                             {comanda.clients.avatar ? (
                                                                 <img src={comanda.clients.avatar} alt={comanda.clients.name} className="size-11 rounded-2xl border border-slate-200 object-cover dark:border-white/10" />
@@ -1300,6 +1421,28 @@ const Comandas: React.FC = () => {
                                         </div>
                                     </div>
 
+                                    {Number(selectedComanda.chef_club_savings_total || 0) > 0 && (
+                                        <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">Clube do Chefe</p>
+                                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">Economia registrada no fechamento</p>
+                                                </div>
+                                                <p className="text-xl font-black text-amber-600">- {formatCurrency(Number(selectedComanda.chef_club_savings_total || 0))}</p>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                <div className="rounded-xl border border-white/10 bg-white/70 p-3 dark:bg-[#0f172a]">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-slate-500">Original</p>
+                                                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(Number(selectedComanda.chef_club_original_total || selectedComanda.total || 0))}</p>
+                                                </div>
+                                                <div className="rounded-xl border border-white/10 bg-white/70 p-3 dark:bg-[#0f172a]">
+                                                    <p className="font-black uppercase tracking-[0.18em] text-slate-500">Aplicados</p>
+                                                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{selectedComanda.chef_club_summary?.appliedItems || 0} item(ns)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="mt-5 grid gap-2 sm:grid-cols-2">
                                         {selectedComanda.status === 'open' ? (
                                             <Button onClick={() => navigate(`/checkout/${selectedComanda.id}`)} leftIcon="point_of_sale" className="justify-center">Fechar comanda</Button>
@@ -1307,6 +1450,19 @@ const Comandas: React.FC = () => {
                                             <Button variant="secondary" onClick={() => navigate(`/checkout/${selectedComanda.id}`)} leftIcon="edit" className="justify-center">Reabrir edicao</Button>
                                         )}
                                         <Button variant="secondary" onClick={() => handlePrint(selectedComanda)} leftIcon="print" className="justify-center">Imprimir</Button>
+                                        {selectedComanda.status === 'open' && (
+                                            <Button
+                                                variant="warning"
+                                                onClick={() => {
+                                                    setSelectedRetroComandaIds([selectedComanda.id]);
+                                                    setShowRetroCloseModal(true);
+                                                }}
+                                                leftIcon="history_toggle_off"
+                                                className="justify-center sm:col-span-2"
+                                            >
+                                                Fechar retroativo sem consumir saldo atual
+                                            </Button>
+                                        )}
                                     </div>
 
                                     <div className="mt-4 rounded-2xl border border-slate-200/70 bg-white p-4 text-xs text-slate-500 dark:border-white/8 dark:bg-[#0f172a] dark:text-slate-400">
@@ -1321,6 +1477,71 @@ const Comandas: React.FC = () => {
                     </aside>
                 </div>
             </section>
+
+            <Modal
+                isOpen={showRetroCloseModal}
+                onClose={() => {
+                    setShowRetroCloseModal(false);
+                    setRetroPaymentDescription('');
+                    setRetroPaymentMethod('other');
+                }}
+                title="Fechamento Retroativo"
+                maxWidth="sm"
+            >
+                <div className="space-y-4">
+                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-200">
+                        <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-2xl">history_toggle_off</span>
+                            <div>
+                                <p className="text-sm font-bold">Sem consumo do saldo atual</p>
+                                <p className="mt-1 text-xs">
+                                    As comandas serao fechadas como pagas, mas sem descontar beneficios do Clube do Chefe do ciclo vigente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm dark:border-white/8 dark:bg-[#0f172a]">
+                        <p className="font-bold text-slate-900 dark:text-white">{selectedRetroComandas.length} comanda(s) selecionada(s)</p>
+                        <p className="mt-1 text-slate-500 dark:text-slate-400">Total do lote: {formatCurrency(selectedRetroTotal)}</p>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Forma de pagamento do lote</label>
+                        <select
+                            value={retroPaymentMethod}
+                            onChange={(event) => setRetroPaymentMethod(event.target.value as RetroPaymentMethod)}
+                            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                        >
+                            <option value="other">Outros</option>
+                            <option value="pix">Pix</option>
+                            <option value="credit">Credito</option>
+                            <option value="debit">Debito</option>
+                            <option value="cash">Dinheiro</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observacao do fechamento</label>
+                        <textarea
+                            value={retroPaymentDescription}
+                            onChange={(event) => setRetroPaymentDescription(event.target.value)}
+                            rows={3}
+                            placeholder="Ex: comandas de marco fechadas retroativamente"
+                            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                        />
+                    </div>
+
+                    <div className="flex gap-3">
+                        <Button variant="secondary" onClick={() => setShowRetroCloseModal(false)} disabled={retroClosing} className="flex-1 justify-center">
+                            Voltar
+                        </Button>
+                        <Button variant="warning" onClick={handleRetroClose} isLoading={retroClosing} leftIcon="task_alt" className="flex-1 justify-center" disabled={selectedRetroComandas.length === 0}>
+                            Confirmar fechamento
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             <Modal
                 isOpen={!!deleteComanda}

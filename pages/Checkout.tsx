@@ -1,14 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-    ensureAppSupportsModule,
-    getScopedClient,
-    requireTenantContext,
     supabase,
 } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import ChefClubSummary from '@/src/apps/barber/components/chef-club/ChefClubSummary';
+import {
+    applyChefClubBenefitsToCart,
+    buildChefClubConsumptionRecords,
+    getChefClubCheckoutSummary,
+} from '@/src/apps/barber/services/chefClubIntegration';
+import type {
+    ChefClubAppliedBenefit,
+    ChefClubBenefitBalance,
+    ChefClubContext,
+    ChefClubItemInput,
+    ChefClubItemResult,
+    ChefClubPlanBenefit,
+} from '@/src/apps/barber/contracts/chefClub';
 
 // Types
 interface CartItem {
@@ -21,7 +32,9 @@ interface CartItem {
     service_id?: string;
     product_id?: string;
     staff_id?: string;
-    usedCredit?: boolean;
+    category?: string;
+    chefClubApplied?: ChefClubAppliedBenefit | null;
+    participants?: ServiceExecutionParticipant[];
 }
 
 interface Client {
@@ -43,10 +56,50 @@ interface Promotion {
     active: boolean;
 }
 
+interface ChefClubSubscriptionRelation {
+    id: string;
+    plan_id: string;
+    status: 'active' | 'past_due' | 'canceled' | 'paused';
+    cycle_start: string | null;
+    cycle_end: string | null;
+    next_billing_date: string | null;
+}
+
 interface Staff {
     id: string;
     name: string;
 }
+
+interface ServiceExecutionParticipant {
+    id: string;
+    comanda_item_id?: string;
+    staff_id: string;
+    role: 'primary' | 'assistant' | 'co_executor';
+    payout_type: 'percentage' | 'fixed';
+    payout_value: number;
+    payout_amount_calculated?: number;
+    affects_revenue: boolean;
+    affects_commission: boolean;
+}
+
+const isRecordActive = (record: any) => {
+    if (typeof record?.active === 'boolean') return record.active;
+    if (typeof record?.is_active === 'boolean') return record.is_active;
+    return true;
+};
+
+const normalizeServiceRecord = (service: any) => ({
+    ...service,
+    active: isRecordActive(service),
+    duration: Number(service?.duration ?? service?.duration_minutes) || 30,
+    price: Number(service?.price) || 0,
+});
+
+const normalizeProductRecord = (product: any) => ({
+    ...product,
+    active: isRecordActive(product),
+    sale_price: Number(product?.sale_price ?? product?.price) || 0,
+});
 
 interface QuickProductForm {
     name: string;
@@ -107,7 +160,7 @@ const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const location = useLocation();
     const navigate = useNavigate();
-    const { appSlug, schema, tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const checkoutState = (location.state as CheckoutLocationState | null) || null;
     const searchParams = new URLSearchParams(location.search);
     const requestedMode = searchParams.get('mode');
@@ -197,6 +250,8 @@ const Checkout: React.FC = () => {
     const [quickServiceForm, setQuickServiceForm] = useState<QuickServiceForm>(createInitialQuickServiceForm);
     const [isSavingQuickProduct, setIsSavingQuickProduct] = useState(false);
     const [isSavingQuickService, setIsSavingQuickService] = useState(false);
+    const [isParticipantsModalOpen, setIsParticipantsModalOpen] = useState(false);
+    const [selectedItemForParticipants, setSelectedItemForParticipants] = useState<string | null>(null);
 
     // Duplicate comanda guard
     const [duplicateComanda, setDuplicateComanda] = useState<{ id: string; created_at: string } | null>(null);
@@ -209,7 +264,9 @@ const Checkout: React.FC = () => {
     const [services, setServices] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
     const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
-    const [chefClubInfo, setChefClubInfo] = useState<{ id: string; planName: string; credits: number } | null>(null);
+    const [chefClubContext, setChefClubContext] = useState<ChefClubContext | null>(null);
+    const [chefClubOverrideMap, setChefClubOverrideMap] = useState<Record<string, boolean>>({});
+    const [skipChefClubConsumption, setSkipChefClubConsumption] = useState(false);
     const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
     const finishLockRef = React.useRef(false);
@@ -233,7 +290,9 @@ const Checkout: React.FC = () => {
         setDiscount('0');
         setPaymentMethod('credit');
         setPaymentDescription('');
-        setChefClubInfo(null);
+        setChefClubContext(null);
+        setChefClubOverrideMap({});
+        setSkipChefClubConsumption(false);
         setDuplicateComanda(null);
         setPendingClient(null);
         setShowDuplicateModal(false);
@@ -242,6 +301,65 @@ const Checkout: React.FC = () => {
         setPaymentStatus(checkoutEntryMode === 'open_comanda' ? 'pending' : 'paid');
         resetComandaRequestKey();
     }, [checkoutEntryMode, comandaId]);
+
+    const loadChefClubContext = useCallback(async (clientId: string, resolvedTenantId: string, clientDb: any) => {
+        const { data: subscription, error: subscriptionError } = await clientDb
+            .from('customer_subscriptions')
+            .select('id, plan_id, status, cycle_start, cycle_end, next_billing_date')
+            .eq('client_id', clientId)
+            .eq('tenant_id', resolvedTenantId)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (subscriptionError) throw subscriptionError;
+
+        if (!subscription?.id) {
+            setChefClubContext(null);
+            return;
+        }
+
+        const [balancesRes, benefitsRes, planRes] = await Promise.all([
+            clientDb
+                .from('customer_credits')
+                .select('id, subscription_id, client_id, benefit_code, benefit_label, available_credits, used_credits, source_plan_benefit_id')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('subscription_id', subscription.id)
+                .order('benefit_label'),
+            clientDb
+                .from('customer_plan_benefits')
+                .select('id, tenant_id, plan_id, benefit_code, benefit_label, monthly_quantity, eligible_service_ids, eligible_service_names, eligible_service_categories, active, priority')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('plan_id', subscription.plan_id)
+                .eq('active', true)
+                .order('priority', { ascending: false }),
+            clientDb
+                .from('customer_plans')
+                .select('name')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('id', subscription.plan_id)
+                .maybeSingle(),
+        ]);
+
+        if (balancesRes.error) throw balancesRes.error;
+        if (benefitsRes.error) throw benefitsRes.error;
+        if (planRes.error) throw planRes.error;
+
+        const planName = planRes.data?.name || 'Plano ativo';
+
+        setChefClubContext({
+            subscription: {
+                id: subscription.id,
+                plan_id: subscription.plan_id,
+                plan_name: planName,
+                status: subscription.status,
+                cycle_start: subscription.cycle_start,
+                cycle_end: subscription.cycle_end,
+                next_billing_date: subscription.next_billing_date,
+            },
+            balances: (balancesRes.data || []) as ChefClubBenefitBalance[],
+            planBenefits: (benefitsRes.data || []) as ChefClubPlanBenefit[],
+        });
+    }, []);
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
@@ -257,21 +375,17 @@ const Checkout: React.FC = () => {
 
         setLoading(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'comandas',
-                operation: 'load checkout data',
-            });
-            const client = getScopedClient(currentAppSlug);
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'checkout',
+                'comandas',
+                'load checkout data',
+            );
 
             const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
                 client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
                 client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
-                client.from('services').select('*').eq('tenant_id', resolvedTenantId).neq('active', false),
-                client.from('products').select('*').eq('tenant_id', resolvedTenantId).neq('active', false),
+                client.from('services').select('*').eq('tenant_id', resolvedTenantId).order('name'),
+                client.from('products').select('*').eq('tenant_id', resolvedTenantId).order('name'),
                 client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
             ]);
 
@@ -283,8 +397,8 @@ const Checkout: React.FC = () => {
 
             setClients((clientsRes.data || []) as Client[]);
             setStaff((staffRes.data || []) as Staff[]);
-            setServices(servicesRes.data || []);
-            setProducts(productsRes.data || []);
+            setServices((servicesRes.data || []).map(normalizeServiceRecord).filter(isRecordActive));
+            setProducts((productsRes.data || []).map(normalizeProductRecord).filter(isRecordActive));
 
             const now = new Date();
             const validPromos = (promoRes.data || []).filter((p: any) => {
@@ -331,6 +445,10 @@ const Checkout: React.FC = () => {
                     setDiscount(String(comanda.discount || 0));
                     setRelatedAppointmentId(comanda.appointment_id || null);
 
+                    if (selectedClientData) {
+                        await loadChefClubContext(selectedClientData.id, resolvedTenantId, client);
+                    }
+
                     const mappedItems: CartItem[] = (comandaItems || []).map((item: any) => ({
                         id: item.id,
                         dbId: item.id,
@@ -340,7 +458,19 @@ const Checkout: React.FC = () => {
                         quantity: item.quantity,
                         service_id: item.service_id,
                         product_id: item.product_id,
-                        staff_id: item.staff_id
+                        staff_id: item.staff_id,
+                        category: item.service_category || item.category || undefined,
+                        chefClubApplied: item.chef_club_benefit_code
+                            ? {
+                                benefitCode: item.chef_club_benefit_code,
+                                benefitLabel: item.chef_club_benefit_label || 'Clube do Chefe',
+                                quantity: Number(item.chef_club_applied_quantity || item.quantity || 1),
+                                overrideMode: item.chef_club_override_mode || 'none',
+                                overrideReason: item.chef_club_override_reason || '',
+                                balanceId: null,
+                                planBenefitId: item.chef_club_plan_benefit_id || null,
+                            }
+                            : null,
                     }));
                     setCart(mappedItems);
                 }
@@ -355,7 +485,7 @@ const Checkout: React.FC = () => {
             setActivePromotions([]);
         }
         setLoading(false);
-    }, [appSlug, comandaId, schema, tenantId]);
+    }, [comandaId, requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -415,11 +545,41 @@ const Checkout: React.FC = () => {
         services,
     ]);
 
+    const resolvedCart: ChefClubItemResult[] = React.useMemo(() => {
+        const input = cart.map((item) => ({
+            id: item.id,
+            type: item.type,
+            name: item.name,
+            service_id: item.service_id || null,
+            product_id: item.product_id || null,
+            category: item.category || null,
+            quantity: item.quantity,
+            unitPrice: item.price,
+        })) satisfies ChefClubItemInput[];
+
+        if (!chefClubContext) {
+            return input.map((item) => ({
+                ...item,
+                appliedBenefit: null,
+                finalUnitPrice: item.unitPrice,
+                savings: 0,
+                isEligible: false,
+                eligibilityReason: 'Sem contexto do Clube do Chefe.',
+            }));
+        }
+
+        return applyChefClubBenefitsToCart(input, chefClubContext, chefClubOverrideMap, {
+            allowWithoutBalance: skipChefClubConsumption,
+            autoApplyWithoutBalance: false,
+        });
+    }, [cart, chefClubContext, chefClubOverrideMap, skipChefClubConsumption]);
+
     // Calculations
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const chefClubSummary = React.useMemo(() => getChefClubCheckoutSummary(resolvedCart), [resolvedCart]);
+    const subtotal = chefClubSummary.originalSubtotal;
+    const savingsTotal = chefClubSummary.savingsTotal;
     const discountValue = parseFloat(discount) || 0;
-    const total = Math.max(0, subtotal - discountValue);
-    const appliedCreditsCount = cart.filter(item => item.usedCredit).length;
+    const total = Math.max(0, subtotal - savingsTotal - discountValue);
 
     // Duplicate client check
     const handleSelectClient = async (client: Client) => {
@@ -431,15 +591,11 @@ const Checkout: React.FC = () => {
         }
 
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'comandas',
-                operation: 'select checkout client',
-            });
-            const clientDb = getScopedClient(currentAppSlug);
+            const { tenantId: resolvedTenantId, client: clientDb } = requireModuleAccess(
+                'checkout',
+                'comandas',
+                'select checkout client',
+            );
 
             if (!comandaId && supportsOpenComandaState) {
                 const { data: openComandas, error: openComandasError } = await clientDb
@@ -460,46 +616,15 @@ const Checkout: React.FC = () => {
                 }
             }
 
+            const targetClient = pendingClient || client;
             if (pendingClient) setSelectedClient(pendingClient);
+            setSelectedClient(targetClient);
 
-        const targetClient = pendingClient || client;
-        setSelectedClient(targetClient);
-        const { data: sub, error: subError } = await clientDb
-            .from('customer_subscriptions')
-            .select('id, plan_id')
-                .eq('client_id', targetClient.id)
-                .eq('tenant_id', resolvedTenantId)
-                .eq('status', 'active')
-                .maybeSingle();
-
-            if (subError) throw subError;
-
-            if (sub) {
-                const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
-                    clientDb
-                        .from('customer_plans')
-                        .select('name')
-                        .eq('id', sub.plan_id)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
-                    clientDb
-                        .from('customer_credits')
-                        .select('available_credits')
-                        .eq('subscription_id', sub.id)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
-                ]);
-
-                if (planError) throw planError;
-                if (creditsError) throw creditsError;
-
-                setChefClubInfo({
-                    id: sub.id,
-                    planName: plan?.name || 'Plano ativo',
-                    credits: credits?.available_credits || 0
-                });
-            } else {
-                setChefClubInfo(null);
+            try {
+                await loadChefClubContext(targetClient.id, resolvedTenantId, clientDb);
+            } catch (chefClubError) {
+                console.warn('Nao foi possivel carregar contexto do Clube do Chefe:', chefClubError);
+                setChefClubContext(null);
             }
         } catch (error) {
             console.error('Error selecting checkout client:', error);
@@ -547,25 +672,19 @@ const Checkout: React.FC = () => {
 
     const handleAddItem = (item: any, type: 'service' | 'product') => {
         const finalPrice = calculateItemPrice(item, type);
-        const canSuggestCredit = type === 'service' && !!chefClubInfo;
-        const hasCreditsAvailable = canSuggestCredit && appliedCreditsCount < (chefClubInfo?.credits || 0);
-        const shouldUseCredit = !!(hasCreditsAvailable && window.confirm('Cliente assinante detectado. Aplicar 1 crédito neste serviço agora?'));
 
         const newItem: CartItem = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
             type,
             name: item.name || 'Item sem nome',
-            price: shouldUseCredit ? 0 : finalPrice,
+            price: finalPrice,
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
             staff_id: staff.length > 0 ? staff[0].id : '',
-            usedCredit: shouldUseCredit
+            category: item.category || item.service_category || item.group || '',
+            chefClubApplied: null,
         };
-
-        if (shouldUseCredit) {
-            setToast({ message: 'Crédito aplicado automaticamente neste item. Você pode ajustar manualmente se quiser.', type: 'info' });
-        }
 
         setCart([...cart, newItem]);
         setSearchTerm('');
@@ -574,6 +693,40 @@ const Checkout: React.FC = () => {
 
     const handleRemoveItem = (id: string) => {
         setCart(cart.filter(item => item.id !== id));
+        setChefClubOverrideMap((prev) => {
+            if (!prev[id] && prev[id] !== false) return prev;
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
+
+    const handleToggleChefClubBenefit = (itemId: string) => {
+        const resolvedItem = resolvedCart.find((item) => item.id === itemId);
+        setChefClubOverrideMap((prev) => {
+            const next = { ...prev };
+
+            if (resolvedItem?.appliedBenefit) {
+                next[itemId] = false;
+                return next;
+            }
+
+            if (skipChefClubConsumption && resolvedItem?.isEligible) {
+                if (next[itemId] === true) {
+                    delete next[itemId];
+                } else {
+                    next[itemId] = true;
+                }
+                return next;
+            }
+
+            if (next[itemId] === false) {
+                delete next[itemId];
+            } else {
+                next[itemId] = false;
+            }
+            return next;
+        });
     };
 
     const handleOpenQuickProductModal = () => {
@@ -608,15 +761,11 @@ const Checkout: React.FC = () => {
 
         setIsSavingQuickProduct(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'products', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'products',
-                operation: 'create product during checkout',
-            });
-            const client = getScopedClient(currentAppSlug);
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'products',
+                'products',
+                'create product during checkout',
+            );
 
             const payload = {
                 tenant_id: resolvedTenantId,
@@ -666,15 +815,11 @@ const Checkout: React.FC = () => {
 
         setIsSavingQuickService(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'services', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'services',
-                operation: 'create service during checkout',
-            });
-            const client = getScopedClient(currentAppSlug);
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'services',
+                'services',
+                'create service during checkout',
+            );
 
             const payload = {
                 tenant_id: resolvedTenantId,
@@ -712,7 +857,19 @@ const Checkout: React.FC = () => {
     };
 
     const handleStaffChange = (itemId: string, proId: string) => {
-        setCart(cart.map(item => item.id === itemId ? { ...item, staff_id: proId } : item));
+        setCart(cart.map(item => {
+            if (item.id !== itemId) return item;
+            
+            const updatedItem = { ...item, staff_id: proId };
+            
+            if (updatedItem.participants && updatedItem.participants.length > 0) {
+                updatedItem.participants = updatedItem.participants.map(p => 
+                    p.role === 'primary' ? { ...p, staff_id: proId } : p
+                );
+            }
+            
+            return updatedItem;
+        }));
     };
 
     const handlePriceChange = (itemId: string, newPrice: string) => {
@@ -740,28 +897,27 @@ const Checkout: React.FC = () => {
 
         setLoading(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'comandas',
-                operation: 'finish checkout',
-            });
-            const client = getScopedClient(currentAppSlug);
-            let currentComandaId = comandaId;
-            const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'checkout',
+                'comandas',
+                'finish checkout',
+            );
+let currentComandaId = comandaId;
+            const assignedStaffIds = Array.from(new Set(resolvedCart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
 
-            // 1. Create or Update Comanda
+            // 1. Create or Update Comanda - campos mínimos para evitar schema cache issues
             const comandaData: any = {
                 client_id: selectedClient.id,
                 staff_id: comandaStaffId,
                 appointment_id: relatedAppointmentId,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
-                total: total,
-                tenant_id: resolvedTenantId
+                total,
+                tenant_id: resolvedTenantId,
             };
+
+            // Campos Chef Club removidos temporariamente para evitar PGRST204
+            // Os dados são armazenados na tabela customer_benefit_consumptions
 
             if (currentComandaId) {
                 const { error: updateError } = await client
@@ -847,23 +1003,94 @@ const Checkout: React.FC = () => {
             }
 
             // 2. Insert Items
-            const itemsToInsert = cart.map(item => ({
+            const itemsToInsert = resolvedCart.map(item => ({
+                id: item.id,
                 comanda_id: currentComandaId,
                 service_id: item.service_id || null,
                 product_id: item.product_id || null,
                 product_name: item.name,
                 quantity: item.quantity,
-                unit_price: item.price,
+                unit_price: item.unitPrice,
                 staff_id: item.staff_id || null,
-                tenant_id: resolvedTenantId
+                tenant_id: resolvedTenantId,
+                chef_club_benefit_code: item.appliedBenefit?.benefitCode || null,
+                chef_club_benefit_label: item.appliedBenefit?.benefitLabel || null,
+                chef_club_applied_quantity: item.appliedBenefit?.quantity || 0,
+                chef_club_original_unit_price: item.unitPrice,
+                chef_club_final_unit_price: item.finalUnitPrice,
+                chef_club_override_mode: item.appliedBenefit?.overrideMode || 'none',
+                chef_club_override_reason: item.appliedBenefit?.overrideReason || '',
+                chef_club_plan_benefit_id: item.appliedBenefit?.planBenefitId || null,
             }));
 
-            const { error: itemsError } = await client.from('comanda_items').insert(itemsToInsert);
+const { error: itemsError } = await client.from('comanda_items').insert(itemsToInsert);
             if (itemsError) throw itemsError;
+
+            // Small delay to ensure items are committed
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // 2.1. Insert participants for items with execution sharing
+            const itemsWithParticipants = cart.filter(item => 
+                item.participants && item.participants.length > 0
+            );
+            
+            if (itemsWithParticipants.length > 0) {
+                try {
+                    const participantsToInsert = itemsWithParticipants.flatMap(item => {
+                        const resolvedItem = resolvedCart.find(r => r.id === item.id);
+                        const itemTotal = (resolvedItem?.finalUnitPrice || item.price) * item.quantity;
+                        return item.participants!.map(p => {
+                            const calculatedAmount = p.payout_type === 'percentage'
+                                ? itemTotal * (p.payout_value / 100)
+                                : p.payout_value;
+                            return {
+                                id: p.id || crypto.randomUUID(),
+                                comanda_item_id: item.id,
+                                staff_id: p.staff_id,
+                                role: p.role,
+                                payout_type: p.payout_type,
+                                payout_value: p.payout_value,
+                                payout_amount_calculated: calculatedAmount,
+                                affects_revenue: p.affects_revenue,
+                                affects_commission: p.affects_commission,
+                                tenant_id: resolvedTenantId,
+                            };
+                        });
+                    });
+
+                    if (participantsToInsert.length > 0) {
+                        const { error: participantsError } = await client
+                            .from('service_execution_participants')
+                            .upsert(participantsToInsert, { onConflict: 'id' });
+                        
+                        if (participantsError) {
+                            console.warn('Failed to save participants:', participantsError);
+                        }
+                    }
+                } catch (participantsErr) {
+                    console.warn('Error saving participants (non-blocking):', participantsErr);
+                }
+            }
 
             // 3. If PAID, finalize via RPC (this reduces stock and marks as paid in DB)
             if (paymentStatus === 'paid') {
-                const { error: rpcError } = await supabase.rpc('close_order', { p_comanda_id: currentComandaId });
+                const chefClubConsumptionPayload = chefClubContext?.subscription?.id
+                    ? buildChefClubConsumptionRecords(resolvedCart, {
+                        subscriptionId: chefClubContext.subscription.id,
+                        clientId: selectedClient.id,
+                        comandaId: currentComandaId,
+                    })
+                    : [];
+                const { data: { user } } = await supabase.auth.getUser();
+                const shouldConsumeChefClub = !skipChefClubConsumption && chefClubConsumptionPayload.length > 0;
+                const { error: rpcError } = shouldConsumeChefClub
+                    ? await supabase.rpc('close_order_with_chef_club', {
+                        p_comanda_id: currentComandaId,
+                        p_tenant_id: resolvedTenantId,
+                        p_consumptions: chefClubConsumptionPayload,
+                        p_actor_id: user?.id || null,
+                    })
+                    : await supabase.rpc('close_order', { p_comanda_id: currentComandaId });
 
                 if (rpcError) {
                     throw rpcError;
@@ -882,21 +1109,20 @@ const Checkout: React.FC = () => {
                 }
 
                 try {
-                    const { data: { user } } = await supabase.auth.getUser();
                     const { error: transError } = await client.from('transactions').insert({
-                    user_id: user?.id,
-                    type: 'income',
-                    category: incomeCategory,
-                    amount: total,
-                    description: paymentMethod === 'other' && paymentDescription
-                        ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
-                        : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
-                    payment_method: paymentMethod,
-                    date: new Date().toISOString(),
-                    tenant_id: resolvedTenantId
-                });
+                        user_id: user?.id,
+                        type: 'income',
+                        category: incomeCategory,
+                        amount: total,
+                        description: paymentMethod === 'other' && paymentDescription
+                            ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
+                            : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
+                        payment_method: paymentMethod,
+                        date: new Date().toISOString(),
+                        tenant_id: resolvedTenantId,
+                    });
                     if (transError) {
-                    console.warn('Checkout finalized without transaction record:', transError);
+                        console.warn('Checkout finalized without transaction record:', transError);
                     }
                 } catch (transactionError) {
                     console.warn('Checkout finalized but transaction logging failed:', transactionError);
@@ -913,7 +1139,7 @@ const Checkout: React.FC = () => {
 
                     if (!clientFetchErr) {
                     const newTotal = (clientData?.total_spent || 0) + total;
-                    const lastServiceStr = cart.length > 0 ? cart[0].name : '';
+                    const lastServiceStr = resolvedCart.length > 0 ? resolvedCart[0].name : '';
 
                     const { error: clientUpdateError } = await client.from('clients').update({
                         total_spent: newTotal,
@@ -930,18 +1156,6 @@ const Checkout: React.FC = () => {
                 } catch (clientStatsError) {
                     console.warn('Checkout finalized but client stats update failed:', clientStatsError);
                 }
-            }
-
-            // 5. Deduct Chef Club Credits if used
-            const creditItems = cart.filter(item => (item as any).usedCredit);
-            if (creditItems.length > 0 && chefClubInfo) {
-                // Update available credits
-                const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
-                    p_subscription_id: chefClubInfo.id,
-                    p_amount: creditItems.length,
-                    p_reference: `Comanda #${currentComandaId}`
-                });
-                if (creditErr) console.error('Error deducting credits:', creditErr);
             }
 
             setToast({ message: paymentStatus === 'paid' ? checkoutCopy.successPaid : checkoutCopy.successOpen, type: 'success' });
@@ -1093,11 +1307,33 @@ const Checkout: React.FC = () => {
                                                             <option key={pro.id} value={pro.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{pro.name}</option>
                                                         ))}
                                                     </select>
+                                                    {(item.participants && item.participants.length > 0) ? (
+                                                        <button
+                                                            onClick={() => { setSelectedItemForParticipants(item.id); setIsParticipantsModalOpen(true); }}
+                                                            className="ml-1 p-1 rounded-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                                                            title="Execução compartilhada"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">group</span>
+                                                        </button>
+                                                    ) : item.type === 'service' ? (
+                                                        <button
+                                                            onClick={() => { setSelectedItemForParticipants(item.id); setIsParticipantsModalOpen(true); }}
+                                                            className="ml-1 p-1 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-primary hover:bg-primary/10"
+                                                            title="Adicionar execução compartilhada"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">person_add</span>
+                                                        </button>
+                                                    ) : null}
                                                 </div>
                                             </div>
 
                                             {/* Price */}
                                             <div className="text-right flex flex-col items-end gap-1">
+                                                {resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.eligibilityReason && (
+                                                    <p className="max-w-[180px] text-right text-[10px] font-bold text-slate-400">
+                                                        {resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.eligibilityReason}
+                                                    </p>
+                                                )}
                                                 <div className="flex items-center gap-1">
                                                     {activePromotions.some(p =>
                                                         (p.target_type === 'all') ||
@@ -1116,21 +1352,20 @@ const Checkout: React.FC = () => {
                                                     />
                                                 </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
-                                                {item.type === 'service' && chefClubInfo && chefClubInfo.credits > 0 && (
+                                                {resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.appliedBenefit && (
+                                                    <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                                                        <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
+                                                        {resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.appliedBenefit?.benefitLabel}
+                                                    </div>
+                                                )}
+                                                {item.type === 'service' && chefClubContext?.subscription && (
                                                     <button
-                                                        onClick={() => {
-                                                            const isUsed = !(item as any).usedCredit;
-                                                            const currentUsed = cart.filter(c => c.usedCredit).length;
-                                                            if (isUsed && currentUsed >= chefClubInfo.credits) {
-                                                                setToast({ message: 'Sem créditos suficientes para aplicar em mais serviços.', type: 'error' });
-                                                                return;
-                                                            }
-                                                            setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
-                                                        }}
-                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
+                                                        onClick={() => handleToggleChefClubBenefit(item.id)}
+                                                        disabled={!resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.isEligible}
+                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter transition-all ${resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.appliedBenefit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 disabled:opacity-50'}`}
                                                     >
                                                         <span className="material-symbols-outlined text-xs">workspace_premium</span>
-                                                        {(item as any).usedCredit ? 'Usando Crédito' : 'Usar Crédito'}
+                                                        {resolvedCart.find((resolvedItem) => resolvedItem.id === item.id)?.appliedBenefit ? 'Usando Benefício' : 'Usar Benefício'}
                                                     </button>
                                                 )}
                                             </div>
@@ -1155,24 +1390,11 @@ const Checkout: React.FC = () => {
                         </div>
                     </div>
 
-                    {chefClubInfo && (
-                        <div className="mt-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center justify-between animate-fade-in">
-                            <div className="flex items-center gap-3">
-                                <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                    <span className="material-symbols-outlined">workspace_premium</span>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-black text-amber-600 uppercase">Clube do Chefe - {chefClubInfo.planName}</p>
-                                    <p className="text-[10px] text-slate-500 font-bold">Cliente possui créditos disponíveis para resgate.</p>
-                                    <p className="text-[10px] text-amber-700 font-black">Aplicados nesta comanda: {appliedCreditsCount}</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-sm font-black text-amber-600">{chefClubInfo.credits}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Disponíveis</p>
-                            </div>
-                        </div>
-                    )}
+                    <ChefClubSummary
+                        context={chefClubContext}
+                        appliedItems={chefClubSummary.appliedItems}
+                        savingsTotal={savingsTotal}
+                    />
                 </div>
 
                 {/* RIGHT COLUMN: Payment */}
@@ -1214,12 +1436,34 @@ const Checkout: React.FC = () => {
                         </div>
 
                         <div className="space-y-4 mb-6">
+                            {chefClubContext?.subscription && paymentStatus === 'paid' && (
+                                <label className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={skipChefClubConsumption}
+                                        onChange={(e) => setSkipChefClubConsumption(e.target.checked)}
+                                        className="mt-0.5 size-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                    />
+                                    <span>
+                                        <span className="block text-xs font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                                            Fechamento retroativo
+                                        </span>
+                                        <span className="mt-1 block text-xs text-slate-600 dark:text-slate-300">
+                                            Fecha a comanda com beneficios do plano sem consumir o saldo atual do cliente. Use para comandas antigas de ciclos anteriores.
+                                        </span>
+                                    </span>
+                                </label>
+                            )}
                             <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
-                                <span>Subtotal</span>
+                                <span>Subtotal original</span>
                                 <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
                             </div>
+                            <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                                <span>Benefícios Clube do Chefe</span>
+                                <span className="font-bold text-amber-600">- R$ {savingsTotal.toFixed(2)}</span>
+                            </div>
                             <div className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
-                                <span>Desconto (R$)</span>
+                                <span>Desconto manual (R$)</span>
                                 <input
                                     type="number"
                                     value={discount}
@@ -1229,7 +1473,7 @@ const Checkout: React.FC = () => {
                             </div>
                             <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
                             <div className="flex justify-between items-end">
-                                <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
+                                <span className="font-bold text-lg text-slate-900 dark:text-white">Total a pagar</span>
                                 <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
                             </div>
                         </div>
@@ -1719,7 +1963,233 @@ const Checkout: React.FC = () => {
                 </div>
             </Modal>
 
+            <Modal
+                isOpen={isParticipantsModalOpen}
+                onClose={() => { setIsParticipantsModalOpen(false); setSelectedItemForParticipants(null); }}
+                title="Execução Compartilhada"
+                maxWidth="md"
+            >
+                {selectedItemForParticipants && (
+                    <ParticipantsEditor
+                        item={cart.find(i => i.id === selectedItemForParticipants)}
+                        staff={staff}
+                        onSave={(participants) => {
+                            setCart(prev => prev.map(item => 
+                                item.id === selectedItemForParticipants 
+                                    ? { ...item, participants }
+                                    : item
+                            ));
+                            setIsParticipantsModalOpen(false);
+                            setSelectedItemForParticipants(null);
+                        }}
+                        onCancel={() => { setIsParticipantsModalOpen(false); setSelectedItemForParticipants(null); }}
+                    />
+                )}
+            </Modal>
+
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </div>
+    );
+};
+
+interface ParticipantsEditorProps {
+    item?: CartItem;
+    staff: Staff[];
+    onSave: (participants: ServiceExecutionParticipant[]) => void;
+    onCancel: () => void;
+}
+
+const ParticipantsEditor: React.FC<ParticipantsEditorProps> = ({ item, staff, onSave, onCancel }) => {
+    const [participants, setParticipants] = useState<ServiceExecutionParticipant[]>([]);
+    const [primaryStaffId, setPrimaryStaffId] = useState(item?.staff_id || '');
+
+    useEffect(() => {
+        if (item?.participants && item.participants.length > 0) {
+            setParticipants(item.participants);
+            const primary = item.participants.find(p => p.role === 'primary');
+            if (primary) setPrimaryStaffId(primary.staff_id);
+        } else if (item?.staff_id) {
+            setParticipants([{
+                id: crypto.randomUUID(),
+                staff_id: item.staff_id,
+                role: 'primary',
+                payout_type: 'percentage',
+                payout_value: 100,
+                affects_revenue: true,
+                affects_commission: true,
+            }]);
+        }
+    }, [item]);
+
+    const handleAddParticipant = () => {
+        setParticipants(prev => [...prev, {
+            id: crypto.randomUUID(),
+            staff_id: '',
+            role: 'assistant',
+            payout_type: 'percentage',
+            payout_value: 0,
+            affects_revenue: false,
+            affects_commission: true,
+        }]);
+    };
+
+    const handleRemoveParticipant = (id: string) => {
+        setParticipants(prev => prev.filter(p => p.id !== id));
+    };
+
+    const handleUpdateParticipant = (id: string, field: keyof ServiceExecutionParticipant, value: any) => {
+        setParticipants(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+    };
+
+    const calculatePreview = () => {
+        if (!item) return { total: 0, breakdown: [] as { name: string; value: number; role: string }[] };
+        
+        const total = item.price * item.quantity;
+        const breakdown = participants.map(p => {
+            const amount = p.payout_type === 'percentage' 
+                ? total * (p.payout_value / 100)
+                : p.payout_value;
+            const staffMember = staff.find(s => s.id === p.staff_id);
+            return {
+                name: staffMember?.name || 'Profissional',
+                value: amount,
+                role: p.role,
+            };
+        });
+        
+        return { total, breakdown };
+    };
+
+    const preview = calculatePreview();
+    const totalPercentage = participants.reduce((sum, p) => p.payout_type === 'percentage' ? sum + p.payout_value : sum, 0);
+
+    return (
+        <div className="space-y-4">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+                <span className="font-bold">{item?.name}</span> - {item?.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} x {item?.quantity}
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-slate-500">Profissional Principal</label>
+                <select
+                    value={primaryStaffId}
+                    onChange={(e) => {
+                        setPrimaryStaffId(e.target.value);
+                        setParticipants(prev => {
+                            const primaryExists = prev.find(p => p.role === 'primary');
+                            if (primaryExists) {
+                                return prev.map(p => p.role === 'primary' ? { ...p, staff_id: e.target.value } : p);
+                            }
+                            return [...prev, {
+                                id: crypto.randomUUID(),
+                                staff_id: e.target.value,
+                                role: 'primary',
+                                payout_type: 'percentage',
+                                payout_value: 100,
+                                affects_revenue: true,
+                                affects_commission: true,
+                            }];
+                        });
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                >
+                    <option value="">Selecione...</option>
+                    {staff.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-border-dark pt-4">
+                <div className="flex justify-between items-center mb-3">
+                    <label className="text-xs font-bold uppercase text-slate-500">Participantes</label>
+                    <button
+                        type="button"
+                        onClick={handleAddParticipant}
+                        className="text-xs text-primary hover:text-primary/80 font-bold flex items-center gap-1"
+                    >
+                        <span className="material-symbols-outlined text-sm">add</span>
+                        Adicionar
+                    </button>
+                </div>
+
+                {participants.filter(p => p.role !== 'primary').map((participant, idx) => (
+                    <div key={participant.id} className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-white/5 rounded-lg mb-2">
+                        <select
+                            value={participant.staff_id}
+                            onChange={(e) => handleUpdateParticipant(participant.id, 'staff_id', e.target.value)}
+                            className="flex-1 rounded border border-slate-200 bg-white p-2 text-sm dark:border-border-dark dark:bg-background-dark"
+                        >
+                            <option value="">Selecione...</option>
+                            {staff.filter(s => s.id !== primaryStaffId).map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={participant.payout_type}
+                            onChange={(e) => handleUpdateParticipant(participant.id, 'payout_type', e.target.value)}
+                            className="w-24 rounded border border-slate-200 bg-white p-2 text-xs dark:border-border-dark dark:bg-background-dark"
+                        >
+                            <option value="percentage">%</option>
+                            <option value="fixed">R$</option>
+                        </select>
+                        <input
+                            type="number"
+                            value={participant.payout_value}
+                            onChange={(e) => handleUpdateParticipant(participant.id, 'payout_value', Number(e.target.value))}
+                            className="w-20 rounded border border-slate-200 bg-white p-2 text-sm text-right dark:border-border-dark dark:bg-background-dark"
+                            placeholder="0"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => handleRemoveParticipant(participant.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            {totalPercentage > 100 && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                    Atenção: O total de percentuais excede 100%
+                </div>
+            )}
+
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <p className="text-xs font-bold uppercase text-emerald-700 mb-2">Preview Financeiro</p>
+                <div className="space-y-1">
+                    {preview.breakdown.map((b, i) => (
+                        <div key={i} className="flex justify-between text-sm">
+                            <span className="text-slate-600">{b.name} ({b.role})</span>
+                            <span className="font-bold text-slate-900">{b.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        </div>
+                    ))}
+                    <div className="border-t border-emerald-200 mt-2 pt-2 flex justify-between">
+                        <span className="font-bold text-emerald-800">Total</span>
+                        <span className="font-bold text-emerald-800">{preview.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="flex-1 py-3 rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onSave(participants)}
+                    className="flex-1 py-3 rounded-lg bg-primary text-white font-bold hover:bg-primary/90"
+                    disabled={!primaryStaffId}
+                >
+                    Salvar
+                </button>
+            </div>
         </div>
     );
 };
