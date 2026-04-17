@@ -42,6 +42,22 @@ const normalizeCancellationReason = (reason: string | null | undefined) => {
 const shouldIgnoreAppointmentInMetrics = (appointment: Appointment) =>
     appointment.status === 'cancelled' && normalizeCancellationReason(appointment.cancellation_reason) === 'registration_error';
 
+const normalizeAppointmentStatus = (status: string | null | undefined) => `${status || ''}`.trim().toLowerCase();
+
+const isCompletedAppointment = (appointment: Appointment) => normalizeAppointmentStatus(appointment.status) === 'completed';
+const isCancelledAppointment = (appointment: Appointment) => normalizeAppointmentStatus(appointment.status) === 'cancelled';
+const isNoShowAppointment = (appointment: Appointment) => {
+    const normalized = normalizeAppointmentStatus(appointment.status);
+    return normalized === 'no_show' || normalized === 'no-show';
+};
+const isResolvedAppointment = (appointment: Appointment) =>
+    isCompletedAppointment(appointment) || isCancelledAppointment(appointment) || isNoShowAppointment(appointment);
+const isPastAppointment = (appointment: Appointment) => {
+    const time = new Date(appointment.start_time).getTime();
+    return !Number.isNaN(time) && time <= Date.now();
+};
+const shouldCountAsRealVisit = (appointment: Appointment) => isCompletedAppointment(appointment);
+
 /* ───────────── COMPONENT ───────────── */
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
@@ -145,6 +161,16 @@ const BusinessIntelligence: React.FC = () => {
         return d >= prevRange.from && d < prevRange.to;
     }), [appointmentsForMetrics, prevRange]);
 
+    const realizedApts = useMemo(
+        () => filteredApts.filter((appointment) => isPastAppointment(appointment) && isResolvedAppointment(appointment)),
+        [filteredApts],
+    );
+
+    const realizedPrevApts = useMemo(
+        () => prevApts.filter((appointment) => isPastAppointment(appointment) && isResolvedAppointment(appointment)),
+        [prevApts],
+    );
+
     // ═══════ FINANCIAL KPIs ═══════
     const income = useMemo(() => filteredTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0), [filteredTx]);
     const expense = useMemo(() => filteredTx.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0), [filteredTx]);
@@ -177,12 +203,12 @@ const BusinessIntelligence: React.FC = () => {
         const prevVisitorIds = new Set(
             appointmentsForMetrics.filter(a => {
                 const d = new Date(a.start_time);
-                return d >= prevRange.from && d < prevRange.to && a.status !== 'cancelled';
+                return d >= prevRange.from && d < prevRange.to && shouldCountAsRealVisit(a);
             }).map(a => a.client_id).filter(Boolean)
         );
         if (prevVisitorIds.size === 0) return 0;
         const currentVisitorIds = new Set(
-            filteredApts.filter(a => a.status !== 'cancelled').map(a => a.client_id).filter(Boolean)
+            filteredApts.filter(shouldCountAsRealVisit).map(a => a.client_id).filter(Boolean)
         );
         let returning = 0;
         prevVisitorIds.forEach(id => { if (currentVisitorIds.has(id)) returning++; });
@@ -202,7 +228,7 @@ const BusinessIntelligence: React.FC = () => {
     const avgFrequency = useMemo(() => {
         if (appointmentsForMetrics.length === 0) return 0;
         const clientVisits: Record<string, Date[]> = {};
-        appointmentsForMetrics.filter(a => a.status !== 'cancelled' && a.client_id).forEach(a => {
+        appointmentsForMetrics.filter(a => shouldCountAsRealVisit(a) && a.client_id).forEach(a => {
             if (!clientVisits[a.client_id]) clientVisits[a.client_id] = [];
             clientVisits[a.client_id].push(new Date(a.start_time));
         });
@@ -239,10 +265,11 @@ const BusinessIntelligence: React.FC = () => {
     }, [clients, comandas]);
 
     // ═══════ OPERATIONAL KPIs ═══════
-    const totalAppts = filteredApts.length;
-    const completedAppts = filteredApts.filter(a => a.status === 'completed').length;
-    const cancelledAppts = filteredApts.filter(a => a.status === 'cancelled').length;
-    const noShowAppts = filteredApts.filter(a => a.status === 'no_show' || a.status === 'no-show').length;
+    const totalAppts = realizedApts.length;
+    const prevTotalAppts = realizedPrevApts.length;
+    const completedAppts = realizedApts.filter(isCompletedAppointment).length;
+    const cancelledAppts = realizedApts.filter(isCancelledAppointment).length;
+    const noShowAppts = realizedApts.filter(isNoShowAppointment).length;
     const showRate = totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 0;
     const cancelRate = totalAppts > 0 ? (cancelledAppts / totalAppts) * 100 : 0;
     const noShowRate = totalAppts > 0 ? (noShowAppts / totalAppts) * 100 : 0;
@@ -250,7 +277,7 @@ const BusinessIntelligence: React.FC = () => {
     // Top Services
     const topServices = useMemo(() => {
         const serviceMap: Record<string, { name: string; count: number; revenue: number }> = {};
-        filteredApts.filter(a => a.service_name && a.status !== 'cancelled').forEach(a => {
+        filteredApts.filter(a => a.service_name && shouldCountAsRealVisit(a)).forEach(a => {
             if (!serviceMap[a.service_name]) serviceMap[a.service_name] = { name: a.service_name, count: 0, revenue: 0 };
             serviceMap[a.service_name].count++;
         });
@@ -472,7 +499,7 @@ const BusinessIntelligence: React.FC = () => {
                 <KpiCard icon="person_add" label="Novos Clientes" value={String(newClients)} delta={prevNewClients > 0 ? ((newClients - prevNewClients) / prevNewClients) * 100 : 0} subLabel="no período" color="blue" />
                 <KpiCard icon="sync" label="Taxa de Retenção" value={`${retentionRate.toFixed(0)}%`} subLabel={`${inactiveClients} inativos`} color="purple" />
                 <KpiCard icon="calendar_month" label="Frequência Média" value={avgFrequency > 0 ? `${avgFrequency.toFixed(0)} dias` : '—'} subLabel="entre visitas" color="emerald" />
-                <KpiCard icon="event_available" label="Agendamentos" value={String(totalAppts)} subLabel={`${completedAppts} concluídos`} color="blue" />
+                <KpiCard icon="event_available" label="Agendamentos" value={String(totalAppts)} delta={prevTotalAppts > 0 ? ((totalAppts - prevTotalAppts) / prevTotalAppts) * 100 : 0} subLabel={`${completedAppts} concluídos`} color="blue" />
             </div>
 
             {/* ══════════════ OPERATIONAL CHART + TOP SERVICES ══════════════ */}
