@@ -61,6 +61,7 @@ interface CalendarAppointment {
   date: string;
   source?: string | null;
   channel?: string | null;
+  cancellationReason?: string | null;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -88,6 +89,15 @@ interface EnrichedAppointment extends CalendarAppointment {
   shortNotes: string;
   searchIndex: string;
   hasOpenComanda: boolean;
+  isHiddenFromAgenda: boolean;
+}
+
+type CancellationReasonValue = 'client_request' | 'professional_unavailable' | 'reschedule' | 'no_show' | 'registration_error' | 'other';
+
+interface CancelAppointmentFormState {
+  appointmentId: string;
+  reason: CancellationReasonValue | '';
+  notes: string;
 }
 
 interface NewAppointmentForm {
@@ -125,6 +135,15 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-rose-500',
   no_show: 'bg-slate-600',
 };
+
+const cancellationReasonOptions: Array<{ value: CancellationReasonValue; label: string; description: string }> = [
+  { value: 'client_request', label: 'Cliente pediu cancelamento', description: 'Conta como cancelamento normal.' },
+  { value: 'professional_unavailable', label: 'Profissional indisponível', description: 'Conta como cancelamento normal.' },
+  { value: 'reschedule', label: 'Reagendado', description: 'Conta como cancelamento normal.' },
+  { value: 'no_show', label: 'Não compareceu', description: 'Conta como no-show quando aplicável.' },
+  { value: 'registration_error', label: 'Erro de cadastro', description: 'Some da agenda e não entra nos indicadores.' },
+  { value: 'other', label: 'Outro motivo', description: 'Permite detalhar nas observações.' },
+];
 
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
@@ -189,6 +208,27 @@ const getAppointmentStatusMeta = (status: string | null | undefined) => {
     ...appointmentStatusMeta[normalized],
   };
 };
+
+const normalizeCancellationReason = (reason: string | null | undefined): CancellationReasonValue | '' => {
+  const normalized = `${reason || ''}`.trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'client_request' || normalized === 'professional_unavailable' || normalized === 'reschedule' || normalized === 'no_show' || normalized === 'registration_error' || normalized === 'other') {
+    return normalized;
+  }
+  if (normalized === 'erro de cadastro' || normalized === 'erro_cadastro') return 'registration_error';
+  if (normalized === 'nao compareceu' || normalized === 'não compareceu' || normalized === 'no-show' || normalized === 'no show') return 'no_show';
+  return 'other';
+};
+
+const getCancellationReasonLabel = (reason: string | null | undefined) => {
+  const normalized = normalizeCancellationReason(reason);
+  return cancellationReasonOptions.find((option) => option.value === normalized)?.label || '';
+};
+
+const isHiddenCancellationReason = (reason: string | null | undefined) => normalizeCancellationReason(reason) === 'registration_error';
+
+const isAppointmentHiddenFromAgenda = (appointment: Pick<CalendarAppointment, 'status' | 'cancellationReason'>) =>
+  normalizeAppointmentStatus(appointment.status) === 'cancelled' && isHiddenCancellationReason(appointment.cancellationReason);
 
 const getOriginLabel = (source?: string | null, channel?: string | null) => {
   const normalizedSource = `${source || ''}`.toLowerCase();
@@ -358,11 +398,13 @@ const Schedule: React.FC = () => {
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const isDetailModalOpen = false;
   const setIsDetailModalOpen = (_open: boolean) => {};
+  const [cancelModalState, setCancelModalState] = useState<CancelAppointmentFormState | null>(null);
 
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
   const displayEndHour = React.useMemo(() => {
-    if (appointments.length === 0) return 20;
-    const maxAptEndTime = Math.max(...appointments.map(a => a.start + a.duration));
+    const visibleAppointments = appointments.filter((appointment) => !isAppointmentHiddenFromAgenda(appointment));
+    if (visibleAppointments.length === 0) return 20;
+    const maxAptEndTime = Math.max(...visibleAppointments.map(a => a.start + a.duration));
     return Math.min(23, Math.max(20, Math.ceil(maxAptEndTime - 1)));
   }, [appointments]);
 
@@ -625,6 +667,7 @@ const Schedule: React.FC = () => {
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
+          cancellationReason: apt.cancellation_reason || null,
         };
       });
       setAppointments(mapped);
@@ -991,7 +1034,70 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleCancelAppointment = async (appointmentId: string) => {
+  const handleOpenCancelModal = (appointmentId: string) => {
+    setCancelModalState({
+      appointmentId,
+      reason: '',
+      notes: '',
+    });
+  };
+
+  const handleCloseCancelModal = () => {
+    setCancelModalState(null);
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!cancelModalState?.appointmentId) return;
+    if (!tenantId) {
+      setToast({ message: 'Tenant invÃ¡lido para cancelar agendamento.', type: 'error' });
+      return;
+    }
+
+    if (!cancelModalState.reason) {
+      setToast({ message: 'Selecione um motivo para cancelar o agendamento.', type: 'error' });
+      return;
+    }
+
+    const nextStatus = cancelModalState.reason === 'no_show' ? 'no_show' : 'cancelled';
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          status: nextStatus,
+          cancellation_reason: cancelModalState.reason,
+          notes: cancelModalState.notes.trim() || undefined,
+        })
+        .eq('id', cancelModalState.appointmentId)
+        .eq('tenant_id', tenantId);
+
+      if (error) throw error;
+
+      await supabase
+        .from('comandas')
+        .update({ status: 'cancelled' })
+        .eq('appointment_id', cancelModalState.appointmentId)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open');
+
+      setToast({
+        message: cancelModalState.reason === 'registration_error'
+          ? 'Agendamento removido da agenda por erro de cadastro.'
+          : nextStatus === 'no_show'
+            ? 'Agendamento marcado como não compareceu.'
+            : 'Agendamento cancelado com sucesso.',
+        type: 'info'
+      });
+      handleCloseCancelModal();
+      closeDetailDrawer();
+      fetchAppointments();
+    } catch (err) {
+      console.error('Error cancelling appointment:', err);
+      setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
+    }
+  };
+
+  const handleLegacyCancelAppointment = async (appointmentId: string) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
     if (!tenantId) {
       setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
@@ -1605,12 +1711,18 @@ const Schedule: React.FC = () => {
         shortNotes,
         searchIndex: `${apt.client} ${apt.clientPhone} ${apt.service} ${apt.staffName} ${shortNotes}`.toLowerCase(),
         hasOpenComanda: Boolean(openComandasByAppointment[apt.id]),
+        isHiddenFromAgenda: isAppointmentHiddenFromAgenda(apt),
       };
     });
   }, [appointments, openComandasByAppointment]);
 
+  const visibleAgendaAppointments = React.useMemo(
+    () => enrichedAppointments.filter((apt) => !apt.isHiddenFromAgenda),
+    [enrichedAppointments],
+  );
+
   const appointmentsForSummary = React.useMemo(() => {
-    return enrichedAppointments.filter((apt) => {
+    return visibleAgendaAppointments.filter((apt) => {
       const selectedFilterDate = parseDateInputValue(listFilters.date);
       const matchesDate = !selectedFilterDate || new Date(apt.startTime).toDateString() === selectedFilterDate.toDateString();
       const matchesProfessional = listFilters.professional === 'all' || apt.staffId === listFilters.professional;
@@ -1627,7 +1739,7 @@ const Schedule: React.FC = () => {
         (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
       return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
     });
-  }, [enrichedAppointments, listFilters]);
+  }, [listFilters, visibleAgendaAppointments]);
 
   const filteredListAppointments = React.useMemo(() => {
     const searchTerm = listFilters.search.trim().toLowerCase();
@@ -1646,7 +1758,7 @@ const Schedule: React.FC = () => {
     { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
   ], [appointmentsForSummary]);
 
-  const originOptions = React.useMemo(() => Array.from(new Set(enrichedAppointments.map((apt) => apt.originLabel))).sort(), [enrichedAppointments]);
+  const originOptions = React.useMemo(() => Array.from(new Set(visibleAgendaAppointments.map((apt) => apt.originLabel))).sort(), [visibleAgendaAppointments]);
 
   const selectedAppointmentDetails = React.useMemo(() => {
     if (!selectedAppointment) return null;
@@ -1849,7 +1961,7 @@ Podemos confirmar? 😄`;
           <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Atendimentos</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">{appointments.length}</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">{visibleAgendaAppointments.length}</p>
             </div>
             <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-2xl">event_available</span>
@@ -1870,7 +1982,7 @@ Podemos confirmar? 😄`;
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ocupação Média</p>
               <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {staffList.length > 0 ? Math.round((appointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * totalSlots)) * 100) : 0}%
+                {staffList.length > 0 ? Math.round((visibleAgendaAppointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * totalSlots)) * 100) : 0}%
               </p>
             </div>
             <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
@@ -1883,7 +1995,7 @@ Podemos confirmar? 😄`;
             <div className="relative z-10">
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Previsto</p>
               <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                R$ {appointments.reduce((acc, curr) => acc + (curr.price || 0), 0).toFixed(2).replace('.', ',')}
+                R$ {visibleAgendaAppointments.reduce((acc, curr) => acc + (curr.price || 0), 0).toFixed(2).replace('.', ',')}
               </p>
             </div>
             <div className="relative z-10 size-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
@@ -1900,7 +2012,7 @@ Podemos confirmar? 😄`;
                 {weekDays.map((day, i) => {
                   const isToday = day.toDateString() === new Date().toDateString();
                   const isSelected = day.toDateString() === selectedDate.toDateString();
-                  const dayApts = appointments.filter(a => {
+                  const dayApts = visibleAgendaAppointments.filter(a => {
                     const d = new Date((a as any).date);
                     return d.toDateString() === day.toDateString();
                   });
@@ -1953,7 +2065,7 @@ Podemos confirmar? 😄`;
                     </div>
                     <div className="flex-1 flex">
                       {weekDays.map((day, di) => {
-                        const dayApts = appointments.filter(a => {
+                        const dayApts = visibleAgendaAppointments.filter(a => {
                           const d = new Date((a as any).date);
                           return d.toDateString() === day.toDateString();
                         });
@@ -2085,7 +2197,7 @@ Podemos confirmar? 😄`;
                           onDrop={(e) => handleDropAppointment(e, resource.id)}
                         >
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
-                          {!showOnlyBlocks && appointments
+                            {!showOnlyBlocks && visibleAgendaAppointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
                               const startOffset = (apt.start - 8) * (100 / totalSlots);
@@ -2167,7 +2279,7 @@ Podemos confirmar? 😄`;
             <button className="text-primary dark:text-[#C6A45A] text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all">Ver Todos</button>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
-            {appointments
+            {visibleAgendaAppointments
               .filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled' && (new Date(apt.date).toDateString() === new Date().toDateString() || new Date(apt.date) >= new Date()))
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.start - b.start)
               .slice(0, 10)
@@ -2192,7 +2304,7 @@ Podemos confirmar? 😄`;
                   </div>
                 );
               })}
-            {appointments.filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled').length === 0 && (
+            {visibleAgendaAppointments.filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled').length === 0 && (
               <div className="text-center text-slate-500 dark:text-[#A7AFB7] py-10 text-xs font-medium">Nenhum agendamento futuro</div>
             )}
           </div>
@@ -2359,7 +2471,7 @@ Podemos confirmar? 😄`;
                           <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-violet-500 hover:bg-violet-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
-                          <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
+                          <button onClick={() => handleOpenCancelModal(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
                           <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
                           <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
@@ -2402,7 +2514,7 @@ Podemos confirmar? 😄`;
                   <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold">Iniciar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
-                  <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
+                  <button onClick={() => handleOpenCancelModal(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
                   <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
                   <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
                 </div>
@@ -2565,7 +2677,7 @@ Podemos confirmar? 😄`;
                   {(() => {
                     // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
                     const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
-                    const aptsOnDay = appointments.filter(a => {
+                    const aptsOnDay = visibleAgendaAppointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
                       return aptDate.getFullYear() === fDate.getFullYear() &&
@@ -3019,7 +3131,7 @@ Podemos confirmar? 😄`;
                 </button>
 
                 <button
-                  onClick={() => handleCancelAppointment(apt.id)}
+                  onClick={() => handleOpenCancelModal(apt.id)}
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">delete</span>
@@ -3098,6 +3210,14 @@ Podemos confirmar? 😄`;
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observação</p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
               </div>
+              {selectedAppointmentDetails.cancellationReason && (
+                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Motivo do cancelamento</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {getCancellationReasonLabel(selectedAppointmentDetails.cancellationReason) || selectedAppointmentDetails.cancellationReason}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
@@ -3108,12 +3228,74 @@ Podemos confirmar? 😄`;
               <button onClick={() => handleSendWhatsApp(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-              <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              <button onClick={() => handleOpenCancelModal(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
             </div>
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={Boolean(cancelModalState)}
+        onClose={handleCloseCancelModal}
+        title="Cancelar Agendamento"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+            Selecione o motivo do cancelamento para atualizar a agenda e os indicadores corretamente.
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Motivo</label>
+            <div className="space-y-2">
+              {cancellationReasonOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setCancelModalState((prev) => prev ? { ...prev, reason: option.value } : prev)}
+                  className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                    cancelModalState?.reason === option.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20'
+                  }`}
+                >
+                  <p className="text-sm font-black text-slate-900 dark:text-white">{option.label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{option.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observação</label>
+            <textarea
+              value={cancelModalState?.notes || ''}
+              onChange={(e) => setCancelModalState((prev) => prev ? { ...prev, notes: e.target.value } : prev)}
+              rows={3}
+              placeholder="Detalhes opcionais sobre o cancelamento"
+              className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseCancelModal}
+              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelAppointment}
+              className="px-5 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
+            >
+              Confirmar cancelamento
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div >
