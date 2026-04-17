@@ -10,7 +10,7 @@ import { generateBusinessInsights } from '../services/geminiService';
 
 /* ───────────── TYPES ───────────── */
 interface Transaction { id: string; date: string; amount: number; type: 'income' | 'expense'; method: string; description: string; }
-interface Appointment { id: string; start_time: string; status: string; client_id: string; staff_id: string; staff_name: string; service_name: string; client_name: string; }
+interface Appointment { id: string; start_time: string; status: string; client_id: string; staff_id: string; staff_name: string; service_name: string; client_name: string; cancellation_reason?: string | null; }
 interface Client { id: string; name: string; created_at: string; last_visit: string; total_spent: number; }
 interface Staff { id: string; name: string; }
 interface Product { id: string; name: string; stock_quantity: number; minimum_stock: number; price: number; }
@@ -29,6 +29,34 @@ const periodLabel: Record<Period, string> = {
 };
 
 const COLORS = ['#3c83f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#a78bfa'];
+
+const normalizeCancellationReason = (reason: string | null | undefined) => {
+    const normalized = `${reason || ''}`.trim().toLowerCase();
+    if (!normalized) return '';
+    if (normalized === 'registration_error' || normalized === 'erro de cadastro' || normalized === 'erro_cadastro') {
+        return 'registration_error';
+    }
+    return normalized;
+};
+
+const shouldIgnoreAppointmentInMetrics = (appointment: Appointment) =>
+    appointment.status === 'cancelled' && normalizeCancellationReason(appointment.cancellation_reason) === 'registration_error';
+
+const normalizeAppointmentStatus = (status: string | null | undefined) => `${status || ''}`.trim().toLowerCase();
+
+const isCompletedAppointment = (appointment: Appointment) => normalizeAppointmentStatus(appointment.status) === 'completed';
+const isCancelledAppointment = (appointment: Appointment) => normalizeAppointmentStatus(appointment.status) === 'cancelled';
+const isNoShowAppointment = (appointment: Appointment) => {
+    const normalized = normalizeAppointmentStatus(appointment.status);
+    return normalized === 'no_show' || normalized === 'no-show';
+};
+const isResolvedAppointment = (appointment: Appointment) =>
+    isCompletedAppointment(appointment) || isCancelledAppointment(appointment) || isNoShowAppointment(appointment);
+const isPastAppointment = (appointment: Appointment) => {
+    const time = new Date(appointment.start_time).getTime();
+    return !Number.isNaN(time) && time <= Date.now();
+};
+const shouldCountAsRealVisit = (appointment: Appointment) => isCompletedAppointment(appointment);
 
 /* ───────────── COMPONENT ───────────── */
 const BusinessIntelligence: React.FC = () => {
@@ -118,15 +146,30 @@ const BusinessIntelligence: React.FC = () => {
         return d >= prevRange.from && d < prevRange.to;
     }), [transactions, prevRange]);
 
-    const filteredApts = useMemo(() => appointments.filter(a => {
+    const appointmentsForMetrics = useMemo(
+        () => appointments.filter((appointment) => !shouldIgnoreAppointmentInMetrics(appointment)),
+        [appointments],
+    );
+
+    const filteredApts = useMemo(() => appointmentsForMetrics.filter(a => {
         const d = new Date(a.start_time);
         return d >= dateRange.from && d <= dateRange.to;
-    }), [appointments, dateRange]);
+    }), [appointmentsForMetrics, dateRange]);
 
-    const prevApts = useMemo(() => appointments.filter(a => {
+    const prevApts = useMemo(() => appointmentsForMetrics.filter(a => {
         const d = new Date(a.start_time);
         return d >= prevRange.from && d < prevRange.to;
-    }), [appointments, prevRange]);
+    }), [appointmentsForMetrics, prevRange]);
+
+    const realizedApts = useMemo(
+        () => filteredApts.filter((appointment) => isPastAppointment(appointment) && isResolvedAppointment(appointment)),
+        [filteredApts],
+    );
+
+    const realizedPrevApts = useMemo(
+        () => prevApts.filter((appointment) => isPastAppointment(appointment) && isResolvedAppointment(appointment)),
+        [prevApts],
+    );
 
     // ═══════ FINANCIAL KPIs ═══════
     const income = useMemo(() => filteredTx.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0), [filteredTx]);
@@ -158,19 +201,19 @@ const BusinessIntelligence: React.FC = () => {
     // Retention: clients who visited in prev period AND also in current period
     const retentionRate = useMemo(() => {
         const prevVisitorIds = new Set(
-            appointments.filter(a => {
+            appointmentsForMetrics.filter(a => {
                 const d = new Date(a.start_time);
-                return d >= prevRange.from && d < prevRange.to && a.status !== 'cancelled';
+                return d >= prevRange.from && d < prevRange.to && shouldCountAsRealVisit(a);
             }).map(a => a.client_id).filter(Boolean)
         );
         if (prevVisitorIds.size === 0) return 0;
         const currentVisitorIds = new Set(
-            filteredApts.filter(a => a.status !== 'cancelled').map(a => a.client_id).filter(Boolean)
+            filteredApts.filter(shouldCountAsRealVisit).map(a => a.client_id).filter(Boolean)
         );
         let returning = 0;
         prevVisitorIds.forEach(id => { if (currentVisitorIds.has(id)) returning++; });
         return (returning / prevVisitorIds.size) * 100;
-    }, [appointments, filteredApts, prevRange]);
+    }, [appointmentsForMetrics, filteredApts, prevRange]);
 
     // Inactive clients (no visit in 60+ days)
     const inactiveClients = useMemo(() => {
@@ -183,9 +226,9 @@ const BusinessIntelligence: React.FC = () => {
 
     // avg visit frequency (days between visits per client)
     const avgFrequency = useMemo(() => {
-        if (appointments.length === 0) return 0;
+        if (appointmentsForMetrics.length === 0) return 0;
         const clientVisits: Record<string, Date[]> = {};
-        appointments.filter(a => a.status !== 'cancelled' && a.client_id).forEach(a => {
+        appointmentsForMetrics.filter(a => shouldCountAsRealVisit(a) && a.client_id).forEach(a => {
             if (!clientVisits[a.client_id]) clientVisits[a.client_id] = [];
             clientVisits[a.client_id].push(new Date(a.start_time));
         });
@@ -198,7 +241,7 @@ const BusinessIntelligence: React.FC = () => {
             }
         });
         return gapCount > 0 ? totalGaps / gapCount : 0;
-    }, [appointments]);
+    }, [appointmentsForMetrics]);
 
     // Top Clients (LTV - Lifetime Value)
     const topClients = useMemo(() => {
@@ -222,10 +265,11 @@ const BusinessIntelligence: React.FC = () => {
     }, [clients, comandas]);
 
     // ═══════ OPERATIONAL KPIs ═══════
-    const totalAppts = filteredApts.length;
-    const completedAppts = filteredApts.filter(a => a.status === 'completed').length;
-    const cancelledAppts = filteredApts.filter(a => a.status === 'cancelled').length;
-    const noShowAppts = filteredApts.filter(a => a.status === 'no_show' || a.status === 'no-show').length;
+    const totalAppts = realizedApts.length;
+    const prevTotalAppts = realizedPrevApts.length;
+    const completedAppts = realizedApts.filter(isCompletedAppointment).length;
+    const cancelledAppts = realizedApts.filter(isCancelledAppointment).length;
+    const noShowAppts = realizedApts.filter(isNoShowAppointment).length;
     const showRate = totalAppts > 0 ? (completedAppts / totalAppts) * 100 : 0;
     const cancelRate = totalAppts > 0 ? (cancelledAppts / totalAppts) * 100 : 0;
     const noShowRate = totalAppts > 0 ? (noShowAppts / totalAppts) * 100 : 0;
@@ -233,7 +277,7 @@ const BusinessIntelligence: React.FC = () => {
     // Top Services
     const topServices = useMemo(() => {
         const serviceMap: Record<string, { name: string; count: number; revenue: number }> = {};
-        filteredApts.filter(a => a.service_name && a.status !== 'cancelled').forEach(a => {
+        filteredApts.filter(a => a.service_name && shouldCountAsRealVisit(a)).forEach(a => {
             if (!serviceMap[a.service_name]) serviceMap[a.service_name] = { name: a.service_name, count: 0, revenue: 0 };
             serviceMap[a.service_name].count++;
         });
@@ -455,7 +499,7 @@ const BusinessIntelligence: React.FC = () => {
                 <KpiCard icon="person_add" label="Novos Clientes" value={String(newClients)} delta={prevNewClients > 0 ? ((newClients - prevNewClients) / prevNewClients) * 100 : 0} subLabel="no período" color="blue" />
                 <KpiCard icon="sync" label="Taxa de Retenção" value={`${retentionRate.toFixed(0)}%`} subLabel={`${inactiveClients} inativos`} color="purple" />
                 <KpiCard icon="calendar_month" label="Frequência Média" value={avgFrequency > 0 ? `${avgFrequency.toFixed(0)} dias` : '—'} subLabel="entre visitas" color="emerald" />
-                <KpiCard icon="event_available" label="Agendamentos" value={String(totalAppts)} subLabel={`${completedAppts} concluídos`} color="blue" />
+                <KpiCard icon="event_available" label="Agendamentos" value={String(totalAppts)} delta={prevTotalAppts > 0 ? ((totalAppts - prevTotalAppts) / prevTotalAppts) * 100 : 0} subLabel={`${completedAppts} concluídos`} color="blue" />
             </div>
 
             {/* ══════════════ OPERATIONAL CHART + TOP SERVICES ══════════════ */}
