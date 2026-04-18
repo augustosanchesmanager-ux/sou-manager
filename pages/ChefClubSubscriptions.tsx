@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getScopedClient } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
-import Modal from '../components/ui/Modal';
 
 interface Subscription {
     id: string;
@@ -36,10 +35,11 @@ const fetchSubscriptions = async () => {
                 status,
                 cycle_end,
                 next_billing_date,
-                client:clients!client_id(name, phone),
-                plan:customer_plans!plan_id(name, service_credits),
-                credits:customer_credits!subscription_id(available_credits)
+                client:clients(name, phone),
+                plan:customer_plans(name, service_credits),
+                credits:customer_credits(available_credits)
             `)
+            .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
 
         if (error) {
