@@ -61,6 +61,7 @@ interface CalendarAppointment {
   date: string;
   source?: string | null;
   channel?: string | null;
+  isWalkIn?: boolean;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -99,6 +100,7 @@ interface NewAppointmentForm {
   start: number;
   duration: number;
   notes: string;
+  isWalkIn: boolean;
 }
 
 interface ScheduleBlockForm {
@@ -384,6 +386,7 @@ const Schedule: React.FC = () => {
     start: 8,
     duration: 1,
     notes: '',
+    isWalkIn: false,
   });
 
   useEffect(() => {
@@ -626,6 +629,7 @@ const Schedule: React.FC = () => {
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
+          isWalkIn: apt.is_walk_in || false,
         };
       });
       setAppointments(mapped);
@@ -872,6 +876,7 @@ const Schedule: React.FC = () => {
       start: apt.start,
       duration: apt.duration,
       notes: apt.notes || '',
+      isWalkIn: (apt as any).isWalkIn || false,
     });
 
     void loadChefClubInfo(apt.client);
@@ -1336,6 +1341,7 @@ const Schedule: React.FC = () => {
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
         price: selectedService?.price || 0,
+        is_walk_in: formData.isWalkIn || false,
       }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -1403,6 +1409,7 @@ const Schedule: React.FC = () => {
           price: selectedService?.price || 0,
           status: 'confirmed' as const,
           tenant_id: tenantId,
+          is_walk_in: formData.isWalkIn || false,
         };
         let { data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert({
           ...appointmentPayload,
@@ -2543,6 +2550,19 @@ Podemos confirmar? 😄`;
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/20">
+            <input
+              type="checkbox"
+              id="isWalkIn"
+              checked={formData.isWalkIn}
+              onChange={(e) => handleInputChange('isWalkIn', e.target.checked)}
+              className="w-4 h-4 rounded border-amber-300 text-amber-500 focus:ring-amber-500"
+            />
+            <label htmlFor="isWalkIn" className="text-sm font-medium text-amber-700 dark:text-amber-300 cursor-pointer">
+              Encaixe (sem horário agendado)
+            </label>
           </div>
 
           <div>
