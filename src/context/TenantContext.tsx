@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase/client';
-import type { AppSlug } from '../lib/supabase/schemas';
+import type { AppSlug, SupabaseSchemaName } from '../lib/supabase/schemas';
 import {
   resolveTenantForUser,
   type TenantRecord,
@@ -14,8 +14,14 @@ export interface TenantContextValue {
   tenant: TenantRecord | null;
   role: TenantRole;
   memberships: UserTenantMembership[];
+  activeMembership: UserTenantMembership | null;
   tenantId: string | null;
   tenantSlug: string | null;
+  appSlug: AppSlug;
+  schema: SupabaseSchemaName;
+  hasTenantAccess: boolean;
+  isResolved: boolean;
+  isSuperAdmin: boolean;
   loading: boolean;
   error: string | null;
   refreshTenant: () => Promise<void>;
@@ -32,7 +38,7 @@ const getTenantErrorMessage = (error: unknown, appSlug: AppSlug): string => {
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { appSlug } = useApp();
+  const { appSlug, schema } = useApp();
   const [session, setSession] = useState<Session | null>(null);
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [role, setRole] = useState<TenantRole>('unknown');
@@ -67,7 +73,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  const refreshTenant = async (): Promise<void> => {
+  const refreshTenant = useCallback(async (): Promise<void> => {
     if (!session?.user) {
       setTenant(null);
       setRole('unknown');
@@ -98,24 +104,41 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       setLoading(false);
     }
-  };
+  }, [appSlug, session?.user]);
 
   useEffect(() => {
     void refreshTenant();
   }, [appSlug, session?.user?.id]);
+
+  const activeMembership = useMemo<UserTenantMembership | null>(() => {
+    if (!tenant?.id) {
+      return null;
+    }
+
+    return memberships.find((membership) => membership.tenantId === tenant.id) || null;
+  }, [memberships, tenant?.id]);
+
+  const hasTenantAccess = role === 'superadmin' || Boolean(tenant?.id);
+  const isResolved = !loading && (!session?.user || hasTenantAccess || Boolean(error));
 
   const value = useMemo<TenantContextValue>(
     () => ({
       tenant,
       role,
       memberships,
+      activeMembership,
       tenantId: tenant?.id ?? null,
       tenantSlug: tenant?.slug ?? null,
+      appSlug,
+      schema,
+      hasTenantAccess,
+      isResolved,
+      isSuperAdmin: role === 'superadmin',
       loading,
       error,
       refreshTenant,
     }),
-    [error, loading, memberships, role, tenant],
+    [activeMembership, appSlug, error, hasTenantAccess, isResolved, loading, memberships, refreshTenant, role, schema, tenant],
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

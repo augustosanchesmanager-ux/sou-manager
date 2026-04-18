@@ -1,0 +1,596 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - button "content_cut SOU MANA.GER Elite Tech" [ref=e6] [cursor=pointer]:
+      - generic [ref=e8]: content_cut
+      - generic [ref=e9]:
+        - heading "SOU MANA.GER" [level=1] [ref=e10]
+        - paragraph [ref=e11]: Elite Tech
+    - navigation [ref=e12]:
+      - link "dashboard Inicio" [ref=e15] [cursor=pointer]:
+        - /url: "#/dashboard"
+        - generic [ref=e16]:
+          - generic [ref=e17]: dashboard
+          - generic [ref=e18]: Inicio
+      - generic [ref=e19]:
+        - button "business_center NEGÓCIO expand_more" [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e22]: business_center
+            - generic [ref=e23]: NEGÓCIO
+          - generic [ref=e24]: expand_more
+        - generic:
+          - link "insights Painel Estratégico" [ref=e26] [cursor=pointer]:
+            - /url: "#/strategic-dashboard"
+            - generic [ref=e27]:
+              - generic [ref=e28]: insights
+              - generic [ref=e29]: Painel Estratégico
+          - link "query_stats Visão de Negócio" [ref=e31] [cursor=pointer]:
+            - /url: "#/bi"
+            - generic [ref=e32]:
+              - generic [ref=e33]: query_stats
+              - generic [ref=e34]: Visão de Negócio
+          - link "summarize Relatórios" [ref=e36] [cursor=pointer]:
+            - /url: "#/reports"
+            - generic [ref=e37]:
+              - generic [ref=e38]: summarize
+              - generic [ref=e39]: Relatórios
+      - generic [ref=e40]:
+        - button "sync_alt OPERAÇÃO expand_more" [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: sync_alt
+            - generic [ref=e44]: OPERAÇÃO
+          - generic [ref=e45]: expand_more
+        - generic:
+          - link "calendar_month Agendamentos" [ref=e47] [cursor=pointer]:
+            - /url: "#/schedule"
+            - generic [ref=e48]:
+              - generic [ref=e49]: calendar_month
+              - generic [ref=e50]: Agendamentos
+          - link "group Clientes" [ref=e52] [cursor=pointer]:
+            - /url: "#/clients"
+            - generic [ref=e53]:
+              - generic [ref=e54]: group
+              - generic [ref=e55]: Clientes
+          - link "receipt Comandas" [ref=e57] [cursor=pointer]:
+            - /url: "#/comandas"
+            - generic [ref=e58]:
+              - generic [ref=e59]: receipt
+              - generic [ref=e60]: Comandas
+          - link "point_of_sale Checkout / PDV" [ref=e62] [cursor=pointer]:
+            - /url: "#/checkout"
+            - generic [ref=e63]:
+              - generic [ref=e64]: point_of_sale
+              - generic [ref=e65]: Checkout / PDV
+          - link "assignment Operações do Dia" [ref=e67] [cursor=pointer]:
+            - /url: "#/operations"
+            - generic [ref=e68]:
+              - generic [ref=e69]: assignment
+              - generic [ref=e70]: Operações do Dia
+      - generic [ref=e71]:
+        - button "trending_up CRESCIMENTO expand_more" [ref=e72]:
+          - generic [ref=e73]:
+            - generic [ref=e74]: trending_up
+            - generic [ref=e75]: CRESCIMENTO
+          - generic [ref=e76]: expand_more
+        - generic:
+          - link "psychology Motor de Retorno 🧠" [ref=e78] [cursor=pointer]:
+            - /url: "#/smart-return"
+            - generic [ref=e79]:
+              - generic [ref=e80]: psychology
+              - generic [ref=e81]: Motor de Retorno 🧠
+          - generic [ref=e82]:
+            - button "workspace_premium Clube do Chefe 👑 expand_more" [ref=e83]:
+              - generic [ref=e84]:
+                - generic [ref=e85]: workspace_premium
+                - generic [ref=e86]: Clube do Chefe 👑
+              - generic [ref=e87]: expand_more
+            - generic [ref=e88]:
+              - link "Planos" [ref=e89] [cursor=pointer]:
+                - /url: "#/chef-club-plans"
+              - link "Assinaturas" [ref=e90] [cursor=pointer]:
+                - /url: "#/chef-club-subscriptions"
+      - generic [ref=e91]:
+        - button "admin_panel_settings ADMINISTRAÇÃO expand_more" [ref=e92]:
+          - generic [ref=e93]:
+            - generic [ref=e94]: admin_panel_settings
+            - generic [ref=e95]: ADMINISTRAÇÃO
+          - generic [ref=e96]: expand_more
+        - generic [ref=e97]:
+          - button "folder_open Cadastros expand_more" [ref=e98]:
+            - generic [ref=e100]:
+              - generic [ref=e101]: folder_open
+              - generic [ref=e102]: Cadastros
+            - generic [ref=e103]: expand_more
+          - generic [ref=e104]:
+            - link "Monitoramento Supabase" [ref=e105] [cursor=pointer]:
+              - /url: "#/admin/supabase-monitoring"
+              - text: Monitoramento Supabase
+            - link "Serviços" [ref=e107] [cursor=pointer]:
+              - /url: "#/services"
+            - link "Produtos" [ref=e108] [cursor=pointer]:
+              - /url: "#/products"
+            - link "Profissionais" [ref=e109] [cursor=pointer]:
+              - /url: "#/team"
+            - link "Categorias" [ref=e110] [cursor=pointer]:
+              - /url: "#/categories"
+            - link "Fornecedores" [ref=e111] [cursor=pointer]:
+              - /url: "#/suppliers"
+      - generic [ref=e112]:
+        - button "payments FINANCEIRO expand_more" [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e115]: payments
+            - generic [ref=e116]: FINANCEIRO
+          - generic [ref=e117]: expand_more
+        - generic:
+          - link "account_balance_wallet Visão Geral" [ref=e119] [cursor=pointer]:
+            - /url: "#/financial"
+            - generic [ref=e120]:
+              - generic [ref=e121]: account_balance_wallet
+              - generic [ref=e122]: Visão Geral
+          - link "swap_horiz Fluxo de Caixa" [ref=e124] [cursor=pointer]:
+            - /url: "#/cashflow"
+            - generic [ref=e125]:
+              - generic [ref=e126]: swap_horiz
+              - generic [ref=e127]: Fluxo de Caixa
+          - link "payments Folha de Pagamento" [ref=e129] [cursor=pointer]:
+            - /url: "#/payroll"
+            - generic [ref=e130]:
+              - generic [ref=e131]: payments
+              - generic [ref=e132]: Folha de Pagamento
+          - link "money_off Gestão de Saídas" [ref=e134] [cursor=pointer]:
+            - /url: "#/expenses"
+            - generic [ref=e135]:
+              - generic [ref=e136]: money_off
+              - generic [ref=e137]: Gestão de Saídas
+          - link "receipt_long Gestão de Recibos" [ref=e139] [cursor=pointer]:
+            - /url: "#/receipts"
+            - generic [ref=e140]:
+              - generic [ref=e141]: receipt_long
+              - generic [ref=e142]: Gestão de Recibos
+          - link "percent Comissões" [ref=e144] [cursor=pointer]:
+            - /url: "#/commissions"
+            - generic [ref=e145]:
+              - generic [ref=e146]: percent
+              - generic [ref=e147]: Comissões
+    - generic [ref=e148]:
+      - link "settings Configurações" [ref=e150] [cursor=pointer]:
+        - /url: "#/settings"
+        - generic [ref=e151]:
+          - generic [ref=e152]: settings
+          - generic [ref=e153]: Configurações
+      - link "support_agent Suporte" [ref=e155] [cursor=pointer]:
+        - /url: "#/support"
+        - generic [ref=e156]:
+          - generic [ref=e157]: support_agent
+          - generic [ref=e158]: Suporte
+      - button "person Teste Local teste@soumanager.local more_vert" [ref=e159]:
+        - generic [ref=e161]: person
+        - generic [ref=e162]:
+          - paragraph [ref=e163]: Teste Local
+          - paragraph [ref=e164]: teste@soumanager.local
+        - generic [ref=e165]: more_vert
+  - main [ref=e166]:
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - button "menu" [ref=e169]:
+          - generic [ref=e170]: menu
+        - generic [ref=e171]:
+          - generic [ref=e172]: search
+          - textbox "Pesquisar... (Cmd+K)" [ref=e173]
+      - generic [ref=e174]:
+        - button "light_mode" [ref=e175]:
+          - generic [ref=e176]: light_mode
+        - button "notifications" [ref=e177]:
+          - generic [ref=e178]: notifications
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - paragraph [ref=e182]: Sou Manager Demo
+            - paragraph [ref=e183]: Plano Free
+          - generic [ref=e185]: person
+    - generic [ref=e187]:
+      - generic [ref=e188]:
+        - generic [ref=e190]:
+          - generic [ref=e191]:
+            - paragraph [ref=e192]: Infraestrutura SaaS
+            - heading "Monitoramento Supabase" [level=1] [ref=e193]
+            - paragraph [ref=e194]: Controle de consumo, limites e risco de estouro do plano gratuito com foco em decisao rapida.
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - paragraph [ref=e197]: Status Geral
+              - paragraph [ref=e198]: Crítico
+            - generic [ref=e199]:
+              - paragraph [ref=e200]: Ultima Atualizacao
+              - paragraph [ref=e201]: 02/04/2026, 11:05
+            - generic [ref=e202]:
+              - paragraph [ref=e203]: Risco de Estouro
+              - paragraph [ref=e204]: 100%
+        - generic [ref=e205]:
+          - generic [ref=e206]:
+            - button "Hoje" [ref=e207]
+            - button "7 dias" [ref=e208]
+            - button "30 dias" [ref=e209]
+          - button "Atualizar dados" [ref=e210]:
+            - img [ref=e211]
+            - text: Atualizar dados
+      - generic [ref=e216]:
+        - article [ref=e217]:
+          - generic [ref=e219]:
+            - generic [ref=e220]:
+              - img [ref=e222]
+              - generic [ref=e226]:
+                - paragraph [ref=e227]: Database Size
+                - paragraph [ref=e228]: Crescimento do banco principal PostgreSQL.
+            - generic [ref=e229]: Atenção
+          - generic [ref=e230]:
+            - generic [ref=e231]:
+              - paragraph [ref=e232]: Uso atual
+              - paragraph [ref=e233]: 382 MB
+            - generic [ref=e234]:
+              - paragraph [ref=e235]: Limite free
+              - paragraph [ref=e236]: 500 MB
+          - generic [ref=e238]:
+            - generic [ref=e239]: Percentual de uso
+            - generic [ref=e240]: 76.4%
+          - generic [ref=e243]:
+            - generic [ref=e244]:
+              - img [ref=e245]
+              - text: Subindo
+            - generic [ref=e248]:
+              - paragraph [ref=e249]: Previsao
+              - paragraph [ref=e250]: 9 dias
+        - article [ref=e251]:
+          - generic [ref=e253]:
+            - generic [ref=e254]:
+              - img [ref=e256]
+              - generic [ref=e258]:
+                - paragraph [ref=e259]: Requisicoes
+                - paragraph [ref=e260]: Chamadas agregadas de API e banco monitoradas por dia.
+            - generic [ref=e261]: Atenção
+          - generic [ref=e262]:
+            - generic [ref=e263]:
+              - paragraph [ref=e264]: Uso atual
+              - paragraph [ref=e265]: "38.500"
+            - generic [ref=e266]:
+              - paragraph [ref=e267]: Limite free
+              - paragraph [ref=e268]: "50.000"
+          - generic [ref=e270]:
+            - generic [ref=e271]: Percentual de uso
+            - generic [ref=e272]: 77.0%
+          - generic [ref=e275]:
+            - generic [ref=e276]:
+              - img [ref=e277]
+              - text: Subindo
+            - generic [ref=e280]:
+              - paragraph [ref=e281]: Previsao
+              - paragraph [ref=e282]: 5 dias
+        - article [ref=e283]:
+          - generic [ref=e285]:
+            - generic [ref=e286]:
+              - img [ref=e288]
+              - generic [ref=e291]:
+                - paragraph [ref=e292]: Uso de CPU
+                - paragraph [ref=e293]: Indicador estimado por janela de coleta via Edge Function.
+            - generic [ref=e294]: Atenção
+          - generic [ref=e295]:
+            - generic [ref=e296]:
+              - paragraph [ref=e297]: Uso atual
+              - paragraph [ref=e298]: 63%
+            - generic [ref=e299]:
+              - paragraph [ref=e300]: Limite free
+              - paragraph [ref=e301]: 100%
+          - generic [ref=e303]:
+            - generic [ref=e304]: Percentual de uso
+            - generic [ref=e305]: 63.0%
+          - generic [ref=e308]:
+            - generic [ref=e309]:
+              - img [ref=e310]
+              - text: Estável
+            - generic [ref=e312]:
+              - paragraph [ref=e313]: Previsao
+              - paragraph [ref=e314]: Sem risco
+        - article [ref=e315]:
+          - generic [ref=e317]:
+            - generic [ref=e318]:
+              - img [ref=e320]
+              - generic [ref=e324]:
+                - paragraph [ref=e325]: Bandwidth
+                - paragraph [ref=e326]: Transferencia acumulada de rede do projeto.
+            - generic [ref=e327]: Atenção
+          - generic [ref=e328]:
+            - generic [ref=e329]:
+              - paragraph [ref=e330]: Uso atual
+              - paragraph [ref=e331]: 1.38 GB
+            - generic [ref=e332]:
+              - paragraph [ref=e333]: Limite free
+              - paragraph [ref=e334]: 2.00 GB
+          - generic [ref=e336]:
+            - generic [ref=e337]: Percentual de uso
+            - generic [ref=e338]: 69.0%
+          - generic [ref=e341]:
+            - generic [ref=e342]:
+              - img [ref=e343]
+              - text: Subindo
+            - generic [ref=e346]:
+              - paragraph [ref=e347]: Previsao
+              - paragraph [ref=e348]: 4 dias
+        - article [ref=e349]:
+          - generic [ref=e351]:
+            - generic [ref=e352]:
+              - img [ref=e354]
+              - generic [ref=e356]:
+                - paragraph [ref=e357]: Auth Users
+                - paragraph [ref=e358]: Usuarios autenticados armazenados no Supabase Auth.
+            - generic [ref=e359]: Saudável
+          - generic [ref=e360]:
+            - generic [ref=e361]:
+              - paragraph [ref=e362]: Uso atual
+              - paragraph [ref=e363]: "4.320"
+            - generic [ref=e364]:
+              - paragraph [ref=e365]: Limite free
+              - paragraph [ref=e366]: "50.000"
+          - generic [ref=e368]:
+            - generic [ref=e369]: Percentual de uso
+            - generic [ref=e370]: 8.6%
+          - generic [ref=e373]:
+            - generic [ref=e374]:
+              - img [ref=e375]
+              - text: Subindo
+            - generic [ref=e378]:
+              - paragraph [ref=e379]: Previsao
+              - paragraph [ref=e380]: 317 dias
+        - article [ref=e381]:
+          - generic [ref=e383]:
+            - generic [ref=e384]:
+              - img [ref=e386]
+              - generic [ref=e388]:
+                - paragraph [ref=e389]: Storage
+                - paragraph [ref=e390]: Arquivos e anexos armazenados em buckets.
+            - generic [ref=e391]: Atenção
+          - generic [ref=e392]:
+            - generic [ref=e393]:
+              - paragraph [ref=e394]: Uso atual
+              - paragraph [ref=e395]: 0.82 GB
+            - generic [ref=e396]:
+              - paragraph [ref=e397]: Limite free
+              - paragraph [ref=e398]: 1.00 GB
+          - generic [ref=e400]:
+            - generic [ref=e401]: Percentual de uso
+            - generic [ref=e402]: 82.0%
+          - generic [ref=e405]:
+            - generic [ref=e406]:
+              - img [ref=e407]
+              - text: Subindo
+            - generic [ref=e410]:
+              - paragraph [ref=e411]: Previsao
+              - paragraph [ref=e412]: 7 dias
+      - generic [ref=e413]:
+        - generic [ref=e415]:
+          - generic [ref=e416]:
+            - paragraph [ref=e417]: Uso ao longo do tempo
+            - heading "Evolucao dos recursos" [level=2] [ref=e418]
+          - generic [ref=e419]: Base percentual por limite
+        - generic [ref=e422]:
+          - paragraph [ref=e423]: Consumo atual
+          - heading "Comparativo por recurso" [level=2] [ref=e424]
+      - generic [ref=e427]:
+        - generic [ref=e428]:
+          - paragraph [ref=e429]: Crescimento do banco
+          - heading "Database growth" [level=2] [ref=e430]
+        - generic [ref=e433]:
+          - paragraph [ref=e434]: Previsao
+          - heading "Risco de bloqueio" [level=2] [ref=e435]
+          - generic [ref=e436]:
+            - generic [ref=e438]:
+              - generic [ref=e439]:
+                - paragraph [ref=e440]: Bandwidth
+                - paragraph [ref=e441]:
+                  - text: Voce atingira o limite em
+                  - generic [ref=e442]: 4 dias
+              - generic [ref=e443]: 69%
+            - generic [ref=e445]:
+              - generic [ref=e446]:
+                - paragraph [ref=e447]: Requisicoes
+                - paragraph [ref=e448]:
+                  - text: Voce atingira o limite em
+                  - generic [ref=e449]: 5 dias
+              - generic [ref=e450]: 77%
+            - generic [ref=e452]:
+              - generic [ref=e453]:
+                - paragraph [ref=e454]: Storage
+                - paragraph [ref=e455]:
+                  - text: Voce atingira o limite em
+                  - generic [ref=e456]: 7 dias
+              - generic [ref=e457]: 82%
+            - generic [ref=e459]:
+              - generic [ref=e460]:
+                - paragraph [ref=e461]: Database Size
+                - paragraph [ref=e462]:
+                  - text: Voce atingira o limite em
+                  - generic [ref=e463]: 9 dias
+              - generic [ref=e464]: 76%
+            - generic [ref=e466]:
+              - generic [ref=e467]:
+                - paragraph [ref=e468]: Auth Users
+                - paragraph [ref=e469]:
+                  - text: Voce atingira o limite em
+                  - generic [ref=e470]: 317 dias
+              - generic [ref=e471]: 9%
+      - generic [ref=e472]:
+        - generic [ref=e473]:
+          - generic [ref=e474]:
+            - generic [ref=e475]:
+              - paragraph [ref=e476]: Alertas inteligentes
+              - heading "Alertas ativos" [level=2] [ref=e477]
+            - generic [ref=e478]: 2 ativos
+          - generic [ref=e479]:
+            - generic [ref=e481]:
+              - img [ref=e482]
+              - generic [ref=e484]:
+                - generic [ref=e485]:
+                  - paragraph [ref=e486]: Storage
+                  - generic [ref=e487]: Warning
+                - paragraph [ref=e488]: Uso de storage atingiu 82% do limite.
+                - paragraph [ref=e489]: 17/03/2026, 10:15
+              - generic [ref=e490]:
+                - paragraph [ref=e491]: 82%
+                - paragraph [ref=e492]: Uso
+            - generic [ref=e494]:
+              - img [ref=e495]
+              - generic [ref=e497]:
+                - generic [ref=e498]:
+                  - paragraph [ref=e499]: Database Size
+                  - generic [ref=e500]: Warning
+                - paragraph [ref=e501]: Banco consumiu 76% do limite gratuito e continua subindo.
+                - paragraph [ref=e502]: 17/03/2026, 09:40
+              - generic [ref=e503]:
+                - paragraph [ref=e504]: 76%
+                - paragraph [ref=e505]: Uso
+        - generic [ref=e506]:
+          - paragraph [ref=e507]: Historico
+          - heading "Alertas anteriores" [level=2] [ref=e508]
+          - generic [ref=e509]:
+            - generic [ref=e511]:
+              - generic [ref=e512]:
+                - paragraph [ref=e513]: Transferencia em 69%. Risco de bloqueio se o ritmo aumentar.
+                - paragraph [ref=e514]: 16/03/2026, 18:00
+              - generic [ref=e515]: 69%
+            - generic [ref=e517]:
+              - generic [ref=e518]:
+                - paragraph [ref=e519]: Requisicoes atingiram 91% em pico semanal.
+                - paragraph [ref=e520]: 13/03/2026, 14:20
+              - generic [ref=e521]: 91%
+      - generic [ref=e522]:
+        - generic [ref=e523]:
+          - generic [ref=e524]:
+            - paragraph [ref=e525]: Tabela detalhada
+            - heading "Detalhamento tecnico" [level=2] [ref=e526]
+          - table [ref=e528]:
+            - rowgroup [ref=e529]:
+              - row "Recurso Uso atual Limite % uso Tendencia" [ref=e530]:
+                - columnheader "Recurso" [ref=e531]
+                - columnheader "Uso atual" [ref=e532]
+                - columnheader "Limite" [ref=e533]
+                - columnheader "% uso" [ref=e534]
+                - columnheader "Tendencia" [ref=e535]
+            - rowgroup [ref=e536]:
+              - row "Database Size 382 MB 500 MB 76.4% Subindo" [ref=e537]:
+                - cell "Database Size" [ref=e538]
+                - cell "382 MB" [ref=e539]
+                - cell "500 MB" [ref=e540]
+                - cell "76.4%" [ref=e541]:
+                  - generic [ref=e542]: 76.4%
+                - cell "Subindo" [ref=e543]
+              - row "Requisicoes 38.500 50.000 77.0% Subindo" [ref=e544]:
+                - cell "Requisicoes" [ref=e545]
+                - cell "38.500" [ref=e546]
+                - cell "50.000" [ref=e547]
+                - cell "77.0%" [ref=e548]:
+                  - generic [ref=e549]: 77.0%
+                - cell "Subindo" [ref=e550]
+              - row "Uso de CPU 63% 100% 63.0% Estável" [ref=e551]:
+                - cell "Uso de CPU" [ref=e552]
+                - cell "63%" [ref=e553]
+                - cell "100%" [ref=e554]
+                - cell "63.0%" [ref=e555]:
+                  - generic [ref=e556]: 63.0%
+                - cell "Estável" [ref=e557]
+              - row "Bandwidth 1.38 GB 2.00 GB 69.0% Subindo" [ref=e558]:
+                - cell "Bandwidth" [ref=e559]
+                - cell "1.38 GB" [ref=e560]
+                - cell "2.00 GB" [ref=e561]
+                - cell "69.0%" [ref=e562]:
+                  - generic [ref=e563]: 69.0%
+                - cell "Subindo" [ref=e564]
+              - row "Auth Users 4.320 50.000 8.6% Subindo" [ref=e565]:
+                - cell "Auth Users" [ref=e566]
+                - cell "4.320" [ref=e567]
+                - cell "50.000" [ref=e568]
+                - cell "8.6%" [ref=e569]:
+                  - generic [ref=e570]: 8.6%
+                - cell "Subindo" [ref=e571]
+              - row "Storage 0.82 GB 1.00 GB 82.0% Subindo" [ref=e572]:
+                - cell "Storage" [ref=e573]
+                - cell "0.82 GB" [ref=e574]
+                - cell "1.00 GB" [ref=e575]
+                - cell "82.0%" [ref=e576]:
+                  - generic [ref=e577]: 82.0%
+                - cell "Subindo" [ref=e578]
+        - generic [ref=e579]:
+          - generic [ref=e580]:
+            - generic [ref=e581]:
+              - img [ref=e583]
+              - generic [ref=e588]:
+                - paragraph [ref=e589]: Notificacoes
+                - heading "Canais ativos" [level=2] [ref=e590]
+            - generic [ref=e591]:
+              - generic [ref=e592]:
+                - generic [ref=e593]:
+                  - generic [ref=e594]:
+                    - paragraph [ref=e595]: email
+                    - paragraph [ref=e596]: contato@soumanager.com
+                  - generic [ref=e597]: Ativo
+                - paragraph [ref=e598]: "Ultimo disparo: 17/03/2026, 10:15"
+              - generic [ref=e599]:
+                - generic [ref=e600]:
+                  - generic [ref=e601]:
+                    - paragraph [ref=e602]: webhook
+                    - paragraph [ref=e603]: https://hooks.soumanager.app/supabase-alerts
+                  - generic [ref=e604]: Ativo
+                - paragraph [ref=e605]: "Ultimo disparo: 16/03/2026, 18:00"
+              - generic [ref=e606]:
+                - generic [ref=e607]:
+                  - generic [ref=e608]:
+                    - paragraph [ref=e609]: internal
+                    - paragraph [ref=e610]: Central interna de notificacoes
+                  - generic [ref=e611]: Ativo
+                - paragraph [ref=e612]: "Ultimo disparo: 17/03/2026, 09:40"
+          - generic [ref=e613]:
+            - paragraph [ref=e614]: Automacoes
+            - heading "Motor preventivo" [level=2] [ref=e615]
+            - generic [ref=e616]:
+              - generic [ref=e617]:
+                - generic [ref=e618]:
+                  - paragraph [ref=e619]: Alerta automatico por limite
+                  - generic [ref=e620]: active
+                - paragraph [ref=e621]: Dispara eventos em 70% e 90%, com mensagem de risco de bloqueio.
+                - paragraph [ref=e622]: "Execucao: A cada 1h"
+              - generic [ref=e623]:
+                - generic [ref=e624]:
+                  - paragraph [ref=e625]: Log diario de consumo
+                  - generic [ref=e626]: active
+                - paragraph [ref=e627]: Persistencia diaria dos recursos em usage_logs para historico e previsao.
+                - paragraph [ref=e628]: "Execucao: Diario as 08:00"
+              - generic [ref=e629]:
+                - generic [ref=e630]:
+                  - paragraph [ref=e631]: Previsao de estouro
+                  - generic [ref=e632]: active
+                - paragraph [ref=e633]: Estima em quantos dias cada recurso atingira o teto usando tendencia recente.
+                - paragraph [ref=e634]: "Execucao: A cada 6h"
+    - button "support_agent" [ref=e635]:
+      - generic [ref=e636]: support_agent
+    - generic:
+      - generic:
+        - generic:
+          - generic: smart_toy
+        - generic:
+          - paragraph: Assistente SOU MANA.GER
+          - paragraph: Online agora
+        - button "remove":
+          - generic: remove
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - text: 👋 Olá! Sou o assistente do
+              - strong: SOU MANA.GER
+              - text: . Como posso te ajudar hoje?
+            - generic: Escolha uma das opções rápidas abaixo ou digite sua dúvida.
+      - generic:
+        - button "Como cadastrar um cliente?"
+        - button "Como fechar o caixa?"
+        - button "Como agendar um horário?"
+        - button "Como adicionar um profissional?"
+        - button "Como gerar relatórios?"
+      - generic:
+        - textbox "Digite sua dúvida..."
+        - button "send" [disabled]:
+          - generic: send

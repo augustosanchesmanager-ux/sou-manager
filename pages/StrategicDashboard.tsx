@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     AreaChart, Area, BarChart, Bar,
     ResponsiveContainer, Tooltip, XAxis, YAxis,
     Cell, PieChart, Pie
 } from 'recharts';
-import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { generateBusinessInsights } from '../services/geminiService';
 import Toast from '../components/Toast';
@@ -54,7 +52,7 @@ const StrategicMetric: React.FC<MetricCardProps> = ({ label, value, subValue, ic
 };
 
 const StrategicDashboard: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -80,6 +78,11 @@ const StrategicDashboard: React.FC = () => {
         setLoading(true);
 
         try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'strategic_dashboard',
+                'transactions',
+                'load strategic dashboard',
+            );
             const now = new Date();
             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
@@ -90,11 +93,11 @@ const StrategicDashboard: React.FC = () => {
             const startOfWeek = monday.toISOString();
 
             const [transRes, apptsRes, clientsRes, staffRes, productsRes] = await Promise.all([
-                supabase.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').gte('date', startOfWeek),
-                supabase.from('appointments').select('*').eq('tenant_id', tenantId).gte('start_time', startOfDay).order('start_time', { ascending: true }),
-                supabase.from('clients').select('*').eq('tenant_id', tenantId),
-                supabase.from('staff').select('id, name, avatar').eq('tenant_id', tenantId),
-                supabase.from('products').select('*').eq('tenant_id', tenantId).filter('stock_quantity', 'lte', 'minimum_stock')
+                client.from('transactions').select('*').eq('tenant_id', resolvedTenantId).eq('type', 'income').gte('date', startOfWeek),
+                client.from('appointments').select('*').eq('tenant_id', resolvedTenantId).gte('start_time', startOfDay).order('start_time', { ascending: true }),
+                client.from('clients').select('*').eq('tenant_id', resolvedTenantId),
+                client.from('staff').select('id, name, avatar').eq('tenant_id', resolvedTenantId),
+                client.from('products').select('*').eq('tenant_id', resolvedTenantId).filter('stock_quantity', 'lte', 'minimum_stock')
             ]);
 
             // 1. Faturamento & Ticket Médio
@@ -124,9 +127,9 @@ const StrategicDashboard: React.FC = () => {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(now.getDate() - 30);
 
-            const { data: monthAppts } = await supabase.from('appointments')
+            const { data: monthAppts } = await client.from('appointments')
                 .select('staff_id, staff_name, service_name, duration, start_time')
-                .eq('tenant_id', tenantId)
+                .eq('tenant_id', resolvedTenantId)
                 .eq('status', 'completed')
                 .gte('start_time', thirtyDaysAgo.toISOString());
 
@@ -197,7 +200,7 @@ const StrategicDashboard: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 

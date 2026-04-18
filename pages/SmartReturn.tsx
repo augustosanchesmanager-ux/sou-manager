@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 
@@ -71,7 +70,7 @@ const buildWhatsApp = (name: string, phone: string, daysSince: number): string =
 /* ─── Main Component ─────────────────────────────────────────── */
 const SmartReturn: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
 
     const [clients, setClients] = useState<ClientReturnData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -96,60 +95,78 @@ const SmartReturn: React.FC = () => {
 
     /* ─── Fetch + Algorithm ──────────────────────────────────── */
     const fetch = useCallback(async () => {
+        if (!tenantId) {
+            setClients([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
 
-        const [clientsRes, apptRes, comandasRes] = await Promise.all([
-            supabase.from('clients').select('id, name, phone, email, avatar, last_visit, total_spent').eq('status', 'active').eq('tenant_id', tenantId),
-            supabase.from('appointments').select('client_id, start_time').eq('tenant_id', tenantId).in('status', ['completed', 'confirmed']).order('start_time', { ascending: true }),
-            supabase.from('comandas').select('client_id, total').eq('tenant_id', tenantId).eq('status', 'paid')
-        ]);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'smart_return',
+                'clients',
+                'load smart return engine',
+            );
 
-        const rawClients = clientsRes.data || [];
-        const rawAppts = apptRes.data || [];
-        const rawComandas = (comandasRes as any)?.data || [];
+            const [clientsRes, apptRes, comandasRes] = await Promise.all([
+                client.from('clients').select('id, name, phone, email, avatar, last_visit, total_spent').eq('status', 'active').eq('tenant_id', resolvedTenantId),
+                client.from('appointments').select('client_id, start_time').eq('tenant_id', resolvedTenantId).in('status', ['completed', 'confirmed']).order('start_time', { ascending: true }),
+                client.from('comandas').select('client_id, total').eq('tenant_id', resolvedTenantId).eq('status', 'paid')
+            ]);
 
-        // Group appointments by client
-        const apptMap: Record<string, string[]> = {};
-        for (const appt of rawAppts) {
-            if (!apptMap[appt.client_id]) apptMap[appt.client_id] = [];
-            apptMap[appt.client_id].push(appt.start_time);
-        }
+            const rawClients = clientsRes.data || [];
+            const rawAppts = apptRes.data || [];
+            const rawComandas = comandasRes.data || [];
 
-        // Group spending by client
-        const spendMap: Record<string, number> = {};
-        for (const cmd of rawComandas) {
-            if (cmd.client_id) {
-                spendMap[cmd.client_id] = (spendMap[cmd.client_id] || 0) + (Number(cmd.total) || 0);
+            // Group appointments by client
+            const apptMap: Record<string, string[]> = {};
+            for (const appt of rawAppts) {
+                if (!apptMap[appt.client_id]) apptMap[appt.client_id] = [];
+                apptMap[appt.client_id].push(appt.start_time);
             }
+
+            // Group spending by client
+            const spendMap: Record<string, number> = {};
+            for (const cmd of rawComandas) {
+                if (cmd.client_id) {
+                    spendMap[cmd.client_id] = (spendMap[cmd.client_id] || 0) + (Number(cmd.total) || 0);
+                }
+            }
+
+            const now = new Date();
+            const enriched: ClientReturnData[] = rawClients.map(c => {
+                const dates = apptMap[c.id] || (c.last_visit ? [c.last_visit] : []);
+                const avg = calcAvgReturn(dates);
+                const daysSince = c.last_visit ? daysBetween(c.last_visit, now) : 999;
+                const status = getStatus(daysSince, avg);
+                const overdueDays = Math.max(0, daysSince - avg);
+
+                return {
+                    id: c.id,
+                    name: c.name,
+                    phone: c.phone || '',
+                    email: c.email || '',
+                    avatar: c.avatar || '',
+                    last_visit: c.last_visit || '',
+                    avg_return_days: avg,
+                    days_since_last: daysSince,
+                    status,
+                    overdue_days: overdueDays,
+                    total_appointments: dates.length,
+                    total_spent: spendMap[c.id] || Number(c.total_spent) || 0,
+                };
+            });
+
+            setClients(enriched);
+        } catch (error) {
+            console.error('Erro ao carregar smart return:', error);
+            setClients([]);
+        } finally {
+            setLoading(false);
         }
-
-        const now = new Date();
-        const enriched: ClientReturnData[] = rawClients.map(c => {
-            const dates = apptMap[c.id] || (c.last_visit ? [c.last_visit] : []);
-            const avg = calcAvgReturn(dates);
-            const daysSince = c.last_visit ? daysBetween(c.last_visit, now) : 999;
-            const status = getStatus(daysSince, avg);
-            const overdueDays = Math.max(0, daysSince - avg);
-
-            return {
-                id: c.id,
-                name: c.name,
-                phone: c.phone || '',
-                email: c.email || '',
-                avatar: c.avatar || '',
-                last_visit: c.last_visit || '',
-                avg_return_days: avg,
-                days_since_last: daysSince,
-                status,
-                overdue_days: overdueDays,
-                total_appointments: dates.length,
-                total_spent: spendMap[c.id] || Number(c.total_spent) || 0,
-            };
-        });
-
-        setClients(enriched);
-        setLoading(false);
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => { fetch(); }, [fetch]);
 

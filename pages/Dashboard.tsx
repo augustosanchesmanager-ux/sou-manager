@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { generateBusinessInsights } from '../services/geminiService';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import OnboardingChecklist from '../components/OnboardingChecklist';
@@ -254,7 +253,7 @@ const Dashboard: React.FC = () => {
   const [insight, setInsight] = useState<string>('');
   const [loadingInsight, setLoadingInsight] = useState(false);
   const { theme } = useTheme();
-  const { tenantId } = useAuth();
+  const { tenantId, user, requireModuleAccess } = useAuth();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Data from Supabase
@@ -269,7 +268,6 @@ const Dashboard: React.FC = () => {
 
   // Onboarding
   const [profile, setProfile] = useState<any>(null);
-  const { user } = useAuth();
 
   // Quick Appointment States
   const [formData, setFormData] = useState({
@@ -294,24 +292,33 @@ const Dashboard: React.FC = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<DBAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  const getDashboardAccess = useCallback((
+    table: string,
+    operation: string,
+  ) => requireModuleAccess('dashboard', table, operation), [requireModuleAccess]);
+
   const fetchData = useCallback(async () => {
     if (!tenantId) {
       setClients([]);
       setStaffList([]);
+      setServicesList([]);
       setAppointments([]);
+      setUpcomingBirthdays([]);
+      setChartData([]);
       setLoading(false);
       setToast({ message: 'Tenant invalido para carregar dashboard.', type: 'error' });
       return;
     }
 
     setLoading(true);
+    const { tenantId: resolvedTenantId, client } = getDashboardAccess('clients', 'load dashboard overview');
     const [clientsRes, staffRes, servicesRes, apptsRes, profileRes, transRes] = await Promise.all([
-      supabase.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').eq('tenant_id', tenantId).order('name'),
-      supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
-      supabase.from('services').select('id, name, duration, price').eq('tenant_id', tenantId).eq('active', true).order('name'),
-      supabase.from('appointments').select('*').eq('tenant_id', tenantId).neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
-      user ? supabase.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
-      supabase.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true })
+      client.from('clients').select('id, name, phone, email, birthday, last_visit, avatar').eq('tenant_id', resolvedTenantId).order('name'),
+      client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
+      client.from('services').select('id, name, duration, price').eq('tenant_id', resolvedTenantId).eq('active', true).order('name'),
+      client.from('appointments').select('*').eq('tenant_id', resolvedTenantId).neq('status', 'cancelled').gte('start_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(10),
+      user ? client.from('profiles').select('onboarding_completed').eq('id', user.id).single() : Promise.resolve({ data: null }),
+      client.from('transactions').select('*').eq('tenant_id', resolvedTenantId).eq('type', 'income').order('date', { ascending: true })
     ]);
 
     if (clientsRes.data) {
@@ -398,17 +405,17 @@ const Dashboard: React.FC = () => {
       setStaffList(staffRes.data);
       const todayStr = new Date().toISOString().split('T')[0];
       const [{ data: todayAppts }, { count: todayApptsCount }] = await Promise.all([
-        supabase
+        client
         .from('appointments')
         .select('staff_id')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .eq('status', 'confirmed')
         .gte('start_time', `${todayStr}T00:00:00`)
         .lt('start_time', `${todayStr}T23:59:59`),
-        supabase
+        client
         .from('appointments')
         .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .neq('status', 'cancelled')
         .gte('start_time', `${todayStr}T00:00:00`)
         .lt('start_time', `${todayStr}T23:59:59`)
@@ -419,10 +426,10 @@ const Dashboard: React.FC = () => {
     }
 
     if (servicesRes.error) {
-      const legacyServices = await supabase
+      const legacyServices = await client
         .from('services')
         .select('id, name, duration_minutes, price')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .eq('is_active', true)
         .order('name');
 
@@ -448,10 +455,10 @@ const Dashboard: React.FC = () => {
         }))
       );
     } else {
-      const fallbackServices = await supabase
+      const fallbackServices = await client
         .from('services')
         .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .neq('active', false)
         .order('name');
 
@@ -464,10 +471,10 @@ const Dashboard: React.FC = () => {
           }))
         );
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await client
           .from('services')
           .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', resolvedTenantId)
           .eq('is_active', true)
           .order('name');
 
@@ -489,7 +496,7 @@ const Dashboard: React.FC = () => {
     if (apptsRes.data) setAppointments(apptsRes.data);
     if (profileRes.data) setProfile(profileRes.data);
     setLoading(false);
-  }, [tenantId, user]);
+  }, [getDashboardAccess, tenantId, user]);
 
   useEffect(() => {
     fetchData();
@@ -538,12 +545,13 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    const { data, error } = await supabase.from('clients').insert({
+    const { tenantId: resolvedTenantId, client } = getDashboardAccess('clients', 'create dashboard client');
+    const { data, error } = await client.from('clients').insert({
       name: newClientForm.name,
       phone: newClientForm.phone,
       email: newClientForm.email,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newClientForm.name)}&background=random`,
-      tenant_id: tenantId
+      tenant_id: resolvedTenantId
     }).select().single();
 
     if (error) {
@@ -576,7 +584,8 @@ const Dashboard: React.FC = () => {
 
     const startTime = new Date(`${formData.date}T${formData.time}:00`);
 
-    const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
+    const { tenantId: resolvedTenantId, client: appointmentsClient } = getDashboardAccess('appointments', 'create dashboard appointment');
+    const { data: savedApt, error: saveError } = await appointmentsClient.from('appointments').insert({
       client_id: formData.selectedClientId || null,
       service_id: formData.serviceId,
       staff_id: formData.staffId,
@@ -586,7 +595,7 @@ const Dashboard: React.FC = () => {
       start_time: startTime.toISOString(),
       duration: (Number(selectedService.duration ?? selectedService.duration_minutes) || 30) / 60,
       status: 'confirmed',
-      tenant_id: tenantId
+      tenant_id: resolvedTenantId
     }).select().single();
 
     if (saveError) {
@@ -596,39 +605,42 @@ const Dashboard: React.FC = () => {
 
     // AUTOMATION: Create Comanda
     if (savedApt) {
-      const { data: comanda } = await supabase.from('comandas').insert({
+      const { client: comandasClient } = getDashboardAccess('comandas', 'create dashboard comanda');
+      const { data: comanda } = await comandasClient.from('comandas').insert({
         appointment_id: savedApt.id,
         client_id: formData.selectedClientId || null,
         staff_id: formData.staffId,
         status: 'open',
         total: 0,
-        tenant_id: tenantId
+        tenant_id: resolvedTenantId
       }).select().single();
 
       if (comanda) {
         // Fetch service price
-        const { data: serviceData } = await supabase
+        const { client: servicesClient } = getDashboardAccess('services', 'load dashboard service price');
+        const { data: serviceData } = await servicesClient
           .from('services')
           .select('price')
           .eq('id', formData.serviceId)
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', resolvedTenantId)
           .single();
 
-        await supabase.from('comanda_items').insert({
+        const { client: comandaItemsClient } = getDashboardAccess('comanda_items', 'create dashboard comanda item');
+        await comandaItemsClient.from('comanda_items').insert({
           comanda_id: comanda.id,
           service_id: formData.serviceId,
           product_name: selectedService.name,
           quantity: 1,
           unit_price: serviceData?.price || 0,
-          tenant_id: tenantId
+          tenant_id: resolvedTenantId
         });
 
         // Update comanda total
-        await supabase
+        await comandasClient
           .from('comandas')
           .update({ total: serviceData?.price || 0 })
           .eq('id', comanda.id)
-          .eq('tenant_id', tenantId);
+          .eq('tenant_id', resolvedTenantId);
       }
     }
 
@@ -638,33 +650,35 @@ const Dashboard: React.FC = () => {
       selectedClientId: '',
     });
     setToast({ message: 'Agendamento confirmado!', type: 'success' });
-    fetchData();
+    void fetchData();
   };
 
   const handleCancelAppointment = async (id: string) => {
     if (!tenantId) return;
-    const { error } = await supabase
+    const { tenantId: resolvedTenantId, client } = getDashboardAccess('appointments', 'cancel dashboard appointment');
+    const { error } = await client
       .from('appointments')
       .update({ status: 'cancelled' })
       .eq('id', id)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', resolvedTenantId);
     if (!error) {
       setToast({ message: 'Agendamento cancelado.', type: 'info' });
-      fetchData();
+      void fetchData();
     }
     setActiveMenuId(null);
   };
 
   const handleCompleteAppointment = async (id: string) => {
     if (!tenantId) return;
-    const { error } = await supabase
+    const { tenantId: resolvedTenantId, client } = getDashboardAccess('appointments', 'complete dashboard appointment');
+    const { error } = await client
       .from('appointments')
       .update({ status: 'completed' })
       .eq('id', id)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', resolvedTenantId);
     if (!error) {
       setToast({ message: 'Agendamento concluído!', type: 'success' });
-      fetchData();
+      void fetchData();
     }
     setActiveMenuId(null);
   };

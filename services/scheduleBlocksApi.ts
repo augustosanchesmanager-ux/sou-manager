@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 
 export type ScheduleBlockType = 'full_day' | 'time_range';
@@ -45,6 +46,8 @@ export interface DateRange {
   startDate: string;
   endDate: string;
 }
+
+type ScheduleBlocksClient = Pick<SupabaseClient, 'from'>;
 
 export const SCHEDULE_BLOCK_LABELS: Record<string, string> = {
   agenda_fechada: 'Agenda fechada',
@@ -168,8 +171,8 @@ export const detectBlockConflicts = (existing: ScheduleBlock[], draft: ScheduleB
 };
 
 export const scheduleBlocksApi = {
-  async listByRange(tenantId: string, range: DateRange) {
-    const { data, error } = await supabase
+  async listByRange(tenantId: string, range: DateRange, client: ScheduleBlocksClient = supabase) {
+    const { data, error } = await client
       .from('schedule_blocks')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -196,8 +199,8 @@ export const scheduleBlocksApi = {
     return ((data || []) as ScheduleBlock[]).filter(hasAnyDateWithinRange);
   },
 
-  async listHistory(tenantId: string, limit = 100) {
-    const { data, error } = await supabase
+  async listHistory(tenantId: string, limit = 100, client: ScheduleBlocksClient = supabase) {
+    const { data, error } = await client
       .from('schedule_blocks')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -208,8 +211,13 @@ export const scheduleBlocksApi = {
     return (data || []) as ScheduleBlock[];
   },
 
-  async create(tenantId: string, userId: string | null, payload: ScheduleBlockInput) {
-    const { data, error } = await supabase
+  async create(
+    tenantId: string,
+    userId: string | null,
+    payload: ScheduleBlockInput,
+    client: ScheduleBlocksClient = supabase,
+  ) {
+    const { data, error } = await client
       .from('schedule_blocks')
       .insert({
         tenant_id: tenantId,
@@ -234,7 +242,12 @@ export const scheduleBlocksApi = {
     return data as ScheduleBlock;
   },
 
-  async update(blockId: string, payload: Partial<ScheduleBlockInput>) {
+  async update(
+    tenantId: string,
+    blockId: string,
+    payload: Partial<ScheduleBlockInput>,
+    client: ScheduleBlocksClient = supabase,
+  ) {
     const updateData: Record<string, unknown> = {};
 
     if (payload.professional_id !== undefined) updateData.professional_id = payload.professional_id;
@@ -249,10 +262,11 @@ export const scheduleBlocksApi = {
     if (payload.recurrence_until !== undefined) updateData.recurrence_until = payload.recurrence_until;
     if (payload.existing_appointments_action !== undefined) updateData.existing_appointments_action = payload.existing_appointments_action;
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('schedule_blocks')
       .update(updateData)
       .eq('id', blockId)
+      .eq('tenant_id', tenantId)
       .select('*')
       .single();
 
@@ -260,15 +274,21 @@ export const scheduleBlocksApi = {
     return data as ScheduleBlock;
   },
 
-  async remove(blockId: string, userId: string | null) {
-    const { error } = await supabase
+  async remove(
+    tenantId: string,
+    blockId: string,
+    userId: string | null,
+    client: ScheduleBlocksClient = supabase,
+  ) {
+    const { error } = await client
       .from('schedule_blocks')
       .update({
         status: 'cancelled',
         removed_by: userId,
         removed_at: new Date().toISOString(),
       })
-      .eq('id', blockId);
+      .eq('id', blockId)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
   },

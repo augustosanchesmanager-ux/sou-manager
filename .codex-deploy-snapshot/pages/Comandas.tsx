@@ -1,0 +1,1023 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+    ensureAppSupportsModule,
+    getScopedClient,
+    requireTenantContext,
+    supabase,
+} from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
+import Toast from '../components/Toast';
+import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
+
+interface Comanda {
+    id: string;
+    client_id: string;
+    staff_id?: string | null;
+    appointment_id?: string;
+    status: 'open' | 'paid' | 'cancelled';
+    cancellation_reason?: string | null;
+    total: number;
+    created_at: string;
+    clients: {
+        name: string;
+        avatar: string;
+    };
+    staff?: {
+        name: string;
+    };
+    comanda_items: {
+        id: string;
+        staff_id?: string | null;
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+    }[];
+}
+
+interface ClientLookup {
+    id: string;
+    name: string;
+    avatar: string | null;
+}
+
+interface StaffLookup {
+    id: string;
+    name: string;
+}
+
+interface ComandaItemRow {
+    id: string;
+    comanda_id: string;
+    staff_id?: string | null;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+}
+
+type SortField = 'date' | 'client' | 'status';
+type SortDirection = 'asc' | 'desc';
+type ComandasPreferences = {
+    filterStatus: 'all' | 'open' | 'paid' | 'cancelled';
+    searchTerm: string;
+    dateFrom: string;
+    dateTo: string;
+    sortField: SortField;
+    sortDirection: SortDirection;
+};
+
+const CANCEL_REASON_OTHER = '__other__';
+const CANCEL_REASON_OPTIONS = [
+    'Cliente desistiu',
+    'Cliente não compareceu',
+    'Erro no lançamento',
+    'Pagamento recusado',
+    'Solicitação do profissional',
+    'Falta de produto/serviço'
+] as const;
+
+const formatDateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value: string, endOfDay = false) => {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    const parsedDate = new Date(
+        year,
+        month - 1,
+        day,
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+    );
+
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const isSameLocalDay = (value: string, compareDate = new Date()) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+
+    return date.getFullYear() === compareDate.getFullYear()
+        && date.getMonth() === compareDate.getMonth()
+        && date.getDate() === compareDate.getDate();
+};
+
+const getStatusSortValue = (status: Comanda['status']) => {
+    const orderMap: Record<Comanda['status'], number> = {
+        open: 0,
+        paid: 1,
+        cancelled: 2
+    };
+
+    return orderMap[status] ?? 99;
+};
+
+const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences';
+
+const loadComandasPreferences = (): ComandasPreferences => {
+    const defaultPreferences: ComandasPreferences = {
+        filterStatus: 'all',
+        searchTerm: '',
+        dateFrom: '',
+        dateTo: '',
+        sortField: 'date',
+        sortDirection: 'desc'
+    };
+
+    if (typeof window === 'undefined') {
+        return defaultPreferences;
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(COMANDAS_PREFERENCES_KEY);
+        if (!rawValue) return defaultPreferences;
+
+        const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
+
+        return {
+            filterStatus: ['all', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
+                ? parsed.filterStatus as ComandasPreferences['filterStatus']
+                : defaultPreferences.filterStatus,
+            searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
+            dateFrom: typeof parsed.dateFrom === 'string' ? parsed.dateFrom : defaultPreferences.dateFrom,
+            dateTo: typeof parsed.dateTo === 'string' ? parsed.dateTo : defaultPreferences.dateTo,
+            sortField: ['date', 'client', 'status'].includes(parsed.sortField || '')
+                ? parsed.sortField as SortField
+                : defaultPreferences.sortField,
+            sortDirection: ['asc', 'desc'].includes(parsed.sortDirection || '')
+                ? parsed.sortDirection as SortDirection
+                : defaultPreferences.sortDirection
+        };
+    } catch (error) {
+        console.error('Erro ao carregar preferências de comandas:', error);
+        return defaultPreferences;
+    }
+};
+
+const Comandas: React.FC = () => {
+    const navigate = useNavigate();
+    const { appSlug, schema, tenantId, canAccessSuperAdmin } = useAuth();
+    const preferences = loadComandasPreferences();
+    const [comandas, setComandas] = useState<Comanda[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid' | 'cancelled'>(preferences.filterStatus);
+    const [searchTerm, setSearchTerm] = useState(preferences.searchTerm);
+    const [dateFrom, setDateFrom] = useState(preferences.dateFrom);
+    const [dateTo, setDateTo] = useState(preferences.dateTo);
+    const [sortField, setSortField] = useState<SortField>(preferences.sortField);
+    const [sortDirection, setSortDirection] = useState<SortDirection>(preferences.sortDirection);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+    // Modal states
+    const [viewComanda, setViewComanda] = useState<Comanda | null>(null);
+    const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [cancelReasonOther, setCancelReasonOther] = useState('');
+
+    const fetchData = useCallback(async () => {
+        if (!tenantId && !canAccessSuperAdmin) {
+            setComandas([]);
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const client = getScopedClient(currentAppSlug);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'load comandas',
+                }).tenantId;
+
+            let query = client
+                .from('comandas')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (resolvedTenantId) {
+                query = query.eq('tenant_id', resolvedTenantId);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            if (!data || data.length === 0) {
+                setComandas([]);
+                return;
+            }
+
+            const comandasRows = data as Array<Comanda & { staff_id?: string | null }>;
+            const comandaIds = comandasRows.map((comanda) => comanda.id);
+            const clientIds = Array.from(new Set(
+                comandasRows
+                    .map((comanda) => comanda.client_id)
+                    .filter((clientId): clientId is string => Boolean(clientId))
+            ));
+
+            const { data: itemsData, error: itemsError } = await client
+                .from('comanda_items')
+                .select('id, comanda_id, staff_id, product_name, quantity, unit_price')
+                .in('comanda_id', comandaIds);
+
+            if (itemsError) throw itemsError;
+
+            const itemsByComanda = ((itemsData || []) as ComandaItemRow[]).reduce<Record<string, Comanda['comanda_items']>>((acc, item) => {
+                if (!acc[item.comanda_id]) {
+                    acc[item.comanda_id] = [];
+                }
+
+                acc[item.comanda_id].push({
+                    id: item.id,
+                    staff_id: item.staff_id ?? null,
+                    product_name: item.product_name,
+                    quantity: Number(item.quantity) || 0,
+                    unit_price: Number(item.unit_price) || 0,
+                });
+
+                return acc;
+            }, {});
+
+            const staffIds = Array.from(new Set(
+                [
+                    ...comandasRows.map((comanda) => comanda.staff_id ?? null),
+                    ...((itemsData || []) as ComandaItemRow[]).map((item) => item.staff_id ?? null),
+                ].filter((staffId): staffId is string => Boolean(staffId))
+            ));
+
+            const [clientsResult, staffResult] = await Promise.all([
+                clientIds.length > 0
+                    ? client
+                        .from('clients')
+                        .select('id, name, avatar')
+                        .in('id', clientIds)
+                    : Promise.resolve({ data: [] as ClientLookup[], error: null }),
+                staffIds.length > 0
+                    ? client
+                        .from('staff')
+                        .select('id, name')
+                        .in('id', staffIds)
+                    : Promise.resolve({ data: [] as StaffLookup[], error: null }),
+            ]);
+
+            if (clientsResult.error) throw clientsResult.error;
+            if (staffResult.error) throw staffResult.error;
+
+            const clientsById = ((clientsResult.data || []) as ClientLookup[]).reduce<Record<string, ClientLookup>>((acc, clientRow) => {
+                acc[clientRow.id] = clientRow;
+                return acc;
+            }, {});
+
+            const staffById = ((staffResult.data || []) as StaffLookup[]).reduce<Record<string, StaffLookup>>((acc, staffRow) => {
+                acc[staffRow.id] = staffRow;
+                return acc;
+            }, {});
+
+            const hydratedComandas = comandasRows.map((comanda) => ({
+                ...comanda,
+                clients: {
+                    name: clientsById[comanda.client_id]?.name || 'Cliente',
+                    avatar: clientsById[comanda.client_id]?.avatar || '',
+                },
+                staff: comanda.staff_id ? staffById[comanda.staff_id] || undefined : undefined,
+                comanda_items: itemsByComanda[comanda.id] || [],
+            }));
+
+            setComandas(hydratedComandas);
+        } catch (err) {
+            console.error(err);
+            setToast({ message: 'Erro ao carregar comandas.', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    }, [appSlug, canAccessSuperAdmin, schema, tenantId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const nextPreferences: ComandasPreferences = {
+            filterStatus,
+            searchTerm,
+            dateFrom,
+            dateTo,
+            sortField,
+            sortDirection
+        };
+
+        window.localStorage.setItem(COMANDAS_PREFERENCES_KEY, JSON.stringify(nextPreferences));
+    }, [dateFrom, dateTo, filterStatus, searchTerm, sortDirection, sortField]);
+
+    const getDisplayId = (id: string) => {
+        const hexStr = id.replace(/-/g, '').slice(0, 8);
+        const num = parseInt(hexStr, 16);
+        return isNaN(num) ? 1000 : (num % 89999) + 1000;
+    };
+
+    const getResponsibleLabel = (comanda: Comanda) => {
+        if (comanda.staff?.name) {
+            return comanda.staff.name;
+        }
+
+        const assignedStaffIds = Array.from(new Set(
+            comanda.comanda_items
+                .map(item => item.staff_id)
+                .filter((staffId): staffId is string => Boolean(staffId))
+        ));
+
+        if (assignedStaffIds.length > 1) {
+            return 'Múltiplos profissionais';
+        }
+
+        if (assignedStaffIds.length === 1) {
+            return 'Profissional vinculado';
+        }
+
+        return '---';
+    };
+
+    const hasDateFilter = Boolean(dateFrom || dateTo);
+    const todayFilterValue = formatDateInputValue(new Date());
+
+    const dateFilteredComandas = comandas.filter((comanda) => {
+        const createdAt = new Date(comanda.created_at);
+        if (Number.isNaN(createdAt.getTime())) return false;
+
+        const startDate = parseDateInputValue(dateFrom);
+        const endDate = parseDateInputValue(dateTo, true);
+
+        if (startDate && createdAt < startDate) return false;
+        if (endDate && createdAt > endDate) return false;
+
+        return true;
+    });
+
+    const filteredComandas = dateFilteredComandas.filter(comanda => {
+        const matchesStatus = filterStatus === 'all' || comanda.status === filterStatus;
+        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+        const matchesSearch = !normalizedSearchTerm
+            || comanda.clients?.name?.toLowerCase().includes(normalizedSearchTerm)
+            || comanda.id.toLowerCase().includes(normalizedSearchTerm)
+            || comanda.staff?.name?.toLowerCase().includes(normalizedSearchTerm);
+        return matchesStatus && matchesSearch;
+    });
+
+    const sortedComandas = [...filteredComandas].sort((first, second) => {
+        let comparison = 0;
+
+        if (sortField === 'date') {
+            comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
+        }
+
+        if (sortField === 'client') {
+            comparison = (first.clients?.name || '').localeCompare(second.clients?.name || '', 'pt-BR', { sensitivity: 'base' });
+        }
+
+        if (sortField === 'status') {
+            comparison = getStatusSortValue(first.status) - getStatusSortValue(second.status);
+        }
+
+        if (comparison === 0) {
+            comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
+        }
+
+        return sortDirection === 'asc' ? comparison : comparison * -1;
+    });
+
+    // KPIs
+    const openCount = dateFilteredComandas.filter(c => c.status === 'open').length;
+    const paidMetricCount = dateFilteredComandas.filter(
+        (c) => c.status === 'paid' && (hasDateFilter || isSameLocalDay(c.created_at))
+    ).length;
+    const paidMetricLabel = hasDateFilter ? 'Finalizadas no Periodo' : 'Finalizadas (Hoje)';
+    const totalOpen = dateFilteredComandas.filter(c => c.status === 'open').reduce((sum, c) => sum + (c.total || 0), 0);
+    const avgTicket = dateFilteredComandas.length > 0
+        ? dateFilteredComandas.reduce((sum, c) => sum + (c.total || 0), 0) / dateFilteredComandas.length
+        : 0;
+    const dateFilterDescription = !hasDateFilter
+        ? 'Periodo completo'
+        : dateFrom && dateTo
+            ? `${new Date(`${dateFrom}T00:00:00`).toLocaleDateString('pt-BR')} ate ${new Date(`${dateTo}T00:00:00`).toLocaleDateString('pt-BR')}`
+            : dateFrom
+                ? `A partir de ${new Date(`${dateFrom}T00:00:00`).toLocaleDateString('pt-BR')}`
+                : `Ate ${new Date(`${dateTo}T00:00:00`).toLocaleDateString('pt-BR')}`;
+
+    // Export Functions
+    const generateCSV = () => {
+        const headers = ["Ações", "ID", "Cliente", "Data / Hora", "Profissional", "Serviços", "Total", "Status"];
+        const rows = sortedComandas.map(c => [
+            "",
+            getDisplayId(c.id).toString(),
+            c.clients?.name,
+            new Date(c.created_at).toLocaleString('pt-BR'),
+            c.staff?.name || 'N/A',
+            c.comanda_items.map(i => i.product_name).join(" + "),
+            (c.total || 0).toFixed(2),
+            c.status,
+            new Date(c.created_at).toLocaleDateString('pt-BR')
+        ]);
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
+        const link = document.createElement("a");
+        link.setAttribute("href", encodeURI(csvContent));
+        link.setAttribute("download", `relatorio_comandas_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const copyToClipboard = () => {
+        const headers = ["ID", "Cliente", "Profissional", "Serviços", "Total", "Status", "Data"];
+        const rows = sortedComandas.map(c => [
+            c.id,
+            c.clients?.name,
+            c.staff?.name || 'N/A',
+            c.comanda_items.map(i => i.product_name).join(" + "),
+            (c.total || 0).toFixed(2).replace('.', ','),
+            c.status === 'open' ? 'Aberta' : c.status === 'paid' ? 'Paga' : 'Cancelada',
+            new Date(c.created_at).toLocaleDateString('pt-BR')
+        ]);
+        const tsvContent = [headers.join("\t"), ...rows.map(e => e.join("\t"))].join("\n");
+        navigator.clipboard.writeText(tsvContent);
+        setToast({ message: 'Dados copiados! Cole no Excel ou Google Sheets (Ctrl+V).', type: 'success' });
+    };
+
+    const applyTodayFilter = () => {
+        setDateFrom(todayFilterValue);
+        setDateTo(todayFilterValue);
+    };
+
+    const applyLast7DaysFilter = () => {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 6);
+        setDateFrom(formatDateInputValue(startDate));
+        setDateTo(todayFilterValue);
+    };
+
+    const clearDateFilters = () => {
+        setDateFrom('');
+        setDateTo('');
+    };
+
+    const handlePrint = (comanda: Comanda) => {
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (!printWindow) return;
+        printWindow.document.write(`
+      <html>
+        <head><title>Comanda ${getDisplayId(comanda.id)}</title>
+        <style>
+          body { font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 350px; margin: 0 auto; }
+          h1 { font-size: 18px; text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px; }
+          .info { margin: 10px 0; font-size: 13px; }
+          .info strong { display: inline-block; width: 100px; }
+          .services { margin: 15px 0; }
+          .services li { padding: 4px 0; font-size: 13px; border-bottom: 1px dotted #ccc; }
+          .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 15px; border-top: 2px dashed #333; padding-top: 10px; }
+          .footer { text-align: center; font-size: 10px; color: #666; margin-top: 20px; }
+        </style></head>
+        <body>
+          <h1>☆ COMANDA #${getDisplayId(comanda.id)} ☆</h1>
+          <div class="info"><strong>Cliente:</strong> ${comanda.clients?.name}</div>
+          <div class="info"><strong>Profissional:</strong> ${comanda.staff?.name || 'N/A'}</div>
+          <div class="info"><strong>Data:</strong> ${new Date(comanda.created_at).toLocaleDateString('pt-BR')}</div>
+          <div class="info"><strong>Hora:</strong> ${new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="info"><strong>Status:</strong> ${comanda.status === 'open' ? 'Aberta' : comanda.status === 'paid' ? 'Paga' : 'Cancelada'}</div>
+          <div class="services">
+            <strong>Serviços / Consumo:</strong>
+            <ul>${comanda.comanda_items.map(s => `<li>• ${s.product_name} (x${s.quantity})</li>`).join('')}</ul>
+          </div>
+          <div class="total">TOTAL: R$ ${(comanda.total || 0).toFixed(2)}</div>
+          <div class="footer">SOU MANA.GER — Impresso em ${new Date().toLocaleString('pt-BR')}</div>
+        </body>
+      </html>
+    `);
+        printWindow.document.close();
+        printWindow.print();
+    };
+
+    const handleDelete = async (comanda: Comanda) => {
+        if (!tenantId && !canAccessSuperAdmin) return;
+        const reason = cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim();
+        if (!reason) {
+            setToast({ message: 'Informe o motivo do cancelamento.', type: 'error' });
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'comandas', ['barber']);
+            const client = getScopedClient(currentAppSlug);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'cancel comanda',
+                }).tenantId;
+
+            let usedFallback = false;
+            let cancelComandaQuery = client
+                .from('comandas')
+                .update({
+                    status: 'cancelled',
+                    cancellation_reason: reason
+                })
+                .eq('id', comanda.id);
+            if (resolvedTenantId) {
+                cancelComandaQuery = cancelComandaQuery.eq('tenant_id', resolvedTenantId);
+            }
+            let { error } = await cancelComandaQuery;
+
+            if (error && `${error.message}`.toLowerCase().includes('cancellation_reason')) {
+                let fallbackQuery = client
+                    .from('comandas')
+                    .update({ status: 'cancelled' })
+                    .eq('id', comanda.id);
+                if (resolvedTenantId) {
+                    fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
+                }
+                const fallbackResult = await fallbackQuery;
+                error = fallbackResult.error;
+                if (!error) {
+                    usedFallback = true;
+                    setToast({ message: 'Comanda cancelada. Motivo não foi salvo (coluna não encontrada no banco).', type: 'info' });
+                }
+            }
+
+            if (error) throw error;
+
+            if (!usedFallback) {
+                setToast({ message: 'Comanda cancelada com sucesso.', type: 'success' });
+            }
+            setDeleteComanda(null);
+            setCancelReason('');
+            setCancelReasonOther('');
+            fetchData();
+        } catch (err: any) {
+            console.error(err);
+            setToast({ message: `Erro ao cancelar comanda: ${err.message}`, type: 'error' });
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-fade-in pb-20">
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Gestão de Comandas</h2>
+                    <p className="text-slate-500 mt-1">Controle de atendimentos, consumos e fechamento de conta.</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={generateCSV}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
+                    >
+                        <span className="material-symbols-outlined text-green-600">table_view</span>
+                        Excel / CSV
+                    </button>
+                    <button
+                        onClick={copyToClipboard}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
+                    >
+                        <span className="material-symbols-outlined text-blue-600">content_copy</span>
+                        Google Sheets
+                    </button>
+                    <button
+                        onClick={() => navigate('/checkout')}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                    >
+                        <span className="material-symbols-outlined">add_circle</span>
+                        Nova Venda
+                    </button>
+                </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-blue-500">receipt_long</span>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comandas Abertas</p>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{loading ? '...' : String(openCount).padStart(2, '0')}</h3>
+                </div>
+                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-emerald-500">check_circle</span>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{paidMetricLabel}</p>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{loading ? '...' : String(paidMetricCount).padStart(2, '0')}</h3>
+                </div>
+                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-primary">payments</span>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total em Aberto</p>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {loading ? '...' : totalOpen.toFixed(2).replace('.', ',')}</h3>
+                </div>
+                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-purple-500">person</span>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Médio</p>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {loading ? '...' : avgTicket.toFixed(2).replace('.', ',')}</h3>
+                </div>
+            </div>
+
+            {/* Filters Bar */}
+            <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex flex-col gap-4 bg-slate-50 dark:bg-white/5">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
+                        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                            {(['all', 'open', 'paid', 'cancelled'] as const).map(status => {
+                                const labels: Record<string, string> = { all: 'Todas', open: 'Abertas', paid: 'Pagas', cancelled: 'Canceladas' };
+                                const colors: Record<string, string> = { all: 'bg-primary', open: 'bg-blue-500', paid: 'bg-emerald-500', cancelled: 'bg-slate-500' };
+                                return (
+                                    <button
+                                        key={status}
+                                        onClick={() => setFilterStatus(status)}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${filterStatus === status ? `${colors[status]} text-white shadow-md` : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                                    >
+                                        {labels[status]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="relative w-full md:w-80">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                            <input
+                                type="text"
+                                placeholder="Buscar comanda, cliente..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex flex-col xl:flex-row gap-3 xl:items-end xl:justify-between">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full xl:w-auto">
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Data inicial
+                                </label>
+                                <DatePickerInput
+                                    value={dateFrom}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    max={dateTo || undefined}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    containerClassName="w-full sm:w-52"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Data final
+                                </label>
+                                <DatePickerInput
+                                    value={dateTo}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    min={dateFrom || undefined}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    containerClassName="w-full sm:w-52"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Ordenar por
+                                </label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={sortField}
+                                        onChange={(e) => setSortField(e.target.value as SortField)}
+                                        className="w-full min-w-[180px] bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    >
+                                        <option value="date">Data</option>
+                                        <option value="client">Cliente</option>
+                                        <option value="status">Status</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')}
+                                        className="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                                        title={sortDirection === 'asc' ? 'Ordenação crescente' : 'Ordenação decrescente'}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">
+                                            {sortDirection === 'asc' ? 'south' : 'north'}
+                                        </span>
+                                        <span className="text-xs font-bold uppercase tracking-wider">
+                                            {sortDirection === 'asc' ? 'Cresc.' : 'Decresc.'}
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={applyTodayFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            >
+                                Hoje
+                            </button>
+                            <button
+                                type="button"
+                                onClick={applyLast7DaysFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            >
+                                Ultimos 7 dias
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearDateFilters}
+                                disabled={!hasDateFilter}
+                                className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Limpar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark">
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest w-24">Ações</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Comanda</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Data</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Consumo</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Responsável</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Total</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
+                            {loading ? (
+                                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm">Carregando...</td></tr>
+                            ) : sortedComandas.length > 0 ? (
+                                sortedComandas.map((comanda) => (
+                                    <tr key={comanda.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => setViewComanda(comanda)} className="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-max transition-colors" title="Ver Detalhes">
+                                                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                </button>
+                                                {comanda.status === 'open' && (
+                                                    <button onClick={() => navigate(`/checkout/${comanda.id}`)} className="p-1.5 text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-max transition-colors" title="Editar / Pagar">
+                                                        <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handlePrint(comanda)} className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 rounded-max transition-colors" title="Imprimir">
+                                                    <span className="material-symbols-outlined text-[18px]">print</span>
+                                                </button>
+                                                {comanda.status === 'open' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setDeleteComanda(comanda);
+                                                            setCancelReason('');
+                                                            setCancelReasonOther('');
+                                                        }}
+                                                        className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-max transition-colors"
+                                                        title="Cancelar Comanda"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center justify-center px-2 py-1 rounded bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 font-mono font-black text-slate-600 dark:text-slate-300 text-xs">
+                                                #{getDisplayId(comanda.id)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-start gap-3">
+                                                <img src={comanda.clients?.avatar} alt={comanda.clients?.name} className="size-9 rounded-full border border-slate-200 dark:border-border-dark mt-0.5" />
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-sm text-slate-900 dark:text-white leading-tight">{comanda.clients?.name}</span>
+                                                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 mt-0.5 tracking-tight uppercase">
+                                                        <span className="material-symbols-outlined text-[12px] text-primary">calendar_month</span>
+                                                        {new Date(comanda.created_at).toLocaleDateString('pt-BR')}
+                                                        <span className="mx-0.5 text-slate-300 dark:text-slate-600">•</span>
+                                                        <span className="material-symbols-outlined text-[12px] text-primary">schedule</span>
+                                                        {new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                                    {new Date(comanda.created_at).toLocaleDateString('pt-BR')}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                    <span className="material-symbols-outlined text-[12px] text-primary">schedule</span>
+                                                    {new Date(comanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                {comanda.comanda_items.slice(0, 2).map((item, idx) => (
+                                                    <span key={idx} className="text-xs font-medium text-slate-600 dark:text-slate-300">• {item.product_name}</span>
+                                                ))}
+                                                {comanda.comanda_items.length > 2 && <span className="text-[10px] text-primary font-bold">+ {comanda.comanda_items.length - 2} itens</span>}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{getResponsibleLabel(comanda)}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="font-black text-slate-900 dark:text-white">R$ {(comanda.total || 0).toFixed(2)}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${comanda.status === 'paid'
+                                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                                : comanda.status === 'open'
+                                                    ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-500 border-slate-200 dark:border-border-dark'
+                                                }`}>
+                                                <span className={`size-1.5 rounded-full ${comanda.status === 'paid' ? 'bg-emerald-500' : comanda.status === 'open' ? 'bg-blue-500' : 'bg-slate-500'
+                                                    }`}></span>
+                                                {comanda.status === 'paid' ? 'Paga' : comanda.status === 'open' ? 'Aberta' : 'Cancelada'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm">Nenhuma comanda encontrada.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-200 dark:border-border-dark flex items-center justify-between bg-slate-50 dark:bg-white/5">
+                    <div className="flex flex-col gap-1">
+                        <p className="text-xs text-slate-500 font-medium">Mostrando {sortedComandas.length} registros</p>
+                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">{dateFilterDescription}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* === VIEW DETAILS MODAL === */}
+            <Modal
+                isOpen={!!viewComanda}
+                onClose={() => setViewComanda(null)}
+                title={viewComanda ? `Resumo #${getDisplayId(viewComanda.id)}` : ''}
+                maxWidth="md"
+            >
+                {viewComanda && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <img src={viewComanda.clients?.avatar} alt="" className="size-14 rounded-full border-2 border-slate-200 dark:border-border-dark" />
+                            <div>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white">{viewComanda.clients?.name}</p>
+                                <p className="text-xs text-slate-500">Atendido por {getResponsibleLabel(viewComanda)}</p>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-4 space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Itens</p>
+                            {viewComanda.comanda_items.map((s, i) => (
+                                <div key={i} className="flex justify-between items-center text-sm text-slate-700 dark:text-slate-300">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary text-sm">check</span>
+                                        {s.product_name} (x{s.quantity})
+                                    </div>
+                                    <span className="font-bold">R$ {(s.unit_price * s.quantity).toFixed(2)}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Data</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-background-dark rounded-lg p-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Horário</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{new Date(viewComanda.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-border-dark">
+                            <span className="text-sm font-bold text-slate-500 uppercase">Total</span>
+                            <span className="text-2xl font-black text-primary">R$ {(viewComanda.total || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => handlePrint(viewComanda)} className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                                <span className="material-symbols-outlined text-sm">print</span>
+                                Imprimir
+                            </button>
+                            {viewComanda.status === 'open' && (
+                                <button onClick={() => { setViewComanda(null); navigate(`/checkout/${viewComanda.id}`); }} className="flex-1 py-3 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors">
+                                    Editar / Pagar
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* === CANCEL COMANDA MODAL === */}
+            <Modal
+                isOpen={!!deleteComanda}
+                onClose={() => {
+                    setDeleteComanda(null);
+                    setCancelReason('');
+                    setCancelReasonOther('');
+                }}
+                title="Cancelar Comanda"
+                maxWidth="sm"
+            >
+                {deleteComanda && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg">
+                            <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
+                            <div>
+                                <p className="text-sm font-bold text-red-700 dark:text-red-400">Atenção!</p>
+                                <p className="text-xs text-red-600 dark:text-red-300">A comanda será marcada como cancelada.</p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            Deseja realmente cancelar a comanda <strong className="text-slate-900 dark:text-white">#{getDisplayId(deleteComanda.id)}</strong> do cliente <strong className="text-slate-900 dark:text-white">{deleteComanda.clients?.name}</strong> no valor de <strong className="text-primary">R$ {(deleteComanda.total || 0).toFixed(2)}</strong>?
+                        </p>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                Motivo do cancelamento
+                            </label>
+                            <select
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="">Selecione um motivo</option>
+                                {CANCEL_REASON_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                                <option value={CANCEL_REASON_OTHER}>Outros</option>
+                            </select>
+                            {cancelReason === CANCEL_REASON_OTHER && (
+                                <textarea
+                                    value={cancelReasonOther}
+                                    onChange={(e) => setCancelReasonOther(e.target.value)}
+                                    rows={3}
+                                    placeholder="Descreva o motivo..."
+                                    className="mt-3 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary outline-none resize-none"
+                                />
+                            )}
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    setDeleteComanda(null);
+                                    setCancelReason('');
+                                    setCancelReasonOther('');
+                                }}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                disabled={deleting}
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                onClick={() => handleDelete(deleteComanda)}
+                                disabled={deleting || !(cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim())}
+                                className="flex-1 py-3 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <span className="material-symbols-outlined text-sm">{deleting ? 'hourglass_empty' : 'delete'}</span>
+                                {deleting ? 'Cancelando...' : 'Confirmar Cancelamento'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+        </div>
+    );
+};
+
+export default Comandas;

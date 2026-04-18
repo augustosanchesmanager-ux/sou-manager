@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import { adminConsoleTabs, platformAdminDeliveryTargetLabels, platformAdminExpansionPolicyLabels, platformAdminTransitionWaveLabels, type AdminConsoleTab } from '../src/app/core/admin/platformAdminCapabilities';
 
 const Admin: React.FC = () => {
-    const { user, loading, canAccessSuperAdmin } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'shops' | 'users' | 'access' | 'tickets' | 'system' | 'requests'>('overview');
+    const { user, loading, requirePlatformAdminAccess } = useAuth();
+    const [activeTab, setActiveTab] = useState<AdminConsoleTab>(adminConsoleTabs[0]?.id ?? 'overview');
 
     // Real data
     const [shops, setShops] = useState<any[]>([]);
@@ -38,16 +38,21 @@ const Admin: React.FC = () => {
     const [panelData, setPanelData] = useState<{ staff: any[]; clients: number; appointments: number; revenue: number; recentTx: any[] }>({ staff: [], clients: 0, appointments: 0, revenue: 0, recentTx: [] });
     const [isPanelLoading, setIsPanelLoading] = useState(false);
 
+    const getPlatformAdminClient = useCallback((operation: string) => (
+        requirePlatformAdminAccess(operation).client
+    ), [requirePlatformAdminAccess]);
+
     const openShopPanel = async (shop: any) => {
+        const client = getPlatformAdminClient('admin.openShopPanel');
         setSelectedShop(shop);
         setIsPanelOpen(true);
         setIsPanelLoading(true);
         const tid = shop.tenant_id;
         const [staffRes, clientsRes, apptsRes, txRes] = await Promise.all([
-            supabase.from('staff').select('id, name, role, status').eq('tenant_id', tid),
-            supabase.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-            supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-            supabase.from('transactions').select('amount, description, date').eq('tenant_id', tid).eq('type', 'income').order('date', { ascending: false }).limit(5),
+            client.from('staff').select('id, name, role, status').eq('tenant_id', tid),
+            client.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+            client.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+            client.from('transactions').select('amount, description, date').eq('tenant_id', tid).eq('type', 'income').order('date', { ascending: false }).limit(5),
         ]);
         const revenue = (txRes.data || []).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
         setPanelData({
@@ -62,6 +67,7 @@ const Admin: React.FC = () => {
 
     const [searchShop, setSearchShop] = useState('');
     const [searchUser, setSearchUser] = useState('');
+    const activeTabDefinition = adminConsoleTabs.find((tab) => tab.id === activeTab) ?? adminConsoleTabs[0];
 
     const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
         setToast({ msg, type });
@@ -70,12 +76,13 @@ const Admin: React.FC = () => {
 
     // ─── Fetch overview KPIs ────────────────────────────────────────────────
     const fetchOverview = useCallback(async () => {
+        const client = getPlatformAdminClient('admin.fetchOverview');
         setIsLoadingData(true);
         const [profilesRes, staffRes, ticketsRes, txRes] = await Promise.all([
-            supabase.from('profiles').select('id', { count: 'exact', head: true }),
-            supabase.from('staff').select('id', { count: 'exact', head: true }),
-            supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-            supabase.from('transactions').select('amount').eq('type', 'income'),
+            client.from('profiles').select('id', { count: 'exact', head: true }),
+            client.from('staff').select('id', { count: 'exact', head: true }),
+            client.from('support_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+            client.from('transactions').select('amount').eq('type', 'income'),
         ]);
 
         const totalShops = profilesRes.count || 0;
@@ -85,12 +92,13 @@ const Admin: React.FC = () => {
 
         setKpis({ revenue, totalShops, totalUsers, activeTickets });
         setIsLoadingData(false);
-    }, []);
+    }, [getPlatformAdminClient]);
 
     // ─── Fetch shops (profiles = owners/managers) ───────────────────────────
     const fetchShops = useCallback(async () => {
+        const client = getPlatformAdminClient('admin.fetchShops');
         setIsLoadingData(true);
-        const { data } = await supabase
+        const { data } = await client
             .from('profiles')
             .select('id, tenant_id, onboarding_completed, created_at, tenants(plan)')
             .order('created_at', { ascending: false });
@@ -98,9 +106,9 @@ const Admin: React.FC = () => {
         // Enrich with auth user data via user_metadata if available
         // We also join with staff count per tenant
         const enriched = await Promise.all((data || []).map(async (p: any) => {
-            const { data: authUser } = await supabase.auth.admin?.getUserById?.(p.id) || { data: null };
-            const { count: staffCount } = await supabase.from('staff').select('id', { count: 'exact', head: true }).eq('tenant_id', p.tenant_id);
-            const { data: txData } = await supabase.from('transactions').select('amount').eq('tenant_id', p.tenant_id).eq('type', 'income');
+            const { data: authUser } = await client.auth.admin?.getUserById?.(p.id) || { data: null };
+            const { count: staffCount } = await client.from('staff').select('id', { count: 'exact', head: true }).eq('tenant_id', p.tenant_id);
+            const { data: txData } = await client.from('transactions').select('amount').eq('tenant_id', p.tenant_id).eq('type', 'income');
             const revenue = (txData || []).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
 
             return {
@@ -120,14 +128,15 @@ const Admin: React.FC = () => {
 
         setShops(enriched);
         setIsLoadingData(false);
-    }, []);
+    }, [getPlatformAdminClient]);
 
     // ─── Fetch all users (profiles + staff) ─────────────────────────────────
     const fetchUsers = useCallback(async () => {
+        const client = getPlatformAdminClient('admin.fetchUsers');
         setIsLoadingData(true);
         const [profilesRes, staffRes] = await Promise.all([
-            supabase.from('profiles').select('id, tenant_id, created_at'),
-            supabase.from('staff').select('id, name, email, role, status, tenant_id, created_at'),
+            client.from('profiles').select('id, tenant_id, created_at'),
+            client.from('staff').select('id, name, email, role, status, tenant_id, created_at'),
         ]);
 
         const profileUsers: any[] = [];
@@ -155,7 +164,7 @@ const Admin: React.FC = () => {
 
         setAllUsers([...profileUsers, ...staffUsers]);
         setIsLoadingData(false);
-    }, []);
+    }, [getPlatformAdminClient]);
 
     // ─── Realtime ticket subscription ───────────────────────────────────────
     useEffect(() => {
@@ -175,18 +184,20 @@ const Admin: React.FC = () => {
         if (activeTab === 'shops') fetchShops();
         if (activeTab === 'users') fetchUsers();
         if (activeTab === 'tickets') {
+            const client = getPlatformAdminClient('admin.fetchTickets');
             setIsLoadingData(true);
-            supabase.from('support_tickets').select('*').order('created_at', { ascending: false })
+            client.from('support_tickets').select('*').order('created_at', { ascending: false })
                 .then(({ data }) => { setTickets(data || []); setIsLoadingData(false); });
         }
         if (activeTab === 'requests') {
+            const client = getPlatformAdminClient('admin.fetchRequests');
             setIsLoadingData(true);
-            supabase.from('profiles').select('id, tenant_id, created_at, status')
+            client.from('profiles').select('id, tenant_id, created_at, status')
                 .eq('status', 'pending')
                 .order('created_at', { ascending: false })
                 .then(({ data }) => { setRequests(data || []); setIsLoadingData(false); });
         }
-    }, [activeTab, fetchOverview, fetchShops, fetchUsers]);
+    }, [activeTab, fetchOverview, fetchShops, fetchUsers, getPlatformAdminClient]);
 
     const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
 
@@ -195,8 +206,6 @@ const Admin: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
         </div>
     );
-
-    if (!canAccessSuperAdmin) return <Navigate to="/dashboard" replace />;
 
     const filteredShops = shops.filter(s =>
         s.name?.toLowerCase().includes(searchShop.toLowerCase()) ||
@@ -220,6 +229,18 @@ const Admin: React.FC = () => {
                         <div className="flex items-center gap-2 mb-2">
                             <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Elite Access</span>
                             <span className="text-amber-500/50 text-[10px] font-bold uppercase tracking-widest">Protocolo SOU-99</span>
+                            <span title={activeTabDefinition.description} className="px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-[10px] font-black uppercase text-amber-500 tracking-widest">
+                                {activeTabDefinition.capabilityBoundary}
+                            </span>
+                            <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[10px] font-black uppercase text-slate-300 tracking-widest">
+                                {platformAdminDeliveryTargetLabels[activeTabDefinition.deliveryTarget]}
+                            </span>
+                            <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[10px] font-black uppercase text-slate-300 tracking-widest">
+                                {platformAdminTransitionWaveLabels[activeTabDefinition.transitionWave]}
+                            </span>
+                            <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[10px] font-black uppercase text-slate-300 tracking-widest">
+                                {platformAdminExpansionPolicyLabels[activeTabDefinition.expansionPolicy]}
+                            </span>
                         </div>
                         <h2 className="text-4xl font-black tracking-tighter text-white">Central de Comando SaaS</h2>
                         <p className="text-slate-400 mt-1 font-medium max-w-xl">Bem-vindo, {user?.user_metadata?.first_name || 'Administrador'}. Você possui autoridade total sobre o ecossistema SOU MANA.GER.</p>
@@ -238,22 +259,26 @@ const Admin: React.FC = () => {
 
                 {/* Tab Navigation */}
                 <div className="flex items-center gap-8 mt-12 border-b border-white/5 overflow-x-auto">
-                    {[
-                        { id: 'overview', label: 'Visão Geral' },
-                        { id: 'shops', label: 'Barbearias' },
-                        { id: 'users', label: 'Usuários' },
-                        { id: 'access', label: 'Gestão de Acessos' },
-                        { id: 'system', label: 'Infraestrutura' },
-                        { id: 'tickets', label: 'Chamados de Suporte' },
-                        { id: 'requests', label: 'Pedidos de Acesso' },
-                    ].map(tab => (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+                    {adminConsoleTabs.map(tab => (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} title={tab.description}
                             className={`pb-4 px-2 text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}>
                             {tab.label}
                             {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />}
                         </button>
                     ))}
                 </div>
+
+                {activeTabDefinition.transitionWave === 'wave-1' && (
+                    <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Destino Arquitetural</p>
+                        <p className="mt-1 text-sm font-medium text-slate-300">
+                            Esta capability continua visivel no frontend atual, mas ja esta na <span className="font-black text-white">fila 1 de saida</span> para o futuro <span className="font-black text-white">SMG ADMIN BACKEND</span>.
+                        </p>
+                        <p className="mt-2 text-xs font-bold uppercase tracking-[0.15em] text-red-300">
+                            Politica atual: sem expansao funcional no frontend atual.
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* ─── OVERVIEW ───────────────────────────────────────────── */}
@@ -577,8 +602,9 @@ const Admin: React.FC = () => {
                                                     <div className="flex items-center justify-end gap-2">
                                                         {t.status !== 'closed' && (
                                                             <button onClick={async () => {
+                                                                const client = getPlatformAdminClient('admin.fetchTicketMessages');
                                                                 setSelectedTicket(t);
-                                                                const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', t.id).order('created_at', { ascending: true });
+                                                                const { data } = await client.from('ticket_messages').select('*').eq('ticket_id', t.id).order('created_at', { ascending: true });
                                                                 setMessages(data || []);
                                                                 setIsTicketModalOpen(true);
                                                             }} className="px-4 py-2 bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
@@ -587,8 +613,9 @@ const Admin: React.FC = () => {
                                                         )}
                                                         {t.status !== 'closed' && (
                                                             <button onClick={async () => {
+                                                                const client = getPlatformAdminClient('admin.closeTicket');
                                                                 if (!window.confirm('Encerrar este chamado?')) return;
-                                                                const { error } = await supabase.from('support_tickets').update({ status: 'closed' }).eq('id', t.id);
+                                                                const { error } = await client.from('support_tickets').update({ status: 'closed' }).eq('id', t.id);
                                                                 if (!error) {
                                                                     setTickets(prev => prev.map(tk => tk.id === t.id ? { ...tk, status: 'closed' } : tk));
                                                                     showToast('Chamado encerrado com sucesso.');
@@ -637,8 +664,9 @@ const Admin: React.FC = () => {
                                 </p>
                             </div>
                             <button onClick={() => {
+                                const client = getPlatformAdminClient('admin.refreshRequests');
                                 setIsLoadingData(true);
-                                supabase.from('profiles').select('id, tenant_id, created_at, status')
+                                client.from('profiles').select('id, tenant_id, created_at, status')
                                     .eq('status', 'pending').order('created_at', { ascending: false })
                                     .then(({ data }) => { setRequests(data || []); setIsLoadingData(false); });
                             }} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs font-black text-slate-400 hover:text-white transition-all">
@@ -695,7 +723,8 @@ const Admin: React.FC = () => {
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
                                                             onClick={async () => {
-                                                                const { error } = await supabase.from('profiles')
+                                                                const client = getPlatformAdminClient('admin.approveRequest');
+                                                                const { error } = await client.from('profiles')
                                                                     .update({ status: 'active' })
                                                                     .eq('id', r.id);
                                                                 if (!error) {
@@ -713,7 +742,8 @@ const Admin: React.FC = () => {
                                                         <button
                                                             onClick={async () => {
                                                                 if (!window.confirm('Rejeitar este cadastro? O usuário continuará bloqueado.')) return;
-                                                                const { error } = await supabase.from('profiles')
+                                                                const client = getPlatformAdminClient('admin.rejectRequest');
+                                                                const { error } = await client.from('profiles')
                                                                     .update({ status: 'suspended' })
                                                                     .eq('id', r.id);
                                                                 if (!error) {
@@ -833,7 +863,8 @@ const Admin: React.FC = () => {
                                                         const newPlan = select.value;
 
                                                         setIsLoadingData(true);
-                                                        const { error } = await supabase.from('tenants').update({ plan: newPlan }).eq('id', shop.tenant_id);
+                                                        const client = getPlatformAdminClient('admin.updateTenantPlan');
+                                                        const { error } = await client.from('tenants').update({ plan: newPlan }).eq('id', shop.tenant_id);
 
                                                         if (!error) {
                                                             // Update local state immediately
@@ -896,7 +927,8 @@ const Admin: React.FC = () => {
                                                     onClick={async () => {
                                                         const select = document.getElementById(`role-select-${u.id}`) as HTMLSelectElement;
                                                         const newRole = select.value;
-                                                        const { error } = await supabase.from('staff').update({ role: newRole }).eq('id', u.id);
+                                                        const client = getPlatformAdminClient('admin.updateStaffRole');
+                                                        const { error } = await client.from('staff').update({ role: newRole }).eq('id', u.id);
                                                         if (!error) showToast(`Cargo de "${u.name}" → ${newRole}.`);
                                                         else showToast('Erro ao atualizar cargo.', 'error');
                                                     }}
@@ -937,12 +969,13 @@ const Admin: React.FC = () => {
                             className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-amber-500/50" />
                         <Button onClick={async () => {
                             if (!reply.trim() || !selectedTicket) return;
-                            const { data, error } = await supabase.from('ticket_messages').insert({ ticket_id: selectedTicket.id, sender_id: user!.id, message: reply }).select().single();
+                            const client = getPlatformAdminClient('admin.replyToTicket');
+                            const { data, error } = await client.from('ticket_messages').insert({ ticket_id: selectedTicket.id, sender_id: user!.id, message: reply }).select().single();
                             if (!error && data) {
                                 setMessages([...messages, data]);
                                 setReply('');
                                 // Status → aguardando resposta do usuário
-                                await supabase.from('support_tickets').update({ status: 'awaiting_response' }).eq('id', selectedTicket.id);
+                                await client.from('support_tickets').update({ status: 'awaiting_response' }).eq('id', selectedTicket.id);
                                 setSelectedTicket((prev: any) => ({ ...prev, status: 'awaiting_response' }));
                                 setTickets(prev => prev.map(tk => tk.id === selectedTicket.id ? { ...tk, status: 'awaiting_response' } : tk));
                             }
@@ -963,8 +996,9 @@ const Admin: React.FC = () => {
                         </div>
                         {selectedTicket?.status !== 'closed' && (
                             <button onClick={async () => {
+                                const client = getPlatformAdminClient('admin.closeSelectedTicket');
                                 if (!window.confirm('Encerrar este chamado?')) return;
-                                await supabase.from('support_tickets').update({ status: 'closed' }).eq('id', selectedTicket.id);
+                                await client.from('support_tickets').update({ status: 'closed' }).eq('id', selectedTicket.id);
                                 setTickets(prev => prev.map(tk => tk.id === selectedTicket.id ? { ...tk, status: 'closed' } : tk));
                                 setIsTicketModalOpen(false);
                                 showToast('Chamado encerrado com sucesso.');

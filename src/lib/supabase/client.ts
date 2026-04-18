@@ -2,8 +2,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   type AppSlug,
   DEFAULT_APP_SLUG,
+  getTableAccessProfile,
   type SupabaseSchemaName,
-  getSchemaForTable,
   resolveSchemaForApp,
   SHARED_SCHEMA,
 } from './schemas';
@@ -274,6 +274,14 @@ interface ActiveAppState {
   hostname: string;
 }
 
+export interface TableClientBinding {
+  table: string;
+  appSlug: AppSlug;
+  schema: SupabaseSchemaName;
+  requiresTenant: boolean;
+  classification: 'shared' | 'domain' | 'unknown';
+}
+
 let activeAppState: ActiveAppState = {
   appSlug: DEFAULT_APP_SLUG,
   schema: resolveSchemaForApp(DEFAULT_APP_SLUG),
@@ -293,7 +301,7 @@ const getOrCreateSchemaClient = (schema: SupabaseSchemaName): SupabaseClient => 
     return cachedClient;
   }
 
-  const schemaClient = baseClient.schema(schema);
+  const schemaClient = baseClient.schema(schema) as unknown as SupabaseClient;
   schemaClientCache.set(schema, schemaClient);
   return schemaClient;
 };
@@ -308,6 +316,21 @@ export const getSharedClient = (): SupabaseClient => baseClient;
 
 export const getSchemaClient = (schema: SupabaseSchemaName): SupabaseClient =>
   getOrCreateSchemaClient(schema);
+
+export const getTableClientBinding = (
+  table: string,
+  appSlug: AppSlug = activeAppState.appSlug,
+): TableClientBinding => {
+  const tableProfile = getTableAccessProfile(table, appSlug);
+
+  return {
+    table: tableProfile.table,
+    appSlug,
+    schema: tableProfile.schema,
+    requiresTenant: tableProfile.requiresTenant,
+    classification: tableProfile.classification,
+  };
+};
 
 const createScopedClient = (appSlug: AppSlug): SupabaseClient => {
   const targetClient = getSchemaClient(resolveSchemaForApp(appSlug));
@@ -347,8 +370,7 @@ export const getClientForTable = (
   table: string,
   appSlug: AppSlug = activeAppState.appSlug,
 ): SupabaseClient => {
-  const schema = getSchemaForTable(table, appSlug);
-  return getSchemaClient(schema);
+  return getSchemaClient(getTableClientBinding(table, appSlug).schema);
 };
 
 export const supabase = new Proxy(baseClient, {

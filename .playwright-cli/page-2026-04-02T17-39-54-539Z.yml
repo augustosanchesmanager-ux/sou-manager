@@ -1,0 +1,39 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "content_cut SOU MANA.GER Elite Tech" [ref=e5] [cursor=pointer]:
+      - generic [ref=e7]: content_cut
+      - generic [ref=e8]:
+        - heading "SOU MANA.GER" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Elite Tech
+  - main [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "Bem-vindo de volta" [level=2] [ref=e14]
+        - paragraph [ref=e15]: Acesse sua conta para gerenciar sua barbearia
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - text: E-mail
+          - generic [ref=e18]:
+            - generic [ref=e19]: mail
+            - textbox "seu@email.com" [ref=e20]
+        - generic [ref=e21]:
+          - text: Senha
+          - generic [ref=e22]:
+            - generic [ref=e23]: lock
+            - textbox "••••••••" [ref=e24]
+            - button "visibility" [ref=e25]:
+              - generic [ref=e26]: visibility
+        - generic [ref=e27]:
+          - generic [ref=e28] [cursor=pointer]:
+            - checkbox "Lembrar de mim" [ref=e29]
+            - generic [ref=e30]: Lembrar de mim
+          - button "Esqueci minha senha" [ref=e31]
+        - button "Entrar no Sistema login" [ref=e32]:
+          - text: Entrar no Sistema
+          - generic [ref=e33]: login
+      - paragraph [ref=e35]:
+        - text: Ainda não tem conta?
+        - link "Criar conta" [ref=e36] [cursor=pointer]:
+          - /url: "#/register"
+  - contentinfo [ref=e37]:
+    - paragraph [ref=e38]: Gestão Profissional para Barbearias de Elite

@@ -8,7 +8,6 @@ import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
 
 interface TransactionRecord {
     id: string;
@@ -21,8 +20,14 @@ interface TransactionRecord {
     created_at?: string | null;
 }
 
+interface ChartDayAggregate {
+    entradas: number;
+    saidas: number;
+    saldo: number;
+}
+
 const Cashflow: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const hasTenantContext = Boolean(tenantId);
     const [filterMonth, setFilterMonth] = useState(() => {
         const d = new Date();
@@ -49,10 +54,15 @@ const Cashflow: React.FC = () => {
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
         try {
-            const { data, error } = await supabase
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'cashflow',
+                'transactions',
+                'load cashflow',
+            );
+            const { data, error } = await client
                 .from('transactions')
                 .select('id, type, category, amount, description, payment_method, date, created_at')
-                .eq('tenant_id', tenantId)
+                .eq('tenant_id', resolvedTenantId)
                 .gte('date', startOfMonth)
                 .lte('date', endOfMonth)
                 .order('date', { ascending: true });
@@ -89,7 +99,7 @@ const Cashflow: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterMonth, tenantId]);
+    }, [filterMonth, requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -107,7 +117,7 @@ const Cashflow: React.FC = () => {
         : 0;
 
     const chartData = useMemo(() => {
-        const grouped = entries.reduce<Record<string, { entradas: number; saidas: number; saldo: number }>>((acc, entry) => {
+        const grouped = entries.reduce<Record<string, ChartDayAggregate>>((acc, entry) => {
             const label = new Date(`${entry.date}`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
             if (!acc[label]) {
@@ -126,7 +136,7 @@ const Cashflow: React.FC = () => {
         }, {});
 
         let runningBalance = 0;
-        return Object.entries(grouped).map(([label, value]) => {
+        return (Object.entries(grouped) as Array<[string, ChartDayAggregate]>).map(([label, value]) => {
             runningBalance += value.saldo;
             return {
                 label,

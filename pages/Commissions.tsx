@@ -3,7 +3,6 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
 
 interface StaffMember {
     id: string;
@@ -30,13 +29,15 @@ interface CommissionRow {
     commissionRate: number;
     servicesCount: number;
     grossSales: number;
+    rateioAmount: number;
+    totalProduction: number;
     commissionValue: number;
     lastServiceDate: string | null;
     items: CommissionItem[];
 }
 
 const Commissions: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [rows, setRows] = useState<CommissionRow[]>([]);
@@ -63,13 +64,18 @@ const Commissions: React.FC = () => {
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
         try {
-            const [staffRes, itemsRes] = await Promise.all([
-                supabase
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'commissions',
+                'staff',
+                'load commissions',
+            );
+            const [staffRes, itemsRes, participantsRes] = await Promise.all([
+                client
                     .from('staff')
                     .select('id, name, role, avatar, commission_rate')
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', resolvedTenantId)
                     .eq('status', 'active'),
-                supabase
+                client
                     .from('comanda_items')
                     .select(`
                         id,
@@ -77,30 +83,66 @@ const Commissions: React.FC = () => {
                         product_name,
                         quantity,
                         unit_price,
+                        is_primary_revenue,
                         comandas!inner(created_at, status, staff_id)
                     `)
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', resolvedTenantId)
                     .eq('comandas.status', 'paid')
                     .gte('comandas.created_at', startOfMonth)
                     .lte('comandas.created_at', endOfMonth),
+                client
+                    .from('service_execution_participants')
+                    .select(`
+                        id,
+                        comanda_item_id,
+                        staff_id,
+                        role,
+                        payout_type,
+                        payout_value,
+                        payout_amount_calculated,
+                        affects_commission,
+                        comanda_items!inner(comandas!inner(status, tenant_id))
+                    `)
+                    .eq('comanda_items.comandas.tenant_id', resolvedTenantId)
+                    .eq('comanda_items.comandas.status', 'paid')
+                    .eq('affects_commission', true),
             ]);
 
             if (staffRes.error) throw staffRes.error;
             if (itemsRes.error) throw itemsRes.error;
+            if (participantsRes.error) {
+                console.warn('Could not load participants:', participantsRes.error);
+            }
 
             const staffList = (staffRes.data || []) as StaffMember[];
+            
             const items = (itemsRes.data || []).map((item: any) => ({
                 id: item.id,
                 staff_id: item.staff_id || item.comandas?.staff_id || null,
                 product_name: item.product_name,
                 quantity: Number(item.quantity || 0),
                 unit_price: Number(item.unit_price || 0),
+                is_primary_revenue: item.is_primary_revenue !== false,
                 created_at: item.comandas?.created_at || '',
             })) as CommissionItem[];
 
+            const participants = (participantsRes.data || []).map((p: any) => ({
+                id: p.id,
+                comanda_item_id: p.comanda_item_id,
+                staff_id: p.staff_id,
+                role: p.role,
+                payout_amount_calculated: Number(p.payout_amount_calculated || 0),
+            })) as any[];
+
             const grouped = staffList.map((member) => {
                 const memberItems = items.filter((item) => item.staff_id === member.id);
+                
                 const grossSales = memberItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+                
+                const memberParticipations = participants.filter(p => p.staff_id === member.id);
+                const rateioAmount = memberParticipations.reduce((sum, p) => sum + (p.payout_amount_calculated || 0), 0);
+                
+                const totalProduction = grossSales + rateioAmount;
                 const servicesCount = memberItems.reduce((sum, item) => sum + item.quantity, 0);
                 const commissionRate = Number(member.commission_rate || 0);
                 const lastServiceDate = memberItems.length > 0
@@ -118,7 +160,9 @@ const Commissions: React.FC = () => {
                     commissionRate,
                     servicesCount,
                     grossSales,
-                    commissionValue: grossSales * (commissionRate / 100),
+                    rateioAmount,
+                    totalProduction,
+                    commissionValue: totalProduction * (commissionRate / 100),
                     lastServiceDate,
                     items: memberItems,
                 };
@@ -131,7 +175,7 @@ const Commissions: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterMonth, tenantId]);
+    }, [filterMonth, requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -148,6 +192,8 @@ const Commissions: React.FC = () => {
 
     const totalCommissions = filteredRows.reduce((sum, row) => sum + row.commissionValue, 0);
     const totalSales = filteredRows.reduce((sum, row) => sum + row.grossSales, 0);
+    const totalRateio = filteredRows.reduce((sum, row) => sum + row.rateioAmount, 0);
+    const totalProduction = filteredRows.reduce((sum, row) => sum + row.totalProduction, 0);
     const totalServices = filteredRows.reduce((sum, row) => sum + row.servicesCount, 0);
     const averageRate = filteredRows.length > 0
         ? filteredRows.reduce((sum, row) => sum + row.commissionRate, 0) / filteredRows.length
@@ -176,7 +222,7 @@ const Commissions: React.FC = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissao prevista</p>
                     <h3 className="text-2xl font-black text-emerald-500">
@@ -190,12 +236,20 @@ const Commissions: React.FC = () => {
                     </h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Itens comissionados</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{totalServices}</h3>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Rateio/Apoio</p>
+                    <h3 className="text-2xl font-black text-amber-500">
+                        {totalRateio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </h3>
+                </div>
+                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Producao total</p>
+                    <h3 className="text-2xl font-black text-primary">
+                        {totalProduction.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Taxa media</p>
-                    <h3 className="text-2xl font-black text-primary">{averageRate.toFixed(1)}%</h3>
+                    <h3 className="text-2xl font-black text-slate-400">{averageRate.toFixed(1)}%</h3>
                 </div>
             </div>
 

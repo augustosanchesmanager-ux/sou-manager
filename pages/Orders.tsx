@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
@@ -51,7 +51,7 @@ const statusColors: Record<string, string> = {
 };
 
 const Orders: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [orders, setOrders] = useState<PurchaseOrder[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -68,23 +68,62 @@ const Orders: React.FC = () => {
     const [orderForm, setOrderForm] = useState({ product_id: '', supplier_id: '', quantity: 1, notes: '' });
     const [supplierForm, setSupplierForm] = useState({ name: '', email: '', phone: '', category: 'Produtos', document: '', address: '' });
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    const fetchData = useCallback(async () => {
+        if (!tenantId) {
+            setOrders([]);
+            setSuppliers([]);
+            setProducts([]);
+            setLoading(false);
+            return;
+        }
 
-    const fetchData = async () => {
         setLoading(true);
-        const [ordersRes, suppliersRes, productsRes] = await Promise.all([
-            supabase.from('purchase_orders').select('*, products(name, cost_price), suppliers(*)').order('created_at', { ascending: false }),
-            supabase.from('suppliers').select('*').order('name'),
-            supabase.from('products').select('id, name, cost_price').order('name')
-        ]);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'orders',
+                'purchase_orders',
+                'load purchase orders',
+            );
 
-        setOrders(ordersRes.data || []);
-        setSuppliers(suppliersRes.data || []);
-        setProducts(productsRes.data || []);
-        setLoading(false);
-    };
+            const [ordersRes, suppliersRes, productsRes] = await Promise.all([
+                client
+                    .from('purchase_orders')
+                    .select('*, products(name, cost_price), suppliers(*)')
+                    .eq('tenant_id', resolvedTenantId)
+                    .order('created_at', { ascending: false }),
+                client
+                    .from('suppliers')
+                    .select('*')
+                    .eq('tenant_id', resolvedTenantId)
+                    .order('name'),
+                client
+                    .from('products')
+                    .select('id, name, cost_price')
+                    .eq('tenant_id', resolvedTenantId)
+                    .order('name'),
+            ]);
+
+            if (ordersRes.error) throw ordersRes.error;
+            if (suppliersRes.error) throw suppliersRes.error;
+            if (productsRes.error) throw productsRes.error;
+
+            setOrders(ordersRes.data || []);
+            setSuppliers(suppliersRes.data || []);
+            setProducts(productsRes.data || []);
+        } catch (error) {
+            console.error('Erro ao carregar gestao de compras:', error);
+            setToast({ message: 'Erro ao carregar pedidos, fornecedores e produtos.', type: 'error' });
+            setOrders([]);
+            setSuppliers([]);
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [requireModuleAccess, tenantId]);
+
+    useEffect(() => {
+        void fetchData();
+    }, [fetchData]);
 
     const handleSaveOrder = async () => {
         if (!orderForm.product_id || !orderForm.supplier_id) {
@@ -93,61 +132,117 @@ const Orders: React.FC = () => {
         }
 
         const selectedProduct = products.find(p => p.id === orderForm.product_id);
+        if (!selectedProduct) {
+            setToast({ message: 'Produto selecionado invalido.', type: 'error' });
+            return;
+        }
 
-        const { error } = await supabase.from('purchase_orders').insert([{
-            ...orderForm,
-            unit_price: selectedProduct?.cost_price || 0,
-            status: 'pending',
-            tenant_id: tenantId
-        }]);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'orders',
+                'purchase_orders',
+                'create purchase order',
+            );
 
-        if (error) {
-            setToast({ message: 'Erro ao criar pedido', type: 'error' });
-        } else {
+            const { error } = await client.from('purchase_orders').insert([{
+                ...orderForm,
+                unit_price: selectedProduct.cost_price || 0,
+                status: 'pending',
+                tenant_id: resolvedTenantId,
+            }]);
+
+            if (error) throw error;
+
             setToast({ message: 'Pedido de compra gerado com sucesso!', type: 'success' });
             setIsOrderModalOpen(false);
             setOrderForm({ product_id: '', supplier_id: '', quantity: 1, notes: '' });
-            fetchData();
+            void fetchData();
+        } catch (error) {
+            console.error('Erro ao criar pedido de compra:', error);
+            setToast({ message: 'Erro ao criar pedido', type: 'error' });
         }
     };
 
     const handleUpdateStatus = async (orderId: string, newStatus: PurchaseOrder['status']) => {
-        const { error } = await supabase.from('purchase_orders').update({ status: newStatus }).eq('id', orderId);
-        if (error) {
-            setToast({ message: 'Erro ao atualizar pedido', type: 'error' });
-        } else {
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'orders',
+                'purchase_orders',
+                'update purchase order status',
+            );
+
+            const { error } = await client
+                .from('purchase_orders')
+                .update({ status: newStatus })
+                .eq('id', orderId)
+                .eq('tenant_id', resolvedTenantId);
+
+            if (error) throw error;
+
             setToast({ message: `Pedido ${statusLabels[newStatus]}`, type: 'info' });
-            fetchData();
+            void fetchData();
             if (selectedOrder?.id === orderId) {
-                // Refresh local state if detail modal is open
-                fetchData();
+                void fetchData();
             }
+        } catch (error) {
+            console.error('Erro ao atualizar status do pedido:', error);
+            setToast({ message: 'Erro ao atualizar pedido', type: 'error' });
         }
     };
 
     const handleReceiveOrder = async (orderId: string) => {
-        const { error } = await supabase.rpc('receive_purchase_order', { p_order_id: orderId });
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'orders',
+                'purchase_orders',
+                'receive purchase order',
+            );
 
-        if (error) {
-            setToast({ message: 'Erro ao receber pedido', type: 'error' });
-        } else {
+            const { data: orderRecord, error: orderLookupError } = await client
+                .from('purchase_orders')
+                .select('id')
+                .eq('id', orderId)
+                .eq('tenant_id', resolvedTenantId)
+                .maybeSingle();
+
+            if (orderLookupError) throw orderLookupError;
+            if (!orderRecord) {
+                throw new Error('Pedido nao encontrado para o tenant atual.');
+            }
+
+            const { error } = await supabase.rpc('receive_purchase_order', { p_order_id: orderId });
+
+            if (error) throw error;
+
             setToast({ message: 'Estoque atualizado e pedido recebido!', type: 'success' });
-            fetchData();
+            void fetchData();
             setIsDetailModalOpen(false);
+        } catch (error) {
+            console.error('Erro ao receber pedido de compra:', error);
+            setToast({ message: 'Erro ao receber pedido', type: 'error' });
         }
     };
 
     const handleSaveSupplier = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { error } = await supabase.from('suppliers').insert([{ ...supplierForm, tenant_id: tenantId }]);
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'orders',
+                'suppliers',
+                'create supplier during orders flow',
+            );
 
-        if (error) {
-            setToast({ message: 'Erro ao cadastrar fornecedor', type: 'error' });
-        } else {
+            const { error } = await client.from('suppliers').insert([{ ...supplierForm, tenant_id: resolvedTenantId }]);
+
+            if (error) throw error;
+
             setToast({ message: 'Fornecedor cadastrado com sucesso!', type: 'success' });
             setIsSupplierModalOpen(false);
             setSupplierForm({ name: '', email: '', phone: '', category: 'Produtos', document: '', address: '' });
-            fetchData();
+            void fetchData();
+        } catch (error) {
+            console.error('Erro ao cadastrar fornecedor:', error);
+            setToast({ message: 'Erro ao cadastrar fornecedor', type: 'error' });
         }
     };
 

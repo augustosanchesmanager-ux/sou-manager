@@ -1,13 +1,23 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { type Session, type User } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
 import {
     DEFAULT_APP_SLUG,
     normalizeAppSlug,
     resolveSchemaForApp,
+    type AppModuleSlug,
     type AppSlug,
     type SupabaseSchemaName,
 } from '../src/lib/supabase/schemas';
-import { supabase } from '../services/supabaseClient';
+import {
+    ensureAppSupportsModule,
+    getScopedClient,
+    requireTenantContext,
+    supabase,
+} from '../services/supabaseClient';
+import {
+    ensureTenantModuleAccess,
+    resolveTenantModuleAccess,
+} from '../src/app/core/access/tenantModuleAccess';
 import { useAppOptional } from '../src/context/AppContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/supabase/tenant';
@@ -25,6 +35,23 @@ interface AuthSessionContextType {
     authError: string | null;
     loading: boolean;
     signOut: () => Promise<void>;
+}
+
+export interface ModuleAccessContext {
+    appSlug: AppSlug;
+    schema: SupabaseSchemaName;
+    tenantId: string | null;
+    tenantSlug: string | null;
+    client: SupabaseClient;
+}
+
+export interface PlatformAdminAccessContext {
+    client: SupabaseClient;
+    user: User | null;
+}
+
+interface ModuleAccessOptions {
+    allowMissingTenant?: boolean;
 }
 
 export interface AuthContextType {
@@ -47,6 +74,14 @@ export interface AuthContextType {
     schema: SupabaseSchemaName;
     signOut: () => Promise<void>;
     refreshTenant: () => Promise<void>;
+    isModuleEnabledForTenant: (moduleSlug: AppModuleSlug) => boolean;
+    requirePlatformAdminAccess: (operation?: string) => PlatformAdminAccessContext;
+    requireModuleAccess: (
+        moduleSlug: AppModuleSlug,
+        table: string,
+        operation?: string,
+        options?: ModuleAccessOptions,
+    ) => ModuleAccessContext;
 }
 
 const AuthContext = createContext<AuthSessionContextType | undefined>(undefined);
@@ -56,6 +91,19 @@ interface AccessContextResult {
     accessRole: AccessRole;
     profileStatus: 'pending' | 'active' | 'suspended' | null;
     canAccessSuperAdmin: boolean;
+}
+
+interface AccessContextRpcRow {
+    tenant_id: string | null;
+    access_role: string | null;
+    profile_status: 'pending' | 'active' | 'suspended' | null;
+    is_super_admin: boolean | null;
+}
+
+interface ProfileAccessRow {
+    tenant_id: string | null;
+    status: 'pending' | 'active' | 'suspended' | null;
+    role: string | null;
 }
 
 const deriveAccessRole = (rawRole: string | null | undefined, isSuperAdmin: boolean): AccessRole => {
@@ -88,15 +136,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchAccessContext = async (userId: string): Promise<AccessContextResult> => {
         try {
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_auth_access_context').single();
-            if (!rpcError && rpcData) {
-                const role = deriveAccessRole(rpcData.access_role, Boolean(rpcData.is_super_admin));
-                const status = (rpcData.profile_status || null) as 'pending' | 'active' | 'suspended' | null;
-                const tenantId = rpcData.tenant_id || null;
+            const accessContext = (rpcData || null) as AccessContextRpcRow | null;
+            if (!rpcError && accessContext) {
+                const role = deriveAccessRole(accessContext.access_role, Boolean(accessContext.is_super_admin));
+                const status = accessContext.profile_status || null;
+                const tenantId = accessContext.tenant_id || null;
                 return {
                     tenantId,
                     accessRole: role,
                     profileStatus: status,
-                    canAccessSuperAdmin: Boolean(rpcData.is_super_admin) || role === 'superadmin',
+                    canAccessSuperAdmin: Boolean(accessContext.is_super_admin) || role === 'superadmin',
                 };
             }
         } catch (rpcUnexpectedError) {
@@ -109,14 +158,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .select('tenant_id, status, role')
                 .eq('id', userId)
                 .single();
+            const resolvedProfile = (profileData || null) as ProfileAccessRow | null;
 
-            if (profileData && !profileError) {
-                const role = deriveAccessRole(profileData.role, false);
+            if (resolvedProfile && !profileError) {
+                const role = deriveAccessRole(resolvedProfile.role, false);
                 const canSuperAdmin = role === 'superadmin';
                 return {
-                    tenantId: canSuperAdmin ? null : profileData.tenant_id,
+                    tenantId: canSuperAdmin ? null : resolvedProfile.tenant_id,
                     accessRole: role,
-                    profileStatus: (profileData.status as 'pending' | 'active' | 'suspended' | null) || (canSuperAdmin ? 'active' : 'pending'),
+                    profileStatus: resolvedProfile.status || (canSuperAdmin ? 'active' : 'pending'),
                     canAccessSuperAdmin: canSuperAdmin,
                 };
             }
@@ -126,13 +176,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .select('tenant_id, status, role')
                 .eq('id', userId)
                 .single();
+            const resolvedStaff = (staffData || null) as ProfileAccessRow | null;
 
-            if (staffData && !staffError) {
-                const role = deriveAccessRole(staffData.role, false);
+            if (resolvedStaff && !staffError) {
+                const role = deriveAccessRole(resolvedStaff.role, false);
                 return {
-                    tenantId: staffData.tenant_id,
+                    tenantId: resolvedStaff.tenant_id,
                     accessRole: role === 'unknown' ? 'barber' : role,
-                    profileStatus: (staffData.status as 'pending' | 'active' | 'suspended' | null) || 'active',
+                    profileStatus: resolvedStaff.status || 'active',
                     canAccessSuperAdmin: false,
                 };
             }
@@ -249,6 +300,7 @@ export const useAuth = (): AuthContextType => {
     const schema = appContext?.schema ?? resolveSchemaForApp(appSlug);
     const tenantId = tenantContext?.tenantId ?? authSessionContext.resolvedTenantId ?? null;
     const tenantRole = tenantContext?.role ?? 'unknown';
+    const tenantSlug = tenantContext?.tenantSlug ?? null;
     const mergedAccessRole =
         authSessionContext.accessRole !== 'unknown'
             ? authSessionContext.accessRole
@@ -266,11 +318,81 @@ export const useAuth = (): AuthContextType => {
                 : null
         );
 
+    const requireModuleAccess = useCallback((
+        moduleSlug: AppModuleSlug,
+        table: string,
+        operation?: string,
+        options?: ModuleAccessOptions,
+    ): ModuleAccessContext => {
+        const resolvedAppSlug = ensureAppSupportsModule(appSlug, moduleSlug);
+        ensureTenantModuleAccess(
+            {
+                moduleSlug,
+                appSlug: resolvedAppSlug,
+                tenantSlug,
+            },
+            operation || table,
+        );
+        const allowMissingTenant = options?.allowMissingTenant && authSessionContext.canAccessSuperAdmin && !tenantId;
+
+        if (allowMissingTenant) {
+            return {
+                appSlug: resolvedAppSlug,
+                schema,
+                tenantId: null,
+                tenantSlug,
+                client: getScopedClient(resolvedAppSlug),
+            };
+        }
+
+        const resolvedContext = requireTenantContext({
+            tenantId,
+            appSlug: resolvedAppSlug,
+            schema,
+            table,
+            operation,
+        });
+
+        return {
+            appSlug: resolvedContext.appSlug,
+            schema: resolvedContext.schema,
+            tenantId: resolvedContext.tenantId,
+            tenantSlug,
+            client: getScopedClient(resolvedContext.appSlug),
+        };
+    }, [appSlug, authSessionContext.canAccessSuperAdmin, schema, tenantId, tenantSlug]);
+
+    const isModuleEnabledForTenant = useCallback((moduleSlug: AppModuleSlug): boolean => {
+        try {
+            const resolvedAppSlug = ensureAppSupportsModule(appSlug, moduleSlug);
+            return resolveTenantModuleAccess({
+                moduleSlug,
+                appSlug: resolvedAppSlug,
+                tenantSlug,
+            }).enabled;
+        } catch {
+            return false;
+        }
+    }, [appSlug, tenantSlug]);
+
+    const requirePlatformAdminAccess = useCallback((operation?: string): PlatformAdminAccessContext => {
+        if (!authSessionContext.canAccessSuperAdmin) {
+            throw new Error(
+                `Platform admin access required${operation ? ` for ${operation}` : ''}.`,
+            );
+        }
+
+        return {
+            client: supabase,
+            user: authSessionContext.user,
+        };
+    }, [authSessionContext.canAccessSuperAdmin, authSessionContext.user]);
+
     return {
         session: authSessionContext.session,
         user: authSessionContext.user,
         tenantId,
-        tenantSlug: tenantContext?.tenantSlug ?? null,
+        tenantSlug,
         tenant: tenantContext?.tenant ?? null,
         tenantRole,
         memberships: tenantContext?.memberships ?? [],
@@ -286,5 +408,8 @@ export const useAuth = (): AuthContextType => {
         schema,
         signOut: authSessionContext.signOut,
         refreshTenant: tenantContext?.refreshTenant ?? (async () => {}),
+        isModuleEnabledForTenant,
+        requirePlatformAdminAccess,
+        requireModuleAccess,
     };
 };

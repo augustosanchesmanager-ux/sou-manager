@@ -1,0 +1,50 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "content_cut SOU MANA.GER Elite Tech" [ref=e5] [cursor=pointer]:
+      - generic [ref=e7]: content_cut
+      - generic [ref=e8]:
+        - heading "SOU MANA.GER" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Elite Tech
+  - main [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - button "person Usuário" [ref=e14]:
+          - generic [ref=e15]: person
+          - text: Usuário
+        - button "workspace_premium Elite" [ref=e16]:
+          - generic [ref=e17]: workspace_premium
+          - text: Elite
+      - generic [ref=e18]:
+        - heading "Bem-vindo de volta" [level=2] [ref=e19]
+        - paragraph [ref=e20]: Acesse sua conta para gerenciar sua barbearia
+      - generic [ref=e21]:
+        - paragraph [ref=e22]: Acesso de teste local
+        - paragraph [ref=e23]: "E-mail: teste@soumanager.local"
+        - paragraph [ref=e24]: "Senha: 12345678"
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - text: E-mail
+          - generic [ref=e27]:
+            - generic [ref=e28]: mail
+            - textbox "seu@email.com" [ref=e29]
+        - generic [ref=e30]:
+          - text: Senha
+          - generic [ref=e31]:
+            - generic [ref=e32]: lock
+            - textbox "••••••••" [ref=e33]
+            - button "visibility" [ref=e34]:
+              - generic [ref=e35]: visibility
+        - generic [ref=e36]:
+          - generic [ref=e37] [cursor=pointer]:
+            - checkbox "Lembrar de mim" [ref=e38]
+            - generic [ref=e39]: Lembrar de mim
+          - button "Esqueci minha senha" [ref=e40]
+        - button "Entrar no Sistema login" [ref=e41]:
+          - text: Entrar no Sistema
+          - generic [ref=e42]: login
+      - paragraph [ref=e44]:
+        - text: Ainda não tem conta?
+        - link "Criar conta" [ref=e45] [cursor=pointer]:
+          - /url: "#/register"
+  - contentinfo [ref=e46]:
+    - paragraph [ref=e47]: Gestão Profissional para Barbearias de Elite

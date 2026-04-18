@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { setActiveAppContext } from '../lib/supabase/client';
 import {
+  appSupportsModule,
+  type AppModuleSlug,
   type AppSlug,
   DEFAULT_APP_SLUG,
   resolveSchemaForApp,
@@ -16,6 +18,8 @@ export interface AppContextValue {
   hostname: string;
   isFallback: boolean;
   matchedBy: 'env-map' | 'subdomain' | 'hostname' | 'fallback';
+  isResolved: boolean;
+  supportsModule: (moduleSlug: AppModuleSlug) => boolean;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -27,6 +31,8 @@ const getInitialState = (): AppContextValue => ({
   hostname: 'localhost',
   isFallback: true,
   matchedBy: 'fallback',
+  isResolved: false,
+  supportsModule: (moduleSlug) => appSupportsModule(DEFAULT_APP_SLUG, moduleSlug),
 });
 
 const resolveContextFromWindow = (): AppContextValue => {
@@ -42,6 +48,8 @@ const resolveContextFromWindow = (): AppContextValue => {
     hostname: resolvedApp.hostname,
     isFallback: resolvedApp.isFallback,
     matchedBy: resolvedApp.matchedBy,
+    isResolved: true,
+    supportsModule: (moduleSlug) => appSupportsModule(resolvedApp.appSlug, moduleSlug),
   };
 };
 
@@ -73,7 +81,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [state.appSlug, state.hostname, state.schema]);
 
-  const value = useMemo<AppContextValue>(() => state, [state]);
+  const value = useMemo<AppContextValue>(
+    () => ({
+      ...state,
+      supportsModule: (moduleSlug) => appSupportsModule(state.appSlug, moduleSlug),
+    }),
+    [state],
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

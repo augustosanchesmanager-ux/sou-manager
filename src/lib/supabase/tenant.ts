@@ -5,8 +5,8 @@ import {
   DEFAULT_APP_SLUG,
   assertAppSlug,
   assertSupabaseSchemaName,
+  getTableAccessProfile,
   isAppSlug,
-  isTenantGuardedTable,
   type SupabaseSchemaName,
 } from './schemas';
 
@@ -52,6 +52,8 @@ export interface RequiredTenantContext {
   tenantId: string;
   appSlug: AppSlug;
   schema: SupabaseSchemaName;
+  table: string | null;
+  requiresTenant: boolean;
 }
 
 interface MembershipRow {
@@ -278,21 +280,26 @@ export const requireTenantContext = ({
   table,
   operation,
 }: RequiredTenantContextInput): RequiredTenantContext => {
+  const normalizedOperation = operation || table || 'business operation';
   const resolvedAppSlug = assertAppSlug(
     appSlug,
-    `Cannot resolve tenant context for ${operation || table || 'business operation'}.`,
+    `Cannot resolve tenant context for ${normalizedOperation}.`,
   );
+  const tableProfile = table ? getTableAccessProfile(table, resolvedAppSlug) : null;
   const resolvedSchema = assertSupabaseSchemaName(
-    schema,
-    `Cannot resolve schema context for ${operation || table || 'business operation'}.`,
+    schema ?? tableProfile?.schema,
+    `Cannot resolve schema context for ${normalizedOperation}.`,
   );
-  const requiresTenant = table ? isTenantGuardedTable(table) : true;
+  const requiresTenant = tableProfile?.requiresTenant ?? true;
+  const normalizedTenantId = tenantId?.trim() || '';
 
   return {
     tenantId: requiresTenant
-      ? requireTenantId(tenantId, operation || table || 'business operation')
-      : tenantId?.trim() || '',
+      ? requireTenantId(normalizedTenantId, normalizedOperation)
+      : normalizedTenantId,
     appSlug: resolvedAppSlug,
     schema: resolvedSchema,
+    table: tableProfile?.table || null,
+    requiresTenant,
   };
 };

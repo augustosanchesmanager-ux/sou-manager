@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AddonModal, { AddonModalTheme } from '../components/KioskAddonModal';
 import Sidebar from '../components/Sidebar';
@@ -34,7 +33,7 @@ interface AddonInfo {
 }
 
 const KioskAdmin: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [addon, setAddon] = useState<AddonInfo | null>(null);
     const [devices, setDevices] = useState<Device[]>([]);
     const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -61,6 +60,11 @@ const KioskAdmin: React.FC = () => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const ambientInputRef = useRef<HTMLInputElement>(null);
 
+    const getKioskAccess = useCallback((
+        table: string,
+        operation: string,
+    ) => requireModuleAccess('kiosk_admin', table, operation), [requireModuleAccess]);
+
     useEffect(() => {
         if (tenantId) {
             loadAll();
@@ -69,23 +73,34 @@ const KioskAdmin: React.FC = () => {
         }
     }, [tenantId]);
 
-    const loadAll = async () => {
+    async function loadAll() {
         setLoading(true);
-        const { data: tenantData } = await supabase
-            .from('tenants')
-            .select('slug')
-            .eq('id', tenantId)
-            .single();
-        if (tenantData?.slug) setTenantSlug(tenantData.slug);
-        await Promise.all([loadAddon(), loadDevices(), loadMetrics()]);
-        setLoading(false);
-    };
+        try {
+            const { tenantId: resolvedTenantId, client } = getKioskAccess(
+                'tenants',
+                'load kiosk tenant slug',
+            );
+            const { data: tenantData } = await client
+                .from('tenants')
+                .select('slug')
+                .eq('id', resolvedTenantId)
+                .single();
+            if (tenantData?.slug) setTenantSlug(tenantData.slug);
+            await Promise.all([loadAddon(), loadDevices(), loadMetrics()]);
+        } finally {
+            setLoading(false);
+        }
+    }
 
-    const loadAddon = async () => {
-        const { data } = await supabase
+    const loadAddon = useCallback(async () => {
+        const { tenantId: resolvedTenantId, client } = getKioskAccess(
+            'tenant_addons',
+            'load kiosk addon settings',
+        );
+        const { data } = await client
             .from('tenant_addons')
             .select('status, limits')
-            .eq('tenant_id', tenantId)
+            .eq('tenant_id', resolvedTenantId)
             .eq('addon_key', 'TOTEM_QR')
             .single();
 
@@ -103,23 +118,32 @@ const KioskAdmin: React.FC = () => {
         setSettingsTheme(theme);
         setLogoUrl(logo);
         setAmbientImages(images);
-    };
+    }, [getKioskAccess]);
 
-    const loadDevices = async () => {
-        const { data } = await supabase
+    const loadDevices = useCallback(async () => {
+        const { tenantId: resolvedTenantId, client } = getKioskAccess(
+            'kiosk_devices',
+            'load kiosk devices',
+        );
+        const { data } = await client
             .from('kiosk_devices')
             .select('*')
-            .eq('tenant_id', tenantId)
+            .eq('tenant_id', resolvedTenantId)
             .order('created_at', { ascending: false });
         setDevices(data || []);
-    };
+    }, [getKioskAccess]);
 
-    const loadMetrics = async () => {
+    const loadMetrics = useCallback(async () => {
+        const appointmentsAccess = getKioskAccess('appointments', 'load kiosk appointment metrics');
+        const sessionsAccess = getKioskAccess('kiosk_sessions', 'load kiosk session metrics');
+        const barberFeedbackAccess = getKioskAccess('feedback_barber', 'load kiosk barber feedback');
+        const shopFeedbackAccess = getKioskAccess('feedback_shop', 'load kiosk shop feedback');
+
         const [apptResult, sessionResult, ratingResult, npsResult] = await Promise.all([
-            supabase.from('appointments').select('channel').eq('tenant_id', tenantId).eq('source', 'kiosk'),
-            supabase.from('kiosk_sessions').select('status').eq('tenant_id', tenantId),
-            supabase.from('feedback_barber').select('rating').eq('tenant_id', tenantId),
-            supabase.from('feedback_shop').select('nps').eq('tenant_id', tenantId),
+            appointmentsAccess.client.from('appointments').select('channel').eq('tenant_id', appointmentsAccess.tenantId).eq('source', 'kiosk'),
+            sessionsAccess.client.from('kiosk_sessions').select('status').eq('tenant_id', sessionsAccess.tenantId),
+            barberFeedbackAccess.client.from('feedback_barber').select('rating').eq('tenant_id', barberFeedbackAccess.tenantId),
+            shopFeedbackAccess.client.from('feedback_shop').select('nps').eq('tenant_id', shopFeedbackAccess.tenantId),
         ]);
 
         const apptData = apptResult.data || [];
@@ -145,19 +169,23 @@ const KioskAdmin: React.FC = () => {
             feedback_barber_count: ratingData.length,
             feedback_shop_count: npsData.length,
         });
-    };
+    }, [getKioskAccess]);
 
     const handleActivateAddon = async () => {
         setSaving(true);
         try {
+            const { tenantId: resolvedTenantId, client } = getKioskAccess(
+                'tenant_addons',
+                'activate kiosk addon',
+            );
             if (addon) {
-                await supabase.from('tenant_addons')
+                await client.from('tenant_addons')
                     .update({ status: 'enabled', activated_at: new Date().toISOString() })
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', resolvedTenantId)
                     .eq('addon_key', 'TOTEM_QR');
             } else {
-                await supabase.from('tenant_addons').insert({
-                    tenant_id: tenantId,
+                await client.from('tenant_addons').insert({
+                    tenant_id: resolvedTenantId,
                     addon_key: 'TOTEM_QR',
                     status: 'enabled',
                     activated_at: new Date().toISOString(),
@@ -173,13 +201,21 @@ const KioskAdmin: React.FC = () => {
 
     const handleDisableAddon = async () => {
         if (!confirm('Desabilitar o add-on Totem + QR? O totem e o QR Code ficarão inacessíveis.')) return;
-        await supabase.from('tenant_addons').update({ status: 'disabled' }).eq('tenant_id', tenantId).eq('addon_key', 'TOTEM_QR');
+        const { tenantId: resolvedTenantId, client } = getKioskAccess(
+            'tenant_addons',
+            'disable kiosk addon',
+        );
+        await client.from('tenant_addons').update({ status: 'disabled' }).eq('tenant_id', resolvedTenantId).eq('addon_key', 'TOTEM_QR');
         await loadAddon();
     };
 
     const handleSaveSettings = async () => {
         setSaving(true);
         try {
+            const { tenantId: resolvedTenantId, client } = getKioskAccess(
+                'tenant_addons',
+                'save kiosk addon settings',
+            );
             const currentLimits = {
                 max_devices: 1,
                 ...(addon ? { max_devices: addon.max_devices } : {}),
@@ -188,9 +224,9 @@ const KioskAdmin: React.FC = () => {
                 ambient_images: ambientImages
             };
 
-            await supabase.from('tenant_addons').update({
+            await client.from('tenant_addons').update({
                 limits: currentLimits
-            }).eq('tenant_id', tenantId).eq('addon_key', 'TOTEM_QR');
+            }).eq('tenant_id', resolvedTenantId).eq('addon_key', 'TOTEM_QR');
 
             await loadAddon();
             alert('Configurações salvas com sucesso!');
@@ -268,8 +304,12 @@ const KioskAdmin: React.FC = () => {
         if (!newDeviceName.trim()) return;
         setAddingDevice(true);
         try {
-            await supabase.from('kiosk_devices').insert({
-                tenant_id: tenantId,
+            const { tenantId: resolvedTenantId, client } = getKioskAccess(
+                'kiosk_devices',
+                'add kiosk device',
+            );
+            await client.from('kiosk_devices').insert({
+                tenant_id: resolvedTenantId,
                 name: newDeviceName.trim(),
                 theme: newDeviceTheme,
                 timeout_seconds: newDeviceTimeout,
@@ -286,13 +326,21 @@ const KioskAdmin: React.FC = () => {
     };
 
     const toggleDevice = async (deviceId: string, current: boolean) => {
-        await supabase.from('kiosk_devices').update({ is_active: !current }).eq('id', deviceId);
+        const { client } = getKioskAccess(
+            'kiosk_devices',
+            'toggle kiosk device',
+        );
+        await client.from('kiosk_devices').update({ is_active: !current }).eq('id', deviceId);
         await loadDevices();
     };
 
     const deleteDevice = async (deviceId: string) => {
         if (!confirm('Remover este dispositivo?')) return;
-        await supabase.from('kiosk_devices').delete().eq('id', deviceId);
+        const { client } = getKioskAccess(
+            'kiosk_devices',
+            'delete kiosk device',
+        );
+        await client.from('kiosk_devices').delete().eq('id', deviceId);
         await loadDevices();
     };
 

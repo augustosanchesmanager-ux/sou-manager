@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 interface Appointment {
@@ -22,7 +21,7 @@ interface Product {
 
 const Operations: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [lowStockItems, setLowStockItems] = useState<Product[]>([]);
     const [stats, setStats] = useState({ attended: 0, avgTicket: 0 });
@@ -42,45 +41,61 @@ const Operations: React.FC = () => {
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
 
-        // Fetch today's appointments
-        const { data: appts } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .gte('start_time', startOfDay)
-            .lte('start_time', endOfDay)
-            .neq('status', 'cancelled')
-            .order('start_time', { ascending: true });
+        try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'operations',
+                'appointments',
+                'load operations dashboard',
+            );
 
-        // Fetch low stock items
-        const { data: products } = await supabase
-            .from('products')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .or('stock.lte.min_stock,stock.lte.5')
-            .limit(5);
+            const [appointmentsResult, productsResult, completedResult] = await Promise.all([
+                client
+                    .from('appointments')
+                    .select('*')
+                    .eq('tenant_id', resolvedTenantId)
+                    .gte('start_time', startOfDay)
+                    .lte('start_time', endOfDay)
+                    .neq('status', 'cancelled')
+                    .order('start_time', { ascending: true }),
+                client
+                    .from('products')
+                    .select('*')
+                    .eq('tenant_id', resolvedTenantId)
+                    .or('stock.lte.min_stock,stock.lte.5')
+                    .limit(5),
+                client
+                    .from('appointments')
+                    .select('id, total_price')
+                    .eq('tenant_id', resolvedTenantId)
+                    .eq('status', 'completed')
+                    .gte('start_time', startOfDay)
+                    .lte('start_time', endOfDay),
+            ]);
 
-        // Fetch completed appointments for stats
-        const { data: completed } = await supabase
-            .from('appointments')
-            .select('id, total_price') // Assuming there's a total_price or similar
-            .eq('tenant_id', tenantId)
-            .eq('status', 'completed')
-            .gte('start_time', startOfDay)
-            .lte('start_time', endOfDay);
+            if (appointmentsResult.error) throw appointmentsResult.error;
+            if (productsResult.error) throw productsResult.error;
+            if (completedResult.error) throw completedResult.error;
 
-        if (appts) setAppointments(appts);
-        if (products) setLowStockItems(products);
+            const appts = (appointmentsResult.data || []) as Appointment[];
+            const products = (productsResult.data || []) as Product[];
+            const completed = (completedResult.data || []) as Array<{ id: string; total_price?: number | string | null }>;
 
-        if (completed) {
+            setAppointments(appts);
+            setLowStockItems(products);
+
             const attendedCount = completed.length;
             const totalRevenue = completed.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
             const avg = attendedCount > 0 ? totalRevenue / attendedCount : 0;
             setStats({ attended: attendedCount, avgTicket: avg });
+        } catch (error) {
+            console.error('Erro ao carregar operacoes:', error);
+            setAppointments([]);
+            setLowStockItems([]);
+            setStats({ attended: 0, avgTicket: 0 });
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 
 interface PayrollRecord {
@@ -18,7 +17,7 @@ interface PayrollRecord {
 }
 
 const Payroll: React.FC = () => {
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, requireModuleAccess } = useAuth();
     const [loading, setLoading] = useState(true);
     const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
@@ -36,7 +35,11 @@ const Payroll: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId || !filterMonth) return;
+        if (!tenantId || !filterMonth) {
+            setPayrollRecords([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
 
         const [yearStr, monthStr] = filterMonth.split('-');
@@ -47,75 +50,72 @@ const Payroll: React.FC = () => {
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
         try {
-            // 1. Fetch Staff
-            const { data: staffData } = await supabase
-                .from('staff')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .eq('status', 'active');
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'payroll',
+                'staff',
+                'load payroll overview',
+            );
 
-            if (!staffData || staffData.length === 0) {
+            const [staffResult, commissionItemsResult, transactionsResult] = await Promise.all([
+                client
+                    .from('staff')
+                    .select('*')
+                    .eq('tenant_id', resolvedTenantId)
+                    .eq('status', 'active'),
+                client
+                    .from('comanda_items')
+                    .select(`
+                        staff_id,
+                        quantity,
+                        unit_price,
+                        comandas!inner(created_at, status, staff_id)
+                    `)
+                    .eq('tenant_id', resolvedTenantId)
+                    .eq('comandas.status', 'paid')
+                    .gte('comandas.created_at', startOfMonth)
+                    .lte('comandas.created_at', endOfMonth),
+                client
+                    .from('transactions')
+                    .select('id, description, amount')
+                    .eq('tenant_id', resolvedTenantId)
+                    .eq('type', 'expense')
+                    .eq('category', 'Pessoal')
+                    .gte('date', startOfMonth)
+                    .lte('date', endOfMonth),
+            ]);
+
+            if (staffResult.error) throw staffResult.error;
+            if (commissionItemsResult.error) throw commissionItemsResult.error;
+            if (transactionsResult.error) throw transactionsResult.error;
+
+            const staffData = staffResult.data || [];
+            const commissionItemsData = commissionItemsResult.data || [];
+            const transactionsData = transactionsResult.data || [];
+
+            if (staffData.length === 0) {
                 setPayrollRecords([]);
-                setLoading(false);
                 return;
             }
 
-            // 2. Fetch paid items for the month and use comanda staff only as fallback
-            const { data: commissionItemsData } = await supabase
-                .from('comanda_items')
-                .select(`
-                    staff_id,
-                    quantity,
-                    unit_price,
-                    comandas!inner(created_at, status, staff_id)
-                `)
-                .eq('tenant_id', tenantId)
-                .eq('comandas.status', 'paid')
-                .gte('comandas.created_at', startOfMonth)
-                .lte('comandas.created_at', endOfMonth);
-
-            // 3. Fetch specific payroll payments in transactions 
-            const { data: transactionsData } = await supabase
-                .from('transactions')
-                .select('id, description, amount')
-                .eq('tenant_id', tenantId)
-                .eq('type', 'expense')
-                .eq('category', 'Pessoal')
-                .gte('date', startOfMonth)
-                .lte('date', endOfMonth);
-
-            // Map data
             const records: PayrollRecord[] = staffData.map((staff: any) => {
-                // Calculate commissions
                 let staffCommissions = 0;
-                if (commissionItemsData) {
-                    const staffSales = commissionItemsData.filter((item: any) => {
-                        const effectiveStaffId = item.staff_id || item.comandas?.staff_id || null;
-                        return effectiveStaffId === staff.id;
-                    });
-                    const totalSales = staffSales.reduce((acc: number, curr: any) => {
-                        const quantity = Number(curr.quantity || 0);
-                        const unitPrice = Number(curr.unit_price || 0);
-                        return acc + (quantity * unitPrice);
-                    }, 0);
-                    // if commission_rate is 40%
-                    const rate = Number(staff.commission_rate || 40) / 100;
-                    staffCommissions = totalSales * rate;
-                }
+                const staffSales = commissionItemsData.filter((item: any) => {
+                    const effectiveStaffId = item.staff_id || item.comandas?.staff_id || null;
+                    return effectiveStaffId === staff.id;
+                });
+                const totalSales = staffSales.reduce((acc: number, curr: any) => {
+                    const quantity = Number(curr.quantity || 0);
+                    const unitPrice = Number(curr.unit_price || 0);
+                    return acc + (quantity * unitPrice);
+                }, 0);
+                const rate = Number(staff.commission_rate || 40) / 100;
+                staffCommissions = totalSales * rate;
 
-                // Temporary vales/discounts mock as 0 for now unless we add an 'expenses' loop
                 const fixed = Number(staff.fixed_salary || 0);
                 const discounts = 0;
-                let netPay = fixed + staffCommissions - discounts;
-
-                // Check if already paid
-                // We use description "Folha - [StaffId] - [YYYY-MM]" to identify
+                const netPay = fixed + staffCommissions - discounts;
                 const payrollDesc = `Folha - ${staff.id} - ${filterMonth}`;
-                const paymentTx = transactionsData?.find((tx: any) => tx.description === payrollDesc);
-
-                if (paymentTx) {
-                    // netPay = Number(paymentTx.amount); // use the exact paid amount if already paid?
-                }
+                const paymentTx = transactionsData.find((tx: any) => tx.description === payrollDesc);
 
                 return {
                     id: staff.id,
@@ -124,8 +124,8 @@ const Payroll: React.FC = () => {
                     avatar: staff.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}`,
                     fixedSalary: fixed,
                     commissions: staffCommissions,
-                    discounts: discounts,
-                    netPay: netPay,
+                    discounts,
+                    netPay,
                     status: paymentTx ? 'Pago' : 'Pendente',
                     transactionId: paymentTx?.id
                 };
@@ -136,10 +136,11 @@ const Payroll: React.FC = () => {
         } catch (error) {
             console.error('Error computing payroll:', error);
             setToast({ message: 'Erro ao carregar dados da folha.', type: 'error' });
+            setPayrollRecords([]);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-    }, [tenantId, filterMonth]);
+    }, [filterMonth, requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -156,9 +157,14 @@ const Payroll: React.FC = () => {
 
         try {
             const payrollDesc = `Folha - ${selectedRecord.id} - ${filterMonth}`;
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'payroll',
+                'transactions',
+                'record payroll payment',
+            );
 
             // Insert into transactions to mark as Paid
-            const { error: txError } = await supabase.from('transactions').insert({
+            const { error: txError } = await client.from('transactions').insert({
                 user_id: user.id,
                 type: 'expense',
                 category: 'Pessoal',
@@ -166,7 +172,7 @@ const Payroll: React.FC = () => {
                 description: payrollDesc,
                 payment_method: 'Transferência', // Default
                 date: new Date().toISOString(),
-                tenant_id: tenantId
+                tenant_id: resolvedTenantId
             });
 
             if (txError) throw txError;
@@ -179,7 +185,7 @@ const Payroll: React.FC = () => {
             }
 
             setIsPaymentModalOpen(false);
-            fetchData(); // Refresh list
+            void fetchData();
         } catch (error: any) {
             console.error('Payment error:', error);
             setToast({ message: 'Erro ao processar pagamento.', type: 'error' });

@@ -13,7 +13,15 @@ import AuditDrawer from '../components/superadmin/AuditDrawer';
 import AdminActionMenu from '../components/superadmin/AdminActionMenu';
 import { AdminActivity, AdminFilterState, AdminKpi, AdminStatus, AdminTab, AuditEntry, ManagedUserRow, QuickAction, RiskAlert, SubscriptionRequestRow } from '../components/superadmin/types';
 import Button from '../components/ui/Button';
-import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../context/AuthContext';
+import {
+  buildAdminBackendAlertQueueResponse,
+  buildAdminBackendOperationalTimelineResponse,
+  mapAdminBackendAlertQueueToRiskAlerts,
+} from '../src/app/core/admin/adminBackendWave1Adapters';
+import { platformAdminDeliveryTargetLabels, platformAdminExpansionPolicyLabels, platformAdminTransitionWaveLabels, superAdminTabsRegistry } from '../src/app/core/admin/platformAdminCapabilities';
+
+type SuperAdminRuntimeTab = typeof superAdminTabsRegistry[number]['id'];
 
 type TenantRow = { id: string; name: string; slug: string; active: boolean; created_at: string };
 type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; role: string | null; created_at: string; updated_at?: string | null };
@@ -24,14 +32,22 @@ type AuditLogRow = { id: string; table_name: string; record_id: string; action: 
 type AccessRequestRow = { id: string; tenant_name: string | null; owner_name: string | null; email: string | null; phone: string | null; status: string; created_at: string };
 type CompanyRow = { id: string; name: string; slug: string; usersCount: number; createdAt: string; status: AdminStatus };
 
-const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview', label: 'Visao Geral', icon: <HandCoins className="h-4 w-4" /> },
-  { id: 'companies', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
-  { id: 'users', label: 'Usuarios', icon: <Users className="h-4 w-4" /> },
-  { id: 'subscriptions', label: 'Solicitacoes', icon: <CreditCard className="h-4 w-4" /> },
-  { id: 'audit', label: 'Auditoria', icon: <ScrollText className="h-4 w-4" /> },
-  { id: 'logs', label: 'Alertas', icon: <FileSearch className="h-4 w-4" /> },
-];
+const superAdminTabIcons: Record<SuperAdminRuntimeTab, React.ReactNode> = {
+  overview: <HandCoins className="h-4 w-4" />,
+  companies: <Building2 className="h-4 w-4" />,
+  users: <Users className="h-4 w-4" />,
+  subscriptions: <CreditCard className="h-4 w-4" />,
+  audit: <ScrollText className="h-4 w-4" />,
+  logs: <FileSearch className="h-4 w-4" />,
+};
+
+const tabs: { id: SuperAdminRuntimeTab; label: string; icon: React.ReactNode; description: string; title: string }[] = superAdminTabsRegistry.map((tab) => ({
+  id: tab.id,
+  label: tab.label,
+  description: tab.description,
+  title: `${tab.description} | ${tab.ownershipModel} | ${platformAdminDeliveryTargetLabels[tab.deliveryTarget]} | ${platformAdminTransitionWaveLabels[tab.transitionWave]} | ${platformAdminExpansionPolicyLabels[tab.expansionPolicy]}`,
+  icon: superAdminTabIcons[tab.id],
+}));
 
 const defaultFilters: AdminFilterState = {
   period: '7d',
@@ -60,6 +76,7 @@ const periodStart = (period: string) => {
 };
 
 const SuperAdmin: React.FC = () => {
+  const { requirePlatformAdminAccess } = useAuth();
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<AdminFilterState>(defaultFilters);
   const [search, setSearch] = useState('');
@@ -81,6 +98,7 @@ const SuperAdmin: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const activeTabDefinition = superAdminTabsRegistry.find((tab) => tab.id === activeTab) ?? superAdminTabsRegistry[0];
 
   useEffect(() => {
     const savedView = localStorage.getItem('superadmin-view');
@@ -102,16 +120,17 @@ const SuperAdmin: React.FC = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
+    const { client } = requirePlatformAdminAccess('superadmin.fetchData');
     setLoading(true);
     const results = await Promise.allSettled([
-      supabase.from('tenants').select('id, name, slug, active, created_at').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, tenant_id, full_name, role, created_at, updated_at').order('created_at', { ascending: false }),
-      supabase.from('plan_change_requests').select('id, user_id, current_plan, requested_plan, status, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('support_tickets').select('id, user_id, subject, description, status, priority, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('alerts').select('id, resource_type, message, level, usage_pct, resolved_at, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('audit_logs').select('id, table_name, record_id, action, old_data, new_data, changed_by, changed_at, tenant_id').order('changed_at', { ascending: false }).limit(100),
-      supabase.from('access_requests').select('id, tenant_name, owner_name, email, phone, status, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('transactions').select('id, type, amount, date, tenant_id').order('date', { ascending: false }).limit(500),
+      client.from('tenants').select('id, name, slug, active, created_at').order('created_at', { ascending: false }),
+      client.from('profiles').select('id, tenant_id, full_name, role, created_at, updated_at').order('created_at', { ascending: false }),
+      client.from('plan_change_requests').select('id, user_id, current_plan, requested_plan, status, created_at').order('created_at', { ascending: false }).limit(100),
+      client.from('support_tickets').select('id, user_id, subject, description, status, priority, created_at').order('created_at', { ascending: false }).limit(100),
+      client.from('alerts').select('id, resource_type, message, level, usage_pct, resolved_at, created_at').order('created_at', { ascending: false }).limit(100),
+      client.from('audit_logs').select('id, table_name, record_id, action, old_data, new_data, changed_by, changed_at, tenant_id').order('changed_at', { ascending: false }).limit(100),
+      client.from('access_requests').select('id, tenant_name, owner_name, email, phone, status, created_at').order('created_at', { ascending: false }).limit(100),
+      client.from('transactions').select('id, type, amount, date, tenant_id').order('date', { ascending: false }).limit(500),
     ]);
 
     const failedSources = results.filter((result) => result.status !== 'fulfilled' || Boolean(result.value?.error)).length;
@@ -137,7 +156,7 @@ const SuperAdmin: React.FC = () => {
       });
     }
     setLoading(false);
-  }, []);
+  }, [requirePlatformAdminAccess]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setActivityPage(1); setUserPage(1); setSubscriptionPage(1); setCompanyPage(1); }, [filters, search]);
@@ -187,7 +206,7 @@ const SuperAdmin: React.FC = () => {
     };
   }), [plans, profileMap, tenantMap]);
 
-  const alertItems = useMemo<RiskAlert[]>(() => {
+  const legacyAlertItems = useMemo<RiskAlert[]>(() => {
     const baseAlerts = alerts.filter((item) => !item.resolved_at).map((item) => ({
       id: item.id,
       title: `Alerta em ${item.resource_type}`,
@@ -209,6 +228,21 @@ const SuperAdmin: React.FC = () => {
     return [...baseAlerts, ...supportAlerts].slice(0, 8);
   }, [alerts, tickets]);
 
+  const alertQueueResponse = useMemo(
+    () =>
+      buildAdminBackendAlertQueueResponse({
+        generatedAt: lastUpdatedAt,
+        items: legacyAlertItems,
+        openSupportTickets: tickets.filter((ticket) => ticket.status !== 'closed').length,
+      }),
+    [lastUpdatedAt, legacyAlertItems, tickets],
+  );
+
+  const alertItems = useMemo<RiskAlert[]>(
+    () => mapAdminBackendAlertQueueToRiskAlerts(alertQueueResponse),
+    [alertQueueResponse],
+  );
+
   const audits = useMemo<AuditEntry[]>(() => auditLogs.map((audit) => ({
     id: audit.id,
     actor: audit.changed_by ? (profileMap[audit.changed_by]?.full_name || 'Sistema') : 'Sistema',
@@ -222,7 +256,7 @@ const SuperAdmin: React.FC = () => {
     justification: `Evento auditado na tabela ${audit.table_name}.`,
   })), [auditLogs, profileMap]);
 
-  const activities = useMemo<AdminActivity[]>(() => {
+  const legacyActivities = useMemo<AdminActivity[]>(() => {
     const rows: AdminActivity[] = [];
     auditLogs.forEach((audit) => {
       const actor = audit.changed_by ? (profileMap[audit.changed_by]?.full_name || 'Sistema') : 'Sistema';
@@ -297,6 +331,32 @@ const SuperAdmin: React.FC = () => {
     });
     return rows.sort((a, b) => +new Date(b.dateTime) - +new Date(a.dateTime));
   }, [accessRequests, alerts, auditLogs, profileMap, tenantMap, tickets]);
+
+  const operationalTimelineResponse = useMemo(
+    () =>
+      buildAdminBackendOperationalTimelineResponse({
+        generatedAt: lastUpdatedAt,
+        items: legacyActivities,
+      }),
+    [lastUpdatedAt, legacyActivities],
+  );
+
+  const legacyActivityMap = useMemo(
+    () =>
+      legacyActivities.reduce<Record<string, AdminActivity>>((acc, item) => {
+        acc[item.id] = item;
+        return acc;
+      }, {}),
+    [legacyActivities],
+  );
+
+  const activities = useMemo<AdminActivity[]>(
+    () =>
+      operationalTimelineResponse.items
+        .map((item) => legacyActivityMap[item.id])
+        .filter((item): item is AdminActivity => Boolean(item)),
+    [legacyActivityMap, operationalTimelineResponse],
+  );
 
   const kpis = useMemo<AdminKpi[]>(() => {
     const income = transactions.filter((item: any) => item.type === 'income').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
@@ -414,7 +474,18 @@ const SuperAdmin: React.FC = () => {
       <SuperAdminHeader search={search} onSearchChange={setSearch} onExport={handleExport} onRefresh={fetchData} onOpenActionMenu={() => setActionMenuOpen(true)} lastUpdatedLabel={new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(lastUpdatedAt))} />
       <SuperAdminFilters value={filters} onChange={setFilters} onReset={() => { setFilters(defaultFilters); setSearch(''); }} onSaveView={handleSaveView} options={filterOptions} />
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{kpis.map((item) => <KpiCard key={item.id} item={item} />)}</section>
-      <section className="card-boutique p-3"><div className="flex flex-wrap gap-2">{tabs.map((tab) => <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'}`}>{tab.icon}{tab.label}</button>)}</div></section>
+      <section className="card-boutique p-3"><div className="flex flex-wrap gap-2">{tabs.map((tab) => <button key={tab.id} title={tab.title} onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'}`}>{tab.icon}{tab.label}</button>)}</div></section>
+      {activeTabDefinition.transitionWave === 'wave-1' && (
+        <section className="rounded-[2rem] border border-red-500/20 bg-red-500/10 px-5 py-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Destino Arquitetural</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Esta capability segue acessivel no frontend atual, mas ja esta na <span className="font-black text-slate-950 dark:text-white">fila 1 de saida</span> para o futuro <span className="font-black text-slate-950 dark:text-white">SMG ADMIN BACKEND</span>.
+          </p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.15em] text-red-300 dark:text-red-200">
+            Politica atual: sem expansao funcional no frontend atual.
+          </p>
+        </section>
+      )}
 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">

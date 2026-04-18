@@ -4,7 +4,6 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { generateBusinessInsights } from '../services/geminiService';
 
@@ -33,7 +32,7 @@ const COLORS = ['#3c83f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'
 /* ───────────── COMPONENT ───────────── */
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [period, setPeriod] = useState<Period>('30d');
     const [loading, setLoading] = useState(true);
 
@@ -77,14 +76,19 @@ const BusinessIntelligence: React.FC = () => {
         }
 
         setLoading(true);
+        const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+            'business_intelligence',
+            'transactions',
+            'load business intelligence dashboard',
+        );
         const [txRes, aptRes, cliRes, stfRes, prdRes, ciRes, cmdRes] = await Promise.all([
-            supabase.from('transactions').select('*').eq('tenant_id', tenantId).order('date', { ascending: true }),
-            supabase.from('appointments').select('*').eq('tenant_id', tenantId).order('start_time', { ascending: false }),
-            supabase.from('clients').select('*').eq('tenant_id', tenantId).order('name'),
-            supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
-            supabase.from('products').select('*').eq('tenant_id', tenantId),
-            supabase.from('comanda_items').select('*').eq('tenant_id', tenantId),
-            supabase.from('comandas').select('*').eq('tenant_id', tenantId).eq('status', 'paid'),
+            client.from('transactions').select('*').eq('tenant_id', resolvedTenantId).order('date', { ascending: true }),
+            client.from('appointments').select('*').eq('tenant_id', resolvedTenantId).order('start_time', { ascending: false }),
+            client.from('clients').select('*').eq('tenant_id', resolvedTenantId).order('name'),
+            client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
+            client.from('products').select('*').eq('tenant_id', resolvedTenantId),
+            client.from('comanda_items').select('*').eq('tenant_id', resolvedTenantId),
+            client.from('comandas').select('*').eq('tenant_id', resolvedTenantId).eq('status', 'paid'),
         ]);
 
         [txRes, aptRes, cliRes, stfRes, prdRes, ciRes, cmdRes].forEach((res) => {
@@ -101,7 +105,7 @@ const BusinessIntelligence: React.FC = () => {
         if (ciRes.data) setCmdItems(ciRes.data);
         if (cmdRes.data) setComandas(cmdRes.data);
         setLoading(false);
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 

@@ -191,6 +191,29 @@ const PortalSchedule: React.FC = () => {
             const blocked = blocksForDate.some((block) => blockOverlapsTimeRange(block, startDecimal, endDecimal));
             if (blocked) throw new Error('Este horário foi bloqueado e não está mais disponível.');
 
+            let conflictQuery = supabase
+                .from('appointments')
+                .select('start_time, end_time')
+                .eq('tenant_id', tenant.id)
+                .gte('start_time', `${dateKey}T00:00:00`)
+                .lt('start_time', `${dateKey}T23:59:59`)
+                .in('status', ['scheduled', 'confirmed', 'pending', 'in_progress', 'no_show']);
+
+            if (selectedBarber && selectedBarber.id !== 'any') {
+                conflictQuery = conflictQuery.eq('staff_id', selectedBarber.id);
+            }
+
+            const { data: conflictingAppointments, error: conflictError } = await conflictQuery;
+            if (conflictError) throw conflictError;
+
+            const hasAppointmentConflict = (conflictingAppointments || []).some((appointment) => {
+                const appointmentStart = new Date(appointment.start_time);
+                const appointmentEnd = new Date(appointment.end_time);
+                return start < appointmentEnd && end > appointmentStart;
+            });
+
+            if (hasAppointmentConflict) throw new Error('Este horário acabou de ser ocupado. Escolha outro.');
+
             await supabase.from('appointments').insert({
                 tenant_id: tenant.id,
                 client_id: client.id,
@@ -198,6 +221,7 @@ const PortalSchedule: React.FC = () => {
                 service_id: selectedService.id,
                 start_time: start.toISOString(),
                 end_time: end.toISOString(),
+                duration: selectedService.duration_minutes / 60,
                 status: 'scheduled',
                 source: 'client_portal',
                 channel: 'home_portal',

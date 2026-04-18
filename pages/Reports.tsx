@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 const COLORS = ['#3c83f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
@@ -19,6 +18,8 @@ interface CategoryData {
 interface StaffPerformance {
     name: string;
     revenue: number;
+    rateio: number;
+    totalProduction: number;
     avgTicket: number;
     commission: number;
     commissionRate: number;
@@ -27,7 +28,7 @@ interface StaffPerformance {
 
 const Reports: React.FC = () => {
     const { theme } = useTheme();
-    const { tenantId } = useAuth();
+    const { tenantId, requireModuleAccess } = useAuth();
     const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
     const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<StaffPerformance[]>([]);
@@ -35,16 +36,25 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId) return;
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
 
         try {
+            const { tenantId: resolvedTenantId, client } = requireModuleAccess(
+                'reports',
+                'transactions',
+                'load reports dashboard',
+            );
             // 1. Fetch Revenue Data (Transactions)
-            const { data: trans } = await supabase
+            const { data: trans } = await client
                 .from('transactions')
                 .select('*')
                 .eq('type', 'income')
-                .eq('tenant_id', tenantId)
+                .eq('tenant_id', resolvedTenantId)
                 .order('date', { ascending: true });
 
             if (trans) {
@@ -61,10 +71,10 @@ const Reports: React.FC = () => {
             }
 
             // 2. Fetch staff commission rates
-            const { data: staffData } = await supabase
+            const { data: staffData } = await client
                 .from('staff')
                 .select('id, name, commission_rate')
-                .eq('tenant_id', tenantId);
+                .eq('tenant_id', resolvedTenantId);
 
             const staffRates: Record<string, number> = {};
             const staffNameToId: Record<string, string> = {};
@@ -75,33 +85,60 @@ const Reports: React.FC = () => {
                 });
             }
 
-            // 3. Fetch Comandas and Items for detailed metrics
-            const { data: paidComandas } = await supabase
-                .from('comandas')
-                .select(`
-                    id, 
-                    total, 
-                    client_id, 
-                    staff_id,
-                    clients (name),
-                    staff (name),
-                    comanda_items (
-                        product_name,
-                        unit_price,
-                        quantity
-                    )
-                `)
-                .eq('status', 'paid')
-                .eq('tenant_id', tenantId);
+// 3. Fetch Comandas and Items for detailed metrics
+            const [paidComandas, participantsData] = await Promise.all([
+                client
+                    .from('comandas')
+                    .select(`
+                        id, 
+                        total, 
+                        client_id, 
+                        staff_id,
+                        clients (name),
+                        staff (name),
+                        comanda_items (
+                            id,
+                            product_name,
+                            unit_price,
+                            quantity,
+                            is_primary_revenue
+                        )
+                    `)
+                    .eq('status', 'paid')
+                    .eq('tenant_id', resolvedTenantId),
+                client
+                    .from('service_execution_participants')
+                    .select(`
+                        id,
+                        comanda_item_id,
+                        staff_id,
+                        role,
+                        payout_amount_calculated,
+                        affects_revenue
+                    `)
+                    .eq('affects_revenue', true),
+            ]);
 
-            if (paidComandas) {
+            const participantsByItem: Record<string, any[]> = {};
+            if (participantsData.data) {
+                participantsData.data.forEach((p: any) => {
+                    if (!participantsByItem[p.comanda_item_id]) {
+                        participantsByItem[p.comanda_item_id] = [];
+                    }
+                    participantsByItem[p.comanda_item_id].push(p);
+                });
+            }
+
+if (paidComandas.data) {
+                const paidComandasList = paidComandas.data;
+
                 // Categories (by service/product name in items)
                 const catGrouped: Record<string, number> = {};
                 const staffGrouped: Record<string, { revenue: number, count: number, staffId: string }> = {};
                 const clientVisits: Record<string, number> = {};
                 let totalRev = 0;
 
-                paidComandas.forEach((com: any) => {
+                paidComandasList.forEach((com: any) => {
                     totalRev += Number(com.total) || 0;
 
                     // Client retention data
@@ -116,10 +153,19 @@ const Reports: React.FC = () => {
                     staffGrouped[staffName].revenue += Number(com.total) || 0;
                     staffGrouped[staffName].count += 1;
 
-                    // Items for categories
+                    // Items for categories - only count if it's primary revenue or has no participants
                     com.comanda_items?.forEach((item: any) => {
-                        const name = item.product_name || 'Geral';
-                        catGrouped[name] = (catGrouped[name] || 0) + (Number(item.unit_price) * item.quantity || 0);
+                        const itemRevenue = Number(item.unit_price) * item.quantity || 0;
+                        
+                        // Only count in categories if it's primary revenue or has no participants affecting revenue
+                        const itemParticipants = participantsByItem[item.id] || [];
+                        const hasRevenueParticipants = itemParticipants.length > 0;
+                        const shouldCountForRevenue = item.is_primary_revenue !== false && !hasRevenueParticipants;
+                        
+                        if (shouldCountForRevenue) {
+                            const name = item.product_name || 'Geral';
+                            catGrouped[name] = (catGrouped[name] || 0) + itemRevenue;
+                        }
                     });
                 });
 
@@ -130,16 +176,30 @@ const Reports: React.FC = () => {
                     .slice(0, 6);
                 setCategoryData(sortedCats);
 
-                // Set staff
+                // Set staff - now with rateio support
+                const staffRateio: Record<string, number> = {};
+                participantsData.data?.forEach((p: any) => {
+                    if (p.staff_id && staffNameToId[p.staff_id]) {
+                        const staffName = Object.keys(staffNameToId).find(k => staffNameToId[k] === p.staff_id);
+                        if (staffName) {
+                            staffRateio[staffName] = (staffRateio[staffName] || 0) + (Number(p.payout_amount_calculated) || 0);
+                        }
+                    }
+                });
+
                 setStaffPerformance(Object.keys(staffGrouped).map(name => {
                     const group = staffGrouped[name];
                     const rate = group.staffId ? (staffRates[group.staffId] || 40) : 40;
+                    const rateioAmount = staffRateio[name] || 0;
+                    const totalProd = group.revenue + rateioAmount;
                     return {
                         name,
                         revenue: group.revenue,
-                        avgTicket: group.revenue / group.count,
+                        rateio: rateioAmount,
+                        totalProduction: totalProd,
+                        avgTicket: group.count > 0 ? totalProd / group.count : 0,
                         commissionRate: rate,
-                        commission: group.revenue * (rate / 100),
+                        commission: totalProd * (rate / 100),
                         nps: 90 + Math.random() * 10
                     };
                 }));
@@ -156,10 +216,10 @@ const Reports: React.FC = () => {
             }
         } catch (err) {
             console.error('Error fetching reports:', err);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-    }, [tenantId]);
+    }, [requireModuleAccess, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -322,6 +382,8 @@ const Reports: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Profissional</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Faturamento</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Rateio/Apoio</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Produção Total</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Ticket Médio</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">% Comissão</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Comissão</th>
@@ -331,12 +393,14 @@ const Reports: React.FC = () => {
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Processando dados...</td>
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">Processando dados...</td>
                                 </tr>
                             ) : staffPerformance.length > 0 ? staffPerformance.map((staff, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                     <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{staff.name}</td>
                                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300">R$ {staff.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-6 py-4 text-amber-600 dark:text-amber-400">R$ {staff.rateio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-6 py-4 text-primary font-bold">R$ {staff.totalProduction.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300">R$ {staff.avgTicket.toFixed(2)}</td>
                                     <td className="px-6 py-4">
                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
@@ -350,7 +414,7 @@ const Reports: React.FC = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Sem dados de desempenho para exibir.</td>
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">Sem dados de desempenho para exibir.</td>
                                 </tr>
                             )}
                         </tbody>

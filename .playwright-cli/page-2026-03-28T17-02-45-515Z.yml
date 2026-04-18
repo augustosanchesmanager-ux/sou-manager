@@ -1,0 +1,287 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - button "content_cut SOU MANA.GER Elite Tech" [ref=e6] [cursor=pointer]:
+        - generic [ref=e8]: content_cut
+        - generic [ref=e9]:
+          - heading "SOU MANA.GER" [level=1] [ref=e10]
+          - paragraph [ref=e11]: Elite Tech
+      - generic [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: "#home"
+          - text: Home
+        - link "Sobre" [ref=e15] [cursor=pointer]:
+          - /url: "#sobre"
+        - link "Funcionalidades" [ref=e16] [cursor=pointer]:
+          - /url: "#funcionalidades"
+        - link "Preços" [ref=e17] [cursor=pointer]:
+          - /url: "#precos"
+        - link "Contato" [ref=e18] [cursor=pointer]:
+          - /url: "#contato"
+      - generic [ref=e19]:
+        - link "Acessar Conta" [ref=e20] [cursor=pointer]:
+          - /url: "#/login"
+        - link "Começar Agora" [ref=e21] [cursor=pointer]:
+          - /url: "#/onboarding/role"
+  - generic [ref=e22]:
+    - generic [ref=e23]:
+      - generic [ref=e26]: Nossa Essência
+      - heading "A Evolução da sua Barbearia" [level=1] [ref=e27]:
+        - text: A Evolução da
+        - text: sua Barbearia
+      - paragraph [ref=e28]: O SOU MANA.GER é a inteligência que sua barbearia precisa para crescer de forma organizada, estratégica e lucrativa.
+      - generic [ref=e29]:
+        - link "Agende uma Demo trending_up" [ref=e30] [cursor=pointer]:
+          - /url: "#/onboarding/role"
+          - text: Agende uma Demo
+          - generic [ref=e31]: trending_up
+        - link "Ver Recursos expand_more" [ref=e32] [cursor=pointer]:
+          - /url: "#funcionalidades"
+          - text: Ver Recursos
+          - generic [ref=e33]: expand_more
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - img "User" [ref=e37]
+          - img "User" [ref=e39]
+          - img "User" [ref=e41]
+          - img "User" [ref=e43]
+        - generic [ref=e44]:
+          - paragraph [ref=e45]: +200 Barbearias
+          - paragraph [ref=e46]: Gerindo com inteligência
+    - img "Dono da barbearia" [ref=e49]
+  - generic [ref=e55]:
+    - generic [ref=e56]: Quem somos
+    - heading "Feito por quem entende o mercado de barbearia" [level=2] [ref=e57]:
+      - text: Feito por quem entende
+      - text: o mercado de barbearia
+    - paragraph [ref=e58]: Nascemos da necessidade real. Cada funcionalidade foi desenhada junto com quem vive o dia a dia da cadeira, focando em simplicidade e resultados reais.
+    - generic [ref=e59]:
+      - generic [ref=e62]:
+        - paragraph [ref=e63]: 200+
+        - paragraph [ref=e64]: Barbearias
+      - generic [ref=e67]:
+        - paragraph [ref=e68]: 98%
+        - paragraph [ref=e69]: Satisfação
+      - generic [ref=e72]:
+        - paragraph [ref=e73]: 3x
+        - paragraph [ref=e74]: Mais Lucro
+  - generic [ref=e79]:
+    - generic [ref=e80]:
+      - generic [ref=e81]:
+        - generic [ref=e82]: Funcionalidades
+        - heading "Tudo o que sua barbearia precisa para evoluir" [level=2] [ref=e83]:
+          - text: Tudo o que sua barbearia
+          - text: precisa para evoluir
+      - paragraph [ref=e84]: Substitua a confusão de papéis e planilhas por um ecossistema digital completo e intuitivo.
+    - generic [ref=e85]:
+      - generic [ref=e86]:
+        - generic [ref=e88]: group
+        - heading "Gestão de Clientes" [level=3] [ref=e89]
+        - paragraph [ref=e90]: Organize sua agenda e fidelize seu público com dados reais sobre comportamento e frequência.
+      - generic [ref=e91]:
+        - generic [ref=e93]: point_of_sale
+        - heading "Vendas e PDV" [level=3] [ref=e94]
+        - paragraph [ref=e95]: Transforme cada atendimento em uma venda estratégica e lucrativa com interface rápida.
+      - generic [ref=e96]:
+        - generic [ref=e98]: inventory_2
+        - heading "Controle de Estoque" [level=3] [ref=e99]
+        - paragraph [ref=e100]: Tenha visão total dos seus produtos e evite desperdícios com alertas de reposição inteligentes.
+      - generic [ref=e101]:
+        - generic [ref=e103]: calendar_month
+        - heading "Agenda Inteligente" [level=3] [ref=e104]
+        - paragraph [ref=e105]: Organize horários, evite conflitos e envie lembretes automáticos para reduzir faltas.
+      - generic [ref=e106]:
+        - generic [ref=e108]: monitoring
+        - heading "Gestão Financeira" [level=3] [ref=e109]
+        - paragraph [ref=e110]: Acompanhe faturamento, ticket médio, despesas e comissões automáticas em tempo real.
+      - generic [ref=e111]:
+        - generic [ref=e113]: analytics
+        - heading "Relatórios e Insights" [level=3] [ref=e114]
+        - paragraph [ref=e115]: Decisões mais rápidas com dashboards visuais e exportação de relatórios detalhados.
+  - generic [ref=e121]:
+    - generic [ref=e122]:
+      - heading "Investimento Inteligente" [level=2] [ref=e123]
+      - paragraph [ref=e124]: Escolha o plano ideal para a fase atual do seu negócio. Sem letras miúdas.
+      - generic [ref=e125]:
+        - generic [ref=e126]: Mensal
+        - button [ref=e127]
+        - generic [ref=e129]:
+          - text: Anual
+          - generic [ref=e130]: 2 Meses Grátis
+    - generic [ref=e131]:
+      - generic [ref=e132]:
+        - heading "Gratuito" [level=3] [ref=e133]
+        - generic [ref=e134]:
+          - generic [ref=e135]: R$
+          - generic [ref=e136]: 0,00
+          - generic [ref=e137]: /mês
+        - paragraph [ref=e138]: Essencial para organizar sua barbearia com elegância.
+        - generic [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]: check_circle
+            - generic [ref=e142]: Até 50 agendamentos/mês
+          - generic [ref=e143]:
+            - generic [ref=e144]: check_circle
+            - generic [ref=e145]: Cadastro de Clientes Premium
+          - generic [ref=e146]:
+            - generic [ref=e147]: check_circle
+            - generic [ref=e148]: Portal do Cliente (Agendamentos)
+          - generic [ref=e149]:
+            - generic [ref=e150]: check_circle
+            - generic [ref=e151]: Relatórios Básicos de Venda
+          - generic [ref=e152]:
+            - generic [ref=e153]: check_circle
+            - generic [ref=e154]: Suporte via E-mail
+        - link "Começar Agora" [ref=e155] [cursor=pointer]:
+          - /url: "#/onboarding/role"
+      - generic [ref=e156]:
+        - generic [ref=e157]: Mais Popular
+        - heading "Profissional" [level=3] [ref=e158]
+        - generic [ref=e159]:
+          - generic [ref=e160]: R$
+          - generic [ref=e161]: 59,90
+          - generic [ref=e162]: /mês
+        - paragraph [ref=e163]: O motor operacional completo para seu negócio.
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: check_circle
+            - generic [ref=e167]: Agendamentos Ilimitados
+          - generic [ref=e168]:
+            - generic [ref=e169]: check_circle
+            - generic [ref=e170]: Folha de Pagamento Automatizada
+          - generic [ref=e171]:
+            - generic [ref=e172]: check_circle
+            - generic [ref=e173]: Checkout / PDV com Recibos
+          - generic [ref=e174]:
+            - generic [ref=e175]: check_circle
+            - generic [ref=e176]: Gestão de Comissões e Equipe
+          - generic [ref=e177]:
+            - generic [ref=e178]: check_circle
+            - generic [ref=e179]: Controle de Estoque Profissional
+          - generic [ref=e180]:
+            - generic [ref=e181]: check_circle
+            - generic [ref=e182]: Suporte via WhatsApp
+        - link "Escolher Profissional" [ref=e183] [cursor=pointer]:
+          - /url: "#/onboarding/role"
+      - generic [ref=e184]:
+        - heading "Elite" [level=3] [ref=e185]
+        - generic [ref=e186]:
+          - generic [ref=e187]: R$
+          - generic [ref=e188]: 99,90
+          - generic [ref=e189]: /mês
+        - paragraph [ref=e190]: Tecnologia de ponta com Inteligência Artificial.
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - generic [ref=e193]: check_circle
+            - generic [ref=e194]: Tudo do Profissional
+          - generic [ref=e195]:
+            - generic [ref=e196]: check_circle
+            - generic [ref=e197]: Motor de Retorno Inteligente
+          - generic [ref=e198]:
+            - generic [ref=e199]: check_circle
+            - generic [ref=e200]: "IA Gemini: Insights Preditivos"
+          - generic [ref=e201]:
+            - generic [ref=e202]: check_circle
+            - generic [ref=e203]: Totem / Kiosk de Autoatendimento
+          - generic [ref=e204]:
+            - generic [ref=e205]: check_circle
+            - generic [ref=e206]: Gestão Multiloja Dashboard
+          - generic [ref=e207]:
+            - generic [ref=e208]: check_circle
+            - generic [ref=e209]: Suporte Prioritário VIP
+        - link "Seja Elite Tech" [ref=e210] [cursor=pointer]:
+          - /url: "#/onboarding/role"
+  - generic [ref=e215]:
+    - generic [ref=e216]:
+      - generic [ref=e217]: Fale Conosco
+      - heading "Pronto para transformar sua barbearia?" [level=2] [ref=e218]:
+        - text: Pronto para
+        - text: transformar sua barbearia?
+      - paragraph [ref=e219]: Inicie sua evolução agora ou tire dúvidas com nosso time comercial.
+      - generic [ref=e220]:
+        - generic [ref=e221]:
+          - generic [ref=e223]: call
+          - generic [ref=e224]:
+            - paragraph [ref=e225]: WhatsApp / Telefone
+            - paragraph [ref=e226]: (11) 98207-3536
+        - generic [ref=e227]:
+          - generic [ref=e229]: alternate_email
+          - generic [ref=e230]:
+            - paragraph [ref=e231]: E-mail Comercial
+            - paragraph [ref=e232]: sanches.augusto@outlook.com
+    - generic [ref=e233]:
+      - link "Instagram arrow_outward" [ref=e234] [cursor=pointer]:
+        - /url: https://instagram.com
+        - text: Instagram
+        - generic [ref=e235]: arrow_outward
+      - link "Chamar no WhatsApp chat_bubble" [ref=e236] [cursor=pointer]:
+        - /url: https://wa.me/5511982073536
+        - text: Chamar no WhatsApp
+        - generic [ref=e237]: chat_bubble
+      - link "Começar agora 🚀" [ref=e238] [cursor=pointer]:
+        - /url: "#/onboarding/role"
+  - contentinfo [ref=e239]:
+    - generic [ref=e240]:
+      - generic [ref=e241]:
+        - generic [ref=e242]:
+          - button "content_cut SOU MANA.GER Elite Tech" [ref=e243] [cursor=pointer]:
+            - generic [ref=e245]: content_cut
+            - generic [ref=e246]:
+              - heading "SOU MANA.GER" [level=1] [ref=e247]
+              - paragraph [ref=e248]: Elite Tech
+          - paragraph [ref=e249]: Transformando a gestão de barbearias através de dados, simplicidade e tecnologia de elite.
+        - generic [ref=e250]:
+          - generic [ref=e251]:
+            - paragraph [ref=e252]: Produto
+            - list [ref=e253]:
+              - listitem [ref=e254]:
+                - link "Funcionalidades" [ref=e255] [cursor=pointer]:
+                  - /url: "#funcionalidades"
+              - listitem [ref=e256]:
+                - link "Preços" [ref=e257] [cursor=pointer]:
+                  - /url: "#precos"
+              - listitem [ref=e258]:
+                - link "Entrar" [ref=e259] [cursor=pointer]:
+                  - /url: /login
+          - generic [ref=e260]:
+            - paragraph [ref=e261]: Comercial
+            - list [ref=e262]:
+              - listitem [ref=e263]:
+                - link "Contato" [ref=e264] [cursor=pointer]:
+                  - /url: "#contato"
+              - listitem [ref=e265]:
+                - link "E-mail" [ref=e266] [cursor=pointer]:
+                  - /url: mailto:sanches.augusto@outlook.com
+              - listitem [ref=e267]:
+                - link "WhatsApp" [ref=e268] [cursor=pointer]:
+                  - /url: https://wa.me/5511982073536
+      - generic [ref=e269]:
+        - paragraph [ref=e270]: © 2026 SOU MANA.GER. Todos os direitos reservados.
+        - generic [ref=e272]: ELITE TECH ECOSYSTEM
+  - button "chat" [ref=e273]:
+    - generic [ref=e274]: chat
+  - generic:
+    - generic:
+      - generic:
+        - generic: smart_toy
+      - generic:
+        - paragraph: Assistente Sou Manager
+        - paragraph: Dúvidas e Vendas
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - text: 👋 Bem-vindo ao
+            - strong: SOU MANA.GER
+            - text: "! Estou aqui para te ajudar a entender como podemos transformar sua barbearia."
+          - generic: O que você gostaria de saber?
+    - generic:
+      - button "Quais são os planos?"
+      - button "O sistema tem BI?"
+      - button "Como funciona o suporte?"
+      - button "Posso testar grátis?"
+      - button "Tem controle de estoque?"
+    - generic:
+      - textbox "Pergunte sobre os planos..."
+      - button "send" [disabled]:
+        - generic: send

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -49,6 +48,7 @@ interface CalendarAppointment {
   staffId: string;
   start: number;
   duration: number;
+  endTime?: string | null;
   client: string;
   service: string;
   status: string;
@@ -215,6 +215,11 @@ const isAppointmentOverdue = (appointment: CalendarAppointment) => {
   return !Number.isNaN(startDate.getTime()) && startDate.getTime() < Date.now();
 };
 
+const isBlockingAppointmentStatus = (status: string | null | undefined) => {
+  const normalized = normalizeAppointmentStatus(status);
+  return normalized !== 'cancelled' && normalized !== 'completed';
+};
+
 const getDecimalTimeLabel = (value: number) => {
   const hours = Math.floor(value);
   const minutes = Math.round((value % 1) * 60);
@@ -222,7 +227,32 @@ const getDecimalTimeLabel = (value: number) => {
 };
 
 const getAppointmentEndLabel = (appointment: CalendarAppointment) =>
-  getDecimalTimeLabel(appointment.start + appointment.duration);
+  getDecimalTimeLabel(getAppointmentEndHour(appointment));
+
+const getAppointmentEndHour = (appointment: CalendarAppointment) => {
+  if (appointment.endTime) {
+    const endDate = new Date(appointment.endTime);
+    if (!Number.isNaN(endDate.getTime())) {
+      return endDate.getHours() + (endDate.getMinutes() / 60);
+    }
+  }
+
+  return appointment.start + appointment.duration;
+};
+
+const getAppointmentDurationHours = (startTime: string, endTime?: string | null, fallbackDuration?: number | null) => {
+  const startDate = new Date(startTime);
+  const endDate = endTime ? new Date(endTime) : null;
+
+  if (!Number.isNaN(startDate.getTime()) && endDate && !Number.isNaN(endDate.getTime())) {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (diffMs > 0) {
+      return diffMs / (1000 * 60 * 60);
+    }
+  }
+
+  return Number(fallbackDuration) || 1;
+};
 
 const getDateInputValue = (date: Date) => {
   const year = date.getFullYear();
@@ -238,10 +268,19 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
   return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
 };
 
+const isDateWithinRange = (dateValue: string, start: Date, end: Date) => {
+  const time = new Date(dateValue).getTime();
+  if (Number.isNaN(time)) {
+    return false;
+  }
+
+  return time >= start.getTime() && time <= end.getTime();
+};
+
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenantId, user } = useAuth();
+  const { tenantId, user, requireModuleAccess } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -304,31 +343,31 @@ const Schedule: React.FC = () => {
   };
 
   const getListRange = useCallback(() => {
-    const now = new Date();
+    const anchorDate = parseDateInputValue(listFilters.date) || selectedDate || new Date();
     if (listFilters.period === 'tomorrow') {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(now.getDate() + 1);
+      const tomorrow = new Date(anchorDate);
+      tomorrow.setDate(anchorDate.getDate() + 1);
       return { start: startOfRangeDate(tomorrow), end: endOfRangeDate(tomorrow) };
     }
 
     if (listFilters.period === 'week') {
-      const start = startOfRangeDate(now);
-      const end = endOfRangeDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6));
+      const start = startOfRangeDate(anchorDate);
+      const end = endOfRangeDate(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate() + 6));
       return { start, end };
     }
 
     if (listFilters.period === 'month') {
-      const start = startOfRangeDate(now);
-      const end = endOfRangeDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+      const start = startOfRangeDate(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1));
+      const end = endOfRangeDate(new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0));
       return { start, end };
     }
 
     if (listFilters.period === 'custom') {
-      const customDate = parseDateInputValue(listFilters.date) || selectedDate;
+      const customDate = parseDateInputValue(listFilters.date) || anchorDate;
       return { start: startOfRangeDate(customDate), end: endOfRangeDate(customDate) };
     }
 
-    return { start: startOfRangeDate(now), end: endOfRangeDate(now) };
+    return { start: startOfRangeDate(anchorDate), end: endOfRangeDate(anchorDate) };
   }, [listFilters.date, listFilters.period, selectedDate]);
 
   // Modal State
@@ -413,6 +452,16 @@ const Schedule: React.FC = () => {
     appointmentComandaRequestKeyRef.current = generateIdempotencyKey('schedule-comanda');
   };
 
+  const getScheduleAccess = useCallback(
+    (table: string, operation: string) => requireModuleAccess('schedule', table, operation),
+    [requireModuleAccess],
+  );
+
+  const getScheduleBlocksAccess = useCallback(
+    (operation: string) => requireModuleAccess('schedule_blocks', 'schedule_blocks', operation),
+    [requireModuleAccess],
+  );
+
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
     if (!tenantId) {
@@ -420,35 +469,43 @@ const Schedule: React.FC = () => {
       setServicesList([]);
       setClientsList([]);
       setFilteredClients([]);
+      setActivePromotions([]);
       return;
     }
 
-    const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
-      supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
-      supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
-    ]);
+    try {
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess('staff', 'load schedule base data');
 
-    if (staffRes.data) setStaffList(staffRes.data);
+      const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
+        client.from('staff').select('id, name, role, avatar').eq('tenant_id', resolvedTenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+        client.from('services').select('id, name, duration, buffer, price').eq('tenant_id', resolvedTenantId).eq('active', true),
+        client.from('clients').select('id, name, phone').eq('tenant_id', resolvedTenantId).order('name'),
+        client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
+      ]);
+
+      if (staffRes.error) throw staffRes.error;
+      if (clientsRes.error) throw clientsRes.error;
+      if (promoRes.error) throw promoRes.error;
+
+      if (staffRes.data) setStaffList(staffRes.data);
 
     // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase
+      const retryServices = await client
         .from('services')
         .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .neq('active', false)
         .order('name');
 
       if (retryServices.data) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await client
           .from('services')
           .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', resolvedTenantId)
           .eq('is_active', true)
           .order('name');
 
@@ -466,20 +523,20 @@ const Schedule: React.FC = () => {
     } else if (servicesRes.data && servicesRes.data.length > 0) {
       setServicesList(servicesRes.data);
     } else {
-      const retryServices = await supabase
+      const retryServices = await client
         .from('services')
         .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .neq('active', false)
         .order('name');
 
       if (retryServices.data && retryServices.data.length > 0) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await client
           .from('services')
           .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', resolvedTenantId)
           .eq('is_active', true)
           .order('name');
 
@@ -496,8 +553,8 @@ const Schedule: React.FC = () => {
       }
     }
 
-    if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
-    if (promoRes.data) {
+      if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
+      if (promoRes.data) {
       const now = new Date();
       const validPromos = promoRes.data.filter((p: any) => {
         const start = new Date(p.start_date);
@@ -506,8 +563,17 @@ const Schedule: React.FC = () => {
         return now >= start && now <= end;
       });
       setActivePromotions(validPromos);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dados-base da agenda:', err);
+      setStaffList([]);
+      setServicesList([]);
+      setClientsList([]);
+      setFilteredClients([]);
+      setActivePromotions([]);
+      setToast({ message: 'Erro ao carregar dados da agenda.', type: 'error' });
     }
-  }, [tenantId]);
+  }, [getScheduleAccess, tenantId]);
 
   // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
@@ -521,6 +587,7 @@ const Schedule: React.FC = () => {
     setLoading(true);
 
     try {
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess('appointments', 'load appointments');
       let rangeStart: string;
       let rangeEnd: string;
 
@@ -545,10 +612,10 @@ const Schedule: React.FC = () => {
         rangeEnd = dEnd.toISOString();
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('appointments')
         .select('*')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .gte('start_time', rangeStart)
         .lte('start_time', rangeEnd);
 
@@ -557,10 +624,10 @@ const Schedule: React.FC = () => {
       if (error) {
         console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
 
-        const { data: fallbackData, error: fallbackError } = await supabase
+        const { data: fallbackData, error: fallbackError } = await client
           .from('appointments')
           .select('*')
-          .eq('tenant_id', tenantId);
+          .eq('tenant_id', resolvedTenantId);
 
         if (fallbackError) {
           throw fallbackError;
@@ -587,9 +654,10 @@ const Schedule: React.FC = () => {
 
       let clientsById: Record<string, DBClient> = {};
       if (clientIds.length > 0) {
-        const { data: appointmentClients, error: appointmentClientsError } = await supabase
+        const { data: appointmentClients, error: appointmentClientsError } = await client
           .from('clients')
           .select('id, name, phone')
+          .eq('tenant_id', resolvedTenantId)
           .in('id', clientIds);
 
         if (appointmentClientsError) {
@@ -605,6 +673,7 @@ const Schedule: React.FC = () => {
       const mapped: CalendarAppointment[] = appointmentRows.map((apt: any) => {
         const d = new Date(apt.start_time);
         const startHour = d.getHours() + d.getMinutes() / 60;
+        const durationHours = getAppointmentDurationHours(apt.start_time, apt.end_time, apt.duration);
         const clientRecord = apt.client_id ? clientsById[apt.client_id] : undefined;
 
         return {
@@ -612,7 +681,8 @@ const Schedule: React.FC = () => {
           clientId: apt.client_id || null,
           staffId: apt.staff_id,
           start: startHour,
-          duration: Number(apt.duration) || 1,
+          duration: durationHours,
+          endTime: apt.end_time || null,
           client: apt.client_name || clientRecord?.name || 'Cliente',
           service: apt.service_name || 'Serviço',
           status: apt.status,
@@ -631,10 +701,10 @@ const Schedule: React.FC = () => {
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const { data: comandas, error: comandasError } = await supabase
+        const { data: comandas, error: comandasError } = await client
           .from('comandas')
           .select('id, appointment_id')
-          .eq('tenant_id', tenantId)
+          .eq('tenant_id', resolvedTenantId)
           .eq('status', 'open')
           .in('appointment_id', appointmentIds);
 
@@ -660,7 +730,7 @@ const Schedule: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
+  }, [displayMode, getListRange, getScheduleAccess, selectedDate, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
@@ -685,9 +755,10 @@ const Schedule: React.FC = () => {
     const rangeEnd = toDateKey(rangeEndDate);
 
     try {
+      const { tenantId: resolvedTenantId, client } = getScheduleBlocksAccess('load schedule blocks');
       const [activeBlocks, history] = await Promise.all([
-        scheduleBlocksApi.listByRange(tenantId, { startDate: rangeStart, endDate: rangeEnd }),
-        scheduleBlocksApi.listHistory(tenantId, 100),
+        scheduleBlocksApi.listByRange(resolvedTenantId, { startDate: rangeStart, endDate: rangeEnd }, client),
+        scheduleBlocksApi.listHistory(resolvedTenantId, 100, client),
       ]);
       setScheduleBlocks(activeBlocks);
       setScheduleBlockHistory(history);
@@ -695,7 +766,7 @@ const Schedule: React.FC = () => {
       console.error('Erro ao buscar bloqueios da agenda:', err);
       setToast({ message: 'Não foi possível carregar os bloqueios da agenda.', type: 'error' });
     }
-  }, [selectedDate, tenantId, viewMode]);
+  }, [getScheduleBlocksAccess, selectedDate, tenantId, viewMode]);
 
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
@@ -729,10 +800,15 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const { data: existingComanda, error: existingComandaError } = await supabase
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess(
+        'comandas',
+        'open checkout from schedule',
+      );
+
+      const { data: existingComanda, error: existingComandaError } = await client
         .from('comandas')
         .select('id, status')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .eq('appointment_id', apt.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -748,10 +824,10 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const { data: clientData } = await supabase
+      const { data: clientData } = await client
         .from('clients')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .or(`phone.eq.${apt.clientPhone},name.eq.${apt.client}`)
         .limit(1)
         .single();
@@ -804,42 +880,50 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data: subscription, error: subscriptionError } = await supabase
-      .from('customer_subscriptions')
-      .select('id, plan_id, status')
-      .eq('client_id', client.id)
-      .eq('tenant_id', tenantId)
-      .eq('status', 'active')
-      .maybeSingle();
+    try {
+      const { tenantId: resolvedTenantId, client: scopedClient } = getScheduleAccess(
+        'customer_subscriptions',
+        'load chef club info',
+      );
 
-    if (subscriptionError) {
-      console.error('Erro ao carregar assinatura Chef Club:', subscriptionError);
-      setChefClubInfo(null);
-      return;
-    }
+      const { data: subscription, error: subscriptionError } = await scopedClient
+        .from('customer_subscriptions')
+        .select('id, plan_id, status')
+        .eq('client_id', client.id)
+        .eq('tenant_id', resolvedTenantId)
+        .eq('status', 'active')
+        .maybeSingle();
 
-    if (subscription) {
-      const [{ data: plan }, { data: credits }] = await Promise.all([
-        supabase
-          .from('customer_plans')
-          .select('name')
-          .eq('id', subscription.plan_id)
-          .eq('tenant_id', tenantId)
-          .maybeSingle(),
-        supabase
-          .from('customer_credits')
-          .select('available_credits')
-          .eq('subscription_id', subscription.id)
-          .eq('tenant_id', tenantId)
-          .maybeSingle(),
-      ]);
+      if (subscriptionError) throw subscriptionError;
 
-      setChefClubInfo({
-        planName: plan?.name || 'Plano ativo',
-        credits: credits?.available_credits || 0,
-        status: subscription.status
-      });
-      return;
+      if (subscription) {
+        const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
+          scopedClient
+            .from('customer_plans')
+            .select('name')
+            .eq('id', subscription.plan_id)
+            .eq('tenant_id', resolvedTenantId)
+            .maybeSingle(),
+          scopedClient
+            .from('customer_credits')
+            .select('available_credits')
+            .eq('subscription_id', subscription.id)
+            .eq('tenant_id', resolvedTenantId)
+            .maybeSingle(),
+        ]);
+
+        if (planError) throw planError;
+        if (creditsError) throw creditsError;
+
+        setChefClubInfo({
+          planName: plan?.name || 'Plano ativo',
+          credits: credits?.available_credits || 0,
+          status: subscription.status
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Erro ao carregar assinatura Chef Club:', error);
     }
 
     setChefClubInfo(null);
@@ -918,11 +1002,12 @@ const Schedule: React.FC = () => {
     // Validação Anti-Overbooking
     const overlapping = appointments.filter(a =>
       a.id !== apt.id &&
+      isBlockingAppointmentStatus(a.status) &&
       a.staffId === dropStaffId &&
       new Date(a.date).toDateString() === new Date(dateStr).toDateString() &&
       !(
         (roundedHour + apt.duration) <= a.start ||
-        roundedHour >= (a.start + a.duration)
+        roundedHour >= getAppointmentEndHour(a)
       )
     );
 
@@ -958,35 +1043,39 @@ const Schedule: React.FC = () => {
     try {
       if (!tenantId) {
         setToast({ message: 'Tenant inválido para mover agendamento.', type: 'error' });
-        fetchAppointments();
+        void fetchAppointments();
         return;
       }
 
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess(
+        'appointments',
+        'move appointment',
+      );
 
-      const { error } = await supabase.from('appointments').update({
+      const { error } = await client.from('appointments').update({
         staff_id: dropStaffId,
         staff_name: selectedStaff?.name || apt.staffName,
         start_time: newStartTimeLine.toISOString(),
         end_time: newEndTimeLine.toISOString(),
         duration: apt.duration,
-      }).eq('id', apt.id).eq('tenant_id', tenantId);
+      }).eq('id', apt.id).eq('tenant_id', resolvedTenantId);
 
       if (error) {
         setToast({ message: 'Erro ao salvar alteração no banco.', type: 'error' });
-        fetchAppointments(); // Reverte
+        void fetchAppointments();
       } else {
         // Update comanda if exists
-        await supabase.from('comandas').update({
+        await client.from('comandas').update({
           staff_id: dropStaffId,
-        }).eq('appointment_id', apt.id).eq('tenant_id', tenantId).eq('status', 'open');
+        }).eq('appointment_id', apt.id).eq('tenant_id', resolvedTenantId).eq('status', 'open');
 
         setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
-        fetchAppointments(); // Refresh for safety
+        void fetchAppointments();
       }
     } catch (err) {
       console.error('Error dragging appointment:', err);
-      fetchAppointments(); // Revert on failure
+      void fetchAppointments();
       setToast({ message: 'Erro ao mover agendamento.', type: 'error' });
     }
   };
@@ -999,25 +1088,30 @@ const Schedule: React.FC = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess(
+        'appointments',
+        'cancel appointment',
+      );
+
+      const { error } = await client
         .from('appointments')
         .update({ status: 'cancelled' })
         .eq('id', appointmentId)
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', resolvedTenantId);
 
       if (error) throw error;
 
       // Also cancel associated comanda if it exists and is open
-      await supabase
+      await client
         .from('comandas')
         .update({ status: 'cancelled' })
         .eq('appointment_id', appointmentId)
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', resolvedTenantId)
         .eq('status', 'open');
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
       closeDetailDrawer();
-      fetchAppointments();
+      void fetchAppointments();
     } catch (err) {
       console.error('Error cancelling appointment:', err);
       setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
@@ -1139,9 +1233,10 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(block.id, user?.id || null);
+      const { tenantId: resolvedTenantId, client } = getScheduleBlocksAccess('remove schedule block');
+      await scheduleBlocksApi.remove(resolvedTenantId, block.id, user?.id || null, client);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
-      fetchScheduleBlocks();
+      void fetchScheduleBlocks();
     } catch (err) {
       console.error('Erro ao remover bloqueio:', err);
       setToast({ message: 'Não foi possível remover o bloqueio.', type: 'error' });
@@ -1182,19 +1277,23 @@ const Schedule: React.FC = () => {
 
     setBlockSaving(true);
     try {
+      const { tenantId: resolvedTenantId, client } = getScheduleBlocksAccess(
+        editingBlockId ? 'update schedule block' : 'create schedule block',
+      );
+
       if (editingBlockId) {
-        await scheduleBlocksApi.update(editingBlockId, payload);
+        await scheduleBlocksApi.update(resolvedTenantId, editingBlockId, payload, client);
       } else {
-        await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
+        await scheduleBlocksApi.create(resolvedTenantId, user?.id || null, payload, client);
       }
 
       if (payload.existing_appointments_action === 'cancel' && impacted.length > 0) {
         const impactedIds = impacted.map((apt) => apt.id);
-        await supabase
+        await client
           .from('appointments')
           .update({ status: 'cancelled' })
           .in('id', impactedIds)
-          .eq('tenant_id', tenantId);
+          .eq('tenant_id', resolvedTenantId);
       }
 
       if (payload.existing_appointments_action === 'review' && impacted.length > 0) {
@@ -1216,7 +1315,7 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleSave = async () => {
+  /* Legacy schedule save flow removed after authority migration.
     if (appointmentSaveLockRef.current) return;
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
@@ -1543,6 +1642,480 @@ const Schedule: React.FC = () => {
     }
   };
 
+  */
+  const handleSave = async () => {
+    if (appointmentSaveLockRef.current) return;
+    if (!tenantId) {
+      setError('Tenant invalido para salvar agendamento.');
+      return;
+    }
+
+    if (!formData.client || !formData.service) {
+      setError('Por favor, preencha o nome do cliente e o servico.');
+      return;
+    }
+
+    if (isNewClientMode && !formData.clientPhone) {
+      setError('Para novos clientes, informe um telefone de contato.');
+      return;
+    }
+
+    appointmentSaveLockRef.current = true;
+    setAppointmentSaving(true);
+
+    try {
+      const { tenantId: resolvedTenantId, client: appointmentsClient } = getScheduleAccess(
+        'appointments',
+        editingAppointmentId ? 'update appointment' : 'create appointment',
+      );
+      const { client: clientsClient } = getScheduleAccess('clients', 'resolve schedule client');
+      const { client: comandasClient } = getScheduleAccess('comandas', 'ensure schedule comanda');
+      const { client: comandaItemsClient } = getScheduleAccess('comanda_items', 'ensure schedule comanda item');
+      const { client: servicesClient } = getScheduleAccess('services', 'resolve schedule service price');
+
+      const selectedService = servicesList.find((service) => service.name === formData.service);
+      const selectedStaff = staffList.find((staff) => staff.id === formData.staffId);
+
+      let clientId: string | null = null;
+      if (isNewClientMode) {
+        const normalizedPhone = (formData.clientPhone || '').trim();
+        const { data: existingClient, error: existingClientError } = await clientsClient
+          .from('clients')
+          .select('id, name, phone, avatar')
+          .eq('tenant_id', resolvedTenantId)
+          .eq('phone', normalizedPhone)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingClientError) {
+          setError('Erro ao buscar cliente existente.');
+          return;
+        }
+
+        if (existingClient) {
+          clientId = existingClient.id;
+          setClientsList((prev) => prev.some((client) => client.id === existingClient.id) ? prev : [...prev, existingClient]);
+        } else {
+          const clientPayload = {
+            name: formData.client.trim(),
+            phone: normalizedPhone,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client.trim())}&background=random`,
+            tenant_id: resolvedTenantId,
+          };
+
+          let { data: newClient, error: clientError } = await clientsClient
+            .from('clients')
+            .insert({
+              ...clientPayload,
+              idempotency_key: appointmentClientRequestKeyRef.current,
+            })
+            .select()
+            .single();
+
+          if (isMissingIdempotencyColumnError(clientError)) {
+            ({ data: newClient, error: clientError } = await clientsClient
+              .from('clients')
+              .insert(clientPayload)
+              .select()
+              .single());
+          }
+
+          if (clientError) {
+            if (clientError.code === '23505') {
+              const { data: duplicatedClient, error: duplicatedClientError } = await clientsClient
+                .from('clients')
+                .select('id, name, phone, avatar')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('idempotency_key', appointmentClientRequestKeyRef.current)
+                .limit(1)
+                .maybeSingle();
+
+              if (duplicatedClientError || !duplicatedClient) {
+                setError('Erro ao cadastrar cliente.');
+                return;
+              }
+
+              clientId = duplicatedClient.id;
+              setClientsList((prev) => prev.some((client) => client.id === duplicatedClient.id) ? prev : [...prev, duplicatedClient]);
+            } else {
+              setError('Erro ao cadastrar cliente.');
+              return;
+            }
+          } else if (newClient) {
+            clientId = newClient.id;
+            setClientsList((prev) => prev.some((client) => client.id === newClient.id) ? prev : [...prev, newClient]);
+          }
+        }
+      } else {
+        const existingClient = clientsList.find((client) => client.name.toLowerCase() === formData.client.toLowerCase());
+        if (existingClient) {
+          clientId = existingClient.id;
+        }
+      }
+
+      const startHours = Math.floor(formData.start);
+      const startMinutes = (formData.start % 1) * 60;
+      const startTimeLine = new Date(
+        `${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`,
+      );
+      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      const selectedDateKeyForSave = toDateKey(formData.date);
+      const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
+      const hasBlockConflict = activeBlocks.some((block) =>
+        doesBlockMatchDateAndStaff(block, selectedDateKeyForSave, formData.staffId) &&
+        blockOverlapsTimeRange(block, formData.start, formData.start + Number(formData.duration)),
+      );
+
+      if (hasBlockConflict) {
+        setError('Existe um bloqueio de agenda nesse periodo. Escolha outro horario.');
+        return;
+      }
+
+      const dayRangeStart = new Date(`${formData.date}T00:00:00`);
+      const dayRangeEnd = new Date(`${formData.date}T23:59:59`);
+      const { data: appointmentsOnDay, error: appointmentsOnDayError } = await appointmentsClient
+        .from('appointments')
+        .select('id, start_time, end_time, duration, status')
+        .eq('tenant_id', resolvedTenantId)
+        .eq('staff_id', formData.staffId || null)
+        .gte('start_time', dayRangeStart.toISOString())
+        .lte('start_time', dayRangeEnd.toISOString());
+
+      if (appointmentsOnDayError) {
+        setError(`Erro ao validar conflito de horario: ${appointmentsOnDayError.message}`);
+        return;
+      }
+
+      const hasAppointmentConflict = (appointmentsOnDay || []).some((appointment: any) => {
+        if (editingAppointmentId && appointment.id === editingAppointmentId) {
+          return false;
+        }
+
+        if (!isBlockingAppointmentStatus(appointment.status)) {
+          return false;
+        }
+
+        const appointmentStart = new Date(appointment.start_time);
+        if (Number.isNaN(appointmentStart.getTime())) {
+          return false;
+        }
+
+        const appointmentStartHour = appointmentStart.getHours() + (appointmentStart.getMinutes() / 60);
+        const appointmentEndHour = getAppointmentDurationHours(
+          appointment.start_time,
+          appointment.end_time,
+          appointment.duration,
+        ) + appointmentStartHour;
+
+        return formData.start < appointmentEndHour && (formData.start + Number(formData.duration)) > appointmentStartHour;
+      });
+
+      if (hasAppointmentConflict) {
+        setError('Ja existe outro agendamento ocupando esse horario para este profissional.');
+        return;
+      }
+
+      if (editingAppointmentId) {
+        const updatedStartIso = startTimeLine.toISOString();
+
+        const { error: updateError } = await appointmentsClient
+          .from('appointments')
+          .update({
+            service_id: selectedService?.id || null,
+            staff_id: formData.staffId || null,
+            client_id: clientId,
+            client_name: formData.client,
+            service_name: formData.service,
+            client_phone: formData.clientPhone,
+            notes: formData.notes.trim(),
+            staff_name: selectedStaff?.name || '',
+            start_time: updatedStartIso,
+            end_time: endTimeLine.toISOString(),
+            duration: Number(formData.duration),
+            price: selectedService?.price || 0,
+          })
+          .eq('id', editingAppointmentId)
+          .eq('tenant_id', resolvedTenantId);
+
+        if (updateError) {
+          console.error('Erro ao atualizar agendamento:', updateError);
+          setError(`Erro ao atualizar agendamento: ${updateError.message}`);
+          return;
+        }
+
+        await comandasClient
+          .from('comandas')
+          .update({
+            staff_id: formData.staffId || null,
+          })
+          .eq('appointment_id', editingAppointmentId)
+          .eq('tenant_id', resolvedTenantId)
+          .eq('status', 'open');
+
+        setAppointments((prev) => prev.map((appointment) =>
+          appointment.id === editingAppointmentId
+            ? {
+              ...appointment,
+              staffId: formData.staffId,
+              staffName: selectedStaff?.name || '',
+              start: formData.start,
+              duration: Number(formData.duration),
+              client: formData.client,
+              clientPhone: formData.clientPhone || '',
+              service: formData.service,
+              price: selectedService?.price || 0,
+              startTime: updatedStartIso,
+              notes: formData.notes.trim(),
+              date: updatedStartIso,
+            }
+            : appointment
+        ));
+
+        setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+      } else {
+        const startIso = startTimeLine.toISOString();
+        const endIso = endTimeLine.toISOString();
+
+        const { data: existingAppointment, error: existingAppointmentError } = await appointmentsClient
+          .from('appointments')
+          .select('id')
+          .eq('tenant_id', resolvedTenantId)
+          .eq('staff_id', formData.staffId || null)
+          .eq('client_name', formData.client)
+          .eq('service_name', formData.service)
+          .eq('start_time', startIso)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingAppointmentError) {
+          setError(`Erro ao verificar duplicidade: ${existingAppointmentError.message}`);
+          return;
+        }
+
+        let savedAppointment = existingAppointment;
+
+        if (!savedAppointment) {
+          const appointmentPayload = {
+            client_id: clientId,
+            service_id: selectedService?.id || null,
+            staff_id: formData.staffId || null,
+            client_name: formData.client,
+            client_phone: formData.clientPhone,
+            service_name: formData.service,
+            notes: formData.notes.trim(),
+            staff_name: selectedStaff?.name || '',
+            start_time: startIso,
+            end_time: endIso,
+            duration: Number(formData.duration),
+            price: selectedService?.price || 0,
+            status: 'confirmed' as const,
+            tenant_id: resolvedTenantId,
+          };
+
+          let { data: insertedAppointment, error: saveError } = await appointmentsClient
+            .from('appointments')
+            .insert({
+              ...appointmentPayload,
+              idempotency_key: appointmentRequestKeyRef.current,
+            })
+            .select()
+            .single();
+
+          if (isMissingIdempotencyColumnError(saveError)) {
+            ({ data: insertedAppointment, error: saveError } = await appointmentsClient
+              .from('appointments')
+              .insert(appointmentPayload)
+              .select()
+              .single());
+          }
+
+          if (saveError) {
+            if (saveError.code === '23505') {
+              const { data: duplicatedAppointment, error: duplicatedAppointmentError } = await appointmentsClient
+                .from('appointments')
+                .select('id')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('idempotency_key', appointmentRequestKeyRef.current)
+                .limit(1)
+                .maybeSingle();
+
+              if (duplicatedAppointmentError || !duplicatedAppointment) {
+                console.error('Erro ao salvar agendamento:', saveError);
+                setError(`Erro ao salvar agendamento: ${saveError.message}`);
+                return;
+              }
+
+              savedAppointment = duplicatedAppointment;
+            } else {
+              console.error('Erro ao salvar agendamento:', saveError);
+              setError(`Erro ao salvar agendamento: ${saveError.message}`);
+              return;
+            }
+          } else {
+            savedAppointment = insertedAppointment;
+          }
+        }
+
+        if (savedAppointment) {
+          const { data: existingComanda, error: existingComandaError } = await comandasClient
+            .from('comandas')
+            .select('id')
+            .eq('tenant_id', resolvedTenantId)
+            .eq('appointment_id', savedAppointment.id)
+            .limit(1)
+            .maybeSingle();
+
+          if (existingComandaError) {
+            setError(`Erro ao consultar comanda: ${existingComandaError.message}`);
+            return;
+          }
+
+          let comanda = existingComanda;
+
+          if (!comanda) {
+            const comandaPayload = {
+              appointment_id: savedAppointment.id,
+              client_id: clientId,
+              staff_id: formData.staffId || null,
+              status: 'open' as const,
+              total: 0,
+              tenant_id: resolvedTenantId,
+            };
+
+            let { data: newComanda, error: newComandaError } = await comandasClient
+              .from('comandas')
+              .insert({
+                ...comandaPayload,
+                idempotency_key: appointmentComandaRequestKeyRef.current,
+              })
+              .select()
+              .single();
+
+            if (isMissingIdempotencyColumnError(newComandaError)) {
+              ({ data: newComanda, error: newComandaError } = await comandasClient
+                .from('comandas')
+                .insert(comandaPayload)
+                .select()
+                .single());
+            }
+
+            if (newComandaError && newComandaError.code !== '23505') {
+              console.error('Erro ao criar comanda do agendamento:', newComandaError);
+              setError(`Erro ao criar comanda: ${newComandaError.message}`);
+              return;
+            }
+
+            comanda = newComanda;
+
+            if (!comanda) {
+              const { data: duplicatedComanda, error: duplicatedComandaError } = await comandasClient
+                .from('comandas')
+                .select('id')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('idempotency_key', appointmentComandaRequestKeyRef.current)
+                .limit(1)
+                .maybeSingle();
+
+              if (duplicatedComandaError) {
+                setError(`Erro ao recuperar comanda duplicada: ${duplicatedComandaError.message}`);
+                return;
+              }
+
+              comanda = duplicatedComanda;
+            }
+          }
+
+          if (comanda && selectedService) {
+            const { data: existingComandaItem, error: existingComandaItemError } = await comandaItemsClient
+              .from('comanda_items')
+              .select('id')
+              .eq('tenant_id', resolvedTenantId)
+              .eq('comanda_id', comanda.id)
+              .eq('service_id', selectedService.id)
+              .limit(1)
+              .maybeSingle();
+
+            if (existingComandaItemError) {
+              setError(`Erro ao consultar item da comanda: ${existingComandaItemError.message}`);
+              return;
+            }
+
+            if (!existingComandaItem) {
+              const { data: serviceData, error: serviceDataError } = await servicesClient
+                .from('services')
+                .select('price')
+                .eq('id', selectedService.id)
+                .eq('tenant_id', resolvedTenantId)
+                .single();
+
+              if (serviceDataError) {
+                setError(`Erro ao consultar preco do servico: ${serviceDataError.message}`);
+                return;
+              }
+
+              let finalPrice = serviceData?.price || 0;
+              const promo = activePromotions.find((promotion) =>
+                promotion.target_type === 'all' ||
+                (promotion.target_type === 'service' && promotion.target_id === selectedService.id)
+              );
+
+              if (promo) {
+                if (promo.discount_type === 'fixed') {
+                  finalPrice = Math.max(0, finalPrice - promo.discount_value);
+                } else {
+                  finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+                }
+              }
+
+              const { error: comandaItemInsertError } = await comandaItemsClient
+                .from('comanda_items')
+                .insert({
+                  comanda_id: comanda.id,
+                  service_id: selectedService.id,
+                  product_name: selectedService.name,
+                  quantity: 1,
+                  unit_price: finalPrice,
+                  tenant_id: resolvedTenantId,
+                  staff_id: formData.staffId || null,
+                });
+
+              if (comandaItemInsertError) {
+                setError(`Erro ao criar item da comanda: ${comandaItemInsertError.message}`);
+                return;
+              }
+
+              const { error: comandaTotalUpdateError } = await comandasClient
+                .from('comandas')
+                .update({ total: finalPrice })
+                .eq('id', comanda.id)
+                .eq('tenant_id', resolvedTenantId);
+
+              if (comandaTotalUpdateError) {
+                setError(`Erro ao atualizar total da comanda: ${comandaTotalUpdateError.message}`);
+                return;
+              }
+            }
+          }
+        }
+
+        setToast({
+          message: existingAppointment ? 'Esse agendamento ja existia. Duplicidade bloqueada.' : 'Agendamento criado com sucesso!',
+          type: existingAppointment ? 'info' : 'success',
+        });
+      }
+
+      setIsModalOpen(false);
+      setIsNewClientMode(false);
+      setEditingAppointmentId(null);
+      resetAppointmentRequestKeys();
+      setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+      void fetchAppointments();
+    } finally {
+      appointmentSaveLockRef.current = false;
+      setAppointmentSaving(false);
+    }
+  };
+
   const formatDateDisplay = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
@@ -1610,16 +2183,18 @@ const Schedule: React.FC = () => {
   }, [appointments, openComandasByAppointment]);
 
   const appointmentsForSummary = React.useMemo(() => {
+    const listRange = getListRange();
+    const referenceDate = parseDateInputValue(listFilters.date) || selectedDate || new Date();
+
     return enrichedAppointments.filter((apt) => {
-      const selectedFilterDate = parseDateInputValue(listFilters.date);
-      const matchesDate = !selectedFilterDate || new Date(apt.startTime).toDateString() === selectedFilterDate.toDateString();
+      const matchesDate = isDateWithinRange(apt.startTime, listRange.start, listRange.end);
       const matchesProfessional = listFilters.professional === 'all' || apt.staffId === listFilters.professional;
       const matchesStatus = listFilters.status === 'all' || apt.normalizedStatus === listFilters.status;
       const matchesService = listFilters.service === 'all' || apt.service === listFilters.service;
       const matchesOrigin = listFilters.origin === 'all' || apt.originLabel === listFilters.origin;
       const matchesQuickChip =
         listFilters.quickChip === 'all' ||
-        (listFilters.quickChip === 'today' && new Date(apt.startTime).toDateString() === new Date().toDateString()) ||
+        (listFilters.quickChip === 'today' && new Date(apt.startTime).toDateString() === referenceDate.toDateString()) ||
         (listFilters.quickChip === 'pending' && apt.normalizedStatus === 'pending') ||
         (listFilters.quickChip === 'confirmed' && apt.normalizedStatus === 'confirmed') ||
         (listFilters.quickChip === 'in_progress' && apt.normalizedStatus === 'in_progress') ||
@@ -1627,7 +2202,7 @@ const Schedule: React.FC = () => {
         (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
       return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
     });
-  }, [enrichedAppointments, listFilters]);
+  }, [enrichedAppointments, getListRange, listFilters, selectedDate]);
 
   const filteredListAppointments = React.useMemo(() => {
     const searchTerm = listFilters.search.trim().toLowerCase();
@@ -1668,11 +2243,16 @@ const Schedule: React.FC = () => {
     if (!window.confirm(`Deseja ${confirmationLabel.toLowerCase()} este agendamento?`)) return;
 
     try {
-      const { error: updateError } = await supabase
+      const { tenantId: resolvedTenantId, client } = getScheduleAccess(
+        'appointments',
+        `change appointment status to ${nextStatus}`,
+      );
+
+      const { error: updateError } = await client
         .from('appointments')
         .update({ status: nextStatus })
         .eq('id', appointment.id)
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', resolvedTenantId);
 
       if (updateError) throw updateError;
 
@@ -2571,6 +3151,7 @@ Podemos confirmar? 😄`;
                       return aptDate.getFullYear() === fDate.getFullYear() &&
                         aptDate.getMonth() === fDate.getMonth() &&
                         aptDate.getDate() === fDate.getDate() &&
+                        isBlockingAppointmentStatus(a.status) &&
                         a.staffId === formData.staffId &&
                         a.id !== editingAppointmentId;
                     });
@@ -2580,7 +3161,7 @@ Podemos confirmar? 😄`;
                     return allSlots.map(slot => {
                       const slotEnd = slot + formData.duration;
                       const hasConflict = aptsOnDay.some(apt =>
-                        slot < (apt.start + apt.duration) && slotEnd > apt.start
+                        slot < getAppointmentEndHour(apt) && slotEnd > apt.start
                       );
                       const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
                       const isDisabled = hasConflict || hasBlock;

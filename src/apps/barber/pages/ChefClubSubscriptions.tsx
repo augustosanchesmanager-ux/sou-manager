@@ -23,6 +23,12 @@ interface SubscriptionQueryRow {
     plan_id: string;
 }
 
+const toSortableTimestamp = (value: string | null | undefined): number => {
+    if (!value) return Number.POSITIVE_INFINITY;
+    const timestamp = new Date(value).getTime();
+    return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+};
+
 const ChefClubSubscriptions: React.FC = () => {
     const { tenantId, requireModuleAccess, isModuleEnabledForTenant } = useAuth();
     const location = useLocation();
@@ -51,14 +57,22 @@ const ChefClubSubscriptions: React.FC = () => {
             const { data, error } = await client
                 .from('customer_subscriptions')
                 .select('id, status, cycle_end, next_billing_date, client_id, plan_id')
-                .eq('tenant_id', resolvedTenantId)
-                .order('created_at', { ascending: false });
+                .eq('tenant_id', resolvedTenantId);
 
             if (error) {
                 throw error;
             }
 
-            const subscriptionsData = (data || []) as SubscriptionQueryRow[];
+            const subscriptionsData = ((data || []) as SubscriptionQueryRow[]).sort((left, right) => {
+                const nextBillingDiff =
+                    toSortableTimestamp(left.next_billing_date) - toSortableTimestamp(right.next_billing_date);
+                if (nextBillingDiff !== 0) return nextBillingDiff;
+
+                const cycleEndDiff = toSortableTimestamp(left.cycle_end) - toSortableTimestamp(right.cycle_end);
+                if (cycleEndDiff !== 0) return cycleEndDiff;
+
+                return left.id.localeCompare(right.id);
+            });
             const clientIds = Array.from(new Set(subscriptionsData.map((subscription) => subscription.client_id).filter(Boolean)));
             const planIds = Array.from(new Set(subscriptionsData.map((subscription) => subscription.plan_id).filter(Boolean)));
             const subscriptionIds = subscriptionsData.map((subscription) => subscription.id);

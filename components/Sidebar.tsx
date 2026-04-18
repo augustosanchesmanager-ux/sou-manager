@@ -44,12 +44,13 @@ interface MenuCategory {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, user, accessRole, canAccessSuperAdmin } = useAuth();
+  const { signOut, user, accessRole, canAccessSuperAdmin, isModuleEnabledForTenant } = useAuth();
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const chefClubEnabled = isModuleEnabledForTenant('chef_club');
 
   // Menu Definition structure
   const menuCategories: MenuCategory[] = [
@@ -232,7 +233,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       return null; // hide everything else for barbers
     }
     // Deep clone and filter items
-    const filteredItems = category.items.map(item => {
+    const categoryItems = category.title === 'CRESCIMENTO' && !chefClubEnabled
+      ? category.items.filter(item =>
+          !item.children?.some(child => !('type' in child) && child.path.startsWith('/chef-club'))
+        )
+      : category.items;
+    const filteredItems = categoryItems.map(item => {
       if (userRole === 'Barber' && item.children) {
         // remove specific children logic here if needed
         return item;
