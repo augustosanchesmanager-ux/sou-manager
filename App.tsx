@@ -16,6 +16,7 @@ import Receipts from './pages/Receipts';
 import Payroll from './pages/Payroll';
 import Cashflow from './pages/Cashflow';
 import Checkout from './pages/Checkout';
+import PaymentSuccess from './pages/PaymentSuccess';
 import Comandas from './pages/Comandas';
 import Admin from './pages/Admin';
 import Operations from './pages/Operations';
@@ -168,6 +169,9 @@ const AppRoutes: React.FC = () => {
         <Route path="/onboarding/role" element={<RoleSelection />} />
         <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
         <Route path="/onboarding/professional-setup" element={<ProfessionalSetup />} />
+
+        {/* Payment Success Route - Outside Layout */}
+        <Route path="/payment-success" element={<PaymentSuccess />} />
 
         {/* Main Layout Routes */}
         <Route element={<Layout />}>

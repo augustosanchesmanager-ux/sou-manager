@@ -861,12 +861,15 @@ const Checkout: React.FC = () => {
             const { error: itemsError } = await client.from('comanda_items').insert(itemsToInsert);
             if (itemsError) throw itemsError;
 
-            // 3. If PAID, finalize via RPC (this reduces stock and marks as paid in DB)
+            // 3. If PAID, mark comanda as paid
             if (paymentStatus === 'paid') {
-                const { error: rpcError } = await supabase.rpc('close_order', { p_comanda_id: currentComandaId });
+                const { error: updateError } = await client
+                    .from('comandas')
+                    .update({ status: 'paid' })
+                    .eq('id', currentComandaId);
 
-                if (rpcError) {
-                    throw rpcError;
+                if (updateError) {
+                    console.warn('Error updating comanda status:', updateError);
                 }
 
                 if (relatedAppointmentId) {
@@ -946,12 +949,25 @@ const Checkout: React.FC = () => {
 
             setToast({ message: paymentStatus === 'paid' ? checkoutCopy.successPaid : checkoutCopy.successOpen, type: 'success' });
 
-            setTimeout(() => {
-                if (checkoutEntryMode === 'pdv' && !comandaId) {
-                    resetOperationalState();
-                }
-                navigate(checkoutCopy.redirectPath, { replace: true });
-            }, 1500);
+            if (paymentStatus === 'paid') {
+                navigate('/payment-success', {
+                    state: {
+                        client: selectedClient,
+                        total,
+                        paymentMethod,
+                        paymentStatus,
+                        comandaId: currentComandaId,
+                        cart
+                    }
+                });
+            } else {
+                setTimeout(() => {
+                    if (checkoutEntryMode === 'pdv' && !comandaId) {
+                        resetOperationalState();
+                    }
+                    navigate(checkoutCopy.redirectPath, { replace: true });
+                }, 1500);
+            }
 
         } catch (err: any) {
             console.error('Save error details:', err);
