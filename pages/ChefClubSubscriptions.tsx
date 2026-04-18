@@ -26,7 +26,7 @@ const ChefClubSubscriptions: React.FC = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-    const fetchSubscriptions = async () => {
+const fetchSubscriptions = async () => {
         setLoading(true);
         // We join with customer_credits to show available balance
         const { data, error } = await barberSupabase
@@ -36,25 +36,31 @@ const ChefClubSubscriptions: React.FC = () => {
                 status,
                 cycle_end,
                 next_billing_date,
-                client:clients(name, phone),
-                plan:customer_plans(name, service_credits),
-                credits:customer_credits(available_credits)
+                client:clients!client_id(name, phone),
+                plan:customer_plans!plan_id(name, service_credits),
+                credits:customer_credits!subscription_id(available_credits)
             `)
             .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Erro ao carregar assinaturas:', error);
+            setToast({ message: `Erro ao carregar assinaturas: ${error.message}`, type: 'error' });
+            setLoading(false);
+            return;
+        }
 
         if (data) {
             const formatted: Subscription[] = data.map((s: any) => ({
                 id: s.id,
-                client: s.client,
-                plan: s.plan,
-                status: s.status,
-                cycle_end: s.cycle_end,
-                next_billing_date: s.next_billing_date,
+                client: s.client || { name: 'Cliente não encontrado', phone: '' },
+                plan: s.plan || { name: 'Plano não encontrado', service_credits: 0 },
+                status: s.status || 'active',
+                cycle_end: s.cycle_end || '',
+                next_billing_date: s.next_billing_date || '',
                 available_credits: s.credits?.[0]?.available_credits || 0
             }));
             setSubscriptions(formatted);
         }
-        if (error) setToast({ message: 'Erro ao carregar assinaturas.', type: 'error' });
         setLoading(false);
     };
 
