@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -19,6 +19,7 @@ interface Plan {
 
 const ChefClubPlans: React.FC = () => {
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const [plans, setPlans] = useState<Plan[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -38,7 +39,7 @@ const ChefClubPlans: React.FC = () => {
 
     const fetchPlans = async () => {
         setLoading(true);
-        const { data, error } = await supabase
+        const { data, error } = await barberSupabase
             .from('customer_plans')
             .select('*')
             .order('monthly_price', { ascending: true });
@@ -63,13 +64,13 @@ const ChefClubPlans: React.FC = () => {
 
         let error;
         if (editingPlan) {
-            const { error: err } = await supabase
+            const { error: err } = await barberSupabase
                 .from('customer_plans')
                 .update(planData)
                 .eq('id', editingPlan.id);
             error = err;
         } else {
-            const { error: err } = await supabase
+            const { error: err } = await barberSupabase
                 .from('customer_plans')
                 .insert(planData);
             error = err;
@@ -112,7 +113,7 @@ const ChefClubPlans: React.FC = () => {
     };
 
     const toggleStatus = async (plan: Plan) => {
-        const { error } = await supabase
+        const { error } = await barberSupabase
             .from('customer_plans')
             .update({ active: !plan.active })
             .eq('id', plan.id);

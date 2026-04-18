@@ -3,7 +3,7 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 
 interface StaffMember {
     id: string;
@@ -37,6 +37,7 @@ interface CommissionRow {
 
 const Commissions: React.FC = () => {
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [rows, setRows] = useState<CommissionRow[]>([]);
@@ -64,12 +65,12 @@ const Commissions: React.FC = () => {
 
         try {
             const [staffRes, itemsRes] = await Promise.all([
-                supabase
+                barberSupabase
                     .from('staff')
                     .select('id, name, role, avatar, commission_rate')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'active'),
-                supabase
+                barberSupabase
                     .from('comanda_items')
                     .select(`
                         id,
@@ -131,7 +132,7 @@ const Commissions: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterMonth, tenantId]);
+    }, [barberSupabase, filterMonth, tenantId]);
 
     useEffect(() => {
         fetchData();

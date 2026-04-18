@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -18,10 +18,23 @@ interface Product {
     active: boolean;
 }
 
+const normalizeProduct = (product: Partial<Product> & { id: string; name: string }): Product => ({
+    id: product.id,
+    name: product.name,
+    description: product.description || '',
+    cost_price: Number(product.cost_price ?? 0),
+    sale_price: Number(product.sale_price ?? 0),
+    stock_quantity: Number(product.stock_quantity ?? 0),
+    minimum_stock: Number(product.minimum_stock ?? 0),
+    auto_generate_purchase_order: Boolean(product.auto_generate_purchase_order),
+    active: typeof product.active === 'boolean' ? product.active : true,
+});
+
 const Products: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -39,9 +52,31 @@ const Products: React.FC = () => {
         auto_generate_purchase_order: false
     });
 
+    const fetchProducts = useCallback(async () => {
+        if (!tenantId) {
+            setProducts([]);
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        const { data, error } = await barberSupabase
+            .from('products')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('name');
+
+        if (error) {
+            setToast({ message: 'Erro ao carregar produtos', type: 'error' });
+        } else {
+            setProducts((data || []).map((product) => normalizeProduct(product as Product)));
+        }
+        setLoading(false);
+    }, [barberSupabase, tenantId]);
+
     useEffect(() => {
         fetchProducts();
-    }, []);
+    }, [fetchProducts]);
 
     useEffect(() => {
         const shouldOpenNew = Boolean((location.state as { openNewProduct?: boolean } | null)?.openNewProduct);
@@ -51,34 +86,20 @@ const Products: React.FC = () => {
         navigate(location.pathname, { replace: true, state: null });
     }, [location.pathname, location.state, navigate]);
 
-    const fetchProducts = async () => {
-        setLoading(true);
-        const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .order('name');
-
-        if (error) {
-            setToast({ message: 'Erro ao carregar produtos', type: 'error' });
-        } else {
-            setProducts(data || []);
-        }
-        setLoading(false);
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const payload = { ...form, tenant_id: tenantId };
 
         let error;
         if (editingProduct) {
-            const { error: err } = await supabase
+            const { error: err } = await barberSupabase
                 .from('products')
                 .update(payload)
-                .eq('id', editingProduct.id);
+                .eq('id', editingProduct.id)
+                .eq('tenant_id', tenantId);
             error = err;
         } else {
-            const { error: err } = await supabase
+            const { error: err } = await barberSupabase
                 .from('products')
                 .insert([payload]);
             error = err;
@@ -104,15 +125,16 @@ const Products: React.FC = () => {
     };
 
     const handleEdit = (product: Product) => {
+        const normalizedProduct = normalizeProduct(product);
         setEditingProduct(product);
         setForm({
-            name: product.name,
-            description: product.description || '',
-            cost_price: product.cost_price,
-            sale_price: product.sale_price,
-            stock_quantity: product.stock_quantity,
-            minimum_stock: product.minimum_stock,
-            auto_generate_purchase_order: product.auto_generate_purchase_order
+            name: normalizedProduct.name,
+            description: normalizedProduct.description || '',
+            cost_price: normalizedProduct.cost_price,
+            sale_price: normalizedProduct.sale_price,
+            stock_quantity: normalizedProduct.stock_quantity,
+            minimum_stock: normalizedProduct.minimum_stock,
+            auto_generate_purchase_order: normalizedProduct.auto_generate_purchase_order
         });
         setShowModal(true);
     };

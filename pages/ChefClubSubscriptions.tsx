@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -17,6 +17,7 @@ interface Subscription {
 
 const ChefClubSubscriptions: React.FC = () => {
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const location = useLocation();
     const navigate = useNavigate();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -28,7 +29,7 @@ const ChefClubSubscriptions: React.FC = () => {
     const fetchSubscriptions = async () => {
         setLoading(true);
         // We join with customer_credits to show available balance
-        const { data, error } = await supabase
+        const { data, error } = await barberSupabase
             .from('customer_subscriptions')
             .select(`
                 id,

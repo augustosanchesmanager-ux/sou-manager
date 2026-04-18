@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
 const COLORS = ['#3c83f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
@@ -28,6 +28,7 @@ interface StaffPerformance {
 const Reports: React.FC = () => {
     const { theme } = useTheme();
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
     const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<StaffPerformance[]>([]);
@@ -61,7 +62,7 @@ const Reports: React.FC = () => {
             }
 
             // 2. Fetch staff commission rates
-            const { data: staffData } = await supabase
+            const { data: staffData } = await barberSupabase
                 .from('staff')
                 .select('id, name, commission_rate')
                 .eq('tenant_id', tenantId);
@@ -76,7 +77,7 @@ const Reports: React.FC = () => {
             }
 
             // 3. Fetch Comandas and Items for detailed metrics
-            const { data: paidComandas } = await supabase
+            const { data: paidComandas } = await barberSupabase
                 .from('comandas')
                 .select(`
                     id, 
@@ -159,7 +160,7 @@ const Reports: React.FC = () => {
         }
 
         setLoading(false);
-    }, [tenantId]);
+    }, [barberSupabase, tenantId]);
 
     useEffect(() => {
         fetchData();

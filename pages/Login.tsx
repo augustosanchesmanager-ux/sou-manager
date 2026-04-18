@@ -182,6 +182,7 @@ const Login: React.FC = () => {
                                         <input
                                             type="email"
                                             required
+                                            autoComplete="email"
                                             placeholder="seu@email.com"
                                             value={email}
                                             onChange={(e) => setEmail(normalizeEmail(e.target.value))}
@@ -200,6 +201,7 @@ const Login: React.FC = () => {
                                         <input
                                             type={showPassword ? 'text' : 'password'}
                                             required
+                                            autoComplete="current-password"
                                             placeholder="........"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
@@ -269,6 +271,7 @@ const Login: React.FC = () => {
                                             <input
                                                 type="email"
                                                 required
+                                                autoComplete="email"
                                                 placeholder="seu@email.com"
                                                 value={resetEmail}
                                                 onChange={(e) => setResetEmail(normalizeEmail(e.target.value))}

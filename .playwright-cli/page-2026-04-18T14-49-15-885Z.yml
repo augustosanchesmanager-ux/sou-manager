@@ -1,0 +1,296 @@
+- generic [ref=e48]:
+  - complementary [ref=e49]:
+    - button "content_cut SOU MANA.GER Elite Tech" [ref=e51] [cursor=pointer]:
+      - generic [ref=e53]: content_cut
+      - generic [ref=e54]:
+        - heading "SOU MANA.GER" [level=1] [ref=e55]
+        - paragraph [ref=e56]: Elite Tech
+    - navigation [ref=e57]:
+      - link "dashboard Inicio" [ref=e60] [cursor=pointer]:
+        - /url: "#/dashboard"
+        - generic [ref=e62]:
+          - generic [ref=e63]: dashboard
+          - generic [ref=e64]: Inicio
+      - generic [ref=e65]:
+        - button "business_center NEGÓCIO expand_more" [ref=e66]:
+          - generic [ref=e67]:
+            - generic [ref=e68]: business_center
+            - generic [ref=e69]: NEGÓCIO
+          - generic [ref=e70]: expand_more
+        - generic:
+          - link "insights Painel Estratégico" [ref=e72] [cursor=pointer]:
+            - /url: "#/strategic-dashboard"
+            - generic [ref=e73]:
+              - generic [ref=e74]: insights
+              - generic [ref=e75]: Painel Estratégico
+          - link "query_stats Visão de Negócio" [ref=e77] [cursor=pointer]:
+            - /url: "#/bi"
+            - generic [ref=e78]:
+              - generic [ref=e79]: query_stats
+              - generic [ref=e80]: Visão de Negócio
+          - link "summarize Relatórios" [ref=e82] [cursor=pointer]:
+            - /url: "#/reports"
+            - generic [ref=e83]:
+              - generic [ref=e84]: summarize
+              - generic [ref=e85]: Relatórios
+      - generic [ref=e86]:
+        - button "sync_alt OPERAÇÃO expand_more" [ref=e87]:
+          - generic [ref=e88]:
+            - generic [ref=e89]: sync_alt
+            - generic [ref=e90]: OPERAÇÃO
+          - generic [ref=e91]: expand_more
+        - generic [ref=e444]:
+          - link "calendar_month Agendamentos" [ref=e93] [cursor=pointer]:
+            - /url: "#/schedule"
+            - generic [ref=e94]:
+              - generic [ref=e95]: calendar_month
+              - generic [ref=e96]: Agendamentos
+          - link "group Clientes" [ref=e98] [cursor=pointer]:
+            - /url: "#/clients"
+            - generic [ref=e99]:
+              - generic [ref=e100]: group
+              - generic [ref=e101]: Clientes
+          - link "receipt Comandas" [ref=e103] [cursor=pointer]:
+            - /url: "#/comandas"
+            - generic [ref=e104]:
+              - generic [ref=e105]: receipt
+              - generic [ref=e106]: Comandas
+          - link "point_of_sale Checkout / PDV" [active] [ref=e108] [cursor=pointer]:
+            - /url: "#/checkout?mode=pdv"
+            - generic [ref=e109]:
+              - generic [ref=e110]: point_of_sale
+              - generic [ref=e111]: Checkout / PDV
+          - link "assignment Operações do Dia" [ref=e113] [cursor=pointer]:
+            - /url: "#/operations"
+            - generic [ref=e114]:
+              - generic [ref=e115]: assignment
+              - generic [ref=e116]: Operações do Dia
+      - generic [ref=e117]:
+        - button "trending_up CRESCIMENTO expand_more" [ref=e118]:
+          - generic [ref=e119]:
+            - generic [ref=e120]: trending_up
+            - generic [ref=e121]: CRESCIMENTO
+          - generic [ref=e122]: expand_more
+        - generic:
+          - link "psychology Motor de Retorno 🧠" [ref=e124] [cursor=pointer]:
+            - /url: "#/smart-return"
+            - generic [ref=e125]:
+              - generic [ref=e126]: psychology
+              - generic [ref=e127]: Motor de Retorno 🧠
+          - generic [ref=e128]:
+            - button "workspace_premium Clube do Chefe 👑 expand_more" [ref=e129]:
+              - generic [ref=e130]:
+                - generic [ref=e131]: workspace_premium
+                - generic [ref=e132]: Clube do Chefe 👑
+              - generic [ref=e133]: expand_more
+            - generic [ref=e134]:
+              - link "Planos" [ref=e135] [cursor=pointer]:
+                - /url: "#/chef-club-plans"
+              - link "Assinaturas" [ref=e136] [cursor=pointer]:
+                - /url: "#/chef-club-subscriptions"
+      - generic [ref=e137]:
+        - button "admin_panel_settings ADMINISTRAÇÃO expand_more" [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]: admin_panel_settings
+            - generic [ref=e141]: ADMINISTRAÇÃO
+          - generic [ref=e142]: expand_more
+        - generic [ref=e143]:
+          - button "folder_open Cadastros expand_more" [ref=e144]:
+            - generic [ref=e145]:
+              - generic [ref=e146]: folder_open
+              - generic [ref=e147]: Cadastros
+            - generic [ref=e148]: expand_more
+          - generic [ref=e149]:
+            - link "Monitoramento Supabase" [ref=e150] [cursor=pointer]:
+              - /url: "#/admin/supabase-monitoring"
+            - link "Serviços" [ref=e151] [cursor=pointer]:
+              - /url: "#/services"
+            - link "Produtos" [ref=e152] [cursor=pointer]:
+              - /url: "#/products"
+            - link "Profissionais" [ref=e153] [cursor=pointer]:
+              - /url: "#/team"
+            - link "Categorias" [ref=e154] [cursor=pointer]:
+              - /url: "#/categories"
+            - link "Fornecedores" [ref=e155] [cursor=pointer]:
+              - /url: "#/suppliers"
+      - generic [ref=e156]:
+        - button "payments FINANCEIRO expand_more" [ref=e157]:
+          - generic [ref=e158]:
+            - generic [ref=e159]: payments
+            - generic [ref=e160]: FINANCEIRO
+          - generic [ref=e161]: expand_more
+        - generic:
+          - link "account_balance_wallet Visão Geral" [ref=e163] [cursor=pointer]:
+            - /url: "#/financial"
+            - generic [ref=e164]:
+              - generic [ref=e165]: account_balance_wallet
+              - generic [ref=e166]: Visão Geral
+          - link "swap_horiz Fluxo de Caixa" [ref=e168] [cursor=pointer]:
+            - /url: "#/cashflow"
+            - generic [ref=e169]:
+              - generic [ref=e170]: swap_horiz
+              - generic [ref=e171]: Fluxo de Caixa
+          - link "payments Folha de Pagamento" [ref=e173] [cursor=pointer]:
+            - /url: "#/payroll"
+            - generic [ref=e174]:
+              - generic [ref=e175]: payments
+              - generic [ref=e176]: Folha de Pagamento
+          - link "money_off Gestão de Saídas" [ref=e178] [cursor=pointer]:
+            - /url: "#/expenses"
+            - generic [ref=e179]:
+              - generic [ref=e180]: money_off
+              - generic [ref=e181]: Gestão de Saídas
+          - link "receipt_long Gestão de Recibos" [ref=e183] [cursor=pointer]:
+            - /url: "#/receipts"
+            - generic [ref=e184]:
+              - generic [ref=e185]: receipt_long
+              - generic [ref=e186]: Gestão de Recibos
+          - link "percent Comissões" [ref=e188] [cursor=pointer]:
+            - /url: "#/commissions"
+            - generic [ref=e189]:
+              - generic [ref=e190]: percent
+              - generic [ref=e191]: Comissões
+    - generic [ref=e192]:
+      - link "settings Configurações" [ref=e194] [cursor=pointer]:
+        - /url: "#/settings"
+        - generic [ref=e195]:
+          - generic [ref=e196]: settings
+          - generic [ref=e197]: Configurações
+      - link "support_agent Suporte" [ref=e199] [cursor=pointer]:
+        - /url: "#/support"
+        - generic [ref=e200]:
+          - generic [ref=e201]: support_agent
+          - generic [ref=e202]: Suporte
+      - button "person Teste Local teste@soumanager.local more_vert" [ref=e203]:
+        - generic [ref=e205]: person
+        - generic [ref=e206]:
+          - paragraph [ref=e207]: Teste Local
+          - paragraph [ref=e208]: teste@soumanager.local
+        - generic [ref=e209]: more_vert
+  - main [ref=e210]:
+    - generic [ref=e211]:
+      - generic [ref=e212]:
+        - button "menu" [ref=e213]:
+          - generic [ref=e214]: menu
+        - generic [ref=e215]:
+          - generic [ref=e216]: search
+          - textbox "Pesquisar... (Cmd+K)" [ref=e217]
+      - generic [ref=e218]:
+        - button "light_mode" [ref=e219]:
+          - generic [ref=e220]: light_mode
+        - button "notifications" [ref=e221]:
+          - generic [ref=e222]: notifications
+        - generic [ref=e224]:
+          - generic [ref=e225]:
+            - paragraph [ref=e226]: Sou Manager Demo
+            - paragraph [ref=e227]: Plano Free
+          - generic [ref=e229]: person
+    - generic [ref=e566]:
+      - generic [ref=e567]:
+        - generic [ref=e568]:
+          - heading "point_of_sale Checkout / PDV" [level=1] [ref=e569]:
+            - generic [ref=e570]: point_of_sale
+            - text: Checkout / PDV
+          - paragraph [ref=e571]: Lance produtos e servicos para uma venda imediata no caixa.
+        - generic [ref=e572]:
+          - paragraph [ref=e573]: Operacao
+          - paragraph [ref=e574]: "#NOVO"
+      - generic [ref=e575]:
+        - paragraph [ref=e576]: Fluxo de caixa / pdv
+        - paragraph [ref=e577]: Checkout / PDV
+        - paragraph [ref=e578]: Lance produtos e servicos para uma venda imediata no caixa.
+      - generic [ref=e579]:
+        - generic [ref=e580]:
+          - generic [ref=e581]:
+            - generic [ref=e582]:
+              - generic [ref=e584]: person
+              - generic [ref=e585]:
+                - paragraph [ref=e586]: Cliente nao selecionado
+                - paragraph [ref=e587]: Obrigatorio para concluir a operacao no fluxo atual.
+            - button "search Buscar" [ref=e589]:
+              - generic [ref=e590]: search
+              - text: Buscar
+          - generic [ref=e591]:
+            - generic [ref=e592]:
+              - heading "shopping_cart Itens da Operacao" [level=3] [ref=e593]:
+                - generic [ref=e594]: shopping_cart
+                - text: Itens da Operacao
+              - generic [ref=e595]:
+                - button "content_cut + Serviço" [ref=e596]:
+                  - generic [ref=e597]: content_cut
+                  - text: + Serviço
+                - button "shopping_bag + Produto" [ref=e598]:
+                  - generic [ref=e599]: shopping_bag
+                  - text: + Produto
+            - generic [ref=e601]:
+              - generic [ref=e602]: remove_shopping_cart
+              - paragraph [ref=e603]: Nenhum item lancado na operacao
+        - generic [ref=e605]:
+          - heading "receipt_long Resumo financeiro" [level=3] [ref=e606]:
+            - generic [ref=e607]: receipt_long
+            - text: Resumo financeiro
+          - generic [ref=e608]:
+            - paragraph [ref=e609]: Acao da operacao
+            - button "check_circle Concluir venda" [ref=e611]:
+              - generic [ref=e612]: check_circle
+              - text: Concluir venda
+          - generic [ref=e613]:
+            - generic [ref=e614]:
+              - generic [ref=e615]: Subtotal
+              - generic [ref=e616]: R$ 0.00
+            - generic [ref=e617]:
+              - generic [ref=e618]: Desconto (R$)
+              - spinbutton [ref=e619]: "0"
+            - generic [ref=e621]:
+              - generic [ref=e622]: Total
+              - generic [ref=e623]: R$ 0.00
+          - generic [ref=e624]:
+            - generic [ref=e625]: Forma de Pagamento
+            - generic [ref=e626]:
+              - button "credit_card Crédito" [ref=e627]:
+                - generic [ref=e628]: credit_card
+                - generic [ref=e629]: Crédito
+              - button "payments Débito" [ref=e630]:
+                - generic [ref=e631]: payments
+                - generic [ref=e632]: Débito
+              - button "qr_code_2 Pix" [ref=e633]:
+                - generic [ref=e634]: qr_code_2
+                - generic [ref=e635]: Pix
+              - button "attach_money Dinheiro" [ref=e636]:
+                - generic [ref=e637]: attach_money
+                - generic [ref=e638]: Dinheiro
+              - button "more_horiz Outros" [ref=e639]:
+                - generic [ref=e640]: more_horiz
+                - generic [ref=e641]: Outros
+          - button "Concluir venda check_circle" [disabled] [ref=e642]:
+            - generic [ref=e643]: Concluir venda
+            - generic [ref=e644]: check_circle
+    - button "support_agent" [ref=e441]:
+      - generic [ref=e442]: support_agent
+    - generic:
+      - generic:
+        - generic:
+          - generic: smart_toy
+        - generic:
+          - paragraph: Assistente SOU MANA.GER
+          - paragraph: Online agora
+        - button "remove":
+          - generic: remove
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - text: 👋 Olá! Sou o assistente do
+              - strong: SOU MANA.GER
+              - text: . Como posso te ajudar hoje?
+            - generic: Escolha uma das opções rápidas abaixo ou digite sua dúvida.
+      - generic:
+        - button "Como cadastrar um cliente?"
+        - button "Como fechar o caixa?"
+        - button "Como agendar um horário?"
+        - button "Como adicionar um profissional?"
+        - button "Como gerar relatórios?"
+      - generic:
+        - textbox "Digite sua dúvida..."
+        - button "send" [disabled]:
+          - generic: send

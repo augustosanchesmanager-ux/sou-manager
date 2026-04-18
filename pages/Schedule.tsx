@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -242,6 +242,7 @@ const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenantId, user } = useAuth();
+  const barberSupabase = getScopedClient('barber');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -424,8 +425,8 @@ const Schedule: React.FC = () => {
     }
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
+      barberSupabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      barberSupabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
@@ -435,7 +436,7 @@ const Schedule: React.FC = () => {
     // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase
+      const retryServices = await barberSupabase
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -445,7 +446,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await barberSupabase
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -466,7 +467,7 @@ const Schedule: React.FC = () => {
     } else if (servicesRes.data && servicesRes.data.length > 0) {
       setServicesList(servicesRes.data);
     } else {
-      const retryServices = await supabase
+      const retryServices = await barberSupabase
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -476,7 +477,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data && retryServices.data.length > 0) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await barberSupabase
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -507,7 +508,7 @@ const Schedule: React.FC = () => {
       });
       setActivePromotions(validPromos);
     }
-  }, [tenantId]);
+  }, [barberSupabase, tenantId]);
 
   // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
@@ -804,7 +805,7 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data: subscription, error: subscriptionError } = await supabase
+    const { data: subscription, error: subscriptionError } = await barberSupabase
       .from('customer_subscriptions')
       .select('id, plan_id, status')
       .eq('client_id', client.id)
@@ -820,13 +821,13 @@ const Schedule: React.FC = () => {
 
     if (subscription) {
       const [{ data: plan }, { data: credits }] = await Promise.all([
-        supabase
+        barberSupabase
           .from('customer_plans')
           .select('name')
           .eq('id', subscription.plan_id)
           .eq('tenant_id', tenantId)
           .maybeSingle(),
-        supabase
+        barberSupabase
           .from('customer_credits')
           .select('available_credits')
           .eq('subscription_id', subscription.id)
@@ -1497,7 +1498,7 @@ const Schedule: React.FC = () => {
             .maybeSingle();
 
           if (!existingComandaItem) {
-            const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+            const { data: serviceData } = await barberSupabase.from('services').select('price').eq('id', selectedService.id).single();
             let finalPrice = serviceData?.price || 0;
 
             const promo = activePromotions.find(p =>

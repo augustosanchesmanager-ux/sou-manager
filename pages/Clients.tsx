@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as Papa from 'papaparse';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -34,6 +34,7 @@ const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -77,7 +78,7 @@ const Clients: React.FC = () => {
         setDetailClient(client);
         setDetailChefClub(null);
 
-        const { data } = await supabase
+        const { data } = await barberSupabase
             .from('customer_subscriptions')
             .select(`
                 status,
@@ -120,7 +121,7 @@ const Clients: React.FC = () => {
             // Fetch subscription badges
             const clientIds = data.map(c => c.id);
             if (clientIds.length > 0) {
-                const { data: subs } = await supabase
+                const { data: subs } = await barberSupabase
                     .from('customer_subscriptions')
                     .select('client_id, plan:customer_plans(name)')
                     .eq('status', 'active')
@@ -243,7 +244,10 @@ const Clients: React.FC = () => {
         const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
 
         const cleanupByClientId = async (table: string) => {
-            const { error } = await supabase.from(table).delete().eq('client_id', clientId);
+            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions'
+                ? barberSupabase
+                : supabase;
+            const { error } = await targetClient.from(table).delete().eq('client_id', clientId);
             if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
                 console.warn(`Falha ao limpar dependencias em ${table}:`, error);
             }

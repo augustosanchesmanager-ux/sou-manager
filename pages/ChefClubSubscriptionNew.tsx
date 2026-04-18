@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 
@@ -33,6 +33,7 @@ const toDateOnly = (d: Date) => {
 
 const ChefClubSubscriptionNew: React.FC = () => {
     const { tenantId } = useAuth();
+    const barberSupabase = getScopedClient('barber');
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [clients, setClients] = useState<ClientOption[]>([]);
@@ -59,7 +60,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
             setLoading(true);
             const [clientsRes, plansRes] = await Promise.all([
                 supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
-                supabase
+                barberSupabase
                     .from('customer_plans')
                     .select('id, name, monthly_price, service_credits, description, active')
                     .eq('tenant_id', tenantId)
@@ -110,7 +111,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
     }, [selectedPlanId, selectedPlan]);
 
     const applyCreditsForSubscription = async (subscriptionId: string, clientId: string, credits: number) => {
-        const { error } = await supabase
+        const { error } = await barberSupabase
             .from('customer_credits')
             .upsert(
                 {
@@ -133,7 +134,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
         const parsedInitialCredits = Number(initialCredits);
         const billingDate = new Date(`${nextBillingDate}T12:00:00`);
 
-        const { data, error } = await supabase
+        const { data, error } = await barberSupabase
             .from('customer_subscriptions')
             .insert({
                 tenant_id: tenantId,
@@ -179,7 +180,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
             return;
         }
 
-        const { error } = await supabase
+        const { error } = await barberSupabase
             .from('customer_subscriptions')
             .update({
                 plan_id: selectedPlan.id,
@@ -229,7 +230,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
         setSaving(true);
         setExistingSubscription(null);
 
-        const { data: activeSub, error: activeSubError } = await supabase
+        const { data: activeSub, error: activeSubError } = await barberSupabase
             .from('customer_subscriptions')
             .select('id, plan_id')
             .eq('tenant_id', tenantId)

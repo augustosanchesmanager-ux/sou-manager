@@ -286,7 +286,11 @@ const Services: React.FC = () => {
                     <span className="text-slate-700 dark:text-slate-300">{service.duration} min</span>
                   </div>
                 </div>
-                <button onClick={() => handleToggleActive(service)}
+                <button
+                  type="button"
+                  onClick={() => handleToggleActive(service)}
+                  aria-label={service.active ? `Desativar ${service.name}` : `Ativar ${service.name}`}
+                  title={service.active ? `Desativar ${service.name}` : `Ativar ${service.name}`}
                   className={`relative w-12 h-6 rounded-full transition-colors ${service.active ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
                   <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${service.active ? 'left-[26px]' : 'left-0.5'}`}></div>
                 </button>

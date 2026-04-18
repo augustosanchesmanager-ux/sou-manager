@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -26,6 +26,7 @@ const defaultForm = {
 
 const Suppliers: React.FC = () => {
   const { tenantId } = useAuth();
+  const barberSupabase = getScopedClient('barber');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -35,8 +36,14 @@ const Suppliers: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const fetchSuppliers = async () => {
+    if (!tenantId) {
+      setSuppliers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const { data, error } = await supabase.from('suppliers').select('*').order('name');
+    const { data, error } = await barberSupabase.from('suppliers').select('*').eq('tenant_id', tenantId).order('name');
 
     if (error) {
       setToast({ message: 'Erro ao carregar fornecedores.', type: 'error' });
@@ -49,7 +56,7 @@ const Suppliers: React.FC = () => {
 
   useEffect(() => {
     fetchSuppliers();
-  }, []);
+  }, [tenantId]);
 
   const filtered = useMemo(
     () =>
@@ -93,7 +100,7 @@ const Suppliers: React.FC = () => {
     }
 
     if (editingSupplier) {
-      const { error } = await supabase.from('suppliers').update(form).eq('id', editingSupplier.id);
+      const { error } = await barberSupabase.from('suppliers').update(form).eq('id', editingSupplier.id).eq('tenant_id', tenantId);
       if (error) {
         setToast({ message: 'Erro ao atualizar fornecedor.', type: 'error' });
         return;
@@ -104,7 +111,7 @@ const Suppliers: React.FC = () => {
       return;
     }
 
-    const { error } = await supabase.from('suppliers').insert([{ ...form, tenant_id: tenantId }]);
+    const { error } = await barberSupabase.from('suppliers').insert([{ ...form, tenant_id: tenantId }]);
     if (error) {
       setToast({ message: 'Erro ao cadastrar fornecedor.', type: 'error' });
       return;
@@ -115,7 +122,7 @@ const Suppliers: React.FC = () => {
   };
 
   const handleDelete = async (supplierId: string) => {
-    const { error } = await supabase.from('suppliers').delete().eq('id', supplierId);
+    const { error } = await barberSupabase.from('suppliers').delete().eq('id', supplierId).eq('tenant_id', tenantId);
     if (error) {
       setToast({ message: 'Erro ao excluir fornecedor.', type: 'error' });
       return;
