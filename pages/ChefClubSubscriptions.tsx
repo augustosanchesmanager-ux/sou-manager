@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getScopedClient } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 
@@ -25,20 +25,18 @@ const ChefClubSubscriptions: React.FC = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-const fetchSubscriptions = async () => {
+    const fetchSubscriptions = async () => {
+        if (!tenantId) {
+            setSubscriptions([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        // We join with customer_credits to show available balance
+
         const { data, error } = await barberSupabase
             .from('customer_subscriptions')
-            .select(`
-                id,
-                status,
-                cycle_end,
-                next_billing_date,
-                client:clients(name, phone),
-                plan:customer_plans(name, service_credits),
-                credits:customer_credits(available_credits)
-            `)
+            .select('id, status, cycle_end, next_billing_date, client_id, plan_id')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
 
@@ -49,23 +47,63 @@ const fetchSubscriptions = async () => {
             return;
         }
 
-        if (data) {
-            const formatted: Subscription[] = data.map((s: any) => ({
-                id: s.id,
-                client: s.client || { name: 'Cliente não encontrado', phone: '' },
-                plan: s.plan || { name: 'Plano não encontrado', service_credits: 0 },
-                status: s.status || 'active',
-                cycle_end: s.cycle_end || '',
-                next_billing_date: s.next_billing_date || '',
-                available_credits: s.credits?.[0]?.available_credits || 0
-            }));
-            setSubscriptions(formatted);
+        const rawSubscriptions = data || [];
+        const clientIds = Array.from(new Set(rawSubscriptions.map((subscription: any) => subscription.client_id).filter(Boolean)));
+        const planIds = Array.from(new Set(rawSubscriptions.map((subscription: any) => subscription.plan_id).filter(Boolean)));
+        const subscriptionIds = Array.from(new Set(rawSubscriptions.map((subscription: any) => subscription.id).filter(Boolean)));
+
+        const [clientsRes, plansRes, creditsRes] = await Promise.all([
+            clientIds.length > 0
+                ? supabase
+                    .from('clients')
+                    .select('id, name, phone')
+                    .eq('tenant_id', tenantId)
+                    .in('id', clientIds)
+                : Promise.resolve({ data: [], error: null }),
+            planIds.length > 0
+                ? barberSupabase
+                    .from('customer_plans')
+                    .select('id, name, service_credits')
+                    .eq('tenant_id', tenantId)
+                    .in('id', planIds)
+                : Promise.resolve({ data: [], error: null }),
+            subscriptionIds.length > 0
+                ? barberSupabase
+                    .from('customer_credits')
+                    .select('subscription_id, available_credits')
+                    .eq('tenant_id', tenantId)
+                    .in('subscription_id', subscriptionIds)
+                : Promise.resolve({ data: [], error: null })
+        ]);
+
+        if (clientsRes.error || plansRes.error || creditsRes.error) {
+            const details = [clientsRes.error, plansRes.error, creditsRes.error].filter(Boolean);
+            console.error('Erro ao resolver dados das assinaturas:', details);
+            setToast({ message: 'Erro ao resolver dados complementares das assinaturas.', type: 'error' });
+            setLoading(false);
+            return;
         }
+
+        const clientsMap = new Map((clientsRes.data || []).map((client: any) => [client.id, client]));
+        const plansMap = new Map((plansRes.data || []).map((plan: any) => [plan.id, plan]));
+        const creditsMap = new Map((creditsRes.data || []).map((credit: any) => [credit.subscription_id, credit]));
+
+        const formatted: Subscription[] = rawSubscriptions.map((subscription: any) => ({
+            id: subscription.id,
+            client: clientsMap.get(subscription.client_id) || { name: 'Cliente não encontrado', phone: '' },
+            plan: plansMap.get(subscription.plan_id) || { name: 'Plano não encontrado', service_credits: 0 },
+            status: subscription.status || 'active',
+            cycle_end: subscription.cycle_end || '',
+            next_billing_date: subscription.next_billing_date || '',
+            available_credits: creditsMap.get(subscription.id)?.available_credits || 0
+        }));
+
+        setSubscriptions(formatted);
         setLoading(false);
     };
 
     useEffect(() => {
-        if (tenantId) fetchSubscriptions();
+        void fetchSubscriptions();
     }, [tenantId]);
 
     useEffect(() => {
@@ -76,34 +114,44 @@ const fetchSubscriptions = async () => {
         }
     }, [location, navigate]);
 
-    const filtered = subscriptions.filter(s => {
-        const matchesSearch = s.client.name.toLowerCase().includes(search.toLowerCase()) || s.client.phone.includes(search);
-        const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
+    const filtered = subscriptions.filter((subscription) => {
+        const matchesSearch =
+            subscription.client.name.toLowerCase().includes(search.toLowerCase()) ||
+            subscription.client.phone.includes(search);
+        const matchesStatus = statusFilter === 'all' || subscription.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
     const getStatusStyle = (status: string) => {
         switch (status) {
-            case 'active': return 'bg-emerald-500/10 text-emerald-500';
-            case 'past_due': return 'bg-amber-500/10 text-amber-500';
-            case 'canceled': return 'bg-red-500/10 text-red-500';
-            default: return 'bg-slate-500/10 text-slate-500';
+            case 'active':
+                return 'bg-emerald-500/10 text-emerald-500';
+            case 'past_due':
+                return 'bg-amber-500/10 text-amber-500';
+            case 'canceled':
+                return 'bg-red-500/10 text-red-500';
+            default:
+                return 'bg-slate-500/10 text-slate-500';
         }
     };
 
     const translateStatus = (status: string) => {
         switch (status) {
-            case 'active': return 'Ativo';
-            case 'past_due': return 'Atrasado';
-            case 'canceled': return 'Cancelado';
-            case 'paused': return 'Pausado';
-            default: return status;
+            case 'active':
+                return 'Ativo';
+            case 'past_due':
+                return 'Atrasado';
+            case 'canceled':
+                return 'Cancelado';
+            case 'paused':
+                return 'Pausado';
+            default:
+                return status;
         }
     };
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in p-4 md:p-6">
-            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <div className="size-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
@@ -123,7 +171,6 @@ const fetchSubscriptions = async () => {
                 </button>
             </div>
 
-            {/* Filters */}
             <div className="flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
@@ -131,25 +178,24 @@ const fetchSubscriptions = async () => {
                         type="text"
                         placeholder="Buscar por nome ou telefone..."
                         value={search}
-                        onChange={e => setSearch(e.target.value)}
+                        onChange={(event) => setSearch(event.target.value)}
                         title="Buscar Assinante"
                         className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
                     />
                 </div>
                 <div className="flex gap-2">
-                    {['all', 'active', 'past_due'].map(st => (
+                    {['all', 'active', 'past_due'].map((status) => (
                         <button
-                            key={st}
-                            onClick={() => setStatusFilter(st)}
-                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === st ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white dark:bg-card-dark text-slate-500 border border-slate-200 dark:border-white/10'}`}
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === status ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white dark:bg-card-dark text-slate-500 border border-slate-200 dark:border-white/10'}`}
                         >
-                            {st === 'all' ? 'Todos' : translateStatus(st)}
+                            {status === 'all' ? 'Todos' : translateStatus(status)}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Table */}
             <div className="bg-white dark:bg-card-dark rounded-3xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
@@ -164,31 +210,31 @@ const fetchSubscriptions = async () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                            {filtered.map((sub) => (
-                                <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                            {filtered.map((subscription) => (
+                                <tr key={subscription.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-black text-slate-900 dark:text-white uppercase">{sub.client.name}</span>
-                                            <span className="text-[10px] text-slate-500 font-bold">{sub.client.phone}</span>
+                                            <span className="text-sm font-black text-slate-900 dark:text-white uppercase">{subscription.client.name}</span>
+                                            <span className="text-[10px] text-slate-500 font-bold">{subscription.client.phone}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-primary">{sub.plan.name}</span>
+                                        <span className="text-sm font-bold text-primary">{subscription.plan.name}</span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full">
                                             <span className="material-symbols-outlined text-sm">content_cut</span>
-                                            <span className="text-sm font-black">{sub.available_credits}</span>
+                                            <span className="text-sm font-black">{subscription.available_credits}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(sub.status)}`}>
-                                            {translateStatus(sub.status)}
+                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(subscription.status)}`}>
+                                            {translateStatus(subscription.status)}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="text-sm text-slate-500 font-bold">
-                                            {new Date(sub.next_billing_date).toLocaleDateString('pt-BR')}
+                                            {new Date(subscription.next_billing_date).toLocaleDateString('pt-BR')}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
