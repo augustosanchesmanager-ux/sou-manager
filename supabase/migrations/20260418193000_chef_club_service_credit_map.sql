@@ -94,4 +94,6 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.deduct_chef_club_credits(UUID, UUID, INTEGER, TEXT) TO authenticated;
 
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;

@@ -35,6 +35,13 @@ interface ServiceCreditFormItem {
     credits: number;
 }
 
+interface SupabaseLikeError {
+    message: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+}
+
 const createEmptyForm = () => ({
     name: '',
     monthly_price: 0,
@@ -45,6 +52,16 @@ const createEmptyForm = () => ({
     max_rollover_credits: 0,
     credit_validity_days: 30,
 });
+
+const getFriendlySaveErrorMessage = (error: SupabaseLikeError) => {
+    const raw = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+
+    if (raw.includes('service_credit_map') || raw.includes('schema cache')) {
+        return 'O banco ainda nao reconheceu a nova coluna de creditos por servico. Rode um reload de schema no Supabase e tente novamente.';
+    }
+
+    return `Erro ao salvar plano: ${error.message}`;
+};
 
 const ChefClubPlans: React.FC = () => {
     const { tenantId } = useAuth();
@@ -193,7 +210,8 @@ const ChefClubPlans: React.FC = () => {
             : await barberSupabase.from('customer_plans').insert(planData);
 
         if (error) {
-            setToast({ message: `Erro ao salvar plano: ${error.message}`, type: 'error' });
+            console.error('Erro ao salvar plano do Chef Club:', error);
+            setToast({ message: getFriendlySaveErrorMessage(error as SupabaseLikeError), type: 'error' });
         } else {
             setToast({ message: `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`, type: 'success' });
             setShowModal(false);
