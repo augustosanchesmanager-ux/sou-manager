@@ -10,6 +10,20 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 
+type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
+type PayoutType = 'percentage' | 'fixed';
+
+interface CartParticipant {
+  id: string;
+  professional_id: string;
+  professional_name?: string;
+  role: ExecutionRole;
+  payout_type: PayoutType;
+  payout_value: number;
+  affects_revenue: boolean;
+  affects_commission: boolean;
+}
+
 // Types
 interface CartItem {
     id: string; // for UI tracking
@@ -22,6 +36,7 @@ interface CartItem {
     product_id?: string;
     staff_id?: string;
     usedCredit?: boolean;
+    execution_participants?: CartParticipant[];
 }
 
 interface Client {
@@ -189,6 +204,8 @@ const Checkout: React.FC = () => {
     const [discount, setDiscount] = useState<string>('0');
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+    const [isSharedExecutionModalOpen, setIsSharedExecutionModalOpen] = useState(false);
+    const [sharedExecutionItemId, setSharedExecutionItemId] = useState<string | null>(null);
     const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
     const [isQuickServiceModalOpen, setIsQuickServiceModalOpen] = useState(false);
     const [itemModalTab, setItemModalTab] = useState<'services' | 'products'>('services');
@@ -720,6 +737,72 @@ const Checkout: React.FC = () => {
         setCart(cart.map(item => item.id === itemId ? { ...item, price: isNaN(floatPrice) ? 0 : floatPrice } : item));
     };
 
+    const calculateParticipantPayout = (itemUnitPrice: number, participant: CartParticipant): number => {
+        if (participant.payout_type === 'percentage') {
+            return itemUnitPrice * (participant.payout_value / 100);
+        }
+        return participant.payout_value;
+    };
+
+    const calculateTotalPayouts = (itemUnitPrice: number, participants: CartParticipant[]): number => {
+        return participants
+            .filter(p => p.affects_commission)
+            .reduce((sum, p) => sum + calculateParticipantPayout(itemUnitPrice, p), 0);
+    };
+
+    const addParticipant = (itemId: string, professionalId: string, professionalName: string, role: ExecutionRole, payoutType: PayoutType, payoutValue: number) => {
+        setCart(cart.map(item => {
+            if (item.id !== itemId) return item;
+            
+            const existingParticipants = item.execution_participants || [];
+            const isPrimary = role === 'primary';
+            
+            const newParticipant: CartParticipant = {
+                id: `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                professional_id: professionalId,
+                professional_name: professionalName,
+                role,
+                payout_type: payoutType,
+                payout_value: payoutValue,
+                affects_revenue: isPrimary,
+                affects_commission: true,
+            };
+            
+            if (isPrimary) {
+                const updatedParticipants = existingParticipants.map(p => ({ ...p, affects_revenue: false, role: 'assistant' as ExecutionRole }));
+                return { ...item, execution_participants: [...updatedParticipants, newParticipant] };
+            }
+            
+            return { ...item, execution_participants: [...existingParticipants, newParticipant] };
+        }));
+    };
+
+    const removeParticipant = (itemId: string, participantId: string) => {
+        setCart(cart.map(item => {
+            if (item.id !== itemId) return item;
+            const participants = (item.execution_participants || []).filter(p => p.id !== participantId);
+            
+            if (participants.length === 0) {
+                const { execution_participants: _, ...itemWithoutParticipants } = item;
+                return itemWithoutParticipants;
+            }
+            
+            return { ...item, execution_participants: participants };
+        }));
+    };
+
+    const updateParticipant = (itemId: string, participantId: string, updates: Partial<CartParticipant>) => {
+        setCart(cart.map(item => {
+            if (item.id !== itemId) return item;
+            return {
+                ...item,
+                execution_participants: (item.execution_participants || []).map(p => 
+                    p.id === participantId ? { ...p, ...updates } : p
+                )
+            };
+        }));
+    };
+
     const handleFinish = async () => {
         if (finishLockRef.current) return;
         finishLockRef.current = true;
@@ -858,10 +941,55 @@ const Checkout: React.FC = () => {
                 tenant_id: resolvedTenantId
             }));
 
-            const { error: itemsError } = await client.from('comanda_items').insert(itemsToInsert);
+            const { data: insertedItems, error: itemsError } = await client.from('comanda_items').insert(itemsToInsert).select('id');
             if (itemsError) throw itemsError;
 
-            // 3. If PAID, mark comanda as paid
+            // 3. Insert execution participants if any
+            if (insertedItems && insertedItems.length > 0) {
+                const allParticipantsToInsert: any[] = [];
+                
+                cart.forEach((item, index) => {
+                    const itemId = insertedItems[index]?.id;
+                    if (!itemId) return;
+                    
+                    const participants = item.execution_participants || [];
+                    
+                    if (participants.length > 0) {
+                        participants.forEach(p => {
+                            allParticipantsToInsert.push({
+                                comanda_item_id: itemId,
+                                professional_id: p.professional_id,
+                                role: p.role,
+                                payout_type: p.payout_type,
+                                payout_value: p.payout_value,
+                                affects_revenue: p.affects_revenue,
+                                affects_commission: p.affects_commission,
+                                tenant_id: resolvedTenantId
+                            });
+                        });
+                    } else if (item.staff_id) {
+                        allParticipantsToInsert.push({
+                            comanda_item_id: itemId,
+                            professional_id: item.staff_id,
+                            role: 'primary',
+                            payout_type: 'percentage',
+                            payout_value: 40,
+                            affects_revenue: true,
+                            affects_commission: true,
+                            tenant_id: resolvedTenantId
+                        });
+                    }
+                });
+
+                if (allParticipantsToInsert.length > 0) {
+                    const { error: participantsError } = await client.from('service_execution_participants').insert(allParticipantsToInsert);
+                    if (participantsError) {
+                        console.warn('Error inserting execution participants:', participantsError);
+                    }
+                }
+            }
+
+            // 4. If PAID, mark comanda as paid
             if (paymentStatus === 'paid') {
                 const { error: updateError } = await client
                     .from('comandas')
@@ -1109,7 +1237,33 @@ const Checkout: React.FC = () => {
                                                             <option key={pro.id} value={pro.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{pro.name}</option>
                                                         ))}
                                                     </select>
+                                                    {item.type === 'service' && (
+                                                        <button
+                                                            onClick={() => { setSharedExecutionItemId(item.id); setIsSharedExecutionModalOpen(true); }}
+                                                            className={`ml-1 p-1 rounded transition-all ${(item.execution_participants?.length ?? 0) > 0 ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-primary hover:bg-primary/10'}`}
+                                                            title="Execução compartilhada"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">group_add</span>
+                                                        </button>
+                                                    )}
                                                 </div>
+                                                {/* Shared Execution Preview */}
+                                                {(item.execution_participants?.length ?? 0) > 0 && (
+                                                    <div className="mt-2 p-2 rounded bg-slate-50 dark:bg-white/5 space-y-1">
+                                                        <p className="text-[9px] text-slate-500 uppercase font-bold">Rateio</p>
+                                                        {item.execution_participants?.map(p => (
+                                                            <div key={p.id} className="flex justify-between text-[10px]">
+                                                                <span className="text-slate-600 dark:text-slate-300">
+                                                                    {p.professional_name || 'Profissional'} ({p.role === 'primary' ? 'Principal' : p.role === 'assistant' ? 'Apoio' : 'Coexec.'})
+                                                                </span>
+                                                                <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                                    R$ {calculateParticipantPayout(item.price, p).toFixed(2)}
+                                                                    {p.payout_type === 'percentage' && ` (${p.payout_value}%)`}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Price */}
@@ -1733,6 +1887,127 @@ const Checkout: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* === SHARED EXECUTION MODAL === */}
+            <Modal
+                isOpen={isSharedExecutionModalOpen}
+                onClose={() => { setIsSharedExecutionModalOpen(false); setSharedExecutionItemId(null); }}
+                title="Execução Compartilhada"
+                maxWidth="md"
+            >
+                {sharedExecutionItemId && (() => {
+                    const item = cart.find(i => i.id === sharedExecutionItemId);
+                    if (!item) return null;
+                    return (
+                        <div className="space-y-4">
+                            <div className="bg-slate-50 dark:bg-white/5 rounded-lg p-3">
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{item.name}</p>
+                                <p className="text-xs text-slate-500">Valor: R$ {item.price.toFixed(2)}</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <p className="text-xs font-bold text-slate-500 uppercase">Participantes</p>
+                                
+                                {item.execution_participants?.map(p => (
+                                    <div key={p.id} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-white/5 rounded-lg">
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-slate-800 dark:text-white">{p.professional_name || 'Profissional'}</p>
+                                            <p className="text-[10px] text-slate-500">{p.role === 'primary' ? 'Principal' : p.role === 'assistant' ? 'Apoio' : 'Coexecutor'} • {p.payout_value}{p.payout_type === 'percentage' ? '%' : 'R$'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold text-emerald-600">R$ {calculateParticipantPayout(item.price, p).toFixed(2)}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => removeParticipant(item.id, p.id)}
+                                            className="p-1 text-slate-400 hover:text-red-500"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">close</span>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="border-t border-slate-200 dark:border-white/10 pt-4">
+                                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Adicionar Participante</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                        id="newParticipantProfessional"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-sm"
+                                    >
+                                        <option value="">Selecionar...</option>
+                                        {staff.filter(s => s.id !== item.staff_id).map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        id="newParticipantRole"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-sm"
+                                    >
+                                        <option value="assistant">Apoio</option>
+                                        <option value="co_executor">Coexecutor</option>
+                                    </select>
+                                    <select
+                                        id="newParticipantPayoutType"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-sm"
+                                    >
+                                        <option value="percentage">Porcentagem</option>
+                                        <option value="fixed">Valor Fixo</option>
+                                    </select>
+                                    <input
+                                        id="newParticipantPayoutValue"
+                                        type="number"
+                                        placeholder="Valor"
+                                        className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-sm"
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const proId = (document.getElementById('newParticipantProfessional') as HTMLSelectElement).value;
+                                        const proName = staff.find(s => s.id === proId)?.name || 'Profissional';
+                                        const role = (document.getElementById('newParticipantRole') as HTMLSelectElement).value as ExecutionRole;
+                                        const payoutType = (document.getElementById('newParticipantPayoutType') as HTMLSelectElement).value as PayoutType;
+                                        const payoutValue = parseFloat((document.getElementById('newParticipantPayoutValue') as HTMLInputElement).value) || 0;
+                                        
+                                        if (proId && payoutValue > 0) {
+                                            addParticipant(item.id, proId, proName, role, payoutType, payoutValue);
+                                        }
+                                    }}
+                                    className="w-full mt-3 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90"
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+
+                            <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg p-3">
+                                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase mb-1">Resumo Financeiro</p>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600 dark:text-slate-300">Valor total do serviço</span>
+                                        <span className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600 dark:text-slate-300">Total rateio</span>
+                                        <span className="font-bold text-slate-900 dark:text-white">R$ {calculateTotalPayouts(item.price, item.execution_participants || []).toFixed(2)}</span>
+                                    </div>
+                                    {(item.execution_participants?.length ?? 0) > 0 && (
+                                        <div className="flex justify-between text-sm border-t border-emerald-200 dark:border-emerald-500/20 pt-1 mt-1">
+                                            <span className="text-emerald-700 dark:text-emerald-400 font-bold">Receita única (sem duplicar)</span>
+                                            <span className="font-bold text-emerald-600">R$ {item.price.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => { setIsSharedExecutionModalOpen(false); setSharedExecutionItemId(null); }}
+                                className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    );
+                })()}
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

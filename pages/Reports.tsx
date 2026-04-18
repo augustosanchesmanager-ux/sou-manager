@@ -76,7 +76,7 @@ const Reports: React.FC = () => {
                 });
             }
 
-            // 3. Fetch Comandas and Items for detailed metrics
+// 3. Fetch Comandas and Items for detailed metrics
             const { data: paidComandas } = await barberSupabase
                 .from('comandas')
                 .select(`
@@ -87,9 +87,19 @@ const Reports: React.FC = () => {
                     clients (name),
                     staff (name),
                     comanda_items (
+                        id,
                         product_name,
                         unit_price,
-                        quantity
+                        quantity,
+                        service_execution_participants (
+                            id,
+                            professional_id,
+                            role,
+                            payout_type,
+                            payout_value,
+                            affects_revenue,
+                            staff (name)
+                        )
                     )
                 `)
                 .eq('status', 'paid')
@@ -98,7 +108,7 @@ const Reports: React.FC = () => {
             if (paidComandas) {
                 // Categories (by service/product name in items)
                 const catGrouped: Record<string, number> = {};
-                const staffGrouped: Record<string, { revenue: number, count: number, staffId: string }> = {};
+                const staffGrouped: Record<string, { revenue: number, count: number, staffId: string, production: number, assistance: number }> = {};
                 const clientVisits: Record<string, number> = {};
                 let totalRev = 0;
 
@@ -110,18 +120,53 @@ const Reports: React.FC = () => {
                         clientVisits[com.client_id] = (clientVisits[com.client_id] || 0) + 1;
                     }
 
-                    // Staff performance
-                    const staffName = com.staff?.name || 'Venda Direta';
-                    const staffId = com.staff_id || '';
-                    if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0, staffId };
-                    staffGrouped[staffName].revenue += Number(com.total) || 0;
-                    staffGrouped[staffName].count += 1;
-
-                    // Items for categories
+                    // Staff performance - now using execution participants for accuracy
                     com.comanda_items?.forEach((item: any) => {
+                        const itemValue = Number(item.unit_price) * item.quantity || 0;
+                        const participants = item.service_execution_participants || [];
+                        
+                        // Calculate actual revenue (only from primary/affects_revenue participants)
+                        const primaryParticipants = participants.filter((p: any) => p.affects_revenue);
+                        if (primaryParticipants.length > 0) {
+                            primaryParticipants.forEach((p: any) => {
+                                const staffName = p.staff?.name || 'Profissional';
+                                const staffId = p.professional_id || '';
+                                if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0, staffId, production: 0, assistance: 0 };
+                                staffGrouped[staffName].revenue += itemValue;
+                                staffGrouped[staffName].production += itemValue;
+                            });
+                        }
+
+                        // Calculate assistance/revenue share for assistants
+                        const assistantParticipants = participants.filter((p: any) => !p.affects_revenue && p.affects_commission);
+                        assistantParticipants.forEach((p: any) => {
+                            const staffName = p.staff?.name || 'Profissional';
+                            let shareAmount = 0;
+                            if (p.payout_type === 'percentage') {
+                                shareAmount = itemValue * (p.payout_value / 100);
+                            } else {
+                                shareAmount = p.payout_value;
+                            }
+                            if (!staffGrouped[staffName]) staffGrouped[staffName] = { revenue: 0, count: 0, staffId: p.professional_id, production: 0, assistance: 0 };
+                            staffGrouped[staffName].assistance += shareAmount;
+                        });
+
+                        // Categories - always use full item value (not duplicated)
                         const name = item.product_name || 'Geral';
-                        catGrouped[name] = (catGrouped[name] || 0) + (Number(item.unit_price) * item.quantity || 0);
+                        catGrouped[name] = (catGrouped[name] || 0) + itemValue;
                     });
+                });
+
+                // Count unique services per staff
+                Object.keys(staffGrouped).forEach(name => {
+                    const group = staffGrouped[name];
+                    group.count = paidComandas.filter((c: any) => 
+                        c.comanda_items?.some((item: any) => 
+                            item.service_execution_participants?.some((p: any) => 
+                                p.affects_revenue && p.staff?.name === name
+                            )
+                        )
+                    ).length;
                 });
 
                 // Set categories (top 6)
@@ -131,16 +176,16 @@ const Reports: React.FC = () => {
                     .slice(0, 6);
                 setCategoryData(sortedCats);
 
-                // Set staff
+                // Set staff - now with production vs assistance breakdown
                 setStaffPerformance(Object.keys(staffGrouped).map(name => {
                     const group = staffGrouped[name];
                     const rate = group.staffId ? (staffRates[group.staffId] || 40) : 40;
                     return {
                         name,
-                        revenue: group.revenue,
-                        avgTicket: group.revenue / group.count,
+                        revenue: group.revenue + group.assistance, // Total earnings (production + assistance share)
+                        avgTicket: group.count > 0 ? (group.revenue + group.assistance) / group.count : 0,
                         commissionRate: rate,
-                        commission: group.revenue * (rate / 100),
+                        commission: group.revenue * (rate / 100), // Commission only on production
                         nps: 90 + Math.random() * 10
                     };
                 }));

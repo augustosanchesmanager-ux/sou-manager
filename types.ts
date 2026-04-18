@@ -29,6 +29,8 @@ export interface Appointment {
   status: 'confirmed' | 'pending' | 'completed';
 }
 
+export * from './src/types/executionParticipants';
+
 export enum UserRole {
   ADMIN = 'Super Admin',
   MANAGER = 'Gerente',

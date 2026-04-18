@@ -250,8 +250,20 @@ interface LocalDemoDatabase {
     unit_price: number;
     created_at: string;
     updated_at: string;
-    'comandas.status'?: string;
+'comandas.status'?: string;
     'comandas.created_at'?: string;
+  }>;
+  service_execution_participants: Array<{
+    id: string;
+    comanda_item_id: string;
+    professional_id: string;
+    role: 'primary' | 'assistant' | 'co_executor';
+    payout_type: 'percentage' | 'fixed';
+    payout_value: number;
+    affects_revenue: boolean;
+    affects_commission: boolean;
+    tenant_id: string;
+    created_at: string;
   }>;
   customer_plans: LocalDemoPlanRecord[];
   customer_subscriptions: LocalDemoSubscriptionRecord[];
@@ -489,8 +501,46 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         unit_price: 35,
         created_at: '2026-04-15T15:00:00-03:00',
         updated_at: now,
-        'comandas.status': 'paid',
+'comandas.status': 'paid',
         'comandas.created_at': '2026-04-15T15:00:00-03:00',
+      },
+    ],
+    service_execution_participants: [
+      {
+        id: 'demo-sep-1',
+        comanda_item_id: 'demo-comanda-item-1',
+        professional_id: 'demo-staff-1',
+        role: 'primary',
+        payout_type: 'percentage',
+        payout_value: 40,
+        affects_revenue: true,
+        affects_commission: true,
+        tenant_id: LOCAL_DEMO_TENANT_ID,
+        created_at: now,
+      },
+      {
+        id: 'demo-sep-2',
+        comanda_item_id: 'demo-comanda-item-2',
+        professional_id: 'demo-staff-1',
+        role: 'primary',
+        payout_type: 'percentage',
+        payout_value: 40,
+        affects_revenue: true,
+        affects_commission: true,
+        tenant_id: LOCAL_DEMO_TENANT_ID,
+        created_at: '2026-04-15T15:00:00-03:00',
+      },
+      {
+        id: 'demo-sep-3',
+        comanda_item_id: 'demo-comanda-item-3',
+        professional_id: 'demo-staff-1',
+        role: 'primary',
+        payout_type: 'percentage',
+        payout_value: 40,
+        affects_revenue: true,
+        affects_commission: true,
+        tenant_id: LOCAL_DEMO_TENANT_ID,
+        created_at: '2026-04-15T15:00:00-03:00',
       },
     ],
     customer_plans: [
@@ -597,15 +647,19 @@ const readDemoDatabase = (): LocalDemoDatabase => {
           : [],
         seed.transactions,
       ),
-      comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], seed.comandas),
+comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], seed.comandas),
       comanda_items: mergeSeedRows(
         Array.isArray(parsed.comanda_items)
           ? parsed.comanda_items.map((item) => ({
-            ...item,
-            staff_id: item?.staff_id ?? null,
-          }))
+              ...item,
+              staff_id: item?.staff_id ?? null,
+            }))
           : [],
         seed.comanda_items,
+      ),
+      service_execution_participants: mergeSeedRows(
+        Array.isArray(parsed.service_execution_participants) ? parsed.service_execution_participants : [],
+        seed.service_execution_participants,
       ),
       customer_plans: Array.isArray(parsed.customer_plans) ? parsed.customer_plans : [],
       customer_subscriptions: Array.isArray(parsed.customer_subscriptions) ? parsed.customer_subscriptions : [],
@@ -664,8 +718,10 @@ const createLocalDemoQueryBuilder = (table: string) => {
         return cloneRows(db.transactions);
       case 'comandas':
         return cloneRows(db.comandas);
-      case 'comanda_items':
+case 'comanda_items':
         return cloneRows(db.comanda_items);
+      case 'service_execution_participants':
+        return cloneRows(db.service_execution_participants);
       case 'user_tenants':
         return [{
           user_id: LOCAL_DEMO_USER_ID,
@@ -842,8 +898,10 @@ const createLocalDemoQueryBuilder = (table: string) => {
         db.appointments.push(...nextRows as typeof db.appointments);
       } else if (table === 'comandas') {
         db.comandas.push(...nextRows as typeof db.comandas);
-      } else if (table === 'comanda_items') {
+} else if (table === 'comanda_items') {
         db.comanda_items.push(...nextRows as typeof db.comanda_items);
+      } else if (table === 'service_execution_participants') {
+        db.service_execution_participants.push(...nextRows as typeof db.service_execution_participants);
       } else if (table === 'clients') {
         db.clients.push(...(nextRows as LocalDemoClientRecord[]));
       } else if (table === 'suppliers') {
@@ -877,8 +935,10 @@ const createLocalDemoQueryBuilder = (table: string) => {
         db.appointments = replaceRows(db.appointments);
       } else if (table === 'comandas') {
         db.comandas = replaceRows(db.comandas);
-      } else if (table === 'comanda_items') {
+} else if (table === 'comanda_items') {
         db.comanda_items = replaceRows(db.comanda_items);
+      } else if (table === 'service_execution_participants') {
+        db.service_execution_participants = replaceRows(db.service_execution_participants);
       } else if (table === 'clients') {
         db.clients = replaceRows(db.clients);
       } else if (table === 'suppliers') {
@@ -948,8 +1008,10 @@ const createLocalDemoQueryBuilder = (table: string) => {
         db.appointments = remainingRows as typeof db.appointments;
       } else if (table === 'comandas') {
         db.comandas = remainingRows as typeof db.comandas;
-      } else if (table === 'comanda_items') {
+} else if (table === 'comanda_items') {
         db.comanda_items = remainingRows as typeof db.comanda_items;
+      } else if (table === 'service_execution_participants') {
+        db.service_execution_participants = remainingRows as typeof db.service_execution_participants;
       } else if (table === 'clients') {
         db.clients = remainingRows as LocalDemoClientRecord[];
       } else if (table === 'suppliers') {
