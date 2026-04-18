@@ -9,6 +9,12 @@ import {
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import {
+    type ServiceBalanceEntry,
+    getAvailableCreditsForService,
+    getTotalAvailableCredits,
+    normalizeCreditBalances,
+} from '../src/utils/chefClubCredits';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -226,7 +232,12 @@ const Checkout: React.FC = () => {
     const [services, setServices] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
     const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
-    const [chefClubInfo, setChefClubInfo] = useState<{ id: string; planName: string; credits: number } | null>(null);
+    const [chefClubInfo, setChefClubInfo] = useState<{
+        id: string;
+        planName: string;
+        credits: number;
+        serviceBalances: ServiceBalanceEntry[];
+    } | null>(null);
     const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
     const finishLockRef = React.useRef(false);
@@ -501,7 +512,7 @@ const Checkout: React.FC = () => {
                         .maybeSingle(),
                     clientDb
                         .from('customer_credits')
-                        .select('available_credits')
+                        .select('available_credits, used_credits, service_balance_map')
                         .eq('subscription_id', sub.id)
                         .eq('tenant_id', resolvedTenantId)
                         .maybeSingle(),
@@ -510,10 +521,17 @@ const Checkout: React.FC = () => {
                 if (planError) throw planError;
                 if (creditsError) throw creditsError;
 
+                const serviceBalances = normalizeCreditBalances(
+                    credits?.service_balance_map,
+                    credits?.available_credits || 0,
+                    credits?.used_credits || 0,
+                );
+
                 setChefClubInfo({
                     id: sub.id,
                     planName: plan?.name || 'Plano ativo',
-                    credits: credits?.available_credits || 0
+                    credits: getTotalAvailableCredits(serviceBalances),
+                    serviceBalances,
                 });
             } else {
                 setChefClubInfo(null);
@@ -565,7 +583,11 @@ const Checkout: React.FC = () => {
     const handleAddItem = (item: any, type: 'service' | 'product') => {
         const finalPrice = calculateItemPrice(item, type);
         const canSuggestCredit = type === 'service' && !!chefClubInfo;
-        const hasCreditsAvailable = canSuggestCredit && appliedCreditsCount < (chefClubInfo?.credits || 0);
+        const creditsForService = canSuggestCredit
+            ? getAvailableCreditsForService(chefClubInfo?.serviceBalances || [], item.id)
+            : 0;
+        const usedCreditsForService = cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length;
+        const hasCreditsAvailable = canSuggestCredit && usedCreditsForService < creditsForService;
         const shouldUseCredit = !!(hasCreditsAvailable && window.confirm('Cliente assinante detectado. Aplicar 1 crédito neste serviço agora?'));
 
         const newItem: CartItem = {
@@ -1064,15 +1086,20 @@ const Checkout: React.FC = () => {
             }
 
             // 5. Deduct Chef Club Credits if used
-            const creditItems = cart.filter(item => (item as any).usedCredit);
+            const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
             if (creditItems.length > 0 && chefClubInfo) {
-                // Update available credits
-                const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
-                    p_subscription_id: chefClubInfo.id,
-                    p_amount: creditItems.length,
-                    p_reference: `Comanda #${currentComandaId}`
-                });
-                if (creditErr) console.error('Error deducting credits:', creditErr);
+                for (const creditItem of creditItems) {
+                    const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
+                        p_subscription_id: chefClubInfo.id,
+                        p_service_id: creditItem.service_id,
+                        p_amount: 1,
+                        p_reference: `Comanda #${currentComandaId} - ${creditItem.name}`,
+                    });
+
+                    if (creditErr) {
+                        console.error('Error deducting credits:', creditErr);
+                    }
+                }
             }
 
             setToast({ message: paymentStatus === 'paid' ? checkoutCopy.successPaid : checkoutCopy.successOpen, type: 'success' });
@@ -1286,12 +1313,13 @@ const Checkout: React.FC = () => {
                                                     />
                                                 </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
-                                                {item.type === 'service' && chefClubInfo && chefClubInfo.credits > 0 && (
+                                                {item.type === 'service' && chefClubInfo && getAvailableCreditsForService(chefClubInfo.serviceBalances, item.service_id) > 0 && (
                                                     <button
                                                         onClick={() => {
                                                             const isUsed = !(item as any).usedCredit;
-                                                            const currentUsed = cart.filter(c => c.usedCredit).length;
-                                                            if (isUsed && currentUsed >= chefClubInfo.credits) {
+                                                            const currentUsedForService = cart.filter(c => c.usedCredit && c.service_id === item.service_id && c.id !== item.id).length;
+                                                            const availableForService = getAvailableCreditsForService(chefClubInfo.serviceBalances, item.service_id);
+                                                            if (isUsed && currentUsedForService >= availableForService) {
                                                                 setToast({ message: 'Sem créditos suficientes para aplicar em mais serviços.', type: 'error' });
                                                                 return;
                                                             }

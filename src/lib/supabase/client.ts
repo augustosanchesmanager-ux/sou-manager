@@ -118,6 +118,11 @@ interface LocalDemoPlanRecord {
   name: string;
   monthly_price: number;
   service_credits: number;
+  service_credit_map?: Array<{
+    service_id: string;
+    service_name: string;
+    credits: number;
+  }>;
   description: string;
   active: boolean;
   created_at: string;
@@ -146,6 +151,12 @@ interface LocalDemoCreditRecord {
   client_id: string;
   available_credits: number;
   used_credits: number;
+  service_balance_map?: Array<{
+    service_id: string;
+    service_name: string;
+    available: number;
+    used: number;
+  }>;
   period_start: string;
   period_end: string | null;
   created_at: string;
@@ -550,6 +561,13 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         name: 'Gold',
         monthly_price: 99.9,
         service_credits: 2,
+        service_credit_map: [
+          {
+            service_id: 'demo-service-1',
+            service_name: 'Corte Tradicional',
+            credits: 2,
+          },
+        ],
         description: 'Plano mensal com 2 creditos.',
         active: true,
         created_at: now,
@@ -561,6 +579,18 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         name: 'Black',
         monthly_price: 149.9,
         service_credits: 4,
+        service_credit_map: [
+          {
+            service_id: 'demo-service-1',
+            service_name: 'Corte Tradicional',
+            credits: 2,
+          },
+          {
+            service_id: 'demo-service-2',
+            service_name: 'Barba Premium',
+            credits: 2,
+          },
+        ],
         description: 'Plano premium com 4 creditos.',
         active: true,
         created_at: now,

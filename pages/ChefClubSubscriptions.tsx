@@ -3,15 +3,21 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getScopedClient, supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
+import {
+    type ServiceBalanceEntry,
+    normalizeCreditBalances,
+    normalizePlanServiceCredits,
+} from '../src/utils/chefClubCredits';
 
 interface Subscription {
     id: string;
     client: { name: string; phone: string };
-    plan: { name: string; service_credits: number };
+    plan: { name: string; service_credits: number; service_credit_map?: unknown };
     status: 'active' | 'past_due' | 'canceled' | 'paused';
     cycle_end: string;
     next_billing_date: string;
     available_credits: number;
+    service_balances: ServiceBalanceEntry[];
 }
 
 const ChefClubSubscriptions: React.FC = () => {
@@ -54,26 +60,22 @@ const ChefClubSubscriptions: React.FC = () => {
 
         const [clientsRes, plansRes, creditsRes] = await Promise.all([
             clientIds.length > 0
-                ? supabase
-                    .from('clients')
-                    .select('id, name, phone')
-                    .eq('tenant_id', tenantId)
-                    .in('id', clientIds)
+                ? supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).in('id', clientIds)
                 : Promise.resolve({ data: [], error: null }),
             planIds.length > 0
                 ? barberSupabase
                     .from('customer_plans')
-                    .select('id, name, service_credits')
+                    .select('id, name, service_credits, service_credit_map')
                     .eq('tenant_id', tenantId)
                     .in('id', planIds)
                 : Promise.resolve({ data: [], error: null }),
             subscriptionIds.length > 0
                 ? barberSupabase
                     .from('customer_credits')
-                    .select('subscription_id, available_credits')
+                    .select('subscription_id, available_credits, used_credits, service_balance_map')
                     .eq('tenant_id', tenantId)
                     .in('subscription_id', subscriptionIds)
-                : Promise.resolve({ data: [], error: null })
+                : Promise.resolve({ data: [], error: null }),
         ]);
 
         if (clientsRes.error || plansRes.error || creditsRes.error) {
@@ -88,15 +90,23 @@ const ChefClubSubscriptions: React.FC = () => {
         const plansMap = new Map((plansRes.data || []).map((plan: any) => [plan.id, plan]));
         const creditsMap = new Map((creditsRes.data || []).map((credit: any) => [credit.subscription_id, credit]));
 
-        const formatted: Subscription[] = rawSubscriptions.map((subscription: any) => ({
-            id: subscription.id,
-            client: clientsMap.get(subscription.client_id) || { name: 'Cliente não encontrado', phone: '' },
-            plan: plansMap.get(subscription.plan_id) || { name: 'Plano não encontrado', service_credits: 0 },
-            status: subscription.status || 'active',
-            cycle_end: subscription.cycle_end || '',
-            next_billing_date: subscription.next_billing_date || '',
-            available_credits: creditsMap.get(subscription.id)?.available_credits || 0
-        }));
+        const formatted: Subscription[] = rawSubscriptions.map((subscription: any) => {
+            const creditRecord = creditsMap.get(subscription.id);
+            return {
+                id: subscription.id,
+                client: clientsMap.get(subscription.client_id) || { name: 'Cliente nao encontrado', phone: '' },
+                plan: plansMap.get(subscription.plan_id) || { name: 'Plano nao encontrado', service_credits: 0, service_credit_map: [] },
+                status: subscription.status || 'active',
+                cycle_end: subscription.cycle_end || '',
+                next_billing_date: subscription.next_billing_date || '',
+                available_credits: creditRecord?.available_credits || 0,
+                service_balances: normalizeCreditBalances(
+                    creditRecord?.service_balance_map,
+                    creditRecord?.available_credits || 0,
+                    creditRecord?.used_credits || 0,
+                ),
+            };
+        });
 
         setSubscriptions(formatted);
         setLoading(false);
@@ -159,7 +169,7 @@ const ChefClubSubscriptions: React.FC = () => {
                     </div>
                     <div>
                         <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Assinantes do Clube</h2>
-                        <p className="text-slate-500 text-sm font-medium">Controle de membros e saldo de créditos</p>
+                        <p className="text-slate-500 text-sm font-medium">Controle de membros e saldo de creditos por servico</p>
                     </div>
                 </div>
                 <button
@@ -180,7 +190,7 @@ const ChefClubSubscriptions: React.FC = () => {
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
                         title="Buscar Assinante"
-                        className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
+                        className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl py-3 pl-10 pr-4 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
                     />
                 </div>
                 <div className="flex gap-2">
@@ -203,47 +213,68 @@ const ChefClubSubscriptions: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Cliente</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Plano</th>
-                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Créditos</th>
+                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Creditos</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th>
-                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Próx. Cobrança</th>
-                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Ações</th>
+                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Prox. Cobranca</th>
+                                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Acoes</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                            {filtered.map((subscription) => (
-                                <tr key={subscription.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-black text-slate-900 dark:text-white uppercase">{subscription.client.name}</span>
-                                            <span className="text-[10px] text-slate-500 font-bold">{subscription.client.phone}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm font-bold text-primary">{subscription.plan.name}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full">
-                                            <span className="material-symbols-outlined text-sm">content_cut</span>
-                                            <span className="text-sm font-black">{subscription.available_credits}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(subscription.status)}`}>
-                                            {translateStatus(subscription.status)}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm text-slate-500 font-bold">
-                                            {new Date(subscription.next_billing_date).toLocaleDateString('pt-BR')}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-2 text-slate-400 hover:text-primary transition-colors" title="Ver Detalhes">
-                                            <span className="material-symbols-outlined">visibility</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {filtered.map((subscription) => {
+                                const planServices = normalizePlanServiceCredits(
+                                    subscription.plan.service_credit_map,
+                                    subscription.plan.service_credits,
+                                );
+
+                                return (
+                                    <tr key={subscription.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-slate-900 dark:text-white uppercase">{subscription.client.name}</span>
+                                                <span className="text-[10px] text-slate-500 font-bold">{subscription.client.phone}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm font-bold text-primary">{subscription.plan.name}</span>
+                                            <div className="mt-2 space-y-1">
+                                                {planServices.map((entry) => (
+                                                    <div key={`${subscription.id}-${entry.service_id || entry.service_name}`} className="text-[10px] font-bold text-slate-500">
+                                                        {entry.service_name}: {entry.credits}/ciclo
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full">
+                                                <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                                                <span className="text-sm font-black">{subscription.available_credits}</span>
+                                            </div>
+                                            <div className="mt-2 space-y-1">
+                                                {subscription.service_balances.map((balance) => (
+                                                    <div key={`${subscription.id}-${balance.service_id || balance.service_name}`} className="text-[10px] font-bold text-slate-500">
+                                                        {balance.service_name}: {balance.available}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(subscription.status)}`}>
+                                                {translateStatus(subscription.status)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm text-slate-500 font-bold">
+                                                {new Date(subscription.next_billing_date).toLocaleDateString('pt-BR')}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button className="p-2 text-slate-400 hover:text-primary transition-colors" title="Ver Detalhes">
+                                                <span className="material-symbols-outlined">visibility</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             {filtered.length === 0 && !loading && (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-20 text-center">

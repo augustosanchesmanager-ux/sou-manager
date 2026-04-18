@@ -19,6 +19,11 @@ import {
   toDateKey,
 } from '../services/scheduleBlocksApi';
 import { generateIdempotencyKey } from '../src/utils/idempotency';
+import {
+  type ServiceBalanceEntry,
+  getTotalAvailableCredits,
+  normalizeCreditBalances,
+} from '../src/utils/chefClubCredits';
 
 
 
@@ -404,7 +409,12 @@ const Schedule: React.FC = () => {
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState<DBClient[]>([]);
   const [isNewClientMode, setIsNewClientMode] = useState(false);
-  const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
+  const [chefClubInfo, setChefClubInfo] = useState<{
+    planName: string;
+    credits: number;
+    status: string;
+    serviceBalances: ServiceBalanceEntry[];
+  } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
   const appointmentSaveLockRef = useRef(false);
   const appointmentRequestKeyRef = useRef(generateIdempotencyKey('appointment'));
@@ -833,16 +843,23 @@ const Schedule: React.FC = () => {
           .maybeSingle(),
         barberSupabase
           .from('customer_credits')
-          .select('available_credits')
+          .select('available_credits, used_credits, service_balance_map')
           .eq('subscription_id', subscription.id)
           .eq('tenant_id', tenantId)
           .maybeSingle(),
       ]);
 
+      const serviceBalances = normalizeCreditBalances(
+        credits?.service_balance_map,
+        credits?.available_credits || 0,
+        credits?.used_credits || 0,
+      );
+
       setChefClubInfo({
         planName: plan?.name || 'Plano ativo',
-        credits: credits?.available_credits || 0,
-        status: subscription.status
+        credits: getTotalAvailableCredits(serviceBalances),
+        status: subscription.status,
+        serviceBalances,
       });
       return;
     }
