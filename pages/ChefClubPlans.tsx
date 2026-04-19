@@ -63,6 +63,11 @@ const getFriendlySaveErrorMessage = (error: SupabaseLikeError) => {
     return `Erro ao salvar plano: ${error.message}`;
 };
 
+const isServiceCreditMapSchemaCacheError = (error: SupabaseLikeError | null | undefined) => {
+    const raw = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+    return raw.includes('service_credit_map') || raw.includes('schema cache');
+};
+
 const ChefClubPlans: React.FC = () => {
     const { tenantId } = useAuth();
     const barberSupabase = getScopedClient('barber');
@@ -205,15 +210,44 @@ const ChefClubPlans: React.FC = () => {
             tenant_id: tenantId,
         };
 
-        const { error } = editingPlan
-            ? await barberSupabase.from('customer_plans').update(planData).eq('id', editingPlan.id)
-            : await barberSupabase.from('customer_plans').insert(planData);
+        const legacyPlanData = {
+            name: planData.name,
+            monthly_price: planData.monthly_price,
+            service_credits: planData.service_credits,
+            description: planData.description,
+            priority_booking: planData.priority_booking,
+            product_discount: planData.product_discount,
+            max_rollover_credits: planData.max_rollover_credits,
+            credit_validity_days: planData.credit_validity_days,
+            tenant_id: planData.tenant_id,
+        };
+
+        const savePlan = async (payload: typeof planData | typeof legacyPlanData) => (
+            editingPlan
+                ? barberSupabase.from('customer_plans').update(payload).eq('id', editingPlan.id)
+                : barberSupabase.from('customer_plans').insert(payload)
+        );
+
+        let { error } = await savePlan(planData);
+        let usedLegacyFallback = false;
+
+        if (error && isServiceCreditMapSchemaCacheError(error as SupabaseLikeError)) {
+            console.warn('Fallback para formato legado do plano por causa do schema cache:', error);
+            const fallbackResult = await savePlan(legacyPlanData);
+            error = fallbackResult.error;
+            usedLegacyFallback = !fallbackResult.error;
+        }
 
         if (error) {
             console.error('Erro ao salvar plano do Chef Club:', error);
             setToast({ message: getFriendlySaveErrorMessage(error as SupabaseLikeError), type: 'error' });
         } else {
-            setToast({ message: `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`, type: 'success' });
+            setToast({
+                message: usedLegacyFallback
+                    ? 'Plano salvo no modo legado. O detalhamento por servico sera ativado quando o cache do Supabase atualizar.'
+                    : `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`,
+                type: usedLegacyFallback ? 'info' : 'success',
+            });
             setShowModal(false);
             resetFormState();
             void fetchPlans();
