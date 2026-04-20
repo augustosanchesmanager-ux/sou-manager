@@ -3,7 +3,7 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { getScopedClient } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 
 interface StaffMember {
     id: string;
