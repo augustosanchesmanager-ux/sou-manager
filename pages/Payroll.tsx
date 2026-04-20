@@ -156,7 +156,7 @@ const Payroll: React.FC = () => {
         if (!selectedRecord || !user || !tenantId) return;
 
         try {
-            const payrollDesc = `Folha - ${selectedRecord.id} - ${filterMonth}`;
+            const payrollDesc = `Folha - ${selectedRecord.id} - ${startDate} ate ${endDate}`;
 
             // Insert into transactions to mark as Paid
             const { error: txError } = await supabase.from('transactions').insert({
@@ -206,7 +206,7 @@ const Payroll: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Folha de Pagamento</h2>
-                    <p className="text-slate-500 mt-1">Gestão de salários, comissões de {filterMonth.split('-')[1]}/{filterMonth.split('-')[0]}.</p>
+                    <p className="text-slate-500 mt-1">Gestão de salários, comissões de {startDate} até {endDate}.</p>
                 </div>
                 {/* No 'Criar Folha' button needed since we dynamically compute it */}
                 <button onClick={fetchData} className="bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">

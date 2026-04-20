@@ -112,21 +112,21 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   return (
     <div className={`space-y-3 ${className}`.trim()}>
       {showPresets && (
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(presetLabels) as DatePreset[]).map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => handlePresetClick(preset)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                activePreset === preset
-                  ? 'bg-primary text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-primary/10'
-              }`}
-            >
-              {presetLabels[preset]}
-            </button>
-          ))}
+        <div>
+          <label className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+            Periodo
+          </label>
+          <select
+            value={activePreset}
+            onChange={(e) => handlePresetClick(e.target.value as DatePreset)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a]"
+          >
+            {(Object.keys(presetLabels) as DatePreset[]).map((preset) => (
+              <option key={preset} value={preset}>
+                {presetLabels[preset]}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -158,9 +158,9 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </div>
       </div>
 
-      {(startDate || endDate) && (
+      {(startDate || endDate) && activePreset !== 'custom' && (
         <div className="text-xs text-slate-500 dark:text-slate-400">
-          Periodo: <span className="font-bold">{formatDisplayDate(startDate)}</span> ate{' '}
+          <span className="font-bold">{formatDisplayDate(startDate)}</span> ate{' '}
           <span className="font-bold">{formatDisplayDate(endDate)}</span>
         </div>
       )}
