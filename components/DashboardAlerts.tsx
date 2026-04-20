@@ -52,9 +52,9 @@ const DashboardAlerts: React.FC = () => {
             // Fetch low stock products (stock <= min_stock)
             const { data: products } = await supabase
                 .from('products')
-                .select('id, name, stock, min_stock')
+                .select('id, name, stock_quantity, minimum_stock')
                 .eq('tenant_id', tenantId)
-                .lte('stock', 5); // Fallback logic for low stock
+                .lte('stock_quantity', 5);
 
             // Fetch open comandas from previous days (pending payment)
             const { data: comandas } = await supabase
@@ -85,14 +85,14 @@ const DashboardAlerts: React.FC = () => {
                 });
             });
 
-            products?.filter(p => p.stock <= (p.min_stock || 5)).forEach(prod => {
+            products?.filter(p => p.stock_quantity <= (p.minimum_stock || 5)).forEach(prod => {
                 newAlerts.push({
                     id: `prod-${prod.id}`,
                     type: 'stock',
                     title: 'Estoque Baixo',
-                    description: `${prod.name} (${prod.stock} restam)`,
+                    description: `${prod.name} (${prod.stock_quantity} restam)`,
                     actionPath: '/products',
-                    priority: prod.stock === 0 ? 'high' : 'medium'
+                    priority: prod.stock_quantity === 0 ? 'high' : 'medium'
                 });
             });
 
