@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient, supabase } from '../services/supabaseClient';
 
@@ -43,13 +44,15 @@ const Commissions: React.FC = () => {
     const [rows, setRows] = useState<CommissionRow[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedRow, setSelectedRow] = useState<CommissionRow | null>(null);
-    const [filterMonth, setFilterMonth] = useState(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const [startDate, setStartDate] = useState(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        return start.toISOString().split('T')[0];
     });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId || !filterMonth) {
+        if (!tenantId || !startDate || !endDate) {
             setRows([]);
             setLoading(false);
             return;
@@ -57,11 +60,10 @@ const Commissions: React.FC = () => {
 
         setLoading(true);
 
-        const [yearStr, monthStr] = filterMonth.split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-        const startOfMonth = new Date(year, month - 1, 1).toISOString();
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+        const startOfRange = new Date(startDate);
+        startOfRange.setHours(0, 0, 0, 0);
+        const endOfRange = new Date(endDate);
+        endOfRange.setHours(23, 59, 59, 999);
 
 try {
             const [staffRes, comandasRes, itemsRes] = await Promise.all([
@@ -74,7 +76,9 @@ try {
                     .from('comandas')
                     .select('id, created_at, status, staff_id')
                     .eq('tenant_id', tenantId)
-                    .eq('status', 'paid'),
+                    .eq('status', 'paid')
+                    .gte('created_at', startOfRange.toISOString())
+                    .lte('created_at', endOfRange.toISOString()),
                 barberSupabase
                     .from('comanda_items')
                     .select('id, staff_id, product_name, quantity, unit_price, comanda_id')
@@ -133,11 +137,11 @@ try {
         } finally {
             setLoading(false);
         }
-    }, [barberSupabase, filterMonth, tenantId]);
+    }, [barberSupabase, startDate, endDate, tenantId]);
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [barberSupabase, startDate, endDate, tenantId]);
 
     const filteredRows = useMemo(
         () =>
@@ -202,13 +206,14 @@ try {
             </div>
 
             <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-64">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Mes de referencia</label>
-                    <input
-                        type="month"
-                        value={filterMonth}
-                        onChange={(e) => setFilterMonth(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                <div className="w-full md:w-80">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Periodo</label>
+                    <DateRangeFilter
+                        startDate={startDate}
+                        endDate={endDate}
+                        onStartDateChange={setStartDate}
+                        onEndDateChange={setEndDate}
+                        showPresets={true}
                     />
                 </div>
                 <div className="flex-1">
