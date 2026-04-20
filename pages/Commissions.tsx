@@ -64,40 +64,41 @@ const Commissions: React.FC = () => {
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
 try {
-            const [staffRes, itemsRes] = await Promise.all([
+            const [staffRes, comandasRes, itemsRes] = await Promise.all([
                 supabase
                     .from('staff')
                     .select('id, name, role, avatar, commission_rate')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'active'),
                 barberSupabase
-                    .from('comanda_items')
-                    .select(`
-                        id,
-                        staff_id,
-                        product_name,
-                        quantity,
-                        unit_price,
-                        comandas!inner(created_at, status, staff_id)
-                    `)
+                    .from('comandas')
+                    .select('id, created_at, status, staff_id')
                     .eq('tenant_id', tenantId)
-                    .eq('comandas.status', 'paid')
-                    .gte('comandas.created_at', startOfMonth)
-                    .lte('comandas.created_at', endOfMonth),
+                    .eq('status', 'paid'),
+                barberSupabase
+                    .from('comanda_items')
+                    .select('id, staff_id, product_name, quantity, unit_price, comanda_id')
+                    .eq('tenant_id', tenantId),
             ]);
 
             if (staffRes.error) throw staffRes.error;
+            if (comandasRes.error) throw comandasRes.error;
             if (itemsRes.error) throw itemsRes.error;
 
             const staffList = (staffRes.data || []) as StaffMember[];
-            const items = (itemsRes.data || []).map((item: any) => ({
-                id: item.id,
-                staff_id: item.staff_id || item.comandas?.staff_id || null,
-                product_name: item.product_name,
-                quantity: Number(item.quantity || 0),
-                unit_price: Number(item.unit_price || 0),
-                created_at: item.comandas?.created_at || '',
-            })) as CommissionItem[];
+            const comandasMap = new Map((comandasRes.data || [] as any[]).map((c: any) => [c.id, c]));
+            const items = (itemsRes.data || [] as any[]).map((item: any) => {
+                const comanda = item.comanda_id ? comandasMap.get(item.comanda_id) : null;
+                if (!comanda) return null;
+                return {
+                    id: item.id,
+                    staff_id: item.staff_id || comanda?.staff_id || null,
+                    product_name: item.product_name,
+                    quantity: Number(item.quantity || 0),
+                    unit_price: Number(item.unit_price || 0),
+                    created_at: comanda?.created_at || '',
+                };
+            }).filter(Boolean) as CommissionItem[];
 
             const grouped = staffList.map((member) => {
                 const memberItems = items.filter((item) => item.staff_id === member.id);
