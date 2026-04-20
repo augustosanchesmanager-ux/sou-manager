@@ -111,7 +111,7 @@ const Payroll: React.FC = () => {
 
                 // Check if already paid
                 // We use description "Folha - [StaffId] - [YYYY-MM]" to identify
-                const payrollDesc = `Folha - ${staff.id} - ${filterMonth}`;
+                const payrollDesc = `Folha - ${staff.id} - ${startDate} ate ${endDate}`;
                 const paymentTx = transactionsData?.find((tx: any) => tx.description === payrollDesc);
 
                 if (paymentTx) {
