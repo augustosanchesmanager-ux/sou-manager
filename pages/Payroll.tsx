@@ -44,8 +44,10 @@ const Payroll: React.FC = () => {
 
         const startOfRange = new Date(startDate);
         startOfRange.setHours(0, 0, 0, 0);
+        const startOfRangeStr = startOfRange.toISOString();
         const endOfRange = new Date(endDate);
         endOfRange.setHours(23, 59, 59, 999);
+        const endOfRangeStr = endOfRange.toISOString();
 
         try {
             // 1. Fetch Staff
@@ -72,8 +74,8 @@ const Payroll: React.FC = () => {
                 `)
                 .eq('tenant_id', tenantId)
                 .eq('comandas.status', 'paid')
-                .gte('comandas.created_at', startOfRange)
-                .lte('comandas.created_at', endOfRange);
+                .gte('comandas.created_at', startOfRangeStr)
+                .lte('comandas.created_at', endOfRangeStr);
 
             // 3. Fetch specific payroll payments in transactions 
             const { data: transactionsData } = await supabase
@@ -82,8 +84,8 @@ const Payroll: React.FC = () => {
                 .eq('tenant_id', tenantId)
                 .eq('type', 'expense')
                 .eq('category', 'Pessoal')
-                .gte('date', startOfRange)
-                .lte('date', endOfRange);
+                .gte('date', startOfRangeStr)
+                .lte('date', endOfRangeStr);
 
             // Map data
             const records: PayrollRecord[] = staffData.map((staff: any) => {

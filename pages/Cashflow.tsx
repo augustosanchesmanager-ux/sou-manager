@@ -47,16 +47,18 @@ const Cashflow: React.FC = () => {
 
         const startOfRange = new Date(startDate);
         startOfRange.setHours(0, 0, 0, 0);
+        const startOfRangeStr = startOfRange.toISOString();
         const endOfRange = new Date(endDate);
         endOfRange.setHours(23, 59, 59, 999);
+        const endOfRangeStr = endOfRange.toISOString();
 
         try {
             const { data, error } = await supabase
                 .from('transactions')
                 .select('id, type, category, amount, description, payment_method, date, created_at')
                 .eq('tenant_id', tenantId)
-                .gte('date', startOfRange.toISOString())
-                .lte('date', endOfRange.toISOString())
+                .gte('date', startOfRangeStr)
+                .lte('date', endOfRangeStr)
                 .order('date', { ascending: true });
 
             if (error) throw error;

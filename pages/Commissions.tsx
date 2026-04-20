@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
@@ -62,8 +62,10 @@ const Commissions: React.FC = () => {
 
         const startOfRange = new Date(startDate);
         startOfRange.setHours(0, 0, 0, 0);
+        const startOfRangeStr = startOfRange.toISOString();
         const endOfRange = new Date(endDate);
         endOfRange.setHours(23, 59, 59, 999);
+        const endOfRangeStr = endOfRange.toISOString();
 
 try {
             const [staffRes, comandasRes, itemsRes] = await Promise.all([
@@ -77,8 +79,8 @@ try {
                     .select('id, created_at, status, staff_id')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'paid')
-                    .gte('created_at', startOfRange.toISOString())
-                    .lte('created_at', endOfRange.toISOString()),
+                    .gte('created_at', startOfRangeStr)
+                    .lte('created_at', endOfRangeStr),
                 barberSupabase
                     .from('comanda_items')
                     .select('id, staff_id, product_name, quantity, unit_price, comanda_id')
