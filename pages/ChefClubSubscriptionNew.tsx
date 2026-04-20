@@ -120,6 +120,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
     nextBilling.setDate(nextBilling.getDate() + 30);
     const [nextBillingDate, setNextBillingDate] = useState(toDateOnly(nextBilling));
     const [initialBalances, setInitialBalances] = useState<ServiceBalanceEntry[]>([]);
+    const [isLegacyMemberOnboarding, setIsLegacyMemberOnboarding] = useState(false);
 
     useEffect(() => {
         setInitialBalances(cloneBalances(selectedPlanBalances));
@@ -458,6 +459,29 @@ const ChefClubSubscriptionNew: React.FC = () => {
                                     onChange={(e) => setNextBillingDate(e.target.value)}
                                     className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm font-bold text-slate-900 dark:text-white mt-2 outline-none focus:ring-1 focus:ring-primary"
                                 />
+                            </div>
+                            <div className="md:col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                <label className="flex items-start gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isLegacyMemberOnboarding}
+                                        onChange={(e) => setIsLegacyMemberOnboarding(e.target.checked)}
+                                        className="mt-1 size-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                    />
+                                    <div>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white">Cliente ja fazia parte do Clube no mes passado</p>
+                                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                            Ative isso quando voce estiver trazendo um assinante recorrente para dentro do sistema no ciclo atual.
+                                        </p>
+                                    </div>
+                                </label>
+
+                                {isLegacyMemberOnboarding && (
+                                    <div className="mt-3 rounded-xl border border-amber-500/20 bg-white/80 px-4 py-3 text-xs text-slate-700 dark:bg-white/5 dark:text-slate-200">
+                                        Depois de ativar a assinatura, use o novo fluxo de baixa administrativa nas comandas abertas desse cliente.
+                                        Assim voce fecha o legado sem duplicar receita e sem consumir os creditos atuais do plano.
+                                    </div>
+                                )}
                             </div>
                         </div>
 

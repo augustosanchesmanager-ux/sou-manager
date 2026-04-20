@@ -4,6 +4,7 @@ import {
     ensureAppSupportsModule,
     getScopedClient,
     requireTenantContext,
+    supabase,
 } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
@@ -35,6 +36,12 @@ interface Comanda {
     appointment_id?: string | null;
     status: ComandaStatus;
     cancellation_reason?: string | null;
+    closure_mode?: 'standard' | 'legacy_membership' | null;
+    closure_note?: string | null;
+    financial_effect?: boolean | null;
+    membership_credit_effect?: boolean | null;
+    legacy_reference_month?: string | null;
+    closed_at?: string | null;
     total: number;
     created_at: string;
     clients: {
@@ -142,6 +149,12 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
 const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 const formatTimeLabel = (value: string) => new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const formatMonthInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+const getDefaultLegacyReferenceMonth = () => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 1);
+    return formatMonthInputValue(date);
+};
 
 const getDisplayId = (id: string) => {
     const hexStr = id.replace(/-/g, '').slice(0, 8);
@@ -183,6 +196,18 @@ const getStatusMeta = (status: ComandaStatus) => {
         icon: 'do_not_disturb_on',
         className: 'bg-slate-500/10 text-slate-300 border-slate-500/20',
         dotClassName: 'bg-slate-400',
+    };
+};
+
+const getSettlementMeta = (comanda: Comanda) => {
+    if (comanda.status !== 'paid' || comanda.financial_effect !== false) return null;
+
+    return {
+        label: comanda.closure_mode === 'legacy_membership' ? 'Baixa administrativa do Clube' : 'Baixa administrativa',
+        helper: comanda.legacy_reference_month
+            ? `Referencia: ${new Date(comanda.legacy_reference_month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`
+            : 'Sem impacto financeiro e sem abatimento de creditos atuais.',
+        className: 'border-amber-500/20 bg-amber-500/10 text-amber-200',
     };
 };
 
@@ -364,6 +389,11 @@ const Comandas: React.FC = () => {
     const [consumptionType, setConsumptionType] = useState<ConsumptionType>(preferences.consumptionType);
     const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(preferences.advancedFiltersOpen);
     const [selectedComandaId, setSelectedComandaId] = useState<string | null>(null);
+    const [selectedOpenComandaIds, setSelectedOpenComandaIds] = useState<string[]>([]);
+    const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
+    const [bulkClosing, setBulkClosing] = useState(false);
+    const [bulkClosureNote, setBulkClosureNote] = useState('');
+    const [bulkLegacyReferenceMonth, setBulkLegacyReferenceMonth] = useState(getDefaultLegacyReferenceMonth);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
@@ -660,7 +690,16 @@ const Comandas: React.FC = () => {
         }
     }, [selectedComandaId, sortedComandas]);
 
+    useEffect(() => {
+        setSelectedOpenComandaIds((current) =>
+            current.filter((id) => comandas.some((comanda) => comanda.id === id && comanda.status === 'open')),
+        );
+    }, [comandas]);
+
     const selectedComanda = sortedComandas.find((comanda) => comanda.id === selectedComandaId) || null;
+    const openComandasInView = sortedComandas.filter((comanda) => comanda.status === 'open');
+    const allOpenInViewSelected = openComandasInView.length > 0
+        && openComandasInView.every((comanda) => selectedOpenComandaIds.includes(comanda.id));
 
     const tabs = [
         { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
@@ -678,6 +717,80 @@ const Comandas: React.FC = () => {
             && createdAt.getMonth() === today.getMonth()
             && createdAt.getFullYear() === today.getFullYear();
     }).length;
+
+    const toggleOpenComandaSelection = (comandaId: string) => {
+        setSelectedOpenComandaIds((current) =>
+            current.includes(comandaId)
+                ? current.filter((id) => id !== comandaId)
+                : [...current, comandaId],
+        );
+    };
+
+    const toggleSelectAllOpenInView = () => {
+        if (allOpenInViewSelected) {
+            setSelectedOpenComandaIds((current) =>
+                current.filter((id) => !openComandasInView.some((comanda) => comanda.id === id)),
+            );
+            return;
+        }
+
+        setSelectedOpenComandaIds((current) => Array.from(new Set([
+            ...current,
+            ...openComandasInView.map((comanda) => comanda.id),
+        ])));
+    };
+
+    const handleBulkClose = async () => {
+        if (selectedOpenComandaIds.length === 0) {
+            setToast({ message: 'Selecione pelo menos uma comanda aberta.', type: 'info' });
+            return;
+        }
+
+        if (!bulkLegacyReferenceMonth) {
+            setToast({ message: 'Informe o mes de referencia para a baixa administrativa.', type: 'info' });
+            return;
+        }
+
+        setBulkClosing(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'bulk close comandas',
+                }).tenantId;
+
+            const { data, error } = await supabase.rpc('bulk_close_comandas_admin', {
+                p_comanda_ids: selectedOpenComandaIds,
+                p_tenant_id: resolvedTenantId,
+                p_closure_note: bulkClosureNote.trim() || null,
+                p_legacy_reference_month: `${bulkLegacyReferenceMonth}-01`,
+            });
+
+            if (error) throw error;
+
+            const updatedCount = Number((data as { updated_count?: number } | null)?.updated_count || selectedOpenComandaIds.length);
+
+            setToast({
+                message: `${updatedCount} comanda(s) baixada(s) em modo administrativo, sem impacto financeiro ou nos creditos atuais.`,
+                type: 'success',
+            });
+            setSelectedOpenComandaIds([]);
+            setBulkCloseModalOpen(false);
+            setBulkClosureNote('');
+            setBulkLegacyReferenceMonth(getDefaultLegacyReferenceMonth());
+            await fetchData();
+        } catch (error: any) {
+            console.error(error);
+            setToast({ message: `Erro ao baixar comandas em massa: ${error.message}`, type: 'error' });
+        } finally {
+            setBulkClosing(false);
+        }
+    };
     const totalOpen = comandas.filter((comanda) => comanda.status === 'open').reduce((sum, comanda) => sum + comanda.total, 0);
     const avgTicket = filteredComandas.length > 0
         ? filteredComandas.reduce((sum, comanda) => sum + comanda.total, 0) / filteredComandas.length
@@ -1067,6 +1180,32 @@ const Comandas: React.FC = () => {
                                 </button>
                             </div>
                         </div>
+
+                        <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4">
+                            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                                <div>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-700 dark:text-amber-300">Baixa administrativa em massa</p>
+                                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                        Ideal para regularizar comandas abertas de clientes do Clube sem duplicar receita e sem consumir creditos do ciclo atual.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full border border-amber-500/20 bg-white/70 px-3 py-1 text-xs font-bold text-slate-700 dark:bg-white/5 dark:text-slate-200">
+                                        {selectedOpenComandaIds.length} selecionada(s)
+                                    </span>
+                                    <Button variant="secondary" size="sm" onClick={toggleSelectAllOpenInView} leftIcon={allOpenInViewSelected ? 'check_box' : 'check_box_outline_blank'}>
+                                        {allOpenInViewSelected ? 'Desmarcar abertas visiveis' : 'Selecionar abertas visiveis'}
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedOpenComandaIds([])} disabled={selectedOpenComandaIds.length === 0} leftIcon="ink_eraser">
+                                        Limpar
+                                    </Button>
+                                    <Button variant="warning" size="sm" onClick={() => setBulkCloseModalOpen(true)} disabled={selectedOpenComandaIds.length === 0} leftIcon="rule_settings">
+                                        Baixar em massa
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1094,16 +1233,34 @@ const Comandas: React.FC = () => {
                                     const attention = getComandaAttention(comanda);
                                     const summary = getConsumptionSummary(comanda);
                                     const isSelected = selectedComandaId === comanda.id;
+                                    const isBulkSelected = selectedOpenComandaIds.includes(comanda.id);
+                                    const settlementMeta = getSettlementMeta(comanda);
 
                                     return (
                                         <div
                                             key={comanda.id}
-                                            className={`cursor-pointer px-5 py-4 transition ${isSelected ? 'bg-amber-500/[0.07] dark:bg-amber-500/[0.08]' : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}
+                                            className={`cursor-pointer px-5 py-4 transition ${isSelected ? 'bg-amber-500/[0.07] dark:bg-amber-500/[0.08]' : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'} ${isBulkSelected ? 'ring-1 ring-amber-500/30 ring-inset' : ''}`}
                                             onClick={() => setSelectedComandaId(comanda.id)}
                                         >
                                             <div className="grid gap-4 lg:grid-cols-[1.7fr_1.45fr_0.9fr_0.95fr_1.15fr] lg:items-center">
                                                 <div className="min-w-0">
                                                     <div className="flex items-start gap-3">
+                                                        {comanda.status === 'open' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    toggleOpenComandaSelection(comanda.id);
+                                                                }}
+                                                                className="mt-1 inline-flex size-8 items-center justify-center rounded-xl border border-amber-500/20 bg-white text-amber-600 transition hover:bg-amber-500/10 dark:bg-white/5"
+                                                                title={isBulkSelected ? 'Desmarcar comanda' : 'Selecionar comanda'}
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">
+                                                                    {isBulkSelected ? 'check_box' : 'check_box_outline_blank'}
+                                                                </span>
+                                                            </button>
+                                                        )}
+
                                                         <div className="relative shrink-0">
                                                             {comanda.clients.avatar ? (
                                                                 <img src={comanda.clients.avatar} alt={comanda.clients.name} className="size-11 rounded-2xl border border-slate-200 object-cover dark:border-white/10" />
@@ -1157,6 +1314,11 @@ const Comandas: React.FC = () => {
                                                         <span className={`size-2 rounded-full ${statusMeta.dotClassName}`} />
                                                         {statusMeta.label}
                                                     </span>
+                                                    {settlementMeta && (
+                                                        <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${settlementMeta.className}`}>
+                                                            {settlementMeta.label}
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -1218,6 +1380,19 @@ const Comandas: React.FC = () => {
                         {selectedComanda ? (
                             <div className="h-full p-5 xl:sticky xl:top-6">
                                 <div className="rounded-[24px] border border-slate-200/70 bg-slate-50/70 p-5 dark:border-white/8 dark:bg-white/[0.03]">
+                                    {(() => {
+                                        const settlementMeta = getSettlementMeta(selectedComanda);
+                                        return settlementMeta ? (
+                                            <div className={`mb-4 rounded-2xl border px-4 py-3 ${settlementMeta.className}`}>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em]">{settlementMeta.label}</p>
+                                                <p className="mt-1 text-xs opacity-90">{settlementMeta.helper}</p>
+                                                {selectedComanda.closure_note && (
+                                                    <p className="mt-2 text-xs opacity-90">Obs.: {selectedComanda.closure_note}</p>
+                                                )}
+                                            </div>
+                                        ) : null;
+                                    })()}
+
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
                                             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Painel da comanda</p>
@@ -1321,6 +1496,60 @@ const Comandas: React.FC = () => {
                     </aside>
                 </div>
             </section>
+
+            <Modal
+                isOpen={bulkCloseModalOpen}
+                onClose={() => {
+                    if (bulkClosing) return;
+                    setBulkCloseModalOpen(false);
+                }}
+                title="Baixa Administrativa em Massa"
+                maxWidth="md"
+            >
+                <div className="space-y-4">
+                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                        <p className="font-black uppercase tracking-[0.18em] text-xs">Sem impacto financeiro</p>
+                        <p className="mt-2 text-xs leading-5">
+                            Esse fechamento em massa marca as comandas selecionadas como pagas em modo administrativo, sem gerar nova receita e sem consumir creditos atuais do Clube.
+                        </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/8 dark:bg-white/[0.03]">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedOpenComandaIds.length} comanda(s) aberta(s) selecionada(s)</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Use esse fluxo para regularizacao de legado ou fechamento operacional de assinantes ja recorrentes.</p>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mes de referencia</label>
+                        <input
+                            type="month"
+                            value={bulkLegacyReferenceMonth}
+                            onChange={(event) => setBulkLegacyReferenceMonth(event.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observacao interna</label>
+                        <textarea
+                            value={bulkClosureNote}
+                            onChange={(event) => setBulkClosureNote(event.target.value)}
+                            rows={4}
+                            placeholder="Ex.: regularizacao das comandas abertas de assinantes recorrentes do mes anterior"
+                            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                        />
+                    </div>
+
+                    <div className="flex gap-3">
+                        <Button variant="secondary" onClick={() => setBulkCloseModalOpen(false)} disabled={bulkClosing} className="flex-1 justify-center">
+                            Voltar
+                        </Button>
+                        <Button variant="warning" onClick={handleBulkClose} disabled={bulkClosing || selectedOpenComandaIds.length === 0} leftIcon={bulkClosing ? 'hourglass_empty' : 'rule_settings'} className="flex-1 justify-center">
+                            {bulkClosing ? 'Baixando...' : 'Confirmar baixa'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             <Modal
                 isOpen={!!deleteComanda}

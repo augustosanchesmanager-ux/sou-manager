@@ -18,6 +18,7 @@ import {
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
+type ClosureMode = 'standard' | 'legacy_membership';
 
 interface CartParticipant {
   id: string;
@@ -122,6 +123,15 @@ const createInitialQuickServiceForm = (serviceName = ''): QuickServiceForm => ({
     active: true,
 });
 
+const toMonthInputValue = (value?: string | null) => {
+    if (!value) return '';
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
 
 const Checkout: React.FC = () => {
@@ -207,6 +217,9 @@ const Checkout: React.FC = () => {
     const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
     const [paymentMethod, setPaymentMethod] = useState<'credit' | 'debit' | 'cash' | 'pix' | 'other'>('credit');
     const [paymentDescription, setPaymentDescription] = useState<string>('');
+    const [closureMode, setClosureMode] = useState<ClosureMode>('standard');
+    const [closureNote, setClosureNote] = useState('');
+    const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
     const [discount, setDiscount] = useState<string>('0');
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -248,6 +261,12 @@ const Checkout: React.FC = () => {
         : checkoutEntryMode === 'open_comanda'
             ? 'Fechamento de Comanda'
             : 'Fechamento de Atendimento';
+    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const discountValue = parseFloat(discount) || 0;
+    const total = Math.max(0, subtotal - discountValue);
+    const isLegacyClubSettlement = paymentStatus === 'paid' && closureMode === 'legacy_membership';
+    const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement;
+    const shouldDeductMembershipCredits = paymentStatus === 'paid' && !isLegacyClubSettlement;
 
     const resetComandaRequestKey = () => {
         comandaRequestKeyRef.current = generateIdempotencyKey('comanda');
@@ -261,6 +280,9 @@ const Checkout: React.FC = () => {
         setDiscount('0');
         setPaymentMethod('credit');
         setPaymentDescription('');
+        setClosureMode('standard');
+        setClosureNote('');
+        setLegacyReferenceMonth('');
         setChefClubInfo(null);
         setDuplicateComanda(null);
         setPendingClient(null);
@@ -357,6 +379,9 @@ const Checkout: React.FC = () => {
                     setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
                     setPaymentMethod(comanda.payment_method || 'credit');
                     setDiscount(String(comanda.discount || 0));
+                    setClosureMode(comanda.closure_mode === 'legacy_membership' ? 'legacy_membership' : 'standard');
+                    setClosureNote(comanda.closure_note || '');
+                    setLegacyReferenceMonth(toMonthInputValue(comanda.legacy_reference_month));
                     setRelatedAppointmentId(comanda.appointment_id || null);
 
                     const mappedItems: CartItem[] = (comandaItems || []).map((item: any) => ({
@@ -393,6 +418,13 @@ const Checkout: React.FC = () => {
         if (comandaId) return;
         setPaymentStatus(checkoutEntryMode === 'open_comanda' ? 'pending' : 'paid');
     }, [checkoutEntryMode, comandaId]);
+
+    useEffect(() => {
+        if (comandaId || chefClubInfo || closureMode !== 'legacy_membership') return;
+        setClosureMode('standard');
+        setClosureNote('');
+        setLegacyReferenceMonth('');
+    }, [chefClubInfo, closureMode, comandaId]);
 
     useEffect(() => {
         if (comandaId || !checkoutState?.fromAppointment || loading) return;
@@ -444,9 +476,6 @@ const Checkout: React.FC = () => {
     ]);
 
     // Calculations
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const discountValue = parseFloat(discount) || 0;
-    const total = Math.max(0, subtotal - discountValue);
     const appliedCreditsCount = cart.filter(item => item.usedCredit).length;
 
     // Duplicate client check
@@ -838,6 +867,11 @@ const Checkout: React.FC = () => {
             finishLockRef.current = false;
             return;
         }
+        if (isLegacyClubSettlement && !legacyReferenceMonth) {
+            setToast({ message: 'Informe o mes de referencia para a baixa administrativa do Clube.', type: 'info' });
+            finishLockRef.current = false;
+            return;
+        }
         if (!tenantId) {
             setToast({ message: 'Tenant inválido para finalizar operação.', type: 'error' });
             return;
@@ -865,6 +899,18 @@ const Checkout: React.FC = () => {
                 appointment_id: relatedAppointmentId,
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
                 total: total,
+                discount: discountValue,
+                payment_method: paymentStatus === 'paid'
+                    ? (shouldApplyFinancialEffects ? paymentMethod : 'other')
+                    : null,
+                closure_mode: paymentStatus === 'paid' ? closureMode : 'standard',
+                closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? (closureNote.trim() || null) : null,
+                financial_effect: paymentStatus === 'paid' ? shouldApplyFinancialEffects : true,
+                membership_credit_effect: paymentStatus === 'paid' ? shouldDeductMembershipCredits : true,
+                legacy_reference_month: paymentStatus === 'paid' && isLegacyClubSettlement
+                    ? `${legacyReferenceMonth}-01`
+                    : null,
+                closed_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
                 tenant_id: resolvedTenantId
             };
 
@@ -1015,7 +1061,15 @@ const Checkout: React.FC = () => {
             if (paymentStatus === 'paid') {
                 const { error: updateError } = await client
                     .from('comandas')
-                    .update({ status: 'paid' })
+                    .update({
+                        status: 'paid',
+                        closure_mode: closureMode,
+                        closure_note: isLegacyClubSettlement ? (closureNote.trim() || null) : null,
+                        financial_effect: shouldApplyFinancialEffects,
+                        membership_credit_effect: shouldDeductMembershipCredits,
+                        legacy_reference_month: isLegacyClubSettlement ? `${legacyReferenceMonth}-01` : null,
+                        closed_at: new Date().toISOString(),
+                    })
                     .eq('id', currentComandaId);
 
                 if (updateError) {
@@ -1034,60 +1088,61 @@ const Checkout: React.FC = () => {
                     }
                 }
 
-                try {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    const { error: transError } = await client.from('transactions').insert({
-                    user_id: user?.id,
-                    type: 'income',
-                    category: incomeCategory,
-                    amount: total,
-                    description: paymentMethod === 'other' && paymentDescription
-                        ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
-                        : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
-                    payment_method: paymentMethod,
-                    date: new Date().toISOString(),
-                    tenant_id: resolvedTenantId
-                });
-                    if (transError) {
-                    console.warn('Checkout finalized without transaction record:', transError);
+                if (shouldApplyFinancialEffects) {
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        const { error: transError } = await client.from('transactions').insert({
+                            user_id: user?.id,
+                            type: 'income',
+                            category: incomeCategory,
+                            amount: total,
+                            description: paymentMethod === 'other' && paymentDescription
+                                ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
+                                : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
+                            payment_method: paymentMethod,
+                            date: new Date().toISOString(),
+                            tenant_id: resolvedTenantId
+                        });
+                        if (transError) {
+                            console.warn('Checkout finalized without transaction record:', transError);
+                        }
+                    } catch (transactionError) {
+                        console.warn('Checkout finalized but transaction logging failed:', transactionError);
                     }
-                } catch (transactionError) {
-                    console.warn('Checkout finalized but transaction logging failed:', transactionError);
-                }
 
-                // 4. Update Client Stats (Total Spent, Last Visit, Last Service)
-                try {
-                    const { data: clientData, error: clientFetchErr } = await client
-                    .from('clients')
-                    .select('total_spent')
-                    .eq('id', selectedClient.id)
-                    .eq('tenant_id', resolvedTenantId)
-                    .single();
+                    try {
+                        const { data: clientData, error: clientFetchErr } = await client
+                            .from('clients')
+                            .select('total_spent')
+                            .eq('id', selectedClient.id)
+                            .eq('tenant_id', resolvedTenantId)
+                            .single();
 
-                    if (!clientFetchErr) {
-                    const newTotal = (clientData?.total_spent || 0) + total;
-                    const lastServiceStr = cart.length > 0 ? cart[0].name : '';
+                        if (!clientFetchErr) {
+                            const newTotal = (clientData?.total_spent || 0) + total;
+                            const lastServiceStr = cart.length > 0 ? cart[0].name : '';
 
-                    const { error: clientUpdateError } = await client.from('clients').update({
-                        total_spent: newTotal,
-                        last_visit: new Date().toISOString(),
-                        last_service: lastServiceStr
-                    }).eq('id', selectedClient.id).eq('tenant_id', resolvedTenantId);
+                            const { error: clientUpdateError } = await client.from('clients').update({
+                                total_spent: newTotal,
+                                last_visit: new Date().toISOString(),
+                                last_service: lastServiceStr
+                            }).eq('id', selectedClient.id).eq('tenant_id', resolvedTenantId);
 
-                    if (clientUpdateError) {
-                        console.warn('Checkout finalized without client stats update:', clientUpdateError);
+                            if (clientUpdateError) {
+                                console.warn('Checkout finalized without client stats update:', clientUpdateError);
+                            }
+                        } else {
+                            console.warn('Checkout finalized without loading client stats:', clientFetchErr);
+                        }
+                    } catch (clientStatsError) {
+                        console.warn('Checkout finalized but client stats update failed:', clientStatsError);
                     }
-                    } else {
-                    console.warn('Checkout finalized without loading client stats:', clientFetchErr);
-                    }
-                } catch (clientStatsError) {
-                    console.warn('Checkout finalized but client stats update failed:', clientStatsError);
                 }
             }
 
             // 5. Deduct Chef Club Credits if used
             const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
-            if (creditItems.length > 0 && chefClubInfo) {
+            if (shouldDeductMembershipCredits && creditItems.length > 0 && chefClubInfo) {
                 for (const creditItem of creditItems) {
                     const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
                         p_subscription_id: chefClubInfo.id,
@@ -1102,9 +1157,16 @@ const Checkout: React.FC = () => {
                 }
             }
 
-            setToast({ message: paymentStatus === 'paid' ? checkoutCopy.successPaid : checkoutCopy.successOpen, type: 'success' });
+            setToast({
+                message: isLegacyClubSettlement
+                    ? 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem creditos atuais.'
+                    : paymentStatus === 'paid'
+                        ? checkoutCopy.successPaid
+                        : checkoutCopy.successOpen,
+                type: 'success'
+            });
 
-            if (paymentStatus === 'paid') {
+            if (paymentStatus === 'paid' && !isLegacyClubSettlement) {
                 navigate('/payment-success', {
                     state: {
                         client: selectedClient,
@@ -1117,7 +1179,7 @@ const Checkout: React.FC = () => {
                 });
             } else {
                 setTimeout(() => {
-                    if (checkoutEntryMode === 'pdv' && !comandaId) {
+                    if (checkoutEntryMode === 'pdv' && !comandaId && !isLegacyClubSettlement) {
                         resetOperationalState();
                     }
                     navigate(checkoutCopy.redirectPath, { replace: true });
@@ -1411,6 +1473,67 @@ const Checkout: React.FC = () => {
                             </div>
                         </div>
 
+                        {paymentStatus === 'paid' && (chefClubInfo || closureMode === 'legacy_membership') && (
+                            <div className="mb-6 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                <div>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Modo de fechamento</p>
+                                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                        Use a baixa administrativa para comandas antigas de clientes do Clube que ja pagaram em outro ciclo.
+                                    </p>
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <button
+                                        onClick={() => setClosureMode('standard')}
+                                        className={`rounded-xl border px-4 py-3 text-left transition-all ${closureMode === 'standard'
+                                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                            : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                            }`}
+                                    >
+                                        <p className="text-sm font-black">Fechamento padrao</p>
+                                        <p className="mt-1 text-xs">Lanca o financeiro normalmente e consome os creditos aplicados nesta comanda.</p>
+                                    </button>
+                                    <button
+                                        onClick={() => setClosureMode('legacy_membership')}
+                                        className={`rounded-xl border px-4 py-3 text-left transition-all ${closureMode === 'legacy_membership'
+                                            ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                            : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                            }`}
+                                    >
+                                        <p className="text-sm font-black">Baixa administrativa do Clube</p>
+                                        <p className="mt-1 text-xs">Fecha a comanda sem gerar nova receita e sem afetar os creditos atuais do assinante.</p>
+                                    </button>
+                                </div>
+
+                                {closureMode === 'legacy_membership' && (
+                                    <div className="space-y-3 rounded-xl border border-amber-500/20 bg-white/80 p-3 dark:bg-white/5">
+                                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                                            Esse modo e indicado para regularizar comandas abertas de clientes que ja estavam no Clube em um ciclo anterior.
+                                        </div>
+                                        <div>
+                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mes de referencia</label>
+                                            <input
+                                                type="month"
+                                                value={legacyReferenceMonth}
+                                                onChange={(e) => setLegacyReferenceMonth(e.target.value)}
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observacao interna</label>
+                                            <textarea
+                                                value={closureNote}
+                                                onChange={(e) => setClosureNote(e.target.value)}
+                                                rows={3}
+                                                placeholder="Ex.: baixa do plano do mes anterior"
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="space-y-4 mb-6">
                             <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
                                 <span>Subtotal</span>
@@ -1432,7 +1555,7 @@ const Checkout: React.FC = () => {
                             </div>
                         </div>
 
-                        {paymentStatus === 'paid' && (
+                        {shouldApplyFinancialEffects && (
                             <div className="mb-8 animate-fade-in">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
                                 <div className="grid grid-cols-2 gap-3">
@@ -1465,6 +1588,12 @@ const Checkout: React.FC = () => {
                                         />
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {isLegacyClubSettlement && (
+                            <div className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
+                                O fechamento sera apenas operacional. Nenhum lancamento novo sera enviado ao financeiro e nenhum credito atual sera abatido.
                             </div>
                         )}
 
