@@ -438,7 +438,7 @@ const Schedule: React.FC = () => {
     }
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      barberSupabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
       barberSupabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),

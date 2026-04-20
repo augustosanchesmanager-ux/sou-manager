@@ -63,9 +63,9 @@ const Commissions: React.FC = () => {
         const startOfMonth = new Date(year, month - 1, 1).toISOString();
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-        try {
+try {
             const [staffRes, itemsRes] = await Promise.all([
-                barberSupabase
+                supabase
                     .from('staff')
                     .select('id, name, role, avatar, commission_rate')
                     .eq('tenant_id', tenantId)
