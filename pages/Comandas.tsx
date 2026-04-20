@@ -390,10 +390,11 @@ const Comandas: React.FC = () => {
     const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(preferences.advancedFiltersOpen);
     const [selectedComandaId, setSelectedComandaId] = useState<string | null>(null);
     const [selectedOpenComandaIds, setSelectedOpenComandaIds] = useState<string[]>([]);
-    const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
+const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
     const [bulkClosing, setBulkClosing] = useState(false);
     const [bulkClosureNote, setBulkClosureNote] = useState('');
     const [bulkLegacyReferenceMonth, setBulkLegacyReferenceMonth] = useState(getDefaultLegacyReferenceMonth);
+    const [bulkCloseType, setBulkCloseType] = useState<'admin' | 'normal'>('normal');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
@@ -751,7 +752,7 @@ const Comandas: React.FC = () => {
             return;
         }
 
-        setBulkClosing(true);
+setBulkClosing(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const resolvedTenantId = canAccessSuperAdmin
@@ -764,19 +765,34 @@ const Comandas: React.FC = () => {
                     operation: 'bulk close comandas',
                 }).tenantId;
 
-            const { data, error } = await supabase.rpc('bulk_close_comandas_admin', {
-                p_comanda_ids: selectedOpenComandaIds,
-                p_tenant_id: resolvedTenantId,
-                p_closure_note: bulkClosureNote.trim() || null,
-                p_legacy_reference_month: `${bulkLegacyReferenceMonth}-01`,
-            });
+            let data, error;
+
+            if (bulkCloseType === 'normal') {
+                // Venda normal - com impacto financeiro
+                ({ data, error } = await supabase.rpc('bulk_close_comandas_normal', {
+                    p_comanda_ids: selectedOpenComandaIds,
+                    p_tenant_id: resolvedTenantId,
+                    p_closure_note: bulkClosureNote.trim() || null,
+                }));
+            } else {
+                // Admin/Legado - sem impacto financeiro
+                ({ data, error } = await supabase.rpc('bulk_close_comandas_admin', {
+                    p_comanda_ids: selectedOpenComandaIds,
+                    p_tenant_id: resolvedTenantId,
+                    p_closure_note: bulkClosureNote.trim() || null,
+                    p_legacy_reference_month: `${bulkLegacyReferenceMonth}-01`,
+                }));
+            }
 
             if (error) throw error;
 
             const updatedCount = Number((data as { updated_count?: number } | null)?.updated_count || selectedOpenComandaIds.length);
+            const isNormal = bulkCloseType === 'normal';
 
             setToast({
-                message: `${updatedCount} comanda(s) baixada(s) em modo administrativo, sem impacto financeiro ou nos creditos atuais.`,
+                message: isNormal
+                    ? `${updatedCount} comanda(s) baixada(s) com impacto financeiro e creditos aplicados!`
+                    : `${updatedCount} comanda(s) baixada(s) em modo administrativo, sem impacto financeiro.`,
                 type: 'success',
             });
             setSelectedOpenComandaIds([]);
@@ -1497,45 +1513,71 @@ const Comandas: React.FC = () => {
                 </div>
             </section>
 
-            <Modal
+<Modal
                 isOpen={bulkCloseModalOpen}
                 onClose={() => {
                     if (bulkClosing) return;
                     setBulkCloseModalOpen(false);
                 }}
-                title="Baixa Administrativa em Massa"
+                title="Baixa em Massa"
                 maxWidth="md"
             >
                 <div className="space-y-4">
-                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-                        <p className="font-black uppercase tracking-[0.18em] text-xs">Sem impacto financeiro</p>
-                        <p className="mt-2 text-xs leading-5">
-                            Esse fechamento em massa marca as comandas selecionadas como pagas em modo administrativo, sem gerar nova receita e sem consumir creditos atuais do Clube.
-                        </p>
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            type="button"
+                            onClick={() => setBulkCloseType('normal')}
+                            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-colors ${
+                                bulkCloseType === 'normal'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}
+                        >
+                            <span className="block text-lg mb-1">💰 Venda Normal</span>
+                            <span className="block text-[10px] font-normal opacity-80">Com impacto financeiro</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setBulkCloseType('admin')}
+                            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-colors ${
+                                bulkCloseType === 'admin'
+                                    ? 'bg-amber-500 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}
+                        >
+                            <span className="block text-lg mb-1">⚙️ Administrativa</span>
+                            <span className="block text-[10px] font-normal opacity-80">Sem impacto financeiro</span>
+                        </button>
                     </div>
 
                     <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/8 dark:bg-white/[0.03]">
                         <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedOpenComandaIds.length} comanda(s) aberta(s) selecionada(s)</p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Use esse fluxo para regularizacao de legado ou fechamento operacional de assinantes ja recorrentes.</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {bulkCloseType === 'normal'
+                                ? 'Venda normal: cria transação,consome créditos do Clube'
+                                : 'Admin: fecha sem impacto financeiro'}
+                        </p>
                     </div>
 
-                    <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mes de referencia</label>
-                        <input
-                            type="month"
-                            value={bulkLegacyReferenceMonth}
-                            onChange={(event) => setBulkLegacyReferenceMonth(event.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
-                        />
-                    </div>
+                    {bulkCloseType === 'admin' && (
+                        <div>
+                            <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mes de referencia</label>
+                            <input
+                                type="month"
+                                value={bulkLegacyReferenceMonth}
+                                onChange={(event) => setBulkLegacyReferenceMonth(event.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                            />
+                        </div>
+                    )}
 
                     <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observacao interna</label>
                         <textarea
                             value={bulkClosureNote}
                             onChange={(event) => setBulkClosureNote(event.target.value)}
-                            rows={4}
-                            placeholder="Ex.: regularizacao das comandas abertas de assinantes recorrentes do mes anterior"
+                            rows={3}
+                            placeholder={bulkCloseType === 'normal' ? 'Ex.: venda normal do dia' : 'Ex.: regulariacao de legado'}
                             className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                         />
                     </div>
@@ -1545,7 +1587,7 @@ const Comandas: React.FC = () => {
                             Voltar
                         </Button>
                         <Button variant="warning" onClick={handleBulkClose} disabled={bulkClosing || selectedOpenComandaIds.length === 0} leftIcon={bulkClosing ? 'hourglass_empty' : 'rule_settings'} className="flex-1 justify-center">
-                            {bulkClosing ? 'Baixando...' : 'Confirmar baixa'}
+{bulkClosing ? 'Baixando...' : (bulkCloseType === 'normal' ? 'Confirmar Venda Normal' : 'Confirmar Baixa Administrativa')}
                         </Button>
                     </div>
                 </div>
