@@ -1134,7 +1134,7 @@ const createLocalDemoClient = (): SupabaseClient => {
     getUser: async () => ({ data: { user: readDemoSession()?.user ?? null }, error: null }),
   };
 
-  const client = {
+const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
@@ -1150,6 +1150,11 @@ const createLocalDemoClient = (): SupabaseClient => {
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));
     },
+    functions: {
+      invoke: (_name: string, _options?: { headers?: Record<string, string>; body?: unknown }) => {
+        return Promise.resolve({ data: null, error: new Error('Edge functions indisponiveis no modo local.') }) as any;
+      },
+    } as any,
   };
 
   return client as unknown as SupabaseClient;
@@ -1261,6 +1266,14 @@ export const supabase = new Proxy(baseClient, {
     if (prop === 'rpc') {
       return (...args: unknown[]) =>
         (getSharedClient().rpc as (...rpcArgs: unknown[]) => unknown)(...args);
+    }
+
+    if (prop === 'functions') {
+      return getSharedClient().functions;
+    }
+
+    if (prop === 'auth') {
+      return target.auth;
     }
 
     return Reflect.get(target, prop, receiver);

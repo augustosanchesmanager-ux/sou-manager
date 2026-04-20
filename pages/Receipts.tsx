@@ -353,7 +353,7 @@ const Receipts: React.FC = () => {
                     {/* Watermark/Marca D'água */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] print:opacity-[0.05] z-0 overflow-hidden">
                         <span className="text-7xl font-black text-slate-900 -rotate-45 whitespace-nowrap select-none">
-                            DOCUMENTO GERADO PELO SOU MANA.GER
+                            DOCUMENTO GERADO PELO SMG | SOU.MANAGER | BARBER
                         </span>
                     </div>
 

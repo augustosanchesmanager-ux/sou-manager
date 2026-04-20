@@ -41,8 +41,8 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
       </div>
       {!iconOnly && (
         <div className="flex flex-col text-left mt-0.5">
-          <h1 className={`text-slate-900 dark:text-white ${size === 'lg' ? 'text-2xl' : 'text-xl'} font-bold leading-none tracking-tight uppercase display-font`}>SOU MANA.GER</h1>
-          <p className="text-primary-dark dark:text-primary text-[10px] font-bold tracking-[0.25em] uppercase mt-0.5">Elite Tech</p>
+          <h1 className={`text-slate-900 dark:text-white ${size === 'lg' ? 'text-2xl' : 'text-xl'} font-bold leading-none tracking-tight display-font`}>SMG | Sou.Manager</h1>
+          <p className="text-primary-dark dark:text-primary text-[10px] font-bold tracking-[0.25em] uppercase mt-0.5">Barber</p>
         </div>
       )}
     </>
@@ -61,7 +61,7 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
   }
 
   return (
-    <div className={`flex items-center gap-3 ${className}`} title="SOU MANA.GER Logo">
+    <div className={`flex items-center gap-3 ${className}`} title="SMG | Sou.Manager | Barber">
       {innerContent}
     </div>
   );

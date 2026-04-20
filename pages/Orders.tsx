@@ -388,7 +388,7 @@ const Orders: React.FC = () => {
                             {/* HEADER */}
                             <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
                                 <div>
-                                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">SOU MANA.GER</h1>
+                                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">SMG | Sou.Manager | Barber</h1>
                                     <p className="text-sm font-bold uppercase tracking-widest text-slate-500">Gestão Profissional de Barbearia</p>
                                     <div className="mt-4 text-xs font-medium space-y-0.5">
                                         <p>CONTROLE DE REPOSIÇÃO DE ESTOQUE</p>
@@ -457,7 +457,7 @@ const Orders: React.FC = () => {
                             {/* SIGNATURES */}
                             <div className="mt-20 flex justify-between gap-12">
                                 <div className="flex-1 text-center border-t border-slate-300 pt-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável SOU MANA.GER</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável SMG | Sou.Manager | Barber</p>
                                     <p className="text-xs font-black text-slate-900 uppercase">Assinatura autorizada</p>
                                 </div>
                                 <div className="flex-1 text-center border-t border-slate-300 pt-2">
@@ -468,7 +468,7 @@ const Orders: React.FC = () => {
 
                             {/* FOOTER */}
                             <div className="mt-12 text-center text-[9px] text-slate-300 uppercase tracking-[0.2em]">
-                                Este documento é um espelho de pedido de compra gerado eletronicamente pelo SOU MANA.GER
+                                Este documento é um espelho de pedido de compra gerado eletronicamente pelo SMG | Sou.Manager | Barber
                             </div>
                         </div>
 

@@ -17,7 +17,7 @@ interface Product {
     id: string;
     name: string;
     stock: number;
-    min_stock: number;
+    minimum_stock: number;
 }
 
 const Operations: React.FC = () => {
@@ -55,9 +55,9 @@ const Operations: React.FC = () => {
         // Fetch low stock items
         const { data: products } = await supabase
             .from('products')
-            .select('*')
+            .select('id, name, stock, minimum_stock')
             .eq('tenant_id', tenantId)
-            .or('stock.lte.min_stock,stock.lte.5')
+            .lte('stock', 5)
             .limit(5);
 
         // Fetch completed appointments for stats

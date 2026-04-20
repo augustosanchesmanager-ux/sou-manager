@@ -36,7 +36,6 @@ export const CORE_PUBLIC_TABLES = new Set<string>([
   'otp_requests',
   'portal_sessions',
   'profiles',
-  'staff',
   'support_tickets',
   'tenant_addons',
   'tenants',

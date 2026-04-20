@@ -77,7 +77,7 @@ export const generateSupportResponse = async (userQuestion: string): Promise<str
   // Knowledge base baseada na documentação FUNCIONALIDADES.md e ARQUITETURA.md
   // Adicionei detalhes comuns de navegação e uso
   const knowledgeBase = `
-    SOU MANA.GER - Sistema de Gestão para Barbearias e Centros de Estética:
+    SMG | Sou.Manager | Barber - Sistema de Gestão para Barbearias e Centros de Estética:
     
     1. Cadastro de Clientes:
     - Vá em Operacional -> Cadastros -> Clientes.
@@ -117,7 +117,7 @@ export const generateSupportResponse = async (userQuestion: string): Promise<str
 
   const modelNames = ["gemini-1.5-flash", "gemini-pro"];
   const prompt = `
-    Atue como o Assistente Virtual SOU MANA.GER.
+    Atue como o Assistente Virtual SMG | Sou.Manager | Barber.
     Use estritamente a base de conhecimento abaixo para responder à dúvida do usuário.
     Se a resposta não estiver na base, diga educadamente que não possuo essa informação e sugira entrar em contato com o suporte humano no menu lateral.
 

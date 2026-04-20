@@ -21,19 +21,19 @@ Deno.serve(async (req: Request) => {
 
         // Verify the caller is authenticated
         const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-            return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return new Response(JSON.stringify({ error: 'Missing or invalid authorization header' }), {
                 status: 401,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
-        // Verify the caller's JWT
+        // Verify the caller's JWT using GoTrue (compatible with asymmetric signing keys like ES256)
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
         );
-        const token = authHeader.replace('Bearer ', '');
+        const token = authHeader.slice('Bearer '.length).trim();
         const { data: { user: callerUser }, error: authError } = await supabaseClient.auth.getUser(token);
         if (authError || !callerUser) {
             console.error('Caller auth error:', authError);

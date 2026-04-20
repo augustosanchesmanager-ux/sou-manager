@@ -37,7 +37,7 @@ function getSaleReply(userMsg: string): string {
     for (const [key, val] of Object.entries(SALE_RESPONSES)) {
         if (lower.includes(key) || key.includes(lower)) return val;
     }
-    return '🤖 Sou seu assistente virtual do **SOU MANA.GER**. Para dúvidas técnicas ou personalizadas, você também pode nos chamar no WhatsApp ou e-mail na seção de contato abaixo!';
+    return '🤖 Sou seu assistente virtual do **SMG | Sou.Manager | Barber**. Para dúvidas técnicas ou personalizadas, você também pode nos chamar no WhatsApp ou e-mail na seção de contato abaixo!';
 }
 
 const LandingSupportWidget: React.FC = () => {
@@ -46,7 +46,7 @@ const LandingSupportWidget: React.FC = () => {
         {
             id: '1',
             role: 'assistant',
-            content: '👋 Bem-vindo ao **SOU MANA.GER**! Estou aqui para te ajudar a entender como podemos transformar sua barbearia.\n\nO que você gostaria de saber?',
+            content: '👋 Bem-vindo ao **SMG | Sou.Manager | Barber**! Estou aqui para te ajudar a entender como podemos transformar sua barbearia.\n\nO que você gostaria de saber?',
             timestamp: new Date(),
         },
     ]);
@@ -134,7 +134,7 @@ const LandingSupportWidget: React.FC = () => {
                         <span className="material-symbols-outlined text-primary text-xl">smart_toy</span>
                     </div>
                     <div className="flex-1">
-                        <p className="text-white text-sm font-bold">Assistente Sou Manager</p>
+                        <p className="text-white text-sm font-bold">Assistente SMG | Sou.Manager | Barber</p>
                         <p className="text-emerald-400 text-[10px] font-medium flex items-center gap-1">
                             <span className="size-1.5 rounded-full bg-emerald-400 inline-block" />
                             Dúvidas e Vendas

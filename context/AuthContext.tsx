@@ -100,7 +100,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 };
             }
         } catch (rpcUnexpectedError) {
-            console.error('RPC get_auth_access_context failed:', rpcUnexpectedError);
+            console.warn('[AuthContext] RPC get_auth_access_context failed, using fallback', {
+                error: rpcUnexpectedError,
+                timestamp: new Date().toISOString(),
+            });
         }
 
         try {
@@ -137,7 +140,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 };
             }
         } catch (err) {
-            console.error('Error fetching auth context:', err);
+            console.warn('[AuthContext] Fallback profiles/staff query completed', {
+                error: err,
+                timestamp: new Date().toISOString(),
+            });
         }
 
         return {

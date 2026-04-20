@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase/client';
 import type { AppSlug } from '../lib/supabase/schemas';
 import {
   resolveTenantForUser,
@@ -9,6 +7,7 @@ import {
   type UserTenantMembership,
 } from '../lib/supabase/tenant';
 import { useApp } from './AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 export interface TenantContextValue {
   tenant: TenantRecord | null;
@@ -33,42 +32,15 @@ const getTenantErrorMessage = (error: unknown, appSlug: AppSlug): string => {
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { appSlug } = useApp();
-  const [session, setSession] = useState<Session | null>(null);
+  const { session: authSession } = useAuth();
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [role, setRole] = useState<TenantRole>('unknown');
   const [memberships, setMemberships] = useState<UserTenantMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const applySession = (nextSession: Session | null) => {
-      if (!isMounted) {
-        return;
-      }
-
-      setSession(nextSession);
-    };
-
-    supabase.auth.getSession().then(({ data }) => {
-      applySession(data.session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      applySession(nextSession);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
   const refreshTenant = async (): Promise<void> => {
-    if (!session?.user) {
+    if (!authSession?.user) {
       setTenant(null);
       setRole('unknown');
       setMemberships([]);
@@ -81,7 +53,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
-      const resolved = await resolveTenantForUser(session.user, appSlug);
+      const resolved = await resolveTenantForUser(authSession.user, appSlug);
       setTenant(resolved.tenant);
       setRole(resolved.role);
       setMemberships(resolved.memberships);
@@ -90,7 +62,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setError(`Nenhum tenant compativel com o app ${appSlug} foi encontrado para o usuario atual.`);
       }
     } catch (err) {
-      console.error('Failed to resolve tenant context:', err);
+      console.warn('[TenantContext] Failed to resolve tenant context', {
+        error: err,
+        appSlug,
+        userId: authSession?.user?.id,
+        timestamp: new Date().toISOString(),
+      });
       setTenant(null);
       setRole('unknown');
       setMemberships([]);
@@ -102,7 +79,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     void refreshTenant();
-  }, [appSlug, session?.user?.id]);
+  }, [appSlug, authSession?.user?.id]);
 
   const value = useMemo<TenantContextValue>(
     () => ({

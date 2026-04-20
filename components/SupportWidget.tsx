@@ -24,7 +24,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
         {
             id: '1',
             role: 'assistant',
-            content: '👋 Olá! Sou o assistente do **SOU MANA.GER**. Como posso te ajudar hoje?\n\nEscolha uma das opções rápidas abaixo ou digite sua dúvida.',
+            content: '👋 Olá! Sou o assistente do **SMG | Sou.Manager | Barber**. Como posso te ajudar hoje?\n\nEscolha uma das opções rápidas abaixo ou digite sua dúvida.',
             timestamp: new Date(),
         },
     ]);
@@ -116,7 +116,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                         <span className="material-symbols-outlined text-primary text-xl">smart_toy</span>
                     </div>
                     <div className="flex-1">
-                        <p className="text-white text-sm font-bold">Assistente SOU MANA.GER</p>
+                        <p className="text-white text-sm font-bold">Assistente SMG | Sou.Manager | Barber</p>
                         <p className="text-green-400 text-[10px] font-medium flex items-center gap-1">
                             <span className="size-1.5 rounded-full bg-green-400 inline-block" />
                             Online agora
