@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
@@ -23,10 +24,12 @@ const Payroll: React.FC = () => {
     const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
     // Filtros
-    const [filterMonth, setFilterMonth] = useState(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const [startDate, setStartDate] = useState(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        return start.toISOString().split('T')[0];
     });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [searchName, setSearchName] = useState('');
 
     // Modal de Pagamento
@@ -36,15 +39,13 @@ const Payroll: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId || !filterMonth) return;
+        if (!tenantId || !startDate || !endDate) return;
         setLoading(true);
 
-        const [yearStr, monthStr] = filterMonth.split('-');
-        const year = parseInt(yearStr);
-        const month = parseInt(monthStr);
-
-        const startOfMonth = new Date(year, month - 1, 1).toISOString();
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+        const startOfRange = new Date(startDate);
+        startOfRange.setHours(0, 0, 0, 0);
+        const endOfRange = new Date(endDate);
+        endOfRange.setHours(23, 59, 59, 999);
 
         try {
             // 1. Fetch Staff
@@ -71,8 +72,8 @@ const Payroll: React.FC = () => {
                 `)
                 .eq('tenant_id', tenantId)
                 .eq('comandas.status', 'paid')
-                .gte('comandas.created_at', startOfMonth)
-                .lte('comandas.created_at', endOfMonth);
+                .gte('comandas.created_at', startOfRange)
+                .lte('comandas.created_at', endOfRange);
 
             // 3. Fetch specific payroll payments in transactions 
             const { data: transactionsData } = await supabase
@@ -81,8 +82,8 @@ const Payroll: React.FC = () => {
                 .eq('tenant_id', tenantId)
                 .eq('type', 'expense')
                 .eq('category', 'Pessoal')
-                .gte('date', startOfMonth)
-                .lte('date', endOfMonth);
+                .gte('date', startOfRange)
+                .lte('date', endOfRange);
 
             // Map data
             const records: PayrollRecord[] = staffData.map((staff: any) => {
@@ -139,7 +140,7 @@ const Payroll: React.FC = () => {
         }
 
         setLoading(false);
-    }, [tenantId, filterMonth]);
+    }, [tenantId, startDate, endDate]);
 
     useEffect(() => {
         fetchData();
@@ -236,13 +237,13 @@ const Payroll: React.FC = () => {
 
             {/* Filtros */}
             <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-64">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Mês de Referência</label>
-                    <input
-                        type="month"
-                        value={filterMonth}
-                        onChange={(e) => setFilterMonth(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-4 text-sm focus:ring-1 focus:ring-primary outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                <div className="w-full md:w-80">
+                    <DateRangeFilter
+                        startDate={startDate}
+                        endDate={endDate}
+                        onStartDateChange={setStartDate}
+                        onEndDateChange={setEndDate}
+                        showPresets={true}
                     />
                 </div>
                 <div className="flex-1 relative">

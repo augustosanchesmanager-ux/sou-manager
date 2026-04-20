@@ -3,6 +3,7 @@ import { ArrowDownCircle, ArrowUpCircle, CalendarRange, Wallet } from 'lucide-re
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
 import CashFlowChart from '../components/financial/CashFlowChart';
 import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
@@ -24,17 +25,19 @@ interface TransactionRecord {
 const Cashflow: React.FC = () => {
     const { tenantId } = useAuth();
     const hasTenantContext = Boolean(tenantId);
-    const [filterMonth, setFilterMonth] = useState(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const [startDate, setStartDate] = useState(() => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        return start.toISOString().split('T')[0];
     });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loading, setLoading] = useState(true);
     const [entries, setEntries] = useState<EnrichedCashFlowEntry[]>([]);
     const [selectedEntry, setSelectedEntry] = useState<EnrichedCashFlowEntry | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId || !filterMonth) {
+        if (!tenantId || !startDate || !endDate) {
             setEntries([]);
             setLoading(false);
             return;
@@ -42,19 +45,18 @@ const Cashflow: React.FC = () => {
 
         setLoading(true);
 
-        const [yearStr, monthStr] = filterMonth.split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-        const startOfMonth = new Date(year, month - 1, 1).toISOString();
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+        const startOfRange = new Date(startDate);
+        startOfRange.setHours(0, 0, 0, 0);
+        const endOfRange = new Date(endDate);
+        endOfRange.setHours(23, 59, 59, 999);
 
         try {
             const { data, error } = await supabase
                 .from('transactions')
                 .select('id, type, category, amount, description, payment_method, date, created_at')
                 .eq('tenant_id', tenantId)
-                .gte('date', startOfMonth)
-                .lte('date', endOfMonth)
+                .gte('date', startOfRange.toISOString())
+                .lte('date', endOfRange.toISOString())
                 .order('date', { ascending: true });
 
             if (error) throw error;
@@ -89,7 +91,7 @@ const Cashflow: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterMonth, tenantId]);
+    }, [startDate, endDate, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -157,7 +159,7 @@ const Cashflow: React.FC = () => {
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
         const link = document.createElement('a');
         link.setAttribute('href', encodeURI(csvContent));
-        link.setAttribute('download', `fluxo-caixa-${filterMonth}.csv`);
+        link.setAttribute('download', `fluxo-caixa-${startDate}_ate_${endDate}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -174,16 +176,16 @@ const Cashflow: React.FC = () => {
                     <p className="text-slate-500 mt-1">Leitura real das transacoes financeiras registradas no periodo.</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
-                        <CalendarRange className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="month"
-                            value={filterMonth}
-                            onChange={(event) => setFilterMonth(event.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-end">
+                    <div className="w-72">
+                        <DateRangeFilter
+                            startDate={startDate}
+                            endDate={endDate}
+                            onStartDateChange={setStartDate}
+                            onEndDateChange={setEndDate}
+                            showPresets={true}
                         />
-                    </label>
+                    </div>
                     <Button variant="secondary" leftIcon="download" onClick={handleExport}>
                         Exportar
                     </Button>
