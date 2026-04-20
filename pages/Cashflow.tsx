@@ -178,16 +178,14 @@ const Cashflow: React.FC = () => {
                     <p className="text-slate-500 mt-1">Leitura real das transacoes financeiras registradas no periodo.</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-end">
-                    <div className="w-72">
-                        <DateRangeFilter
-                            startDate={startDate}
-                            endDate={endDate}
-                            onStartDateChange={setStartDate}
-                            onEndDateChange={setEndDate}
-                            showPresets={true}
-                        />
-                    </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <DateRangeFilter
+                        startDate={startDate}
+                        endDate={endDate}
+                        onStartDateChange={setStartDate}
+                        onEndDateChange={setEndDate}
+                        showPresets={true}
+                    />
                     <Button variant="secondary" leftIcon="download" onClick={handleExport}>
                         Exportar
                     </Button>

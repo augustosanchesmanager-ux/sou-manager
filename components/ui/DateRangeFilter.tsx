@@ -110,60 +110,38 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${className}`.trim()}>
+    <div className={`flex flex-wrap items-end gap-2 ${className}`.trim()}>
       {showPresets && (
-        <div>
-          <label className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-            Periodo
-          </label>
-          <select
-            value={activePreset}
-            onChange={(e) => handlePresetClick(e.target.value as DatePreset)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a]"
-          >
-            {(Object.keys(presetLabels) as DatePreset[]).map((preset) => (
-              <option key={preset} value={preset}>
-                {presetLabels[preset]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={activePreset}
+          onChange={(e) => handlePresetClick(e.target.value as DatePreset)}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] max-w-[140px]"
+        >
+          {(Object.keys(presetLabels) as DatePreset[]).map((preset) => (
+            <option key={preset} value={preset}>
+              {presetLabels[preset]}
+            </option>
+          ))}
+        </select>
       )}
 
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <label className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-            De
-          </label>
-          <DatePickerInput
-            value={startDate}
-            onChange={handleStartDateChange}
-            max={endDate}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a]"
-          />
-        </div>
+      <div className="flex items-center gap-1">
+        <DatePickerInput
+          value={startDate}
+          onChange={handleStartDateChange}
+          max={endDate}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] w-28"
+        />
 
-        <span className="mt-5 text-slate-400">→</span>
+        <span className="text-slate-400 text-xs mx-1">ate</span>
 
-        <div className="flex-1">
-          <label className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-            Ate
-          </label>
-          <DatePickerInput
-            value={endDate}
-            onChange={handleEndDateChange}
-            min={startDate}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a]"
-          />
-        </div>
+        <DatePickerInput
+          value={endDate}
+          onChange={handleEndDateChange}
+          min={startDate}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] w-28"
+        />
       </div>
-
-      {(startDate || endDate) && activePreset !== 'custom' && (
-        <div className="text-xs text-slate-500 dark:text-slate-400">
-          <span className="font-bold">{formatDisplayDate(startDate)}</span> ate{' '}
-          <span className="font-bold">{formatDisplayDate(endDate)}</span>
-        </div>
-      )}
     </div>
   );
 };

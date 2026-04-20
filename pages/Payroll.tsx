@@ -63,19 +63,25 @@ const Payroll: React.FC = () => {
                 return;
             }
 
-            // 2. Fetch paid items for the month and use comanda staff only as fallback
-            const { data: commissionItemsData } = await supabase
-                .from('comanda_items')
-                .select(`
-                    staff_id,
-                    quantity,
-                    unit_price,
-                    comandas!inner(created_at, status, staff_id)
-                `)
+            // 2. Fetch paid comandas for the date range
+            const { data: paidComandas } = await supabase
+                .from('comandas')
+                .select('id, created_at, staff_id')
                 .eq('tenant_id', tenantId)
-                .eq('comandas.status', 'paid')
-                .gte('comandas.created_at', startOfRangeStr)
-                .lte('comandas.created_at', endOfRangeStr);
+                .eq('status', 'paid')
+                .gte('created_at', startOfRangeStr)
+                .lte('created_at', endOfRangeStr);
+
+            const paidComandaIds = (paidComandas || []).map((c: any) => c.id);
+            
+            // 3. Fetch items from those comandas
+            const { data: commissionItemsData } = paidComandaIds.length > 0
+                ? await supabase
+                    .from('comanda_items')
+                    .select('id, staff_id, quantity, unit_price, comanda_id')
+                    .in('comanda_id', paidComandaIds)
+                    .eq('tenant_id', tenantId)
+                : { data: [] };
 
             // 3. Fetch specific payroll payments in transactions 
             const { data: transactionsData } = await supabase
@@ -91,10 +97,9 @@ const Payroll: React.FC = () => {
             const records: PayrollRecord[] = staffData.map((staff: any) => {
                 // Calculate commissions
                 let staffCommissions = 0;
-                if (commissionItemsData) {
+                if (commissionItemsData && commissionItemsData.length > 0) {
                     const staffSales = commissionItemsData.filter((item: any) => {
-                        const effectiveStaffId = item.staff_id || item.comandas?.staff_id || null;
-                        return effectiveStaffId === staff.id;
+                        return item.staff_id === staff.id;
                     });
                     const totalSales = staffSales.reduce((acc: number, curr: any) => {
                         const quantity = Number(curr.quantity || 0);

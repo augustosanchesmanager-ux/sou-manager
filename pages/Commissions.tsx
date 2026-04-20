@@ -207,18 +207,15 @@ try {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-80">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Periodo</label>
-                    <DateRangeFilter
-                        startDate={startDate}
-                        endDate={endDate}
-                        onStartDateChange={setStartDate}
-                        onEndDateChange={setEndDate}
-                        showPresets={true}
-                    />
-                </div>
-                <div className="flex-1">
+            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-wrap gap-4 items-end">
+                <DateRangeFilter
+                    startDate={startDate}
+                    endDate={endDate}
+                    onStartDateChange={setStartDate}
+                    onEndDateChange={setEndDate}
+                    showPresets={true}
+                />
+                <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Buscar profissional</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
