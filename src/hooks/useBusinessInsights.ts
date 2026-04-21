@@ -123,7 +123,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       ] = await Promise.all([
         supabase
           .from('transactions')
-          .select('id, amount, date, type, method')
+          .select('id, amount, date, type, payment_method')
           .eq('tenant_id', tenantId)
           .order('date', { ascending: true }),
         supabase
@@ -156,13 +156,13 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
           .eq('status', 'paid'),
       ]);
 
-      const transactions = transactionsRes.data || [];
-      const appointments = appointmentsRes.data || [];
-      const clients = clientsRes.data || [];
-      const staff = staffRes.data || [];
-      const products = productsRes.data || [];
-      const comandaItems = comandaItemsRes.data || [];
-      const comandas = comandasRes.data || [];
+      const transactions = transactionsRes.error ? [] : (transactionsRes.data || []);
+      const appointments = appointmentsRes.error ? [] : (appointmentsRes.data || []);
+      const clients = clientsRes.error ? [] : (clientsRes.data || []);
+      const staff = staffRes.error ? [] : (staffRes.data || []);
+      const products = productsRes.error ? [] : (productsRes.data || []);
+      const comandaItems = comandaItemsRes.error ? [] : (comandaItemsRes.data || []);
+      const comandas = comandasRes.error ? [] : (comandasRes.data || []);
 
       // Funções normais para filtrar (não useMemo dentro de useCallback)
       const filteredTransactions = transactions.filter((t: any) => {
