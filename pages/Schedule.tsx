@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
@@ -134,6 +135,18 @@ const statusColors: Record<string, string> = {
 };
 
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
+
+const CANCELLATION_REASONS = [
+  { id: 'no_show', label: 'Cliente não compareceu', icon: 'person_off' },
+  { id: 'client_request', label: 'A pedido do cliente', icon: 'person_remove' },
+  { id: 'scheduling_conflict', label: 'Conflito de horário', icon: 'schedule' },
+  { id: 'professional_unavailable', label: 'Profissional indisponível', icon: 'event_busy' },
+  { id: 'system_error', label: 'Erro no sistema', icon: 'bug_report' },
+  { id: 'double_booking', label: 'Agendamento duplicado', icon: 'content_copy' },
+  { id: 'client_not_responded', label: 'Cliente não respondeu', icon: ' cancel' },
+  { id: 'payment_issue', label: 'Problema com pagamento', icon: ' payment' },
+  { id: 'other', label: 'Outro motivo', icon: ' edit' },
+];
 
 const isMissingIdempotencyColumnError = (
   error: { code?: string | null; message?: string | null } | null | undefined,
@@ -427,6 +440,12 @@ const Schedule: React.FC = () => {
     appointmentComandaRequestKeyRef.current = generateIdempotencyKey('schedule-comanda');
   };
 
+  // Cancel Modal State
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelModalAppointment, setCancelModalAppointment] = useState<CalendarAppointment | null>(null);
+  const [selectedCancelReason, setSelectedCancelReason] = useState<string>('');
+  const [cancelNotes, setCancelNotes] = useState('');
+
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
     if (!tenantId) {
@@ -564,7 +583,9 @@ const Schedule: React.FC = () => {
         .select('*')
         .eq('tenant_id', tenantId)
         .gte('start_time', rangeStart)
-        .lte('start_time', rangeEnd);
+        .lte('start_time', rangeEnd)
+        .neq('status', 'cancelled')
+        .neq('status', 'no_show');
 
       let appointmentRows = data || [];
 
@@ -1015,17 +1036,32 @@ const Schedule: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
-    if (!tenantId) {
-      setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
+    const appointment = appointments.find(a => a.id === appointmentId);
+    if (!appointment) {
+      setToast({ message: 'Agendamento não encontrado.', type: 'error' });
       return;
     }
+    setCancelModalAppointment(appointment);
+    setSelectedCancelReason('');
+    setCancelNotes('');
+    setIsCancelModalOpen(true);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!selectedCancelReason) {
+      setToast({ message: 'Selecione uma justificativa para o cancelamento.', type: 'error' });
+      return;
+    }
+    if (!cancelModalAppointment || !tenantId) return;
 
     try {
+      const reason = CANCELLATION_REASONS.find(r => r.id === selectedCancelReason)?.label || selectedCancelReason;
+      const notes = cancelNotes.trim() ? `${reason} - ${cancelNotes.trim()}` : reason;
+
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled' })
-        .eq('id', appointmentId)
+        .update({ status: 'cancelled', cancellation_reason: notes })
+        .eq('id', cancelModalAppointment.id)
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -1034,11 +1070,12 @@ const Schedule: React.FC = () => {
       await supabase
         .from('comandas')
         .update({ status: 'cancelled' })
-        .eq('appointment_id', appointmentId)
+        .eq('appointment_id', cancelModalAppointment.id)
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
+      setIsCancelModalOpen(false);
       closeDetailDrawer();
       fetchAppointments();
     } catch (err) {
@@ -1693,9 +1730,14 @@ const Schedule: React.FC = () => {
     if (!window.confirm(`Deseja ${confirmationLabel.toLowerCase()} este agendamento?`)) return;
 
     try {
+      const updateData: Record<string, unknown> = { status: nextStatus };
+      if (nextStatus === 'no_show') {
+        updateData.cancellation_reason = 'Cliente não compareceu';
+      }
+
       const { error: updateError } = await supabase
         .from('appointments')
-        .update({ status: nextStatus })
+        .update(updateData)
         .eq('id', appointment.id)
         .eq('tenant_id', tenantId);
 
@@ -3147,8 +3189,64 @@ Podemos confirmar? 😄`;
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
               <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'no_show', 'Marcado como não compareceu')} className="px-3 py-3 rounded-xl border border-slate-500 text-slate-500 text-sm font-bold">Não Compareceu</button>
               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isCancelModalOpen && cancelModalAppointment && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in pointer-events-auto">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-0" onClick={() => setIsCancelModalOpen(false)}></div>
+          <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10">
+            <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cancelar Agendamento</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{cancelModalAppointment.client}</p>
+              </div>
+              <button onClick={() => setIsCancelModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </header>
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Selecione o motivo do cancelamento:</p>
+              <div className="grid grid-cols-1 gap-2 mb-4">
+                {CANCELLATION_REASONS.map((reason) => (
+                  <button
+                    key={reason.id}
+                    onClick={() => setSelectedCancelReason(reason.id)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                      selectedCancelReason === reason.id
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                        : 'border-slate-200 dark:border-border-dark hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-900/10'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">{reason.icon}</span>
+                    <span className="text-sm font-medium">{reason.label}</span>
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                placeholder="Observações adicionais (opcional)"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-input-dark text-slate-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                rows={3}
+              />
+            </div>
+            <footer className="px-6 py-4 border-t border-slate-200 dark:border-border-dark bg-slate-50/50 dark:bg-white/5 flex items-center justify-end gap-3 shrink-0">
+              <button onClick={() => setIsCancelModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-200/50 dark:hover:bg-white/10 transition-colors">
+                Voltar
+              </button>
+              <button
+                onClick={confirmCancelAppointment}
+                disabled={!selectedCancelReason}
+                className="px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar Cancelamento
+              </button>
+            </footer>
           </div>
         </div>
       )}
