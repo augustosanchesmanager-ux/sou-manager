@@ -213,11 +213,19 @@ const Team: React.FC = () => {
         }
     };
 
+    const tenantName = React.useMemo(() => {
+        return 'Minha Barbearia';
+    }, []);
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-primary">store</span>
+                        <span className="text-xs font-bold text-primary uppercase tracking-wider">{tenantName}</span>
+                    </div>
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">Equipe</h2>
                     <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} membro(s) ativo(s)</p>
                 </div>
