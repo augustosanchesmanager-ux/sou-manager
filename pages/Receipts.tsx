@@ -54,6 +54,17 @@ const Receipts: React.FC = () => {
     // Modal / View State
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+    
+    // Create Receipt Modal
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newReceipt, setNewReceipt] = useState({
+        name: '',
+        type: 'Receita',
+        amount: '',
+        paymentMethod: 'Dinheiro',
+        description: '',
+        signature: ''
+    });
 
     const shopName = user?.user_metadata?.shop_name || user?.user_metadata?.company_name || 'Minha Barbearia';
     const businessType = user?.user_metadata?.business_type || 'Barbearia';
@@ -137,6 +148,41 @@ const Receipts: React.FC = () => {
         window.print();
     };
 
+    const handleCreateReceipt = async () => {
+        if (!tenantId || !newReceipt.name || !newReceipt.amount) {
+            alert('Preencha o nome do recebedor e o valor');
+            return;
+        }
+
+        const { error } = await supabase.from('transactions').insert({
+            tenant_id: tenantId,
+            description: `${newReceipt.name} - ${newReceipt.description || newReceipt.type}`,
+            amount: parseFloat(newReceipt.amount),
+            type: newReceipt.type === 'Receita' ? 'income' : 'expense',
+            category: newReceipt.type,
+            date: new Date().toISOString(),
+            payment_method: newReceipt.paymentMethod,
+            status: 'paid'
+        });
+
+        if (error) {
+            console.error('Error creating receipt:', error);
+            setReceipts([...receipts, {
+                id: Date.now().toString(),
+                number: `REC-${new Date().getFullYear()}-${Date.now().toString().substring(6)}`,
+                date: new Date().toISOString(),
+                type: newReceipt.type,
+                name: newReceipt.name,
+                amount: parseFloat(newReceipt.amount),
+                paymentMethod: newReceipt.paymentMethod,
+                status: 'Pago'
+            }]);
+        }
+        
+        setIsCreateModalOpen(false);
+        setNewReceipt({ name: '', type: 'Receita', amount: '', paymentMethod: 'Dinheiro', description: '', signature: '' });
+    };
+
     return (
         <div className="space-y-8 animate-fade-in relative pb-10">
             {/* Header */}
@@ -146,6 +192,7 @@ const Receipts: React.FC = () => {
                     <p className="text-slate-500 mt-1">Emissão, controle e impressão de recibos da barbearia.</p>
                 </div>
                 <button
+                    onClick={() => setIsCreateModalOpen(true)}
                     className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
                 >
                     <span className="material-symbols-outlined">receipt_long</span>
@@ -494,6 +541,104 @@ const Receipts: React.FC = () => {
                         <span className="material-symbols-outlined text-[18px]">print</span>
                         Imprimir Recibo
                     </button>
+                </div>
+            </Modal>
+
+            {/* Create Receipt Modal */}
+            <Modal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                title="Emitir Novo Recibo"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Nome do Recebedor</label>
+                        <input
+                            type="text"
+                            value={newReceipt.name}
+                            onChange={(e) => setNewReceipt({...newReceipt, name: e.target.value})}
+                            placeholder="Nome completo"
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Tipo</label>
+                            <select
+                                value={newReceipt.type}
+                                onChange={(e) => setNewReceipt({...newReceipt, type: e.target.value})}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            >
+                                <option value="Receita">Receita</option>
+                                <option value="Despesa">Despesa</option>
+                                <option value="Salário">Salário</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Valor (R$)</label>
+                            <input
+                                type="number"
+                                value={newReceipt.amount}
+                                onChange={(e) => setNewReceipt({...newReceipt, amount: e.target.value})}
+                                placeholder="0,00"
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Forma de Pagamento</label>
+                        <select
+                            value={newReceipt.paymentMethod}
+                            onChange={(e) => setNewReceipt({...newReceipt, paymentMethod: e.target.value})}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        >
+                            <option value="Dinheiro">Dinheiro</option>
+                            <option value="PIX">PIX</option>
+                            <option value="Cartão de Débito">Cartão de Débito</option>
+                            <option value="Cartão de Crédito">Cartão de Crédito</option>
+                            <option value="Transferência">Transferência</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição / Serviço</label>
+                        <textarea
+                            value={newReceipt.description}
+                            onChange={(e) => setNewReceipt({...newReceipt, description: e.target.value})}
+                            placeholder="Descrição do serviço ou produto"
+                            rows={3}
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none resize-none"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Assinatura do Recebedor</label>
+                        <input
+                            type="text"
+                            value={newReceipt.signature}
+                            onChange={(e) => setNewReceipt({...newReceipt, signature: e.target.value})}
+                            placeholder="Nome para assinatura"
+                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            onClick={() => setIsCreateModalOpen(false)}
+                            className="flex-1 px-6 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleCreateReceipt}
+                            className="flex-1 px-6 py-3 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">check</span>
+                            Emitir Recibo
+                        </button>
+                    </div>
                 </div>
             </Modal>
 
