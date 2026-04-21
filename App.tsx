@@ -197,6 +197,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
           <Route path="/charts-demo" element={<ManagerRoute><ChartsDemo /></ManagerRoute>} />
+          <Route path="/teste-graficos" element={<ManagerRoute><ChartsDemo /></ManagerRoute>} />
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
