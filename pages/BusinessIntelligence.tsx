@@ -79,13 +79,15 @@ const BusinessIntelligence: React.FC = () => {
         const fetchAll = async () => {
             try {
                 // Expenses by category
-                const { data: expenses } = await supabase
+                const { data: expenses, error: expensesError } = await supabase
                     .from('transactions')
                     .select('category, amount')
                     .eq('tenant_id', tenantId)
                     .eq('type', 'expense');
                 
-                if (expenses) {
+                if (expensesError) {
+                    console.warn('Erro ao carregar despesas:', expensesError.message);
+                } else if (expenses) {
                     const categoryTotals: Record<string, number> = {};
                     expenses.forEach((e: any) => {
                         const cat = e.category || 'Outros';
@@ -150,24 +152,30 @@ const BusinessIntelligence: React.FC = () => {
                     })).sort((a, b) => b.revenue - a.revenue).slice(0, 5));
                 }
                 
-                // Appointment timeline
-                const { data: appts } = await supabase
-                    .from('appointments')
-                    .select('id, status, start_time, client_name, staff_name, service_name, total_price')
-                    .eq('tenant_id', tenantId)
-                    .order('start_time', { ascending: false })
-                    .limit(15);
-                
-                if (appts) {
-                    setAppointmentTimeline(appts.map((a: any) => ({
-                        id: a.id,
-                        date: a.start_time,
-                        professional: a.staff_name || '—',
-                        service: a.service_name || '—',
-                        client: a.client_name || '—',
-                        status: a.status,
-                        value: a.total_price
-                    })));
+                // Appointment timeline - with error handling
+                try {
+                    const { data: appts, error: apptsError } = await supabase
+                        .from('appointments')
+                        .select('id, status, start_time, client_name, staff_name, service_name, total_price')
+                        .eq('tenant_id', tenantId)
+                        .order('start_time', { ascending: false })
+                        .limit(15);
+                    
+                    if (apptsError) {
+                        console.warn('Erro ao carregar appointments:', apptsError.message);
+                    } else if (appts) {
+                        setAppointmentTimeline(appts.map((a: any) => ({
+                            id: a.id,
+                            date: a.start_time,
+                            professional: a.staff_name || '—',
+                            service: a.service_name || '—',
+                            client: a.client_name || '—',
+                            status: a.status,
+                            value: a.total_price
+                        })));
+                    }
+                } catch (err) {
+                    console.warn('Erro ao carregar timeline de agendamentos:', err);
                 }
                 
                 // Staff performance
@@ -223,6 +231,13 @@ const BusinessIntelligence: React.FC = () => {
             </div>
         );
     }
+
+    const tooltipStyle = {
+        backgroundColor: theme === 'dark' ? '#1F1F1F' : '#fff',
+        borderColor: theme === 'dark' ? '#333' : '#e2e8f0',
+        borderRadius: '8px',
+        fontSize: '12px'
+    };
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
