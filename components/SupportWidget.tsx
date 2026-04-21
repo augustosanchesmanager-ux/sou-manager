@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { generateSupportResponse } from '../services/geminiService';
 
 interface Message {
@@ -17,8 +18,15 @@ const QUICK_REPLIES = [
     'Como gerar relatórios?',
 ];
 
+// Atalhos diretos para páginas rápidas
+const FAST_ACTIONS = [
+    { label: '📋 Fechar Comandas', path: '/comandas', icon: 'receipt_long' },
+    { label: '👑 Clube dos Chefes', path: '/chef-club-plans', icon: 'workspace_premium' },
+];
+
 
 const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav = false }) => {
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -151,6 +159,26 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                     )}
 
                     <div ref={messagesEndRef} />
+                </div>
+
+                {/* Fast Actions - Atalhos Rápidos */}
+                <div className="bg-[#12100E] px-4 pt-3 pb-1">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2 font-bold">Acesso Rápido</p>
+                    <div className="flex gap-2">
+                        {FAST_ACTIONS.map(action => (
+                            <button
+                                key={action.path}
+                                onClick={() => {
+                                    navigate(action.path);
+                                    setIsOpen(false);
+                                }}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 border border-primary/30 text-primary text-xs font-bold hover:bg-primary/20 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-sm">{action.icon}</span>
+                                {action.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Quick Replies */}

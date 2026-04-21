@@ -54,20 +54,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   // Menu Definition structure
   const menuCategories: MenuCategory[] = [
     {
-      title: 'DASHBOARD',
+      title: 'INÍCIO',
       icon: 'dashboard',
       compact: true,
       items: [
-        { name: 'Inicio', icon: 'dashboard', path: '/dashboard' }
+        { name: 'Início', icon: 'dashboard', path: '/dashboard' }
       ]
     },
     {
-      title: 'NEGÓCIO',
+      title: 'NEGÓCIOS',
       icon: 'business_center',
       items: [
         { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard' },
-        { name: 'Visão de Negócio', icon: 'query_stats', path: '/bi' },
-        { name: 'Relatórios', icon: 'summarize', path: '/reports' }
+        { name: 'Visão do Negócio', icon: 'query_stats', path: '/bi' },
+        { name: 'Relatórios', icon: 'summarize', path: '/reports' },
+        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return' },
+        {
+          name: 'Clube dos Chefes',
+          icon: 'workspace_premium',
+          children: [
+            { name: 'Planos', path: '/chef-club-plans' },
+            { name: 'Assinaturas', path: '/chef-club-subscriptions' },
+          ]
+        }
       ]
     },
     {
@@ -78,40 +87,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { name: 'Clientes', icon: 'group', path: '/clients' },
         { name: 'Comandas', icon: 'receipt', path: '/comandas' },
         { name: 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv' },
-        { name: 'Operações do Dia', icon: 'assignment', path: '/operations' },
-      ]
-    },
-    {
-      title: 'CRESCIMENTO',
-      icon: 'trending_up',
-      items: [
-        { name: 'Motor de Retorno 🧠', icon: 'psychology', path: '/smart-return' },
-        {
-          name: 'Clube do Chefe 👑',
-          icon: 'workspace_premium',
-          children: [
-            { name: 'Planos', path: '/chef-club-plans' },
-            { name: 'Assinaturas', path: '/chef-club-subscriptions' },
-          ]
-        }
+        { name: 'Operações Diárias', icon: 'assignment', path: '/operations' },
       ]
     },
     {
       title: 'ADMINISTRAÇÃO',
       icon: 'admin_panel_settings',
       items: [
-        {
-          name: 'Cadastros',
-          icon: 'folder_open',
-          children: [
-            { name: 'Monitoramento Supabase', path: '/admin/supabase-monitoring' },
-            { name: 'Serviços', path: '/services' },
-            { name: 'Produtos', path: '/products' },
-            { name: 'Profissionais', path: '/team' },
-            { name: 'Categorias', path: '/categories' },
-            { name: 'Fornecedores', path: '/suppliers' },
-          ]
-        }
+        { name: 'Serviços', icon: 'content_cut', path: '/services' },
+        { name: 'Produtos', icon: 'inventory_2', path: '/products' },
+        { name: 'Profissionais', icon: 'groups', path: '/team' },
+        { name: 'Categorias', icon: 'category', path: '/categories' },
+        { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers' },
       ]
     },
     {
@@ -121,7 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { name: 'Visão Geral', icon: 'account_balance_wallet', path: '/financial' },
         { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow' },
         { name: 'Folha de Pagamento', icon: 'payments', path: '/payroll' },
-        { name: 'Gestão de Saídas', icon: 'money_off', path: '/expenses' },
+        { name: 'Gestão de Despesas', icon: 'money_off', path: '/expenses' },
         { name: 'Gestão de Recibos', icon: 'receipt_long', path: '/receipts' },
         { name: 'Comissões', icon: 'percent', path: '/commissions' },
       ]
@@ -250,7 +237,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       title: 'MASTER',
       icon: 'shield_person',
       items: [
-        { name: 'Administracao Geral', icon: 'shield_person', path: '/superadmin' },
+        { name: 'Administração Geral', icon: 'shield_person', path: '/superadmin' },
+        { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
       ]
     });
   }

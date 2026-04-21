@@ -4,6 +4,7 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import RecurringBillsWidget from '../components/RecurringBillsWidget';
 
 interface Expense {
     id: string;
@@ -207,6 +208,9 @@ const Expenses: React.FC = () => {
                     + NOVA SAÍDA
                 </button>
             </div>
+
+            {/* Contas a Pagar - Seção Expansível */}
+            <RecurringBillsWidget />
 
             {/* KPI summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

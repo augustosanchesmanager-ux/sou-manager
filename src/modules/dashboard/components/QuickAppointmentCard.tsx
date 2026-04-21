@@ -103,7 +103,7 @@ export const QuickAppointmentCard: React.FC<QuickAppointmentCardProps> = ({
               ))
             ) : (
               <div className="px-3 py-3 text-center">
-                <p className="text-xs text-slate-500 mb-2">Cliente nao encontrado.</p>
+                <p className="text-xs text-slate-500 mb-2">Cliente não encontrado.</p>
                 <button
                   type="button"
                   onClick={() => {

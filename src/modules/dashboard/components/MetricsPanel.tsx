@@ -15,10 +15,10 @@ interface DashboardMetric {
 }
 
 const DEFAULT_METRICS: DashboardMetric[] = [
-  { id: 'm1', type: 'revenue', label: 'Faturamento do Mes', icon: 'payments', color: 'emerald', goal: 10000, unit: 'currency', visible: true },
+  { id: 'm1', type: 'revenue', label: 'Faturamento do Mês', icon: 'payments', color: 'emerald', goal: 10000, unit: 'currency', visible: true },
   { id: 'm2', type: 'clients', label: 'Total de Clientes', icon: 'group', color: 'blue', goal: 200, unit: 'number', visible: true },
   { id: 'm3', type: 'appointments', label: 'Agendamentos Hoje', icon: 'calendar_month', color: 'primary', goal: 20, unit: 'number', visible: true },
-  { id: 'm4', type: 'avg_ticket', label: 'Ticket Medio', icon: 'receipt_long', color: 'amber', goal: 80, unit: 'currency', visible: true },
+  { id: 'm4', type: 'avg_ticket', label: 'Ticket Médio', icon: 'receipt_long', color: 'amber', goal: 80, unit: 'currency', visible: true },
   { id: 'm5', type: 'growth', label: 'Crescimento Mensal', icon: 'trending_up', color: 'violet', goal: 20, unit: 'percent', visible: false },
   { id: 'm6', type: 'retention', label: 'Taxa de Retorno', icon: 'psychology', color: 'red', goal: 70, unit: 'percent', visible: false },
   { id: 'm7', type: 'team', label: 'Equipe Ativa', icon: 'badge', color: 'indigo', goal: 100, unit: 'percent', visible: false },

@@ -9,16 +9,16 @@ export const UpcomingBirthdaysCard: React.FC<{
     <div className="flex justify-between items-center mb-6">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-pink-500">cake</span>
-        <h3 className="font-bold text-slate-900 dark:text-white">Aniversariantes Proximos</h3>
+        <h3 className="font-bold text-slate-900 dark:text-white">Aniversariantes Próximos</h3>
       </div>
       <button onClick={onNavigateClients} className="text-pink-500 text-xs font-bold uppercase tracking-wider hover:text-pink-600 dark:hover:text-pink-400 transition-colors">
-        Ver Mes
+        Ver Mês
       </button>
     </div>
 
     <div className="space-y-4">
       {upcomingBirthdays.length === 0 ? (
-        <p className="text-sm text-slate-500 text-center py-4">Nenhum aniversariante proximo.</p>
+        <p className="text-sm text-slate-500 text-center py-4">Nenhum aniversariante próximo.</p>
       ) : (
         upcomingBirthdays.map((person, index) => (
           <div key={`${person.id}-${index}`} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
