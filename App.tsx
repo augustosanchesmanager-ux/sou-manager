@@ -53,6 +53,7 @@ import PortalAdmin from './pages/portal/PortalAdmin';
 import ChefClubPlans from './pages/ChefClubPlans';
 import ChefClubSubscriptions from './pages/ChefClubSubscriptions';
 import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
+import ChartsDemo from './pages/ChartsDemo';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -195,6 +196,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
+          <Route path="/charts-demo" element={<ManagerRoute><ChartsDemo /></ManagerRoute>} />
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />

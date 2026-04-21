@@ -2,3 +2,6 @@ export { CHART_GRADIENTS, METALLIC_COLORS, METALLIC_TOOLTIP_STYLE, FormatTooltip
 export { RevenueAreaChart } from './RevenueAreaChart';
 export { MetallicBarsChart } from './MetallicBarsChart';
 export { TrendLineChart } from './TrendLineChart';
+export { ModernGaugeChart } from './ModernGaugeChart';
+export { ProgressRings, SingleProgressRing } from './ProgressRings';
+export { ModernDonutChart, DonutLegend } from './ModernDonutChart';
