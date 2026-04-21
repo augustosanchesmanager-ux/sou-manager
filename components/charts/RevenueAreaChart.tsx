@@ -27,6 +27,14 @@ export const RevenueAreaChart: React.FC<RevenueChartProps> = ({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   
+  if (!data || data.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm" style={{ minHeight: height }}>
+        Sem dados para exibir
+      </div>
+    );
+  }
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>

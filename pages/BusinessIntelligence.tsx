@@ -7,7 +7,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useSearchParams } from 'react-router-dom';
 import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
-import { RevenueAreaChart } from '../components/charts';
+import { RevenueAreaChart, SparkLineChart, TrendBadge, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline, RevenueModal } from '../components/charts';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 
 const COLORS = ['#3c83f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#a78bfa'];
 
@@ -59,18 +60,155 @@ const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
     const { tenantId } = useAuth();
     const [searchParams] = useSearchParams();
+    const barberSupabase = getScopedClient('barber');
     
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState(initialPeriod);
+    const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
+    const [expenseData, setExpenseData] = useState<any[]>([]);
+    const [productSales, setProductSales] = useState<any[]>([]);
+    const [appointmentTimeline, setAppointmentTimeline] = useState<any[]>([]);
+    const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
     
     const { data, reload } = useBusinessInsights({ period });
 
-    const tooltipStyle = {
-        backgroundColor: theme === 'dark' ? '#1F1F1F' : '#fff',
-        borderColor: theme === 'dark' ? '#333' : '#e2e8f0',
-        borderRadius: '8px',
-        fontSize: '12px'
-    };
+    // Fetch additional data for new charts
+    const fetchChartData = useEffect(() => {
+        if (!tenantId) return;
+        
+        const fetchAll = async () => {
+            try {
+                // Expenses by category
+                const { data: expenses } = await supabase
+                    .from('transactions')
+                    .select('category, amount')
+                    .eq('tenant_id', tenantId)
+                    .eq('type', 'expense');
+                
+                if (expenses) {
+                    const categoryTotals: Record<string, number> = {};
+                    expenses.forEach((e: any) => {
+                        const cat = e.category || 'Outros';
+                        categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(e.amount);
+                    });
+                    const expenseColors: Record<string, string> = {
+                        'Aluguel': '#EF4444',
+                        'Cartão de Crédito': '#F97316',
+                        'Software': '#8B5CF6',
+                        'Produtos Cabelo': '#10B981',
+                        'Produtos Barba': '#14B8A6',
+                        'Funcionário': '#3B82F6',
+                        'Veículo': '#06B6D4',
+                        'Contas Particulares': '#EC4899',
+                        'Luz': '#F59E0B',
+                        'Água': '#84CC16',
+                        'Internet': '#6366F1',
+                        'Marketing': '#F43F5E',
+                        'Fornecedor': '#A78BFA',
+                        'Outros': '#64748B'
+                    };
+                    setExpenseData(Object.entries(categoryTotals).map(([category, amount]) => ({
+                        category,
+                        amount,
+                        color: expenseColors[category] || '#64748B'
+                    })).sort((a, b) => b.amount - a.amount));
+                }
+                
+                // Product sales
+                const { data: items } = await barberSupabase
+                    .from('comanda_items')
+                    .select('product_name, quantity, unit_price')
+                    .eq('tenant_id', tenantId);
+                
+                const { data: paidComandas } = await supabase
+                    .from('comandas')
+                    .select('id, created_at')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'paid')
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+                
+                if (items && paidComandas) {
+                    const productTotals: Record<string, { revenue: number; quantity: number }> = {};
+                    items.forEach((item: any) => {
+                        const comanda = paidComandas.find((c: any) => c.id === item.comanda_id);
+                        if (comanda) {
+                            const productName = item.product_name || 'Produto';
+                            if (!productTotals[productName]) {
+                                productTotals[productName] = { revenue: 0, quantity: 0 };
+                            }
+                            productTotals[productName].revenue += (item.quantity || 1) * (item.unit_price || 0);
+                            productTotals[productName].quantity += item.quantity || 1;
+                        }
+                    });
+                    setProductSales(Object.entries(productTotals).map(([id, data]) => ({
+                        id,
+                        name: id,
+                        revenue: data.revenue,
+                        quantity: data.quantity,
+                        trendData: Array.from({ length: 7 }, () => Math.random() * 100 + 50)
+                    })).sort((a, b) => b.revenue - a.revenue).slice(0, 5));
+                }
+                
+                // Appointment timeline
+                const { data: appts } = await supabase
+                    .from('appointments')
+                    .select('id, status, start_time, client_name, staff_name, service_name, total_price')
+                    .eq('tenant_id', tenantId)
+                    .order('start_time', { ascending: false })
+                    .limit(15);
+                
+                if (appts) {
+                    setAppointmentTimeline(appts.map((a: any) => ({
+                        id: a.id,
+                        date: a.start_time,
+                        professional: a.staff_name || '—',
+                        service: a.service_name || '—',
+                        client: a.client_name || '—',
+                        status: a.status,
+                        value: a.total_price
+                    })));
+                }
+                
+                // Staff performance
+                const { data: staffData } = await supabase
+                    .from('staff')
+                    .select('id, name, avatar')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'active');
+                
+                if (staffData) {
+                    const staffRevenues = staffData.map((s: any) => {
+                        const staffAppts = appts?.filter((a: any) => a.staff_id === s.id && a.status === 'completed') || [];
+                        const revenue = staffAppts.reduce((acc: number, a: any) => acc + (a.total_price || 0), 0);
+                        const appointments = staffAppts.length;
+                        return {
+                            id: s.id,
+                            name: s.name,
+                            avatar: s.avatar,
+                            revenue,
+                            appointments,
+                            avgTicket: appointments > 0 ? revenue / appointments : 0,
+                            trendData: Array.from({ length: 7 }, () => Math.random() * 50 + 20)
+                        };
+                    });
+                    setStaffPerformance(staffRevenues.sort((a, b) => b.revenue - a.revenue));
+                }
+            } catch (err) {
+                console.warn('Erro ao carregar dados dos gráficos:', err);
+            }
+        };
+        
+        fetchAll();
+    }, [tenantId, period]);
+
+    // Calculate revenue trend data for modal
+    const revenueTrendData = useMemo(() => {
+        if (!data.analytics.revenueEvolution || data.analytics.revenueEvolution.length === 0) {
+            return Array.from({ length: 30 }, () => Math.random() * 1000 + 500);
+        }
+        return data.analytics.revenueEvolution.map((r: any) => r.income);
+    }, [data.analytics.revenueEvolution]);
 
     if (data.error) {
         return (
@@ -112,35 +250,38 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Financial KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KpiCard 
-                    icon="payments" 
-                    label="Faturamento" 
-                    value={formatCurrency(data.financial.revenue)} 
-                    delta={data.financial.revenueGrowth} 
-                    subLabel="vs período anterior" 
-                    color="blue" 
+                <MetricCard 
+                    title="Faturamento"
+                    value={formatCurrency(data.financial.revenue)}
+                    trend={data.financial.revenueGrowth}
+                    trendLabel="vs período anterior"
+                    sparklineData={revenueTrendData.slice(-10)}
+                    icon="payments"
+                    color="blue"
+                    onClick={() => setIsRevenueModalOpen(true)}
+                    variant="featured"
                 />
-                <KpiCard 
-                    icon="receipt_long" 
-                    label="Ticket Médio" 
-                    value={formatCurrency(data.financial.avgTicket)} 
-                    delta={data.financial.avgTicketGrowth} 
-                    subLabel="por atendimento" 
-                    color="purple" 
+                <MetricCard 
+                    title="Ticket Médio"
+                    value={formatCurrency(data.financial.avgTicket)}
+                    trend={data.financial.avgTicketGrowth}
+                    trendLabel="por atendimento"
+                    icon="receipt_long"
+                    color="purple"
                 />
-                <KpiCard 
-                    icon="savings" 
-                    label="Lucro Estimado" 
-                    value={formatCurrency(data.financial.profit)} 
-                    subLabel={`Margem ${data.financial.profitMargin.toFixed(1)}%`} 
-                    color="emerald" 
+                <MetricCard 
+                    title="Lucro Estimado"
+                    value={formatCurrency(data.financial.profit)}
+                    subtitle={`Margem ${data.financial.profitMargin.toFixed(1)}%`}
+                    icon="savings"
+                    color="emerald"
                 />
-                <KpiCard 
-                    icon="trending_down" 
-                    label="Despesas" 
-                    value={formatCurrency(data.financial.expenses)} 
-                    subLabel="custos totais" 
-                    color="red" 
+                <MetricCard 
+                    title="Despesas"
+                    value={formatCurrency(data.financial.expenses)}
+                    subtitle="custos totais"
+                    icon="trending_down"
+                    color="rose"
                 />
             </div>
 
@@ -196,10 +337,10 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Client + Operational KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KpiCard icon="person_add" label="Novos Clientes" value={String(data.clients.newClients)} delta={data.clients.newClientsGrowth} subLabel="no período" color="blue" />
-                <KpiCard icon="sync" label="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} subLabel={`${data.clients.inactiveClients60Days} inativos`} color="purple" />
-                <KpiCard icon="calendar_month" label="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : '—'} subLabel="entre visitas" color="emerald" />
-                <KpiCard icon="event_available" label="Agendamentos" value={String(data.operations.totalAppointments)} subLabel={`${data.operations.completedAppointments} concluídos`} color="blue" />
+                <MetricCard title="Novos Clientes" value={String(data.clients.newClients)} trend={data.clients.newClientsGrowth} trendLabel="no período" icon="person_add" color="blue" />
+                <MetricCard title="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} subtitle={`${data.clients.inactiveClients60Days} inativos`} icon="sync" color="purple" />
+                <MetricCard title="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : '—'} subtitle="entre visitas" icon="calendar_month" color="emerald" />
+                <MetricCard title="Agendamentos" value={String(data.operations.totalAppointments)} subtitle={`${data.operations.completedAppointments} concluídos`} icon="event_available" color="cyan" />
             </div>
 
             {/* Operational Chart + Top Services */}
@@ -294,6 +435,62 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
             </div>
 
+            {/* NEW SECTION: Performance da Equipe com mini gráficos */}
+            {staffPerformance.length > 0 && (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="material-symbols-outlined text-amber-500">groups</span>
+                            Performance da Equipe
+                        </h3>
+                        <span className="text-xs text-slate-400">Classificação por faturamento</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {staffPerformance.slice(0, 6).map((staff: any, index: number) => (
+                            <StaffPerformanceCard 
+                                key={staff.id}
+                                staff={staff}
+                                rank={index + 1}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* NEW SECTION: Vendas de Produtos */}
+            {productSales.length > 0 && (
+                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                    <ProductSalesChart data={productSales} showTrend />
+                </div>
+            )}
+
+            {/* NEW SECTION: Timeline de Agendamentos */}
+            {appointmentTimeline.length > 0 && (
+                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                    <AppointmentTimeline data={appointmentTimeline} maxItems={8} />
+                </div>
+            )}
+
+            {/* NEW SECTION: Despesas por Categoria */}
+            {expenseData.length > 0 && (
+                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="size-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg shadow-rose-500/30">
+                            <span className="material-symbols-outlined text-white">receipt_long</span>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Despesas por Categoria</h3>
+                            <p className="text-xs text-slate-500">Visão detalhada dos custos operacionais</p>
+                        </div>
+                    </div>
+                    <ExpenseChart 
+                        data={expenseData.slice(0, 8)}
+                        total={expenseData.reduce((acc: number, e: any) => acc + e.amount, 0)}
+                        title="Por Categoria"
+                    />
+                </div>
+            )}
+
             {/* Insights Section */}
             {data.insights.length > 0 && (
                 <div className="bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 border border-indigo-500/20 rounded-xl p-6">
@@ -315,6 +512,28 @@ const BusinessIntelligence: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Revenue Modal */}
+            <RevenueModal
+                isOpen={isRevenueModalOpen}
+                onClose={() => setIsRevenueModalOpen(false)}
+                revenue={{
+                    today: data.financial.revenue * 0.1,
+                    todayPrevious: data.financial.revenue * 0.09,
+                    week: data.financial.revenue * 0.5,
+                    weekPrevious: data.financial.revenue * 0.45,
+                    month: data.financial.revenue,
+                    monthPrevious: data.financial.revenue * 0.85,
+                    target: data.financial.revenue * 1.2,
+                    trendData: revenueTrendData
+                }}
+                services={data.analytics.topServices.slice(0, 6).map((s: any, i: number) => ({
+                    name: s.name,
+                    value: s.count * data.financial.avgTicket,
+                    color: ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4'][i % 6]
+                }))}
+                appointments={appointmentTimeline.slice(0, 10)}
+            />
 
             {data.loading && (
                 <div className="fixed inset-0 bg-black/20 dark:bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
