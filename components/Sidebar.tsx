@@ -506,7 +506,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                  ? 'bg-amber-100 dark:bg-amber-500/10 border-amber-300 dark:border-[#C6A45A] text-amber-600'
                  : 'bg-primary/10 border-primary/30 text-primary dark:text-[#C6A45A]'}
               `}
-              style={{ backgroundImage: user?.user_metadata?.avatar ? `url(${user.user_metadata.avatar})` : 'none' }}>
+              style={{ backgroundImage: user?.user_metadata?.avatar ? `url(${user?.user_metadata?.avatar})` : 'none' }}>
               {!user?.user_metadata?.avatar && (
                 <span className="material-symbols-outlined text-xl">
                   {canAccessSuperAdmin ? 'workspace_premium' : 'person'}
@@ -517,7 +517,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               <>
                 <div className="flex flex-col text-left truncate flex-1 leading-tight">
                   <p className="text-sm font-bold text-slate-900 dark:text-[#F5F5F5] truncate display-font">
-                    {user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` : 'Utilizador'}
+                    {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name || ''}` : 'Utilizador'}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-[#A7AFB7] truncate font-medium mt-0.5">
                     {user?.email || 'usuario@email.com'}

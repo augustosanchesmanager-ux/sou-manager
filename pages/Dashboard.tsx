@@ -26,7 +26,7 @@ type CompareOption = 'yesterday' | 'week_ago' | 'month_ago';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useAuth() || {};
   const { data, loading, error, reload } = useDashboardData();
   const { createClient, createQuickAppointment, completeAppointment, cancelAppointment, busyState } = useDashboardActions();
 

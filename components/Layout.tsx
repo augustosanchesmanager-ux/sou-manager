@@ -16,7 +16,7 @@ const Layout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const { user } = useAuth();
+  const { user } = useAuth() || {};
 
   const fetchUnreadCount = async () => {
     if (!user) return;

@@ -31,7 +31,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   compare,
   onCompareChange,
 }) => {
-  const { user } = useAuth();
+  const { user } = useAuth() || {};
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
 
