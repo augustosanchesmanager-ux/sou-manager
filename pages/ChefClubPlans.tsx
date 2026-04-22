@@ -57,7 +57,7 @@ const getFriendlySaveErrorMessage = (error: SupabaseLikeError) => {
     const raw = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
 
     if (raw.includes('service_credit_map') || raw.includes('schema cache')) {
-        return 'O banco ainda nao reconheceu a nova coluna de creditos por servico. Rode um reload de schema no Supabase e tente novamente.';
+        return 'O banco ainda não reconheceu a nova coluna de créditos por serviço. Rode um reload de schema no Supabase e tente novamente.';
     }
 
     return `Erro ao salvar plano: ${error.message}`;
@@ -292,6 +292,24 @@ const ChefClubPlans: React.FC = () => {
         }
     };
 
+    const handleDelete = async (plan: Plan) => {
+        if (!confirm(`Tem certeza que deseja excluir o plano "${plan.name}"? Esta ação não pode ser desfeita.`)) return;
+        if (!tenantId) return;
+
+        const { error } = await barberSupabase
+            .from('customer_plans')
+            .delete()
+            .eq('id', plan.id)
+            .eq('tenant_id', tenantId);
+
+        if (error) {
+            setToast({ message: `Erro ao excluir plano: ${error.message}`, type: 'error' });
+        } else {
+            setToast({ message: 'Plano excluído com sucesso.', type: 'info' });
+            setPlans((current) => current.filter((p) => p.id !== plan.id));
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -333,6 +351,9 @@ const ChefClubPlans: React.FC = () => {
                                         </button>
                                         <button onClick={() => toggleStatus(plan)} className={`p-2 transition-colors ${plan.active ? 'text-red-400 hover:text-red-600' : 'text-emerald-400 hover:text-emerald-600'}`}>
                                             <span className="material-symbols-outlined text-lg">{plan.active ? 'visibility_off' : 'visibility'}</span>
+                                        </button>
+                                        <button onClick={() => handleDelete(plan)} className="p-2 text-rose-500 hover:text-rose-600 transition-colors" title="Excluir plano">
+                                            <span className="material-symbols-outlined text-lg">delete</span>
                                         </button>
                                     </div>
                                 </div>
@@ -528,7 +549,7 @@ const ChefClubPlans: React.FC = () => {
                                 onChange={(e) => setForm((current) => ({ ...current, max_rollover_credits: Number(e.target.value) }))}
                                 title="Acumulo Maximo"
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white"
-                                placeholder="0 = nao acumula"
+                                placeholder="0 = não acumula"
                             />
                         </div>
                     </div>
