@@ -132,7 +132,7 @@ const SuperAdmin: React.FC = () => {
     setLastUpdatedAt(new Date().toISOString());
     if (failedSources > 0) {
       setToast({
-        message: `${failedSources} consultas nao puderam ser carregadas. O painel exibiu apenas os blocos disponiveis.`,
+        message: `${failedSources} consultas não puderam ser carregadas. O painel exibiu apenas os blocos disponíveis.`,
         type: 'info',
       });
     }
@@ -177,9 +177,9 @@ const SuperAdmin: React.FC = () => {
       id: plan.id,
       company: tenant?.name || 'Sem tenant',
       owner: profile?.full_name || 'Usuario sem nome',
-      plan: plan.requested_plan || plan.current_plan || 'Plano nao informado',
+      plan: plan.requested_plan || plan.current_plan || 'Plano não informado',
       value: 0,
-      paymentMethod: 'Nao informado',
+      paymentMethod: 'Não informado',
       status: mapPlanStatus(plan.status),
       requestDate: plan.created_at,
       dueDate: plan.created_at,

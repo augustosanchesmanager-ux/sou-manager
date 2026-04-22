@@ -186,7 +186,7 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
               onClick={() => setShowStaffDropdown(!showStaffDropdown)}
               className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-left text-sm text-slate-900 dark:text-white flex items-center justify-between"
             >
-              {selectedStaff?.full_name || 'Selecionar...'}
+              {selectedStaff?.name || 'Selecionar...'}
               <span className="material-symbols-outlined text-sm">expand_more</span>
             </button>
             {showStaffDropdown && (
@@ -201,7 +201,7 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
                     }}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
-                    {staff.full_name}
+                    {staff.name}
                   </button>
                 ))}
               </div>

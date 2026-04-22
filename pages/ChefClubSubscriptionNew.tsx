@@ -446,7 +446,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
                                         </div>
                                     )) : (
                                         <div className="rounded-xl border border-dashed border-slate-300 dark:border-white/10 p-4 text-sm text-slate-500 text-center">
-                                            Este plano ainda nao possui creditos por servico configurados.
+                                            Este plano ainda não possui créditos por serviço configurados.
                                         </div>
                                     )}
                                 </div>

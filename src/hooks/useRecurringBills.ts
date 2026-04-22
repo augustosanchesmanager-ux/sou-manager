@@ -62,28 +62,32 @@ export const useRecurringBills = () => {
     try {
       const { data, error: fetchError } = await supabase
         .from('transactions')
-        .select('*')
-        .eq('type', 'recurring')
+        .select('id, description, amount, date, category, status, notes')
         .eq('tenant_id', tenantId)
-        .order('due_day');
+        .eq('type', 'expense')
+        .order('date', { ascending: false })
+        .limit(50);
 
-      if (fetchError) throw fetchError;
-
-      const mappedBills = (data || []).map((item: any) => ({
-        id: item.id,
-        name: item.description,
-        amount: Number(item.amount),
-        due_day: item.due_day || new Date(item.date).getDate(),
-        category: item.category,
-        is_active: item.status !== 'cancelled',
-        notes: item.notes,
-        last_generated: item.last_generated,
-      }));
-
-      setBills(mappedBills);
+      if (fetchError) {
+        console.warn('Erro ao carregar bills:', fetchError.message);
+        setBills([]);
+      } else {
+        const mappedBills = (data || []).map((item: any) => ({
+          id: item.id,
+          name: item.description,
+          amount: Number(item.amount),
+          due_day: item.due_day || (item.date ? new Date(item.date).getDate() : 5),
+          category: item.category || 'outros',
+          is_active: item.status !== 'cancelled' && item.status !== 'Pago',
+          notes: item.notes,
+          last_generated: null,
+        }));
+        setBills(mappedBills);
+      }
     } catch (err: any) {
-      console.error('Error fetching recurring bills:', err);
+      console.warn('Erro ao carregar bills:', err);
       setError(err.message);
+      setBills([]);
     } finally {
       setLoading(false);
     }

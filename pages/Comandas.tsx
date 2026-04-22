@@ -104,7 +104,7 @@ type ComandasPreferences = {
 const CANCEL_REASON_OTHER = '__other__';
 const CANCEL_REASON_OPTIONS = [
     'Cliente desistiu',
-    'Cliente nao compareceu',
+    'Cliente não compareceu',
     'Erro no lancamento',
     'Pagamento recusado',
     'Solicitacao do profissional',
@@ -968,7 +968,7 @@ setBulkClosing(true);
                 error = fallbackResult.error;
                 if (!error) {
                     usedFallback = true;
-                    setToast({ message: 'Comanda cancelada, mas o motivo nao foi salvo no banco atual.', type: 'info' });
+                    setToast({ message: 'Comanda cancelada, mas o motivo não foi salvo no banco atual.', type: 'info' });
                 }
             }
 
@@ -1042,8 +1042,8 @@ setBulkClosing(true);
 
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
                 <KpiCard title="Comandas abertas" helper="Fila operacional em aberto" value={loading ? '...' : String(openCount).padStart(2, '0')} icon="schedule" accentClassName="bg-amber-400" />
-                <KpiCard title="Finalizadas hoje" helper="Fechamentos concluido no dia" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} icon="task_alt" accentClassName="bg-emerald-400" />
-                <KpiCard title="Total em aberto" helper="Valor pendente de cobranca" value={loading ? '...' : formatCurrency(totalOpen)} icon="payments" accentClassName="bg-sky-400" />
+                <KpiCard title="Finalizadas hoje" helper="Fechamentos concluídos no dia" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} icon="task_alt" accentClassName="bg-emerald-400" />
+                <KpiCard title="Total em aberto" helper="Valor pendente de cobrança" value={loading ? '...' : formatCurrency(totalOpen)} icon="payments" accentClassName="bg-sky-400" />
                 <KpiCard title="Ticket medio" helper="Media da visao atual" value={loading ? '...' : formatCurrency(avgTicket)} icon="monitoring" accentClassName="bg-fuchsia-400" />
             </section>
 
@@ -1474,7 +1474,7 @@ setBulkClosing(true);
                                                     <p className="text-sm font-black text-slate-950 dark:text-white">{formatCurrency(item.unit_price * item.quantity)}</p>
                                                 </div>
                                             )) : (
-                                                <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">Esta comanda ainda nao possui itens lancados.</div>
+                                                <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">Esta comanda ainda não possui itens lançados.</div>
                                             )}
                                         </div>
                                     </div>
@@ -1486,7 +1486,7 @@ setBulkClosing(true);
                                                 <p className="mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white">{formatCurrency(selectedComanda.total)}</p>
                                             </div>
                                             <span className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 dark:border-white/10 dark:text-slate-400">
-                                                {selectedComanda.status === 'open' ? 'Aguardando fechamento' : 'Fluxo concluido'}
+                                                {selectedComanda.status === 'open' ? 'Aguardando fechamento' : 'Fluxo concluído'}
                                             </span>
                                         </div>
                                     </div>

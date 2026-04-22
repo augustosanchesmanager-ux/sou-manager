@@ -32,9 +32,31 @@ Deno.serve(async (req: Request) => {
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            { auth: { persistSession: false } }
         );
         const token = authHeader.slice('Bearer '.length).trim();
-        const { data: { user: callerUser }, error: authError } = await supabaseClient.auth.getUser(token);
+        
+        let callerUser = null;
+        let authError = null;
+        
+        // Try getUser first (works with most JWT formats)
+        try {
+            const result = await supabaseClient.auth.getUser(token);
+            callerUser = result.data?.user;
+            authError = result.error;
+        } catch (e) {
+            // If getUser fails, try session verification
+            try {
+                const sessionResult = await supabaseClient.auth.getSession();
+                if (sessionResult.data?.session?.access_token === token) {
+                    callerUser = sessionResult.data.session.user;
+                    authError = null;
+                }
+            } catch {
+                authError = e;
+            }
+        }
+        
         if (authError || !callerUser) {
             console.error('Caller auth error:', authError);
             return new Response(JSON.stringify({ error: 'Unauthorized: invalid token' }), {

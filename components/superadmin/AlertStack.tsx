@@ -42,7 +42,7 @@ const AlertStack: React.FC<AlertStackProps> = ({ items, onOpenAlert }) => (
       <div className="mt-5">
         <EmptyState
           title="Nenhum alerta aberto"
-          description="Nao ha riscos ativos para os filtros atuais ou o ambiente ainda nao gerou ocorrencias."
+          description="Não há riscos ativos para os filtros atuais ou o ambiente ainda não gerou ocorrências."
         />
       </div>
     ) : (

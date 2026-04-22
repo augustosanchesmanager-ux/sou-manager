@@ -26,6 +26,8 @@ const colorMap: Record<string, { bg: string; text: string; glow: string }> = {
   pink: { bg: 'bg-pink-500/10', text: 'text-pink-500', glow: 'pink' },
 };
 
+const getColorStyles = (color: string) => colorMap[color] || colorMap.blue;
+
 export const MetricCard: React.FC<MetricCardProps> = ({
   title,
   value,
@@ -38,7 +40,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   onClick,
   variant = 'default',
 }) => {
-  const colorStyles = colorMap[color] || colorMap.blue;
+  const colorStyles = getColorStyles(color);
   
   const baseClasses = variant === 'featured'
     ? 'bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50'

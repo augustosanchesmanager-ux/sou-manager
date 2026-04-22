@@ -317,7 +317,7 @@ const Login: React.FC = () => {
 
                     <div className="mt-8 pt-6 border-t border-slate-200 dark:border-border-dark text-center">
                         <p className={`text-sm transition-colors ${isElite ? 'text-slate-600' : 'text-slate-600 dark:text-slate-500'}`}>
-                            Ainda nao tem conta? <Link to="/register" className={`font-bold transition-colors ${isElite ? 'text-amber-500/70 hover:text-amber-500' : 'text-slate-900 dark:text-white hover:text-primary'}`}>Criar conta</Link>
+                            Ainda não tem conta? <Link to="/register" className={`font-bold transition-colors ${isElite ? 'text-amber-500/70 hover:text-amber-500' : 'text-slate-900 dark:text-white hover:text-primary'}`}>Criar conta</Link>
                         </p>
                     </div>
                 </div>
