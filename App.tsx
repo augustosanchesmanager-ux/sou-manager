@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -116,7 +116,6 @@ const ProtectedRoute: React.FC = () => {
     );
   }
 
-  // Block pending or suspended users (Super Admins are always active)
   if (!isSuperAdmin && (profileStatus === 'pending' || profileStatus === 'suspended')) {
     return <Navigate to="/pending-approval" replace />;
   }
@@ -148,7 +147,6 @@ const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Public Routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -156,24 +154,19 @@ const AppRoutes: React.FC = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/pending-approval" element={<PendingApproval />} />
 
-      {/* Public Kiosk Routes — No auth required */}
       <Route path="/kiosk/:tenantSlug" element={<KioskPage />} />
       <Route path="/kiosk/:tenantSlug/client" element={<KioskClientPage />} />
 
-      {/* Public Portal Routes */}
       <Route path="/c/:tenantSlug" element={<PortalLanding />} />
       <Route path="/c/:tenantSlug/login" element={<PortalAuthProvider><PortalLogin /></PortalAuthProvider>} />
       <Route path="/c/:tenantSlug/app" element={<PortalAuthProvider><PortalApp /></PortalAuthProvider>} />
       <Route path="/c/:tenantSlug/app/schedule" element={<PortalAuthProvider><PortalSchedule /></PortalAuthProvider>} />
 
-      {/* Protected Flow */}
       <Route element={<ProtectedRoute />}>
-        {/* Onboarding Flow */}
         <Route path="/onboarding/role" element={<RoleSelection />} />
         <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
         <Route path="/onboarding/professional-setup" element={<ProfessionalSetup />} />
 
-        {/* Main Layout Routes */}
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/strategic-dashboard" element={<StrategicDashboard />} />
@@ -182,7 +175,6 @@ const AppRoutes: React.FC = () => {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/support" element={<Support />} />
 
-          {/* Admin Settings & Features */}
           <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
           <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} />
           <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
@@ -197,7 +189,6 @@ const AppRoutes: React.FC = () => {
           <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions/:subscriptionId" element={<ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute>} />
 
-          {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
           <Route path="/cashflow" element={<ManagerRoute><Cashflow /></ManagerRoute>} />
           <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
@@ -218,7 +209,6 @@ const AppRoutes: React.FC = () => {
         </Route>
       </Route>
 
-      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
