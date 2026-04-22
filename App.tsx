@@ -55,6 +55,7 @@ import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import ChefClubSubscriptionDetail from './pages/ChefClubSubscriptionDetail';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
+import { LoadingProvider } from './context/LoadingContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
@@ -217,15 +218,17 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AppProvider>
-        <AuthProvider>
-          <TenantProvider>
-            <HashRouter>
-              <AppRoutes />
-            </HashRouter>
-          </TenantProvider>
-        </AuthProvider>
-      </AppProvider>
+      <LoadingProvider>
+        <AppProvider>
+          <AuthProvider>
+            <TenantProvider>
+              <HashRouter>
+                <AppRoutes />
+              </HashRouter>
+            </TenantProvider>
+          </AuthProvider>
+        </AppProvider>
+      </LoadingProvider>
     </ThemeProvider>
   );
 };
