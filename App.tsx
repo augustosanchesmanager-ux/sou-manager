@@ -16,7 +16,6 @@ import Receipts from './pages/Receipts';
 import Payroll from './pages/Payroll';
 import Cashflow from './pages/Cashflow';
 import Checkout from './pages/Checkout';
-import PaymentSuccess from './pages/PaymentSuccess';
 import Comandas from './pages/Comandas';
 import Admin from './pages/Admin';
 import Operations from './pages/Operations';
@@ -44,49 +43,56 @@ import PendingApproval from './pages/PendingApproval';
 import KioskAdmin from './pages/KioskAdmin';
 import KioskPage from './pages/kiosk/KioskPage';
 import KioskClientPage from './pages/kiosk/KioskClientPage';
-import SystemSelector from './pages/SystemSelector';
 import PortalLanding from './pages/portal/PortalLanding';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalApp from './pages/portal/PortalApp';
 import PortalSchedule from './pages/portal/PortalSchedule';
-
+import PortalAdmin from './pages/portal/PortalAdmin';
 import ChefClubPlans from './pages/ChefClubPlans';
-
-import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import ChefClubSubscriptions from './pages/ChefClubSubscriptions';
 
+import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import ChefClubSubscriptionDetail from './pages/ChefClubSubscriptionDetail';
-import ChartsDemo from './pages/ChartsDemo';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
-import { LoadingProvider } from './context/LoadingContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
-import { LoadingOverlay } from './components/ui/Loading/LoadingOverlay';
-import { isInstitutionalHostname } from './src/lib/apps/publicUrl';
+import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { Outlet } from 'react-router-dom';
 
-const HomeRoute: React.FC = () => {
-  const { session, loading } = useAuth();
-  const institutionalHost = isInstitutionalHostname(window.location.hostname);
+const InstitutionalAppRedirect: React.FC = () => {
+  const { loading, session, tenant, memberships, isSuperAdmin } = useAuth();
 
-  if (loading) {
-    return <LoadingOverlay message="Iniciando sistema..." />;
-  }
+  React.useEffect(() => {
+    if (loading || !session || isSuperAdmin || !isInstitutionalHostname(window.location.hostname)) {
+      return;
+    }
 
-  if (institutionalHost) {
-    return session ? <Navigate to="/select-system" replace /> : <Landing />;
-  }
+    const targetAppSlug =
+      memberships.find((membership) => membership.isPrimary && membership.tenant?.app_slug)?.tenant?.app_slug ||
+      memberships.find((membership) => membership.tenant?.app_slug)?.tenant?.app_slug ||
+      tenant?.app_slug;
 
-  return <Navigate to={session ? '/dashboard' : '/login'} replace />;
+    if (!targetAppSlug) {
+      return;
+    }
+
+    window.location.replace(buildAppUrl(targetAppSlug, window.location.hash || '/dashboard'));
+  }, [isSuperAdmin, loading, memberships, session, tenant]);
+
+  return null;
 };
 
 const ProtectedRoute: React.FC = () => {
   const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
 
   if (loading) {
-    return <LoadingOverlay message="Verificando acesso..." />;
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   if (!session) {
@@ -117,6 +123,7 @@ const ProtectedRoute: React.FC = () => {
 
   return (
     <>
+      <InstitutionalAppRedirect />
       <Outlet />
     </>
   );
@@ -142,7 +149,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<HomeRoute />} />
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/register-success" element={<RegisterSuccess />} />
@@ -161,15 +168,10 @@ const AppRoutes: React.FC = () => {
 
       {/* Protected Flow */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/select-system" element={<SystemSelector />} />
-
         {/* Onboarding Flow */}
         <Route path="/onboarding/role" element={<RoleSelection />} />
         <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
         <Route path="/onboarding/professional-setup" element={<ProfessionalSetup />} />
-
-        {/* Payment Success Route - Outside Layout */}
-        <Route path="/payment-success" element={<PaymentSuccess />} />
 
         {/* Main Layout Routes */}
         <Route element={<Layout />}>
@@ -194,8 +196,6 @@ const AppRoutes: React.FC = () => {
           <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
           <Route path="/chef-club-subscriptions/:subscriptionId" element={<ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute>} />
-          <Route path="/charts-demo" element={<ManagerRoute><ChartsDemo /></ManagerRoute>} />
-          <Route path="/teste-graficos" element={<ManagerRoute><ChartsDemo /></ManagerRoute>} />
 
           {/* Manager / Admin Routes */}
           <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
@@ -227,17 +227,15 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <LoadingProvider>
-        <AppProvider>
-          <AuthProvider>
-            <TenantProvider>
-              <HashRouter>
-                <AppRoutes />
-              </HashRouter>
-            </TenantProvider>
-          </AuthProvider>
-        </AppProvider>
-      </LoadingProvider>
+      <AppProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <HashRouter>
+              <AppRoutes />
+            </HashRouter>
+          </TenantProvider>
+        </AuthProvider>
+      </AppProvider>
     </ThemeProvider>
   );
 };
