@@ -92,18 +92,18 @@ export const DonutLegend: React.FC<DonutLegendProps> = ({ data }) => {
           <div className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: segment.color }}
+              style={{ backgroundColor: segment.color || '#64748B' }}
             />
             <span className="text-sm text-slate-600 dark:text-slate-300">
-              {segment.label}
+              {segment.label || 'Desconhecido'}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-slate-900 dark:text-white">
-              {segment.value}
+              {segment.value ?? 0}
             </span>
             <span className="text-xs text-slate-400">
-              ({Math.round((segment.value / total) * 100)}%)
+              {total > 0 ? `${Math.round(((segment.value ?? 0) / total) * 100)}%` : '0%'}
             </span>
           </div>
         </div>

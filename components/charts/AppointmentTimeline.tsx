@@ -82,7 +82,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
         {/* Timeline Items */}
         <div className="space-y-3">
           {displayData.map((apt, index) => {
-            const config = STATUS_CONFIG[apt.status];
+            const config = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending || { icon: 'schedule', color: 'blue', bg: 'bg-blue-500', label: 'Pendente' };
             const isFirst = index === 0;
             const isLast = index === displayData.length - 1;
             
