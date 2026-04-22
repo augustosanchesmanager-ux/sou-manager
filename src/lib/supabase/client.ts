@@ -1088,7 +1088,6 @@ const createLocalDemoClient = (): SupabaseClient => {
     onAuthStateChange: (callback: AuthChangeCallback) => {
       const id = `${Date.now()}-${Math.random()}`;
       authSubscribers.set(id, callback);
-      Promise.resolve().then(() => callback('INITIAL_SESSION', readDemoSession()));
       return {
         data: {
           subscription: {

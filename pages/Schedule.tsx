@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -19,12 +18,6 @@ import {
   scheduleBlocksApi,
   toDateKey,
 } from '../services/scheduleBlocksApi';
-import { generateIdempotencyKey } from '../src/utils/idempotency';
-import {
-  type ServiceBalanceEntry,
-  getTotalAvailableCredits,
-  normalizeCreditBalances,
-} from '../src/utils/chefClubCredits';
 
 
 
@@ -67,7 +60,6 @@ interface CalendarAppointment {
   date: string;
   source?: string | null;
   channel?: string | null;
-  isWalkIn?: boolean;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -106,7 +98,6 @@ interface NewAppointmentForm {
   start: number;
   duration: number;
   notes: string;
-  isWalkIn: boolean;
 }
 
 interface ScheduleBlockForm {
@@ -135,29 +126,6 @@ const statusColors: Record<string, string> = {
 };
 
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
-
-const CANCELLATION_REASONS = [
-  { id: 'no_show', label: 'Cliente não compareceu', icon: 'person_off' },
-  { id: 'client_request', label: 'A pedido do cliente', icon: 'person_remove' },
-  { id: 'scheduling_conflict', label: 'Conflito de horário', icon: 'schedule' },
-  { id: 'professional_unavailable', label: 'Profissional indisponível', icon: 'event_busy' },
-  { id: 'system_error', label: 'Erro no sistema', icon: 'bug_report' },
-  { id: 'double_booking', label: 'Agendamento duplicado', icon: 'content_copy' },
-  { id: 'client_not_responded', label: 'Cliente não respondeu', icon: ' cancel' },
-  { id: 'payment_issue', label: 'Problema com pagamento', icon: ' payment' },
-  { id: 'other', label: 'Outro motivo', icon: ' edit' },
-];
-
-const isMissingIdempotencyColumnError = (
-  error: { code?: string | null; message?: string | null } | null | undefined,
-): boolean => {
-  if (!error) {
-    return false;
-  }
-
-  const message = `${error.message || ''}`.toLowerCase();
-  return (error.code === 'PGRST204' || error.code === '42703') && message.includes('idempotency_key');
-};
 
 const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
   scheduled: {
@@ -262,7 +230,6 @@ const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenantId, user } = useAuth();
-  const barberSupabase = getScopedClient('barber');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -278,9 +245,10 @@ const Schedule: React.FC = () => {
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
   const [openComandasByAppointment, setOpenComandasByAppointment] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [appointmentSaving, setAppointmentSaving] = useState(false);
   const [blockSaving, setBlockSaving] = useState(false);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
+  const [whatsAppDropdownTarget, setWhatsAppDropdownTarget] = useState<CalendarAppointment | null>(null);
+  const [whatsAppDropdownPosition, setWhatsAppDropdownPosition] = useState<{top: number, left: number} | null>(null);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
     date: getDateInputValue(new Date()),
     period: 'today',
@@ -404,7 +372,6 @@ const Schedule: React.FC = () => {
     start: 8,
     duration: 1,
     notes: '',
-    isWalkIn: false,
   });
 
   useEffect(() => {
@@ -422,29 +389,8 @@ const Schedule: React.FC = () => {
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState<DBClient[]>([]);
   const [isNewClientMode, setIsNewClientMode] = useState(false);
-  const [chefClubInfo, setChefClubInfo] = useState<{
-    planName: string;
-    credits: number;
-    status: string;
-    serviceBalances: ServiceBalanceEntry[];
-  } | null>(null);
+  const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
-  const appointmentSaveLockRef = useRef(false);
-  const appointmentRequestKeyRef = useRef(generateIdempotencyKey('appointment'));
-  const appointmentClientRequestKeyRef = useRef(generateIdempotencyKey('schedule-client'));
-  const appointmentComandaRequestKeyRef = useRef(generateIdempotencyKey('schedule-comanda'));
-
-  const resetAppointmentRequestKeys = () => {
-    appointmentRequestKeyRef.current = generateIdempotencyKey('appointment');
-    appointmentClientRequestKeyRef.current = generateIdempotencyKey('schedule-client');
-    appointmentComandaRequestKeyRef.current = generateIdempotencyKey('schedule-comanda');
-  };
-
-  // Cancel Modal State
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [cancelModalAppointment, setCancelModalAppointment] = useState<CalendarAppointment | null>(null);
-  const [selectedCancelReason, setSelectedCancelReason] = useState<string>('');
-  const [cancelNotes, setCancelNotes] = useState('');
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
@@ -458,7 +404,7 @@ const Schedule: React.FC = () => {
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
-      barberSupabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
+      supabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
@@ -468,7 +414,7 @@ const Schedule: React.FC = () => {
     // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await barberSupabase
+      const retryServices = await supabase
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -478,7 +424,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await barberSupabase
+        const legacyServices = await supabase
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -499,7 +445,7 @@ const Schedule: React.FC = () => {
     } else if (servicesRes.data && servicesRes.data.length > 0) {
       setServicesList(servicesRes.data);
     } else {
-      const retryServices = await barberSupabase
+      const retryServices = await supabase
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -509,7 +455,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data && retryServices.data.length > 0) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await barberSupabase
+        const legacyServices = await supabase
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -540,7 +486,7 @@ const Schedule: React.FC = () => {
       });
       setActivePromotions(validPromos);
     }
-  }, [barberSupabase, tenantId]);
+  }, [tenantId]);
 
   // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
@@ -553,130 +499,97 @@ const Schedule: React.FC = () => {
 
     setLoading(true);
 
-    try {
-      let rangeStart: string;
-      let rangeEnd: string;
+    let rangeStart: string;
+    let rangeEnd: string;
 
-      if (displayMode === 'list') {
-        const listRange = getListRange();
-        rangeStart = listRange.start.toISOString();
-        rangeEnd = listRange.end.toISOString();
-      } else if (viewMode === 'week') {
-        const days = getWeekDays(selectedDate);
-        const first = new Date(days[0]);
-        first.setHours(0, 0, 0, 0);
-        const last = new Date(days[6]);
-        last.setHours(23, 59, 59, 999);
-        rangeStart = first.toISOString();
-        rangeEnd = last.toISOString();
-      } else {
-        const dStart = new Date(selectedDate);
-        dStart.setHours(0, 0, 0, 0);
-        const dEnd = new Date(selectedDate);
-        dEnd.setHours(23, 59, 59, 999);
-        rangeStart = dStart.toISOString();
-        rangeEnd = dEnd.toISOString();
-      }
+    if (displayMode === 'list') {
+      const listRange = getListRange();
+      rangeStart = listRange.start.toISOString();
+      rangeEnd = listRange.end.toISOString();
+    } else if (viewMode === 'week') {
+      const days = getWeekDays(selectedDate);
+      const first = new Date(days[0]);
+      first.setHours(0, 0, 0, 0);
+      const last = new Date(days[6]);
+      last.setHours(23, 59, 59, 999);
+      rangeStart = first.toISOString();
+      rangeEnd = last.toISOString();
+    } else {
+      const dStart = new Date(selectedDate);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(selectedDate);
+      dEnd.setHours(23, 59, 59, 999);
+      rangeStart = dStart.toISOString();
+      rangeEnd = dEnd.toISOString();
+    }
 
-      const { data, error } = await supabase
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .gte('start_time', rangeStart)
+      .lte('start_time', rangeEnd);
+
+    let appointmentRows = data || [];
+
+    if (error) {
+      console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
+
+      const { data: fallbackData, error: fallbackError } = await supabase
         .from('appointments')
         .select('*')
-        .eq('tenant_id', tenantId)
-        .gte('start_time', rangeStart)
-        .lte('start_time', rangeEnd)
-        .neq('status', 'cancelled')
-        .neq('status', 'no_show');
+        .eq('tenant_id', tenantId);
 
-      let appointmentRows = data || [];
-
-      if (error) {
-        console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
-
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('tenant_id', tenantId);
-
-        if (fallbackError) {
-          throw fallbackError;
-        }
-
-        appointmentRows = (fallbackData || []).filter((apt: any) => {
-          const startTime = new Date(apt.start_time).getTime();
-          return !Number.isNaN(startTime)
-            && startTime >= new Date(rangeStart).getTime()
-            && startTime <= new Date(rangeEnd).getTime();
-        });
+      if (fallbackError) {
+        throw fallbackError;
       }
 
-      appointmentRows = [...appointmentRows].sort(
-        (first: any, second: any) => new Date(first.start_time).getTime() - new Date(second.start_time).getTime(),
-      );
-      const clientIds = Array.from(
-        new Set(
-          appointmentRows
-            .map((apt: any) => apt.client_id)
-            .filter((clientId: string | null | undefined): clientId is string => Boolean(clientId))
-        )
-      );
+      appointmentRows = (fallbackData || []).filter((apt: any) => {
+        const startTime = new Date(apt.start_time).getTime();
+        return !Number.isNaN(startTime)
+          && startTime >= new Date(rangeStart).getTime()
+          && startTime <= new Date(rangeEnd).getTime();
+      });
+    }
 
-      let clientsById: Record<string, DBClient> = {};
-      if (clientIds.length > 0) {
-        const { data: appointmentClients, error: appointmentClientsError } = await supabase
-          .from('clients')
-          .select('id, name, phone')
-          .in('id', clientIds);
+    appointmentRows = [...appointmentRows].sort(
+      (first: any, second: any) => new Date(first.start_time).getTime() - new Date(second.start_time).getTime(),
+    );
 
-        if (appointmentClientsError) {
-          throw appointmentClientsError;
-        }
-
-        clientsById = (appointmentClients || []).reduce<Record<string, DBClient>>((acc, client) => {
-          acc[client.id] = client;
-          return acc;
-        }, {});
-      }
-
-      const mapped: CalendarAppointment[] = appointmentRows.map((apt: any) => {
+    if (appointmentRows.length > 0) {
+      const mapped: CalendarAppointment[] = appointmentRows.map(apt => {
         const d = new Date(apt.start_time);
         const startHour = d.getHours() + d.getMinutes() / 60;
-        const clientRecord = apt.client_id ? clientsById[apt.client_id] : undefined;
-
         return {
           id: apt.id,
           clientId: apt.client_id || null,
           staffId: apt.staff_id,
           start: startHour,
           duration: Number(apt.duration) || 1,
-          client: apt.client_name || clientRecord?.name || 'Cliente',
+          client: apt.client_name || 'Cliente',
           service: apt.service_name || 'Serviço',
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
           staffName: apt.staff_name || '',
-          clientPhone: clientRecord?.phone || apt.client_phone || '',
+          clientPhone: apt.client_phone || '',
           price: apt.price || 0,
           startTime: apt.start_time,
           notes: apt.notes || '',
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
-          isWalkIn: apt.is_walk_in || false,
         };
       });
       setAppointments(mapped);
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const { data: comandas, error: comandasError } = await supabase
+        const { data: comandas } = await supabase
           .from('comandas')
           .select('id, appointment_id')
           .eq('tenant_id', tenantId)
           .eq('status', 'open')
           .in('appointment_id', appointmentIds);
-
-        if (comandasError) {
-          throw comandasError;
-        }
 
         const nextOpenComandasByAppointment: Record<string, string> = {};
         (comandas || []).forEach((comanda: any) => {
@@ -688,14 +601,8 @@ const Schedule: React.FC = () => {
       } else {
         setOpenComandasByAppointment({});
       }
-    } catch (err) {
-      console.error('Erro ao carregar agendamentos:', err);
-      setAppointments([]);
-      setOpenComandasByAppointment({});
-      setToast({ message: 'Erro ao carregar agendamentos.', type: 'error' });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
@@ -748,6 +655,21 @@ const Schedule: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close WhatsApp dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutsideWhatsApp(event: MouseEvent) {
+      const dropdown = document.getElementById('whatsapp-dropdown');
+      if (dropdown && !dropdown.contains(event.target as Node)) {
+        setWhatsAppDropdownTarget(null);
+        setWhatsAppDropdownPosition(null);
+      }
+    }
+    if (whatsAppDropdownTarget) {
+      document.addEventListener("mousedown", handleClickOutsideWhatsApp);
+      return () => document.removeEventListener("mousedown", handleClickOutsideWhatsApp);
+    }
+  }, [whatsAppDropdownTarget]);
+
   // Sync modal date with selected view date
   useEffect(() => {
     if (isModalOpen) {
@@ -761,7 +683,7 @@ const Schedule: React.FC = () => {
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
       if (!tenantId) {
-        navigate('/checkout?mode=pdv');
+        navigate('/checkout');
         return;
       }
 
@@ -794,7 +716,7 @@ const Schedule: React.FC = () => {
 
       const clientId = clientData?.id || '';
 
-      navigate('/checkout?mode=comanda', {
+      navigate('/checkout', {
         state: {
           fromAppointment: true,
           appointmentId: apt.id,
@@ -807,7 +729,7 @@ const Schedule: React.FC = () => {
       });
     } catch (err) {
       console.error('Error navigating to checkout:', err);
-      navigate('/checkout?mode=pdv');
+      navigate('/checkout');
     }
   };
 
@@ -840,47 +762,22 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data: subscription, error: subscriptionError } = await barberSupabase
+    const { data } = await supabase
       .from('customer_subscriptions')
-      .select('id, plan_id, status')
+      .select(`
+        status,
+        plan:customer_plans(name),
+        credits:customer_credits(available_credits)
+      `)
       .eq('client_id', client.id)
-      .eq('tenant_id', tenantId)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (subscriptionError) {
-      console.error('Erro ao carregar assinatura Chef Club:', subscriptionError);
-      setChefClubInfo(null);
-      return;
-    }
-
-    if (subscription) {
-      const [{ data: plan }, { data: credits }] = await Promise.all([
-        barberSupabase
-          .from('customer_plans')
-          .select('name')
-          .eq('id', subscription.plan_id)
-          .eq('tenant_id', tenantId)
-          .maybeSingle(),
-        barberSupabase
-          .from('customer_credits')
-          .select('available_credits, used_credits, service_balance_map')
-          .eq('subscription_id', subscription.id)
-          .eq('tenant_id', tenantId)
-          .maybeSingle(),
-      ]);
-
-      const serviceBalances = normalizeCreditBalances(
-        credits?.service_balance_map,
-        credits?.available_credits || 0,
-        credits?.used_credits || 0,
-      );
-
+    if (data) {
       setChefClubInfo({
-        planName: plan?.name || 'Plano ativo',
-        credits: getTotalAvailableCredits(serviceBalances),
-        status: subscription.status,
-        serviceBalances,
+        planName: (data.plan as any).name,
+        credits: (data.credits as any)?.[0]?.available_credits || 0,
+        status: data.status
       });
       return;
     }
@@ -914,7 +811,6 @@ const Schedule: React.FC = () => {
       start: apt.start,
       duration: apt.duration,
       notes: apt.notes || '',
-      isWalkIn: (apt as any).isWalkIn || false,
     });
 
     void loadChefClubInfo(apt.client);
@@ -1036,32 +932,17 @@ const Schedule: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    const appointment = appointments.find(a => a.id === appointmentId);
-    if (!appointment) {
-      setToast({ message: 'Agendamento não encontrado.', type: 'error' });
+    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
       return;
     }
-    setCancelModalAppointment(appointment);
-    setSelectedCancelReason('');
-    setCancelNotes('');
-    setIsCancelModalOpen(true);
-  };
-
-  const confirmCancelAppointment = async () => {
-    if (!selectedCancelReason) {
-      setToast({ message: 'Selecione uma justificativa para o cancelamento.', type: 'error' });
-      return;
-    }
-    if (!cancelModalAppointment || !tenantId) return;
 
     try {
-      const reason = CANCELLATION_REASONS.find(r => r.id === selectedCancelReason)?.label || selectedCancelReason;
-      const notes = cancelNotes.trim() ? `${reason} - ${cancelNotes.trim()}` : reason;
-
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled', cancellation_reason: notes })
-        .eq('id', cancelModalAppointment.id)
+        .update({ status: 'cancelled' })
+        .eq('id', appointmentId)
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -1070,12 +951,11 @@ const Schedule: React.FC = () => {
       await supabase
         .from('comandas')
         .update({ status: 'cancelled' })
-        .eq('appointment_id', cancelModalAppointment.id)
+        .eq('appointment_id', appointmentId)
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
-      setIsCancelModalOpen(false);
       closeDetailDrawer();
       fetchAppointments();
     } catch (err) {
@@ -1199,7 +1079,7 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(block.id, user?.id || null);
+      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -1243,7 +1123,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(editingBlockId, payload);
+        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
@@ -1277,7 +1157,6 @@ const Schedule: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (appointmentSaveLockRef.current) return;
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
       return;
@@ -1293,67 +1172,20 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    appointmentSaveLockRef.current = true;
-    setAppointmentSaving(true);
-
-    try {
     const selectedService = servicesList.find(s => s.name === formData.service);
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
 
     let clientId: string | null = null;
     if (isNewClientMode) {
-      const normalizedPhone = (formData.clientPhone || '').trim();
-      const { data: existingClient } = await supabase
-        .from('clients')
-        .select('id, name, phone, avatar')
-        .eq('tenant_id', tenantId)
-        .eq('phone', normalizedPhone)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingClient) {
-        clientId = existingClient.id;
-        setClientsList(prev => prev.some(client => client.id === existingClient.id) ? prev : [...prev, existingClient]);
-      } else {
-        const clientPayload = {
-          name: formData.client.trim(),
-          phone: normalizedPhone,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client.trim())}&background=random`,
-          tenant_id: tenantId,
-        };
-        let { data: newClient, error: clientError } = await supabase.from('clients').insert({
-          ...clientPayload,
-          idempotency_key: appointmentClientRequestKeyRef.current
-        }).select().single();
-        if (isMissingIdempotencyColumnError(clientError)) {
-          ({ data: newClient, error: clientError } = await supabase.from('clients').insert(clientPayload).select().single());
-        }
-        if (clientError) {
-          if (clientError.code === '23505') {
-            const { data: duplicatedClient } = await supabase
-              .from('clients')
-              .select('id, name, phone, avatar')
-              .eq('tenant_id', tenantId)
-              .eq('idempotency_key', appointmentClientRequestKeyRef.current)
-              .limit(1)
-              .maybeSingle();
-
-            if (duplicatedClient) {
-              clientId = duplicatedClient.id;
-              setClientsList(prev => prev.some(client => client.id === duplicatedClient.id) ? prev : [...prev, duplicatedClient]);
-            } else {
-              setError('Erro ao cadastrar cliente.');
-              return;
-            }
-          } else {
-            setError('Erro ao cadastrar cliente.');
-            return;
-          }
-        } else {
-          clientId = newClient.id;
-          setClientsList(prev => [...prev, newClient]);
-        }
-      }
+      const { data: newClient, error: clientError } = await supabase.from('clients').insert({
+        name: formData.client,
+        phone: formData.clientPhone || '',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client)}&background=random`,
+        tenant_id: tenantId
+      }).select().single();
+      if (clientError) { setError('Erro ao cadastrar cliente.'); return; }
+      clientId = newClient.id;
+      setClientsList(prev => [...prev, newClient]);
     } else {
       const existing = clientsList.find(c => c.name.toLowerCase() === formData.client.toLowerCase());
       if (existing) clientId = existing.id;
@@ -1395,7 +1227,6 @@ const Schedule: React.FC = () => {
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
         price: selectedService?.price || 0,
-        is_walk_in: formData.isWalkIn || false,
       }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -1431,178 +1262,79 @@ const Schedule: React.FC = () => {
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
-      const startIso = startTimeLine.toISOString();
-      const endIso = endTimeLine.toISOString();
 
-      const { data: existingAppointment } = await supabase
-        .from('appointments')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('staff_id', formData.staffId || null)
-        .eq('client_name', formData.client)
-        .eq('service_name', formData.service)
-        .eq('start_time', startIso)
-        .limit(1)
-        .maybeSingle();
+      // INSERT NEW
+      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
+        client_id: clientId,
+        service_id: selectedService?.id || null,
+        staff_id: formData.staffId || null,
+        client_name: formData.client,
+        client_phone: formData.clientPhone,
+        service_name: formData.service,
+        notes: formData.notes.trim(),
+        staff_name: selectedStaff?.name || '',
+        start_time: startTimeLine.toISOString(),
+        end_time: endTimeLine.toISOString(),
+        duration: Number(formData.duration),
+        price: selectedService?.price || 0,
+        status: 'confirmed',
+        tenant_id: tenantId
+      }).select().single();
 
-      let savedApt = existingAppointment;
-
-      if (!savedApt) {
-        const appointmentPayload = {
-          client_id: clientId,
-          service_id: selectedService?.id || null,
-          staff_id: formData.staffId || null,
-          client_name: formData.client,
-          client_phone: formData.clientPhone,
-          service_name: formData.service,
-          notes: formData.notes.trim(),
-          staff_name: selectedStaff?.name || '',
-          start_time: startIso,
-          end_time: endIso,
-          duration: Number(formData.duration),
-          price: selectedService?.price || 0,
-          status: 'confirmed' as const,
-          tenant_id: tenantId,
-          is_walk_in: formData.isWalkIn || false,
-        };
-        let { data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert({
-          ...appointmentPayload,
-          idempotency_key: appointmentRequestKeyRef.current
-        }).select().single();
-
-        if (isMissingIdempotencyColumnError(saveError)) {
-          ({ data: insertedAppointment, error: saveError } = await supabase.from('appointments').insert(appointmentPayload).select().single());
-        }
-
-        if (saveError) {
-          if (saveError.code === '23505') {
-            const { data: duplicatedAppointment } = await supabase
-              .from('appointments')
-              .select('id')
-              .eq('tenant_id', tenantId)
-              .eq('idempotency_key', appointmentRequestKeyRef.current)
-              .limit(1)
-              .maybeSingle();
-
-            if (duplicatedAppointment) {
-              savedApt = duplicatedAppointment;
-            } else {
-              console.error('Erro ao salvar agendamento:', saveError);
-              setError(`Erro ao salvar agendamento: ${saveError.message}`);
-              return;
-            }
-          } else {
-            console.error('Erro ao salvar agendamento:', saveError);
-            setError(`Erro ao salvar agendamento: ${saveError.message}`);
-            return;
-          }
-        } else {
-          savedApt = insertedAppointment;
-        }
+      if (saveError) {
+        console.error('Erro ao salvar agendamento:', saveError);
+        setError(`Erro ao salvar agendamento: ${saveError.message}`);
+        return;
       }
 
       if (savedApt) {
-        const { data: existingComanda } = await supabase
-          .from('comandas')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('appointment_id', savedApt.id)
-          .limit(1)
-          .maybeSingle();
-
-        let comanda = existingComanda;
-
-        if (!comanda) {
-          const comandaPayload = {
-            appointment_id: savedApt.id,
-            client_id: clientId,
-            staff_id: formData.staffId || null,
-            status: 'open' as const,
-            total: 0,
-            tenant_id: tenantId,
-          };
-          let { data: newComanda, error: newComandaError } = await supabase.from('comandas').insert({
-            ...comandaPayload,
-            idempotency_key: appointmentComandaRequestKeyRef.current
-          }).select().single();
-          if (isMissingIdempotencyColumnError(newComandaError)) {
-            ({ data: newComanda, error: newComandaError } = await supabase.from('comandas').insert(comandaPayload).select().single());
-          }
-          if (newComandaError && newComandaError.code !== '23505') {
-            console.error('Erro ao criar comanda do agendamento:', newComandaError);
-            setError(`Erro ao criar comanda: ${newComandaError.message}`);
-            return;
-          }
-
-          comanda = newComanda;
-
-          if (!comanda) {
-            const { data: duplicatedComanda } = await supabase
-              .from('comandas')
-              .select('id')
-              .eq('tenant_id', tenantId)
-              .eq('idempotency_key', appointmentComandaRequestKeyRef.current)
-              .limit(1)
-              .maybeSingle();
-            comanda = duplicatedComanda;
-          }
-        }
+        const { data: comanda } = await supabase.from('comandas').insert({
+          appointment_id: savedApt.id,
+          client_id: clientId,
+          staff_id: formData.staffId || null,
+          status: 'open',
+          total: 0,
+          tenant_id: tenantId
+        }).select().single();
 
         if (comanda && selectedService) {
-          const { data: existingComandaItem } = await supabase
-            .from('comanda_items')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .eq('comanda_id', comanda.id)
-            .eq('service_id', selectedService.id)
-            .limit(1)
-            .maybeSingle();
+          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+          let finalPrice = serviceData?.price || 0;
 
-          if (!existingComandaItem) {
-            const { data: serviceData } = await barberSupabase.from('services').select('price').eq('id', selectedService.id).single();
-            let finalPrice = serviceData?.price || 0;
+          const promo = activePromotions.find(p =>
+            (p.target_type === 'all') ||
+            (p.target_type === 'service' && p.target_id === selectedService.id)
+          );
 
-            const promo = activePromotions.find(p =>
-              (p.target_type === 'all') ||
-              (p.target_type === 'service' && p.target_id === selectedService.id)
-            );
-
-            if (promo) {
-              if (promo.discount_type === 'fixed') {
-                finalPrice = Math.max(0, finalPrice - promo.discount_value);
-              } else {
-                finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-              }
+          if (promo) {
+            if (promo.discount_type === 'fixed') {
+              finalPrice = Math.max(0, finalPrice - promo.discount_value);
+            } else {
+              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
             }
-
-            await supabase.from('comanda_items').insert({
-              comanda_id: comanda.id,
-              service_id: selectedService.id,
-              product_name: selectedService.name,
-              quantity: 1,
-              unit_price: finalPrice,
-              tenant_id: tenantId,
-              staff_id: formData.staffId || null
-            });
-
-            await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
           }
+
+          await supabase.from('comanda_items').insert({
+            comanda_id: comanda.id,
+            service_id: selectedService.id,
+            product_name: selectedService.name,
+            quantity: 1,
+            unit_price: finalPrice,
+            tenant_id: tenantId,
+            staff_id: formData.staffId || null
+          });
+
+          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
         }
       }
-
-      setToast({ message: existingAppointment ? 'Esse agendamento ja existia. Duplicidade bloqueada.' : 'Agendamento criado com sucesso!', type: existingAppointment ? 'info' : 'success' });
+      setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
     }
 
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
-    resetAppointmentRequestKeys();
     setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
     fetchAppointments();
-    } finally {
-      appointmentSaveLockRef.current = false;
-      setAppointmentSaving(false);
-    }
   };
 
   const formatDateDisplay = (date: Date) => {
@@ -1730,14 +1462,9 @@ const Schedule: React.FC = () => {
     if (!window.confirm(`Deseja ${confirmationLabel.toLowerCase()} este agendamento?`)) return;
 
     try {
-      const updateData: Record<string, unknown> = { status: nextStatus };
-      if (nextStatus === 'no_show') {
-        updateData.cancellation_reason = 'Cliente não compareceu';
-      }
-
       const { error: updateError } = await supabase
         .from('appointments')
-        .update(updateData)
+        .update({ status: nextStatus })
         .eq('id', appointment.id)
         .eq('tenant_id', tenantId);
 
@@ -1789,6 +1516,61 @@ const Schedule: React.FC = () => {
 Podemos confirmar? 😄`;
 
     window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const WHATSAPP_MESSAGE_TYPES = [
+    { id: 'confirm', label: 'Confirmar Agendamento', icon: 'check_circle' },
+    { id: 'reminder', label: 'Lembrete (1 dia antes)', icon: 'notifications' },
+    { id: 'cancel', label: 'Avisar Cancelamento', icon: 'cancel' },
+    { id: 'no_show', label: 'Não Compareceu', icon: 'person_off' },
+    { id: 'reschedule', label: 'Alterar Horário', icon: 'schedule' },
+  ];
+
+  const generateWhatsAppMessage = (appointment: CalendarAppointment, messageType: string): string => {
+    const clientName = appointment.client.split(' ')[0];
+    const dateStr = new Date(appointment.startTime).toLocaleDateString('pt-BR');
+    const timeStr = new Date(appointment.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    switch (messageType) {
+      case 'confirm':
+        return `Olá ${clientName}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:\n\n📅 *Data:* ${dateStr}\n⏰ *Hora:* ${timeStr}\n💈 *Serviço:* ${appointment.service}\n🧔 *Profissional:* ${appointment.staffName}\n\nPodemos confirmar? 😄`;
+      case 'reminder':
+        return `Olá ${clientName}! Tudo bem? Aqui é da barbearia. Lembrando que você tem um agendamento Amanhã às ${timeStr} com ${appointment.staffName}.\n\n📅 *Data:* ${dateStr}\n💈 *Serviço:* ${appointment.service}\n\nNos vemos amanhã! 😊`;
+      case 'cancel':
+        return `Olá ${clientName}. Sentimos informar que precisamos cancelar seu agendamento do dia ${dateStr} às ${timeStr}.\n\n¿Te lembraria de remarcar para outro horário?`;
+      case 'no_show':
+        return `Olá ${clientName}. Infelizmente você não compareceu ao agendamento de ${dateStr} às ${timeStr}.\n\nGostaria de remarcar? Estamos à disposição!`;
+      case 'reschedule':
+        return `Olá ${clientName}. O horário do seu agendamento foi alterado.\n\n📅 *Data:* ${dateStr}\n⏰ *Hora:* ${timeStr}\n\nConfirma esse novo horário?`;
+      default:
+        return `Olá ${clientName}!`;
+    }
+  };
+
+  const handleOpenWhatsAppDropdown = (appointment: CalendarAppointment, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!appointment.clientPhone) {
+      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
+      return;
+    }
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setWhatsAppDropdownTarget(appointment);
+    setWhatsAppDropdownPosition({ top: rect.bottom + 5, left: rect.left });
+  };
+
+  const handleSendWhatsAppMessage = (messageType: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!whatsAppDropdownTarget?.clientPhone || !whatsAppDropdownTarget) return;
+
+    const cleanPhone = whatsAppDropdownTarget.clientPhone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    const text = generateWhatsAppMessage(whatsAppDropdownTarget, messageType);
+
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    setWhatsAppDropdownTarget(null);
+    setWhatsAppDropdownPosition(null);
   };
 
   return (
@@ -2486,7 +2268,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); resetAppointmentRequestKeys(); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2611,19 +2393,6 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/20">
-            <input
-              type="checkbox"
-              id="isWalkIn"
-              checked={formData.isWalkIn}
-              onChange={(e) => handleInputChange('isWalkIn', e.target.checked)}
-              className="w-4 h-4 rounded border-amber-300 text-amber-500 focus:ring-amber-500"
-            />
-            <label htmlFor="isWalkIn" className="text-sm font-medium text-amber-700 dark:text-amber-300 cursor-pointer">
-              Encaixe (sem horário agendado)
-            </label>
-          </div>
-
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
             <DatePickerInput
@@ -2709,17 +2478,16 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); resetAppointmentRequestKeys(); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
-              disabled={appointmentSaving}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
             >
-              {appointmentSaving ? 'Salvando...' : editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
+              {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
             </button>
           </div>
         </div>
@@ -3057,30 +2825,30 @@ Podemos confirmar? 😄`;
               )}
 
               <div className="pt-4 flex justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2 flex-wrap">
-                <button
-                  onClick={() => {
-                    if (!apt.clientPhone) {
-                      setToast({ message: 'Cliente sem telefone cadastrado.', type: 'error' });
-                      return;
-                    }
-                    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
-                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
-
-📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
-⏰ *Hora:* ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 *Serviço:* ${apt.service}
-🧔 *Profissional:* ${staff?.name || apt.staffName}
-
-Podemos confirmar? 😄`;
-                    const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
-                    window.open(link, '_blank');
-                  }}
-                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-                  WhatsApp
-                </button>
+                <div className="relative flex-1 min-w-[120px]">
+                  <button
+                    onClick={(e) => handleOpenWhatsAppDropdown(apt, e)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                    WhatsApp
+                    <span className="material-symbols-outlined text-lg">expand_more</span>
+                  </button>
+                  {whatsAppDropdownTarget?.id === apt.id && (
+                    <div id="whatsapp-dropdown" className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-200 dark:border-border-dark overflow-hidden z-50">
+                      {WHATSAPP_MESSAGE_TYPES.map((msgType) => (
+                        <button
+                          key={msgType.id}
+                          onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
+                          className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0"
+                        >
+                          <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
+                          {msgType.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => handleEditAppointment(apt)}
@@ -3185,68 +2953,28 @@ Podemos confirmar? 😄`;
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado')} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado')} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado')} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-              <button onClick={() => handleSendWhatsApp(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
+              <button onClick={(e) => handleOpenWhatsAppDropdown(selectedAppointmentDetails, e)} className="relative px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">
+                WhatsApp
+                {whatsAppDropdownTarget?.id === selectedAppointmentDetails.id && (
+                  <div id="whatsapp-dropdown" className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-200 dark:border-border-dark overflow-hidden z-50">
+                    {WHATSAPP_MESSAGE_TYPES.map((msgType) => (
+                      <button
+                        key={msgType.id}
+                        onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
+                        className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0"
+                      >
+                        <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
+                        {msgType.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </button>
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
               <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
-              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'no_show', 'Marcado como não compareceu')} className="px-3 py-3 rounded-xl border border-slate-500 text-slate-500 text-sm font-bold">Não Compareceu</button>
               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {isCancelModalOpen && cancelModalAppointment && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in pointer-events-auto">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-0" onClick={() => setIsCancelModalOpen(false)}></div>
-          <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10">
-            <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5 shrink-0">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cancelar Agendamento</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{cancelModalAppointment.client}</p>
-              </div>
-              <button onClick={() => setIsCancelModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-colors">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </header>
-            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Selecione o motivo do cancelamento:</p>
-              <div className="grid grid-cols-1 gap-2 mb-4">
-                {CANCELLATION_REASONS.map((reason) => (
-                  <button
-                    key={reason.id}
-                    onClick={() => setSelectedCancelReason(reason.id)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
-                      selectedCancelReason === reason.id
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
-                        : 'border-slate-200 dark:border-border-dark hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-900/10'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-lg">{reason.icon}</span>
-                    <span className="text-sm font-medium">{reason.label}</span>
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={cancelNotes}
-                onChange={(e) => setCancelNotes(e.target.value)}
-                placeholder="Observações adicionais (opcional)"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-input-dark text-slate-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                rows={3}
-              />
-            </div>
-            <footer className="px-6 py-4 border-t border-slate-200 dark:border-border-dark bg-slate-50/50 dark:bg-white/5 flex items-center justify-end gap-3 shrink-0">
-              <button onClick={() => setIsCancelModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-200/50 dark:hover:bg-white/10 transition-colors">
-                Voltar
-              </button>
-              <button
-                onClick={confirmCancelAppointment}
-                disabled={!selectedCancelReason}
-                className="px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Confirmar Cancelamento
-              </button>
-            </footer>
           </div>
         </div>
       )}

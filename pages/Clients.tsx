@@ -5,6 +5,8 @@ import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
+import { LoadingBlock } from '../components/ui/Loading';
+import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 
 interface Client {
@@ -33,6 +35,7 @@ type SortDir = 'asc' | 'desc';
 const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { showLoading, hideLoading } = useLoading();
     const { tenantId } = useAuth();
     const barberSupabase = getScopedClient('barber');
     const [clients, setClients] = useState<Client[]>([]);
@@ -106,41 +109,48 @@ const Clients: React.FC = () => {
             setClients([]);
             setChefClubMap({});
             setLoading(false);
+            hideLoading();
             return;
         }
 
         setLoading(true);
-        const { data, error } = await supabase
-            .from('clients')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('name');
-        if (data) {
-            setClients(data);
+        showLoading('CLIENTS');
+        
+        try {
+            const { data, error } = await supabase
+                .from('clients')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('name');
+            if (data) {
+                setClients(data);
 
-            // Fetch subscription badges
-            const clientIds = data.map(c => c.id);
-            if (clientIds.length > 0) {
-                const { data: subs } = await barberSupabase
-                    .from('customer_subscriptions')
-                    .select('client_id, plan:customer_plans(name)')
-                    .eq('status', 'active')
-                    .in('client_id', clientIds);
+                // Fetch subscription badges
+                const clientIds = data.map(c => c.id);
+                if (clientIds.length > 0) {
+                    const { data: subs } = await barberSupabase
+                        .from('customer_subscriptions')
+                        .select('client_id, plan:customer_plans(name)')
+                        .eq('status', 'active')
+                        .in('client_id', clientIds);
 
-                if (subs) {
-                    const map: Record<string, string> = {};
-                    subs.forEach(s => {
-                        map[s.client_id] = (s.plan as any).name;
-                    });
-                    setChefClubMap(map);
+                    if (subs) {
+                        const map: Record<string, string> = {};
+                        subs.forEach(s => {
+                            map[s.client_id] = (s.plan as any).name;
+                        });
+                        setChefClubMap(map);
+                    }
+                } else {
+                    setChefClubMap({});
                 }
-            } else {
-                setChefClubMap({});
             }
+            if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
+        } finally {
+            setLoading(false);
+            hideLoading();
         }
-        if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
-        setLoading(false);
-    }, [tenantId]);
+    }, [tenantId, showLoading, hideLoading]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
 
@@ -464,13 +474,8 @@ const Clients: React.FC = () => {
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
-                {loading ? (
-                    <div className="p-10 text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                        <p className="text-slate-500 text-sm mt-3">Carregando clientes...</p>
-                    </div>
-                ) : (
+            <LoadingBlock loading={loading} message="Carregando clientes..." minHeight="min-h-[400px]">
+                <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                         <div className="sm:hidden px-4 py-2 border-b border-slate-100 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-slate-500">
                             Deslize para ver mais colunas
@@ -566,8 +571,8 @@ const Clients: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </div>
+                </div>
+            </LoadingBlock>
 
             {/* Detail Modal */}
             <Modal

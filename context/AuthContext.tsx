@@ -10,6 +10,7 @@ import {
 import { supabase } from '../services/supabaseClient';
 import { useAppOptional } from '../src/context/AppContext';
 import { useTenantOptional } from '../src/context/TenantContext';
+import { useLoading } from './LoadingContext';
 import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/supabase/tenant';
 
 export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
@@ -76,6 +77,7 @@ const toAccessRoleFromTenantRole = (tenantRole: TenantRole): AccessRole => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { showLoading, hideLoading } = useLoading();
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(null);
@@ -176,10 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!nextSession?.user) {
                 clearAuthState();
                 setLoading(false);
+                hideLoading();
                 return;
             }
 
             setLoading(true);
+            showLoading('AUTH');
             setAuthError(null);
 
             try {
@@ -198,6 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } finally {
                 if (isMounted && requestId === requestCounter) {
                     setLoading(false);
+                    hideLoading();
                 }
             }
         };

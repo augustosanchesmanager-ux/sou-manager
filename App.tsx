@@ -56,9 +56,11 @@ import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import ChartsDemo from './pages/ChartsDemo';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { ThemeProvider } from './context/ThemeContext';
+import { LoadingProvider } from './context/LoadingContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
+import { LoadingOverlay } from './components/ui/Loading/LoadingOverlay';
 import { isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { Outlet } from 'react-router-dom';
 
@@ -67,11 +69,7 @@ const HomeRoute: React.FC = () => {
   const institutionalHost = isInstitutionalHostname(window.location.hostname);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingOverlay message="Iniciando sistema..." />;
   }
 
   if (institutionalHost) {
@@ -85,11 +83,7 @@ const ProtectedRoute: React.FC = () => {
   const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingOverlay message="Verificando acesso..." />;
   }
 
   if (!session) {
@@ -229,15 +223,17 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AppProvider>
-        <AuthProvider>
-          <TenantProvider>
-            <HashRouter>
-              <AppRoutes />
-            </HashRouter>
-          </TenantProvider>
-        </AuthProvider>
-      </AppProvider>
+      <LoadingProvider>
+        <AppProvider>
+          <AuthProvider>
+            <TenantProvider>
+              <HashRouter>
+                <AppRoutes />
+              </HashRouter>
+            </TenantProvider>
+          </AuthProvider>
+        </AppProvider>
+      </LoadingProvider>
     </ThemeProvider>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,6 @@ const Team: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useAuth();
-    const barberSupabase = getScopedClient('barber');
     const [team, setTeam] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -43,7 +42,7 @@ const Team: React.FC = () => {
             return;
         }
         setLoading(true);
-        const { data, error } = await barberSupabase
+        const { data, error } = await supabase
             .from('staff')
             .select('*')
             .eq('tenant_id', tenantId)
@@ -51,7 +50,7 @@ const Team: React.FC = () => {
         if (data) setTeam(data);
         if (error) setToast({ message: 'Erro ao carregar equipe.', type: 'error' });
         setLoading(false);
-    }, [barberSupabase, tenantId]);
+    }, [tenantId]);
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
@@ -102,7 +101,7 @@ const Team: React.FC = () => {
                 setToast({ message: 'Tenant inválido para atualizar colaborador.', type: 'error' });
                 return;
             }
-            const { error } = await barberSupabase
+            const { error } = await supabase
                 .from('staff')
                 .update(editableFields)
                 .eq('id', editingMember.id)
@@ -176,7 +175,7 @@ const Team: React.FC = () => {
 
             // After creation, optionally update the extra operational details on the staff table that the function didn't set
             if (edgeData?.user?.id) {
-                await barberSupabase
+                await supabase
                     .from('staff')
                     .update({
                         phone: form.phone,
@@ -199,7 +198,7 @@ const Team: React.FC = () => {
             setToast({ message: 'Tenant inválido para remover colaborador.', type: 'error' });
             return;
         }
-        const { error } = await barberSupabase
+        const { error } = await supabase
             .from('staff')
             .delete()
             .eq('id', id)
@@ -213,19 +212,11 @@ const Team: React.FC = () => {
         }
     };
 
-    const tenantName = React.useMemo(() => {
-        return 'Minha Barbearia';
-    }, []);
-
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="material-symbols-outlined text-primary">store</span>
-                        <span className="text-xs font-bold text-primary uppercase tracking-wider">{tenantName}</span>
-                    </div>
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">Equipe</h2>
                     <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} membro(s) ativo(s)</p>
                 </div>
