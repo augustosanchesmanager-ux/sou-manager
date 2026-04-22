@@ -49,7 +49,8 @@ import PortalLanding from './pages/portal/PortalLanding';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalApp from './pages/portal/PortalApp';
 import PortalSchedule from './pages/portal/PortalSchedule';
-import PortalAdmin from './pages/portal/PortalAdmin';
+
+import ChefClubPlans from './pages/ChefClubPlans';
 
 import ChefClubSubscriptionNew from './pages/ChefClubSubscriptionNew';
 import ChefClubSubscriptions from './pages/ChefClubSubscriptions';
