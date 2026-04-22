@@ -9,16 +9,22 @@ const genAI = apiKey && apiKey !== 'PLACEHOLDER_API_KEY' && apiKey.startsWith('A
 interface GeminiError {
   message: string;
   code?: string;
+  status?: number;
 }
 
-const isImageNotSupportedError = (error: unknown): boolean => {
+const isGeminiAPIError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
   const err = error as GeminiError;
   const msg = err.message || '';
-  return msg.includes('image') || 
-         msg.includes('png') || 
+  const status = err.status;
+  return status === 400 || status === 403 || status === 404 || status === 429 || status === 500 ||
+         msg.includes('image') ||
+         msg.includes('png') ||
          msg.includes('not support') ||
-         msg.includes('IMAGE_INPUT_NOT_SUPPORTED');
+         msg.includes('IMAGE_INPUT_NOT_SUPPORTED') ||
+         msg.includes('cannot read') ||
+         msg.includes('invalid') ||
+         msg.includes('not found');
 };
 
 const generateContentSafe = async (model: any, prompt: string): Promise<string> => {
@@ -30,19 +36,20 @@ const generateContentSafe = async (model: any, prompt: string): Promise<string> 
     throw new Error('Resposta vazia do modelo');
   } catch (error: any) {
     console.error('[Gemini] Erro na geração de conteúdo:', error?.message);
-    
-    if (isImageNotSupportedError(error)) {
-      throw new Error('IMAGE_INPUT_NOT_SUPPORTED');
+
+    if (isGeminiAPIError(error)) {
+      const err = error as GeminiError;
+      if (err.status === 429 || error?.message?.includes('429')) {
+        throw new Error('QUOTA_EXCEEDED');
+      }
+      if (err.status === 403 || error?.message?.includes('API_KEY_INVALID') || error?.message?.includes('PERMISSION_DENIED')) {
+        throw new Error('PERMISSION_DENIED');
+      }
+      if (err.status === 400 || error?.message?.includes('image') || error?.message?.includes('IMAGE_INPUT_NOT_SUPPORTED') || error?.message?.includes('cannot read')) {
+        throw new Error('IMAGE_INPUT_NOT_SUPPORTED');
+      }
     }
-    
-    if (error?.message?.includes('403') || error?.message?.includes('API_KEY_INVALID')) {
-      throw new Error('PERMISSION_DENIED');
-    }
-    
-    if (error?.message?.includes('429')) {
-      throw new Error('QUOTA_EXCEEDED');
-    }
-    
+
     throw error;
   }
 };
@@ -56,9 +63,7 @@ export const generateBusinessInsights = async (metrics: any): Promise<string> =>
 
   const modelNames = [
     "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
     "gemini-2.0-flash-exp",
-    "gemini-pro",
   ];
 
   const m = {
@@ -81,16 +86,14 @@ export const generateBusinessInsights = async (metrics: any): Promise<string> =>
     } catch (error: any) {
       console.warn(`[Gemini] Falha com ${modelName}:`, error?.message);
 
-      if (error.message === 'IMAGE_INPUT_NOT_SUPPORTED') {
-        return "Funcionalidade de IA temporariamente indisponível. Nossa equipe já foi notificada.";
-      }
-
-      if (error.message === 'PERMISSION_DENIED') {
-        return "Erro de Permissão: Sua chave de API não tem acesso ao Gemini. Verifique se a 'Generative Language API' está ativada.";
-      }
-
-      if (error.message === 'QUOTA_EXCEEDED') {
-        return "Cota de uso excedida. Tente novamente em alguns minutos.";
+      if (error.message === 'IMAGE_INPUT_NOT_SUPPORTED' || error.message === 'PERMISSION_DENIED' || error.message === 'QUOTA_EXCEEDED') {
+        if (error.message === 'QUOTA_EXCEEDED') {
+          return "Cota de uso excedida. Tente novamente em alguns minutos.";
+        }
+        if (error.message === 'PERMISSION_DENIED') {
+          return "Erro de Permissão: Sua chave de API não tem acesso ao Gemini. Verifique se a 'Generative Language API' está ativada.";
+        }
+        return "Funcionalidade de IA temporariamente indisponível. Tente novamente mais tarde.";
       }
 
       if (modelName === modelNames[modelNames.length - 1]) {
@@ -147,7 +150,7 @@ export const generateSupportResponse = async (userQuestion: string): Promise<str
     - Recepcionista: Agenda, Cadastros e Checkout.
   `;
 
-  const modelNames = ["gemini-1.5-flash", "gemini-pro"];
+  const modelNames = ["gemini-1.5-flash", "gemini-2.0-flash-exp"];
   const prompt = `
     Atue como o Assistente Virtual SMG | Sou.Manager | Barber.
     Use estritamente a base de conhecimento abaixo para responder à dúvida do usuário.
@@ -170,8 +173,14 @@ export const generateSupportResponse = async (userQuestion: string): Promise<str
     } catch (e: any) {
       console.warn(`[Gemini] Assistant failed with ${modelName}:`, e?.message);
 
-      if (e.message === 'IMAGE_INPUT_NOT_SUPPORTED') {
-        return "Assistente temporariamente indisponível para análise de imagem.";
+      if (e.message === 'IMAGE_INPUT_NOT_SUPPORTED' || e.message === 'PERMISSION_DENIED' || e.message === 'QUOTA_EXCEEDED') {
+        if (e.message === 'QUOTA_EXCEEDED') {
+          return "Cota de uso excedida. Tente novamente em alguns minutos.";
+        }
+        if (e.message === 'PERMISSION_DENIED') {
+          return "Assistente temporariamente indisponível. Verifique sua chave API.";
+        }
+        return "Assistente temporariamente indisponível. Tente novamente mais tarde.";
       }
     }
   }
