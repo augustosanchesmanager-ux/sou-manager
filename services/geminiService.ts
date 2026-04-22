@@ -6,15 +6,43 @@ const genAI = apiKey && apiKey !== 'PLACEHOLDER_API_KEY' && apiKey.startsWith('A
   ? new GoogleGenerativeAI(apiKey)
   : null;
 
+interface GeminiError {
+  message: string;
+  code?: string;
+}
+
+const isImageNotSupportedError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as GeminiError;
+  const msg = err.message || '';
+  return msg.includes('image') || 
+         msg.includes('png') || 
+         msg.includes('not support') ||
+         msg.includes('IMAGE_INPUT_NOT_SUPPORTED');
+};
+
 const generateContentSafe = async (model: any, prompt: string): Promise<string> => {
   try {
     const result = await model.generateContent(prompt);
-    return result.response.text();
+    if (result?.response?.text) {
+      return result.response.text();
+    }
+    throw new Error('Resposta vazia do modelo');
   } catch (error: any) {
-    // Erro específico: modelo não suporta image input
-    if (error.message?.includes('image') && error.message?.includes('not support')) {
+    console.error('[Gemini] Erro na geração de conteúdo:', error?.message);
+    
+    if (isImageNotSupportedError(error)) {
       throw new Error('IMAGE_INPUT_NOT_SUPPORTED');
     }
+    
+    if (error?.message?.includes('403') || error?.message?.includes('API_KEY_INVALID')) {
+      throw new Error('PERMISSION_DENIED');
+    }
+    
+    if (error?.message?.includes('429')) {
+      throw new Error('QUOTA_EXCEEDED');
+    }
+    
     throw error;
   }
 };
@@ -46,29 +74,33 @@ export const generateBusinessInsights = async (metrics: any): Promise<string> =>
 
   for (const modelName of modelNames) {
     try {
+      console.log(`[Gemini] Tentando modelo: ${modelName}`);
       const model = genAI.getGenerativeModel({ model: modelName });
       const text = await generateContentSafe(model, prompt);
       if (text) return text;
     } catch (error: any) {
+      console.warn(`[Gemini] Falha com ${modelName}:`, error?.message);
+
       if (error.message === 'IMAGE_INPUT_NOT_SUPPORTED') {
-        return "Funcionalidade de análise de imagem não disponível. O modelo atual não suporta processamento de imagens.";
+        return "Funcionalidade de IA temporariamente indisponível. Nossa equipe já foi notificada.";
       }
 
-      if (error.message?.includes('403') || error.message?.includes('API_KEY_INVALID')) {
-        return "Erro de Permissão: Sua chave de API não tem acesso ao Gemini. Verifique se ativou a 'Generative Language API' no Google Cloud Console.";
+      if (error.message === 'PERMISSION_DENIED') {
+        return "Erro de Permissão: Sua chave de API não tem acesso ao Gemini. Verifique se a 'Generative Language API' está ativada.";
       }
 
-      if (error.message?.includes('429')) {
-        return "Cota excedida. Tente novamente em alguns segundos.";
+      if (error.message === 'QUOTA_EXCEEDED') {
+        return "Cota de uso excedida. Tente novamente em alguns minutos.";
       }
 
       if (modelName === modelNames[modelNames.length - 1]) {
-        return `Erro Técnico: ${error.message}`;
+        console.error('[Gemini] Todos os modelos falharam:', error);
+        return "No momento não foi possível gerar insights. Tente novamente mais tarde.";
       }
     }
   }
 
-  return "Não foi possível encontrar um modelo de IA ativo. Verifique se a 'Generative Language API' está ativada no Google Cloud Console.";
+  return "Não foi possível encontrar um modelo de IA ativo. Verifique se a 'Generative Language API' está ativada.";
 };
 
 export const generateSupportResponse = async (userQuestion: string): Promise<string> => {
@@ -136,8 +168,10 @@ export const generateSupportResponse = async (userQuestion: string): Promise<str
       const text = await generateContentSafe(model, prompt);
       if (text) return text;
     } catch (e: any) {
+      console.warn(`[Gemini] Assistant failed with ${modelName}:`, e?.message);
+
       if (e.message === 'IMAGE_INPUT_NOT_SUPPORTED') {
-        return "Funcionalidade de análise de imagem não disponível.";
+        return "Assistente temporariamente indisponível para análise de imagem.";
       }
     }
   }
