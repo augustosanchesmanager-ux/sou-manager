@@ -376,6 +376,21 @@ const Schedule: React.FC = () => {
     notes: '',
   });
 
+  // Confirmation State
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationData, setConfirmationData] = useState<{
+    appointmentId: string;
+    comandaId: string | null;
+    clientName: string;
+    serviceName: string;
+    staffName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    notes: string;
+  } | null>(null);
+
   useEffect(() => {
     const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
     if (!shouldOpenNew) return;
@@ -1264,7 +1279,22 @@ const Schedule: React.FC = () => {
           : apt
       ));
 
-      setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+       // Prepare confirmation data for update
+       const confirmationInfo = {
+         appointmentId: editingAppointmentId,
+         comandaId: openComandasByAppointment[editingAppointmentId] || null,
+         clientName: formData.client,
+         serviceName: formData.service,
+         staffName: selectedStaff?.name || '',
+         date: formData.date,
+         startTime: getDecimalTimeLabel(formData.start),
+         endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
+         price: selectedService?.price || 0,
+         notes: formData.notes.trim(),
+       };
+       
+       setConfirmationData(confirmationInfo);
+       setShowConfirmation(true);
     } else {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
 
@@ -1332,14 +1362,31 @@ const Schedule: React.FC = () => {
           await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
         }
       }
-      setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
-    }
-
-    setIsModalOpen(false);
-    setIsNewClientMode(false);
-    setEditingAppointmentId(null);
-    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
-    fetchAppointments();
+     // Prepare confirmation data
+     const confirmationInfo = {
+       appointmentId: savedApt.id,
+       comandaId: comanda ? comanda.id : null,
+       clientName: formData.client,
+       serviceName: formData.service,
+       staffName: selectedStaff?.name || '',
+       date: formData.date,
+       startTime: getDecimalTimeLabel(formData.start),
+       endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
+       price: finalPrice,
+       notes: formData.notes.trim(),
+     };
+     
+     setConfirmationData(confirmationInfo);
+     setShowConfirmation(true);
+   } else {
+     setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+   }
+   
+   setIsModalOpen(false);
+   setIsNewClientMode(false);
+   setEditingAppointmentId(null);
+   setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+   // Don't fetch appointments yet - wait for confirmation action
   };
 
   const formatDateDisplay = (date: Date) => {
@@ -1661,6 +1708,23 @@ Podemos confirmar? 😄`;
               >Semana</button>
             </div>
           )}
+          {displayMode === 'calendar' && (
+            <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
+              <label className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mr-2">
+                Profissional:
+              </label>
+              <select
+                value={listFilters.professional}
+                onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                className="bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm"
+              >
+                <option value="all">Todos</option>
+                {staffList.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             onClick={exportToCSV}
             className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
@@ -1772,7 +1836,11 @@ Podemos confirmar? 😄`;
                     return d.toDateString() === day.toDateString();
                   });
                   const dayKey = toDateKey(day);
-                  const hasDayBlock = scheduleBlocks.some((block) => block.block_type === 'full_day' && blockAppliesToDate(block, dayKey));
+                  const hasDayBlock = scheduleBlocks.some((block) => block.block_type === 'full_day' && 
+                                                       (!block.professional_id || 
+                                                        listFilters.professional === 'all' || 
+                                                        block.professional_id === listFilters.professional) && 
+                                                       blockAppliesToDate(block, dayKey));
                   return (
                     <div
                       key={i}
@@ -1819,11 +1887,13 @@ Podemos confirmar? 😄`;
                       ))}
                     </div>
                     <div className="flex-1 flex">
-                      {weekDays.map((day, di) => {
-                        const dayApts = appointments.filter(a => {
-                          const d = new Date((a as any).date);
-                          return d.toDateString() === day.toDateString();
-                        });
+                       {weekDays.map((day, di) => {
+                         const dayApts = appointments.filter(a => {
+                           const d = new Date((a as any).date);
+                           const matchesDate = d.toDateString() === day.toDateString();
+                           const matchesProfessional = listFilters.professional === 'all' || a.staffId === listFilters.professional;
+                           return matchesDate && matchesProfessional;
+                         });
                         const dayKey = toDateKey(day);
                         const dayBlocks = getBlocksForDate(scheduleBlocks, dayKey);
                         const isDayFullyBlocked = dayBlocks.some((block) => block.block_type === 'full_day' && !block.professional_id);
@@ -1844,7 +1914,10 @@ Podemos confirmar? 😄`;
                           >
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                             {dayBlocks
-                              .filter((block) => block.block_type === 'time_range' && !block.professional_id)
+                              .filter((block) => block.block_type === 'time_range' && 
+                                       (!block.professional_id || 
+                                        listFilters.professional === 'all' || 
+                                        block.professional_id === listFilters.professional))
                               .map((block) => {
                                 const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                                 const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
@@ -1907,17 +1980,18 @@ Podemos confirmar? 😄`;
                   {staffList.length === 0 ? (
                     <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
                   ) : (
-                    staffList.map(resource => (
-                      <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
-                        <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
-                          style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
+                    (listFilters.professional === 'all' ? staffList : staffList.filter(s => s.id === listFilters.professional))
+                      .map(resource => (
+                        <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
+                          <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
+                            style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
+                            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
-                        </div>
-                      </div>
-                    ))
+                      ))
                   )}
                 </div>
               </div>
@@ -1953,7 +2027,8 @@ Podemos confirmar? 😄`;
                         >
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                           {!showOnlyBlocks && appointments
-                            .filter(apt => apt.staffId === resource.id)
+                            .filter(apt => apt.staffId === resource.id && 
+                                     (listFilters.professional === 'all' || apt.staffId === listFilters.professional))
                             .map((apt, idx) => {
                               const startOffset = (apt.start - 8) * (100 / totalSlots);
                               const height = apt.duration * (100 / totalSlots);
@@ -3012,9 +3087,129 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
         </div>
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </div >
-  );
-};
+       {showConfirmation && confirmationData && (
+         <Modal
+           isOpen={showConfirmation}
+           onClose={() => {
+             setShowConfirmation(false);
+             // Fetch appointments when closing confirmation
+             fetchAppointments();
+           }}
+           title="Agendamento Confirmado"
+           maxWidth="md"
+         >
+           <div className="space-y-6">
+             <div className="text-center">
+               <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-100 text-green-600 mx-auto mb-4">
+                 <span className="material-symbols-outlined">check_circle</span>
+               </div>
+               <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                 Agendamento criado com sucesso!
+               </h3>
+               <p className="text-slate-600 dark:text-slate-300 mt-2">
+                 Seu agendamento foi confirmado com os seguintes detalhes:
+               </p>
+             </div>
+             
+             <div className="space-y-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Cliente:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.clientName}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Serviço:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.serviceName}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Profissional:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.staffName}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Data:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">{new Date(confirmationData.date).toLocaleDateString('pt-BR')}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Horário:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">
+                     {confirmationData.startTime} - {confirmationData.endTime}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-sm font-medium text-slate-500">Valor:</p>
+                   <p className="text-lg font-bold text-slate-900 dark:text-white">
+                     R$ {confirmationData.price.toFixed(2).replace('.', ',')}
+                   </p>
+                 </div>
+                 {confirmationData.notes && (
+                   <div className="md:col-span-2">
+                     <p className="text-sm font-medium text-slate-500">Observações:</p>
+                     <p className="text-slate-900 dark:text-white">{confirmationData.notes}</p>
+                   </div>
+                 )}
+               </div>
+             </div>
+             
+             {confirmationData.comandaId && (
+               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                   <span className="material-symbols-outlined text-blue-600">receipt_long</span>
+                   Comanda criada com sucesso!
+                 </p>
+               </div>
+             )}
+             
+             <div className="pt-4 flex justify-end gap-3">
+               <button
+                 onClick={() => {
+                   setShowConfirmation(false);
+                   // Fetch appointments when closing
+                   fetchAppointments();
+                 }}
+                 className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+               >
+                 Voltar para agendamentos
+               </button>
+               <button
+                 onClick={() => {
+                   setShowConfirmation(false);
+                   navigate('/');
+                   // Fetch appointments when closing
+                   fetchAppointments();
+                 }}
+                 className="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+               >
+                 Ir para início
+               </button>
+               <button
+                 onClick={() => {
+                   setShowConfirmation(false);
+                   setIsModalOpen(true);
+                   setIsNewClientMode(false);
+                   setEditingAppointmentId(null);
+                   setFormData({ 
+                     client: '', 
+                     clientPhone: '', 
+                     service: '', 
+                     staffId: staffList[0]?.id ?? '', 
+                     date: new Date().toISOString().split('T')[0], 
+                     start: 8, 
+                     duration: 1, 
+                     notes: '' 
+                   });
+                 }}
+                 className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+               >
+                 Realizar novo agendamento
+               </button>
+             </div>
+           </div>
+         </Modal>
+       )}
+       
+       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+     </div >
+   );
+ };
 
-export default Schedule;
+ export default Schedule;
