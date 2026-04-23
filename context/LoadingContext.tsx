@@ -9,8 +9,8 @@ interface LoadingState {
 }
 
 interface LoadingContextType extends LoadingState {
-  showLoading: (message: LoadingMessageKey | string, duration?: number) => void;
-  hideLoading: () => void;
+  showLoading: (message: LoadingMessageKey | string, duration?: number) => string;
+  hideLoading: (id?: string) => void;
   hideAll: () => void;
 }
 
@@ -50,11 +50,14 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
       }, duration);
     }
+    return id;
   }, []);
 
-  const hideLoading = useCallback(() => {
+  const hideLoading = useCallback((id?: string) => {
     setState((prev) => {
-      const newQueue = prev.queue.slice(0, -1);
+      const newQueue = id
+        ? prev.queue.filter((item) => item.id !== id)
+        : prev.queue.slice(0, -1);
       return {
         isLoading: newQueue.length > 0,
         message: newQueue.length > 0 ? newQueue[newQueue.length - 1].message : null,

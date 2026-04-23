@@ -105,16 +105,17 @@ const Clients: React.FC = () => {
     }, []);
 
     const fetchClients = useCallback(async () => {
+        let loadingId: string | undefined;
+
         if (!tenantId) {
             setClients([]);
             setChefClubMap({});
             setLoading(false);
-            hideLoading();
             return;
         }
 
         setLoading(true);
-        showLoading('CLIENTS');
+        loadingId = showLoading('CLIENTS');
         
         try {
             const { data, error } = await supabase
@@ -148,7 +149,7 @@ const Clients: React.FC = () => {
             if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         } finally {
             setLoading(false);
-            hideLoading();
+            hideLoading(loadingId);
         }
     }, [tenantId, showLoading, hideLoading]);
 
