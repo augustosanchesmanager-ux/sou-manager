@@ -89,7 +89,7 @@ export const fetchDashboardData = async ({
     fetchServicesWithFallback(tenantId),
     supabase
       .from('appointments')
-      .select('*, clients(phone, name)')
+      .select('*')
       .eq('tenant_id', tenantId)
       .neq('status', 'cancelled')
       .gte('start_time', new Date().toISOString())
@@ -105,7 +105,19 @@ export const fetchDashboardData = async ({
   logSupabaseError('profile', profileRes.error);
   logSupabaseError('transactions', transactionsRes.error);
 
+  // Build phone lookup map from clients
+  const clientPhoneMap: Record<string, string> = {};
+  (clientsRes.data || []).forEach((client: any) => {
+    if (client.id && client.phone) {
+      clientPhoneMap[client.id] = client.phone;
+    }
+  });
+
   const clients = (clientsRes.data || []) as DashboardClient[];
+  const appointments = (appointmentsRes.data || []).map((apt: any) => {
+    const phone = apt.client_phone || clientPhoneMap[apt.client_id] || null;
+    return { ...normalizeAppointmentRecord(apt), client_phone: phone };
+  });
   const staffList = ((staffRes.data || []) as DashboardStaff[]).map((staff) => ({
     id: staff.id,
     name: staff.name,
@@ -135,7 +147,7 @@ export const fetchDashboardData = async ({
     clients,
     staffList,
     servicesList,
-    appointments: (appointmentsRes.data || []).map(normalizeAppointmentRecord),
+    appointments,
     upcomingBirthdays: buildUpcomingBirthdays(clients),
     chartData: buildRevenueChartData(transactionsRes.data || []),
     metrics: buildDashboardMetrics(
