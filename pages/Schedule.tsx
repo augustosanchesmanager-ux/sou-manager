@@ -2873,7 +2873,7 @@ Podemos confirmar? 😄`;
                         <button
                           key={msgType.id}
                           onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
-                          className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0"
+className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0 text-slate-900 dark:text-slate-100"
                         >
                           <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
                           {msgType.label}
@@ -2994,7 +2994,7 @@ Podemos confirmar? 😄`;
                       <button
                         key={msgType.id}
                         onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
-                        className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0"
+                        className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0 text-slate-900 dark:text-slate-100"
                       >
                         <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
                         {msgType.label}
