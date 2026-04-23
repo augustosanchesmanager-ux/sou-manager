@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
-import DashboardAlerts from '../components/DashboardAlerts';
 import { useAuth } from '../context/AuthContext';
 import {
   AppointmentDetailModal,

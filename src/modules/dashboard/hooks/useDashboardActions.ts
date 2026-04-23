@@ -15,6 +15,14 @@ const INITIAL_BUSY_STATE: BusyState = {
   appointmentUpdateId: null,
 };
 
+const toPositiveNumber = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getAppointmentDurationHours = (service: any) =>
+  Math.round((toPositiveNumber(service?.duration ?? service?.duration_minutes, 30) / 60) * 10) / 10;
+
 const normalizeQuickAppointmentResult = (value: any): QuickAppointmentResult => {
   const result = Array.isArray(value) ? value[0] : value;
 
@@ -82,20 +90,139 @@ export const useDashboardActions = () => {
 
       setBusyState((current) => ({ ...current, creatingQuickAppointment: true }));
       try {
-        const { data, error } = await supabase.rpc('create_appointment_with_comanda', {
-          p_tenant_id: tenantId,
-          p_client_id: payload.clientId || null,
-          p_client_name: payload.clientName.trim(),
-          p_service_id: payload.serviceId,
-          p_staff_id: payload.staffId,
-          p_start_time: payload.startTime,
-        });
+        const [serviceRes, staffRes, clientRes] = await Promise.all([
+          supabase
+            .from('services')
+            .select('id, name, price, duration, duration_minutes, active, is_active')
+            .eq('tenant_id', tenantId)
+            .eq('id', payload.serviceId)
+            .maybeSingle(),
+          supabase
+            .from('staff')
+            .select('id, name, status')
+            .eq('tenant_id', tenantId)
+            .eq('id', payload.staffId)
+            .maybeSingle(),
+          payload.clientId
+            ? supabase
+              .from('clients')
+              .select('id, name, phone')
+              .eq('tenant_id', tenantId)
+              .eq('id', payload.clientId)
+              .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
 
-        if (error || !data) {
-          throw error || new Error('Erro ao criar agendamento.');
+        if (serviceRes.error || !serviceRes.data) {
+          throw serviceRes.error || new Error('Servico invalido para este tenant.');
         }
 
-        return normalizeQuickAppointmentResult(data);
+        if (staffRes.error || !staffRes.data) {
+          throw staffRes.error || new Error('Profissional invalido para este tenant.');
+        }
+
+        if (clientRes.error) {
+          throw clientRes.error;
+        }
+
+        const service = serviceRes.data;
+        const staff = staffRes.data;
+        const client = clientRes.data;
+        const serviceIsActive =
+          typeof service.active === 'boolean'
+            ? service.active
+            : typeof service.is_active === 'boolean'
+              ? service.is_active
+              : true;
+
+        if (!serviceIsActive) {
+          throw new Error('Servico inativo para este tenant.');
+        }
+
+        if (`${staff.status || 'active'}`.toLowerCase() !== 'active') {
+          throw new Error('Profissional inativo para este tenant.');
+        }
+
+        const clientName = payload.clientName.trim() || client?.name?.trim() || '';
+        if (!clientName) {
+          throw new Error('Nome do cliente e obrigatorio.');
+        }
+
+        const startTime = new Date(payload.startTime);
+        if (Number.isNaN(startTime.getTime())) {
+          throw new Error('Horario do agendamento invalido.');
+        }
+
+        const duration = getAppointmentDurationHours(service);
+        const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
+        const servicePrice = Number(service.price || 0) || 0;
+
+        const { data: appointment, error: appointmentError } = await supabase
+          .from('appointments')
+          .insert({
+            tenant_id: tenantId,
+            client_id: payload.clientId || null,
+            service_id: payload.serviceId,
+            staff_id: payload.staffId,
+            client_name: clientName,
+            client_phone: client?.phone || '',
+            service_name: service.name,
+            staff_name: staff.name,
+            start_time: startTime.toISOString(),
+            end_time: endTime.toISOString(),
+            duration,
+            price: servicePrice,
+            status: 'confirmed',
+          })
+          .select('id, status')
+          .single();
+
+        if (appointmentError || !appointment) {
+          throw appointmentError || new Error('Erro ao criar agendamento.');
+        }
+
+        const { data: comanda, error: comandaError } = await supabase
+          .from('comandas')
+          .insert({
+            tenant_id: tenantId,
+            appointment_id: appointment.id,
+            client_id: payload.clientId || null,
+            staff_id: payload.staffId,
+            status: 'open',
+            total: servicePrice,
+          })
+          .select('id')
+          .single();
+
+        if (comandaError || !comanda) {
+          throw comandaError || new Error('Erro ao criar comanda do agendamento.');
+        }
+
+        const { data: comandaItem, error: comandaItemError } = await supabase
+          .from('comanda_items')
+          .insert({
+            tenant_id: tenantId,
+            comanda_id: comanda.id,
+            service_id: payload.serviceId,
+            product_name: service.name,
+            quantity: 1,
+            unit_price: servicePrice,
+            staff_id: payload.staffId,
+          })
+          .select('id')
+          .single();
+
+        if (comandaItemError || !comandaItem) {
+          throw comandaItemError || new Error('Erro ao criar item da comanda.');
+        }
+
+        return normalizeQuickAppointmentResult({
+          appointment_id: appointment.id,
+          comanda_id: comanda.id,
+          comanda_item_id: comandaItem.id,
+          service_price: servicePrice,
+          appointment_status: appointment.status || 'confirmed',
+        });
       } finally {
         setBusyState((current) => ({ ...current, creatingQuickAppointment: false }));
       }
@@ -144,4 +271,3 @@ export const useDashboardActions = () => {
     busyState,
   };
 };
-

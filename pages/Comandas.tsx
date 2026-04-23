@@ -1539,17 +1539,18 @@ setBulkClosing(true);
                         )}
                     </aside>
                 </div>
-            </section>
+</section>
 
-<Modal
-                isOpen={bulkCloseModalOpen}
-                onClose={() => {
-                    if (bulkClosing) return;
-                    setBulkCloseModalOpen(false);
-                }}
-                title="Baixa em Massa"
-                maxWidth="md"
-            >
+            <div className="modals">
+                <Modal
+                    isOpen={bulkCloseModalOpen}
+                    onClose={() => {
+                        if (bulkClosing) return;
+                        setBulkCloseModalOpen(false);
+                    }}
+                    title="Baixa em Massa"
+                    maxWidth="md"
+                >
                 <div className="space-y-4">
                     <div className="flex gap-2 mb-4">
                         <button
@@ -1621,7 +1622,7 @@ setBulkClosing(true);
                 </div>
             </Modal>
 
-            <Modal
+<Modal
                 isOpen={!!deleteComanda}
                 onClose={() => {
                     setDeleteComanda(null);
@@ -1670,19 +1671,18 @@ setBulkClosing(true);
                     </div>
                 )}
             </Modal>
-         </div>
-         
-         {showConfirmation && confirmationData && (
-           <Modal
-             isOpen={showConfirmation}
-             onClose={() => {
-               setShowConfirmation(false);
-               // Fetch comandas when closing confirmation
-               void fetchData();
-             }}
-             title="Comanda Confirmada"
-             maxWidth="md"
-           >
+        </div>
+
+        {showConfirmation && confirmationData && (
+            <Modal
+                isOpen={showConfirmation}
+                onClose={() => {
+                    setShowConfirmation(false);
+                    void fetchData();
+                }}
+                title="Comanda Confirmada"
+                maxWidth="md"
+            >
              <div className="space-y-6">
                <div className="text-center">
                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-100 text-green-600 mx-auto mb-4">
