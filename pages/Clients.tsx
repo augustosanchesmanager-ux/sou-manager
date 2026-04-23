@@ -8,6 +8,7 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { LoadingBlock } from '../components/ui/Loading';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
+import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 
 interface Client {
     id: string;
@@ -81,28 +82,14 @@ const Clients: React.FC = () => {
         setDetailClient(client);
         setDetailChefClub(null);
 
-        const { data } = await barberSupabase
-            .from('customer_subscriptions')
-            .select(`
-                status,
-                plan:customer_plans(name),
-                credits:customer_credits(available_credits)
-            `)
-            .eq('client_id', client.id)
-            .eq('status', 'active')
-            .maybeSingle();
-
-        if (data) {
-            setDetailChefClub({
-                planName: (data.plan as any).name,
-                credits: (data.credits as any)?.[0]?.available_credits || 0,
-                status: data.status
-            });
-            return;
+        try {
+            const summary = await fetchChefClubSummaryByClient(client.id, tenantId);
+            setDetailChefClub(summary);
+        } catch (error) {
+            console.error('Erro ao carregar resumo do Clube do Chefe:', error);
+            setDetailChefClub(null);
         }
-
-        setDetailChefClub(null);
-    }, []);
+    }, [tenantId]);
 
     const fetchClients = useCallback(async () => {
         let loadingId: string | undefined;
@@ -126,27 +113,17 @@ const Clients: React.FC = () => {
             if (data) {
                 setClients(data);
 
-                // Fetch subscription badges
-                const clientIds = data.map(c => c.id);
-                if (clientIds.length > 0) {
-                    const { data: subs } = await barberSupabase
-                        .from('customer_subscriptions')
-                        .select('client_id, plan:customer_plans(name)')
-                        .eq('status', 'active')
-                        .in('client_id', clientIds);
-
-                    if (subs) {
-                        const map: Record<string, string> = {};
-                        subs.forEach(s => {
-                            map[s.client_id] = (s.plan as any).name;
-                        });
-                        setChefClubMap(map);
-                    }
-                } else {
+                if (data.length === 0) {
                     setChefClubMap({});
+                } else {
+                    const planMap = await fetchActiveChefClubPlanMap(tenantId);
+                    setChefClubMap(planMap);
                 }
             }
             if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
+        } catch (error) {
+            console.error('Erro ao carregar clientes:', error);
+            setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         } finally {
             setLoading(false);
             hideLoading(loadingId);

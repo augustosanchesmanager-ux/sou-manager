@@ -5,6 +5,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
+import { fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -762,27 +763,13 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data } = await supabase
-      .from('customer_subscriptions')
-      .select(`
-        status,
-        plan:customer_plans(name),
-        credits:customer_credits(available_credits)
-      `)
-      .eq('client_id', client.id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (data) {
-      setChefClubInfo({
-        planName: (data.plan as any).name,
-        credits: (data.credits as any)?.[0]?.available_credits || 0,
-        status: data.status
-      });
-      return;
+    try {
+      const summary = await fetchChefClubSummaryByClient(client.id, tenantId);
+      setChefClubInfo(summary);
+    } catch (error) {
+      console.error('Erro ao carregar resumo do Clube do Chefe na agenda:', error);
+      setChefClubInfo(null);
     }
-
-    setChefClubInfo(null);
   };
 
   const selectClient = async (clientName: string) => {

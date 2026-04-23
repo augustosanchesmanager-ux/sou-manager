@@ -16,7 +16,7 @@ interface Appointment {
 interface Product {
     id: string;
     name: string;
-    stock: number;
+    stock_quantity: number;
     minimum_stock: number;
 }
 
@@ -55,28 +55,31 @@ const Operations: React.FC = () => {
         // Fetch low stock items
         const { data: products } = await supabase
             .from('products')
-            .select('id, name, stock, minimum_stock')
+            .select('id, name, stock_quantity, minimum_stock')
             .eq('tenant_id', tenantId)
-            .lte('stock', 5)
+            .lte('stock_quantity', 5)
             .limit(5);
-
-        // Fetch completed appointments for stats
-        const { data: completed } = await supabase
-            .from('appointments')
-            .select('id, total_price') // Assuming there's a total_price or similar
-            .eq('tenant_id', tenantId)
-            .eq('status', 'completed')
-            .gte('start_time', startOfDay)
-            .lte('start_time', endOfDay);
 
         if (appts) setAppointments(appts);
         if (products) setLowStockItems(products);
 
-        if (completed) {
-            const attendedCount = completed.length;
-            const totalRevenue = completed.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+        const completedAppointmentIds = (appts || [])
+            .filter((appointment) => appointment.status === 'completed')
+            .map((appointment) => appointment.id);
+
+        if (completedAppointmentIds.length > 0) {
+            const { data: completedComandas } = await supabase
+                .from('comandas')
+                .select('appointment_id, total')
+                .eq('tenant_id', tenantId)
+                .in('appointment_id', completedAppointmentIds);
+
+            const attendedCount = completedAppointmentIds.length;
+            const totalRevenue = (completedComandas || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
             const avg = attendedCount > 0 ? totalRevenue / attendedCount : 0;
             setStats({ attended: attendedCount, avgTicket: avg });
+        } else {
+            setStats({ attended: 0, avgTicket: 0 });
         }
 
         setLoading(false);
@@ -211,10 +214,10 @@ const Operations: React.FC = () => {
                                     <div key={item.id} className="p-4 hover:bg-slate-50 dark:hover:bg-white/5 rounded-lg flex items-center justify-between transition-colors">
                                         <div>
                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
-                                            <p className="text-xs text-slate-500">Qtd atual: {item.stock.toString().padStart(2, '0')}</p>
+                                            <p className="text-xs text-slate-500">Qtd atual: {item.stock_quantity.toString().padStart(2, '0')}</p>
                                         </div>
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded ${item.stock <= 0 ? 'bg-red-100 dark:bg-red-950/50 text-red-600' : 'bg-orange-100 dark:bg-orange-950/30 text-orange-600 font-bold uppercase'}`}>
-                                            {item.stock <= 0 ? 'Zerrado' : 'Baixo'}
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded ${item.stock_quantity <= 0 ? 'bg-red-100 dark:bg-red-950/50 text-red-600' : 'bg-orange-100 dark:bg-orange-950/30 text-orange-600 font-bold uppercase'}`}>
+                                            {item.stock_quantity <= 0 ? 'Zerado' : 'Baixo'}
                                         </span>
                                     </div>
                                 ))
