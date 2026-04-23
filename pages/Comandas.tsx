@@ -390,17 +390,27 @@ const Comandas: React.FC = () => {
     const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(preferences.advancedFiltersOpen);
     const [selectedComandaId, setSelectedComandaId] = useState<string | null>(null);
     const [selectedOpenComandaIds, setSelectedOpenComandaIds] = useState<string[]>([]);
-const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
-    const [bulkClosing, setBulkClosing] = useState(false);
-    const [bulkClosureNote, setBulkClosureNote] = useState('');
-    const [bulkLegacyReferenceMonth, setBulkLegacyReferenceMonth] = useState(getDefaultLegacyReferenceMonth);
-    const [bulkCloseType, setBulkCloseType] = useState<'admin' | 'normal'>('normal');
+  const [bulkCloseModalOpen, setBulkCloseModalOpen] = useState(false);
+  const [bulkClosing, setBulkClosing] = useState(false);
+  const [bulkClosureNote, setBulkClosureNote] = useState('');
+  const [bulkLegacyReferenceMonth, setBulkLegacyReferenceMonth] = useState(getDefaultLegacyReferenceMonth);
+  const [bulkCloseType, setBulkCloseType] = useState<'admin' | 'normal'>('normal');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-    const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
-    const [deleting, setDeleting] = useState(false);
-    const [cancelReason, setCancelReason] = useState('');
-    const [cancelReasonOther, setCancelReasonOther] = useState('');
+  
+    // Confirmation State
+    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [confirmationData, setConfirmationData] = useState<{
+      comandaId: string;
+      clientName: string;
+      total: number;
+      status: ComandaStatus;
+      comandaItems: ComandaItem[];
+    } | null>(null);
+    
+      const [deleteComanda, setDeleteComanda] = useState<Comanda | null>(null);
+      const [deleting, setDeleting] = useState(false);
+      const [cancelReason, setCancelReason] = useState('');
+      const [cancelReasonOther, setCancelReasonOther] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
@@ -1493,7 +1503,25 @@ setBulkClosing(true);
 
                                     <div className="mt-5 grid gap-2 sm:grid-cols-2">
                                         {selectedComanda.status === 'open' ? (
-                                            <Button onClick={() => navigate(`/checkout/${selectedComanda.id}`)} leftIcon="point_of_sale" className="justify-center">Fechar comanda</Button>
+                                            <Button 
+                                           onClick={() => {
+                                             if (selectedComanda) {
+                                               const confirmationInfo = {
+                                                 comandaId: selectedComanda.id,
+                                                 clientName: selectedComanda.clients.name,
+                                                 total: selectedComanda.total,
+                                                 status: selectedComanda.status,
+                                                 comandaItems: selectedComanda.comanda_items
+                                               };
+                                               setConfirmationData(confirmationInfo);
+                                               setShowConfirmation(true);
+                                             }
+                                           }} 
+                                           leftIcon="point_of_sale" 
+                                           className="justify-center"
+                                         >
+                                           Fechar comanda
+                                         </Button>
                                         ) : (
                                             <Button variant="secondary" onClick={() => navigate(`/checkout/${selectedComanda.id}`)} leftIcon="edit" className="justify-center">Reabrir edicao</Button>
                                         )}
@@ -1642,8 +1670,104 @@ setBulkClosing(true);
                     </div>
                 )}
             </Modal>
-        </div>
-    );
-};
+         </div>
+         
+         {showConfirmation && confirmationData && (
+           <Modal
+             isOpen={showConfirmation}
+             onClose={() => {
+               setShowConfirmation(false);
+               // Fetch comandas when closing confirmation
+               void fetchData();
+             }}
+             title="Comanda Confirmada"
+             maxWidth="md"
+           >
+             <div className="space-y-6">
+               <div className="text-center">
+                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-100 text-green-600 mx-auto mb-4">
+                   <span className="material-symbols-outlined">check_circle</span>
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                   Comanda fechada com sucesso!
+                 </h3>
+                 <p className="text-slate-600 dark:text-slate-300 mt-2">
+                   Sua comanda foi fechada com os seguintes detalhes:
+                 </p>
+               </div>
+               
+               <div className="space-y-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div>
+                     <p className="text-sm font-medium text-slate-500">Cliente:</p>
+                     <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.clientName}</p>
+                   </div>
+                   <div>
+                     <p className="text-sm font-medium text-slate-500">Status:</p>
+                     <p className="text-lg font-bold text-slate-900 dark:text-white">
+                       {confirmationData.status === 'paid' ? 'Paga' : 'Cancelada'}
+                     </p>
+                   </div>
+                   <div>
+                     <p className="text-sm font-medium text-slate-500">Valor Total:</p>
+                     <p className="text-lg font-bold text-slate-900 dark:text-white">
+                       R$ {confirmationData.total.toFixed(2).replace('.', ',')}
+                     </p>
+                   </div>
+                   <div className="md:col-span-2">
+                     <p className="text-sm font-medium text-slate-500">Itens da Comanda:</p>
+                     <div className="space-y-2">
+                       {confirmationData.comandaItems.map((item, index) => (
+                         <div key={index} className="flex justify-between text-slate-700 dark:text-slate-300">
+                           <span>{item.quantity}x {item.product_name}</span>
+                           <span>R$ {(item.quantity * item.unit_price).toFixed(2).replace('.', ',')}</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 </div>
+               </div>
+               
+               <div className="pt-4 flex justify-end gap-3">
+                 <button
+                   onClick={() => {
+                     setShowConfirmation(false);
+                     // Fetch comandas when closing
+                     void fetchData();
+                   }}
+                   className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                 >
+                   Voltar para comandas
+                 </button>
+                 <button
+                   onClick={() => {
+                     setShowConfirmation(false);
+                     navigate('/');
+                     // Fetch comandas when closing
+                     void fetchData();
+                   }}
+                   className="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                 >
+                   Ir para início
+                 </button>
+                 <button
+                   onClick={() => {
+                     setShowConfirmation(false);
+                     // Navigate to checkout to open a new comanda
+                     navigate('/checkout?mode=comanda');
+                   }}
+                   className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+                 >
+                   Realizar nova comanda
+                 </button>
+               </div>
+             </div>
+           </Modal>
+         )}
+         
+         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+     </div >
+   );
+ };
 
-export default Comandas;
+ export default Comandas;

@@ -1295,92 +1295,91 @@ const Schedule: React.FC = () => {
        
        setConfirmationData(confirmationInfo);
        setShowConfirmation(true);
-    } else {
-      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+     } else {
+       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
 
-      // INSERT NEW
-      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
-        client_id: clientId,
-        service_id: selectedService?.id || null,
-        staff_id: formData.staffId || null,
-        client_name: formData.client,
-        client_phone: formData.clientPhone,
-        service_name: formData.service,
-        notes: formData.notes.trim(),
-        staff_name: selectedStaff?.name || '',
-        start_time: startTimeLine.toISOString(),
-        end_time: endTimeLine.toISOString(),
-        duration: Number(formData.duration),
-        price: selectedService?.price || 0,
-        status: 'confirmed',
-        tenant_id: tenantId
-      }).select().single();
+       // INSERT NEW
+       const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
+         client_id: clientId,
+         service_id: selectedService?.id || null,
+         staff_id: formData.staffId || null,
+         client_name: formData.client,
+         client_phone: formData.clientPhone,
+         service_name: formData.service,
+         notes: formData.notes.trim(),
+         staff_name: selectedStaff?.name || '',
+         start_time: startTimeLine.toISOString(),
+         end_time: endTimeLine.toISOString(),
+         duration: Number(formData.duration),
+         price: selectedService?.price || 0,
+         status: 'confirmed',
+         tenant_id: tenantId
+       }).select().single();
 
-      if (saveError) {
-        console.error('Erro ao salvar agendamento:', saveError);
-        setError(`Erro ao salvar agendamento: ${saveError.message}`);
-        return;
-      }
+       if (saveError) {
+         console.error('Erro ao salvar agendamento:', saveError);
+         setError(`Erro ao salvar agendamento: ${saveError.message}`);
+         return;
+       }
 
-      if (savedApt) {
-        const { data: comanda } = await supabase.from('comandas').insert({
-          appointment_id: savedApt.id,
-          client_id: clientId,
-          staff_id: formData.staffId || null,
-          status: 'open',
-          total: 0,
-          tenant_id: tenantId
-        }).select().single();
+       if (savedApt) {
+         const { data: comanda } = await supabase.from('comandas').insert({
+           appointment_id: savedApt.id,
+           client_id: clientId,
+           staff_id: formData.staffId || null,
+           status: 'open',
+           total: 0,
+           tenant_id: tenantId
+         }).select().single();
 
-        if (comanda && selectedService) {
-          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
-          let finalPrice = serviceData?.price || 0;
+         if (comanda && selectedService) {
+           const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+           let finalPrice = serviceData?.price || 0;
 
-          const promo = activePromotions.find(p =>
-            (p.target_type === 'all') ||
-            (p.target_type === 'service' && p.target_id === selectedService.id)
-          );
+           const promo = activePromotions.find(p =>
+             (p.target_type === 'all') ||
+             (p.target_type === 'service' && p.target_id === selectedService.id)
+           );
 
-          if (promo) {
-            if (promo.discount_type === 'fixed') {
-              finalPrice = Math.max(0, finalPrice - promo.discount_value);
-            } else {
-              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-            }
-          }
+           if (promo) {
+             if (promo.discount_type === 'fixed') {
+               finalPrice = Math.max(0, finalPrice - promo.discount_value);
+             } else {
+               finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+             }
+           }
 
-          await supabase.from('comanda_items').insert({
-            comanda_id: comanda.id,
-            service_id: selectedService.id,
-            product_name: selectedService.name,
-            quantity: 1,
-            unit_price: finalPrice,
-            tenant_id: tenantId,
-            staff_id: formData.staffId || null
-          });
+           await supabase.from('comanda_items').insert({
+             comanda_id: comanda.id,
+             service_id: selectedService.id,
+             product_name: selectedService.name,
+             quantity: 1,
+             unit_price: finalPrice,
+             tenant_id: tenantId,
+             staff_id: formData.staffId || null
+           });
 
-          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
-        }
-      }
-     // Prepare confirmation data
-     const confirmationInfo = {
-       appointmentId: savedApt.id,
-       comandaId: comanda ? comanda.id : null,
-       clientName: formData.client,
-       serviceName: formData.service,
-       staffName: selectedStaff?.name || '',
-       date: formData.date,
-       startTime: getDecimalTimeLabel(formData.start),
-       endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
-       price: finalPrice,
-       notes: formData.notes.trim(),
-     };
-     
-     setConfirmationData(confirmationInfo);
-     setShowConfirmation(true);
-   } else {
-     setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
-   }
+           await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
+         }
+       }
+       
+       // Prepare confirmation data
+       const confirmationInfo = {
+         appointmentId: savedApt.id,
+         comandaId: comanda ? comanda.id : null,
+         clientName: formData.client,
+         serviceName: formData.service,
+         staffName: selectedStaff?.name || '',
+         date: formData.date,
+         startTime: getDecimalTimeLabel(formData.start),
+         endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
+         price: finalPrice,
+         notes: formData.notes.trim(),
+       };
+       
+       setConfirmationData(confirmationInfo);
+       setShowConfirmation(true);
+     }
    
    setIsModalOpen(false);
    setIsNewClientMode(false);
