@@ -41,8 +41,8 @@ export const normalizeServiceRecord = (record: any): DashboardService => ({
 
 export const normalizeAppointmentRecord = (record: any): DashboardAppointment => ({
   id: record.id,
-  client_name: record.client_name || '',
-  client_phone: record.client_phone || null,
+  client_name: record.client_name || record.clients?.name || '',
+  client_phone: record.client_phone || record.clients?.phone || null,
   service_name: record.service_name || '',
   staff_name: record.staff_name || '',
   start_time: record.start_time,

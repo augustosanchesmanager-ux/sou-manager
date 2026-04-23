@@ -89,7 +89,7 @@ export const fetchDashboardData = async ({
     fetchServicesWithFallback(tenantId),
     supabase
       .from('appointments')
-      .select('*')
+      .select('*, clients(phone, name)')
       .eq('tenant_id', tenantId)
       .neq('status', 'cancelled')
       .gte('start_time', new Date().toISOString())
