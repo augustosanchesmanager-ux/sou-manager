@@ -1555,10 +1555,15 @@ Podemos confirmar? 😄`;
   const handleOpenWhatsAppDropdown = (appointment: CalendarAppointment, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!appointment.clientPhone) {
+    
+    const client = clientsList.find(c => c.id === appointment.clientId);
+    const phone = client?.phone || appointment.clientPhone;
+    
+    if (!phone) {
       setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
       return;
     }
+    
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setWhatsAppDropdownTarget(appointment);
     setWhatsAppDropdownPosition({ top: rect.bottom + 5, left: rect.left });
@@ -1567,9 +1572,17 @@ Podemos confirmar? 😄`;
   const handleSendWhatsAppMessage = (messageType: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!whatsAppDropdownTarget?.clientPhone || !whatsAppDropdownTarget) return;
+    if (!whatsAppDropdownTarget) return;
+    
+    const client = clientsList.find(c => c.id === whatsAppDropdownTarget.clientId);
+    const phone = client?.phone || whatsAppDropdownTarget.clientPhone;
+    
+    if (!phone) {
+      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
+      return;
+    }
 
-    const cleanPhone = whatsAppDropdownTarget.clientPhone.replace(/\D/g, '');
+    const cleanPhone = phone.replace(/\D/g, '');
     const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     const text = generateWhatsAppMessage(whatsAppDropdownTarget, messageType);
 
