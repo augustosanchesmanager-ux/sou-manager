@@ -362,6 +362,7 @@ const Schedule: React.FC = () => {
 
   const totalSlots = dynamicTimeSlots.length;
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [isEncaixeMode, setIsEncaixeMode] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<NewAppointmentForm>({
@@ -380,6 +381,7 @@ const Schedule: React.FC = () => {
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
+    setIsEncaixeMode(false);
     setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
     setIsModalOpen(true);
 
@@ -787,6 +789,7 @@ const Schedule: React.FC = () => {
 
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
+    setIsEncaixeMode(false);
     const datePart = apt.startTime.split('T')[0];
 
     setFormData({
@@ -1190,8 +1193,23 @@ const Schedule: React.FC = () => {
       blockOverlapsTimeRange(block, formData.start, formData.start + Number(formData.duration)),
     );
 
-    if (hasBlockConflict) {
+    if (hasBlockConflict && !isEncaixeMode) {
       setError('Existe um bloqueio de agenda nesse período. Escolha outro horário.');
+      return;
+    }
+
+    // Verificar conflito com agendamentos existentes (ignorar se modo encaixe)
+    const hasAptConflict = appointments.some(apt =>
+      apt.id !== editingAppointmentId &&
+      apt.staffId === formData.staffId &&
+      new Date(apt.startTime).toISOString().split('T')[0] === formData.date &&
+      ((formData.start >= apt.start && formData.start < apt.start + apt.duration) ||
+       (formData.start + formData.duration > apt.start && formData.start + formData.duration <= apt.start + apt.duration) ||
+       (formData.start <= apt.start && formData.start + formData.duration >= apt.start + apt.duration))
+    );
+
+    if (hasAptConflict && !isEncaixeMode) {
+      setError('Já existe um agendamento nesse horário. Ative o modo encaixe para sobrepor.');
       return;
     }
 
@@ -2255,7 +2273,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); setIsEncaixeMode(false); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2419,11 +2437,11 @@ Podemos confirmar? 😄`;
                         slot < (apt.start + apt.duration) && slotEnd > apt.start
                       );
                       const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
-                      const isDisabled = hasConflict || hasBlock;
+                      const isDisabled = !isEncaixeMode && (hasConflict || hasBlock);
 
                       return (
                         <option key={slot} value={slot} disabled={isDisabled} className={isDisabled ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict && !isEncaixeMode ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
                         </option>
                       );
                     });
@@ -2452,6 +2470,21 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
+          <div className="flex items-center justify-between mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-600">push_pin</span>
+              <span className="text-sm font-bold text-amber-700 dark:text-amber-300">Modo Encaixe</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEncaixeMode(!isEncaixeMode)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isEncaixeMode ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEncaixeMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          <p className="text-[10px] text-amber-600 mt-1">Permite agendar em horário ocupado</p>
+
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">ObservaÃ§Ãµes</label>
             <textarea
@@ -2465,7 +2498,7 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); setIsEncaixeMode(false); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
