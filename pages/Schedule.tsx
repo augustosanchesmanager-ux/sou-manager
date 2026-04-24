@@ -1128,7 +1128,7 @@ const { data, error } = await supabase
       const comandaForDate = existingComandas.find(c => 
         new Date(c.created_at).toISOString().split('T')[0] === formData.date
       );
-      if (comandaForDate) {
+      if (comandaForDate && !isEncaixeMode) {
         setError(`Este cliente já tem uma comanda ${comandaForDate.status === 'blocked' ? 'bloqueada' : 'aberta'} para este dia.`);
         return;
       }
