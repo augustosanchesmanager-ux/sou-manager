@@ -217,6 +217,7 @@ const getOriginLabel = (source?: string | null, channel?: string | null) => {
 
   if (normalizedChannel === 'whatsapp') return 'WhatsApp';
   if (normalizedChannel === 'admin') return 'Admin';
+  if (normalizedSource === 'site_sanchez') return 'Site Sanchez';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return 'Totem';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'qr') return 'QR';
   if (normalizedSource === 'kiosk') return 'Totem';
@@ -1111,6 +1112,37 @@ const { data, error } = await supabase
 
     if (hasAptConflict && !isEncaixeMode) {
       setError('Já existe um agendamento nesse horário. Ative o modo encaixe para sobrepor.');
+      return;
+    }
+
+    // Verificar se o mesmo cliente já tem uma comanda para a mesma data
+    const { data: existingComandas } = await supabase
+      .from('comandas')
+      .select('id, created_at, status')
+      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .limit(10);
+
+    if (existingComandas && existingComandas.length > 0) {
+      const comandaForDate = existingComandas.find(c => 
+        new Date(c.created_at).toISOString().split('T')[0] === formData.date
+      );
+      if (comandaForDate) {
+        setError(`Este cliente já tem uma comanda ${comandaForDate.status === 'blocked' ? 'bloqueada' : 'aberta'} para este dia.`);
+        return;
+      }
+    }
+
+    // Verificar se já existe agendamento para o mesmo cliente no mesmo dia
+    const hasClientAptConflict = appointments.some(apt =>
+      apt.id !== editingAppointmentId &&
+      apt.clientId === clientId &&
+      new Date(apt.startTime).toISOString().split('T')[0] === formData.date
+    );
+
+    if (hasClientAptConflict && !isEncaixeMode) {
+      setError('Este cliente já tem um agendamento para este dia.');
       return;
     }
 

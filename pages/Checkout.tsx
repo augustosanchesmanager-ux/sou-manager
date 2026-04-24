@@ -501,17 +501,23 @@ const Checkout: React.FC = () => {
             if (!comandaId && supportsOpenComandaState) {
                 const { data: openComandas, error: openComandasError } = await clientDb
                     .from('comandas')
-                    .select('id, created_at')
+                    .select('id, created_at, status')
                     .eq('client_id', client.id)
                     .eq('tenant_id', resolvedTenantId)
-                    .eq('status', 'open')
+                    .in('status', ['open', 'blocked'])
                     .limit(1);
 
                 if (openComandasError) throw openComandasError;
 
                 if (openComandas && openComandas.length > 0) {
+                    const existingComanda = openComandas[0];
+                    if (existingComanda.status === 'blocked') {
+                        setError(`Este cliente já tem uma comanda bloqueada para este dia.`);
+                        setPendingClient(null);
+                        return;
+                    }
                     setPendingClient(client);
-                    setDuplicateComanda(openComandas[0]);
+                    setDuplicateComanda(existingComanda);
                     setShowDuplicateModal(true);
                     return;
                 }
