@@ -920,15 +920,15 @@ const { data, error } = await supabase
       ? cancelOtherReason.trim() 
       : cancelReason;
 
+    const updateData: Record<string, any> = { 
+      status: 'cancelled',
+      cancellation_reason: finalReason,
+    };
+
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ 
-          status: 'cancelled',
-          cancellation_reason: finalReason,
-          cancelled_at: new Date().toISOString(),
-          cancelled_by_user_id: user?.id || null
-        })
+        .update(updateData)
         .eq('id', cancelAppointmentId)
         .eq('tenant_id', tenantId);
 
