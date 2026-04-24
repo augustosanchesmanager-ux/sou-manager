@@ -951,6 +951,11 @@ const { data, error } = await supabase
       console.error('Error cancelling appointment:', err);
       setToast({ message: err?.message || 'Erro ao cancelar agendamento.', type: 'error' });
     }
+};
+
+  const handleOpenCreateBlockModal = () => {
+    resetBlockForm();
+    setIsBlockModalOpen(true);
   };
 
   const handleSaveBlock = async () => {
