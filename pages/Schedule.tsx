@@ -2851,17 +2851,17 @@ Podemos confirmar? 😄`;
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
-              <button onClick={() => handleEditAppointment(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
-              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado')} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
-              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado')} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
-              <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado')} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-              <button onClick={() => handleSendWhatsApp(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
-              <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
-              <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-              <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
-              <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
-            </div>
+             <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
+               <button onClick={() => { if (selectedAppointment) handleEditAppointment(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
+               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
+               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
+               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+               <button onClick={() => { if (selectedAppointment) handleSendWhatsApp(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
+               <button onClick={() => { if (selectedAppointment) handleOpenClient(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
+               <button onClick={() => { if (selectedAppointment) handleOpenComanda(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
+               <button onClick={() => { if (selectedAppointment) handleCancelAppointment(selectedAppointment.id); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
+             </div>
           </div>
         </div>
       )}
