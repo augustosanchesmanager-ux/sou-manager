@@ -347,6 +347,11 @@ const Schedule: React.FC = () => {
   const isDetailModalOpen = false;
   const setIsDetailModalOpen = (_open: boolean) => {};
 
+  // Cancel Modal State
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
+
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
   const displayEndHour = React.useMemo(() => {
     if (appointments.length === 0) return 20;
@@ -916,7 +921,6 @@ const Schedule: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
     if (!tenantId) {
       setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
       return;
@@ -925,7 +929,7 @@ const Schedule: React.FC = () => {
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled' })
+        .update({ status: 'cancelled', cancellation_reason: cancelReason || 'Não informado' })
         .eq('id', appointmentId)
         .eq('tenant_id', tenantId);
 
@@ -946,6 +950,19 @@ const Schedule: React.FC = () => {
       console.error('Error cancelling appointment:', err);
       setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
     }
+  };
+
+  const openCancelModal = (appointment: CalendarAppointment) => {
+    setAppointmentToCancel({ id: appointment.id, client: appointment.client });
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+    setShowCancelModal(false);
+    await handleCancelAppointment(appointmentToCancel.id);
+    setAppointmentToCancel(null);
   };
 
   const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
@@ -2852,16 +2869,61 @@ Podemos confirmar? 😄`;
             </div>
 
              <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
-               <button onClick={() => { if (selectedAppointment) handleEditAppointment(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
-               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
-               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
-               <button onClick={() => { if (selectedAppointment) handleAppointmentStatusChange(selectedAppointment, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-               <button onClick={() => { if (selectedAppointment) handleSendWhatsApp(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
-               <button onClick={() => { if (selectedAppointment) handleOpenClient(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
-               <button onClick={() => { if (selectedAppointment) handleOpenComanda(selectedAppointment); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-               <button onClick={() => { if (selectedAppointment) handleCancelAppointment(selectedAppointment.id); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
+               <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
+               <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
                <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
              </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelModal && appointmentToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelModal(false)} />
+          <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cancelar Agendamento</h3>
+              <p className="text-sm text-slate-500 mt-1">Cliente: <span className="font-semibold">{appointmentToCancel.client}</span></p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Motivo do cancelamento</label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              >
+                <option value="">Selecione um motivo</option>
+                <option value="Desistência do cliente">Desistência do cliente</option>
+                <option value="Profissional indisponível">Profissional indisponível</option>
+                <option value="Conflito de horário">Conflito de horário</option>
+                <option value="Problema de saúde">Problema de saúde</option>
+                <option value="Reagendamento">Reagendamento</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={confirmCancelAppointment}
+                disabled={!cancelReason}
+                className="px-4 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar Cancelamento
+              </button>
+            </div>
           </div>
         </div>
       )}
