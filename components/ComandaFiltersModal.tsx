@@ -2,7 +2,7 @@ import React from 'react';
 import DatePickerInput from './ui/DatePickerInput';
 
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
-type ComandaStatus = 'open' | 'paid' | 'cancelled';
+type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type ConsumptionType = 'all' | 'service' | 'product' | 'mixed';

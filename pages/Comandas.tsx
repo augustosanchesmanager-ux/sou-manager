@@ -15,7 +15,7 @@ import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../sr
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar from '../components/ComandaSidebar';
 
-type ComandaStatus = 'open' | 'paid' | 'cancelled';
+type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
@@ -115,6 +115,7 @@ const CANCEL_REASON_OPTIONS = [
 
 const STATUS_LABELS: Record<'all' | ComandaStatus, string> = {
     all: 'Todas',
+    blocked: 'Bloqueadas',
     open: 'Abertas',
     paid: 'Pagas',
     cancelled: 'Canceladas',
@@ -403,6 +404,54 @@ const Comandas: React.FC = () => {
     useEffect(() => { void fetchData(); }, [fetchData]);
 
     useEffect(() => {
+        if (comandas.length === 0 || !tenantId) return;
+
+        const blockedComandas = comandas.filter((c) => c.status === 'blocked' && c.appointment_id);
+        if (blockedComandas.length === 0) return;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const commandsToUnblock: string[] = [];
+
+        blockedComandas.forEach((comanda) => {
+            if (comanda.appointment?.start_time) {
+                const appointmentDate = new Date(comanda.appointment.start_time);
+                appointmentDate.setHours(0, 0, 0, 0);
+                if (appointmentDate <= today) {
+                    commandsToUnblock.push(comanda.id);
+                }
+            }
+        });
+
+        if (commandsToUnblock.length === 0) return;
+
+        const unblockComandas = async () => {
+            try {
+                const { error } = await supabase
+                    .from('comandas')
+                    .update({ status: 'open' })
+                    .in('id', commandsToUnblock);
+
+                if (error) {
+                    console.warn('Erro ao desbloquear comandas:', error);
+                    return;
+                }
+
+                setComandas((prev) =>
+                    prev.map((c) =>
+                        commandsToUnblock.includes(c.id) ? { ...c, status: 'open' as const } : c
+                    )
+                );
+            } catch (err) {
+                console.warn('Erro ao desbloquear comandas:', err);
+            }
+        };
+
+        unblockComandas();
+    }, [comandas, tenantId]);
+
+    useEffect(() => {
         if (typeof window === 'undefined') return;
         const nextPrefs = { filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, minTotal, maxTotal, consumptionType };
         window.localStorage.setItem(COMANDAS_PREFERENCES_KEY, JSON.stringify(nextPrefs));
@@ -435,6 +484,7 @@ const Comandas: React.FC = () => {
     const openCountAll = comandas.filter((c) => c.status === 'open').length;
     const paidCountAll = comandas.filter((c) => c.status === 'paid').length;
     const cancelledCountAll = comandas.filter((c) => c.status === 'cancelled').length;
+    const blockedCountAll = comandas.filter((c) => c.status === 'blocked').length;
 
     const dateFilteredComandas = comandas.filter((c) => {
         const createdAt = new Date(c.created_at);
@@ -490,6 +540,7 @@ const Comandas: React.FC = () => {
 
     const tabs = [
         { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
+        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: blockedCountAll },
         { key: 'open' as const, label: STATUS_LABELS.open, count: openCountAll },
         { key: 'paid' as const, label: STATUS_LABELS.paid, count: paidCountAll },
         { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: cancelledCountAll },

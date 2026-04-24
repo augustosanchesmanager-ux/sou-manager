@@ -7,7 +7,7 @@ interface ComandaItemType {
     client_id: string;
     staff_id?: string | null;
     appointment_id?: string | null;
-    status: 'open' | 'paid' | 'cancelled';
+    status: 'blocked' | 'open' | 'paid' | 'cancelled';
     cancellation_reason?: string | null;
     closure_mode?: 'standard' | 'legacy_membership' | null;
     closure_note?: string | null;
@@ -52,7 +52,14 @@ const getDisplayId = (id: string) => {
     return Number.isNaN(num) ? 1000 : (num % 89999) + 1000;
 };
 
-const getStatusMeta = (status: 'open' | 'paid' | 'cancelled') => {
+const getStatusMeta = (status: 'blocked' | 'open' | 'paid' | 'cancelled') => {
+    if (status === 'blocked') {
+        return {
+            label: 'Bloqueada',
+            className: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+            dotClassName: 'bg-blue-400',
+        };
+    }
     if (status === 'open') {
         return {
             label: 'Aberta',

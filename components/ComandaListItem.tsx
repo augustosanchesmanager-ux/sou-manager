@@ -7,7 +7,7 @@ interface ComandaItemData {
     client_id: string;
     staff_id?: string | null;
     appointment_id?: string | null;
-    status: 'open' | 'paid' | 'cancelled';
+    status: 'blocked' | 'open' | 'paid' | 'cancelled';
     total: number;
     created_at: string;
     clients: {
@@ -87,7 +87,14 @@ const getConsumptionSummary = (comanda: ComandaItemData) => {
     };
 };
 
-const getStatusMeta = (status: 'open' | 'paid' | 'cancelled') => {
+const getStatusMeta = (status: 'blocked' | 'open' | 'paid' | 'cancelled') => {
+    if (status === 'blocked') {
+        return {
+            label: 'Bloqueada',
+            className: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+            dotClassName: 'bg-blue-400',
+        };
+    }
     if (status === 'open') {
         return {
             label: 'Aberta',
@@ -215,7 +222,12 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
-                    {comanda.status === 'open' ? (
+                    {comanda.status === 'blocked' ? (
+                        <div className="flex items-center gap-1 rounded-lg bg-blue-500/10 px-2 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                            <span className="material-symbols-outlined text-[14px]">lock</span>
+                            Bloqueada
+                        </div>
+                    ) : comanda.status === 'open' ? (
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, () => navigate(`/checkout/${comanda.id}`))}
