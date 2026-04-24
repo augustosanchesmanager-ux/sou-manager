@@ -922,8 +922,9 @@ const { data, error } = await supabase
 
     const updateData: Record<string, any> = { 
       status: 'cancelled',
-      cancellation_reason: finalReason,
     };
+
+    console.log('Cancel update:', updateData, 'id:', cancelAppointmentId, 'tenant:', tenantId);
 
     try {
       const { error } = await supabase
@@ -937,7 +938,7 @@ const { data, error } = await supabase
       // Also cancel associated comanda if it exists and is open
       await supabase
         .from('comandas')
-        .update({ status: 'cancelled', cancellation_reason: finalReason })
+        .update({ status: 'cancelled' })
         .eq('appointment_id', cancelAppointmentId)
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
