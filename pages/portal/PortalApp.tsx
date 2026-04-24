@@ -76,7 +76,7 @@ const PortalApp: React.FC = () => {
                 `)
                 .eq('tenant_id', tenantData.id)
                 .eq('client_id', client.id)
-                .in('status', ['scheduled', 'confirmed'])
+                .in('status', ['pending', 'confirmed'])
                 .gte('start_time', now)
                 .order('start_time', { ascending: true })
                 .limit(1)

@@ -54,3 +54,5 @@ BEGIN
     );
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION bulk_close_comandas_normal(UUID[], UUID, TEXT, TEXT) TO authenticated;

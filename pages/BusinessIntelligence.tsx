@@ -69,6 +69,21 @@ const BusinessIntelligence: React.FC = () => {
     const [productSales, setProductSales] = useState<any[]>([]);
     const [appointmentTimeline, setAppointmentTimeline] = useState<any[]>([]);
     const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
+    const [cancellationData, setCancellationData] = useState<{
+        byReason: { reason: string; count: number; label: string; percentage: number }[];
+        total: number;
+        recoveryRate: number;
+        recoveryAttempts: number;
+        recovered: number;
+        timeline: { date: string; count: number }[];
+    }>({
+        byReason: [],
+        total: 0,
+        recoveryRate: 0,
+        recoveryAttempts: 0,
+        recovered: 0,
+        timeline: [],
+    });
     
     const { data, reload } = useBusinessInsights({ period });
 
@@ -224,6 +239,85 @@ const BusinessIntelligence: React.FC = () => {
                 } catch (err) {
                     console.warn('Erro ao carregar staff:', err);
                     setStaffPerformance([]);
+                }
+                
+                // Cancellation Analysis - with error handling
+                try {
+                    const { data: cancelledAppts } = await supabase
+                        .from('appointments')
+                        .select('id, status, start_time, cancellation_reason, client_name, staff_name')
+                        .eq('tenant_id', tenantId)
+                        .in('status', ['cancelled', 'no_show'])
+                        .order('start_time', { ascending: false })
+                        .limit(500);
+                    
+                    if (cancelledAppts && cancelledAppts.length > 0) {
+                        // Group by reason
+                        const reasonMap: Record<string, { count: number; label: string }> = {
+                            'client_request': { count: 0, label: 'Solicitação do cliente' },
+                            'no_show': { count: 0, label: 'Não compareceu' },
+                            'error_registration': { count: 0, label: 'Erro de cadastro' },
+                            'reschedule': { count: 0, label: 'Reagendamento' },
+                            'other': { count: 0, label: 'Outro motivo' },
+                        };
+                        
+                        cancelledAppts.forEach((apt: any) => {
+                            const reason = apt.cancellation_reason || (apt.status === 'no_show' ? 'no_show' : 'other');
+                            if (reasonMap[reason]) {
+                                reasonMap[reason].count++;
+                            } else {
+                                reasonMap['other']!.count++;
+                            }
+                        });
+                        
+                        const total = cancelledAppts.length;
+                        const byReason = Object.entries(reasonMap)
+                            .filter(([_, data]) => data.count > 0)
+                            .map(([reason, data]) => ({
+                                reason,
+                                label: data.label,
+                                count: data.count,
+                                percentage: (data.count / total) * 100,
+                            }))
+                            .sort((a, b) => b.count - a.count);
+                        
+                        // Timeline of cancellations (last 7 days)
+                        const timelineMap: Record<string, number> = {};
+                        for (let i = 6; i >= 0; i--) {
+                            const d = new Date();
+                            d.setDate(d.getDate() - i);
+                            const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                            timelineMap[key] = 0;
+                        }
+                        
+                        cancelledAppts.forEach((apt: any) => {
+                            const d = new Date(apt.start_time);
+                            const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+                            if (timelineMap[key] !== undefined) {
+                                timelineMap[key]++;
+                            }
+                        });
+                        
+                        setCancellationData({
+                            byReason,
+                            total,
+                            recoveryRate: 0,
+                            recoveryAttempts: 0,
+                            recovered: 0,
+                            timeline: Object.entries(timelineMap).map(([date, count]) => ({ date, count })),
+                        });
+                    } else {
+                        setCancellationData({
+                            byReason: [],
+                            total: 0,
+                            recoveryRate: 0,
+                            recoveryAttempts: 0,
+                            recovered: 0,
+                            timeline: [],
+                        });
+                    }
+                } catch (err) {
+                    console.warn('Erro ao carregar dados de cancelamento:', err);
                 }
             } catch (err) {
                 console.warn('Erro ao carregar dados dos gráficos:', err);
@@ -547,6 +641,120 @@ const BusinessIntelligence: React.FC = () => {
                                 <p className="text-sm text-slate-700 dark:text-slate-300">{txt}</p>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Cancellation Analysis Section */}
+            {cancellationData.total > 0 && (
+                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="size-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center shadow-lg shadow-rose-500/30">
+                            <span className="material-symbols-outlined text-white">event_busy</span>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Análise de Cancelamentos</h3>
+                            <p className="text-xs text-slate-500">{cancellationData.total} agendamentos cancelados/no-show no período</p>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* By Reason Breakdown */}
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Por Motivo</h4>
+                            <div className="space-y-3">
+                                {cancellationData.byReason.map((item) => {
+                                    const reasonColors: Record<string, string> = {
+                                        'no_show': 'bg-red-500',
+                                        'client_request': 'bg-amber-500',
+                                        'error_registration': 'bg-slate-500',
+                                        'reschedule': 'bg-blue-500',
+                                        'other': 'bg-slate-400',
+                                    };
+                                    return (
+                                        <div key={item.reason}>
+                                            <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                                <span className="flex items-center gap-2">
+                                                    <span className={`size-2 rounded-full ${reasonColors[item.reason] || 'bg-slate-400'}`} />
+                                                    {item.label}
+                                                </span>
+                                                <span>{item.count} ({item.percentage.toFixed(1)}%)</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full ${reasonColors[item.reason] || 'bg-slate-400'} rounded-full transition-all duration-700`} 
+                                                    style={{ width: `${item.percentage}%`}} 
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* Error registrations don't count for metrics */}
+                            {cancellationData.byReason.find(r => r.reason === 'error_registration') && (
+                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm">info</span>
+                                        Erros de cadastro não impactam métricas de cancelamento
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Recovery Section */}
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Recuperação de Clientes</h4>
+                            
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="size-10 rounded-full bg-[#25D366]/20 flex items-center justify-center">
+                                        <svg viewBox="0 0 24 24" fill="#25D366" className="size-5">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-green-800 dark:text-green-300">
+                                            Tentar recuperar clientes
+                                        </p>
+                                        <p className="text-xs text-green-600 dark:text-green-400">
+                                            {cancellationData.byReason.filter(r => ['no_show', 'client_request', 'other'].includes(r.reason)).reduce((sum, r) => sum + r.count, 0)} clientes podem ser recuperados
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-green-700 dark:text-green-400 mb-3">
+                                    Agendamentos cancelados por não comparecimento ou solicitação do cliente podem ser recuperados via WhatsApp com mensagem automática personalizada.
+                                </p>
+                                <button 
+                                    onClick={() => window.location.href = '/schedule?filter=cancelled'}
+                                    className="w-full px-4 py-2 rounded-lg bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors"
+                                >
+                                    Ver agendamentos cancelados
+                                </button>
+                            </div>
+                            
+                            {/* Top professionals with most cancellations */}
+                            {cancellationData.byReason.length > 0 && cancellationData.total > 3 && (
+                                <div className="mt-4 p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-border-dark">
+                                    <p className="text-xs font-bold text-slate-500 uppercase mb-2">Dica</p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                                        {cancellationData.byReason[0]?.reason === 'no_show' && (
+                                            <>
+                                                <span className="font-bold text-rose-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% das ausências</span> — Considere enviar lembretes 1 dia antes via WhatsApp para reduzir faltas.
+                                            </>
+                                        )}
+                                        {cancellationData.byReason[0]?.reason === 'client_request' && (
+                                            <>
+                                                <span className="font-bold text-amber-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% por solicitação</span> — Pergunte o motivo para entender padrões e melhorar o serviço.
+                                            </>
+                                        )}
+                                        {!['no_show', 'client_request'].includes(cancellationData.byReason[0]?.reason || '') && (
+                                            <span>Acompanhe os motivos para identificar oportunidades de melhoria.</span>
+                                        )}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

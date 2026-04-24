@@ -116,7 +116,7 @@ const PortalSchedule: React.FC = () => {
                 .eq('tenant_id', tenant.id)
                 .gte('start_time', `${dateStr}T00:00:00`)
                 .lt('start_time', `${dateStr}T23:59:59`)
-                .in('status', ['scheduled', 'confirmed']);
+                .in('status', ['confirmed', 'pending']);
 
             if (selectedBarber && selectedBarber.id !== 'any') {
                 query = query.eq('staff_id', selectedBarber.id);
@@ -198,7 +198,7 @@ const PortalSchedule: React.FC = () => {
                 service_id: selectedService.id,
                 start_time: start.toISOString(),
                 end_time: end.toISOString(),
-                status: 'scheduled',
+                status: 'pending',
                 source: 'client_portal',
                 channel: 'home_portal',
                 notes: `Agendado via Portal do Cliente`

@@ -73,7 +73,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
             .eq('tenant_id', tenantId)
             .gte('start_time', `${dateStr}T00:00:00`)
             .lt('start_time', `${dateStr}T23:59:59`)
-            .in('status', ['scheduled', 'confirmed']);
+            .in('status', ['confirmed', 'pending']);
 
         if (selectedBarber) query = query.eq('staff_id', selectedBarber.id);
 
@@ -145,7 +145,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
                 service_id: selectedService.id,
                 start_time: start.toISOString(),
                 end_time: end.toISOString(),
-                status: 'scheduled',
+                status: 'pending',
                 source: 'kiosk',
                 channel,
                 notes: `Agendado via ${channel === 'totem' ? 'Totem' : 'QR Code'}`,

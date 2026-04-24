@@ -65,7 +65,7 @@ interface CalendarAppointment {
 
 type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
-type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
+type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda' | 'cancelled';
 
 interface AppointmentFiltersState {
   date: string;
@@ -101,6 +101,42 @@ interface NewAppointmentForm {
   notes: string;
 }
 
+// Cancellation types
+export type CancellationReason = 
+  | 'client_request' 
+  | 'no_show' 
+  | 'error_registration' 
+  | 'reschedule' 
+  | 'other';
+
+export const CANCELLATION_REASON_LABELS: Record<CancellationReason, { label: string; description: string; isError: boolean }> = {
+  client_request: { 
+    label: 'Solicitação do cliente', 
+    description: 'Cliente pediu cancelamento',
+    isError: false 
+  },
+  no_show: { 
+    label: 'Não compareceu', 
+    description: 'Cliente não apareceu',
+    isError: false 
+  },
+  error_registration: { 
+    label: 'Erro de cadastro', 
+    description: 'Agendamento feito por engano (não impacta métricas)',
+    isError: true 
+  },
+  reschedule: { 
+    label: 'Reagendamento', 
+    description: 'Cliente irá remarcar',
+    isError: false 
+  },
+  other: { 
+    label: 'Outro motivo', 
+    description: 'Outro motivo não especificado',
+    isError: false 
+  },
+};
+
 interface ScheduleBlockForm {
   type: 'full_day' | 'time_range';
   professionalScope: 'all' | 'specific';
@@ -117,7 +153,6 @@ interface ScheduleBlockForm {
 }
 
 const statusColors: Record<string, string> = {
-  scheduled: 'bg-slate-500',
   confirmed: 'bg-blue-500',
   pending: 'bg-amber-500',
   in_progress: 'bg-violet-500',
@@ -129,11 +164,6 @@ const statusColors: Record<string, string> = {
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
 const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
-  scheduled: {
-    label: 'Agendado',
-    icon: 'event',
-    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-  },
   pending: {
     label: 'Pendente',
     icon: 'schedule',
@@ -260,7 +290,7 @@ const Schedule: React.FC = () => {
     search: '',
     quickChip: 'all',
   });
-
+  
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
     const d = new Date(date);
@@ -349,6 +379,12 @@ const Schedule: React.FC = () => {
   const isDetailModalOpen = false;
   const setIsDetailModalOpen = (_open: boolean) => {};
 
+  // Cancellation Modal State
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState<CancellationReason>('client_request');
+  const [cancelOtherReason, setCancelOtherReason] = useState('');
+
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
   const displayEndHour = React.useMemo(() => {
     if (appointments.length === 0) return 20;
@@ -409,8 +445,8 @@ const Schedule: React.FC = () => {
   const [isNewClientMode, setIsNewClientMode] = useState(false);
   const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
-
-  // Fetch base data
+  
+  // Fetch base data - busca direta sem fallbacks redundantes
   const fetchBaseData = useCallback(async () => {
     if (!tenantId) {
       setStaffList([]);
@@ -428,71 +464,8 @@ const Schedule: React.FC = () => {
     ]);
 
     if (staffRes.data) setStaffList(staffRes.data);
-
-    // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
-    if (servicesRes.error) {
-      console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase
-        .from('services')
-        .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
-        .neq('active', false)
-        .order('name');
-
-      if (retryServices.data) {
-        setServicesList(retryServices.data);
-      } else {
-        const legacyServices = await supabase
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .order('name');
-
-        if (legacyServices.data) {
-          setServicesList(
-            legacyServices.data.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              duration: Number(s.duration_minutes) || 30,
-              price: Number(s.price) || 0,
-            }))
-          );
-        }
-      }
-    } else if (servicesRes.data && servicesRes.data.length > 0) {
-      setServicesList(servicesRes.data);
-    } else {
-      const retryServices = await supabase
-        .from('services')
-        .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
-        .neq('active', false)
-        .order('name');
-
-      if (retryServices.data && retryServices.data.length > 0) {
-        setServicesList(retryServices.data);
-      } else {
-        const legacyServices = await supabase
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .order('name');
-
-        if (legacyServices.data) {
-          setServicesList(
-            legacyServices.data.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              duration: Number(s.duration_minutes) || 30,
-              price: Number(s.price) || 0,
-            }))
-          );
-        }
-      }
-    }
-
+    // Serviços: usa o que vier ou array vazio (sem múltiplos fallbacks)
+    setServicesList(servicesRes.data || []);
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
     if (promoRes.data) {
       const now = new Date();
@@ -541,7 +514,7 @@ const Schedule: React.FC = () => {
       rangeEnd = dEnd.toISOString();
     }
 
-    const { data, error } = await supabase
+const { data, error } = await supabase
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -550,24 +523,17 @@ const Schedule: React.FC = () => {
 
     let appointmentRows = data || [];
 
-    if (error) {
-      console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
-
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('tenant_id', tenantId);
-
-      if (fallbackError) {
-        throw fallbackError;
-      }
-
-      appointmentRows = (fallbackData || []).filter((apt: any) => {
+    // Se falhou mas tem dados, tenta buscar todos e filtrar localmente
+    if (error && data && data.length > 0) {
+      console.warn('Query filtrada falhou, usando filtro local:', error);
+      appointmentRows = data.filter((apt: any) => {
         const startTime = new Date(apt.start_time).getTime();
         return !Number.isNaN(startTime)
           && startTime >= new Date(rangeStart).getTime()
           && startTime <= new Date(rangeEnd).getTime();
       });
+    } else if (error) {
+      throw error;
     }
 
     appointmentRows = [...appointmentRows].sort(
@@ -936,18 +902,34 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleCancelAppointment = async (appointmentId: string) => {
-    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
-    if (!tenantId) {
-      setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
+  // Cancellation Modal Handlers
+  const openCancelModal = (appointmentId: string) => {
+    setCancelAppointmentId(appointmentId);
+    setCancelReason('client_request');
+    setCancelOtherReason('');
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelAppointmentId || !tenantId) {
+      setShowCancelModal(false);
       return;
     }
+
+    const finalReason = cancelReason === 'other' && cancelOtherReason.trim() 
+      ? cancelOtherReason.trim() 
+      : cancelReason;
 
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ status: 'cancelled' })
-        .eq('id', appointmentId)
+        .update({ 
+          status: 'cancelled',
+          cancellation_reason: finalReason,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by_user_id: user?.id || null
+        })
+        .eq('id', cancelAppointmentId)
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -955,12 +937,20 @@ const Schedule: React.FC = () => {
       // Also cancel associated comanda if it exists and is open
       await supabase
         .from('comandas')
-        .update({ status: 'cancelled' })
-        .eq('appointment_id', appointmentId)
+        .update({ status: 'cancelled', cancellation_reason: finalReason })
+        .eq('appointment_id', cancelAppointmentId)
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
-      setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
+      setToast({ 
+        message: cancelReason === 'error_registration' 
+          ? 'Agendamento removido (erro de cadastro).' 
+          : 'Agendamento cancelado com sucesso.', 
+        type: 'info' 
+      });
+      
+      setShowCancelModal(false);
+      setCancelAppointmentId(null);
       closeDetailDrawer();
       fetchAppointments();
     } catch (err) {
@@ -1469,7 +1459,8 @@ const Schedule: React.FC = () => {
         (listFilters.quickChip === 'confirmed' && apt.normalizedStatus === 'confirmed') ||
         (listFilters.quickChip === 'in_progress' && apt.normalizedStatus === 'in_progress') ||
         (listFilters.quickChip === 'overdue' && apt.isOverdue) ||
-        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
+        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda) ||
+        (listFilters.quickChip === 'cancelled' && (apt.normalizedStatus === 'cancelled' || apt.normalizedStatus === 'no_show'));
       return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
     });
   }, [enrichedAppointments, listFilters]);
@@ -1487,7 +1478,7 @@ const Schedule: React.FC = () => {
     { key: 'pending', label: 'Pendentes', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'pending').length, tone: 'text-amber-600 dark:text-amber-300' },
     { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-violet-600 dark:text-violet-300' },
     { key: 'completed', label: 'Finalizados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'completed').length, tone: 'text-emerald-600 dark:text-emerald-300' },
-    { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled').length, tone: 'text-rose-600 dark:text-rose-300' },
+    { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled' || apt.normalizedStatus === 'no_show').length, tone: 'text-rose-600 dark:text-rose-300' },
     { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
   ], [appointmentsForSummary]);
 
@@ -1575,7 +1566,36 @@ Podemos confirmar? 😄`;
     { id: 'cancel', label: 'Avisar Cancelamento', icon: 'cancel' },
     { id: 'no_show', label: 'Não Compareceu', icon: 'person_off' },
     { id: 'reschedule', label: 'Alterar Horário', icon: 'schedule' },
+    { id: 'recover', label: 'Tentar recuperar cliente', icon: 'restore' },
   ];
+
+  // Recovery message for clients who didn't show up or cancelled
+  const generateRecoveryMessage = (apt: CalendarAppointment): string => {
+    const clientName = apt.client.split(' ')[0];
+    return `Fala ${clientName}! Tudo bem? 👋
+
+Tivemos um imprevisto com seu horário, mas conseguimos encaixar você novamente.
+
+📅 ${new Date(apt.startTime).toLocaleDateString('pt-BR')}
+⏰ ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+💈 ${apt.service}
+🧔 ${apt.staffName}
+
+Quer reagendar?`;
+  };
+
+  const handleSendRecoveryMessage = (apt: CalendarAppointment) => {
+    if (!apt.clientPhone) {
+      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
+      return;
+    }
+
+    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    const text = generateRecoveryMessage(apt);
+
+    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
 
   const generateWhatsAppMessage = (appointment: CalendarAppointment, messageType: string): string => {
     const clientName = appointment.client.split(' ')[0];
@@ -1593,6 +1613,8 @@ Podemos confirmar? 😄`;
         return `Olá ${clientName}. Infelizmente você não compareceu ao agendamento de ${dateStr} às ${timeStr}.\n\nGostaria de remarcar? Estamos à disposição!`;
       case 'reschedule':
         return `Olá ${clientName}. O horário do seu agendamento foi alterado.\n\n📅 *Data:* ${dateStr}\n⏰ *Hora:* ${timeStr}\n\nConfirma esse novo horário?`;
+      case 'recover':
+        return generateRecoveryMessage(appointment);
       default:
         return `Olá ${clientName}!`;
     }
@@ -2232,14 +2254,16 @@ Podemos confirmar? 😄`;
                 { key: 'in_progress', label: 'Em atendimento' },
                 { key: 'overdue', label: 'Atrasados' },
                 { key: 'without_comanda', label: 'Sem comanda' },
+                { key: 'cancelled', label: 'Cancelados/No-show', accent: 'text-red-600 dark:text-red-300' },
               ].map((chip) => (
                 <button
                   key={chip.key}
                   onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${listFilters.quickChip === chip.key
-                    ? 'bg-primary text-white shadow-md shadow-primary/20'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
-                    }`}
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${
+                    (listFilters.quickChip === chip.key)
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                  } ${chip.accent || ''}`}
                 >
                   {chip.label}
                 </button>
@@ -2300,7 +2324,7 @@ Podemos confirmar? 😄`;
                           <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-violet-500 hover:bg-violet-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
-                          <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
+                          <button onClick={() => openCancelModal(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
                           <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
                           <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
@@ -2343,7 +2367,7 @@ Podemos confirmar? 😄`;
                   <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold">Iniciar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
-                  <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
+                  <button onClick={() => openCancelModal(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
                   <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
                   <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
                 </div>
@@ -2974,7 +2998,7 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
                 </button>
 
                 <button
-                  onClick={() => handleCancelAppointment(apt.id)}
+                  onClick={() => openCancelModal(apt.id)}
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">delete</span>
@@ -3077,9 +3101,21 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
                   </div>
                 )}
               </button>
+              
+              {/* Recovery Button for cancelled appointments */}
+              {(selectedAppointmentDetails.status === 'cancelled' || selectedAppointmentDetails.status === 'no_show') && (
+                <button
+                  onClick={() => handleSendRecoveryMessage(selectedAppointmentDetails)}
+                  className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                  Recuperar cliente
+                </button>
+              )}
+              
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-              <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              <button onClick={() => openCancelModal(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
             </div>
           </div>
@@ -3206,9 +3242,103 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
          </Modal>
        )}
        
-       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-     </div >
-   );
- };
+{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
- export default Schedule;
+      {/* Cancellation Modal */}
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        title="Cancelar Agendamento"
+        maxWidth="md"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mx-auto mb-4">
+              <span className="material-symbols-outlined">warning</span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              Deseja realmente cancelar este agendamento?
+            </h3>
+            <p className="text-sm text-slate-500 mt-2">
+              Selecione o motivo do cancelamento
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {(Object.entries(CANCELLATION_REASON_LABELS) as [CancellationReason, typeof CANCELLATION_REASON_LABELS[CancellationReason]][]).map(([reason, meta]) => (
+              <label
+                key={reason}
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  cancelReason === reason
+                    ? 'border-primary bg-primary/5'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="cancellation-reason"
+                  value={reason}
+                  checked={cancelReason === reason}
+                  onChange={() => setCancelReason(reason)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 dark:text-white">{meta.label}</span>
+                    {meta.isError && (
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        Sem impacto
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">{meta.description}</p>
+                </div>
+              </label>
+            ))}
+
+            {cancelReason === 'other' && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Descreva o motivo
+                </label>
+                <textarea
+                  value={cancelOtherReason}
+                  onChange={(e) => setCancelOtherReason(e.target.value)}
+                  placeholder="Digite o motivo do cancelamento..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white resize-none"
+                  rows={3}
+                />
+              </div>
+            )}
+          </div>
+
+          {cancelReason === 'no_show' && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <span className="material-symbols-outlined">info</span>
+                Após cancelar, você poderá tentar recuperar o cliente via WhatsApp.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-white/10">
+            <button
+              onClick={() => setShowCancelModal(false)}
+              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+            >
+              Voltar
+            </button>
+            <button
+              onClick={handleConfirmCancel}
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all"
+            >
+              Confirmar Cancelamento
+            </button>
+          </div>
+        </div>
+      </Modal>
+      </div >
+    );
+  };
+
+  export default Schedule;

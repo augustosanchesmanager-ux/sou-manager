@@ -12,6 +12,7 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import Button from '../components/ui/Button';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
+import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 
 type ComandaStatus = 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -55,8 +56,12 @@ interface Comanda {
         start_time: string | null;
     };
     comanda_items: ComandaItem[];
-    staff_ids: string[];
+staff_ids: string[];
     staff_names: string[];
+}
+
+interface ComandaWithClub extends Comanda {
+    chefClubInfo?: ChefClubClientCredits | null;
 }
 
 interface ClientLookup {
@@ -549,8 +554,23 @@ const Comandas: React.FC = () => {
                     comanda_items: mappedItems,
                     staff_ids: mappedStaffIds,
                     staff_names: mappedStaffNames,
+                    chefClubInfo: undefined,
                 };
             });
+
+            if (clientIds.length > 0 && resolvedTenantId) {
+                try {
+                    const chefClubCreditsMap = await fetchChefClubCreditsByClients(clientIds, resolvedTenantId);
+                    const enrichedComandas = hydratedComandas.map((comanda) => ({
+                        ...comanda,
+                        chefClubInfo: chefClubCreditsMap.get(comanda.client_id) || null,
+                    }));
+                    setComandas(enrichedComandas);
+                    return;
+                } catch (err) {
+                    console.warn('Erro ao carregar info do Clube:', err);
+                }
+            }
 
             setComandas(hydratedComandas);
         } catch (error) {
@@ -751,18 +771,18 @@ const Comandas: React.FC = () => {
         ])));
     };
 
-    const handleBulkClose = async () => {
+const handleBulkClose = async () => {
         if (selectedOpenComandaIds.length === 0) {
             setToast({ message: 'Selecione pelo menos uma comanda aberta.', type: 'info' });
             return;
         }
 
-        if (!bulkLegacyReferenceMonth) {
-            setToast({ message: 'Informe o mes de referencia para a baixa administrativa.', type: 'info' });
+        if (bulkCloseType === 'admin' && !bulkLegacyReferenceMonth) {
+            setToast({ message: 'Informe o mes de referencia para a baixa Administrativa.', type: 'info' });
             return;
         }
 
-setBulkClosing(true);
+        setBulkClosing(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const resolvedTenantId = canAccessSuperAdmin
@@ -778,14 +798,16 @@ setBulkClosing(true);
             let data, error;
 
             if (bulkCloseType === 'normal') {
-                // Venda normal - com impacto financeiro
-                ({ data, error } = await supabase.rpc('bulk_close_comandas_normal', {
+                // Venda normal - com impacto financiero e creditos do Clube
+                ({ data, error } = await supabase.rpc('bulk_close_comandas_with_credits', {
                     p_comanda_ids: selectedOpenComandaIds,
                     p_tenant_id: resolvedTenantId,
                     p_closure_note: bulkClosureNote.trim() || null,
+                    p_payment_method: 'Dinheiro',
+                    p_apply_credits: true,
                 }));
             } else {
-                // Admin/Legado - sem impacto financeiro
+                // Admin/Legado - sem impacto financiero
                 ({ data, error } = await supabase.rpc('bulk_close_comandas_admin', {
                     p_comanda_ids: selectedOpenComandaIds,
                     p_tenant_id: resolvedTenantId,
@@ -798,11 +820,20 @@ setBulkClosing(true);
 
             const updatedCount = Number((data as { updated_count?: number } | null)?.updated_count || selectedOpenComandaIds.length);
             const isNormal = bulkCloseType === 'normal';
+            const creditsData = data as { credits_consumed?: { total?: number; by_service?: Record<string, { consumed?: number }> } } | null;
+            const creditsConsumed = creditsData?.credits_consumed?.total || 0;
+            const byService = creditsData?.credits_consumed?.by_service || {};
+
+            let creditsMsg = '';
+            if (isNormal && creditsConsumed > 0) {
+                const serviceCredits = Object.values(byService).reduce((sum: number, s: any) => sum + (s.consumed || 0), 0);
+                creditsMsg = serviceCredits > 0 ? ` + ${serviceCredits} credito(s) do Clube consumed(s)!` : '';
+            }
 
             setToast({
                 message: isNormal
-                    ? `${updatedCount} comanda(s) baixada(s) com impacto financeiro e creditos aplicados!`
-                    : `${updatedCount} comanda(s) baixada(s) em modo administrativo, sem impacto financeiro.`,
+                    ? `${updatedCount} comanda(s) baixada(s) com impacto financeiro${creditsMsg}`
+                    : `${updatedCount} comanda(s) baixada(s) em modo administrativo, sem impacto financiero.`,
                 type: 'success',
             });
             setSelectedOpenComandaIds([]);
@@ -1301,6 +1332,12 @@ setBulkClosing(true);
                                                         <div className="min-w-0">
                                                             <div className="flex flex-wrap items-center gap-2">
                                                                 <p className="truncate text-sm font-black text-slate-950 dark:text-white">{comanda.clients.name}</p>
+                                                                {comanda.chefClubInfo && (
+                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                                        <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
+                                                                        {comanda.chefClubInfo.planName}
+                                                                    </span>
+                                                                )}
                                                                 <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
                                                                     #{getDisplayId(comanda.id)}
                                                                 </span>
