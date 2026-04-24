@@ -924,8 +924,6 @@ const { data, error } = await supabase
       status: 'cancelled',
     };
 
-    console.log('Cancel update:', updateData, 'id:', cancelAppointmentId, 'tenant:', tenantId);
-
     try {
       const { error } = await supabase
         .from('appointments')
@@ -943,144 +941,15 @@ const { data, error } = await supabase
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
-      setToast({ 
-        message: cancelReason === 'error_registration' 
-          ? 'Agendamento removido (erro de cadastro).' 
-          : 'Agendamento cancelado com sucesso.', 
-        type: 'info' 
-      });
+      setToast({ message: 'Agendamento cancelado com sucesso.', type: 'success' });
       
       setShowCancelModal(false);
       setCancelAppointmentId(null);
       closeDetailDrawer();
-      fetchAppointments();
-    } catch (err) {
+      fetchAppointments(); // Refresh the list
+    } catch (err: any) {
       console.error('Error cancelling appointment:', err);
-      setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
-    }
-  };
-
-  const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
-    return blockAppliesToDate(block, dateKey) && blockMatchesProfessional(block, staffId);
-  };
-
-  const isAppointmentInsideBlock = (apt: CalendarAppointment, draft: ScheduleBlockInput) => {
-    const aptDate = toDateKey(apt.startTime);
-    const aptEnd = apt.start + apt.duration;
-
-    const inDateRange = aptDate >= draft.start_date && aptDate <= draft.end_date;
-    if (!inDateRange) return false;
-
-    if (draft.professional_id && apt.staffId !== draft.professional_id) return false;
-    if (draft.block_type === 'full_day') return true;
-
-    const startHour = toHourDecimal(draft.start_time || '00:00');
-    const endHour = toHourDecimal(draft.end_time || '00:00');
-    return apt.start < endHour && aptEnd > startHour;
-  };
-
-  const buildBlockPayloadFromForm = (): ScheduleBlockInput | null => {
-    if (!blockForm.reason.trim()) {
-      setBlockError('Informe o motivo do bloqueio.');
-      return null;
-    }
-
-    if (!blockForm.startDate || !blockForm.endDate) {
-      setBlockError('Informe a data inicial e final.');
-      return null;
-    }
-
-    if (blockForm.endDate < blockForm.startDate) {
-      setBlockError('A data final não pode ser anterior à data inicial.');
-      return null;
-    }
-
-    if (blockForm.type === 'time_range' && blockForm.endTime <= blockForm.startTime) {
-      setBlockError('O horário final deve ser maior que o horário inicial.');
-      return null;
-    }
-
-    if (blockForm.recurrence === 'weekly' && blockForm.endDate !== blockForm.startDate) {
-      setBlockError('Recorrência semanal exige bloqueio de um único dia por vez.');
-      return null;
-    }
-
-    if (blockForm.recurrence === 'weekly' && blockForm.recurrenceUntil && blockForm.recurrenceUntil < blockForm.startDate) {
-      setBlockError('A data final da recorrência deve ser maior ou igual à data inicial.');
-      return null;
-    }
-
-    return {
-      professional_id: blockForm.professionalScope === 'specific' ? blockForm.professionalId : null,
-      block_type: blockForm.type,
-      start_date: blockForm.startDate,
-      end_date: blockForm.endDate,
-      start_time: blockForm.type === 'time_range' ? blockForm.startTime : null,
-      end_time: blockForm.type === 'time_range' ? blockForm.endTime : null,
-      reason: blockForm.reason.trim(),
-      notes: blockForm.notes.trim() || null,
-      recurrence_type: blockForm.recurrence,
-      recurrence_until: blockForm.recurrence === 'weekly' ? (blockForm.recurrenceUntil || null) : null,
-      existing_appointments_action: blockForm.actionForExisting,
-    };
-  };
-
-  const resetBlockForm = () => {
-    const today = toDateKey(new Date());
-    setEditingBlockId(null);
-    setImpactPreview([]);
-    setBlockError(null);
-    setBlockForm({
-      type: 'full_day',
-      professionalScope: 'all',
-      professionalId: staffList[0]?.id || '',
-      startDate: today,
-      endDate: today,
-      startTime: '12:00',
-      endTime: '13:00',
-      reason: 'Agenda fechada',
-      notes: '',
-      recurrence: 'none',
-      recurrenceUntil: '',
-      actionForExisting: 'keep',
-    });
-  };
-
-  const handleOpenCreateBlockModal = () => {
-    resetBlockForm();
-    setIsBlockModalOpen(true);
-  };
-
-  const handleEditBlock = (block: ScheduleBlock) => {
-    setEditingBlockId(block.id);
-    setBlockError(null);
-    setImpactPreview([]);
-    setBlockForm({
-      type: block.block_type,
-      professionalScope: block.professional_id ? 'specific' : 'all',
-      professionalId: block.professional_id || staffList[0]?.id || '',
-      startDate: block.start_date,
-      endDate: block.end_date,
-      startTime: (block.start_time || '12:00').slice(0, 5),
-      endTime: (block.end_time || '13:00').slice(0, 5),
-      reason: block.reason,
-      notes: block.notes || '',
-      recurrence: block.recurrence_type,
-      recurrenceUntil: block.recurrence_until || '',
-      actionForExisting: block.existing_appointments_action,
-    });
-    setIsBlockModalOpen(true);
-  };
-
-  const handleDeleteBlock = async (block: ScheduleBlock) => {
-    if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
-    try {
-      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
-      setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
-      fetchScheduleBlocks();
-    } catch (err) {
-      console.error('Erro ao remover bloqueio:', err);
-      setToast({ message: 'Não foi possível remover o bloqueio.', type: 'error' });
+      setToast({ message: err?.message || 'Erro ao cancelar agendamento.', type: 'error' });
     }
   };
 
