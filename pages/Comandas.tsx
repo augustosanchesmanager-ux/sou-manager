@@ -462,7 +462,7 @@ const Comandas: React.FC = () => {
     const sortedComandas = [...filteredComandas].sort((first, second) => {
         let comparison = 0;
         if (sortField === 'date') comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
-        if (sortField === 'client') comparison = first.clients.name.localeCompare(second.clients.name, 'pt-BR', { sensitivity: 'base' });
+        if (sortField === 'client') comparison = (first.clients?.name || '').localeCompare(second.clients?.name || '', 'pt-BR', { sensitivity: 'base' });
         if (sortField === 'status') comparison = getStatusSortValue(first.status) - getStatusSortValue(second.status);
         if (sortField === 'total') comparison = first.total - second.total;
         if (comparison === 0) comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
@@ -524,7 +524,7 @@ const Comandas: React.FC = () => {
         comandas.flatMap((c) => c.staff_ids.map((staffId, index) => ({ id: staffId, name: c.staff_names[index] || 'Profissional' })))
             .map((s) => [s.id, s])
             .values(),
-    )).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+    )).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
     const dateFilterDescription = !dateFrom && !dateTo
         ? 'Periodo completo'
