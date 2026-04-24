@@ -2504,8 +2504,8 @@ Podemos confirmar? 😄`;
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
-                    const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
+                    // Gerando slots de 6h às 00h (37 slots total: 6, 6.5, ..., 24)
+                    const allSlots = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5);
                     const aptsOnDay = appointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
