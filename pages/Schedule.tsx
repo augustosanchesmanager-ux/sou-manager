@@ -1219,7 +1219,7 @@ if (savedApt) {
           const isSameDay = appointmentDay.getTime() === today.getTime();
           const comandaStatus = isSameDay ? 'open' : 'blocked';
           
-          const { data: comanda } = await supabase.from('comandas').insert({
+          const { data: comanda, error: comandaError } = await supabase.from('comandas').insert({
             appointment_id: savedApt.id,
             client_id: clientId,
             staff_id: formData.staffId || null,
@@ -1228,7 +1228,9 @@ if (savedApt) {
             tenant_id: tenantId
           }).select().single();
 
-         if (comanda && selectedService) {
+          if (comandaError) {
+            console.error('Erro ao criar comanda:', comandaError);
+          } else if (comanda && selectedService) {
            const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
            let finalPrice = serviceData?.price || 0;
 
