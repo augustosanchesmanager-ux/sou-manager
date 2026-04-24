@@ -5,7 +5,6 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
-import { fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -18,8 +17,6 @@ import {
   isDateFullyBlocked,
   scheduleBlocksApi,
   toDateKey,
-  blockAppliesToDate,
-  blockMatchesProfessional,
 } from '../services/scheduleBlocksApi';
 
 
@@ -67,7 +64,7 @@ interface CalendarAppointment {
 
 type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
-type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda' | 'cancelled';
+type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
 interface AppointmentFiltersState {
   date: string;
@@ -103,42 +100,6 @@ interface NewAppointmentForm {
   notes: string;
 }
 
-// Cancellation types
-export type CancellationReason = 
-  | 'client_request' 
-  | 'no_show' 
-  | 'error_registration' 
-  | 'reschedule' 
-  | 'other';
-
-export const CANCELLATION_REASON_LABELS: Record<CancellationReason, { label: string; description: string; isError: boolean }> = {
-  client_request: { 
-    label: 'Solicitação do cliente', 
-    description: 'Cliente pediu cancelamento',
-    isError: false 
-  },
-  no_show: { 
-    label: 'Não compareceu', 
-    description: 'Cliente não apareceu',
-    isError: false 
-  },
-  error_registration: { 
-    label: 'Erro de cadastro', 
-    description: 'Agendamento feito por engano (não impacta métricas)',
-    isError: true 
-  },
-  reschedule: { 
-    label: 'Reagendamento', 
-    description: 'Cliente irá remarcar',
-    isError: false 
-  },
-  other: { 
-    label: 'Outro motivo', 
-    description: 'Outro motivo não especificado',
-    isError: false 
-  },
-};
-
 interface ScheduleBlockForm {
   type: 'full_day' | 'time_range';
   professionalScope: 'all' | 'specific';
@@ -155,6 +116,7 @@ interface ScheduleBlockForm {
 }
 
 const statusColors: Record<string, string> = {
+  scheduled: 'bg-slate-500',
   confirmed: 'bg-blue-500',
   pending: 'bg-amber-500',
   in_progress: 'bg-violet-500',
@@ -166,6 +128,11 @@ const statusColors: Record<string, string> = {
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
 const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
+  scheduled: {
+    label: 'Agendado',
+    icon: 'event',
+    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  },
   pending: {
     label: 'Pendente',
     icon: 'schedule',
@@ -217,7 +184,6 @@ const getOriginLabel = (source?: string | null, channel?: string | null) => {
 
   if (normalizedChannel === 'whatsapp') return 'WhatsApp';
   if (normalizedChannel === 'admin') return 'Admin';
-  if (normalizedSource === 'site_sanchez') return 'Site Sanchez';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return 'Totem';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'qr') return 'QR';
   if (normalizedSource === 'kiosk') return 'Totem';
@@ -281,10 +247,6 @@ const Schedule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [blockSaving, setBlockSaving] = useState(false);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
-  const [whatsAppDropdownTarget, setWhatsAppDropdownTarget] = useState<CalendarAppointment | null>(null);
-  const [whatsAppDropdownPosition, setWhatsAppDropdownPosition] = useState<{top: number, left: number} | null>(null);
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['date', 'search']));
-  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
     date: getDateInputValue(new Date()),
     period: 'today',
@@ -295,7 +257,7 @@ const Schedule: React.FC = () => {
     search: '',
     quickChip: 'all',
   });
-  
+
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
     const d = new Date(date);
@@ -384,12 +346,6 @@ const Schedule: React.FC = () => {
   const isDetailModalOpen = false;
   const setIsDetailModalOpen = (_open: boolean) => {};
 
-  // Cancellation Modal State
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(null);
-  const [cancelReason, setCancelReason] = useState<CancellationReason>('client_request');
-  const [cancelOtherReason, setCancelOtherReason] = useState('');
-
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
   const displayEndHour = React.useMemo(() => {
     if (appointments.length === 0) return 20;
@@ -403,7 +359,6 @@ const Schedule: React.FC = () => {
 
   const totalSlots = dynamicTimeSlots.length;
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
-  const [isEncaixeMode, setIsEncaixeMode] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<NewAppointmentForm>({
@@ -417,28 +372,11 @@ const Schedule: React.FC = () => {
     notes: '',
   });
 
-  // Confirmation State
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationData, setConfirmationData] = useState<{
-    appointmentId: string;
-    comandaId: string | null;
-    clientName: string;
-    clientPhone: string;
-    serviceName: string;
-    staffName: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    price: number;
-    notes: string;
-  } | null>(null);
-
   useEffect(() => {
     const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
-    setIsEncaixeMode(false);
     setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
     setIsModalOpen(true);
 
@@ -451,8 +389,8 @@ const Schedule: React.FC = () => {
   const [isNewClientMode, setIsNewClientMode] = useState(false);
   const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
-  
-  // Fetch base data - busca direta sem fallbacks redundantes
+
+  // Fetch base data
   const fetchBaseData = useCallback(async () => {
     if (!tenantId) {
       setStaffList([]);
@@ -470,8 +408,71 @@ const Schedule: React.FC = () => {
     ]);
 
     if (staffRes.data) setStaffList(staffRes.data);
-    // Serviços: usa o que vier ou array vazio (sem múltiplos fallbacks)
-    setServicesList(servicesRes.data || []);
+
+    // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
+    if (servicesRes.error) {
+      console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
+      const retryServices = await supabase
+        .from('services')
+        .select('id, name, duration, price')
+        .eq('tenant_id', tenantId)
+        .neq('active', false)
+        .order('name');
+
+      if (retryServices.data) {
+        setServicesList(retryServices.data);
+      } else {
+        const legacyServices = await supabase
+          .from('services')
+          .select('id, name, duration_minutes, price')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (legacyServices.data) {
+          setServicesList(
+            legacyServices.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration: Number(s.duration_minutes) || 30,
+              price: Number(s.price) || 0,
+            }))
+          );
+        }
+      }
+    } else if (servicesRes.data && servicesRes.data.length > 0) {
+      setServicesList(servicesRes.data);
+    } else {
+      const retryServices = await supabase
+        .from('services')
+        .select('id, name, duration, price')
+        .eq('tenant_id', tenantId)
+        .neq('active', false)
+        .order('name');
+
+      if (retryServices.data && retryServices.data.length > 0) {
+        setServicesList(retryServices.data);
+      } else {
+        const legacyServices = await supabase
+          .from('services')
+          .select('id, name, duration_minutes, price')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name');
+
+        if (legacyServices.data) {
+          setServicesList(
+            legacyServices.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration: Number(s.duration_minutes) || 30,
+              price: Number(s.price) || 0,
+            }))
+          );
+        }
+      }
+    }
+
     if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
     if (promoRes.data) {
       const now = new Date();
@@ -520,7 +521,7 @@ const Schedule: React.FC = () => {
       rangeEnd = dEnd.toISOString();
     }
 
-const { data, error } = await supabase
+    const { data, error } = await supabase
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -529,17 +530,24 @@ const { data, error } = await supabase
 
     let appointmentRows = data || [];
 
-    // Se falhou mas tem dados, tenta buscar todos e filtrar localmente
-    if (error && data && data.length > 0) {
-      console.warn('Query filtrada falhou, usando filtro local:', error);
-      appointmentRows = data.filter((apt: any) => {
+    if (error) {
+      console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      appointmentRows = (fallbackData || []).filter((apt: any) => {
         const startTime = new Date(apt.start_time).getTime();
         return !Number.isNaN(startTime)
           && startTime >= new Date(rangeStart).getTime()
           && startTime <= new Date(rangeEnd).getTime();
       });
-    } else if (error) {
-      throw error;
     }
 
     appointmentRows = [...appointmentRows].sort(
@@ -645,21 +653,6 @@ const { data, error } = await supabase
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close WhatsApp dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutsideWhatsApp(event: MouseEvent) {
-      const dropdown = document.getElementById('whatsapp-dropdown');
-      if (dropdown && !dropdown.contains(event.target as Node)) {
-        setWhatsAppDropdownTarget(null);
-        setWhatsAppDropdownPosition(null);
-      }
-    }
-    if (whatsAppDropdownTarget) {
-      document.addEventListener("mousedown", handleClickOutsideWhatsApp);
-      return () => document.removeEventListener("mousedown", handleClickOutsideWhatsApp);
-    }
-  }, [whatsAppDropdownTarget]);
-
   // Sync modal date with selected view date
   useEffect(() => {
     if (isModalOpen) {
@@ -669,18 +662,6 @@ const { data, error } = await supabase
       setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}`, staffId: prev.staffId || (staffList[0]?.id ?? '') }));
     }
   }, [isModalOpen, selectedDate, staffList]);
-
-  useEffect(() => {
-    if (!showFiltersMenu) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.filters-menu')) {
-        setShowFiltersMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFiltersMenu]);
 
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
@@ -764,13 +745,27 @@ const { data, error } = await supabase
       return;
     }
 
-    try {
-      const summary = await fetchChefClubSummaryByClient(client.id, tenantId);
-      setChefClubInfo(summary);
-    } catch (error) {
-      console.error('Erro ao carregar resumo do Clube do Chefe na agenda:', error);
-      setChefClubInfo(null);
+    const { data } = await supabase
+      .from('customer_subscriptions')
+      .select(`
+        status,
+        plan:customer_plans(name),
+        credits:customer_credits(available_credits)
+      `)
+      .eq('client_id', client.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (data) {
+      setChefClubInfo({
+        planName: (data.plan as any).name,
+        credits: (data.credits as any)?.[0]?.available_credits || 0,
+        status: data.status
+      });
+      return;
     }
+
+    setChefClubInfo(null);
   };
 
   const selectClient = async (clientName: string) => {
@@ -788,7 +783,6 @@ const { data, error } = await supabase
 
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
-    setIsEncaixeMode(false);
     const datePart = apt.startTime.split('T')[0];
 
     setFormData({
@@ -810,10 +804,6 @@ const { data, error } = await supabase
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault(); // Necessário para permitir o drop
     e.dataTransfer.dropEffect = 'move';
-  };
-
-  const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
-    return blockAppliesToDate(block, dateKey) && blockMatchesProfessional(block, staffId);
   };
 
   const handleDropAppointment = async (e: React.DragEvent, dropStaffId: string, dropDate?: string) => {
@@ -924,33 +914,18 @@ const { data, error } = await supabase
     }
   };
 
-  // Cancellation Modal Handlers
-  const openCancelModal = (appointmentId: string) => {
-    setCancelAppointmentId(appointmentId);
-    setCancelReason('client_request');
-    setCancelOtherReason('');
-    setShowCancelModal(true);
-  };
-
-  const handleConfirmCancel = async () => {
-    if (!cancelAppointmentId || !tenantId) {
-      setShowCancelModal(false);
+  const handleCancelAppointment = async (appointmentId: string) => {
+    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
       return;
     }
-
-    const finalReason = cancelReason === 'other' && cancelOtherReason.trim() 
-      ? cancelOtherReason.trim() 
-      : cancelReason;
-
-    const updateData: Record<string, any> = { 
-      status: 'cancelled',
-    };
 
     try {
       const { error } = await supabase
         .from('appointments')
-        .update(updateData)
-        .eq('id', cancelAppointmentId)
+        .update({ status: 'cancelled' })
+        .eq('id', appointmentId)
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -959,25 +934,141 @@ const { data, error } = await supabase
       await supabase
         .from('comandas')
         .update({ status: 'cancelled' })
-        .eq('appointment_id', cancelAppointmentId)
+        .eq('appointment_id', appointmentId)
         .eq('tenant_id', tenantId)
         .eq('status', 'open');
 
-      setToast({ message: 'Agendamento cancelado com sucesso.', type: 'success' });
-      
-      setShowCancelModal(false);
-      setCancelAppointmentId(null);
+      setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
       closeDetailDrawer();
-      fetchAppointments(); // Refresh the list
-    } catch (err: any) {
+      fetchAppointments();
+    } catch (err) {
       console.error('Error cancelling appointment:', err);
-      setToast({ message: err?.message || 'Erro ao cancelar agendamento.', type: 'error' });
+      setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
     }
-};
+  };
+
+  const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
+    return blockAppliesToDate(block, dateKey) && blockMatchesProfessional(block, staffId);
+  };
+
+  const isAppointmentInsideBlock = (apt: CalendarAppointment, draft: ScheduleBlockInput) => {
+    const aptDate = toDateKey(apt.startTime);
+    const aptEnd = apt.start + apt.duration;
+
+    const inDateRange = aptDate >= draft.start_date && aptDate <= draft.end_date;
+    if (!inDateRange) return false;
+
+    if (draft.professional_id && apt.staffId !== draft.professional_id) return false;
+    if (draft.block_type === 'full_day') return true;
+
+    const startHour = toHourDecimal(draft.start_time || '00:00');
+    const endHour = toHourDecimal(draft.end_time || '00:00');
+    return apt.start < endHour && aptEnd > startHour;
+  };
+
+  const buildBlockPayloadFromForm = (): ScheduleBlockInput | null => {
+    if (!blockForm.reason.trim()) {
+      setBlockError('Informe o motivo do bloqueio.');
+      return null;
+    }
+
+    if (!blockForm.startDate || !blockForm.endDate) {
+      setBlockError('Informe a data inicial e final.');
+      return null;
+    }
+
+    if (blockForm.endDate < blockForm.startDate) {
+      setBlockError('A data final não pode ser anterior à data inicial.');
+      return null;
+    }
+
+    if (blockForm.type === 'time_range' && blockForm.endTime <= blockForm.startTime) {
+      setBlockError('O horário final deve ser maior que o horário inicial.');
+      return null;
+    }
+
+    if (blockForm.recurrence === 'weekly' && blockForm.endDate !== blockForm.startDate) {
+      setBlockError('Recorrência semanal exige bloqueio de um único dia por vez.');
+      return null;
+    }
+
+    if (blockForm.recurrence === 'weekly' && blockForm.recurrenceUntil && blockForm.recurrenceUntil < blockForm.startDate) {
+      setBlockError('A data final da recorrência deve ser maior ou igual à data inicial.');
+      return null;
+    }
+
+    return {
+      professional_id: blockForm.professionalScope === 'specific' ? blockForm.professionalId : null,
+      block_type: blockForm.type,
+      start_date: blockForm.startDate,
+      end_date: blockForm.endDate,
+      start_time: blockForm.type === 'time_range' ? blockForm.startTime : null,
+      end_time: blockForm.type === 'time_range' ? blockForm.endTime : null,
+      reason: blockForm.reason.trim(),
+      notes: blockForm.notes.trim() || null,
+      recurrence_type: blockForm.recurrence,
+      recurrence_until: blockForm.recurrence === 'weekly' ? (blockForm.recurrenceUntil || null) : null,
+      existing_appointments_action: blockForm.actionForExisting,
+    };
+  };
+
+  const resetBlockForm = () => {
+    const today = toDateKey(new Date());
+    setEditingBlockId(null);
+    setImpactPreview([]);
+    setBlockError(null);
+    setBlockForm({
+      type: 'full_day',
+      professionalScope: 'all',
+      professionalId: staffList[0]?.id || '',
+      startDate: today,
+      endDate: today,
+      startTime: '12:00',
+      endTime: '13:00',
+      reason: 'Agenda fechada',
+      notes: '',
+      recurrence: 'none',
+      recurrenceUntil: '',
+      actionForExisting: 'keep',
+    });
+  };
 
   const handleOpenCreateBlockModal = () => {
     resetBlockForm();
     setIsBlockModalOpen(true);
+  };
+
+  const handleEditBlock = (block: ScheduleBlock) => {
+    setEditingBlockId(block.id);
+    setBlockError(null);
+    setImpactPreview([]);
+    setBlockForm({
+      type: block.block_type,
+      professionalScope: block.professional_id ? 'specific' : 'all',
+      professionalId: block.professional_id || staffList[0]?.id || '',
+      startDate: block.start_date,
+      endDate: block.end_date,
+      startTime: (block.start_time || '12:00').slice(0, 5),
+      endTime: (block.end_time || '13:00').slice(0, 5),
+      reason: block.reason,
+      notes: block.notes || '',
+      recurrence: block.recurrence_type,
+      recurrenceUntil: block.recurrence_until || '',
+      actionForExisting: block.existing_appointments_action,
+    });
+    setIsBlockModalOpen(true);
+  };
+
+  const handleDeleteBlock = async (block: ScheduleBlock) => {
+    if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
+    try {
+      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
+      setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
+      fetchScheduleBlocks();
+    } catch (err) {
+      console.error('Erro ao remover bloqueio:', err);
+      setToast({ message: 'Não foi possível remover o bloqueio.', type: 'error' });
+    }
   };
 
   const handleSaveBlock = async () => {
@@ -1095,54 +1186,8 @@ const { data, error } = await supabase
       blockOverlapsTimeRange(block, formData.start, formData.start + Number(formData.duration)),
     );
 
-    if (hasBlockConflict && !isEncaixeMode) {
+    if (hasBlockConflict) {
       setError('Existe um bloqueio de agenda nesse período. Escolha outro horário.');
-      return;
-    }
-
-    // Verificar conflito com agendamentos existentes (ignorar se modo encaixe)
-    const hasAptConflict = appointments.some(apt =>
-      apt.id !== editingAppointmentId &&
-      apt.staffId === formData.staffId &&
-      new Date(apt.startTime).toISOString().split('T')[0] === formData.date &&
-      ((formData.start >= apt.start && formData.start < apt.start + apt.duration) ||
-       (formData.start + formData.duration > apt.start && formData.start + formData.duration <= apt.start + apt.duration) ||
-       (formData.start <= apt.start && formData.start + formData.duration >= apt.start + apt.duration))
-    );
-
-    if (hasAptConflict && !isEncaixeMode) {
-      setError('Já existe um agendamento nesse horário. Ative o modo encaixe para sobrepor.');
-      return;
-    }
-
-    // Verificar se o mesmo cliente já tem uma comanda para a mesma data
-    const { data: existingComandas } = await supabase
-      .from('comandas')
-      .select('id, created_at, status')
-      .eq('client_id', clientId)
-      .eq('tenant_id', tenantId)
-      .neq('status', 'cancelled')
-      .limit(10);
-
-    if (existingComandas && existingComandas.length > 0) {
-      const comandaForDate = existingComandas.find(c => 
-        new Date(c.created_at).toISOString().split('T')[0] === formData.date
-      );
-      if (comandaForDate && !isEncaixeMode) {
-        setError(`Este cliente já tem uma comanda ${comandaForDate.status === 'blocked' ? 'bloqueada' : 'aberta'} para este dia.`);
-        return;
-      }
-    }
-
-    // Verificar se já existe agendamento para o mesmo cliente no mesmo dia
-    const hasClientAptConflict = appointments.some(apt =>
-      apt.id !== editingAppointmentId &&
-      apt.clientId === clientId &&
-      new Date(apt.startTime).toISOString().split('T')[0] === formData.date
-    );
-
-    if (hasClientAptConflict && !isEncaixeMode) {
-      setError('Este cliente já tem um agendamento para este dia.');
       return;
     }
 
@@ -1197,126 +1242,82 @@ const { data, error } = await supabase
           : apt
       ));
 
-// Prepare confirmation data for update
-        const confirmationInfo = {
-          appointmentId: editingAppointmentId,
-          comandaId: openComandasByAppointment[editingAppointmentId] || null,
-          clientName: formData.client,
-          clientPhone: formData.clientPhone,
-          serviceName: formData.service,
-          staffName: selectedStaff?.name || '',
-          date: formData.date,
-          startTime: getDecimalTimeLabel(formData.start),
-          endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
-          price: selectedService?.price || 0,
-          notes: formData.notes.trim(),
-        };
-       
-       setConfirmationData(confirmationInfo);
-       setShowConfirmation(true);
-     } else {
-       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+    } else {
+      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
 
-       // INSERT NEW
-       const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
-         client_id: clientId,
-         service_id: selectedService?.id || null,
-         staff_id: formData.staffId || null,
-         client_name: formData.client,
-         client_phone: formData.clientPhone,
-         service_name: formData.service,
-         notes: formData.notes.trim(),
-         staff_name: selectedStaff?.name || '',
-         start_time: startTimeLine.toISOString(),
-         end_time: endTimeLine.toISOString(),
-         duration: Number(formData.duration),
-         price: selectedService?.price || 0,
-         status: 'confirmed',
-         tenant_id: tenantId
-       }).select().single();
+      // INSERT NEW
+      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
+        client_id: clientId,
+        service_id: selectedService?.id || null,
+        staff_id: formData.staffId || null,
+        client_name: formData.client,
+        client_phone: formData.clientPhone,
+        service_name: formData.service,
+        notes: formData.notes.trim(),
+        staff_name: selectedStaff?.name || '',
+        start_time: startTimeLine.toISOString(),
+        end_time: endTimeLine.toISOString(),
+        duration: Number(formData.duration),
+        price: selectedService?.price || 0,
+        status: 'confirmed',
+        tenant_id: tenantId
+      }).select().single();
 
-       if (saveError) {
-         console.error('Erro ao salvar agendamento:', saveError);
-         setError(`Erro ao salvar agendamento: ${saveError.message}`);
-         return;
-       }
+      if (saveError) {
+        console.error('Erro ao salvar agendamento:', saveError);
+        setError(`Erro ao salvar agendamento: ${saveError.message}`);
+        return;
+      }
 
-if (savedApt) {
-          const appointmentDate = new Date(savedApt.start_time);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const appointmentDay = new Date(appointmentDate);
-          appointmentDay.setHours(0, 0, 0, 0);
-          
-          const isSameDay = appointmentDay.getTime() === today.getTime();
-          const comandaStatus = isSameDay ? 'open' : 'blocked';
-          
-          const { data: comanda, error: comandaError } = await supabase.from('comandas').insert({
-            appointment_id: savedApt.id,
-            client_id: clientId,
-            staff_id: formData.staffId || null,
-            status: comandaStatus,
-            total: 0,
-            tenant_id: tenantId
-          }).select().single();
+      if (savedApt) {
+        const { data: comanda } = await supabase.from('comandas').insert({
+          appointment_id: savedApt.id,
+          client_id: clientId,
+          staff_id: formData.staffId || null,
+          status: 'open',
+          total: 0,
+          tenant_id: tenantId
+        }).select().single();
 
-          if (comandaError) {
-            console.error('Erro ao criar comanda:', comandaError);
-          } else if (comanda && selectedService) {
-           const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
-           let finalPrice = serviceData?.price || 0;
+        if (comanda && selectedService) {
+          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
+          let finalPrice = serviceData?.price || 0;
 
-           const promo = activePromotions.find(p =>
-             (p.target_type === 'all') ||
-             (p.target_type === 'service' && p.target_id === selectedService.id)
-           );
+          const promo = activePromotions.find(p =>
+            (p.target_type === 'all') ||
+            (p.target_type === 'service' && p.target_id === selectedService.id)
+          );
 
-           if (promo) {
-             if (promo.discount_type === 'fixed') {
-               finalPrice = Math.max(0, finalPrice - promo.discount_value);
-             } else {
-               finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-             }
-           }
+          if (promo) {
+            if (promo.discount_type === 'fixed') {
+              finalPrice = Math.max(0, finalPrice - promo.discount_value);
+            } else {
+              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+            }
+          }
 
-           await supabase.from('comanda_items').insert({
-             comanda_id: comanda.id,
-             service_id: selectedService.id,
-             product_name: selectedService.name,
-             quantity: 1,
-             unit_price: finalPrice,
-             tenant_id: tenantId,
-             staff_id: formData.staffId || null
-           });
+          await supabase.from('comanda_items').insert({
+            comanda_id: comanda.id,
+            service_id: selectedService.id,
+            product_name: selectedService.name,
+            quantity: 1,
+            unit_price: finalPrice,
+            tenant_id: tenantId,
+            staff_id: formData.staffId || null
+          });
 
-           await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
-         }
-       }
-       
-// Prepare confirmation data
-        const confirmationInfo = {
-          appointmentId: savedApt.id,
-          comandaId: comanda ? comanda.id : null,
-          clientName: formData.client,
-          clientPhone: formData.clientPhone,
-          serviceName: formData.service,
-          staffName: selectedStaff?.name || '',
-          date: formData.date,
-          startTime: getDecimalTimeLabel(formData.start),
-          endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
-          price: finalPrice,
-          notes: formData.notes.trim(),
-        };
-       
-       setConfirmationData(confirmationInfo);
-       setShowConfirmation(true);
-     }
-   
-   setIsModalOpen(false);
-   setIsNewClientMode(false);
-   setEditingAppointmentId(null);
-   setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
-   // Don't fetch appointments yet - wait for confirmation action
+          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
+        }
+      }
+      setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+    }
+
+    setIsModalOpen(false);
+    setIsNewClientMode(false);
+    setEditingAppointmentId(null);
+    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+    fetchAppointments();
   };
 
   const formatDateDisplay = (date: Date) => {
@@ -1400,8 +1401,7 @@ if (savedApt) {
         (listFilters.quickChip === 'confirmed' && apt.normalizedStatus === 'confirmed') ||
         (listFilters.quickChip === 'in_progress' && apt.normalizedStatus === 'in_progress') ||
         (listFilters.quickChip === 'overdue' && apt.isOverdue) ||
-        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda) ||
-        (listFilters.quickChip === 'cancelled' && (apt.normalizedStatus === 'cancelled' || apt.normalizedStatus === 'no_show'));
+        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
       return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
     });
   }, [enrichedAppointments, listFilters]);
@@ -1419,7 +1419,7 @@ if (savedApt) {
     { key: 'pending', label: 'Pendentes', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'pending').length, tone: 'text-amber-600 dark:text-amber-300' },
     { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-violet-600 dark:text-violet-300' },
     { key: 'completed', label: 'Finalizados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'completed').length, tone: 'text-emerald-600 dark:text-emerald-300' },
-    { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled' || apt.normalizedStatus === 'no_show').length, tone: 'text-rose-600 dark:text-rose-300' },
+    { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled').length, tone: 'text-rose-600 dark:text-rose-300' },
     { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
   ], [appointmentsForSummary]);
 
@@ -1501,105 +1501,6 @@ Podemos confirmar? 😄`;
     window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const WHATSAPP_MESSAGE_TYPES = [
-    { id: 'confirm', label: 'Confirmar Agendamento', icon: 'check_circle' },
-    { id: 'reminder', label: 'Lembrete (1 dia antes)', icon: 'notifications' },
-    { id: 'cancel', label: 'Avisar Cancelamento', icon: 'cancel' },
-    { id: 'no_show', label: 'Não Compareceu', icon: 'person_off' },
-    { id: 'reschedule', label: 'Alterar Horário', icon: 'schedule' },
-    { id: 'recover', label: 'Tentar recuperar cliente', icon: 'restore' },
-  ];
-
-  // Recovery message for clients who didn't show up or cancelled
-  const generateRecoveryMessage = (apt: CalendarAppointment): string => {
-    const clientName = apt.client.split(' ')[0];
-    return `Fala ${clientName}! Tudo bem? 👋
-
-Tivemos um imprevisto com seu horário, mas conseguimos encaixar você novamente.
-
-📅 ${new Date(apt.startTime).toLocaleDateString('pt-BR')}
-⏰ ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 ${apt.service}
-🧔 ${apt.staffName}
-
-Quer reagendar?`;
-  };
-
-  const handleSendRecoveryMessage = (apt: CalendarAppointment) => {
-    if (!apt.clientPhone) {
-      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
-      return;
-    }
-
-    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
-    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const text = generateRecoveryMessage(apt);
-
-    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
-  const generateWhatsAppMessage = (appointment: CalendarAppointment, messageType: string): string => {
-    const clientName = appointment.client.split(' ')[0];
-    const dateStr = new Date(appointment.startTime).toLocaleDateString('pt-BR');
-    const timeStr = new Date(appointment.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    switch (messageType) {
-      case 'confirm':
-        return `Olá ${clientName}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:\n\n📅 *Data:* ${dateStr}\n⏰ *Hora:* ${timeStr}\n💈 *Serviço:* ${appointment.service}\n🧔 *Profissional:* ${appointment.staffName}\n\nPodemos confirmar? 😄`;
-      case 'reminder':
-        return `Olá ${clientName}! Tudo bem? Aqui é da barbearia. Lembrando que você tem um agendamento Amanhã às ${timeStr} com ${appointment.staffName}.\n\n📅 *Data:* ${dateStr}\n💈 *Serviço:* ${appointment.service}\n\nNos vemos amanhã! 😊`;
-      case 'cancel':
-        return `Olá ${clientName}. Sentimos informar que precisamos cancelar seu agendamento do dia ${dateStr} às ${timeStr}.\n\n¿Te lembraria de remarcar para outro horário?`;
-      case 'no_show':
-        return `Olá ${clientName}. Infelizmente você não compareceu ao agendamento de ${dateStr} às ${timeStr}.\n\nGostaria de remarcar? Estamos à disposição!`;
-      case 'reschedule':
-        return `Olá ${clientName}. O horário do seu agendamento foi alterado.\n\n📅 *Data:* ${dateStr}\n⏰ *Hora:* ${timeStr}\n\nConfirma esse novo horário?`;
-      case 'recover':
-        return generateRecoveryMessage(appointment);
-      default:
-        return `Olá ${clientName}!`;
-    }
-  };
-
-  const handleOpenWhatsAppDropdown = (appointment: CalendarAppointment, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const client = clientsList.find(c => c.id === appointment.clientId);
-    const phone = client?.phone || appointment.clientPhone;
-    
-    if (!phone) {
-      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
-      return;
-    }
-    
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setWhatsAppDropdownTarget(appointment);
-    setWhatsAppDropdownPosition({ top: rect.bottom + 5, left: rect.left });
-  };
-
-  const handleSendWhatsAppMessage = (messageType: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!whatsAppDropdownTarget) return;
-    
-    const client = clientsList.find(c => c.id === whatsAppDropdownTarget.clientId);
-    const phone = client?.phone || whatsAppDropdownTarget.clientPhone;
-    
-    if (!phone) {
-      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
-      return;
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const text = generateWhatsAppMessage(whatsAppDropdownTarget, messageType);
-
-    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
-    setWhatsAppDropdownTarget(null);
-    setWhatsAppDropdownPosition(null);
-  };
-
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 shrink-0">
@@ -1670,23 +1571,6 @@ Quer reagendar?`;
               >Semana</button>
             </div>
           )}
-          {displayMode === 'calendar' && (
-            <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
-              <label className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mr-2">
-                Profissional:
-              </label>
-              <select
-                value={listFilters.professional}
-                onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
-                className="bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm"
-              >
-                <option value="all">Todos</option>
-                {staffList.map((staff) => (
-                  <option key={staff.id} value={staff.id}>{staff.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
           <button
             onClick={exportToCSV}
             className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
@@ -1721,6 +1605,15 @@ Quer reagendar?`;
           )}
 
           <button
+            onClick={() => navigate('/operations')}
+            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
+            title="Operações do dia"
+          >
+            <span className="material-symbols-outlined text-lg">insights</span>
+            <span className="hidden sm:inline">Operações</span>
+          </button>
+
+          <button
             onClick={() => {
               setEditingAppointmentId(null);
               setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
@@ -1737,53 +1630,8 @@ Quer reagendar?`;
 
       {displayMode === 'calendar' ? (
       <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 flex-1 min-h-0">
-        {/* DASHBOARD INDICATORS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-1 gap-4 shrink-0 w-full xl:w-64 max-xl:mb-6 xl:overflow-y-auto custom-scrollbar xl:pr-1">
-          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Atendimentos</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">{appointments.length}</p>
-            </div>
-            <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined text-2xl">event_available</span>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Profissionais</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">{staffList.length}</p>
-            </div>
-            <div className="size-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-              <span className="material-symbols-outlined text-2xl">badge</span>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ocupação Média</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {staffList.length > 0 ? Math.round((appointments.reduce((sum, apt) => sum + apt.duration, 0) / (staffList.length * totalSlots)) * 100) : 0}%
-              </p>
-            </div>
-            <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-              <span className="material-symbols-outlined text-2xl">query_stats</span>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-slate-200 dark:border-border-dark flex items-center justify-between shadow-sm relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Previsto</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                R$ {appointments.reduce((acc, curr) => acc + (curr.price || 0), 0).toFixed(2).replace('.', ',')}
-              </p>
-            </div>
-            <div className="relative z-10 size-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <span className="material-symbols-outlined text-2xl">payments</span>
-            </div>
-          </div>
-        </div>
+        {/* DASHBOARD INDICATORS - Ocultos para simplificar */}
+        <div className="hidden" />
 
         <div className="flex-1 bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col shadow-sm min-w-0">
           {viewMode === 'week' ? (
@@ -1798,11 +1646,7 @@ Quer reagendar?`;
                     return d.toDateString() === day.toDateString();
                   });
                   const dayKey = toDateKey(day);
-                  const hasDayBlock = scheduleBlocks.some((block) => block.block_type === 'full_day' && 
-                                                       (!block.professional_id || 
-                                                        listFilters.professional === 'all' || 
-                                                        block.professional_id === listFilters.professional) && 
-                                                       blockAppliesToDate(block, dayKey));
+                  const hasDayBlock = scheduleBlocks.some((block) => block.block_type === 'full_day' && blockAppliesToDate(block, dayKey));
                   return (
                     <div
                       key={i}
@@ -1849,13 +1693,11 @@ Quer reagendar?`;
                       ))}
                     </div>
                     <div className="flex-1 flex">
-                       {weekDays.map((day, di) => {
-                         const dayApts = appointments.filter(a => {
-                           const d = new Date((a as any).date);
-                           const matchesDate = d.toDateString() === day.toDateString();
-                           const matchesProfessional = listFilters.professional === 'all' || a.staffId === listFilters.professional;
-                           return matchesDate && matchesProfessional;
-                         });
+                      {weekDays.map((day, di) => {
+                        const dayApts = appointments.filter(a => {
+                          const d = new Date((a as any).date);
+                          return d.toDateString() === day.toDateString();
+                        });
                         const dayKey = toDateKey(day);
                         const dayBlocks = getBlocksForDate(scheduleBlocks, dayKey);
                         const isDayFullyBlocked = dayBlocks.some((block) => block.block_type === 'full_day' && !block.professional_id);
@@ -1876,10 +1718,7 @@ Quer reagendar?`;
                           >
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                             {dayBlocks
-                              .filter((block) => block.block_type === 'time_range' && 
-                                       (!block.professional_id || 
-                                        listFilters.professional === 'all' || 
-                                        block.professional_id === listFilters.professional))
+                              .filter((block) => block.block_type === 'time_range' && !block.professional_id)
                               .map((block) => {
                                 const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                                 const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
@@ -1942,18 +1781,17 @@ Quer reagendar?`;
                   {staffList.length === 0 ? (
                     <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
                   ) : (
-                    (listFilters.professional === 'all' ? staffList : staffList.filter(s => s.id === listFilters.professional))
-                      .map(resource => (
-                        <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
-                          <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
-                            style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
-                          </div>
+                    staffList.map(resource => (
+                      <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
+                        <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
+                          style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
                         </div>
-                      ))
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -1989,8 +1827,7 @@ Quer reagendar?`;
                         >
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-slate-50/50 dark:bg-white/[0.02] pointer-events-none transition-opacity"></div>
                           {!showOnlyBlocks && appointments
-                            .filter(apt => apt.staffId === resource.id && 
-                                     (listFilters.professional === 'all' || apt.staffId === listFilters.professional))
+                            .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
                               const startOffset = (apt.start - 8) * (100 / totalSlots);
                               const height = apt.duration * (100 / totalSlots);
@@ -2064,184 +1901,91 @@ Quer reagendar?`;
           )}
         </div>
 
-        {/* Próximos Agendamentos Oculto em telas menores de lg (1024px) */}
-        <div className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 bg-white dark:bg-[#121316] rounded-2xl border border-slate-200 dark:border-[#262A33] overflow-hidden shadow-sm">
-          <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-[#262A33]">
-            <h3 className="text-slate-900 dark:text-white font-bold text-sm">Próximos Agendamentos</h3>
-            <button className="text-primary dark:text-[#C6A45A] text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all">Ver Todos</button>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
-            {appointments
-              .filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled' && (new Date(apt.date).toDateString() === new Date().toDateString() || new Date(apt.date) >= new Date()))
-              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.start - b.start)
-              .slice(0, 10)
-              .map(apt => {
-                const staff = staffList.find(s => s.id === apt.staffId);
-                return (
-                  <div
-                    key={apt.id}
-                    onClick={() => handleOpenAppointmentDetails(apt)}
-                    className="bg-slate-50 dark:bg-[#181A1F] p-3 rounded-xl flex gap-3 items-center group cursor-pointer hover:bg-slate-100 dark:hover:bg-[#181A1F]/80 transition-all border border-transparent dark:hover:border-[#262A33]"
-                  >
-                    <div className="bg-slate-200 dark:bg-[#262A33] text-primary dark:text-[#C6A45A] font-black text-xs px-2 py-1.5 rounded-lg shrink-0 text-center min-w-[44px]">
-                      {Math.floor(apt.start).toString().padStart(2, '0')}:{(apt.start % 1) === 0 ? '00' : '30'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-900 dark:text-white text-sm font-bold truncate">{apt.client}</p>
-                      <p className="text-slate-500 dark:text-[#A7AFB7] text-[10px] uppercase tracking-wider mt-0.5 truncate">
-                        {apt.service} • {staff?.name?.split(' ')[0] || apt.staffName?.split(' ')[0]}
-                      </p>
-                    </div>
-                    <span className="material-symbols-outlined text-slate-400 dark:text-[#A7AFB7] text-lg opacity-0 group-hover:opacity-100 transition-opacity">more_vert</span>
-                  </div>
-                );
-              })}
-            {appointments.filter(apt => apt.status !== 'completed' && apt.status !== 'cancelled').length === 0 && (
-              <div className="text-center text-slate-500 dark:text-[#A7AFB7] py-10 text-xs font-medium">Nenhum agendamento futuro</div>
-            )}
-          </div>
-        </div>
+        {/* Próximos Agendamentos - Oculto para simplificar */}
+        <div className="hidden" />
       </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
           <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              {activeFilters.has('period') && (
-                <div className="w-36">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
-                  <select
-                    value={listFilters.period}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    <option value="today">Hoje</option>
-                    <option value="tomorrow">Amanhã</option>
-                    <option value="week">Próximos 7 dias</option>
-                    <option value="month">Este mês</option>
-                    <option value="custom">Data específica</option>
-                  </select>
-                </div>
-              )}
-              {activeFilters.has('date') && (
-                <div className="w-36">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
-                  <DatePickerInput
-                    value={listFilters.date}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  />
-                </div>
-              )}
-              {activeFilters.has('professional') && (
-                <div className="w-40">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
-                  <select
-                    value={listFilters.professional}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    <option value="all">Todos</option>
-                    {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
-                  </select>
-                </div>
-              )}
-              {activeFilters.has('status') && (
-                <div className="w-36">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
-                  <select
-                    value={listFilters.status}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    <option value="all">Todos</option>
-                    {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
-                  </select>
-                </div>
-              )}
-              {activeFilters.has('service') && (
-                <div className="w-40">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
-                  <select
-                    value={listFilters.service}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    <option value="all">Todos</option>
-                    {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
-                  </select>
-                </div>
-              )}
-              {activeFilters.has('origin') && (
-                <div className="w-32">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
-                  <select
-                    value={listFilters.origin}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                  >
-                    <option value="all">Todas</option>
-                    {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
-                  </select>
-                </div>
-              )}
-              {activeFilters.has('search') && (
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
-<div className="relative filters-menu">
-                    <input
-                      type="text"
-                      value={listFilters.search}
-                      onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
-                      placeholder="Nome do cliente ou telefone"
-                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
-                    />
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                  </div>
-                </div>
-              )}
-              <div className="relative">
-                <button
-                  onClick={() => setShowFiltersMenu(!showFiltersMenu)}
-                  className="mt-5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-all flex items-center gap-2"
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
+                <select
+                  value={listFilters.period}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
                 >
-                  <span className="material-symbols-outlined text-lg">tune</span>
-                  Filtros
-                  <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilters.size}</span>
-                </button>
-                {showFiltersMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-lg z-50 p-2 space-y-1">
-                    {[
-                      { key: 'date', label: 'Data' },
-                      { key: 'period', label: 'Período' },
-                      { key: 'professional', label: 'Profissional' },
-                      { key: 'status', label: 'Status' },
-                      { key: 'service', label: 'Serviço' },
-                      { key: 'origin', label: 'Origem' },
-                      { key: 'search', label: 'Buscar' },
-                    ].map((filter) => (
-                      <label
-                        key={filter.key}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={activeFilters.has(filter.key)}
-                          onChange={(e) => {
-                            const newFilters = new Set(activeFilters);
-                            if (e.target.checked) {
-                              newFilters.add(filter.key);
-                            } else {
-                              newFilters.delete(filter.key);
-                            }
-                            setActiveFilters(newFilters);
-                          }}
-                          className="w-4 h-4 rounded border-slate-300 text-primary"
-                        />
-                        <span className="text-sm text-slate-700 dark:text-slate-200">{filter.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                  <option value="today">Hoje</option>
+                  <option value="tomorrow">Amanhã</option>
+                  <option value="week">Próximos 7 dias</option>
+                  <option value="month">Este mês</option>
+                  <option value="custom">Data específica</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
+                <DatePickerInput
+                  value={listFilters.date}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
+                <select
+                  value={listFilters.professional}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
+                <select
+                  value={listFilters.status}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                <select
+                  value={listFilters.service}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
+                <select
+                  value={listFilters.origin}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="all">Todas</option>
+                  {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={listFilters.search}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
+                    placeholder="Nome do cliente ou telefone"
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
+                  />
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2253,16 +1997,14 @@ Quer reagendar?`;
                 { key: 'in_progress', label: 'Em atendimento' },
                 { key: 'overdue', label: 'Atrasados' },
                 { key: 'without_comanda', label: 'Sem comanda' },
-                { key: 'cancelled', label: 'Cancelados/No-show', accent: 'text-red-600 dark:text-red-300' },
               ].map((chip) => (
                 <button
                   key={chip.key}
                   onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${
-                    (listFilters.quickChip === chip.key)
-                      ? 'bg-primary text-white shadow-md shadow-primary/20'
-                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
-                  } ${chip.accent || ''}`}
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${listFilters.quickChip === chip.key
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                    }`}
                 >
                   {chip.label}
                 </button>
@@ -2323,7 +2065,7 @@ Quer reagendar?`;
                           <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-violet-500 hover:bg-violet-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
-                          <button onClick={() => openCancelModal(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
+                          <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
                           <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
                           <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
@@ -2366,7 +2108,7 @@ Quer reagendar?`;
                   <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold">Iniciar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
-                  <button onClick={() => openCancelModal(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
+                  <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
                   <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
                   <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
                 </div>
@@ -2383,7 +2125,7 @@ Quer reagendar?`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); setIsEncaixeMode(false); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2527,8 +2269,8 @@ Quer reagendar?`;
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    // Gerando slots de 6h às 00h (37 slots total: 6, 6.5, ..., 24)
-                    const allSlots = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5);
+                    // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
+                    const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
                     const aptsOnDay = appointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
@@ -2547,11 +2289,11 @@ Quer reagendar?`;
                         slot < (apt.start + apt.duration) && slotEnd > apt.start
                       );
                       const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
-                      const isDisabled = !isEncaixeMode && (hasConflict || hasBlock);
+                      const isDisabled = hasConflict || hasBlock;
 
                       return (
                         <option key={slot} value={slot} disabled={isDisabled} className={isDisabled ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict && !isEncaixeMode ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
                         </option>
                       );
                     });
@@ -2580,21 +2322,6 @@ Quer reagendar?`;
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-amber-600">push_pin</span>
-              <span className="text-sm font-bold text-amber-700 dark:text-amber-300">Modo Encaixe</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsEncaixeMode(!isEncaixeMode)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isEncaixeMode ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEncaixeMode ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-          <p className="text-[10px] text-amber-600 mt-1">Permite agendar em horário ocupado</p>
-
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">ObservaÃ§Ãµes</label>
             <textarea
@@ -2608,7 +2335,7 @@ Quer reagendar?`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); setIsEncaixeMode(false); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
@@ -2955,30 +2682,30 @@ Quer reagendar?`;
               )}
 
               <div className="pt-4 flex justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2 flex-wrap">
-                <div className="relative flex-1 min-w-[120px]">
-                  <button
-                    onClick={(e) => handleOpenWhatsAppDropdown(apt, e)}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-                    WhatsApp
-                    <span className="material-symbols-outlined text-lg">expand_more</span>
-                  </button>
-                  {whatsAppDropdownTarget?.id === apt.id && (
-                    <div id="whatsapp-dropdown" className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-200 dark:border-border-dark overflow-hidden z-50">
-                      {WHATSAPP_MESSAGE_TYPES.map((msgType) => (
-                        <button
-                          key={msgType.id}
-                          onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
-className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0 text-slate-900 dark:text-slate-100"
-                        >
-                          <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
-                          {msgType.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <button
+                  onClick={() => {
+                    if (!apt.clientPhone) {
+                      setToast({ message: 'Cliente sem telefone cadastrado.', type: 'error' });
+                      return;
+                    }
+                    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
+                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+
+📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
+⏰ *Hora:* ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+💈 *Serviço:* ${apt.service}
+🧔 *Profissional:* ${staff?.name || apt.staffName}
+
+Podemos confirmar? 😄`;
+                    const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
+                    window.open(link, '_blank');
+                  }}
+                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                  WhatsApp
+                </button>
 
                 <button
                   onClick={() => handleEditAppointment(apt)}
@@ -2997,7 +2724,7 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
                 </button>
 
                 <button
-                  onClick={() => openCancelModal(apt.id)}
+                  onClick={() => handleCancelAppointment(apt.id)}
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">delete</span>
@@ -3083,284 +2810,19 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado')} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado')} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
               <button onClick={() => handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado')} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-              <button onClick={(e) => handleOpenWhatsAppDropdown(selectedAppointmentDetails, e)} className="relative px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">
-                WhatsApp
-                {whatsAppDropdownTarget?.id === selectedAppointmentDetails.id && (
-                  <div id="whatsapp-dropdown" className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-200 dark:border-border-dark overflow-hidden z-50">
-                    {WHATSAPP_MESSAGE_TYPES.map((msgType) => (
-                      <button
-                        key={msgType.id}
-                        onClick={(e) => handleSendWhatsAppMessage(msgType.id, e)}
-                        className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-white/5 last:border-b-0 text-slate-900 dark:text-slate-100"
-                      >
-                        <span className="material-symbols-outlined text-lg">{msgType.icon}</span>
-                        {msgType.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </button>
-              
-              {/* Recovery Button for cancelled appointments */}
-              {(selectedAppointmentDetails.status === 'cancelled' || selectedAppointmentDetails.status === 'no_show') && (
-                <button
-                  onClick={() => handleSendRecoveryMessage(selectedAppointmentDetails)}
-                  className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-                  Recuperar cliente
-                </button>
-              )}
-              
+              <button onClick={() => handleSendWhatsApp(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
               <button onClick={() => handleOpenClient(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
               <button onClick={() => handleOpenComanda(selectedAppointmentDetails)} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-              <button onClick={() => openCancelModal(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              <button onClick={() => handleCancelAppointment(selectedAppointmentDetails.id)} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
             </div>
           </div>
         </div>
       )}
 
-       {showConfirmation && confirmationData && (
-         <Modal
-           isOpen={showConfirmation}
-           onClose={() => {
-             setShowConfirmation(false);
-             // Fetch appointments when closing confirmation
-             fetchAppointments();
-           }}
-           title="Agendamento Confirmado"
-           maxWidth="md"
-         >
-           <div className="space-y-6">
-             <div className="text-center">
-               <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-100 text-green-600 mx-auto mb-4">
-                 <span className="material-symbols-outlined">check_circle</span>
-               </div>
-               <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                 Agendamento criado com sucesso!
-               </h3>
-               <p className="text-slate-600 dark:text-slate-300 mt-2">
-                 Seu agendamento foi confirmado com os seguintes detalhes:
-               </p>
-             </div>
-             
-             <div className="space-y-4">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Cliente:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.clientName}</p>
-                 </div>
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Serviço:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.serviceName}</p>
-                 </div>
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Profissional:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">{confirmationData.staffName}</p>
-                 </div>
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Data:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">{new Date(confirmationData.date).toLocaleDateString('pt-BR')}</p>
-                 </div>
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Horário:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">
-                     {confirmationData.startTime} - {confirmationData.endTime}
-                   </p>
-                 </div>
-                 <div>
-                   <p className="text-sm font-medium text-slate-500">Valor:</p>
-                   <p className="text-lg font-bold text-slate-900 dark:text-white">
-                     R$ {confirmationData.price.toFixed(2).replace('.', ',')}
-                   </p>
-                 </div>
-                 {confirmationData.notes && (
-                   <div className="md:col-span-2">
-                     <p className="text-sm font-medium text-slate-500">Observações:</p>
-                     <p className="text-slate-900 dark:text-white">{confirmationData.notes}</p>
-                   </div>
-                 )}
-               </div>
-             </div>
-             
-             {confirmationData.comandaId && (
-               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                   <span className="material-symbols-outlined text-blue-600">receipt_long</span>
-                   Comanda criada com sucesso!
-                 </p>
-               </div>
-)}
-              
-              {confirmationData.clientPhone && (
-                <button
-                  onClick={() => {
-                    const cleanPhone = confirmationData.clientPhone.replace(/\D/g, '');
-                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-                    const text = `Olá ${confirmationData.clientName.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Seu agendamento foi confirmado:
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div >
+  );
+};
 
-📅 *Data:* ${new Date(confirmationData.date).toLocaleDateString('pt-BR')}
-⏰ *Hora:* ${confirmationData.startTime} - ${confirmationData.endTime}
-💈 *Serviço:* ${confirmationData.serviceName}
-🧔 *Profissional:* ${confirmationData.staffName}
-💰 *Valor:* R$ ${confirmationData.price.toFixed(2).replace('.', ',')}
-
-Qualquer dúvida, é só mandar这儿! 😀`;
-                    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
-                  }}
-                  className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <span className="material-symbols-outlined">chat</span>
-                  Enviar comprovante no WhatsApp
-                </button>
-              )}
-              
-              <div className="pt-4 flex justify-end gap-3">
-               <button
-                 onClick={() => {
-                   setShowConfirmation(false);
-                   // Fetch appointments when closing
-                   fetchAppointments();
-                 }}
-                 className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-               >
-                 Voltar para agendamentos
-               </button>
-               <button
-                 onClick={() => {
-                   setShowConfirmation(false);
-                   navigate('/');
-                   // Fetch appointments when closing
-                   fetchAppointments();
-                 }}
-                 className="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-               >
-                 Ir para início
-               </button>
-               <button
-                 onClick={() => {
-                   setShowConfirmation(false);
-                   setIsModalOpen(true);
-                   setIsNewClientMode(false);
-                   setEditingAppointmentId(null);
-                   setFormData({ 
-                     client: '', 
-                     clientPhone: '', 
-                     service: '', 
-                     staffId: staffList[0]?.id ?? '', 
-                     date: new Date().toISOString().split('T')[0], 
-                     start: 8, 
-                     duration: 1, 
-                     notes: '' 
-                   });
-                 }}
-                 className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
-               >
-                 Realizar novo agendamento
-               </button>
-             </div>
-           </div>
-         </Modal>
-       )}
-       
-{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
-      {/* Cancellation Modal */}
-      <Modal
-        isOpen={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
-        title="Cancelar Agendamento"
-        maxWidth="md"
-      >
-        <div className="space-y-6">
-          <div className="text-center">
-            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mx-auto mb-4">
-              <span className="material-symbols-outlined">warning</span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Deseja realmente cancelar este agendamento?
-            </h3>
-            <p className="text-sm text-slate-500 mt-2">
-              Selecione o motivo do cancelamento
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {(Object.entries(CANCELLATION_REASON_LABELS) as [CancellationReason, typeof CANCELLATION_REASON_LABELS[CancellationReason]][]).map(([reason, meta]) => (
-              <label
-                key={reason}
-                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  cancelReason === reason
-                    ? 'border-primary bg-primary/5'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="cancellation-reason"
-                  value={reason}
-                  checked={cancelReason === reason}
-                  onChange={() => setCancelReason(reason)}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 dark:text-white">{meta.label}</span>
-                    {meta.isError && (
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                        Sem impacto
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-500 mt-0.5">{meta.description}</p>
-                </div>
-              </label>
-            ))}
-
-            {cancelReason === 'other' && (
-              <div className="mt-3">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Descreva o motivo
-                </label>
-                <textarea
-                  value={cancelOtherReason}
-                  onChange={(e) => setCancelOtherReason(e.target.value)}
-                  placeholder="Digite o motivo do cancelamento..."
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white resize-none"
-                  rows={3}
-                />
-              </div>
-            )}
-          </div>
-
-          {cancelReason === 'no_show' && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                <span className="material-symbols-outlined">info</span>
-                Após cancelar, você poderá tentar recuperar o cliente via WhatsApp.
-              </p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-white/10">
-            <button
-              onClick={() => setShowCancelModal(false)}
-              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-            >
-              Voltar
-            </button>
-            <button
-              onClick={handleConfirmCancel}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all"
-            >
-              Confirmar Cancelamento
-            </button>
-          </div>
-        </div>
-      </Modal>
-      </div >
-    );
-  };
-
-  export default Schedule;
+export default Schedule;
