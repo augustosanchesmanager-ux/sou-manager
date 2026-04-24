@@ -280,6 +280,8 @@ const Schedule: React.FC = () => {
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
   const [whatsAppDropdownTarget, setWhatsAppDropdownTarget] = useState<CalendarAppointment | null>(null);
   const [whatsAppDropdownPosition, setWhatsAppDropdownPosition] = useState<{top: number, left: number} | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['date', 'search']));
+  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
     date: getDateInputValue(new Date()),
     period: 'today',
@@ -663,6 +665,18 @@ const { data, error } = await supabase
       setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}`, staffId: prev.staffId || (staffList[0]?.id ?? '') }));
     }
   }, [isModalOpen, selectedDate, staffList]);
+
+  useEffect(() => {
+    if (!showFiltersMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.filters-menu')) {
+        setShowFiltersMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showFiltersMenu]);
 
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
@@ -2039,85 +2053,143 @@ Quer reagendar?`;
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
           <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
-                <select
-                  value={listFilters.period}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="today">Hoje</option>
-                  <option value="tomorrow">Amanhã</option>
-                  <option value="week">Próximos 7 dias</option>
-                  <option value="month">Este mês</option>
-                  <option value="custom">Data específica</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
-                <DatePickerInput
-                  value={listFilters.date}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
-                <select
-                  value={listFilters.professional}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
-                <select
-                  value={listFilters.status}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
-                <select
-                  value={listFilters.service}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
-                <select
-                  value={listFilters.origin}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todas</option>
-                  {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={listFilters.search}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
-                    placeholder="Nome do cliente ou telefone"
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
-                  />
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {activeFilters.has('period') && (
+                <div className="w-36">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
+                  <select
+                    value={listFilters.period}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="today">Hoje</option>
+                    <option value="tomorrow">Amanhã</option>
+                    <option value="week">Próximos 7 dias</option>
+                    <option value="month">Este mês</option>
+                    <option value="custom">Data específica</option>
+                  </select>
                 </div>
+              )}
+              {activeFilters.has('date') && (
+                <div className="w-36">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
+                  <DatePickerInput
+                    value={listFilters.date}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  />
+                </div>
+              )}
+              {activeFilters.has('professional') && (
+                <div className="w-40">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
+                  <select
+                    value={listFilters.professional}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="all">Todos</option>
+                    {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {activeFilters.has('status') && (
+                <div className="w-36">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
+                  <select
+                    value={listFilters.status}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="all">Todos</option>
+                    {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                  </select>
+                </div>
+              )}
+              {activeFilters.has('service') && (
+                <div className="w-40">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                  <select
+                    value={listFilters.service}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="all">Todos</option>
+                    {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {activeFilters.has('origin') && (
+                <div className="w-32">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
+                  <select
+                    value={listFilters.origin}
+                    onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="all">Todas</option>
+                    {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                  </select>
+                </div>
+              )}
+              {activeFilters.has('search') && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
+<div className="relative filters-menu">
+                    <input
+                      type="text"
+                      value={listFilters.search}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
+                      placeholder="Nome do cliente ou telefone"
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
+                    />
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                  </div>
+                </div>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setShowFiltersMenu(!showFiltersMenu)}
+                  className="mt-5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-all flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">tune</span>
+                  Filtros
+                  <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilters.size}</span>
+                </button>
+                {showFiltersMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-lg z-50 p-2 space-y-1">
+                    {[
+                      { key: 'date', label: 'Data' },
+                      { key: 'period', label: 'Período' },
+                      { key: 'professional', label: 'Profissional' },
+                      { key: 'status', label: 'Status' },
+                      { key: 'service', label: 'Serviço' },
+                      { key: 'origin', label: 'Origem' },
+                      { key: 'search', label: 'Buscar' },
+                    ].map((filter) => (
+                      <label
+                        key={filter.key}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={activeFilters.has(filter.key)}
+                          onChange={(e) => {
+                            const newFilters = new Set(activeFilters);
+                            if (e.target.checked) {
+                              newFilters.add(filter.key);
+                            } else {
+                              newFilters.delete(filter.key);
+                            }
+                            setActiveFilters(newFilters);
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-primary"
+                        />
+                        <span className="text-sm text-slate-700 dark:text-slate-200">{filter.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
