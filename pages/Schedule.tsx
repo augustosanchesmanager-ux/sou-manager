@@ -257,6 +257,7 @@ const Schedule: React.FC = () => {
     search: '',
     quickChip: 'all',
   });
+  const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -1503,21 +1504,20 @@ Podemos confirmar? 😄`;
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 shrink-0">
-        <div className="flex items-center gap-4 bg-white dark:bg-surface-dark p-1.5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 shrink-0">
+        <div className="flex items-center gap-2 bg-white dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark shadow-sm">
           <button
             onClick={() => {
               const newDate = new Date(selectedDate);
               newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-500 dark:text-slate-400"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded text-slate-500 dark:text-slate-400"
           >
-            <span className="material-symbols-outlined">chevron_left</span>
+            <span className="material-symbols-outlined text-lg">chevron_left</span>
           </button>
-          <div className="flex items-center gap-2 px-2 text-slate-900 dark:text-white font-bold min-w-0 justify-center">
-            <span className="material-symbols-outlined text-primary">calendar_month</span>
-            <span className="text-sm">
+          <div className="flex items-center gap-1 px-1.5 text-slate-900 dark:text-white font-bold min-w-0 justify-center">
+            <span className="text-xs">
               {viewMode === 'week'
                 ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
                 : formatDateDisplay(selectedDate)
@@ -1530,41 +1530,51 @@ Podemos confirmar? 😄`;
               newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-500 dark:text-slate-400"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded text-slate-500 dark:text-slate-400"
           >
-            <span className="material-symbols-outlined">chevron_right</span>
+            <span className="material-symbols-outlined text-lg">chevron_right</span>
           </button>
+          <span className="flex items-center">
+            <DatePickerInput
+              value={getDateInputValue(selectedDate)}
+              onChange={(e) => {
+                const newDate = parseDateInputValue(e.target.value);
+                if (newDate) setSelectedDate(newDate);
+              }}
+              className="text-xs bg-transparent border-0 p-0 w-auto"
+            />
+          </span>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex bg-slate-100 dark:bg-surface-dark p-0.5 rounded border border-slate-200 dark:border-border-dark">
             <button
               onClick={() => setDisplayMode('calendar')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${displayMode === 'calendar'
+              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'calendar'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
             >Calendário</button>
             <button
               onClick={() => setDisplayMode('list')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${displayMode === 'list'
+              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'list'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
             >Lista</button>
           </div>
           {displayMode === 'calendar' && (
-            <div className="flex bg-slate-100 dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark">
+            <div className="flex bg-slate-100 dark:bg-surface-dark p-0.5 rounded border border-slate-200 dark:border-border-dark">
               <button
                 onClick={() => setViewMode('day')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'day'
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'day'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                   }`}
               >Dia</button>
               <button
                 onClick={() => setViewMode('week')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'week'
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'week'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                   }`}
@@ -1573,10 +1583,10 @@ Podemos confirmar? 😄`;
           )}
           <button
             onClick={exportToCSV}
-            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
+            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
             title="Exportar agenda em CSV"
           >
-            <span className="material-symbols-outlined text-lg">download</span>
+            <span className="material-symbols-outlined text-base">download</span>
             <span className="hidden lg:inline">Exportar CSV</span>
           </button>
 
@@ -1584,21 +1594,21 @@ Podemos confirmar? 😄`;
             <>
               <button
                 onClick={() => setShowOnlyBlocks(prev => !prev)}
-                className={`border px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all ${showOnlyBlocks
+                className={`border px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all ${showOnlyBlocks
                   ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
                   : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300'
                   }`}
                 title="Exibir apenas bloqueios na grade"
               >
-                <span className="material-symbols-outlined text-lg">block</span>
-                <span className="hidden lg:inline">Somente Bloqueios</span>
+                <span className="material-symbols-outlined text-base">block</span>
+                <span className="hidden lg:inline">Bloqueios</span>
               </button>
 
               <button
                 onClick={handleOpenCreateBlockModal}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition-all"
               >
-                <span className="material-symbols-outlined text-lg">event_busy</span>
+                <span className="material-symbols-outlined text-base">event_busy</span>
                 <span className="hidden sm:inline">Fechar agenda</span>
               </button>
             </>
@@ -1606,10 +1616,10 @@ Podemos confirmar? 😄`;
 
           <button
             onClick={() => navigate('/operations')}
-            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all"
+            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
             title="Operações do dia"
           >
-            <span className="material-symbols-outlined text-lg">insights</span>
+            <span className="material-symbols-outlined text-base">insights</span>
             <span className="hidden sm:inline">Operações</span>
           </button>
 
@@ -1620,9 +1630,9 @@ Podemos confirmar? 😄`;
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 transition-all"
+            className="bg-primary hover:bg-primary/90 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition-all"
           >
-            <span className="material-symbols-outlined text-lg">add</span>
+            <span className="material-symbols-outlined text-base">add</span>
             <span className="hidden sm:inline">Novo Agendamento</span>
           </button>
         </div>
@@ -1906,110 +1916,146 @@ Podemos confirmar? 😄`;
       </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
-          <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
-                <select
-                  value={listFilters.period}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="today">Hoje</option>
-                  <option value="tomorrow">Amanhã</option>
-                  <option value="week">Próximos 7 dias</option>
-                  <option value="month">Este mês</option>
-                  <option value="custom">Data específica</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
-                <DatePickerInput
-                  value={listFilters.date}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+          <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[200px] flex-1 max-w-xs">
+                <input
+                  type="text"
+                  value={listFilters.search}
+                  onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  placeholder="Buscar cliente ou telefone..."
+                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-9 pr-3 py-2.5 text-sm"
                 />
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
               </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
-                <select
-                  value={listFilters.professional}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
-                </select>
+
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { key: 'all', label: 'Todos' },
+                  { key: 'pending', label: 'Pendentes' },
+                  { key: 'confirmed', label: 'Confirmados' },
+                  { key: 'in_progress', label: 'Em atend.' },
+                  { key: 'overdue', label: 'Atrasados' },
+                ].map((chip) => (
+                  <button
+                    key={chip.key}
+                    onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
-                <select
-                  value={listFilters.status}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
-                <select
-                  value={listFilters.service}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
-                <select
-                  value={listFilters.origin}
-                  onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="all">Todas</option>
-                  {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Buscar cliente ou telefone</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={listFilters.search}
-                    onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
-                    placeholder="Nome do cliente ou telefone"
-                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-10 pr-3 py-2.5 text-sm"
-                  />
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+
+              <button
+                onClick={() => setShowFiltersDropdown(!showFiltersDropdown)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${showFiltersDropdown
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                }`}
+              >
+                <span className="material-symbols-outlined text-lg">tune</span>
+                Filtros
+              </button>
+            </div>
+
+            {showFiltersDropdown && (
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-border-dark">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Período</label>
+                    <select
+                      value={listFilters.period}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, period: e.target.value as ListPeriod }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="today">Hoje</option>
+                      <option value="tomorrow">Amanhã</option>
+                      <option value="week">Próximos 7 dias</option>
+                      <option value="month">Este mês</option>
+                      <option value="custom">Data específica</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Data</label>
+                    <DatePickerInput
+                      value={listFilters.date}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, date: e.target.value }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Profissional</label>
+                    <select
+                      value={listFilters.professional}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="all">Todos</option>
+                      {staffList.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                    <select
+                      value={listFilters.service}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="all">Todos</option>
+                      {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Origem</label>
+                    <select
+                      value={listFilters.origin}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, origin: e.target.value }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="all">Todas</option>
+                      {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Status</label>
+                    <select
+                      value={listFilters.status}
+                      onChange={(e) => setListFilters((prev) => ({ ...prev, status: e.target.value }))}
+                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="all">Todos</option>
+                      {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { key: 'all', label: 'Todos' },
+                    { key: 'today', label: 'Hoje' },
+                    { key: 'pending', label: 'Pendentes' },
+                    { key: 'confirmed', label: 'Confirmados' },
+                    { key: 'in_progress', label: 'Em atendimento' },
+                    { key: 'overdue', label: 'Atrasados' },
+                    { key: 'without_comanda', label: 'Sem comanda' },
+                  ].map((chip) => (
+                    <button
+                      key={chip.key}
+                      onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
+                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                        : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: 'all', label: 'Todos' },
-                { key: 'today', label: 'Hoje' },
-                { key: 'pending', label: 'Pendentes' },
-                { key: 'confirmed', label: 'Confirmados' },
-                { key: 'in_progress', label: 'Em atendimento' },
-                { key: 'overdue', label: 'Atrasados' },
-                { key: 'without_comanda', label: 'Sem comanda' },
-              ].map((chip) => (
-                <button
-                  key={chip.key}
-                  onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all ${listFilters.quickChip === chip.key
-                    ? 'bg-primary text-white shadow-md shadow-primary/20'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
-                    }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 xl:grid-cols-7 gap-3">
