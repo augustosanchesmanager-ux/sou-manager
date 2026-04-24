@@ -18,6 +18,8 @@ import {
   isDateFullyBlocked,
   scheduleBlocksApi,
   toDateKey,
+  blockAppliesToDate,
+  blockMatchesProfessional,
 } from '../services/scheduleBlocksApi';
 
 
@@ -806,6 +808,10 @@ const { data, error } = await supabase
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault(); // Necessário para permitir o drop
     e.dataTransfer.dropEffect = 'move';
+  };
+
+  const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
+    return blockAppliesToDate(block, dateKey) && blockMatchesProfessional(block, staffId);
   };
 
   const handleDropAppointment = async (e: React.DragEvent, dropStaffId: string, dropDate?: string) => {
