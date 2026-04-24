@@ -422,6 +422,7 @@ const Schedule: React.FC = () => {
     appointmentId: string;
     comandaId: string | null;
     clientName: string;
+    clientPhone: string;
     serviceName: string;
     staffName: string;
     date: string;
@@ -1164,19 +1165,20 @@ const { data, error } = await supabase
           : apt
       ));
 
-       // Prepare confirmation data for update
-       const confirmationInfo = {
-         appointmentId: editingAppointmentId,
-         comandaId: openComandasByAppointment[editingAppointmentId] || null,
-         clientName: formData.client,
-         serviceName: formData.service,
-         staffName: selectedStaff?.name || '',
-         date: formData.date,
-         startTime: getDecimalTimeLabel(formData.start),
-         endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
-         price: selectedService?.price || 0,
-         notes: formData.notes.trim(),
-       };
+// Prepare confirmation data for update
+        const confirmationInfo = {
+          appointmentId: editingAppointmentId,
+          comandaId: openComandasByAppointment[editingAppointmentId] || null,
+          clientName: formData.client,
+          clientPhone: formData.clientPhone,
+          serviceName: formData.service,
+          staffName: selectedStaff?.name || '',
+          date: formData.date,
+          startTime: getDecimalTimeLabel(formData.start),
+          endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
+          price: selectedService?.price || 0,
+          notes: formData.notes.trim(),
+        };
        
        setConfirmationData(confirmationInfo);
        setShowConfirmation(true);
@@ -1248,19 +1250,20 @@ const { data, error } = await supabase
          }
        }
        
-       // Prepare confirmation data
-       const confirmationInfo = {
-         appointmentId: savedApt.id,
-         comandaId: comanda ? comanda.id : null,
-         clientName: formData.client,
-         serviceName: formData.service,
-         staffName: selectedStaff?.name || '',
-         date: formData.date,
-         startTime: getDecimalTimeLabel(formData.start),
-         endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
-         price: finalPrice,
-         notes: formData.notes.trim(),
-       };
+// Prepare confirmation data
+        const confirmationInfo = {
+          appointmentId: savedApt.id,
+          comandaId: comanda ? comanda.id : null,
+          clientName: formData.client,
+          clientPhone: formData.clientPhone,
+          serviceName: formData.service,
+          staffName: selectedStaff?.name || '',
+          date: formData.date,
+          startTime: getDecimalTimeLabel(formData.start),
+          endTime: getDecimalTimeLabel(formData.start + Number(formData.duration)),
+          price: finalPrice,
+          notes: formData.notes.trim(),
+        };
        
        setConfirmationData(confirmationInfo);
        setShowConfirmation(true);
@@ -3145,9 +3148,32 @@ className="w-full px-4 py-2.5 text-left text-sm font-medium hover:bg-slate-100 d
                    Comanda criada com sucesso!
                  </p>
                </div>
-             )}
-             
-             <div className="pt-4 flex justify-end gap-3">
+)}
+              
+              {confirmationData.clientPhone && (
+                <button
+                  onClick={() => {
+                    const cleanPhone = confirmationData.clientPhone.replace(/\D/g, '');
+                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+                    const text = `Olá ${confirmationData.clientName.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Seu agendamento foi confirmado:
+
+📅 *Data:* ${new Date(confirmationData.date).toLocaleDateString('pt-BR')}
+⏰ *Hora:* ${confirmationData.startTime} - ${confirmationData.endTime}
+💈 *Serviço:* ${confirmationData.serviceName}
+🧔 *Profissional:* ${confirmationData.staffName}
+💰 *Valor:* R$ ${confirmationData.price.toFixed(2).replace('.', ',')}
+
+Qualquer dúvida, é só mandar这儿! 😀`;
+                    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <span className="material-symbols-outlined">chat</span>
+                  Enviar comprovante no WhatsApp
+                </button>
+              )}
+              
+              <div className="pt-4 flex justify-end gap-3">
                <button
                  onClick={() => {
                    setShowConfirmation(false);
