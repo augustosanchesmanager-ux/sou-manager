@@ -607,7 +607,7 @@ const Schedule: React.FC = () => {
       }
     }
     setLoading(false);
-  }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
+  }, [displayMode, getListRange, selectedDate, tenantId, viewMode, fetchAppointments]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
