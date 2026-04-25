@@ -149,7 +149,7 @@ const Operations: React.FC = () => {
         }
 
         setLoading(false);
-    }, [tenantId]);
+    }, [tenantId, selectedDate]);
 
     useEffect(() => {
         fetchData();
