@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
+import DatePickerInput from '../components/ui/DatePickerInput';
 
 interface Appointment {
     id: string;
@@ -45,6 +46,7 @@ const Operations: React.FC = () => {
     const [staffList, setStaffList] = useState<{id: string; name: string}[]>([]);
     const [stats, setStats] = useState({ attended: 0, avgTicket: 0, total: 0, confirmed: 0, pending: 0, inProgress: 0, cancelled: 0, revenue: 0 });
     const [loading, setLoading] = useState(true);
+    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     
     // Modal states
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -62,9 +64,9 @@ const Operations: React.FC = () => {
         }
 
         setLoading(true);
-        const today = new Date();
-        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-        const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+        const [year, month, day] = selectedDate.split('-').map(Number);
+        const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
 
         // Fetch today's appointments
         const { data: appts } = await supabase
@@ -148,7 +150,7 @@ const Operations: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, selectedDate]);
 
     const formatTime = (isoString: string) => {
         return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -193,6 +195,18 @@ const Operations: React.FC = () => {
                     </button>
                 )}
             </section>
+
+            <div className="flex items-center gap-4 mb-2">
+                <DatePickerInput
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white cursor-pointer"
+                />
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
+            </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Timeline: Next Appointments */}
@@ -315,7 +329,7 @@ const Operations: React.FC = () => {
 
                     {/* Resumo do Turno - KPIs */}
                     <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 p-6 rounded-xl space-y-4 shadow-sm shadow-primary/5">
-                        <h4 className="text-xs font-bold text-primary dark:text-primary uppercase tracking-widest">KPIs de Hoje</h4>
+                        <h4 className="text-xs font-bold text-primary dark:text-primary uppercase tracking-widest">KPIs do Dia</h4>
                         <div className="grid grid-cols-4 gap-2">
                             <div className="bg-white dark:bg-card-dark p-3 rounded-lg border border-slate-200 dark:border-border-dark shadow-sm text-center">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase">Total</p>
