@@ -645,7 +645,7 @@ const Schedule: React.FC = () => {
   }, [selectedDate, tenantId, viewMode]);
 
   useEffect(() => { fetchBaseData(); }, [fetchBaseData]);
-  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments, selectedDate]);
   useEffect(() => { fetchScheduleBlocks(); }, [fetchScheduleBlocks]);
 
   // Close suggestions when clicking outside
