@@ -16,6 +16,9 @@ interface Appointment {
     avatar?: string;
     price?: number;
     execution_participants?: ExecutionParticipant[];
+    is_walk_in?: boolean;
+    source?: string;
+    channel?: string;
 }
 
 interface ExecutionParticipant {
@@ -220,7 +223,7 @@ const Operations: React.FC = () => {
                             <div className="p-12 text-center text-slate-500">Carregando agendamentos...</div>
                         ) : appointments.length === 0 ? (
                             <div className="p-12 text-center text-slate-500 bg-white dark:bg-card-dark rounded-xl border border-dashed border-slate-300 dark:border-slate-800 ml-12">
-                                Fora do horário de expediente ou sem agendamentos para hoje.
+                                Sem agendamentos para esta data.
                             </div>
                         ) : (
                             appointments.map((apt) => (
@@ -238,7 +241,12 @@ const Operations: React.FC = () => {
                                                 )}
                                             </div>
                                             <div>
-                                                <h4 className="font-bold text-slate-900 dark:text-white">{apt.client_name}</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="font-bold text-slate-900 dark:text-white">{apt.client_name}</h4>
+                                                    {apt.is_walk_in && (
+                                                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full uppercase">Encaixe</span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-slate-500">{apt.service_name}</p>
                                             </div>
                                         </div>
