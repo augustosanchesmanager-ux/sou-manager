@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase, getScopedClient } from '../../services/supabaseClient';
+import { supabase, getScopedClient, getClientForTable } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import type {
   BusinessPeriod,
@@ -56,10 +56,12 @@ const diffDays = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
 
+const APP_SLUG_FOR_BI = 'barber' as const;
+
 export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
   const { tenantId } = useAuth();
   const barberSupabase = getScopedClient('barber');
-  
+
   const [data, setData] = useState<BusinessInsightsData>({
     loading: true,
     error: null,
@@ -112,6 +114,13 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
     try {
       const { from, to, prevFrom, prevTo } = getPeriodDates(filters.period);
 
+      const transactionsClient = getClientForTable('transactions', APP_SLUG_FOR_BI);
+      const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_BI);
+      const clientsClient = getClientForTable('clients', APP_SLUG_FOR_BI);
+      const productsClient = getClientForTable('products', APP_SLUG_FOR_BI);
+      const comandaItemsClient = getClientForTable('comanda_items', APP_SLUG_FOR_BI);
+      const comandasClient = getClientForTable('comandas', APP_SLUG_FOR_BI);
+
       const [
         transactionsRes,
         appointmentsRes,
@@ -121,17 +130,17 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         comandaItemsRes,
         comandasRes,
       ] = await Promise.all([
-        supabase
+        transactionsClient
           .from('transactions')
           .select('id, amount, date, type, payment_method')
           .eq('tenant_id', tenantId)
           .order('date', { ascending: true }),
-        supabase
+        appointmentsClient
           .from('appointments')
           .select('id, status, start_time, client_id, staff_id, staff_name, service_name')
           .eq('tenant_id', tenantId)
           .order('start_time', { ascending: false }),
-        supabase
+        clientsClient
           .from('clients')
           .select('id, name, created_at, last_visit, total_spent')
           .eq('tenant_id', tenantId)
@@ -141,15 +150,15 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
           .select('id, name, avatar')
           .eq('tenant_id', tenantId)
           .eq('status', 'active'),
-        supabase
+        productsClient
           .from('products')
           .select('id, name, stock_quantity, minimum_stock')
           .eq('tenant_id', tenantId),
-        supabase
+        comandaItemsClient
           .from('comanda_items')
           .select('id, product_id, service_id, product_name, quantity, unit_price, comanda_id')
           .eq('tenant_id', tenantId),
-        supabase
+        comandasClient
           .from('comandas')
           .select('id, total, staff_id, client_id, status, created_at')
           .eq('tenant_id', tenantId)

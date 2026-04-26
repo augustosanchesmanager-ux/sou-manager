@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as Papa from 'papaparse';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { getScopedClient, getClientForTable, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -105,7 +105,8 @@ const Clients: React.FC = () => {
         loadingId = showLoading('CLIENTS');
         
         try {
-            const { data, error } = await supabase
+            const clientsClient = getClientForTable('clients', 'barber');
+            const { data, error } = await clientsClient
                 .from('clients')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -185,7 +186,8 @@ const Clients: React.FC = () => {
             setToast({ message: 'Tenant invalido para cadastro de cliente.', type: 'error' });
             return;
         }
-        const { error } = await supabase.from('clients').insert({
+        const clientsClient = getClientForTable('clients', 'barber');
+        const { error } = await clientsClient.from('clients').insert({
             name: newForm.name,
             email: newForm.email,
             phone: newForm.phone,
@@ -212,7 +214,8 @@ const Clients: React.FC = () => {
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingId || !tenantId) return;
-        const { error } = await supabase
+        const clientsClient = getClientForTable('clients', 'barber');
+        const { error } = await clientsClient
             .from('clients')
             .update(editForm)
             .eq('id', editingId)
@@ -242,14 +245,14 @@ const Clients: React.FC = () => {
         };
 
         try {
-            const { data: clientComandas, error: comandasReadError } = await supabase
+            const { data: clientComandas, error: comandasReadError } = await barberSupabase
                 .from('comandas')
                 .select('id')
                 .eq('client_id', clientId);
 
             if (!comandasReadError && clientComandas && clientComandas.length > 0) {
                 const comandaIds = clientComandas.map((c: { id: string }) => c.id);
-                const { error: itemsError } = await supabase
+                const { error: itemsError } = await barberSupabase
                     .from('comanda_items')
                     .delete()
                     .in('comanda_id', comandaIds);
@@ -267,7 +270,8 @@ const Clients: React.FC = () => {
             await cleanupByClientId('customer_subscriptions');
             await cleanupByClientId('comandas');
 
-            const { error } = await supabase
+            const clientsClient = getClientForTable('clients', 'barber');
+            const { error } = await clientsClient
                 .from('clients')
                 .delete()
                 .eq('id', clientId)
@@ -386,7 +390,8 @@ const Clients: React.FC = () => {
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`
         }));
 
-        const { error } = await supabase.from('clients').insert(toInsert);
+        const clientsClient = getClientForTable('clients', 'barber');
+        const { error } = await clientsClient.from('clients').insert(toInsert);
 
         if (error) {
             setToast({ message: `Erro ao importar: ${error.message}`, type: 'error' });

@@ -429,7 +429,8 @@ const Comandas: React.FC = () => {
 
         const unblockComandas = async () => {
             try {
-                const { error } = await supabase
+                const unblockClient = getScopedClient('barber');
+                const { error } = await unblockClient
                     .from('comandas')
                     .update({ status: 'open' })
                     .in('id', commandsToUnblock);

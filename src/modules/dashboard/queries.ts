@@ -1,4 +1,4 @@
-import { supabase } from '../../../services/supabaseClient';
+import { getClientForTable, supabase } from '../../../services/supabaseClient';
 import {
   buildDashboardMetrics,
   buildRevenueChartData,
@@ -14,6 +14,8 @@ import type {
   DashboardStaff,
 } from './types';
 
+const APP_SLUG_FOR_DASHBOARD = 'barber' as const;
+
 const logSupabaseError = (label: string, error: unknown) => {
   if (error) {
     console.error(`Dashboard query failed: ${label}`, error);
@@ -21,7 +23,9 @@ const logSupabaseError = (label: string, error: unknown) => {
 };
 
 const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardService[]> => {
-  const primaryRes = await supabase
+  const servicesClient = getClientForTable('services', APP_SLUG_FOR_DASHBOARD);
+
+  const primaryRes = await servicesClient
     .from('services')
     .select('id, name, duration, price')
     .eq('tenant_id', tenantId)
@@ -30,7 +34,7 @@ const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardSer
 
   if (primaryRes.error) {
     logSupabaseError('services.primary', primaryRes.error);
-    const legacyRes = await supabase
+    const legacyRes = await servicesClient
       .from('services')
       .select('id, name, duration_minutes, price')
       .eq('tenant_id', tenantId)
@@ -45,7 +49,7 @@ const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardSer
     return primaryRes.data.map(normalizeServiceRecord);
   }
 
-  const fallbackRes = await supabase
+  const fallbackRes = await servicesClient
     .from('services')
     .select('id, name, duration, price')
     .eq('tenant_id', tenantId)
@@ -57,7 +61,7 @@ const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardSer
     return fallbackRes.data.map(normalizeServiceRecord);
   }
 
-  const legacyRes = await supabase
+  const legacyRes = await servicesClient
     .from('services')
     .select('id, name, duration_minutes, price')
     .eq('tenant_id', tenantId)
@@ -75,19 +79,23 @@ export const fetchDashboardData = async ({
   tenantId: string;
   userId?: string | null;
 }): Promise<DashboardData> => {
+  const clientsClient = getClientForTable('clients', APP_SLUG_FOR_DASHBOARD);
+  const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_DASHBOARD);
+  const transactionsClient = getClientForTable('transactions', APP_SLUG_FOR_DASHBOARD);
+
   const profilePromise = userId
     ? supabase.from('profiles').select('onboarding_completed').eq('id', userId).single()
     : Promise.resolve({ data: null, error: null });
 
   const [clientsRes, staffRes, servicesList, appointmentsRes, profileRes, transactionsRes] = await Promise.all([
-    supabase
+    clientsClient
       .from('clients')
       .select('id, name, phone, email, birthday, last_visit, avatar')
       .eq('tenant_id', tenantId)
       .order('name'),
     supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
     fetchServicesWithFallback(tenantId),
-    supabase
+    appointmentsClient
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -96,7 +104,7 @@ export const fetchDashboardData = async ({
       .order('start_time', { ascending: true })
       .limit(10),
     profilePromise,
-    supabase.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true }),
+    transactionsClient.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true }),
   ]);
 
   logSupabaseError('clients', clientsRes.error);
@@ -105,7 +113,6 @@ export const fetchDashboardData = async ({
   logSupabaseError('profile', profileRes.error);
   logSupabaseError('transactions', transactionsRes.error);
 
-  // Build phone lookup map from clients
   const clientPhoneMap: Record<string, string> = {};
   (clientsRes.data || []).forEach((client: any) => {
     if (client.id && client.phone) {
@@ -124,14 +131,14 @@ export const fetchDashboardData = async ({
   }));
 
   const [todayAppointmentsByStaffRes, todayAppointmentsCountRes] = await Promise.all([
-    supabase
+    appointmentsClient
       .from('appointments')
       .select('staff_id')
       .eq('tenant_id', tenantId)
       .eq('status', 'confirmed')
       .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
       .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
-    supabase
+    appointmentsClient
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)

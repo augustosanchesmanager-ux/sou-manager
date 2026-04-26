@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
-import { supabase } from '../../../../services/supabaseClient';
+import { getClientForTable, requireTenantContext, supabase } from '../../../../services/supabaseClient';
 import type {
   BusyState,
   DashboardClient,
@@ -36,8 +36,20 @@ const normalizeQuickAppointmentResult = (value: any): QuickAppointmentResult => 
 };
 
 export const useDashboardActions = () => {
-  const { tenantId } = useAuth();
+  const { appSlug, schema, tenantId } = useAuth();
   const [busyState, setBusyState] = useState<BusyState>(INITIAL_BUSY_STATE);
+
+  const getDomainClient = useCallback(() => {
+    if (!appSlug || !schema) return null;
+    const { tenantId: resolvedTenantId } = requireTenantContext({
+      tenantId,
+      appSlug,
+      schema,
+      table: 'clients',
+      operation: 'dashboard actions',
+    });
+    return { client: getClientForTable('clients', appSlug), resolvedTenantId };
+  }, [appSlug, schema, tenantId]);
 
   const createClient = useCallback(
     async (payload: NewClientPayload, options?: { existingClients?: DashboardClient[] }) => {
@@ -54,14 +66,18 @@ export const useDashboardActions = () => {
 
       setBusyState((current) => ({ ...current, creatingClient: true }));
       try {
-        const { data, error } = await supabase
+        const domainClientInfo = getDomainClient();
+        if (!domainClientInfo) throw new Error('Cliente invalido para este ambiente.');
+        const { client, resolvedTenantId } = domainClientInfo;
+
+        const { data, error } = await client
           .from('clients')
           .insert({
             name: payload.name,
             phone: payload.phone,
             email: payload.email,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name)}&background=random`,
-            tenant_id: tenantId,
+            tenant_id: resolvedTenantId,
           })
           .select()
           .single();
@@ -75,7 +91,7 @@ export const useDashboardActions = () => {
         setBusyState((current) => ({ ...current, creatingClient: false }));
       }
     },
-    [tenantId],
+    [getDomainClient, tenantId],
   );
 
   const createQuickAppointment = useCallback(
@@ -90,26 +106,40 @@ export const useDashboardActions = () => {
 
       setBusyState((current) => ({ ...current, creatingQuickAppointment: true }));
       try {
+        if (!appSlug || !schema) throw new Error('App context invalido');
+        const { tenantId: resolvedTenantId } = requireTenantContext({
+          tenantId,
+          appSlug,
+          schema,
+          table: 'appointments',
+          operation: 'create quick appointment',
+        });
+
+        const servicesClient = getClientForTable('services', appSlug);
+        const appointmentsClient = getClientForTable('appointments', appSlug);
+        const comandasClient = getClientForTable('comandas', appSlug);
+        const comandaItemsClient = getClientForTable('comanda_items', appSlug);
+
         const [serviceRes, staffRes, clientRes] = await Promise.all([
-          supabase
+          servicesClient
             .from('services')
             .select('id, name, price, duration, duration_minutes, active, is_active')
-            .eq('tenant_id', tenantId)
+            .eq('tenant_id', resolvedTenantId)
             .eq('id', payload.serviceId)
             .maybeSingle(),
           supabase
             .from('staff')
             .select('id, name, status')
-            .eq('tenant_id', tenantId)
+            .eq('tenant_id', resolvedTenantId)
             .eq('id', payload.staffId)
             .maybeSingle(),
           payload.clientId
-            ? supabase
-              .from('clients')
-              .select('id, name, phone')
-              .eq('tenant_id', tenantId)
-              .eq('id', payload.clientId)
-              .maybeSingle()
+            ? getClientForTable('clients', appSlug)
+                .from('clients')
+                .select('id, name, phone')
+                .eq('tenant_id', resolvedTenantId)
+                .eq('id', payload.clientId)
+                .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
         ]);
 
@@ -157,10 +187,10 @@ export const useDashboardActions = () => {
         const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
         const servicePrice = Number(service.price || 0) || 0;
 
-        const { data: appointment, error: appointmentError } = await supabase
+        const { data: appointment, error: appointmentError } = await appointmentsClient
           .from('appointments')
           .insert({
-            tenant_id: tenantId,
+            tenant_id: resolvedTenantId,
             client_id: payload.clientId || null,
             service_id: payload.serviceId,
             staff_id: payload.staffId,
@@ -181,10 +211,10 @@ export const useDashboardActions = () => {
           throw appointmentError || new Error('Erro ao criar agendamento.');
         }
 
-        const { data: comanda, error: comandaError } = await supabase
+        const { data: comanda, error: comandaError } = await comandasClient
           .from('comandas')
           .insert({
-            tenant_id: tenantId,
+            tenant_id: resolvedTenantId,
             appointment_id: appointment.id,
             client_id: payload.clientId || null,
             staff_id: payload.staffId,
@@ -198,10 +228,10 @@ export const useDashboardActions = () => {
           throw comandaError || new Error('Erro ao criar comanda do agendamento.');
         }
 
-        const { data: comandaItem, error: comandaItemError } = await supabase
+        const { data: comandaItem, error: comandaItemError } = await comandaItemsClient
           .from('comanda_items')
           .insert({
-            tenant_id: tenantId,
+            tenant_id: resolvedTenantId,
             comanda_id: comanda.id,
             service_id: payload.serviceId,
             product_name: service.name,
@@ -227,7 +257,7 @@ export const useDashboardActions = () => {
         setBusyState((current) => ({ ...current, creatingQuickAppointment: false }));
       }
     },
-    [tenantId],
+    [appSlug, schema, tenantId],
   );
 
   const updateAppointmentStatus = useCallback(
@@ -238,7 +268,16 @@ export const useDashboardActions = () => {
 
       setBusyState((current) => ({ ...current, appointmentUpdateId: id }));
       try {
-        const { error } = await supabase.from('appointments').update({ status }).eq('id', id).eq('tenant_id', tenantId);
+        if (!appSlug || !schema) throw new Error('App context invalido');
+        const { tenantId: resolvedTenantId } = requireTenantContext({
+          tenantId,
+          appSlug,
+          schema,
+          table: 'appointments',
+          operation: 'update appointment status',
+        });
+        const appointmentsClient = getClientForTable('appointments', appSlug);
+        const { error } = await appointmentsClient.from('appointments').update({ status }).eq('id', id).eq('tenant_id', resolvedTenantId);
         if (error) {
           throw error;
         }
@@ -246,7 +285,7 @@ export const useDashboardActions = () => {
         setBusyState((current) => ({ ...current, appointmentUpdateId: null }));
       }
     },
-    [tenantId],
+    [appSlug, schema, tenantId],
   );
 
   const completeAppointment = useCallback(

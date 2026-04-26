@@ -8,7 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
 import { RevenueAreaChart, SparkLineChart, TrendBadge, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline, RevenueModal } from '../components/charts';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
 
 const COLORS = ['#3c83f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#a78bfa'];
 
@@ -90,12 +90,15 @@ const BusinessIntelligence: React.FC = () => {
     // Fetch additional data for new charts
     const fetchChartData = useEffect(() => {
         if (!tenantId) return;
-        
+
         const fetchAll = async () => {
             try {
+                const transactionsClient = getClientForTable('transactions', 'barber');
+                const appointmentsClient = getClientForTable('appointments', 'barber');
+
                 // Expenses by category - with error handling
                 try {
-                    const { data: expenses } = await supabase
+                    const { data: expenses } = await transactionsClient
                         .from('transactions')
                         .select('category, amount')
                         .eq('tenant_id', tenantId)
@@ -142,8 +145,9 @@ const BusinessIntelligence: React.FC = () => {
                         .from('comanda_items')
                         .select('product_name, quantity, unit_price, comanda_id')
                         .eq('tenant_id', tenantId);
-                    
-                    const { data: paidComandas } = await supabase
+
+                    const comandasClient = getClientForTable('comandas', 'barber');
+                    const { data: paidComandas } = await comandasClient
                         .from('comandas')
                         .select('id, created_at')
                         .eq('tenant_id', tenantId)
@@ -182,7 +186,7 @@ const BusinessIntelligence: React.FC = () => {
                 // Appointment timeline and Staff performance - with error handling
                 let allAppointments: any[] = [];
                 try {
-                    const { data: appts } = await supabase
+                    const { data: appts } = await appointmentsClient
                         .from('appointments')
                         .select('id, status, start_time, client_name, staff_id, staff_name, service_name')
                         .eq('tenant_id', tenantId)

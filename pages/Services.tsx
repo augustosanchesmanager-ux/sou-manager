@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { supabase, getClientForTable } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 
@@ -41,7 +41,8 @@ const Services: React.FC = () => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase
+    const servicesClient = getClientForTable('services', 'barber');
+    const { data, error } = await servicesClient
       .from('services')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -98,7 +99,8 @@ const Services: React.FC = () => {
     };
 
     if (editingService) {
-      const { error } = await supabase
+      const servicesClient = getClientForTable('services', 'barber');
+      const { error } = await servicesClient
         .from('services')
         .update(payload)
         .eq('id', editingService.id)
@@ -106,7 +108,8 @@ const Services: React.FC = () => {
       if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
       setToast({ message: 'Serviço atualizado!', type: 'success' });
     } else {
-      const { error } = await supabase.from('services').insert(payload);
+      const servicesClient = getClientForTable('services', 'barber');
+      const { error } = await servicesClient.from('services').insert(payload);
       if (error) { setToast({ message: 'Erro ao salvar.', type: 'error' }); return; }
       setToast({ message: 'Serviço criado!', type: 'success' });
     }
@@ -119,7 +122,8 @@ const Services: React.FC = () => {
   const handleToggleActive = async (service: Service) => {
     if (!tenantId) return;
 
-    const { error } = await supabase
+    const servicesClient = getClientForTable('services', 'barber');
+    const { error } = await servicesClient
       .from('services')
       .update({ active: !service.active })
       .eq('id', service.id)
@@ -133,7 +137,8 @@ const Services: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!tenantId) return;
 
-    const { error } = await supabase
+    const servicesClient = getClientForTable('services', 'barber');
+    const { error } = await servicesClient
       .from('services')
       .delete()
       .eq('id', id)
