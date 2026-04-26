@@ -211,12 +211,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
   // Filter based on role
   const filteredCategories = menuCategories.map(category => {
-    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'DASHBOARD') {
+    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'INÍCIO' && category.title !== 'DASHBOARD') {
       if (category.title === 'ADMINISTRAÇÃO') {
-        // specific logic for Barber if needed, returning null for now as per previous logic (mostly hidden)
         return null;
       }
-      return null; // hide everything else for barbers
+      return null;
     }
     // Deep clone and filter items
     const filteredItems = category.items.map(item => {

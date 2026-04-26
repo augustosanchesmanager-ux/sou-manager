@@ -377,7 +377,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       filteredTransactions
         .filter((t: any) => t.type === 'income')
         .forEach((t: any) => {
-          const m = t.method || 'Outros';
+          const m = t.payment_method || 'Outros';
           methodMap[m] = (methodMap[m] || 0) + (Number(t.amount) || 0);
         });
       const revenueByMethod: RevenueByMethod[] = Object.entries(methodMap).map(([method, value]) => ({
@@ -416,11 +416,11 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       );
 
       const insights: string[] = [];
-      if (revenueGrowth > 0) insights.push(`Faturamento grew ${revenueGrowth.toFixed(1)}% vs período anterior`);
+      if (revenueGrowth > 0) insights.push(`Faturamento cresceu ${revenueGrowth.toFixed(1)}% vs período anterior`);
       else if (revenueGrowth < 0) insights.push(`Faturamento caiu ${Math.abs(revenueGrowth).toFixed(1)}% vs período anterior`);
       if (inactiveClients60Days > 0) insights.push(`${inactiveClients60Days} cliente(s) inativo(s) há +60 dias`);
       if (topServices[0]) insights.push(`Serviço mais popular: "${topServices[0].name}" (${topServices[0].count} atendimentos)`);
-      if (operations.noShowRate > 10) insights.push(`Taxa de falta (${operations.noShowRate.toFixed(1)}%) above recommended (10%)`);
+      if (operations.noShowRate > 10) insights.push(`Taxa de falta (${operations.noShowRate.toFixed(1)}%) acima do recomendado (10%)`);
       if (operations.cancelledRate > 15) insights.push(`Taxa de cancelamento alta (${operations.cancelledRate.toFixed(1)}%)`);
       if (retentionRate > 0 && retentionRate < 40) insights.push(`Retenção em ${retentionRate.toFixed(0)}%. Promoções podem ajudar!`);
       if (lowStockProducts.length > 0) insights.push(`${lowStockProducts.length} produto(s) com estoque crítico`);

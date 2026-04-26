@@ -73,7 +73,7 @@ const Layout: React.FC = () => {
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xl">search</span>
               <input
                 className="w-full bg-slate-100 dark:bg-surface-dark border-none rounded-lg py-2 pl-10 pr-4 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-primary outline-none transition-colors"
-                placeholder="Pesquisar... (Cmd+K)"
+                placeholder="Pesquisar..."
                 type="text"
               />
             </div>

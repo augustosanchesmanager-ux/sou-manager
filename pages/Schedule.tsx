@@ -605,6 +605,9 @@ const Schedule: React.FC = () => {
       } else {
         setOpenComandasByAppointment({});
       }
+    } else {
+      setAppointments([]);
+      setOpenComandasByAppointment({});
     }
     setLoading(false);
   }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);

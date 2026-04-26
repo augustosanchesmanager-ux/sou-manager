@@ -149,7 +149,7 @@ const Dashboard: React.FC = () => {
   const birthdaysTomorrow: string[] = ['Carlos'];
   const teamStatus = data.staffList.map((s) => ({
     id: s.id,
-    name: s.full_name,
+    name: s.name,
     active: true,
   }));
 

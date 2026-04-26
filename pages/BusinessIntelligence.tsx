@@ -140,7 +140,7 @@ const BusinessIntelligence: React.FC = () => {
                 try {
                     const { data: items } = await barberSupabase
                         .from('comanda_items')
-                        .select('product_name, quantity, unit_price')
+                        .select('product_name, quantity, unit_price, comanda_id')
                         .eq('tenant_id', tenantId);
                     
                     const { data: paidComandas } = await supabase
