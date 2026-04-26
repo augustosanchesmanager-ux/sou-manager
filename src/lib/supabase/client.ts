@@ -644,8 +644,8 @@ const readDemoDatabase = (): LocalDemoDatabase => {
           description: typeof product?.description === 'string' ? product.description : '',
           cost_price: Number(product?.cost_price ?? 0),
           sale_price: Number(product?.sale_price ?? 0),
-          stock_quantity: Number(product?.stock_quantity ?? product?.stock ?? 0),
-          minimum_stock: Number(product?.minimum_stock ?? product?.min_stock ?? 0),
+          stock_quantity: Number(product?.stock_quantity ?? (product as { stock?: number }).stock ?? 0),
+          minimum_stock: Number(product?.minimum_stock ?? (product as { min_stock?: number }).min_stock ?? 0),
           auto_generate_purchase_order: Boolean(product?.auto_generate_purchase_order),
           active: typeof product?.active === 'boolean' ? product.active : true,
         }))
@@ -951,7 +951,7 @@ case 'comanda_items':
 
       const replaceRows = <T extends { id: string }>(source: T[]) =>
         source.map((row) => {
-          const next = updatedRows.find((updated) => updated.id === row.id);
+          const next = updatedRows.find((updated) => (updated as { id: string }).id === row.id);
           return next ? ({ ...row, ...next } as T) : row;
         });
 
@@ -1194,7 +1194,7 @@ const getOrCreateSchemaClient = (schema: SupabaseSchemaName): SupabaseClient => 
     return cachedClient;
   }
 
-  const schemaClient = baseClient.schema(schema);
+  const schemaClient = baseClient.schema(schema) as unknown as SupabaseClient;
   schemaClientCache.set(schema, schemaClient);
   return schemaClient;
 };

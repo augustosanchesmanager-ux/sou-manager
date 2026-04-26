@@ -163,6 +163,7 @@ const getDisplayId = (id: string) => {
 
 const getStatusSortValue = (status: ComandaStatus) => {
     const orderMap: Record<ComandaStatus, number> = {
+        blocked: -1,
         open: 0,
         paid: 1,
         cancelled: 2,
@@ -573,9 +574,9 @@ const Comandas: React.FC = () => {
 
     const staffOptions = Array.from(new Map<string, { id: string; name: string }>(
         comandas.flatMap((c) => c.staff_ids.map((staffId, index) => ({ id: staffId, name: c.staff_names[index] || 'Profissional' })))
-            .map((s) => [s.id, s])
+            .map((s) => [s.id, s] as [string, { id: string; name: string }])
             .values(),
-    )).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+    ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
     const dateFilterDescription = !dateFrom && !dateTo
         ? 'Periodo completo'

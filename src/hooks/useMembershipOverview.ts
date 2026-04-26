@@ -7,6 +7,7 @@ import type {
   MembershipOverviewData,
   MembershipMetrics,
   Subscription,
+  SubscriptionClient,
   CollectionQueueItem,
   PlanDistribution,
   ServiceBalanceEntry,
@@ -63,7 +64,7 @@ const getCollectionPriority = (dueDate: string, status: SubscriptionStatus): 'hi
   const daysUntilDue = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (daysUntilDue <= 3) return 'low';
 
-  return 'none';
+  return 'low';
 };
 
 export const useMembershipOverview = (filters: MembershipFilters) => {
@@ -129,7 +130,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
       const creditsMap = new Map(credits.map(c => [c.subscription_id, c]));
 
       const clientIds = Array.from(new Set(rawSubscriptions.map(s => s.client_id).filter(Boolean)));
-      const clientPhoneMap = new Map<string, { name: string; phone: string }>();
+      const clientPhoneMap = new Map<string, SubscriptionClient>();
 
       if (clientIds.length > 0) {
         const clientsRes = await supabase
@@ -139,7 +140,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
           .in('id', clientIds);
 
         if (clientsRes.data) {
-          clientsRes.data.forEach(c => clientPhoneMap.set(c.id, { name: c.name, phone: c.phone }));
+          clientsRes.data.forEach(c => clientPhoneMap.set(c.id, { id: c.id, name: c.name, phone: c.phone }));
         }
       }
 
@@ -158,7 +159,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
       const subscriptions: Subscription[] = rawSubscriptions.map(sub => {
         const plan = planMap.get(sub.plan_id);
         const creditRecord = creditsMap.get(sub.id);
-        const client = clientPhoneMap.get(sub.client_id) || { name: 'Cliente não encontrado', phone: '' };
+        const client = clientPhoneMap.get(sub.client_id) || { id: sub.client_id, name: 'Cliente não encontrado', phone: '' };
         const status = sub.status as SubscriptionStatus;
 
         if (status === 'active') {

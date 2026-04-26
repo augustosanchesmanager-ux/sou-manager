@@ -1,4 +1,5 @@
 import React from 'react';
+import { Area, Bar } from 'recharts';
 
 // Gradientes metálicas sutis estilo MetaMetric
 export const CHART_GRADIENTS = {
@@ -111,12 +112,12 @@ export const METALLIC_TOOLTIP_STYLE = (dark: boolean) => ({
 });
 
 // Tooltip content formatter
-export const FormatTooltip = ({ 
-  active, 
-  payload, 
-  label, 
-  formatter = (v: number) => v,
-  dark = false 
+export const FormatTooltip = ({
+  active,
+  payload,
+  label,
+  formatter = (v: number): string => String(v),
+  dark = false
 }: {
   active?: boolean;
   payload?: Array<{ name: string; value: number; color: string }>;

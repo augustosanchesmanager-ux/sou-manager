@@ -30,7 +30,7 @@ const DEFAULT_COLORS = [
   METALLIC_COLORS.pink,
   METALLIC_COLORS.cyan,
   METALLIC_COLORS.primary,
-  METALLIC_COLORS.greenGrowth,
+  METALLIC_COLORS.profit,
 ];
 
 export const MetallicBarsChart: React.FC<BarsChartProps> = ({ 

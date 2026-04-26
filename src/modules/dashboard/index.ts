@@ -25,3 +25,9 @@ export type {
   UpcomingBirthday,
 } from './types';
 
+export type {
+  DashboardClient as Client,
+  DashboardService as Service,
+  DashboardStaff as Staff,
+} from './types';
+

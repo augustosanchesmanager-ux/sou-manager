@@ -8,6 +8,7 @@ import type {
   DashboardStaff,
   RiskClient,
   UpcomingBirthday,
+  UpcomingBirthdayStatus,
 } from './types';
 
 export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
@@ -79,7 +80,7 @@ export const buildUpcomingBirthdays = (clients: DashboardClient[]): UpcomingBirt
         displayDate: birthdayDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', ''),
         daysUntil,
         lastVisitText,
-        status: daysUntil <= 7 ? 'due_soon' : daysUntil <= 30 ? 'visited_recently' : 'overdue',
+        status: (daysUntil <= 7 ? 'due_soon' : daysUntil <= 30 ? 'visited_recently' : 'overdue') as UpcomingBirthdayStatus,
       };
     })
     .sort((first, second) => first.daysUntil - second.daysUntil)

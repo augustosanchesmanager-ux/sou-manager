@@ -126,7 +126,8 @@ const Cashflow: React.FC = () => {
         }, {});
 
         let runningBalance = 0;
-        return Object.entries(grouped).map(([label, value]) => {
+        const entriesData = Object.entries(grouped) as [string, { entradas: number; saidas: number; saldo: number }][];
+        return entriesData.map(([label, value]) => {
             runningBalance += value.saldo;
             return {
                 label,

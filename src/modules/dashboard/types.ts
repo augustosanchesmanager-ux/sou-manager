@@ -21,6 +21,10 @@ export interface DashboardService {
   price?: number;
 }
 
+export type Client = DashboardClient;
+export type Service = DashboardService;
+export type Staff = DashboardStaff;
+
 export interface DashboardAppointment {
   id: string;
   client_name: string;

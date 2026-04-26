@@ -11,6 +11,8 @@ interface ComandaItemType {
     cancellation_reason?: string | null;
     closure_mode?: 'standard' | 'legacy_membership' | null;
     closure_note?: string | null;
+    financial_effect?: boolean;
+    legacy_reference_month?: string | null;
     total: number;
     created_at: string;
     updated_at?: string;

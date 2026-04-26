@@ -148,7 +148,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
         // Current appointments
         supabase
           .from('appointments')
-          .select('id, status, start_time')
+          .select('id, status, start_time, staff_id, staff_name')
           .eq('tenant_id', tenantId)
           .gte('start_time', currentStart)
           .lte('start_time', currentEnd),

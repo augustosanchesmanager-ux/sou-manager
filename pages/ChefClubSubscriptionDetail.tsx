@@ -376,7 +376,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                     {planServices.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {planServices.map((entry) => {
-                                const balance = credits?.service_balance_map?.find((b: ServiceBalanceEntry) => b.serviceId === entry.service_id);
+                                const balance = credits?.service_balance_map?.find((b: ServiceBalanceEntry) => b.service_id === entry.service_id);
                                 return (
                                     <div key={entry.service_id || entry.service_name} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
                                         <div>

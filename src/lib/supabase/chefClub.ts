@@ -26,7 +26,7 @@ export interface ChefClubClientCredits {
 }
 
 const runCustomerQueryWithFallback = async <T>(
-  run: (client: SupabaseClient) => Promise<{ data: T | null; error: any }>,
+  run: (client: SupabaseClient) => PromiseLike<{ data: T | null; error: any }>,
 ): Promise<QueryResult<T>> => {
   const primaryClient = supabase as SupabaseClient;
   const primaryResult = await run(primaryClient);

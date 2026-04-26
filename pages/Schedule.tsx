@@ -1083,7 +1083,7 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
+      await scheduleBlocksApi.remove(block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -1127,7 +1127,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
+        await scheduleBlocksApi.update(editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
