@@ -898,6 +898,71 @@ case 'comanda_items':
       filters.push((row) => values.includes(row[field]));
       return builder;
     },
+    or(expression: string) {
+      const conditions = expression.split(',');
+      const orFilters: Array<(row: Record<string, any>) => boolean> = [];
+
+      for (const cond of conditions) {
+        const trimmed = cond.trim();
+        const dotIndex = trimmed.indexOf('.');
+
+        if (dotIndex === -1) continue;
+
+        const field = trimmed.slice(0, dotIndex);
+        const rest = trimmed.slice(dotIndex + 1);
+        const opDotIndex = rest.indexOf('.');
+
+        if (opDotIndex === -1) continue;
+
+        const op = rest.slice(0, opDotIndex);
+        const rawValue = rest.slice(opDotIndex + 1);
+
+        let value: unknown;
+        if (rawValue === 'null') {
+          value = null;
+        } else if (rawValue === 'true') {
+          value = true;
+        } else if (rawValue === 'false') {
+          value = false;
+        } else if (!isNaN(Number(rawValue))) {
+          value = Number(rawValue);
+        } else {
+          value = rawValue;
+        }
+
+        switch (op) {
+          case 'eq':
+            orFilters.push((row) => row[field] === value);
+            break;
+          case 'neq':
+            orFilters.push((row) => row[field] !== value);
+            break;
+          case 'gt':
+            orFilters.push((row) => row[field] > value);
+            break;
+          case 'gte':
+            orFilters.push((row) => row[field] >= value);
+            break;
+          case 'lt':
+            orFilters.push((row) => row[field] < value);
+            break;
+          case 'lte':
+            orFilters.push((row) => row[field] <= value);
+            break;
+          case 'is':
+            if (value === null) {
+              orFilters.push((row) => row[field] === null || row[field] === undefined);
+            }
+            break;
+        }
+      }
+
+      if (orFilters.length > 0) {
+        filters.push((row) => orFilters.some((f) => f(row)));
+      }
+
+      return builder;
+    },
     order(field: string, options?: { ascending?: boolean }) {
       orderConfig = { field, ascending: options?.ascending !== false };
       return builder;
