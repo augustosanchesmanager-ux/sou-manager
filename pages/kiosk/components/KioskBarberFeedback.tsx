@@ -30,7 +30,7 @@ const KioskBarberFeedback: React.FC<KioskBarberFeedbackProps> = ({ tenantId, cli
     useEffect(() => { loadBarbers(); }, []);
 
     const loadBarbers = async () => {
-        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('is_active', true);
+        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active');
         setBarbers(data || []);
     };
 
