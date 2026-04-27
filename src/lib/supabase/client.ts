@@ -1202,7 +1202,7 @@ const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
-    rpc: (fn: string) => {
+    rpc: (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'get_auth_access_context' && readDemoSession()) {
         return createRpcResult({
           tenant_id: LOCAL_DEMO_TENANT_ID,
@@ -1210,6 +1210,93 @@ const client = {
           profile_status: 'active',
           is_super_admin: false,
         }, null);
+      }
+
+      if (fn === 'create_appointment_with_comanda' && isLocalDemoEnabled()) {
+        console.log('[create_appointment_with_comanda] demo RPC called with params:', params);
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_client_name?: string;
+          p_client_phone?: string;
+          p_service_id?: string;
+          p_staff_id?: string;
+          p_start_time?: string;
+          p_price?: number;
+          p_notes?: string;
+        };
+
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+
+        const service = db.services.find((s) => s.id === p.p_service_id);
+        const staff = db.staff.find((s) => s.id === p.p_staff_id);
+
+        const durationHours = service ? Math.round((Number(service.duration || 30) / 60) * 10) / 10 : 0.5;
+        const price = p.p_price ?? service?.price ?? 0;
+
+        const appointmentId = `demo-appointment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaId = `demo-comanda-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaItemId = `demo-comanda-item-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+        const newAppointment = {
+          id: appointmentId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          client_id: p.p_client_id || null,
+          service_id: p.p_service_id || null,
+          staff_id: p.p_staff_id || null,
+          client_name: p.p_client_name || '',
+          client_phone: p.p_client_phone || '',
+          service_name: service?.name || '',
+          staff_name: staff?.name || '',
+          start_time: p.p_start_time || now,
+          duration: durationHours,
+          notes: p.p_notes || '',
+          status: 'confirmed',
+          created_at: now,
+          updated_at: now,
+        };
+
+        const newComanda = {
+          id: comandaId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          appointment_id: appointmentId,
+          client_id: p.p_client_id || null,
+          staff_id: p.p_staff_id || null,
+          status: 'open',
+          total: price,
+          created_at: now,
+          updated_at: now,
+        };
+
+        const newComandaItem = {
+          id: comandaItemId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          comanda_id: comandaId,
+          service_id: p.p_service_id || null,
+          staff_id: p.p_staff_id || null,
+          product_name: service?.name || '',
+          quantity: 1,
+          unit_price: price,
+          created_at: now,
+          updated_at: now,
+        };
+
+        db.appointments.push(newAppointment);
+        db.comandas.push(newComanda);
+        db.comanda_items.push(newComandaItem);
+        writeDemoDatabase(db);
+
+        const rpcResult = {
+          appointment_id: appointmentId,
+          comanda_id: comandaId,
+          comanda_item_id: comandaItemId,
+          service_price: price,
+          appointment_status: 'confirmed',
+        };
+        console.log('[create_appointment_with_comanda] demo RPC result:', rpcResult, 'db.appointments count:', db.appointments.length);
+
+        return createRpcResult(rpcResult, null);
       }
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));

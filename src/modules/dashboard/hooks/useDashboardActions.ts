@@ -116,9 +116,6 @@ export const useDashboardActions = () => {
         });
 
         const servicesClient = getClientForTable('services', appSlug);
-        const appointmentsClient = getClientForTable('appointments', appSlug);
-        const comandasClient = getClientForTable('comandas', appSlug);
-        const comandaItemsClient = getClientForTable('comanda_items', appSlug);
 
         const [serviceRes, staffRes, clientRes] = await Promise.all([
           servicesClient
@@ -184,75 +181,28 @@ export const useDashboardActions = () => {
         }
 
         const duration = getAppointmentDurationHours(service);
-        const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
         const servicePrice = Number(service.price || 0) || 0;
 
-        const { data: appointment, error: appointmentError } = await appointmentsClient
-          .from('appointments')
-          .insert({
-            tenant_id: resolvedTenantId,
-            client_id: payload.clientId || null,
-            service_id: payload.serviceId,
-            staff_id: payload.staffId,
-            client_name: clientName,
-            client_phone: client?.phone || '',
-            service_name: service.name,
-            staff_name: staff.name,
-            start_time: startTime.toISOString(),
-            end_time: endTime.toISOString(),
-            duration,
-            price: servicePrice,
-            status: 'confirmed',
-          })
-          .select('id, status')
-          .single();
-
-        if (appointmentError || !appointment) {
-          throw appointmentError || new Error('Erro ao criar agendamento.');
-        }
-
-        const { data: comanda, error: comandaError } = await comandasClient
-          .from('comandas')
-          .insert({
-            tenant_id: resolvedTenantId,
-            appointment_id: appointment.id,
-            client_id: payload.clientId || null,
-            staff_id: payload.staffId,
-            status: 'open',
-            total: servicePrice,
-          })
-          .select('id')
-          .single();
-
-        if (comandaError || !comanda) {
-          throw comandaError || new Error('Erro ao criar comanda do agendamento.');
-        }
-
-        const { data: comandaItem, error: comandaItemError } = await comandaItemsClient
-          .from('comanda_items')
-          .insert({
-            tenant_id: resolvedTenantId,
-            comanda_id: comanda.id,
-            service_id: payload.serviceId,
-            product_name: service.name,
-            quantity: 1,
-            unit_price: servicePrice,
-            staff_id: payload.staffId,
-          })
-          .select('id')
-          .single();
-
-        if (comandaItemError || !comandaItem) {
-          throw comandaItemError || new Error('Erro ao criar item da comanda.');
-        }
-
-        return normalizeQuickAppointmentResult({
-          appointment_id: appointment.id,
-          comanda_id: comanda.id,
-          comanda_item_id: comandaItem.id,
-          service_price: servicePrice,
-          appointment_status: appointment.status || 'confirmed',
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+          p_tenant_id: resolvedTenantId,
+          p_client_id: payload.clientId || null,
+          p_client_name: clientName,
+          p_client_phone: client?.phone || null,
+          p_service_id: payload.serviceId,
+          p_staff_id: payload.staffId,
+          p_start_time: startTime.toISOString(),
+          p_price: servicePrice,
+          p_notes: null,
         });
+
+        console.log('[createQuickAppointment] rpcResult:', rpcResult, 'rpcError:', rpcError);
+
+        if (rpcError || !rpcResult) {
+          console.error('Erro createQuickAppointment RPC:', rpcError || new Error('Erro ao criar agendamento.'));
+          throw rpcError || new Error('Erro ao criar agendamento.');
+        }
+
+        return normalizeQuickAppointmentResult(rpcResult);
       } finally {
         setBusyState((current) => ({ ...current, creatingQuickAppointment: false }));
       }
