@@ -166,13 +166,13 @@ const Dashboard: React.FC = () => {
 
   const metricValues = {
     revenue: data.metrics.revenue,
-    revenuePrevious: data.metrics.revenue,
+    revenuePrevious: data.metrics.revenuePrevious,
     todayAppointments: data.metrics.todayAppointments,
-    previousAppointments: data.metrics.todayAppointments,
+    previousAppointments: data.metrics.previousAppointments,
     totalClients: data.clients.length,
     previousClients: data.clients.length,
     avgTicket: data.metrics.avgTicket,
-    previousAvgTicket: data.metrics.avgTicket,
+    previousAvgTicket: data.metrics.avgTicketPrevious,
     revenueGoal: data.metrics.revenue || 0,
     appointmentsGoal: data.metrics.todayAppointments || 0,
   };

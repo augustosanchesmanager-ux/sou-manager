@@ -87,7 +87,7 @@ export const fetchDashboardData = async ({
     ? supabase.from('profiles').select('onboarding_completed').eq('id', userId).single()
     : Promise.resolve({ data: null, error: null });
 
-  const [clientsRes, staffRes, servicesList, appointmentsRes, profileRes, transactionsRes] = await Promise.all([
+  const [clientsRes, staffRes, servicesList, appointmentsRes, profileRes, transactionsRes, yesterdayTransactionsRes, yesterdayAppointmentsCountRes] = await Promise.all([
     clientsClient
       .from('clients')
       .select('id, name, phone, email, birthday, last_visit, avatar')
@@ -105,6 +105,37 @@ export const fetchDashboardData = async ({
       .limit(10),
     profilePromise,
     transactionsClient.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true }),
+    transactionsClient
+      .from('transactions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('type', 'income')
+      .gte('date', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toISOString().split('T')[0];
+      })())
+      .lt('date', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        d.setHours(23, 59, 59, 999);
+        return d.toISOString().split('T')[0];
+      })()),
+    appointmentsClient
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toISOString().split('T')[0] + 'T00:00:00';
+      })())
+      .lt('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toISOString().split('T')[0] + 'T23:59:59';
+      })()),
   ]);
 
   logSupabaseError('clients', clientsRes.error);
@@ -149,6 +180,8 @@ export const fetchDashboardData = async ({
 
   logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
   logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
+  logSupabaseError('transactions.yesterday', yesterdayTransactionsRes.error);
+  logSupabaseError('appointments.yesterday-count', yesterdayAppointmentsCountRes.error);
 
   return {
     clients,
@@ -162,6 +195,8 @@ export const fetchDashboardData = async ({
       staffList,
       todayAppointmentsByStaffRes.data || [],
       todayAppointmentsCountRes.count || 0,
+      yesterdayTransactionsRes.data || [],
+      yesterdayAppointmentsCountRes.count || 0,
     ),
     profile: (profileRes.data as DashboardProfile | null) || null,
   };

@@ -37,10 +37,15 @@ export interface DashboardAppointment {
 
 export interface DashboardMetrics {
   revenue: number;
-  growth: number;
+  revenuePrevious: number;
+  revenueGrowth: number;
   activeStaffPercent: number;
   todayAppointments: number;
+  previousAppointments: number;
+  appointmentsGrowth: number;
   avgTicket: number;
+  avgTicketPrevious: number;
+  avgTicketGrowth: number;
 }
 
 export interface DashboardChartPoint {

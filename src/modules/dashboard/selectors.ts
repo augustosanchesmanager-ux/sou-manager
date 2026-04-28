@@ -13,10 +13,15 @@ import type {
 
 export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   revenue: 0,
-  growth: 0,
+  revenuePrevious: 0,
+  revenueGrowth: 0,
   activeStaffPercent: 0,
   todayAppointments: 0,
+  previousAppointments: 0,
+  appointmentsGrowth: 0,
   avgTicket: 0,
+  avgTicketPrevious: 0,
+  avgTicketGrowth: 0,
 };
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -114,8 +119,11 @@ export const buildDashboardMetrics = (
   staffList: DashboardStaff[],
   todayAppointmentsByStaff: Array<{ staff_id?: string | null }>,
   todayAppointmentsCount: number,
+  yesterdayTransactions: any[],
+  yesterdayAppointmentsCount: number,
 ): DashboardMetrics => {
   const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -139,15 +147,33 @@ export const buildDashboardMetrics = (
     }
   });
 
+  let yesterdayRevenue = 0;
+  let yesterdayIncomeCount = 0;
+  yesterdayTransactions.forEach((transaction) => {
+    const amount = toNumber(transaction.amount || transaction.val);
+    yesterdayRevenue += amount;
+    yesterdayIncomeCount += 1;
+  });
+
   const activeIds = new Set(todayAppointmentsByStaff.map((appointment) => appointment.staff_id).filter(Boolean));
   const activeStaffPercent = staffList.length > 0 ? (activeIds.size / staffList.length) * 100 : 0;
 
+  const revenueGrowth = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+  const appointmentsGrowth = yesterdayAppointmentsCount > 0 ? ((todayAppointmentsCount - yesterdayAppointmentsCount) / yesterdayAppointmentsCount) * 100 : 0;
+  const yesterdayAvgTicket = yesterdayIncomeCount > 0 ? yesterdayRevenue / yesterdayIncomeCount : 0;
+  const avgTicketGrowth = yesterdayAvgTicket > 0 ? ((thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0) - yesterdayAvgTicket) / yesterdayAvgTicket * 100 : 0;
+
   return {
     revenue: thisMonthRevenue,
-    growth: lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0,
+    revenuePrevious: yesterdayRevenue,
+    revenueGrowth,
     avgTicket: thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0,
+    avgTicketPrevious: yesterdayAvgTicket,
+    avgTicketGrowth,
     activeStaffPercent,
     todayAppointments: todayAppointmentsCount || 0,
+    previousAppointments: yesterdayAppointmentsCount,
+    appointmentsGrowth,
   };
 };
 
