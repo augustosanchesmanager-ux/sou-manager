@@ -166,20 +166,18 @@ const Dashboard: React.FC = () => {
 
   const metricValues = {
     revenue: data.metrics.revenue,
-    revenuePrevious: data.metrics.revenue * 0.88,
+    revenuePrevious: data.metrics.revenue,
     todayAppointments: data.metrics.todayAppointments,
-    previousAppointments: Math.round(data.metrics.todayAppointments * 0.85),
+    previousAppointments: data.metrics.todayAppointments,
     totalClients: data.clients.length,
-    previousClients: Math.round(data.clients.length * 0.95),
+    previousClients: data.clients.length,
     avgTicket: data.metrics.avgTicket,
-    previousAvgTicket: Math.round(data.metrics.avgTicket * 0.92),
-    revenueGoal: 16000,
-    appointmentsGoal: 20,
+    previousAvgTicket: data.metrics.avgTicket,
+    revenueGoal: data.metrics.revenue || 0,
+    appointmentsGoal: data.metrics.todayAppointments || 0,
   };
 
   const returningClients: Client[] = data.clients.slice(0, 3);
-  const birthdaysToday: string[] = ['Jorge', 'Ana'];
-  const birthdaysTomorrow: string[] = ['Carlos'];
   const teamStatus = data.staffList.map((s) => ({
     id: s.id,
     name: s.name,
@@ -227,8 +225,8 @@ const Dashboard: React.FC = () => {
 
       <DashboardWidgets
         returningClients={returningClients}
-        birthdaysToday={birthdaysToday}
-        birthdaysTomorrow={birthdaysTomorrow}
+        birthdaysToday={[]}
+        birthdaysTomorrow={[]}
         teamStatus={teamStatus}
         loading={loading}
       />

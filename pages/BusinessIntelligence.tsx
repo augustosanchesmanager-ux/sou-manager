@@ -173,7 +173,7 @@ const BusinessIntelligence: React.FC = () => {
                             name: id,
                             revenue: data.revenue,
                             quantity: data.quantity,
-                            trendData: Array.from({ length: 7 }, () => Math.random() * 100 + 50)
+                            trendData: []
                         })).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5));
                     } else {
                         setProductSales([]);
@@ -224,7 +224,7 @@ const BusinessIntelligence: React.FC = () => {
                     if (staffData) {
                         const staffRevenues = staffData.map((s: any) => {
                             const staffAppts = allAppointments.filter((a: any) => a.staff_id === s.id && a.status === 'completed');
-                            const revenue = staffAppts.length * 50; // Estimate
+                            const revenue = 0;
                             const appointments = staffAppts.length;
                             return {
                                 id: s.id,
@@ -233,7 +233,7 @@ const BusinessIntelligence: React.FC = () => {
                                 revenue,
                                 appointments,
                                 avgTicket: appointments > 0 ? revenue / appointments : 0,
-                                trendData: Array.from({ length: 7 }, () => Math.random() * 50 + 20)
+                                trendData: []
                             };
                         });
                         setStaffPerformance(staffRevenues.sort((a: any, b: any) => b.revenue - a.revenue));
@@ -334,7 +334,7 @@ const BusinessIntelligence: React.FC = () => {
     // Calculate revenue trend data for modal
     const revenueTrendData = useMemo(() => {
         if (!data.analytics.revenueEvolution || data.analytics.revenueEvolution.length === 0) {
-            return Array.from({ length: 30 }, () => Math.random() * 1000 + 500);
+            return [];
         }
         return data.analytics.revenueEvolution.map((r: any) => r.income);
     }, [data.analytics.revenueEvolution]);
@@ -768,18 +768,18 @@ const BusinessIntelligence: React.FC = () => {
                 isOpen={isRevenueModalOpen}
                 onClose={() => setIsRevenueModalOpen(false)}
                 revenue={{
-                    today: data.financial.revenue * 0.1,
-                    todayPrevious: data.financial.revenue * 0.09,
-                    week: data.financial.revenue * 0.5,
-                    weekPrevious: data.financial.revenue * 0.45,
+                    today: 0,
+                    todayPrevious: 0,
+                    week: 0,
+                    weekPrevious: 0,
                     month: data.financial.revenue,
-                    monthPrevious: data.financial.revenue * 0.85,
-                    target: data.financial.revenue * 1.2,
+                    monthPrevious: data.financial.revenue,
+                    target: data.financial.revenue,
                     trendData: revenueTrendData
                 }}
                 services={data.analytics.topServices.slice(0, 6).map((s: any, i: number) => ({
                     name: s.name,
-                    value: s.count * data.financial.avgTicket,
+                    value: 0,
                     color: ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4'][i % 6]
                 }))}
                 appointments={appointmentTimeline.slice(0, 10)}

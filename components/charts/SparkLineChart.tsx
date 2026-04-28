@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useId } from 'react';
 
 interface SparkLineChartProps {
   data: number[];
@@ -17,7 +17,8 @@ export const SparkLineChart: React.FC<SparkLineChartProps> = ({
   showArea = true,
   strokeWidth = 2,
 }) => {
-  const gradientId = useMemo(() => `sparkline-gradient-${Math.random().toString(36).substr(2, 9)}`, []);
+  const uniqueId = useId();
+  const gradientId = useMemo(() => `sparkline-gradient-${uniqueId}`, [uniqueId]);
   
   const points = useMemo(() => {
     if (!data || data.length === 0) return '';
