@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { getClientForTable, requireTenantContext, supabase } from '../../../../services/supabaseClient';
+import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import type {
   BusyState,
   DashboardClient,
@@ -38,6 +39,8 @@ const normalizeQuickAppointmentResult = (value: any): QuickAppointmentResult => 
 export const useDashboardActions = () => {
   const { appSlug, schema, tenantId } = useAuth();
   const [busyState, setBusyState] = useState<BusyState>(INITIAL_BUSY_STATE);
+  const quickAppointmentLockRef = useRef(false);
+  const quickAppointmentIdempotencyKeyRef = useRef<string | null>(null);
 
   const getDomainClient = useCallback(() => {
     if (!appSlug || !schema) return null;
@@ -103,6 +106,17 @@ export const useDashboardActions = () => {
       if (!payload.clientName.trim() || !payload.serviceId || !payload.staffId || !payload.startTime) {
         throw new Error('Preencha todos os campos.');
       }
+
+      if (quickAppointmentLockRef.current) {
+        throw new Error('Agendamento ja esta sendo criado. Aguarde alguns segundos.');
+      }
+      quickAppointmentLockRef.current = true;
+
+      if (!quickAppointmentIdempotencyKeyRef.current) {
+        quickAppointmentIdempotencyKeyRef.current = generateIdempotencyKey('quick-appt');
+      }
+
+      const idempotencyKey = quickAppointmentIdempotencyKeyRef.current;
 
       setBusyState((current) => ({ ...current, creatingQuickAppointment: true }));
       try {
@@ -183,6 +197,7 @@ export const useDashboardActions = () => {
         const duration = getAppointmentDurationHours(service);
         const servicePrice = Number(service.price || 0) || 0;
 
+        console.log('[idempotency]', idempotencyKey);
         const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
           p_tenant_id: resolvedTenantId,
           p_client_id: payload.clientId || null,
@@ -193,6 +208,7 @@ export const useDashboardActions = () => {
           p_start_time: startTime.toISOString(),
           p_price: servicePrice,
           p_notes: null,
+          p_idempotency_key: idempotencyKey,
         });
 
         console.log('[createQuickAppointment] rpcResult:', rpcResult, 'rpcError:', rpcError);
@@ -205,6 +221,8 @@ export const useDashboardActions = () => {
         return normalizeQuickAppointmentResult(rpcResult);
       } finally {
         setBusyState((current) => ({ ...current, creatingQuickAppointment: false }));
+        quickAppointmentLockRef.current = false;
+        quickAppointmentIdempotencyKeyRef.current = null;
       }
     },
     [appSlug, schema, tenantId],

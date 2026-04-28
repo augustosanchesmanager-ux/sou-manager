@@ -206,6 +206,7 @@ interface LocalDemoDatabase {
     start_time: string;
     duration: number;
     status: string;
+    idempotency_key?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -247,6 +248,7 @@ interface LocalDemoDatabase {
     staff_id: string | null;
     status: string;
     total: number;
+    idempotency_key?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -1224,9 +1226,29 @@ const client = {
           p_start_time?: string;
           p_price?: number;
           p_notes?: string;
+          p_idempotency_key?: string;
         };
 
         const db = readDemoDatabase();
+
+        if (p.p_idempotency_key) {
+          const existing = db.appointments.find(
+            (a) => a.idempotency_key === p.p_idempotency_key && a.tenant_id === (p.p_tenant_id || LOCAL_DEMO_TENANT_ID)
+          );
+          if (existing) {
+            const existingComanda = db.comandas.find((c) => c.appointment_id === existing.id);
+            const existingComandaItem = existingComanda ? db.comanda_items.find((ci) => ci.comanda_id === existingComanda.id) : null;
+            console.log('[create_appointment_with_comanda] demo RPC found existing idempotent appointment:', existing.id);
+            return createRpcResult({
+              appointment_id: existing.id,
+              comanda_id: existingComanda?.id || null,
+              comanda_item_id: existingComandaItem?.id || null,
+              service_price: existingComanda?.total || 0,
+              appointment_status: existing.status,
+            }, null);
+          }
+        }
+
         const now = new Date().toISOString();
 
         const service = db.services.find((s) => s.id === p.p_service_id);
@@ -1253,6 +1275,7 @@ const client = {
           duration: durationHours,
           notes: p.p_notes || '',
           status: 'confirmed',
+          idempotency_key: p.p_idempotency_key || null,
           created_at: now,
           updated_at: now,
         };
@@ -1265,6 +1288,7 @@ const client = {
           staff_id: p.p_staff_id || null,
           status: 'open',
           total: price,
+          idempotency_key: p.p_idempotency_key || null,
           created_at: now,
           updated_at: now,
         };

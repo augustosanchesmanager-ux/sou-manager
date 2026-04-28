@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase, getClientForTable, ensureAppSupportsModule } from '../services/supabaseClient';
+import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -258,6 +259,8 @@ const Schedule: React.FC = () => {
     quickChip: 'all',
   });
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
+  const scheduleCreateLockRef = useRef(false);
+  const scheduleIdempotencyKeyRef = useRef<string | null>(null);
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -1195,6 +1198,16 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    if (scheduleCreateLockRef.current) {
+      setError('Agendamento já está sendo criado. Aguarde alguns segundos.');
+      return;
+    }
+    scheduleCreateLockRef.current = true;
+
+    if (!scheduleIdempotencyKeyRef.current) {
+      scheduleIdempotencyKeyRef.current = generateIdempotencyKey('schedule-appt');
+    }
+
     const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
     const saveClientsClient = getClientForTable('clients', scheduleAppSlug);
     const saveAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
@@ -1235,10 +1248,13 @@ const Schedule: React.FC = () => {
 
     if (hasBlockConflict) {
       setError('Existe um bloqueio de agenda nesse período. Escolha outro horário.');
+      scheduleCreateLockRef.current = false;
+      scheduleIdempotencyKeyRef.current = null;
       return;
     }
 
-    if (editingAppointmentId) {
+    try {
+      if (editingAppointmentId) {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
       const updatedStartIso = startTimeLine.toISOString();
       const updatedAppointmentDate = updatedStartIso;
@@ -1290,72 +1306,79 @@ const Schedule: React.FC = () => {
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
-      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      let finalPrice = selectedService?.price || 0;
 
-      const { data: savedApt, error: saveError } = await saveAppointmentsClient.from('appointments').insert({
-        client_id: clientId,
-        service_id: selectedService?.id || null,
-        staff_id: formData.staffId || null,
-        client_name: formData.client,
-        client_phone: formData.clientPhone,
-        service_name: formData.service,
-        notes: formData.notes.trim(),
-        staff_name: selectedStaff?.name || '',
-        start_time: startTimeLine.toISOString(),
-        end_time: endTimeLine.toISOString(),
-        duration: Number(formData.duration),
-        price: selectedService?.price || 0,
-        status: 'confirmed',
-        tenant_id: tenantId
-      }).select().single();
+      if (selectedService) {
+        const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
+        finalPrice = serviceData?.price || selectedService.price || 0;
 
-      if (saveError) {
-        console.error('Erro ao salvar agendamento:', saveError);
-        setError(`Erro ao salvar agendamento: ${saveError.message}`);
+        const promo = activePromotions.find(p =>
+          (p.target_type === 'all') ||
+          (p.target_type === 'service' && p.target_id === selectedService.id)
+        );
+
+        if (promo) {
+          if (promo.discount_type === 'fixed') {
+            finalPrice = Math.max(0, finalPrice - promo.discount_value);
+          } else {
+            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+          }
+        }
+      }
+
+      const idempotencyKey = scheduleIdempotencyKeyRef.current;
+      console.log('[idempotency]', idempotencyKey);
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+        p_tenant_id: tenantId,
+        p_client_id: clientId,
+        p_client_name: formData.client,
+        p_client_phone: formData.clientPhone || null,
+        p_service_id: selectedService?.id || null,
+        p_staff_id: formData.staffId || null,
+        p_start_time: startTimeLine.toISOString(),
+        p_price: finalPrice,
+        p_notes: formData.notes.trim() || null,
+        p_idempotency_key: idempotencyKey,
+      });
+
+      if (rpcError || !rpcResult) {
+        console.error('Erro ao criar agendamento via RPC:', rpcError);
+        setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
         return;
       }
 
-      if (savedApt) {
-        const { data: comanda } = await saveComandasClient.from('comandas').insert({
-          appointment_id: savedApt.id,
-          client_id: clientId,
-          staff_id: formData.staffId || null,
-          status: 'open',
-          total: 0,
-          tenant_id: tenantId
-        }).select().single();
+      const newAptId = (rpcResult as any).appointment_id;
+      const newComandaId = (rpcResult as any).comanda_id;
 
-        if (comanda && selectedService) {
-          const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).single();
-          let finalPrice = serviceData?.price || 0;
+      setAppointments(prev => [...prev, {
+        id: newAptId,
+        clientId: clientId,
+        staffId: formData.staffId,
+        start: formData.start,
+        duration: Number(formData.duration),
+        client: formData.client,
+        service: formData.service,
+        status: 'confirmed',
+        color: 'bg-blue-500',
+        staffName: selectedStaff?.name || '',
+        clientPhone: formData.clientPhone || '',
+        price: finalPrice,
+        startTime: startTimeLine.toISOString(),
+        notes: formData.notes.trim(),
+        date: startTimeLine.toISOString(),
+        source: null,
+        channel: null,
+      }]);
 
-          const promo = activePromotions.find(p =>
-            (p.target_type === 'all') ||
-            (p.target_type === 'service' && p.target_id === selectedService.id)
-          );
-
-          if (promo) {
-            if (promo.discount_type === 'fixed') {
-              finalPrice = Math.max(0, finalPrice - promo.discount_value);
-            } else {
-              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-            }
-          }
-
-          await saveComandaItemsClient.from('comanda_items').insert({
-            comanda_id: comanda.id,
-            service_id: selectedService.id,
-            product_name: selectedService.name,
-            quantity: 1,
-            unit_price: finalPrice,
-            tenant_id: tenantId,
-            staff_id: formData.staffId || null
-          });
-
-          await saveComandasClient.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
-        }
+      if (newComandaId) {
+        setOpenComandasByAppointment(prev => ({ ...prev, [newAptId]: newComandaId }));
       }
+
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+    }
+    } finally {
+      scheduleCreateLockRef.current = false;
+      scheduleIdempotencyKeyRef.current = null;
     }
 
     setIsModalOpen(false);
