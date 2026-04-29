@@ -8,6 +8,8 @@ import type {
   DashboardStaff,
   ReturningClient,
   RiskClient,
+  SmartReturnCategory,
+  SmartReturnClient,
   UpcomingBirthday,
   UpcomingBirthdayStatus,
 } from './types';
@@ -227,6 +229,68 @@ export interface BuildReturningClientsParams {
   appointments: any[];
   upcomingClientIds: Set<string>;
 }
+
+export interface BuildSmartReturnClientsParams {
+  clients: DashboardClient[];
+  appointments: any[];
+  upcomingClientIds: Set<string>;
+}
+
+export const buildSmartReturnClients = ({
+  clients,
+  appointments,
+  upcomingClientIds,
+}: BuildSmartReturnClientsParams): SmartReturnClient[] => {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000);
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
+
+  const clientLastVisitMap: Record<string, { lastVisit: Date; name: string; phone?: string | null }> = {};
+
+  appointments.forEach((apt: any) => {
+    if (!apt.client_id) return;
+    const aptDate = new Date(apt.start_time);
+    if (!clientLastVisitMap[apt.client_id] || aptDate > clientLastVisitMap[apt.client_id].lastVisit) {
+      const clientInfo = clients.find((c) => c.id === apt.client_id);
+      clientLastVisitMap[apt.client_id] = {
+        lastVisit: aptDate,
+        name: clientInfo?.name || apt.client_name || 'Cliente',
+        phone: clientInfo?.phone || null,
+      };
+    }
+  });
+
+  const result: SmartReturnClient[] = [];
+
+  Object.entries(clientLastVisitMap).forEach(([clientId, info]) => {
+    if (upcomingClientIds.has(clientId)) return;
+    const daysSince = Math.floor((now.getTime() - info.lastVisit.getTime()) / 86400000);
+
+    let category: SmartReturnCategory;
+    if (info.lastVisit >= sixtyDaysAgo && info.lastVisit < thirtyDaysAgo) {
+      category = 'returning';
+    } else if (info.lastVisit >= ninetyDaysAgo && info.lastVisit < sixtyDaysAgo) {
+      category = 'risk';
+    } else if (info.lastVisit < ninetyDaysAgo) {
+      category = 'inactive';
+    } else {
+      return;
+    }
+
+    result.push({
+      id: clientId,
+      name: info.name,
+      phone: info.phone ?? '',
+      lastVisit: info.lastVisit.toISOString(),
+      daysSinceVisit: daysSince,
+      category,
+      hasUpcomingAppointment: upcomingClientIds.has(clientId),
+    });
+  });
+
+  return result.sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
+};
 
 export const buildReturningClients = ({
   clients,
