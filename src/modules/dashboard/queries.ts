@@ -1,6 +1,7 @@
 import { getClientForTable, supabase } from '../../../services/supabaseClient';
 import {
   buildDashboardMetrics,
+  buildReturningClients,
   buildRevenueChartData,
   buildUpcomingBirthdays,
   normalizeAppointmentRecord,
@@ -87,7 +88,22 @@ export const fetchDashboardData = async ({
     ? supabase.from('profiles').select('onboarding_completed').eq('id', userId).single()
     : Promise.resolve({ data: null, error: null });
 
-  const [clientsRes, staffRes, servicesList, appointmentsRes, profileRes, transactionsRes, yesterdayTransactionsRes, yesterdayAppointmentsCountRes] = await Promise.all([
+  const [
+    clientsRes,
+    staffRes,
+    servicesList,
+    appointmentsRes,
+    profileRes,
+    transactionsRes,
+    yesterdayTransactionsRes,
+    yesterdayAppointmentsCountRes,
+    last90daysAppointmentsRes,
+    upcomingAppointmentsRes,
+    last30to60daysAppointmentsRes,
+    last60to90daysAppointmentsRes,
+    todayAppointmentsByStaffRes,
+    todayAppointmentsCountRes,
+  ] = await Promise.all([
     clientsClient
       .from('clients')
       .select('id, name, phone, email, birthday, last_visit, avatar')
@@ -136,32 +152,55 @@ export const fetchDashboardData = async ({
         d.setDate(d.getDate() - 1);
         return d.toISOString().split('T')[0] + 'T23:59:59';
       })()),
-  ]);
-
-  logSupabaseError('clients', clientsRes.error);
-  logSupabaseError('staff', staffRes.error);
-  logSupabaseError('appointments', appointmentsRes.error);
-  logSupabaseError('profile', profileRes.error);
-  logSupabaseError('transactions', transactionsRes.error);
-
-  const clientPhoneMap: Record<string, string> = {};
-  (clientsRes.data || []).forEach((client: any) => {
-    if (client.id && client.phone) {
-      clientPhoneMap[client.id] = client.phone;
-    }
-  });
-
-  const clients = (clientsRes.data || []) as DashboardClient[];
-  const appointments = (appointmentsRes.data || []).map((apt: any) => {
-    const phone = apt.client_phone || clientPhoneMap[apt.client_id] || null;
-    return { ...normalizeAppointmentRecord(apt), client_phone: phone };
-  });
-  const staffList = ((staffRes.data || []) as DashboardStaff[]).map((staff) => ({
-    id: staff.id,
-    name: staff.name,
-  }));
-
-  const [todayAppointmentsByStaffRes, todayAppointmentsCountRes, currentPeriodAppointmentsRes, previousPeriodAppointmentsRes] = await Promise.all([
+    appointmentsClient
+      .from('appointments')
+      .select('id, client_id, client_name, start_time, status')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 90);
+        return d.toISOString();
+      })()),
+    appointmentsClient
+      .from('appointments')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        return d.toISOString();
+      })()),
+    appointmentsClient
+      .from('appointments')
+      .select('id, client_id, client_name, start_time, status')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 60);
+        return d.toISOString();
+      })())
+      .lt('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString();
+      })()),
+    appointmentsClient
+      .from('appointments')
+      .select('id, client_id, client_name, start_time, status')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 90);
+        return d.toISOString();
+      })())
+      .lt('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 60);
+        return d.toISOString();
+      })()),
     appointmentsClient
       .from('appointments')
       .select('staff_id')
@@ -178,43 +217,28 @@ export const fetchDashboardData = async ({
       .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
     appointmentsClient
       .from('appointments')
-      .select('id, client_id, status')
+      .select('id, client_id')
       .eq('tenant_id', tenantId)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString();
-      })())
-      .lt('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        d.setHours(23, 59, 59, 999);
-        return d.toISOString();
-      })()),
-    appointmentsClient
-      .from('appointments')
-      .select('id, client_id, status')
-      .eq('tenant_id', tenantId)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 60);
-        return d.toISOString();
-      })())
-      .lt('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
         return d.toISOString();
       })()),
   ]);
 
-  logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
-  logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
+  logSupabaseError('clients', clientsRes.error);
+  logSupabaseError('staff', staffRes.error);
+  logSupabaseError('appointments', appointmentsRes.error);
+  logSupabaseError('profile', profileRes.error);
+  logSupabaseError('transactions', transactionsRes.error);
   logSupabaseError('transactions.yesterday', yesterdayTransactionsRes.error);
   logSupabaseError('appointments.yesterday-count', yesterdayAppointmentsCountRes.error);
-  logSupabaseError('appointments.current-period', currentPeriodAppointmentsRes.error);
-  logSupabaseError('appointments.previous-period', previousPeriodAppointmentsRes.error);
+  logSupabaseError('appointments.last-90-days', last90daysAppointmentsRes.error);
+  logSupabaseError('appointments.upcoming', upcomingAppointmentsRes.error);
+  logSupabaseError('appointments.last-30-to-60-days', last30to60daysAppointmentsRes.error);
+  logSupabaseError('appointments.last-60-to-90-days', last60to90daysAppointmentsRes.error);
+  logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
+  logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
 
   const goalsRes = await supabase
     .from('tenant_goals')
@@ -229,12 +253,43 @@ export const fetchDashboardData = async ({
 
   const goals = goalsRes.data || { revenue_goal: 0, appointments_goal: 0, clients_goal: 0 };
 
-  return {
+  const clients = (clientsRes.data || []) as DashboardClient[];
+  const staffList = ((staffRes.data || []) as DashboardStaff[]).map((staff) => ({
+    id: staff.id,
+    name: staff.name,
+  }));
+
+  const upcomingClientIds = new Set(
+    (upcomingAppointmentsRes.data || [])
+      .map((a: any) => a.client_id)
+      .filter(Boolean)
+  );
+
+  const clientPhoneMap: Record<string, string> = {};
+  (clientsRes.data || []).forEach((client: any) => {
+    if (client.id && client.phone) {
+      clientPhoneMap[client.id] = client.phone;
+    }
+  });
+
+  const appointments = (appointmentsRes.data || []).map((apt: any) => {
+    const phone = apt.client_phone || clientPhoneMap[apt.client_id] || null;
+    return { ...normalizeAppointmentRecord(apt), client_phone: phone };
+  });
+
+  const returningClients = buildReturningClients({
     clients,
+    appointments: last90daysAppointmentsRes.data || [],
+    upcomingClientIds,
+  });
+
+  return {
+    clients: clientsRes.data || [],
     staffList,
     servicesList,
     appointments,
-    upcomingBirthdays: buildUpcomingBirthdays(clients),
+    upcomingBirthdays: buildUpcomingBirthdays(clientsRes.data || []),
+    returningClients,
     chartData: buildRevenueChartData(transactionsRes.data || []),
     metrics: buildDashboardMetrics(
       transactionsRes.data || [],
@@ -243,8 +298,8 @@ export const fetchDashboardData = async ({
       todayAppointmentsCountRes.count || 0,
       yesterdayTransactionsRes.data || [],
       yesterdayAppointmentsCountRes.count || 0,
-      currentPeriodAppointmentsRes.data || [],
-      previousPeriodAppointmentsRes.data || [],
+      last90daysAppointmentsRes.data || [],
+      last60to90daysAppointmentsRes.data || [],
       goals.revenue_goal || 0,
       goals.appointments_goal || 0,
     ),

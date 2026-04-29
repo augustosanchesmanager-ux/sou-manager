@@ -177,7 +177,7 @@ const Dashboard: React.FC = () => {
     appointmentsGoal: data.metrics.appointmentsGoal,
   };
 
-  const returningClients: Client[] = data.clients.slice(0, 3);
+  const returningClients = data.returningClients;
   const teamStatus = data.staffList.map((s) => ({
     id: s.id,
     name: s.name,

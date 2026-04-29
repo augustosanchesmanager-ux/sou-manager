@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { Client } from '../../src/modules/dashboard/types';
+import type { ReturningClient } from '../../src/modules/dashboard/types';
 
 interface DashboardWidgetsProps {
-  returningClients: Client[];
+  returningClients: ReturningClient[];
   birthdaysToday: string[];
   birthdaysTomorrow: string[];
   teamStatus: { id: string; name: string; active: boolean }[];
@@ -48,20 +48,24 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
             {returningClients.length}
           </p>
           <p className="text-xs text-slate-500">
-            {returningClients.length === 1 ? 'cliente para retorno esta semana' : 'clientes para retorno esta semana'}
+            {returningClients.length === 1 ? 'cliente para retorno' : 'clientes para retorno'}
           </p>
         </div>
 
-        {returningClients.length > 0 && (
+        {returningClients.length > 0 ? (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
             <div className="space-y-1.5 max-h-20 overflow-y-auto">
               {returningClients.slice(0, 3).map((client) => (
                 <div key={client.id} className="flex items-center justify-between text-xs">
                   <span className="text-slate-600 dark:text-slate-300 truncate">{client.name}</span>
-                  <span className="text-slate-400">→</span>
+                  <span className="text-slate-400 text-[10px]">{client.daysSinceVisit}d</span>
                 </div>
               ))}
             </div>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+            <p className="text-xs text-slate-400 italic">Nenhum cliente para retorno</p>
           </div>
         )}
 

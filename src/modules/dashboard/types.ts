@@ -73,12 +73,21 @@ export interface RiskClient extends DashboardClient {
   days: number;
 }
 
+export interface ReturningClient {
+  id: string;
+  name: string;
+  phone?: string | null;
+  lastVisit: string;
+  daysSinceVisit: number;
+}
+
 export interface DashboardData {
   clients: DashboardClient[];
   staffList: DashboardStaff[];
   servicesList: DashboardService[];
   appointments: DashboardAppointment[];
   upcomingBirthdays: UpcomingBirthday[];
+  returningClients: ReturningClient[];
   chartData: DashboardChartPoint[];
   metrics: DashboardMetrics;
   profile: DashboardProfile | null;

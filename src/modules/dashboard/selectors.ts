@@ -6,6 +6,7 @@ import type {
   DashboardMetrics,
   DashboardService,
   DashboardStaff,
+  ReturningClient,
   RiskClient,
   UpcomingBirthday,
   UpcomingBirthdayStatus,
@@ -33,6 +34,7 @@ export const EMPTY_DASHBOARD_DATA: DashboardData = {
   servicesList: [],
   appointments: [],
   upcomingBirthdays: [],
+  returningClients: [],
   chartData: [],
   metrics: EMPTY_DASHBOARD_METRICS,
   profile: null,
@@ -124,8 +126,8 @@ export const buildDashboardMetrics = (
   todayAppointmentsCount: number,
   yesterdayTransactions: any[],
   yesterdayAppointmentsCount: number,
-  currentPeriodAppointments: any[],
-  previousPeriodAppointments: any[],
+  last30daysAppointments: any[],
+  last60to90daysAppointments: any[],
   revenueGoal: number = 0,
   appointmentsGoal: number = 0,
 ): DashboardMetrics => {
@@ -171,14 +173,14 @@ export const buildDashboardMetrics = (
   const avgTicketGrowth = yesterdayAvgTicket > 0 ? ((thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0) - yesterdayAvgTicket) / yesterdayAvgTicket * 100 : 0;
 
   const prevVisitorIds = new Set(
-    previousPeriodAppointments
+    last60to90daysAppointments
       .filter((a: any) => !['cancelled', 'canceled'].includes(a.status))
       .map((a: any) => a.client_id)
       .filter(Boolean)
   );
 
   const currentVisitorIds = new Set(
-    currentPeriodAppointments
+    last30daysAppointments
       .filter((a: any) => !['cancelled', 'canceled'].includes(a.status))
       .map((a: any) => a.client_id)
       .filter(Boolean)
@@ -218,6 +220,57 @@ export const buildRiskClients = (clients: DashboardClient[], minimumDays = 18): 
     }))
     .filter((client) => client.days >= minimumDays)
     .sort((first, second) => second.days - first.days);
+};
+
+export interface BuildReturningClientsParams {
+  clients: DashboardClient[];
+  appointments: any[];
+  upcomingClientIds: Set<string>;
+}
+
+export const buildReturningClients = ({
+  clients,
+  appointments,
+  upcomingClientIds,
+}: BuildReturningClientsParams): ReturningClient[] => {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000);
+
+  const clientLastVisitMap: Record<string, { lastVisit: Date; name: string; phone?: string | null }> = {};
+
+  appointments.forEach((apt: any) => {
+    if (!apt.client_id) return;
+    const aptDate = new Date(apt.start_time);
+    if (!clientLastVisitMap[apt.client_id] || aptDate > clientLastVisitMap[apt.client_id].lastVisit) {
+      const clientInfo = clients.find((c) => c.id === apt.client_id);
+      clientLastVisitMap[apt.client_id] = {
+        lastVisit: aptDate,
+        name: clientInfo?.name || apt.client_name || 'Cliente',
+        phone: clientInfo?.phone || null,
+      };
+    }
+  });
+
+  const returning: ReturningClient[] = [];
+
+  Object.entries(clientLastVisitMap).forEach(([clientId, info]) => {
+    if (upcomingClientIds.has(clientId)) return;
+    const daysSince = Math.floor((now.getTime() - info.lastVisit.getTime()) / 86400000);
+    if (info.lastVisit >= sixtyDaysAgo && info.lastVisit < thirtyDaysAgo) {
+      returning.push({
+        id: clientId,
+        name: info.name,
+        phone: info.phone,
+        lastVisit: info.lastVisit.toISOString(),
+        daysSinceVisit: daysSince,
+      });
+    }
+  });
+
+  return returning
+    .sort((a, b) => new Date(a.lastVisit).getTime() - new Date(b.lastVisit).getTime())
+    .slice(0, 5);
 };
 
 export const formatAppointmentTime = (isoString: string): string => {
