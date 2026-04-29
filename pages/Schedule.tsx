@@ -769,27 +769,58 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data } = await supabase
+    const { data: subscription, error: subError } = await supabase
       .from('customer_subscriptions')
-      .select(`
-        status,
-        plan:customer_plans(name),
-        credits:customer_credits(available_credits)
-      `)
+      .select('id, plan_id, status, tenant_id')
+      .eq('tenant_id', tenantId)
       .eq('client_id', client.id)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (data) {
-      setChefClubInfo({
-        planName: (data.plan as any).name,
-        credits: (data.credits as any)?.[0]?.available_credits || 0,
-        status: data.status
-      });
+    if (subError) {
+      console.warn('[loadChefClubInfo] Falha ao buscar subscription:', subError);
+    }
+
+    if (!subscription) {
+      setChefClubInfo(null);
       return;
     }
 
-    setChefClubInfo(null);
+    let planName = 'Plano ativo';
+    const { data: plan, error: planError } = await supabase
+      .from('customer_plans')
+      .select('name')
+      .eq('tenant_id', tenantId)
+      .eq('id', subscription.plan_id)
+      .maybeSingle();
+
+    if (planError) {
+      console.warn('[loadChefClubInfo] Falha ao buscar plano:', planError);
+    }
+    if (plan?.name) {
+      planName = plan.name;
+    }
+
+    let availableCredits = 0;
+    const { data: credits, error: creditsError } = await supabase
+      .from('customer_credits')
+      .select('available_credits')
+      .eq('tenant_id', tenantId)
+      .eq('subscription_id', subscription.id)
+      .maybeSingle();
+
+    if (creditsError) {
+      console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
+    }
+    if (credits?.available_credits !== undefined) {
+      availableCredits = credits.available_credits;
+    }
+
+    setChefClubInfo({
+      planName,
+      credits: availableCredits,
+      status: subscription.status
+    });
   };
 
   const selectClient = async (clientName: string) => {
@@ -1326,8 +1357,6 @@ const Schedule: React.FC = () => {
         }
       }
 
-      const idempotencyKey = scheduleIdempotencyKeyRef.current;
-      console.log('[idempotency]', idempotencyKey);
       const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
         p_tenant_id: tenantId,
         p_client_id: clientId,
@@ -1338,7 +1367,7 @@ const Schedule: React.FC = () => {
         p_start_time: startTimeLine.toISOString(),
         p_price: finalPrice,
         p_notes: formData.notes.trim() || null,
-        p_idempotency_key: idempotencyKey,
+        p_idempotency_key: scheduleIdempotencyKeyRef.current,
       });
 
       if (rpcError || !rpcResult) {
