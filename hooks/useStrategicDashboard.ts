@@ -148,7 +148,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
         // Current appointments
         supabase
           .from('appointments')
-          .select('id, status, start_time')
+          .select('id, status, start_time, staff_id, staff_name')
           .eq('tenant_id', tenantId)
           .gte('start_time', currentStart)
           .lte('start_time', currentEnd),
@@ -211,7 +211,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       const allAppointments = currentAppointments.data || [];
       const appointmentCount = allAppointments.filter(a => a.status !== 'canceled').length;
       const staffCount = (staffRes.data || []).length;
-      const appointmentSlots = staffCount * 12 * 30; // Estimate: 12 hours * 30 days
+      const appointmentSlots = staffCount > 0 ? staffCount * 12 * 30 : 0;
       const occupationRate = appointmentSlots > 0 ? (appointmentCount / appointmentSlots) * 100 : 0;
       
       // Revenue evolution chart
@@ -237,7 +237,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
           };
         }
         staffStats[a.staff_id].appointments++;
-        staffStats[a.staff_id].revenue += currentAvgTicket / 2; // Estimate
+        staffStats[a.staff_id].revenue += 0;
       });
       const topProfessionals = Object.entries(staffStats)
         .map(([id, stats]) => ({ id, ...stats }))

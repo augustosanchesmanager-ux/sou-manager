@@ -88,7 +88,7 @@ const PortalSchedule: React.FC = () => {
             // 3. Services and Barbers base load
             const [svcRes, bbrRes] = await Promise.all([
                 supabase.from('services').select('id, name, price, duration_minutes').eq('tenant_id', tenantData.id).eq('is_active', true).order('name'),
-                supabase.from('staff').select('id, name').eq('tenant_id', tenantData.id).eq('is_active', true).order('name')
+                supabase.from('staff').select('id, name').eq('tenant_id', tenantData.id).eq('status', 'active').order('name')
             ]);
 
             setServices(svcRes.data || []);

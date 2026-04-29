@@ -82,7 +82,7 @@ const validateProfileFields = (profile: Record<string, string>) => {
 };
 
 const Settings: React.FC = () => {
-    const { user } = useAuth();
+    const { user, tenantId } = useAuth();
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [cepLoading, setCepLoading] = useState(false);
@@ -229,6 +229,99 @@ const Settings: React.FC = () => {
             setMessage({ type: 'error', text: err.message || 'Erro ao atualizar dados cadastrais.' });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const [goalsLoading, setGoalsLoading] = useState(false);
+    const [goalsMessage, setGoalsMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [goals, setGoals] = useState({
+        revenue_goal: '',
+        appointments_goal: '',
+        clients_goal: '',
+    });
+
+    useEffect(() => {
+        if (!tenantId) return;
+
+        const fetchGoals = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('tenant_goals')
+                    .select('revenue_goal, appointments_goal, clients_goal')
+                    .eq('tenant_id', tenantId)
+                    .eq('active', true)
+                    .maybeSingle();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Error fetching goals:', error);
+                    return;
+                }
+
+                if (data) {
+                    setGoals({
+                        revenue_goal: String(Number(data.revenue_goal || 0)),
+                        appointments_goal: String(Number(data.appointments_goal || 0)),
+                        clients_goal: String(Number(data.clients_goal || 0)),
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading goals:', err);
+            }
+        };
+
+        void fetchGoals();
+    }, [tenantId]);
+
+    const handleSaveGoals = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!tenantId) return;
+
+        setGoalsLoading(true);
+        setGoalsMessage(null);
+
+        try {
+            const revenueGoal = parseFloat(goals.revenue_goal.replace(',', '.')) || 0;
+            const appointmentsGoal = parseInt(goals.appointments_goal, 10) || 0;
+            const clientsGoal = parseInt(goals.clients_goal, 10) || 0;
+
+            const { data: existing } = await supabase
+                .from('tenant_goals')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('active', true)
+                .maybeSingle();
+
+            if (existing) {
+                const { error } = await supabase
+                    .from('tenant_goals')
+                    .update({
+                        revenue_goal: revenueGoal,
+                        appointments_goal: appointmentsGoal,
+                        clients_goal: clientsGoal,
+                    })
+                    .eq('id', existing.id);
+
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('tenant_goals')
+                    .insert({
+                        tenant_id: tenantId,
+                        period: 'monthly',
+                        revenue_goal: revenueGoal,
+                        appointments_goal: appointmentsGoal,
+                        clients_goal: clientsGoal,
+                        active: true,
+                    });
+
+                if (error) throw error;
+            }
+
+            setGoalsMessage({ type: 'success', text: 'Metas salvas com sucesso!' });
+        } catch (err: any) {
+            setGoalsMessage({ type: 'error', text: err.message || 'Erro ao salvar metas.' });
+        } finally {
+            setGoalsLoading(false);
         }
     };
 
@@ -578,6 +671,98 @@ const Settings: React.FC = () => {
                     </form>
                 </section>
             </div>
+
+            {/* Business Goals Section */}
+            <section className="bg-white dark:bg-card-dark p-6 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
+                    <span className="material-symbols-outlined text-emerald-500">track_changes</span>
+                    <h3 className="font-bold text-slate-900 dark:text-white">Metas do Negócio</h3>
+                </div>
+                <p className="text-xs text-slate-500 mb-6">Essas metas alimentam os indicadores do Dashboard.</p>
+
+                {goalsMessage && (
+                    <div className={`mb-4 p-3 rounded-lg border text-sm font-bold flex items-center gap-2 ${
+                        goalsMessage.type === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                            : 'bg-red-500/10 border-red-500/20 text-red-500'
+                    }`}>
+                        <span className="material-symbols-outlined text-sm">
+                            {goalsMessage.type === 'success' ? 'check_circle' : 'error'}
+                        </span>
+                        {goalsMessage.text}
+                    </div>
+                )}
+
+                <form onSubmit={handleSaveGoals} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                                Meta de Faturamento Mensal
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={goals.revenue_goal}
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(/[^\d,]/g, '');
+                                        setGoals(prev => ({ ...prev, revenue_goal: value }));
+                                    }}
+                                    placeholder="0,00"
+                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-8 pr-3 text-sm focus:ring-1 focus:ring-primary outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                                Meta de Agendamentos Mensal
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={goals.appointments_goal}
+                                onChange={(e) => setGoals(prev => ({ ...prev, appointments_goal: e.target.value }))}
+                                placeholder="0"
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                                Meta de Novos Clientes Mensal
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={goals.clients_goal}
+                                onChange={(e) => setGoals(prev => ({ ...prev, clients_goal: e.target.value }))}
+                                placeholder="0"
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={goalsLoading}
+                        className="w-full md:w-auto px-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {goalsLoading ? (
+                            <>
+                                <span className="animate-spin material-symbols-outlined text-sm">progress_activity</span>
+                                Salvando...
+                            </>
+                        ) : (
+                            <>
+                                <span className="material-symbols-outlined text-sm">save</span>
+                                Salvar Metas
+                            </>
+                        )}
+                    </button>
+                </form>
+            </section>
 
             {/* Usage Stats Section */}
             <section className="bg-white dark:bg-card-dark p-8 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden relative">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { supabase, getClientForTable, ensureAppSupportsModule } from '../services/supabaseClient';
+import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -229,7 +230,7 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenantId, user } = useAuth();
+  const { appSlug, tenantId, user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -258,6 +259,8 @@ const Schedule: React.FC = () => {
     quickChip: 'all',
   });
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
+  const scheduleCreateLockRef = useRef(false);
+  const scheduleIdempotencyKeyRef = useRef<string | null>(null);
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -406,19 +409,23 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
+    const servicesClient = getClientForTable('services', scheduleAppSlug);
+    const clientsClient = getClientForTable('clients', scheduleAppSlug);
+    const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
+
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
-      supabase.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
-      supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
-      supabase.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
+      servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
+      clientsClient.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
+      promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
     if (staffRes.data) setStaffList(staffRes.data);
 
-    // Se a consulta de serviços falhar (ex: schema legado), tenta fallback.
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await supabase
+      const retryServices = await servicesClient
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -428,7 +435,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await servicesClient
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -449,7 +456,7 @@ const Schedule: React.FC = () => {
     } else if (servicesRes.data && servicesRes.data.length > 0) {
       setServicesList(servicesRes.data);
     } else {
-      const retryServices = await supabase
+      const retryServices = await servicesClient
         .from('services')
         .select('id, name, duration, price')
         .eq('tenant_id', tenantId)
@@ -459,7 +466,7 @@ const Schedule: React.FC = () => {
       if (retryServices.data && retryServices.data.length > 0) {
         setServicesList(retryServices.data);
       } else {
-        const legacyServices = await supabase
+        const legacyServices = await servicesClient
           .from('services')
           .select('id, name, duration_minutes, price')
           .eq('tenant_id', tenantId)
@@ -490,7 +497,7 @@ const Schedule: React.FC = () => {
       });
       setActivePromotions(validPromos);
     }
-  }, [tenantId]);
+  }, [appSlug, tenantId]);
 
   // Fetch appointments for the selected date (or week)
   const fetchAppointments = useCallback(async () => {
@@ -527,7 +534,11 @@ const Schedule: React.FC = () => {
       rangeEnd = dEnd.toISOString();
     }
 
-    const { data, error } = await supabase
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
+    const appointmentsClient = getClientForTable('appointments', scheduleAppSlug);
+    const comandasClient = getClientForTable('comandas', scheduleAppSlug);
+
+    const { data, error } = await appointmentsClient
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -539,7 +550,7 @@ const Schedule: React.FC = () => {
     if (error) {
       console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
 
-      const { data: fallbackData, error: fallbackError } = await supabase
+      const { data: fallbackData, error: fallbackError } = await appointmentsClient
         .from('appointments')
         .select('*')
         .eq('tenant_id', tenantId);
@@ -588,7 +599,7 @@ const Schedule: React.FC = () => {
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const { data: comandas } = await supabase
+        const { data: comandas } = await comandasClient
           .from('comandas')
           .select('id, appointment_id')
           .eq('tenant_id', tenantId)
@@ -605,6 +616,9 @@ const Schedule: React.FC = () => {
       } else {
         setOpenComandasByAppointment({});
       }
+    } else {
+      setAppointments([]);
+      setOpenComandasByAppointment({});
     }
     setLoading(false);
   }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
@@ -676,7 +690,11 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const { data: existingComanda, error: existingComandaError } = await supabase
+      const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
+      const checkoutComandasClient = getClientForTable('comandas', scheduleAppSlug);
+      const checkoutClientsClient = getClientForTable('clients', scheduleAppSlug);
+
+      const { data: existingComanda, error: existingComandaError } = await checkoutComandasClient
         .from('comandas')
         .select('id, status')
         .eq('tenant_id', tenantId)
@@ -695,7 +713,7 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const { data: clientData } = await supabase
+      const { data: clientData } = await checkoutClientsClient
         .from('clients')
         .select('id')
         .eq('tenant_id', tenantId)
@@ -892,8 +910,11 @@ const Schedule: React.FC = () => {
       }
 
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
+      const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
+      const dragAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
+      const dragComandasClient = getClientForTable('comandas', scheduleAppSlug);
 
-      const { error } = await supabase.from('appointments').update({
+      const { error } = await dragAppointmentsClient.from('appointments').update({
         staff_id: dropStaffId,
         staff_name: selectedStaff?.name || apt.staffName,
         start_time: newStartTimeLine.toISOString(),
@@ -903,12 +924,13 @@ const Schedule: React.FC = () => {
 
       if (error) {
         setToast({ message: 'Erro ao salvar alteração no banco.', type: 'error' });
-        fetchAppointments(); // Reverte
+        fetchAppointments();
       } else {
-        // Update comanda if exists
-        await supabase.from('comandas').update({
-          staff_id: dropStaffId,
-        }).eq('appointment_id', apt.id).eq('tenant_id', tenantId).eq('status', 'open');
+        await dragComandasClient
+          .from('comandas')
+          .update({
+            staff_id: dropStaffId,
+          }).eq('appointment_id', apt.id).eq('tenant_id', tenantId).eq('status', 'open');
 
         setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
         fetchAppointments(); // Refresh for safety
@@ -926,8 +948,12 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
+    const cancelAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
+    const cancelComandasClient = getClientForTable('comandas', scheduleAppSlug);
+
     try {
-      const { error } = await supabase
+      const { error } = await cancelAppointmentsClient
         .from('appointments')
         .update({ status: 'cancelled', cancellation_reason: cancelReason || 'Não informado' })
         .eq('id', appointmentId)
@@ -935,8 +961,7 @@ const Schedule: React.FC = () => {
 
       if (error) throw error;
 
-      // Also cancel associated comanda if it exists and is open
-      await supabase
+      await cancelComandasClient
         .from('comandas')
         .update({ status: 'cancelled' })
         .eq('appointment_id', appointmentId)
@@ -1080,7 +1105,7 @@ const Schedule: React.FC = () => {
   const handleDeleteBlock = async (block: ScheduleBlock) => {
     if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
     try {
-      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
+      await scheduleBlocksApi.remove(block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -1124,7 +1149,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
+        await scheduleBlocksApi.update(editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
@@ -1173,12 +1198,29 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    if (scheduleCreateLockRef.current) {
+      setError('Agendamento já está sendo criado. Aguarde alguns segundos.');
+      return;
+    }
+    scheduleCreateLockRef.current = true;
+
+    if (!scheduleIdempotencyKeyRef.current) {
+      scheduleIdempotencyKeyRef.current = generateIdempotencyKey('schedule-appt');
+    }
+
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
+    const saveClientsClient = getClientForTable('clients', scheduleAppSlug);
+    const saveAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
+    const saveComandasClient = getClientForTable('comandas', scheduleAppSlug);
+    const saveServicesClient = getClientForTable('services', scheduleAppSlug);
+    const saveComandaItemsClient = getClientForTable('comanda_items', scheduleAppSlug);
+
     const selectedService = servicesList.find(s => s.name === formData.service);
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
 
     let clientId: string | null = null;
     if (isNewClientMode) {
-      const { data: newClient, error: clientError } = await supabase.from('clients').insert({
+      const { data: newClient, error: clientError } = await saveClientsClient.from('clients').insert({
         name: formData.client,
         phone: formData.clientPhone || '',
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client)}&background=random`,
@@ -1206,10 +1248,13 @@ const Schedule: React.FC = () => {
 
     if (hasBlockConflict) {
       setError('Existe um bloqueio de agenda nesse período. Escolha outro horário.');
+      scheduleCreateLockRef.current = false;
+      scheduleIdempotencyKeyRef.current = null;
       return;
     }
 
-    if (editingAppointmentId) {
+    try {
+      if (editingAppointmentId) {
       const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
       const updatedStartIso = startTimeLine.toISOString();
       const updatedAppointmentDate = updatedStartIso;
@@ -1236,8 +1281,7 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      // Update comanda if exists
-      await supabase.from('comandas').update({
+      await saveComandasClient.from('comandas').update({
         staff_id: formData.staffId || null,
       }).eq('appointment_id', editingAppointmentId).eq('tenant_id', tenantId).eq('status', 'open');
 
@@ -1262,73 +1306,79 @@ const Schedule: React.FC = () => {
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
-      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+      let finalPrice = selectedService?.price || 0;
 
-      // INSERT NEW
-      const { data: savedApt, error: saveError } = await supabase.from('appointments').insert({
-        client_id: clientId,
-        service_id: selectedService?.id || null,
-        staff_id: formData.staffId || null,
-        client_name: formData.client,
-        client_phone: formData.clientPhone,
-        service_name: formData.service,
-        notes: formData.notes.trim(),
-        staff_name: selectedStaff?.name || '',
-        start_time: startTimeLine.toISOString(),
-        end_time: endTimeLine.toISOString(),
-        duration: Number(formData.duration),
-        price: selectedService?.price || 0,
-        status: 'confirmed',
-        tenant_id: tenantId
-      }).select().single();
+      if (selectedService) {
+        const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
+        finalPrice = serviceData?.price || selectedService.price || 0;
 
-      if (saveError) {
-        console.error('Erro ao salvar agendamento:', saveError);
-        setError(`Erro ao salvar agendamento: ${saveError.message}`);
+        const promo = activePromotions.find(p =>
+          (p.target_type === 'all') ||
+          (p.target_type === 'service' && p.target_id === selectedService.id)
+        );
+
+        if (promo) {
+          if (promo.discount_type === 'fixed') {
+            finalPrice = Math.max(0, finalPrice - promo.discount_value);
+          } else {
+            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
+          }
+        }
+      }
+
+      const idempotencyKey = scheduleIdempotencyKeyRef.current;
+      console.log('[idempotency]', idempotencyKey);
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+        p_tenant_id: tenantId,
+        p_client_id: clientId,
+        p_client_name: formData.client,
+        p_client_phone: formData.clientPhone || null,
+        p_service_id: selectedService?.id || null,
+        p_staff_id: formData.staffId || null,
+        p_start_time: startTimeLine.toISOString(),
+        p_price: finalPrice,
+        p_notes: formData.notes.trim() || null,
+        p_idempotency_key: idempotencyKey,
+      });
+
+      if (rpcError || !rpcResult) {
+        console.error('Erro ao criar agendamento via RPC:', rpcError);
+        setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
         return;
       }
 
-      if (savedApt) {
-        const { data: comanda } = await supabase.from('comandas').insert({
-          appointment_id: savedApt.id,
-          client_id: clientId,
-          staff_id: formData.staffId || null,
-          status: 'open',
-          total: 0,
-          tenant_id: tenantId
-        }).select().single();
+      const newAptId = (rpcResult as any).appointment_id;
+      const newComandaId = (rpcResult as any).comanda_id;
 
-        if (comanda && selectedService) {
-          const { data: serviceData } = await supabase.from('services').select('price').eq('id', selectedService.id).single();
-          let finalPrice = serviceData?.price || 0;
+      setAppointments(prev => [...prev, {
+        id: newAptId,
+        clientId: clientId,
+        staffId: formData.staffId,
+        start: formData.start,
+        duration: Number(formData.duration),
+        client: formData.client,
+        service: formData.service,
+        status: 'confirmed',
+        color: 'bg-blue-500',
+        staffName: selectedStaff?.name || '',
+        clientPhone: formData.clientPhone || '',
+        price: finalPrice,
+        startTime: startTimeLine.toISOString(),
+        notes: formData.notes.trim(),
+        date: startTimeLine.toISOString(),
+        source: null,
+        channel: null,
+      }]);
 
-          const promo = activePromotions.find(p =>
-            (p.target_type === 'all') ||
-            (p.target_type === 'service' && p.target_id === selectedService.id)
-          );
-
-          if (promo) {
-            if (promo.discount_type === 'fixed') {
-              finalPrice = Math.max(0, finalPrice - promo.discount_value);
-            } else {
-              finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-            }
-          }
-
-          await supabase.from('comanda_items').insert({
-            comanda_id: comanda.id,
-            service_id: selectedService.id,
-            product_name: selectedService.name,
-            quantity: 1,
-            unit_price: finalPrice,
-            tenant_id: tenantId,
-            staff_id: formData.staffId || null
-          });
-
-          await supabase.from('comandas').update({ total: finalPrice }).eq('id', comanda.id);
-        }
+      if (newComandaId) {
+        setOpenComandasByAppointment(prev => ({ ...prev, [newAptId]: newComandaId }));
       }
+
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+    }
+    } finally {
+      scheduleCreateLockRef.current = false;
+      scheduleIdempotencyKeyRef.current = null;
     }
 
     setIsModalOpen(false);

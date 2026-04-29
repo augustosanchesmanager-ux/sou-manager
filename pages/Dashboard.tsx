@@ -23,6 +23,39 @@ import {
 type PeriodOption = 'today' | 'yesterday' | 'week' | 'month';
 type CompareOption = 'yesterday' | 'week_ago' | 'month_ago';
 
+const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  const isBusinessHours = currentHour >= 9 && currentHour < 22;
+
+  if (isBusinessHours) {
+    const nextHalfHour = currentMinute <= 30 ? 30 : 60;
+    const nextHour = nextHalfHour > 30 ? currentHour + 1 : currentHour;
+    const roundedMinute = nextHalfHour > 30 ? 0 : 30;
+
+    const nextTime = new Date(now);
+    nextTime.setHours(nextHour, roundedMinute, 0, 0);
+
+    return {
+      date: nextTime.toISOString().split('T')[0],
+      time: `${String(nextHour).padStart(2, '0')}:${String(roundedMinute).padStart(2, '0')}`,
+    };
+  }
+
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
+  return {
+    date: tomorrow.toISOString().split('T')[0],
+    time: '09:00',
+  };
+};
+
+const DEFAULT_QUICK_APPOINTMENT_DATETIME = getDefaultQuickAppointmentDateTime();
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -35,8 +68,8 @@ const Dashboard: React.FC = () => {
   const [compare, setCompare] = useState<CompareOption>('yesterday');
 
   const [formData, setFormData] = useState<QuickAppointmentFormState>({
-    date: new Date().toISOString().split('T')[0],
-    time: '10:00',
+    date: DEFAULT_QUICK_APPOINTMENT_DATETIME.date,
+    time: DEFAULT_QUICK_APPOINTMENT_DATETIME.time,
     clientSearch: '',
     selectedClientId: '',
     serviceId: '',
@@ -133,23 +166,21 @@ const Dashboard: React.FC = () => {
 
   const metricValues = {
     revenue: data.metrics.revenue,
-    revenuePrevious: data.metrics.revenue * 0.88,
+    revenuePrevious: data.metrics.revenuePrevious,
     todayAppointments: data.metrics.todayAppointments,
-    previousAppointments: Math.round(data.metrics.todayAppointments * 0.85),
+    previousAppointments: data.metrics.previousAppointments,
     totalClients: data.clients.length,
-    previousClients: Math.round(data.clients.length * 0.95),
+    previousClients: data.clients.length,
     avgTicket: data.metrics.avgTicket,
-    previousAvgTicket: Math.round(data.metrics.avgTicket * 0.92),
-    revenueGoal: 16000,
-    appointmentsGoal: 20,
+    previousAvgTicket: data.metrics.avgTicketPrevious,
+    revenueGoal: data.metrics.revenueGoal,
+    appointmentsGoal: data.metrics.appointmentsGoal,
   };
 
-  const returningClients: Client[] = data.clients.slice(0, 3);
-  const birthdaysToday: string[] = ['Jorge', 'Ana'];
-  const birthdaysTomorrow: string[] = ['Carlos'];
+  const returningClients = data.returningClients;
   const teamStatus = data.staffList.map((s) => ({
     id: s.id,
-    name: s.full_name,
+    name: s.name,
     active: true,
   }));
 
@@ -194,8 +225,8 @@ const Dashboard: React.FC = () => {
 
       <DashboardWidgets
         returningClients={returningClients}
-        birthdaysToday={birthdaysToday}
-        birthdaysTomorrow={birthdaysTomorrow}
+        birthdaysToday={[]}
+        birthdaysTomorrow={[]}
         teamStatus={teamStatus}
         loading={loading}
       />

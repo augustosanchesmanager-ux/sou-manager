@@ -512,7 +512,7 @@ const Checkout: React.FC = () => {
                 if (openComandas && openComandas.length > 0) {
                     const existingComanda = openComandas[0];
                     if (existingComanda.status === 'blocked') {
-                        setError(`Este cliente já tem uma comanda bloqueada para este dia.`);
+                        setToast({ message: `Este cliente já tem uma comanda bloqueada para este dia.`, type: 'error' });
                         setPendingClient(null);
                         return;
                     }

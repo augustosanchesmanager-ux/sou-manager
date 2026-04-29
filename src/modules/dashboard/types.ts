@@ -21,6 +21,10 @@ export interface DashboardService {
   price?: number;
 }
 
+export type Client = DashboardClient;
+export type Service = DashboardService;
+export type Staff = DashboardStaff;
+
 export interface DashboardAppointment {
   id: string;
   client_name: string;
@@ -33,10 +37,18 @@ export interface DashboardAppointment {
 
 export interface DashboardMetrics {
   revenue: number;
-  growth: number;
+  revenuePrevious: number;
+  revenueGrowth: number;
+  revenueGoal: number;
   activeStaffPercent: number;
   todayAppointments: number;
+  previousAppointments: number;
+  appointmentsGrowth: number;
+  appointmentsGoal: number;
   avgTicket: number;
+  avgTicketPrevious: number;
+  avgTicketGrowth: number;
+  retentionRate: number;
 }
 
 export interface DashboardChartPoint {
@@ -61,12 +73,21 @@ export interface RiskClient extends DashboardClient {
   days: number;
 }
 
+export interface ReturningClient {
+  id: string;
+  name: string;
+  phone?: string | null;
+  lastVisit: string;
+  daysSinceVisit: number;
+}
+
 export interface DashboardData {
   clients: DashboardClient[];
   staffList: DashboardStaff[];
   servicesList: DashboardService[];
   appointments: DashboardAppointment[];
   upcomingBirthdays: UpcomingBirthday[];
+  returningClients: ReturningClient[];
   chartData: DashboardChartPoint[];
   metrics: DashboardMetrics;
   profile: DashboardProfile | null;

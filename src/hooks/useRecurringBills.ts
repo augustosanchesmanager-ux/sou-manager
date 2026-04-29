@@ -22,7 +22,7 @@ export interface GeneratedExpense {
   status: 'pending' | 'paid' | 'overdue';
 }
 
-const BILL_CATEGORIES = [
+export const BILL_CATEGORIES = [
   { id: 'aluguel', label: 'Aluguel', icon: 'home' },
   { id: 'credit_card', label: 'Cartão de Crédito', icon: 'credit_card' },
   { id: 'software', label: 'Software/Assinatura', icon: 'computer' },

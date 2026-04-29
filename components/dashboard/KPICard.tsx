@@ -1,6 +1,6 @@
 import React from 'react';
 
-type KPIType = 'revenue' | 'appointments' | 'clients' | 'ticket';
+export type KPIType = 'revenue' | 'appointments' | 'clients' | 'ticket';
 
 interface KPICardProps {
   type: KPIType;

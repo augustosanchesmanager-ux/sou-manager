@@ -206,6 +206,7 @@ interface LocalDemoDatabase {
     start_time: string;
     duration: number;
     status: string;
+    idempotency_key?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -247,6 +248,7 @@ interface LocalDemoDatabase {
     staff_id: string | null;
     status: string;
     total: number;
+    idempotency_key?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -644,8 +646,8 @@ const readDemoDatabase = (): LocalDemoDatabase => {
           description: typeof product?.description === 'string' ? product.description : '',
           cost_price: Number(product?.cost_price ?? 0),
           sale_price: Number(product?.sale_price ?? 0),
-          stock_quantity: Number(product?.stock_quantity ?? product?.stock ?? 0),
-          minimum_stock: Number(product?.minimum_stock ?? product?.min_stock ?? 0),
+          stock_quantity: Number(product?.stock_quantity ?? (product as { stock?: number }).stock ?? 0),
+          minimum_stock: Number(product?.minimum_stock ?? (product as { min_stock?: number }).min_stock ?? 0),
           auto_generate_purchase_order: Boolean(product?.auto_generate_purchase_order),
           active: typeof product?.active === 'boolean' ? product.active : true,
         }))
@@ -898,6 +900,71 @@ case 'comanda_items':
       filters.push((row) => values.includes(row[field]));
       return builder;
     },
+    or(expression: string) {
+      const conditions = expression.split(',');
+      const orFilters: Array<(row: Record<string, any>) => boolean> = [];
+
+      for (const cond of conditions) {
+        const trimmed = cond.trim();
+        const dotIndex = trimmed.indexOf('.');
+
+        if (dotIndex === -1) continue;
+
+        const field = trimmed.slice(0, dotIndex);
+        const rest = trimmed.slice(dotIndex + 1);
+        const opDotIndex = rest.indexOf('.');
+
+        if (opDotIndex === -1) continue;
+
+        const op = rest.slice(0, opDotIndex);
+        const rawValue = rest.slice(opDotIndex + 1);
+
+        let value: unknown;
+        if (rawValue === 'null') {
+          value = null;
+        } else if (rawValue === 'true') {
+          value = true;
+        } else if (rawValue === 'false') {
+          value = false;
+        } else if (!isNaN(Number(rawValue))) {
+          value = Number(rawValue);
+        } else {
+          value = rawValue;
+        }
+
+        switch (op) {
+          case 'eq':
+            orFilters.push((row) => row[field] === value);
+            break;
+          case 'neq':
+            orFilters.push((row) => row[field] !== value);
+            break;
+          case 'gt':
+            orFilters.push((row) => row[field] > value);
+            break;
+          case 'gte':
+            orFilters.push((row) => row[field] >= value);
+            break;
+          case 'lt':
+            orFilters.push((row) => row[field] < value);
+            break;
+          case 'lte':
+            orFilters.push((row) => row[field] <= value);
+            break;
+          case 'is':
+            if (value === null) {
+              orFilters.push((row) => row[field] === null || row[field] === undefined);
+            }
+            break;
+        }
+      }
+
+      if (orFilters.length > 0) {
+        filters.push((row) => orFilters.some((f) => f(row)));
+      }
+
+      return builder;
+    },
     order(field: string, options?: { ascending?: boolean }) {
       orderConfig = { field, ascending: options?.ascending !== false };
       return builder;
@@ -951,7 +1018,7 @@ case 'comanda_items':
 
       const replaceRows = <T extends { id: string }>(source: T[]) =>
         source.map((row) => {
-          const next = updatedRows.find((updated) => updated.id === row.id);
+          const next = updatedRows.find((updated) => (updated as { id: string }).id === row.id);
           return next ? ({ ...row, ...next } as T) : row;
         });
 
@@ -1137,7 +1204,7 @@ const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
-    rpc: (fn: string) => {
+    rpc: (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'get_auth_access_context' && readDemoSession()) {
         return createRpcResult({
           tenant_id: LOCAL_DEMO_TENANT_ID,
@@ -1145,6 +1212,115 @@ const client = {
           profile_status: 'active',
           is_super_admin: false,
         }, null);
+      }
+
+      if (fn === 'create_appointment_with_comanda' && isLocalDemoEnabled()) {
+        console.log('[create_appointment_with_comanda] demo RPC called with params:', params);
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_client_name?: string;
+          p_client_phone?: string;
+          p_service_id?: string;
+          p_staff_id?: string;
+          p_start_time?: string;
+          p_price?: number;
+          p_notes?: string;
+          p_idempotency_key?: string;
+        };
+
+        const db = readDemoDatabase();
+
+        if (p.p_idempotency_key) {
+          const existing = db.appointments.find(
+            (a) => a.idempotency_key === p.p_idempotency_key && a.tenant_id === (p.p_tenant_id || LOCAL_DEMO_TENANT_ID)
+          );
+          if (existing) {
+            const existingComanda = db.comandas.find((c) => c.appointment_id === existing.id);
+            const existingComandaItem = existingComanda ? db.comanda_items.find((ci) => ci.comanda_id === existingComanda.id) : null;
+            console.log('[create_appointment_with_comanda] demo RPC found existing idempotent appointment:', existing.id);
+            return createRpcResult({
+              appointment_id: existing.id,
+              comanda_id: existingComanda?.id || null,
+              comanda_item_id: existingComandaItem?.id || null,
+              service_price: existingComanda?.total || 0,
+              appointment_status: existing.status,
+            }, null);
+          }
+        }
+
+        const now = new Date().toISOString();
+
+        const service = db.services.find((s) => s.id === p.p_service_id);
+        const staff = db.staff.find((s) => s.id === p.p_staff_id);
+
+        const durationHours = service ? Math.round((Number(service.duration || 30) / 60) * 10) / 10 : 0.5;
+        const price = p.p_price ?? service?.price ?? 0;
+
+        const appointmentId = `demo-appointment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaId = `demo-comanda-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaItemId = `demo-comanda-item-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+        const newAppointment = {
+          id: appointmentId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          client_id: p.p_client_id || null,
+          service_id: p.p_service_id || null,
+          staff_id: p.p_staff_id || null,
+          client_name: p.p_client_name || '',
+          client_phone: p.p_client_phone || '',
+          service_name: service?.name || '',
+          staff_name: staff?.name || '',
+          start_time: p.p_start_time || now,
+          duration: durationHours,
+          notes: p.p_notes || '',
+          status: 'confirmed',
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        };
+
+        const newComanda = {
+          id: comandaId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          appointment_id: appointmentId,
+          client_id: p.p_client_id || null,
+          staff_id: p.p_staff_id || null,
+          status: 'open',
+          total: price,
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        };
+
+        const newComandaItem = {
+          id: comandaItemId,
+          tenant_id: p.p_tenant_id || LOCAL_DEMO_TENANT_ID,
+          comanda_id: comandaId,
+          service_id: p.p_service_id || null,
+          staff_id: p.p_staff_id || null,
+          product_name: service?.name || '',
+          quantity: 1,
+          unit_price: price,
+          created_at: now,
+          updated_at: now,
+        };
+
+        db.appointments.push(newAppointment);
+        db.comandas.push(newComanda);
+        db.comanda_items.push(newComandaItem);
+        writeDemoDatabase(db);
+
+        const rpcResult = {
+          appointment_id: appointmentId,
+          comanda_id: comandaId,
+          comanda_item_id: comandaItemId,
+          service_price: price,
+          appointment_status: 'confirmed',
+        };
+        console.log('[create_appointment_with_comanda] demo RPC result:', rpcResult, 'db.appointments count:', db.appointments.length);
+
+        return createRpcResult(rpcResult, null);
       }
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));
@@ -1194,7 +1370,7 @@ const getOrCreateSchemaClient = (schema: SupabaseSchemaName): SupabaseClient => 
     return cachedClient;
   }
 
-  const schemaClient = baseClient.schema(schema);
+  const schemaClient = baseClient.schema(schema) as unknown as SupabaseClient;
   schemaClientCache.set(schema, schemaClient);
   return schemaClient;
 };

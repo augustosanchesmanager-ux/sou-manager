@@ -56,7 +56,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
 
     const loadBarbers = async () => {
         setLoading(true);
-        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('is_active', true);
+        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active');
         setBarbers(data || []);
         setLoading(false);
     };

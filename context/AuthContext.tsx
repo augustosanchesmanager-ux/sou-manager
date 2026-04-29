@@ -88,15 +88,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchAccessContext = async (userId: string): Promise<AccessContextResult> => {
         try {
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_auth_access_context').single();
-            if (!rpcError && rpcData) {
-                const role = deriveAccessRole(rpcData.access_role, Boolean(rpcData.is_super_admin));
-                const status = (rpcData.profile_status || null) as 'pending' | 'active' | 'suspended' | null;
-                const tenantId = rpcData.tenant_id || null;
+            if (!rpcError && rpcData && typeof rpcData === 'object') {
+                const rpcResult = rpcData as { access_role?: unknown; is_super_admin?: unknown; profile_status?: unknown; tenant_id?: unknown };
+                const role = deriveAccessRole(String(rpcResult.access_role ?? ''), Boolean(rpcResult.is_super_admin));
+                const status = (rpcResult.profile_status || null) as 'pending' | 'active' | 'suspended' | null;
+                const tenantId = String(rpcResult.tenant_id || null);
                 return {
                     tenantId,
                     accessRole: role,
                     profileStatus: status,
-                    canAccessSuperAdmin: Boolean(rpcData.is_super_admin) || role === 'superadmin',
+                    canAccessSuperAdmin: Boolean(rpcResult.is_super_admin) || role === 'superadmin',
                 };
             }
         } catch (rpcUnexpectedError) {
