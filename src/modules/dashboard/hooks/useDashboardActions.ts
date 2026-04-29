@@ -24,6 +24,28 @@ const toPositiveNumber = (value: unknown, fallback: number) => {
 const getAppointmentDurationHours = (service: any) =>
   Math.round((toPositiveNumber(service?.duration ?? service?.duration_minutes, 30) / 60) * 10) / 10;
 
+const fetchServiceSafe = async (servicesClient: any, serviceId: string, tenantId: string) => {
+  const primaryRes = await servicesClient
+    .from('services')
+    .select('id, name, price, duration, active')
+    .eq('tenant_id', tenantId)
+    .eq('id', serviceId)
+    .maybeSingle();
+
+  if (!primaryRes.error && primaryRes.data) {
+    return { data: primaryRes.data, error: null };
+  }
+
+  const legacyRes = await servicesClient
+    .from('services')
+    .select('id, name, price, duration_minutes, is_active')
+    .eq('tenant_id', tenantId)
+    .eq('id', serviceId)
+    .maybeSingle();
+
+  return legacyRes;
+};
+
 const normalizeQuickAppointmentResult = (value: any): QuickAppointmentResult => {
   const result = Array.isArray(value) ? value[0] : value;
 
@@ -132,12 +154,7 @@ export const useDashboardActions = () => {
         const servicesClient = getClientForTable('services', appSlug);
 
         const [serviceRes, staffRes, clientRes] = await Promise.all([
-          servicesClient
-            .from('services')
-            .select('id, name, price, duration, duration_minutes, active, is_active')
-            .eq('tenant_id', resolvedTenantId)
-            .eq('id', payload.serviceId)
-            .maybeSingle(),
+          fetchServiceSafe(servicesClient, payload.serviceId, resolvedTenantId),
           supabase
             .from('staff')
             .select('id, name, status')

@@ -81,6 +81,18 @@ export interface ReturningClient {
   daysSinceVisit: number;
 }
 
+export type SmartReturnCategory = 'returning' | 'risk' | 'inactive';
+
+export interface SmartReturnClient {
+  id: string;
+  name: string;
+  phone: string;
+  lastVisit: string;
+  daysSinceVisit: number;
+  category: SmartReturnCategory;
+  hasUpcomingAppointment: boolean;
+}
+
 export interface DashboardData {
   clients: DashboardClient[];
   staffList: DashboardStaff[];
