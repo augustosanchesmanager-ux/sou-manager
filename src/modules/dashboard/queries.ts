@@ -161,7 +161,7 @@ export const fetchDashboardData = async ({
     name: staff.name,
   }));
 
-  const [todayAppointmentsByStaffRes, todayAppointmentsCountRes] = await Promise.all([
+  const [todayAppointmentsByStaffRes, todayAppointmentsCountRes, currentPeriodAppointmentsRes, previousPeriodAppointmentsRes] = await Promise.all([
     appointmentsClient
       .from('appointments')
       .select('staff_id')
@@ -176,12 +176,45 @@ export const fetchDashboardData = async ({
       .neq('status', 'cancelled')
       .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
       .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
+    appointmentsClient
+      .from('appointments')
+      .select('id, client_id, status')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString();
+      })())
+      .lt('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        d.setHours(23, 59, 59, 999);
+        return d.toISOString();
+      })()),
+    appointmentsClient
+      .from('appointments')
+      .select('id, client_id, status')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'cancelled')
+      .gte('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 60);
+        return d.toISOString();
+      })())
+      .lt('start_time', (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString();
+      })()),
   ]);
 
   logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
   logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
   logSupabaseError('transactions.yesterday', yesterdayTransactionsRes.error);
   logSupabaseError('appointments.yesterday-count', yesterdayAppointmentsCountRes.error);
+  logSupabaseError('appointments.current-period', currentPeriodAppointmentsRes.error);
+  logSupabaseError('appointments.previous-period', previousPeriodAppointmentsRes.error);
 
   const goalsRes = await supabase
     .from('tenant_goals')
@@ -210,6 +243,8 @@ export const fetchDashboardData = async ({
       todayAppointmentsCountRes.count || 0,
       yesterdayTransactionsRes.data || [],
       yesterdayAppointmentsCountRes.count || 0,
+      currentPeriodAppointmentsRes.data || [],
+      previousPeriodAppointmentsRes.data || [],
       goals.revenue_goal || 0,
       goals.appointments_goal || 0,
     ),

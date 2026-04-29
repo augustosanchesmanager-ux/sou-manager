@@ -48,6 +48,7 @@ export interface DashboardMetrics {
   avgTicket: number;
   avgTicketPrevious: number;
   avgTicketGrowth: number;
+  retentionRate: number;
 }
 
 export interface DashboardChartPoint {

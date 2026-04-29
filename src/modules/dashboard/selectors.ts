@@ -24,6 +24,7 @@ export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   avgTicket: 0,
   avgTicketPrevious: 0,
   avgTicketGrowth: 0,
+  retentionRate: 0,
 };
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -123,6 +124,8 @@ export const buildDashboardMetrics = (
   todayAppointmentsCount: number,
   yesterdayTransactions: any[],
   yesterdayAppointmentsCount: number,
+  currentPeriodAppointments: any[],
+  previousPeriodAppointments: any[],
   revenueGoal: number = 0,
   appointmentsGoal: number = 0,
 ): DashboardMetrics => {
@@ -167,6 +170,26 @@ export const buildDashboardMetrics = (
   const yesterdayAvgTicket = yesterdayIncomeCount > 0 ? yesterdayRevenue / yesterdayIncomeCount : 0;
   const avgTicketGrowth = yesterdayAvgTicket > 0 ? ((thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0) - yesterdayAvgTicket) / yesterdayAvgTicket * 100 : 0;
 
+  const prevVisitorIds = new Set(
+    previousPeriodAppointments
+      .filter((a: any) => !['cancelled', 'canceled'].includes(a.status))
+      .map((a: any) => a.client_id)
+      .filter(Boolean)
+  );
+
+  const currentVisitorIds = new Set(
+    currentPeriodAppointments
+      .filter((a: any) => !['cancelled', 'canceled'].includes(a.status))
+      .map((a: any) => a.client_id)
+      .filter(Boolean)
+  );
+
+  let returning = 0;
+  prevVisitorIds.forEach((id) => {
+    if (currentVisitorIds.has(id)) returning++;
+  });
+  const retentionRate = prevVisitorIds.size > 0 ? (returning / prevVisitorIds.size) * 100 : 0;
+
   return {
     revenue: thisMonthRevenue,
     revenuePrevious: yesterdayRevenue,
@@ -180,6 +203,7 @@ export const buildDashboardMetrics = (
     previousAppointments: yesterdayAppointmentsCount,
     appointmentsGrowth,
     appointmentsGoal,
+    retentionRate,
   };
 };
 
