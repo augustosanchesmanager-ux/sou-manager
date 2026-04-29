@@ -353,6 +353,7 @@ const Schedule: React.FC = () => {
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
 
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
@@ -542,6 +543,7 @@ const Schedule: React.FC = () => {
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .gte('start_time', rangeStart)
       .lte('start_time', rangeEnd);
 
@@ -553,7 +555,8 @@ const Schedule: React.FC = () => {
       const { data: fallbackData, error: fallbackError } = await appointmentsClient
         .from('appointments')
         .select('*')
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false);
 
       if (fallbackError) {
         throw fallbackError;
@@ -983,10 +986,20 @@ const Schedule: React.FC = () => {
     const cancelAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
     const cancelComandasClient = getClientForTable('comandas', scheduleAppSlug);
 
+    const isHidden = cancellationType === 'registration_error' || cancellationType === 'test';
+    const newStatus = cancellationType === 'no_show' ? 'no_show' : 'cancelled';
+
     try {
       const { error } = await cancelAppointmentsClient
         .from('appointments')
-        .update({ status: 'cancelled', cancellation_reason: cancelReason || 'Não informado' })
+        .update({
+          status: newStatus,
+          cancellation_reason: cancelReason || 'Não informado',
+          cancellation_type: cancellationType || null,
+          hidden_from_schedule: isHidden,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by_user_id: user?.id || null
+        })
         .eq('id', appointmentId)
         .eq('tenant_id', tenantId);
 
@@ -1011,6 +1024,7 @@ const Schedule: React.FC = () => {
   const openCancelModal = (appointment: CalendarAppointment) => {
     setAppointmentToCancel({ id: appointment.id, client: appointment.client });
     setCancelReason('');
+    setCancellationType('');
     setShowCancelModal(true);
   };
 
@@ -2974,19 +2988,51 @@ Podemos confirmar? 😄`;
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Motivo do cancelamento</label>
               <select
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
+                value={cancellationType}
+                onChange={(e) => {
+                  setCancellationType(e.target.value);
+                  setCancelReason(e.target.value === 'other' ? '' : e.target.value);
+                }}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="">Selecione um motivo</option>
-                <option value="Desistência do cliente">Desistência do cliente</option>
-                <option value="Profissional indisponível">Profissional indisponível</option>
-                <option value="Conflito de horário">Conflito de horário</option>
-                <option value="Problema de saúde">Problema de saúde</option>
-                <option value="Reagendamento">Reagendamento</option>
-                <option value="Outro">Outro</option>
+                <option value="client_cancelled">Cliente cancelou</option>
+                <option value="no_show">Não compareceu</option>
+                <option value="rescheduled">Reagendado</option>
+                <option value="registration_error">Erro de cadastro</option>
+                <option value="test">Teste interno</option>
+                <option value="other">Outro</option>
               </select>
             </div>
+
+            {cancellationType === 'registration_error' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  ⚠️ Este agendamento será <strong>ocultado da agenda operacional</strong>. Use esta opção quando o agendamento foi criado por engano ou com dados incorretos.
+                </p>
+              </div>
+            )}
+
+            {cancellationType === 'test' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  ⚠️ Este agendamento será <strong>ocultado da agenda operacional</strong>. Use esta opção para agendamentos de teste interno que não devem aparecer na operação.
+                </p>
+              </div>
+            )}
+
+            {cancellationType === 'other' && (
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Justificativa</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Descreva o motivo..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
@@ -2997,7 +3043,7 @@ Podemos confirmar? 😄`;
               </button>
               <button
                 onClick={confirmCancelAppointment}
-                disabled={!cancelReason}
+                disabled={!cancellationType || (cancellationType === 'other' && !cancelReason.trim())}
                 className="px-4 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirmar Cancelamento
