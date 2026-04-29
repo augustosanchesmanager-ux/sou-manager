@@ -15,10 +15,12 @@ export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   revenue: 0,
   revenuePrevious: 0,
   revenueGrowth: 0,
+  revenueGoal: 0,
   activeStaffPercent: 0,
   todayAppointments: 0,
   previousAppointments: 0,
   appointmentsGrowth: 0,
+  appointmentsGoal: 0,
   avgTicket: 0,
   avgTicketPrevious: 0,
   avgTicketGrowth: 0,
@@ -121,6 +123,8 @@ export const buildDashboardMetrics = (
   todayAppointmentsCount: number,
   yesterdayTransactions: any[],
   yesterdayAppointmentsCount: number,
+  revenueGoal: number = 0,
+  appointmentsGoal: number = 0,
 ): DashboardMetrics => {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -167,6 +171,7 @@ export const buildDashboardMetrics = (
     revenue: thisMonthRevenue,
     revenuePrevious: yesterdayRevenue,
     revenueGrowth,
+    revenueGoal,
     avgTicket: thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0,
     avgTicketPrevious: yesterdayAvgTicket,
     avgTicketGrowth,
@@ -174,6 +179,7 @@ export const buildDashboardMetrics = (
     todayAppointments: todayAppointmentsCount || 0,
     previousAppointments: yesterdayAppointmentsCount,
     appointmentsGrowth,
+    appointmentsGoal,
   };
 };
 

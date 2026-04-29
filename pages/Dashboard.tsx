@@ -173,8 +173,8 @@ const Dashboard: React.FC = () => {
     previousClients: data.clients.length,
     avgTicket: data.metrics.avgTicket,
     previousAvgTicket: data.metrics.avgTicketPrevious,
-    revenueGoal: data.metrics.revenue || 0,
-    appointmentsGoal: data.metrics.todayAppointments || 0,
+    revenueGoal: data.metrics.revenueGoal,
+    appointmentsGoal: data.metrics.appointmentsGoal,
   };
 
   const returningClients: Client[] = data.clients.slice(0, 3);

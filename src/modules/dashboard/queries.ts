@@ -183,6 +183,19 @@ export const fetchDashboardData = async ({
   logSupabaseError('transactions.yesterday', yesterdayTransactionsRes.error);
   logSupabaseError('appointments.yesterday-count', yesterdayAppointmentsCountRes.error);
 
+  const goalsRes = await supabase
+    .from('tenant_goals')
+    .select('revenue_goal, appointments_goal, clients_goal')
+    .eq('tenant_id', tenantId)
+    .eq('active', true)
+    .maybeSingle();
+
+  if (goalsRes.error) {
+    logSupabaseError('tenant_goals', goalsRes.error);
+  }
+
+  const goals = goalsRes.data || { revenue_goal: 0, appointments_goal: 0, clients_goal: 0 };
+
   return {
     clients,
     staffList,
@@ -197,6 +210,8 @@ export const fetchDashboardData = async ({
       todayAppointmentsCountRes.count || 0,
       yesterdayTransactionsRes.data || [],
       yesterdayAppointmentsCountRes.count || 0,
+      goals.revenue_goal || 0,
+      goals.appointments_goal || 0,
     ),
     profile: (profileRes.data as DashboardProfile | null) || null,
   };
