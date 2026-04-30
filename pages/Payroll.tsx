@@ -69,6 +69,7 @@ const Payroll: React.FC = () => {
                 .select('id, created_at, staff_id')
                 .eq('tenant_id', tenantId)
                 .eq('status', 'paid')
+                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
                 .gte('created_at', startOfRangeStr)
                 .lte('created_at', endOfRangeStr);
 

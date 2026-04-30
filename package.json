@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^0.577.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.4",
@@ -25,6 +26,7 @@
     "@types/node": "^22.14.0",
     "@types/papaparse": "^5.5.2",
     "@vitejs/plugin-react": "^5.0.0",
+    "supabase": "^2.95.6",
     "tailwindcss": "^4.2.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

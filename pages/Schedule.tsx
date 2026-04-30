@@ -61,6 +61,7 @@ interface CalendarAppointment {
   date: string;
   source?: string | null;
   channel?: string | null;
+  isOverbooked?: boolean;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -353,6 +354,7 @@ const Schedule: React.FC = () => {
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
 
   // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
@@ -397,6 +399,9 @@ const Schedule: React.FC = () => {
   const [filteredClients, setFilteredClients] = useState<DBClient[]>([]);
   const [isNewClientMode, setIsNewClientMode] = useState(false);
   const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
+  const [showOverbookModal, setShowOverbookModal] = useState(false);
+  const [overbookConflicts, setOverbookConflicts] = useState<CalendarAppointment[]>([]);
+  const [forceOverbook, setForceOverbook] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
   // Fetch base data
@@ -542,6 +547,7 @@ const Schedule: React.FC = () => {
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .gte('start_time', rangeStart)
       .lte('start_time', rangeEnd);
 
@@ -553,7 +559,8 @@ const Schedule: React.FC = () => {
       const { data: fallbackData, error: fallbackError } = await appointmentsClient
         .from('appointments')
         .select('*')
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false);
 
       if (fallbackError) {
         throw fallbackError;
@@ -593,6 +600,7 @@ const Schedule: React.FC = () => {
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
+          isOverbooked: apt.is_overbooked || false,
         };
       });
       setAppointments(mapped);
@@ -983,10 +991,20 @@ const Schedule: React.FC = () => {
     const cancelAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
     const cancelComandasClient = getClientForTable('comandas', scheduleAppSlug);
 
+    const isHidden = cancellationType === 'registration_error' || cancellationType === 'test';
+    const newStatus = cancellationType === 'no_show' ? 'no_show' : 'cancelled';
+
     try {
       const { error } = await cancelAppointmentsClient
         .from('appointments')
-        .update({ status: 'cancelled', cancellation_reason: cancelReason || 'Não informado' })
+        .update({
+          status: newStatus,
+          cancellation_reason: cancelReason || 'Não informado',
+          cancellation_type: cancellationType || null,
+          hidden_from_schedule: isHidden,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by_user_id: user?.id || null
+        })
         .eq('id', appointmentId)
         .eq('tenant_id', tenantId);
 
@@ -1011,6 +1029,7 @@ const Schedule: React.FC = () => {
   const openCancelModal = (appointment: CalendarAppointment) => {
     setAppointmentToCancel({ id: appointment.id, client: appointment.client });
     setCancelReason('');
+    setCancellationType('');
     setShowCancelModal(true);
   };
 
@@ -1213,7 +1232,7 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { preventLock?: boolean }) => {
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
       return;
@@ -1229,11 +1248,13 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    if (scheduleCreateLockRef.current) {
+    if (scheduleCreateLockRef.current && !options?.preventLock) {
       setError('Agendamento já está sendo criado. Aguarde alguns segundos.');
       return;
     }
-    scheduleCreateLockRef.current = true;
+    if (!options?.preventLock) {
+      scheduleCreateLockRef.current = true;
+    }
 
     if (!scheduleIdempotencyKeyRef.current) {
       scheduleIdempotencyKeyRef.current = generateIdempotencyKey('schedule-appt');
@@ -1282,6 +1303,29 @@ const Schedule: React.FC = () => {
       scheduleCreateLockRef.current = false;
       scheduleIdempotencyKeyRef.current = null;
       return;
+    }
+
+    if (!forceOverbook) {
+      const selectedDateKeyForCheck = toDateKey(formData.date);
+      const newStart = formData.start;
+      const newEnd = formData.start + Number(formData.duration);
+      const conflictingAppointments = appointments.filter(apt =>
+        apt.staffId === formData.staffId &&
+        toDateKey(apt.date) === selectedDateKeyForCheck &&
+        apt.status !== 'cancelled' &&
+        apt.id !== editingAppointmentId &&
+        !(
+          newEnd <= apt.start ||
+          newStart >= apt.start + apt.duration
+        )
+      );
+      if (conflictingAppointments.length > 0) {
+        setOverbookConflicts(conflictingAppointments);
+        setShowOverbookModal(true);
+        scheduleCreateLockRef.current = false;
+        scheduleIdempotencyKeyRef.current = null;
+        return;
+      }
     }
 
     try {
@@ -1368,6 +1412,7 @@ const Schedule: React.FC = () => {
         p_price: finalPrice,
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
+        p_is_overbooked: forceOverbook,
       });
 
       if (rpcError || !rpcResult) {
@@ -1404,6 +1449,20 @@ const Schedule: React.FC = () => {
       }
 
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+      navigate('/operation-success', {
+        state: {
+          operationType: 'appointment',
+          appointment: {
+            id: newAptId,
+            client: formData.client,
+            service: formData.service,
+            professional: selectedStaff?.name || '',
+            dateTime: startTimeLine.toISOString(),
+            status: 'confirmed',
+          },
+        },
+        replace: true,
+      });
     }
     } finally {
       scheduleCreateLockRef.current = false;
@@ -1413,6 +1472,8 @@ const Schedule: React.FC = () => {
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
+    setForceOverbook(false);
+    setOverbookConflicts([]);
     setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
     fetchAppointments();
   };
@@ -1856,10 +1917,13 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
-                                  title={`${apt.client} — ${apt.service}`}
+                                  title={`${apt.client} — ${apt.service}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
+                                  {apt.isOverbooked && (
+                                    <span className="absolute top-0.5 right-0.5 text-[8px] bg-amber-400 text-white rounded px-0.5 font-black">ENCAIXE</span>
+                                  )}
                                   <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
                                     <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
                                     {apt.client}
@@ -2974,19 +3038,51 @@ Podemos confirmar? 😄`;
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Motivo do cancelamento</label>
               <select
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
+                value={cancellationType}
+                onChange={(e) => {
+                  setCancellationType(e.target.value);
+                  setCancelReason(e.target.value === 'other' ? '' : e.target.value);
+                }}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="">Selecione um motivo</option>
-                <option value="Desistência do cliente">Desistência do cliente</option>
-                <option value="Profissional indisponível">Profissional indisponível</option>
-                <option value="Conflito de horário">Conflito de horário</option>
-                <option value="Problema de saúde">Problema de saúde</option>
-                <option value="Reagendamento">Reagendamento</option>
-                <option value="Outro">Outro</option>
+                <option value="client_cancelled">Cliente cancelou</option>
+                <option value="no_show">Não compareceu</option>
+                <option value="rescheduled">Reagendado</option>
+                <option value="registration_error">Erro de cadastro</option>
+                <option value="test">Teste interno</option>
+                <option value="other">Outro</option>
               </select>
             </div>
+
+            {cancellationType === 'registration_error' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  ⚠️ Este agendamento será <strong>ocultado da agenda operacional</strong>. Use esta opção quando o agendamento foi criado por engano ou com dados incorretos.
+                </p>
+              </div>
+            )}
+
+            {cancellationType === 'test' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  ⚠️ Este agendamento será <strong>ocultado da agenda operacional</strong>. Use esta opção para agendamentos de teste interno que não devem aparecer na operação.
+                </p>
+              </div>
+            )}
+
+            {cancellationType === 'other' && (
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Justificativa</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Descreva o motivo..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
@@ -2997,7 +3093,7 @@ Podemos confirmar? 😄`;
               </button>
               <button
                 onClick={confirmCancelAppointment}
-                disabled={!cancelReason}
+                disabled={!cancellationType || (cancellationType === 'other' && !cancelReason.trim())}
                 className="px-4 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirmar Cancelamento
@@ -3008,6 +3104,55 @@ Podemos confirmar? 😄`;
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {showOverbookModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowOverbookModal(false); setOverbookConflicts([]); setForceOverbook(false); }} />
+          <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Conflito de Horário</h3>
+              <p className="text-sm text-slate-500 mt-1">Horários já ocupados pelo profissional:</p>
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {overbookConflicts.map((apt) => (
+                <div key={apt.id} className="p-3 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-white">{apt.client}</p>
+                  <p className="text-xs text-slate-500">
+                    {apt.service} • {Math.floor(apt.start)}:{String(Math.round((apt.start % 1) * 60)).padStart(2, '0')} - {Math.floor(apt.start + apt.duration)}:{String(Math.round(((apt.start + apt.duration) % 1) * 60)).padStart(2, '0')}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800 font-medium">
+                ⚠️ Criar como <strong>encaixe</strong> significa sobrepor horários. Confirme que o profissional(atendimento) está ciente.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => { setShowOverbookModal(false); setOverbookConflicts([]); setForceOverbook(false); }}
+                className="px-4 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setForceOverbook(true);
+                  setShowOverbookModal(false);
+                  setOverbookConflicts([]);
+                  handleSave({ preventLock: true } as any);
+                }}
+                className="px-4 py-3 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors"
+              >
+                Criar como Encaixe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 };

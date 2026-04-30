@@ -76,9 +76,10 @@ try {
                     .eq('status', 'active'),
                 barberSupabase
                     .from('comandas')
-                    .select('id, created_at, status, staff_id')
+                    .select('id, created_at, status, staff_id, hidden_from_financial')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'paid')
+                    .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
                     .gte('created_at', startOfRangeStr)
                     .lte('created_at', endOfRangeStr),
                 barberSupabase

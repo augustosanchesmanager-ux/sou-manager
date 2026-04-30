@@ -115,6 +115,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', new Date().toISOString())
       .order('start_time', { ascending: true })
@@ -141,6 +142,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
@@ -156,6 +158,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id, client_id, client_name, start_time, status')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
@@ -166,6 +169,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('*')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
@@ -175,6 +179,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id, client_id, client_name, start_time, status')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
@@ -190,6 +195,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id, client_id, client_name, start_time, status')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();
@@ -205,6 +211,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('staff_id')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .eq('status', 'confirmed')
       .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
       .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
@@ -212,6 +219,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
       .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
@@ -219,6 +227,7 @@ export const fetchDashboardData = async ({
       .from('appointments')
       .select('id, client_id')
       .eq('tenant_id', tenantId)
+      .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
       .gte('start_time', (() => {
         const d = new Date();

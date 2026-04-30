@@ -243,14 +243,14 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
 
       const prevVisitorIds = new Set(
         prevAppointments
-          .filter((a: any) => a.status !== 'cancelled')
+          .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule)
           .map((a: any) => a.client_id)
           .filter(Boolean)
       );
 
       const currentVisitorIds = new Set(
         filteredAppointments
-          .filter((a: any) => a.status !== 'cancelled')
+          .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule)
           .map((a: any) => a.client_id)
           .filter(Boolean)
       );
@@ -270,7 +270,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
 
       const clientVisits: Record<string, Date[]> = {};
       appointments
-        .filter((a: any) => a.status !== 'cancelled' && a.client_id)
+        .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule && a.client_id)
         .forEach((a: any) => {
           if (!clientVisits[a.client_id]) clientVisits[a.client_id] = [];
           clientVisits[a.client_id].push(new Date(a.start_time));
@@ -317,7 +317,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       // Analytics
       const serviceMap: Record<string, TopService> = {};
       filteredAppointments
-        .filter((a: any) => a.service_name && a.status !== 'cancelled')
+        .filter((a: any) => a.service_name && a.status !== 'cancelled' && !a.hidden_from_schedule)
         .forEach((a: any) => {
           if (!serviceMap[a.service_name]) {
             serviceMap[a.service_name] = { name: a.service_name, count: 0, revenue: 0 };
