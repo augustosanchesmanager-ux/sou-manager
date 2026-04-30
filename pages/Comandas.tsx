@@ -38,6 +38,10 @@ interface Comanda {
     appointment_id?: string | null;
     status: ComandaStatus;
     cancellation_reason?: string | null;
+    cancellation_type?: string | null;
+    cancelled_at?: string | null;
+    cancelled_by_user_id?: string | null;
+    hidden_from_financial?: boolean | null;
     closure_mode?: 'standard' | 'legacy_membership' | null;
     closure_note?: string | null;
     financial_effect?: boolean | null;
@@ -104,13 +108,13 @@ interface ComandasPreferences {
 }
 
 const CANCEL_REASON_OTHER = '__other__';
-const CANCEL_REASON_OPTIONS = [
-    'Cliente desistiu',
-    'Cliente não compareceu',
-    'Erro no lancamento',
-    'Pagamento recusado',
-    'Solicitacao do profissional',
-    'Falta de produto ou servico',
+const CANCEL_TYPE_OPTIONS = [
+    { value: 'operational_error', label: 'Erro operacional' },
+    { value: 'test', label: 'Teste' },
+    { value: 'duplicate', label: 'Duplicidade' },
+    { value: 'client_gave_up', label: 'Cliente desistiu' },
+    { value: 'appointment_cancelled', label: 'Agendamento cancelado' },
+    { value: 'other', label: 'Outro' },
 ] as const;
 
 const STATUS_LABELS: Record<'all' | ComandaStatus, string> = {
@@ -257,7 +261,7 @@ const KpiCard: React.FC<{
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { appSlug, schema, tenantId, canAccessSuperAdmin } = useAuth();
+    const { appSlug, schema, tenantId, user, canAccessSuperAdmin } = useAuth();
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
@@ -634,11 +638,22 @@ const Comandas: React.FC = () => {
 
     const handleDelete = async (comanda: Comanda) => {
         if (!tenantId && !canAccessSuperAdmin) return;
+
         const reason = cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim();
         if (!reason) {
             setToast({ message: 'Informe o motivo do cancelamento.', type: 'error' });
             return;
         }
+
+        if (comanda.status === 'paid') {
+            const confirmed = window.confirm(
+                'Esta comanda foi fechada (status: paga). Anulá-la pode afetar o financeiro e comissões.\n\nTem certeza que deseja anular?'
+            );
+            if (!confirmed) return;
+        }
+
+        const isHiddenFinancial = ['operational_error', 'test', 'duplicate'].includes(cancelReason);
+
         setDeleting(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
@@ -647,28 +662,42 @@ const Comandas: React.FC = () => {
                 ? null
                 : requireTenantContext({ tenantId, appSlug: currentAppSlug, schema, table: 'comandas', operation: 'cancel comanda' }).tenantId;
 
-            let cancelQuery = client.from('comandas').update({ status: 'cancelled', cancellation_reason: reason }).eq('id', comanda.id);
+            const updatePayload: Record<string, unknown> = {
+                status: 'cancelled',
+                cancellation_reason: reason,
+                cancellation_type: cancelReason,
+                cancelled_at: new Date().toISOString(),
+                cancelled_by_user_id: user?.id || null,
+                hidden_from_financial: isHiddenFinancial,
+            };
+
+            let cancelQuery = client.from('comandas').update(updatePayload).eq('id', comanda.id);
             if (resolvedTenantId) cancelQuery = cancelQuery.eq('tenant_id', resolvedTenantId);
             let { error } = await cancelQuery;
 
-            if (error && `${error.message}`.toLowerCase().includes('cancellation_reason')) {
-                let fallbackQuery = client.from('comandas').update({ status: 'cancelled' }).eq('id', comanda.id);
-                if (resolvedTenantId) fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
-                const fallbackResult = await fallbackQuery;
-                error = fallbackResult.error;
-                if (!error) setToast({ message: 'Cancelada, mas motivo nao foi salvo.', type: 'info' });
+            if (error) {
+                if (`${error.message}`.toLowerCase().includes('cancellation_type')) {
+                    delete updatePayload.cancellation_type;
+                    delete updatePayload.cancelled_at;
+                    delete updatePayload.cancelled_by_user_id;
+                    delete updatePayload.hidden_from_financial;
+                    let fallbackQuery = client.from('comandas').update(updatePayload).eq('id', comanda.id);
+                    if (resolvedTenantId) fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
+                    const fallbackResult = await fallbackQuery;
+                    error = fallbackResult.error;
+                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria nao foram salvos.', type: 'info' });
+                }
+                if (error) throw error;
             }
 
-            if (error) throw error;
-            if (!error) setToast({ message: 'Comanda cancelada com sucesso.', type: 'success' });
-
+            setToast({ message: 'Comanda anulada com sucesso.', type: 'success' });
             setDeleteComanda(null);
             setCancelReason('');
             setCancelReasonOther('');
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Erro ao cancelar: ${error.message}`, type: 'error' });
+            setToast({ message: `Erro ao anular: ${error.message}`, type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -918,13 +947,20 @@ const Comandas: React.FC = () => {
             <Modal
                 isOpen={!!deleteComanda}
                 onClose={() => { setDeleteComanda(null); setCancelReason(''); setCancelReasonOther(''); }}
-                title="Cancelar Comanda"
+                title="Anular Comanda"
                 maxWidth="sm"
             >
                 {deleteComanda && (
                     <div className="space-y-4">
+                        {deleteComanda.status === 'paid' && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <p className="text-xs font-medium text-amber-800">
+                                    ⚠️ Esta comanda está <strong>PAGA</strong>. Anulá-la pode afetar o financeiro e comissões.
+                                </p>
+                            </div>
+                        )}
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Cancelar comanda <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
+                            Anular comanda <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
                         </p>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-500">Motivo</label>
@@ -934,7 +970,7 @@ const Comandas: React.FC = () => {
                                 className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
                             >
                                 <option value="">Selecione...</option>
-                                {CANCEL_REASON_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                                {CANCEL_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                 <option value={CANCEL_REASON_OTHER}>Outro</option>
                             </select>
                             {cancelReason === CANCEL_REASON_OTHER && (
@@ -947,10 +983,17 @@ const Comandas: React.FC = () => {
                                 />
                             )}
                         </div>
+                        {['operational_error', 'test', 'duplicate'].includes(cancelReason) && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <p className="text-xs font-medium text-amber-800">
+                                    ⚠️ Esta comanda <strong>não será considerada no financeiro</strong>.
+                                </p>
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             <Button variant="secondary" onClick={() => { setDeleteComanda(null); setCancelReason(''); setCancelReasonOther(''); }} disabled={deleting} className="flex-1">Voltar</Button>
                             <Button variant="danger" onClick={() => deleteComanda && handleDelete(deleteComanda)} disabled={deleting || !(cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim())} className="flex-1">
-                                {deleting ? 'Cancelando...' : 'Confirmar'}
+                                {deleting ? 'Anulando...' : 'Confirmar Anulação'}
                             </Button>
                         </div>
                     </div>
