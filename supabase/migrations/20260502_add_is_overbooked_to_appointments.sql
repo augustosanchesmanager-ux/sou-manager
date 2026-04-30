@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE public.appointments
+ADD COLUMN IF NOT EXISTS is_overbooked BOOLEAN NOT NULL DEFAULT false;
+
+COMMIT;
