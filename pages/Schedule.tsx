@@ -100,6 +100,7 @@ interface NewAppointmentForm {
   start: number;
   duration: number;
   notes: string;
+  isFitIn: boolean;
 }
 
 interface ScheduleBlockForm {
@@ -381,6 +382,7 @@ const Schedule: React.FC = () => {
     start: 8,
     duration: 1,
     notes: '',
+    isFitIn: false,
   });
 
   useEffect(() => {
@@ -388,7 +390,7 @@ const Schedule: React.FC = () => {
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
-    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '', isFitIn: false }));
     setIsModalOpen(true);
 
     navigate(location.pathname, { replace: true, state: null });
@@ -1305,7 +1307,31 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    if (!forceOverbook) {
+    let forceOverbookEffective = forceOverbook;
+    if (formData.isFitIn && !forceOverbook) {
+      const selectedDateKeyForCheck = toDateKey(formData.date);
+      const newStart = formData.start;
+      const newEnd = formData.start + Number(formData.duration);
+      const conflictingAppointments = appointments.filter(apt =>
+        apt.staffId === formData.staffId &&
+        toDateKey(apt.date) === selectedDateKeyForCheck &&
+        apt.status !== 'cancelled' &&
+        apt.id !== editingAppointmentId &&
+        !(
+          newEnd <= apt.start ||
+          newStart >= apt.start + apt.duration
+        )
+      );
+      if (conflictingAppointments.length > 0) {
+        const confirmMsg = "Este horário já possui atendimento. Deseja criar como encaixe mesmo assim?";
+        if (!window.confirm(confirmMsg)) {
+          scheduleCreateLockRef.current = false;
+          scheduleIdempotencyKeyRef.current = null;
+          return;
+        }
+        forceOverbookEffective = true;
+      }
+    } else if (!forceOverbook) {
       const selectedDateKeyForCheck = toDateKey(formData.date);
       const newStart = formData.start;
       const newEnd = formData.start + Number(formData.duration);
@@ -1412,7 +1438,7 @@ const Schedule: React.FC = () => {
         p_price: finalPrice,
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_is_overbooked: forceOverbook,
+        p_is_overbooked: forceOverbookEffective,
       });
 
       if (rpcError || !rpcResult) {
@@ -1474,7 +1500,7 @@ const Schedule: React.FC = () => {
     setEditingAppointmentId(null);
     setForceOverbook(false);
     setOverbookConflicts([]);
-    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '', isFitIn: false });
     fetchAppointments();
   };
 
@@ -1783,7 +1809,7 @@ Podemos confirmar? 😄`;
           <button
             onClick={() => {
               setEditingAppointmentId(null);
-              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '', isFitIn: false }));
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
@@ -2538,6 +2564,28 @@ Podemos confirmar? 😄`;
               className="w-full resize-none bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
+
+          {!editingAppointmentId && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.isFitIn}
+                  onChange={(e) => setFormData(prev => ({ ...prev, isFitIn: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-500 focus:ring-amber-400"
+                />
+                <div>
+                  <span className="text-sm font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-base">flash_on</span>
+                    Criar como encaixe
+                  </span>
+                  <span className="block text-xs text-amber-600 dark:text-amber-400 mt-0.5 ml-0.5">
+                    Use quando o cliente será atendido mesmo com outro horário já ocupado.
+                  </span>
+                </div>
+              </label>
+            </div>
+          )}
 
           <div className="pt-4 flex justify-end gap-3">
             <button
