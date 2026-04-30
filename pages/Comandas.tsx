@@ -212,7 +212,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
         if (!rawValue) return defaultPreferences;
         const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
         return {
-            filterStatus: ['all', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
+            filterStatus: ['all', 'blocked', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
                 ? (parsed.filterStatus as 'all' | ComandaStatus)
                 : defaultPreferences.filterStatus,
             searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
@@ -431,13 +431,16 @@ const Comandas: React.FC = () => {
 
         if (commandsToUnblock.length === 0) return;
 
+        const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+
         const unblockComandas = async () => {
             try {
-                const unblockClient = getScopedClient('barber');
+                const unblockClient = getScopedClient(currentAppSlug);
                 const { error } = await unblockClient
                     .from('comandas')
                     .update({ status: 'open' })
-                    .in('id', commandsToUnblock);
+                    .in('id', commandsToUnblock)
+                    .eq('tenant_id', tenantId);
 
                 if (error) {
                     console.warn('Erro ao desbloquear comandas:', error);
@@ -455,7 +458,7 @@ const Comandas: React.FC = () => {
         };
 
         unblockComandas();
-    }, [comandas, tenantId]);
+    }, [comandas, tenantId, appSlug]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -512,7 +515,14 @@ const Comandas: React.FC = () => {
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
-        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax;
+        const hasService = c.comanda_items.some((item) => item.service_id);
+        const hasProduct = c.comanda_items.some((item) => item.product_id);
+        const matchesConsumptionType =
+            consumptionType === 'all' ||
+            (consumptionType === 'service' && hasService && !hasProduct) ||
+            (consumptionType === 'product' && hasProduct && !hasService) ||
+            (consumptionType === 'mixed' && hasService && hasProduct);
+        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax && matchesConsumptionType;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -545,11 +555,11 @@ const Comandas: React.FC = () => {
     const allOpenInViewSelected = openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id));
 
     const tabs = [
-        { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
-        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: blockedCountAll },
-        { key: 'open' as const, label: STATUS_LABELS.open, count: openCountAll },
-        { key: 'paid' as const, label: STATUS_LABELS.paid, count: paidCountAll },
-        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: cancelledCountAll },
+        { key: 'all' as const, label: STATUS_LABELS.all, count: dateFilteredComandas.length },
+        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: dateFilteredComandas.filter((c) => c.status === 'blocked').length },
+        { key: 'open' as const, label: STATUS_LABELS.open, count: dateFilteredComandas.filter((c) => c.status === 'open').length },
+        { key: 'paid' as const, label: STATUS_LABELS.paid, count: dateFilteredComandas.filter((c) => c.status === 'paid').length },
+        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: dateFilteredComandas.filter((c) => c.status === 'cancelled').length },
     ];
 
     const openCount = dateFilteredComandas.filter((c) => c.status === 'open').length;
@@ -598,7 +608,9 @@ const Comandas: React.FC = () => {
         setConsumptionType('all');
         setSortField('date');
         setSortDirection('desc');
-        applyQuickRange('today');
+        setQuickRange('today');
+        setDateFrom(formatDateInputValue(new Date()));
+        setDateTo('');
     };
 
     const generateCSV = () => {

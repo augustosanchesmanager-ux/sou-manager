@@ -158,6 +158,21 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                         {statusMeta.label}
                     </span>
                 </div>
+                {comanda.status === 'blocked' && (
+                    <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm text-blue-600 dark:text-blue-400">lock</span>
+                            <div>
+                                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Bloqueada ate o atendimento</p>
+                                {appointmentDate && (
+                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                        Agendado para: {appointmentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-4">
                     <p className="text-lg font-bold text-slate-900 dark:text-white">{comanda.clients.name}</p>
@@ -249,8 +264,21 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                     </div>
                 </div>
 
-                <div className="grid gap-2">
-                    {comanda.status === 'open' ? (
+<div className="grid gap-2">
+                    {comanda.status === 'blocked' ? (
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                if (window.confirm('Deseja liberar esta comanda para fechamento agora? O agendamento ainda nao ocorreu.')) {
+                                    onCheckout();
+                                }
+                            }}
+                            leftIcon="lock_open"
+                            className="w-full justify-center"
+                        >
+                            Liberar agora
+                        </Button>
+                    ) : comanda.status === 'open' ? (
                         <Button
                             onClick={onCheckout}
                             leftIcon="point_of_sale"
@@ -276,14 +304,14 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                     >
                         Imprimir
                     </Button>
-                    {comanda.status === 'open' && (
+                    {['open', 'blocked'].includes(comanda.status) && (
                         <Button
                             variant="ghost"
                             onClick={onCancel}
                             leftIcon="block"
                             className="w-full justify-center text-red-400"
                         >
-                            Cancelar comanda
+                            Anular comanda
                         </Button>
                     )}
                 </div>

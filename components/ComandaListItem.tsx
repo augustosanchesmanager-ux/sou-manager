@@ -223,10 +223,25 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
 
                 <div className="flex shrink-0 items-center gap-1">
                     {comanda.status === 'blocked' ? (
-                        <div className="flex items-center gap-1 rounded-lg bg-blue-500/10 px-2 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
-                            <span className="material-symbols-outlined text-[14px]">lock</span>
-                            Bloqueada
-                        </div>
+                        <>
+                            <button
+                                type="button"
+                                onClick={(e) => handleAction(e, onSelectForSidebar)}
+                                className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                                title="Ver detalhes"
+                            >
+                                <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => handleAction(e, onCancel)}
+                                className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
+                                title="Anular comanda"
+                            >
+                                <span className="material-symbols-outlined text-[14px]">block</span>
+                                Anular
+                            </button>
+                        </>
                     ) : comanda.status === 'open' ? (
                         <button
                             type="button"
