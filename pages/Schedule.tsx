@@ -1449,6 +1449,20 @@ const Schedule: React.FC = () => {
       }
 
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
+      navigate('/operation-success', {
+        state: {
+          operationType: 'appointment',
+          appointment: {
+            id: newAptId,
+            client: formData.client,
+            service: formData.service,
+            professional: selectedStaff?.name || '',
+            dateTime: startTimeLine.toISOString(),
+            status: 'confirmed',
+          },
+        },
+        replace: true,
+      });
     }
     } finally {
       scheduleCreateLockRef.current = false;

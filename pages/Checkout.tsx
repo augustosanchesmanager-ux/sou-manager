@@ -1173,15 +1173,19 @@ const Checkout: React.FC = () => {
             });
 
             if (paymentStatus === 'paid' && !isLegacyClubSettlement) {
-                navigate('/payment-success', {
+                navigate('/operation-success', {
                     state: {
-                        client: selectedClient,
-                        total,
-                        paymentMethod,
-                        paymentStatus,
-                        comandaId: currentComandaId,
-                        cart
-                    }
+                        operationType: 'comanda',
+                        comanda: {
+                            id: currentComandaId,
+                            client: selectedClient.name,
+                            total,
+                            paymentMethod,
+                            itemsCount: cart.length,
+                            status: 'paid',
+                        },
+                    },
+                    replace: true,
                 });
             } else {
                 setTimeout(() => {
