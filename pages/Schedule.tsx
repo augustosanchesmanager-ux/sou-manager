@@ -62,6 +62,9 @@ interface CalendarAppointment {
   source?: string | null;
   channel?: string | null;
   isOverbooked?: boolean;
+  subscriptionId?: string | null;
+  eligibleForPlanCredit?: boolean;
+  planCreditPreview?: Record<string, unknown> | null;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -603,6 +606,9 @@ const Schedule: React.FC = () => {
           source: apt.source || null,
           channel: apt.channel || null,
           isOverbooked: apt.is_overbooked || false,
+          subscriptionId: apt.subscription_id || null,
+          eligibleForPlanCredit: apt.eligible_for_plan_credit || false,
+          planCreditPreview: apt.plan_credit_preview || null,
         };
       });
       setAppointments(mapped);
@@ -1290,7 +1296,7 @@ const Schedule: React.FC = () => {
 
     const startHours = Math.floor(formData.start);
     const startMinutes = (formData.start % 1) * 60;
-    const startTimeLine = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00`);
+    const startTimeLine = new Date(`${formData.date}T${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}:00.000`);
 
     const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
     const selectedDateKeyForSave = toDateKey(formData.date);
@@ -1950,6 +1956,9 @@ Podemos confirmar? 😄`;
                                   {apt.isOverbooked && (
                                     <span className="absolute top-0.5 right-0.5 text-[8px] bg-amber-400 text-white rounded px-0.5 font-black">ENCAIXE</span>
                                   )}
+                                  {apt.eligibleForPlanCredit && (
+                                    <span className="absolute bottom-0.5 right-0.5 text-[8px] bg-amber-500/80 text-white rounded px-0.5 font-black">CC</span>
+                                  )}
                                   <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
                                     <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
                                     {apt.client}
@@ -2051,6 +2060,9 @@ Podemos confirmar? 😄`;
                                       {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
                                       {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
                                       {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
+                                      {apt.eligibleForPlanCredit && (
+                                        <span className="ml-1 text-[10px] font-black text-amber-300" title="Clube dos Chefes - Elegível para crédito">CC</span>
+                                      )}
                                     </div>
                                   </div>
                                   <p className="text-xs font-black text-white truncate leading-none drop-shadow-sm mt-0.5">
@@ -3057,6 +3069,21 @@ Podemos confirmar? 😄`;
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observação</p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
               </div>
+
+              {selectedAppointmentDetails.eligibleForPlanCredit && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-amber-600 text-lg">workspace_premium</span>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300">Clube dos Chefes</p>
+                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">Este serviço está elegível para crédito do plano.</p>
+                  {selectedAppointmentDetails.planCreditPreview && (
+                    <p className="text-xs text-amber-500 dark:text-amber-500">
+                      Serviço: {selectedAppointmentDetails.planCreditPreview?.service_name || selectedAppointmentDetails.service}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
              <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
