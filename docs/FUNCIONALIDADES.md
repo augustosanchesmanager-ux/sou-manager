@@ -33,7 +33,7 @@ Atualizado em: 09/03/2026
 - `Operacoes` (`/operations`) e `Pedidos` (`/orders`): acompanhamento operacional e compras/reposicao.
 
 ### 1.5 Inteligencia e estrategia
-- `BI` (`/bi`): analise de indicadores e insights com Gemini (com fallback quando IA nao configurada).
+- `BI` (`/bi`): analise de indicadores e insights automaticos baseados nos dados da operacao.
 - `Smart Return` (`/smart-return`): identificacao de clientes em risco de nao retorno.
 - `Strategic Dashboard` (`/strategic-dashboard`): indicadores estrategicos por periodo.
 
@@ -77,7 +77,6 @@ Atualizado em: 09/03/2026
 
 ## 3) Observacoes de operacao
 - Portal e Kiosk dependem de addon habilitado por tenant (`tenant_addons`). Quando desabilitado, a tela mostra indisponibilidade de acesso (comportamento esperado).
-- Recursos de IA dependem de `VITE_GEMINI_API_KEY` valida.
 
 ## 4) Proxima revisao sugerida
 - Atualizar este documento sempre que uma funcionalidade sair do estado "em ajuste" para "ativa".

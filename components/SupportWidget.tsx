@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateSupportResponse } from '../services/geminiService';
+import { generateSupportResponse } from '../services/supportAssistant';
 
 interface Message {
     id: string;
@@ -9,7 +9,6 @@ interface Message {
     timestamp: Date;
 }
 
-// O assistente agora utiliza a função generateSupportResponse via IA Gemini para respostas dinâmicas.
 const QUICK_REPLIES = [
     'Como cadastrar um cliente?',
     'Como fechar o caixa?',

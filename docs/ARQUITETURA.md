@@ -10,7 +10,6 @@ O sistema utiliza as tecnologias mais recentes do ecossistema web:
 - **Linguagem**: [TypeScript](https://www.typescriptlang.org/) para maior segurança de código.
 - **Estilização**: [Tailwind CSS v4](https://tailwindcss.com/) para interfaces modernas e responsivas.
 - **Backend/Banco de Dados**: [Supabase](https://supabase.com/) (PostgreSQL + Auth + Realtime).
-- **Inteligência Artificial**: [Google Gemini AI](https://ai.google.dev/) para geração de insights e relatórios inteligentes.
 - **Roteamento**: `react-router-dom` (HashRouter para compatibilidade).
 - **Gráficos**: [Recharts](https://recharts.org/) para visualização de dados financeiros e de performance.
 
@@ -25,7 +24,7 @@ sou-mana.ger/
 ├── docs/                # Documentação detalhada do sistema
 ├── pages/               # Páginas e views principais da aplicação
 │   └── onboarding/      # Fluxos de boas-vindas e configuração inicial
-├── services/            # Integrações com APIs externas (Supabase, Gemini)
+├── services/            # Integrações com APIs externas e serviços do app
 ├── types.ts             # Definições de tipos TypeScript globais
 ├── App.tsx              # Configuração de rotas e provedores
 └── index.tsx            # Ponto de entrada da aplicação

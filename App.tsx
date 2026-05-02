@@ -27,6 +27,7 @@ const Financial = lazy(() => import('./pages/Financial'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
+const SystemSelector = lazy(() => import('./pages/SystemSelector'));
 const Operations = lazy(() => import('./pages/Operations'));
 const OperationSuccess = lazy(() => import('./pages/OperationSuccess'));
 const OrderDetails = lazy(() => import('./pages/OrderDetails'));
@@ -160,6 +161,7 @@ const AppRoutes: React.FC = () => {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/select-system" element={<SystemSelector />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-success" element={<RegisterSuccess />} />
         <Route path="/reset-password" element={<ResetPassword />} />

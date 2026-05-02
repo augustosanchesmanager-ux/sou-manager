@@ -106,10 +106,6 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # apenas no server, nunca exposta
 # Vercel — obrigatórias (em Configurações do projeto Vercel)
 VITE_SUPABASE_URL=https://<project>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon-key>
-
-# Gemini — para funcionalidades de AI
-VITE_GEMINI_API_KEY=<key>
-GEMINI_API_KEY=<key>    # para build time injection
 ```
 
 Verificar também:

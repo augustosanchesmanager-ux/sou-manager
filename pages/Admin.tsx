@@ -769,7 +769,7 @@ const Admin: React.FC = () => {
                                             { feature: 'Folha de Pagamento Auto', free: false, pro: true, elite: true },
                                             { feature: 'Gestão de Recibos Digitais', free: false, pro: true, elite: true },
                                             { feature: 'Motor de Retorno Inteligente', free: false, pro: false, elite: true },
-                                            { feature: 'IA Gemini: Insights Preditivos', free: false, pro: false, elite: true },
+                                            { feature: 'Insights Preditivos', free: false, pro: false, elite: true },
                                             { feature: 'Totem / Kiosk Autoatendimento', free: false, pro: false, elite: true },
                                             { feature: 'Gestão Multiloja (Dashboard)', free: false, pro: false, elite: true },
                                             { feature: 'Suporte Prioritário VIP', free: false, pro: false, elite: true },

@@ -85,7 +85,7 @@ const PRICING_PLANS = [
     features: [
       'Tudo do Profissional',
       'Motor de Retorno Inteligente',
-      'IA Gemini: Insights Preditivos',
+      'Insights Preditivos',
       'Totem / Kiosk de Autoatendimento',
       'Gestão Multiloja Dashboard',
       'Suporte Prioritário VIP'

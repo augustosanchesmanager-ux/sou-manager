@@ -20,7 +20,7 @@ const SALE_RESPONSES: Record<string, string> = {
         '💰 Temos 3 planos pensados para o seu momento:\n\n1. **Gratuito**: Ideal para começar (agendamentos e clientes).\n2. **Profissional**: Gestão completa de vendas, financeiro e equipe.\n3. **Elite**: Para quem quer escala. Inclui BI Avançado, Automações e Suporte VIP.\n\nRole a página até a seção de **Preços** para ver os detalhes!',
 
     'o sistema tem bi?':
-        '📊 Sim! No plano **Elite**, você tem acesso ao nosso Dashboard de **Business Intelligence** com **Insights de IA (Gemini)**. Ele analisa seu faturamento e usa o **Motor de Retorno Inteligente** para identificar clientes sumidos, sugerindo ações para seu time agir na hora certa.',
+        '📊 Sim! No plano **Elite**, você tem acesso ao nosso Dashboard de **Business Intelligence** com insights automáticos. Ele analisa seu faturamento e usa o **Motor de Retorno Inteligente** para identificar clientes sumidos, sugerindo ações para seu time agir na hora certa.',
 
     'como funciona o suporte?':
         '🛠️ Nosso suporte é humanizado! No plano Profissional e Elite, você tem canal direto via WhatsApp e e-mail. No plano Elite, o suporte é prioritário.',
