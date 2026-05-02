@@ -9,7 +9,6 @@ Antes de iniciar, certifique-se de ter instalado:
 - **Node.js** (versão 18 ou superior recomendada)
 - **npm** ou **pnpm**
 - Conta no **Supabase**
-- Chave de API do **Google Gemini** (AI Studio)
 
 ## Configuração do Ambiente
 
@@ -32,7 +31,6 @@ Antes de iniciar, certifique-se de ter instalado:
    ```env
    VITE_SUPABASE_URL=sua_url_do_supabase
    VITE_SUPABASE_ANON_KEY=sua_chave_anon_do_supabase
-   VITE_GEMINI_API_KEY=sua_chave_api_do_gemini
    ```
 
 4. **Inicie o servidor de desenvolvimento**:

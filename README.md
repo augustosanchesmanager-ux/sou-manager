@@ -4,7 +4,7 @@
 
 # SOU MANA.GER - Sistema de Gestão para Barbearias e Estética
 
-O **SOU MANA.GER** é uma plataforma completa e inteligente para gestão de negócios do setor de beleza. Utilizando inteligência artificial para gerar insights estratégicos, o sistema ajuda a otimizar processos, fidelizar clientes e aumentar a lucratividade.
+O **SOU MANA.GER** é uma plataforma completa e inteligente para gestão de negócios do setor de beleza. O sistema ajuda a otimizar processos, fidelizar clientes e aumentar a lucratividade com dados operacionais e automações do produto.
 
 ## 🚀 Como Iniciar
 
@@ -12,7 +12,6 @@ O **SOU MANA.GER** é uma plataforma completa e inteligente para gestão de neg�
 
 - Node.js
 - Conta no Supabase
-- Chave de API Google Gemini
 
 ### Execução Local
 

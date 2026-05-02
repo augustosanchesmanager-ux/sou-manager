@@ -19,7 +19,7 @@ SOU MANA.GER e uma plataforma SaaS para barbearias e centros de estetica com ope
 - organiza operacao de equipe, servicos e produtos
 - estrutura visao financeira (receitas, despesas, recibos, relatorios)
 - permite autosservico do cliente via Portal e Kiosk
-- inclui suporte operacional e insights com IA
+- inclui suporte operacional e insights automáticos
 
 ### 2.2 Perfis de acesso
 - superadmin
@@ -32,7 +32,6 @@ SOU MANA.GER e uma plataforma SaaS para barbearias e centros de estetica com ope
 - frontend: React + TypeScript + Vite
 - roteamento: react-router-dom (HashRouter)
 - backend: Supabase (PostgreSQL, Auth, Functions)
-- IA: Google Gemini
 - graficos: Recharts
 
 ### 3.2 Estrutura principal
@@ -150,7 +149,7 @@ O isolamento entre barbearias/unidades e feito por `tenant_id` (RLS no Supabase)
 - BI
 - strategic dashboard
 - smart return
-- widgets de suporte com IA
+- widgets de suporte com respostas locais guiadas
 
 ### 6.5 SaaS e governanca
 - admin
@@ -163,9 +162,8 @@ O isolamento entre barbearias/unidades e feito por `tenant_id` (RLS no Supabase)
 - kiosk/totem
 
 ## 7. Servicos e funcoes criticas
-### 7.1 `services/geminiService.ts`
-- `generateBusinessInsights(metrics)`: gera recomendacao estrategica a partir de metricas
-- `generateSupportResponse(userQuestion)`: responde duvidas com base de conhecimento do produto
+### 7.1 `services/supportAssistant.ts`
+- `generateSupportResponse(userQuestion)`: responde duvidas com base de conhecimento local do produto
 
 ### 7.2 `services/portalApi.ts`
 - `requestOtp(tenantId, phone)`
@@ -227,7 +225,6 @@ Controles implementados:
 ## 9. Dependencias de ambiente
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_GEMINI_API_KEY`
 - `PORTAL_JWT_SECRET` (Edge Function)
 - `SUPABASE_SERVICE_ROLE_KEY` (Edge Function)
 
@@ -257,7 +254,7 @@ Controles implementados:
 - suite de migracoes com validacao CI
 
 ## 11. Riscos tecnicos monitorados
-- dependencia de variaveis de ambiente para IA e portal
+- dependencia de variaveis de ambiente para portal
 - partes do sistema ainda com dados mockados
 - fluxo de OTP depende de qualidade de canais de entrega externos
 
@@ -268,7 +265,7 @@ Inventario consolidado das funcoes mais relevantes para manutencao e onboarding,
 
 | Arquivo | Funcoes/handlers | Responsabilidade |
 |---|---|---|
-| `pages/Dashboard.tsx` | `handleGenerateInsight`, `handleCreateNewClient`, `handleConfirmAppointment`, `handleCancelAppointment`, `handleCompleteAppointment` | Gestao da operacao do dia, atalhos rapidos e acao de IA no painel principal. |
+| `pages/Dashboard.tsx` | `handleGenerateInsight`, `handleCreateNewClient`, `handleConfirmAppointment`, `handleCancelAppointment`, `handleCompleteAppointment` | Gestao da operacao do dia, atalhos rapidos e acao de insight no painel principal. |
 | `pages/Schedule.tsx` | `handleSave`, `handleDropAppointment`, `handleCancelAppointment`, `selectClient`, `exportToCSV` | Agenda completa: criacao/edicao, drag-and-drop, cancelamento e exportacao. |
 | `pages/Checkout.tsx` | `handleSelectClient`, `handleAddItem`, `handleRemoveItem`, `calculateItemPrice`, `handleFinish` | Fluxo de venda e fechamento com servicos/produtos. |
 | `pages/Clients.tsx` | `handleCreateClient`, `handleSaveEdit`, `handleDelete`, `handleExportCSV`, `handleConfirmImport` | CRUD de clientes, importacao e exportacao de base. |
@@ -307,7 +304,7 @@ Inventario consolidado das funcoes mais relevantes para manutencao e onboarding,
 |---|---|---|
 | `services/supabaseClient.ts` | `supabase` | Inicializacao do client Supabase no frontend. |
 | `services/portalApi.ts` | `requestOtp`, `verifyOtp`, `validateSession` | Camada de API para autenticacao e sessao do portal. |
-| `services/geminiService.ts` | `generateBusinessInsights`, `generateSupportResponse` | Integracao com IA para insights de negocio e suporte guiado. |
+| `services/supportAssistant.ts` | `generateSupportResponse` | Respostas locais guiadas para o widget de suporte. |
 | `supabase/functions/portal-auth/index.ts` | `request_otp`, `verify_otp`, `validate_session` | Edge function de OTP do portal com rate limit, expiracao e emissao/validacao de token. |
 | `supabase/functions/admin-create-user/index.ts` | `Deno.serve` (handler principal) | Criacao administrativa de usuarios com validacao de privilegio e sincronizacao com `staff`. |
 

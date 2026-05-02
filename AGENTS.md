@@ -10,7 +10,6 @@
 - **Router**: `react-router-dom` with **HashRouter** (not BrowserRouter). Required for Vercel SPA deployment (`vercel.json` has a catch-all rewrite to `index.html`).
 - **State**: Pure React Context — `AuthContext` → `TenantProvider` → `AppProvider` → `ThemeProvider`. No Redux/Zustand.
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime). Migrations live in `supabase/migrations/`.
-- **AI**: Google Gemini via `@google/generative-ai`.
 - **No test runner**, **no linter**, **no formatter** configured. Do not assume `npm test` or `npm run lint` exist.
 
 ---
@@ -33,12 +32,9 @@ Create `.env.local` in the repo root (do not commit it):
 ```env
 VITE_SUPABASE_URL=<url>
 VITE_SUPABASE_ANON_KEY=<anon-key>
-VITE_GEMINI_API_KEY=<key>
 VITE_SUPABASE_MULTI_SCHEMA_ENABLED=false   # Optional; see Multi-App Architecture
 VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}  # Optional JSON hostname→appSlug map
 ```
-
-`vite.config.ts` also injects `process.env.GEMINI_API_KEY` at build time from `env.GEMINI_API_KEY`.
 
 ---
 
@@ -168,4 +164,3 @@ Check for:
 4. **Is there a schema mismatch?** Compare `VITE_SUPABASE_MULTI_SCHEMA_ENABLED` with the migration target environment.
 5. **Is there a duplicate listener/subscription?** Search for `onAuthStateChange` and `useEffect` without cleanup.
 6. **Is the root cause a side effect or a symptom?** Trace the error backward from the UI to the context to the RPC/query.
-
