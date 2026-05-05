@@ -64,7 +64,7 @@ export const useRecurringBills = () => {
         .from('transactions')
         .select('id, description, amount, date, category, status, notes')
         .eq('tenant_id', tenantId)
-        .eq('type', 'expense')
+        .in('type', ['expense', 'recurring'])
         .order('date', { ascending: false })
         .limit(50);
 
@@ -72,6 +72,7 @@ export const useRecurringBills = () => {
         console.warn('Erro ao carregar bills:', fetchError.message);
         setBills([]);
       } else {
+        console.log('[fetchBills] data:', data);
         const mappedBills = (data || []).map((item: any) => ({
           id: item.id,
           name: item.description,
@@ -164,7 +165,9 @@ export const useRecurringBills = () => {
       .select()
       .single();
 
+    console.log('[createBill] result - data:', data, 'error:', error);
     if (error) throw error;
+    console.log('[createBill] success, data:', data);
     await fetchBills();
     return data;
   };

@@ -122,7 +122,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                     .select('*')
                     .eq('subscription_id', subscriptionId)
                     .eq('tenant_id', tenantId)
-                    .single(),
+                    .maybeSingle(),
             ]);
 
             if (subRes.error) throw subRes.error;

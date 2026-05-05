@@ -74,6 +74,8 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    console.log('[handleSave] starting, payload:', { name: formData.name, amount: formData.amount, due_day: formData.due_day, category: formData.category, is_active: formData.is_active });
+    console.log('[handleSave] tenantId:', tenantId, 'editingBill:', editingBill);
 
     try {
       const payload = {
@@ -96,6 +98,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
       setIsModalOpen(false);
       refresh();
     } catch (err: any) {
+      console.error('[handleSave] error:', err);
       setToast({ message: err.message || 'Erro ao salvar', type: 'error' });
     } finally {
       setSaving(false);

@@ -61,6 +61,8 @@ const PortalApp = lazy(() => import('./pages/portal/PortalApp'));
 const PortalLanding = lazy(() => import('./pages/portal/PortalLanding'));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
 const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'));
+const ImportExport = lazy(() => import('./pages/ImportExport'));
+const ImportExportTemplates = lazy(() => import('./pages/ImportExportTemplates'));
 
 const RouteFallback: React.FC = () => (
   <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
@@ -217,6 +219,9 @@ const AppRoutes: React.FC = () => {
             <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
             <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
+            <Route path="/import-export" element={<ManagerRoute><ImportExport /></ManagerRoute>} />
+            <Route path="/import-export/templates" element={<ManagerRoute><ImportExportTemplates /></ManagerRoute>} />
+            <Route path="/import-export/:entity" element={<ManagerRoute><ImportExport /></ManagerRoute>} />
             <Route path="/superadmin" element={<SuperAdminRoute><SuperAdmin /></SuperAdminRoute>} />
           </Route>
         </Route>

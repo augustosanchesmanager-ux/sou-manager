@@ -320,3 +320,124 @@ export const fetchChefClubCreditsByClients = async (
 
   return resultMap;
 };
+
+// ============================================================
+// Phase 3A: RPC-based functions for Club Club integration
+// These call backend RPCs directly - frontend only displays
+// ============================================================
+
+import { type ChefClubPlanStatus, type ChefClubCreditPreview, type ChefClubCreditUsage } from '../../types/membership';
+
+export const fetchChefClubPlanStatus = async (
+  tenantId: string,
+  clientId: string
+): Promise<ChefClubPlanStatus | null> => {
+  try {
+    const { data, error } = await supabase.rpc('get_customer_plan_status', {
+      p_tenant_id: tenantId,
+      p_client_id: clientId,
+    });
+
+    if (error) {
+      console.warn('[fetchChefClubPlanStatus] RPC error:', error);
+      return null;
+    }
+
+    if (!data || !data.has_active_subscription) {
+      return null;
+    }
+
+    return data as ChefClubPlanStatus;
+  } catch (err) {
+    console.warn('[fetchChefClubPlanStatus] Exception:', err);
+    return null;
+  }
+};
+
+export const fetchChefClubCreditPreview = async (
+  tenantId: string,
+  clientId: string,
+  serviceId: string,
+  checkoutDate?: string
+): Promise<ChefClubCreditPreview | null> => {
+  try {
+    const { data, error } = await supabase.rpc('preview_plan_credit_for_service', {
+      p_tenant_id: tenantId,
+      p_client_id: clientId,
+      p_service_id: serviceId,
+      p_checkout_date: checkoutDate || new Date().toISOString(),
+    });
+
+    if (error) {
+      console.warn('[fetchChefClubCreditPreview] RPC error:', error);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    return data[0] as ChefClubCreditPreview;
+  } catch (err) {
+    console.warn('[fetchChefClubCreditPreview] Exception:', err);
+    return null;
+  }
+};
+
+export const fetchChefClubCreditUsageHistory = async (
+  tenantId: string,
+  clientId?: string,
+  subscriptionId?: string,
+  limit: number = 50
+): Promise<ChefClubCreditUsage[]> => {
+  try {
+    const { data, error } = await supabase.rpc('get_credit_usage_history', {
+      p_tenant_id: tenantId,
+      p_client_id: clientId || null,
+      p_subscription_id: subscriptionId || null,
+      p_limit: limit,
+    });
+
+    if (error) {
+      console.warn('[fetchChefClubCreditUsageHistory] RPC error:', error);
+      return [];
+    }
+
+    return (data || []) as ChefClubCreditUsage[];
+  } catch (err) {
+    console.warn('[fetchChefClubCreditUsageHistory] Exception:', err);
+    return [];
+  }
+};
+
+export const determineChefClubItemState = (
+  item: { service_id?: string; paid_with_plan_credit?: boolean },
+  creditPreview: ChefClubCreditPreview | null,
+  hasSubscription: boolean
+): {
+  state: 'none' | 'eligible' | 'credits_exhausted' | 'service_not_in_plan' | 'subscription_expired' | 'paid_with_credit';
+  reason: string | null;
+  availableCredits: number;
+} => {
+  if (item.paid_with_plan_credit) {
+    return { state: 'paid_with_credit', reason: 'Pago com crédito do Clube', availableCredits: 0 };
+  }
+
+  if (!hasSubscription) {
+    return { state: 'none', reason: null, availableCredits: 0 };
+  }
+
+  if (!creditPreview) {
+    return { state: 'none', reason: 'Preview indisponivel', availableCredits: 0 };
+  }
+
+  if (!creditPreview.eligible) {
+    return { state: creditPreview.reason.includes('esgotados') ? 'credits_exhausted' : creditPreview.reason.includes('fora do plano') ? 'service_not_in_plan' : 'subscription_expired', reason: creditPreview.reason, availableCredits: 0 };
+  }
+
+  return {
+    state: 'eligible',
+    reason: null,
+    availableCredits: creditPreview.available_credits,
+  };
+};

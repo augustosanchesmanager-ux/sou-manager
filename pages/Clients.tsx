@@ -8,7 +8,9 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { LoadingBlock } from '../components/ui/Loading';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
-import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
+import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient, fetchChefClubPlanStatus, fetchChefClubCreditUsageHistory } from '../src/lib/supabase/chefClub';
+import { cancelSubscription, pauseSubscription, reactivateSubscription, renewSubscription, createSubscription } from '../src/lib/supabase/subscriptionActions';
+import type { ChefClubPlanStatus, ChefClubCreditUsage } from '../src/types/membership';
 
 interface Client {
     id: string;
@@ -78,9 +80,20 @@ const Clients: React.FC = () => {
     const [detailChefClub, setDetailChefClub] = useState<{ planName: string; credits: number; status: string } | null>(null);
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
 
+    // Expanded CC section in detail modal
+    const [ccPlanStatus, setCcPlanStatus] = useState<ChefClubPlanStatus | null>(null);
+    const [ccCreditHistory, setCcCreditHistory] = useState<ChefClubCreditUsage[]>([]);
+    const [ccLoading, setCcLoading] = useState(false);
+    const [ccActionLoading, setCcActionLoading] = useState(false);
+    const [ccActionModal, setCcActionModal] = useState<'cancel' | 'pause' | 'reactivate' | 'renew' | 'create' | null>(null);
+    const [ccCreatePlans, setCcCreatePlans] = useState<{ id: string; name: string; monthly_price: number }[]>([]);
+    const [ccSelectedPlanId, setCcSelectedPlanId] = useState('');
+
     const openClientDetails = useCallback(async (client: Client) => {
         setDetailClient(client);
         setDetailChefClub(null);
+        setCcPlanStatus(null);
+        setCcCreditHistory([]);
 
         try {
             const summary = await fetchChefClubSummaryByClient(client.id, tenantId);
@@ -90,6 +103,70 @@ const Clients: React.FC = () => {
             setDetailChefClub(null);
         }
     }, [tenantId]);
+
+    const loadCCFullData = useCallback(async (clientId: string) => {
+        if (!tenantId || !clientId) return;
+        setCcLoading(true);
+        try {
+            const [statusRes, historyRes] = await Promise.all([
+                fetchChefClubPlanStatus(tenantId, clientId),
+                fetchChefClubCreditUsageHistory(tenantId, clientId, undefined, 20),
+            ]);
+            setCcPlanStatus(statusRes);
+            setCcCreditHistory(historyRes || []);
+        } catch (err) {
+            console.warn('Erro ao carregar dados do Clube:', err);
+        } finally {
+            setCcLoading(false);
+        }
+    }, [tenantId]);
+
+    const loadCCPlans = useCallback(async () => {
+        if (!tenantId) return;
+        const { data } = await supabase
+            .from('customer_plans')
+            .select('id, name, monthly_price')
+            .eq('tenant_id', tenantId)
+            .eq('active', true)
+            .order('monthly_price', { ascending: true });
+        if (data) setCcCreatePlans(data as { id: string; name: string; monthly_price: number }[]);
+    }, [tenantId]);
+
+    const handleCCAction = async (action: 'cancel' | 'pause' | 'reactivate' | 'renew') => {
+        if (!ccPlanStatus?.subscription_id || !tenantId) return;
+        setCcActionLoading(true);
+        let result: { success: boolean; message: string };
+        if (action === 'cancel') result = await cancelSubscription(tenantId, ccPlanStatus.subscription_id);
+        else if (action === 'pause') result = await pauseSubscription(tenantId, ccPlanStatus.subscription_id);
+        else if (action === 'reactivate') result = await reactivateSubscription(tenantId, ccPlanStatus.subscription_id);
+        else result = await renewSubscription(tenantId, ccPlanStatus.subscription_id);
+        setCcActionLoading(false);
+        setCcActionModal(null);
+        setToast({ message: result.message, type: result.success ? 'success' : 'error' });
+        if (result.success && detailClient) {
+            await loadCCFullData(detailClient.id);
+            const summary = await fetchChefClubSummaryByClient(detailClient.id, tenantId);
+            setDetailChefClub(summary);
+        }
+    };
+
+    const handleCCCreate = async () => {
+        if (!tenantId || !detailClient || !ccSelectedPlanId) {
+            setToast({ message: 'Selecione um plano.', type: 'error' });
+            return;
+        }
+        setCcActionLoading(true);
+        const result = await createSubscription({ tenantId, clientId: detailClient.id, planId: ccSelectedPlanId });
+        setCcActionLoading(false);
+        setCcActionModal(null);
+        setCcSelectedPlanId('');
+        setToast({ message: result.message, type: result.success ? 'success' : 'error' });
+        if (result.success) {
+            await loadCCFullData(detailClient.id);
+            const summary = await fetchChefClubSummaryByClient(detailClient.id, tenantId);
+            setDetailChefClub(summary);
+        }
+    };
 
     const fetchClients = useCallback(async () => {
         let loadingId: string | undefined;
@@ -132,6 +209,13 @@ const Clients: React.FC = () => {
     }, [tenantId, showLoading, hideLoading]);
 
     useEffect(() => { fetchClients(); }, [fetchClients]);
+
+    // Load full CC data when detail modal opens
+    useEffect(() => {
+        if (detailClient) {
+            void loadCCFullData(detailClient.id);
+        }
+    }, [detailClient, loadCCFullData]);
 
     useEffect(() => {
         const state = location.state as { openClientId?: string; clientSearch?: string } | null;
@@ -598,22 +682,106 @@ const Clients: React.FC = () => {
                                 <p className="text-[10px] text-slate-500 uppercase font-bold">Total Gasto</p>
                                 <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
                             </div>
-                            {detailChefClub && (
-                                <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                            <span className="material-symbols-outlined">workspace_premium</span>
+                            {ccLoading ? (
+                                <div className="col-span-2 py-4 text-center">
+                                    <div className="inline-block animate-spin rounded-full size-5 border-2 border-amber-500 border-t-transparent" />
+                                    <p className="text-xs text-slate-400 mt-1">Carregando Clube dos Chefes...</p>
+                                </div>
+                            ) : ccPlanStatus ? (
+                                <div className="col-span-2">
+                                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
+                                        <div className="p-4 flex items-center justify-between border-b border-amber-500/10">
+                                            <div className="flex items-center gap-3">
+                                                <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center">
+                                                    <span className="material-symbols-outlined">workspace_premium</span>
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{ccPlanStatus.plan_name || 'Plano'}</p>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${ccPlanStatus.status === 'active' ? 'bg-emerald-100 text-emerald-600' : ccPlanStatus.status === 'canceled' ? 'bg-red-100 text-red-500' : ccPlanStatus.status === 'paused' ? 'bg-yellow-100 text-yellow-600' : 'bg-orange-100 text-orange-500'}`}>
+                                                            {ccPlanStatus.status === 'active' ? 'Plano ativo' : ccPlanStatus.status === 'canceled' ? 'Cancelado' : ccPlanStatus.status === 'paused' ? 'Pausado' : 'Vencido'}
+                                                        </span>
+                                                    </div>
+                                                    {ccPlanStatus.plan_monthly_price != null && (
+                                                        <p className="text-[10px] text-slate-500 font-bold">R$ {ccPlanStatus.plan_monthly_price.toFixed(2)}/mês · Ciclo: {ccPlanStatus.cycle_start ? new Date(ccPlanStatus.cycle_start).toLocaleDateString('pt-BR') : '-'} a {ccPlanStatus.cycle_end ? new Date(ccPlanStatus.cycle_end).toLocaleDateString('pt-BR') : '-'}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-black text-amber-600 leading-none">{ccPlanStatus.available_credits}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Disponíveis</p>
+                                                <p className="text-[9px] text-slate-400 mt-0.5">{ccPlanStatus.used_credits} usado(s)</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] text-amber-600 font-black uppercase">Clube do Chefe</p>
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{detailChefClub.planName}</p>
-                                            <p className="text-[10px] text-slate-500 font-bold">Status: {detailChefClub.status === 'active' ? 'Ativo' : 'Pendente'}</p>
+                                        {ccPlanStatus.service_credits && Array.isArray(ccPlanStatus.service_credits) && ccPlanStatus.service_credits.length > 0 ? (
+                                            <div className="px-4 py-3 border-b border-amber-500/10">
+                                                <p className="text-[10px] font-bold text-amber-600 uppercase mb-2">Créditos por Serviço</p>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {(ccPlanStatus.service_credits as any[]).map((sc, i) => (
+                                                        <div key={i} className="flex justify-between text-xs">
+                                                            <span className="text-slate-600 dark:text-slate-300">{sc.service_name || 'Serviço'}</span>
+                                                            <span className="font-bold text-amber-600">{sc.credits} disponivel(is)</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="px-4 py-3 border-b border-amber-500/10">
+                                                <p className="text-xs text-slate-400">Créditos totais: {ccPlanStatus.total_credits} · Usados: {ccPlanStatus.used_credits}</p>
+                                            </div>
+                                        )}
+                                        <div className="px-4 py-3">
+                                            <p className="text-[10px] font-bold text-amber-600 uppercase mb-2">Histórico de Uso</p>
+                                            {ccCreditHistory.length === 0 ? (
+                                                <p className="text-xs text-slate-400 italic py-2">Nenhum crédito usado neste ciclo.</p>
+                                            ) : (
+                                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                                    {ccCreditHistory.slice(0, 10).map(u => (
+                                                        <div key={u.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                                                            <div>
+                                                                <p className="font-semibold text-slate-700 dark:text-slate-200">{u.service_name || 'Serviço'}</p>
+                                                                <p className="text-[10px] text-slate-400">{u.used_at ? new Date(u.used_at).toLocaleDateString('pt-BR') : ''}{u.professional_name ? ` · ${u.professional_name}` : ''}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="font-bold text-amber-600">-{u.quantity_used} crédito(s)</p>
+                                                                {u.original_price != null && <p className="text-[9px] text-slate-400">R$ {u.original_price.toFixed(2)}</p>}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="px-4 py-3 bg-slate-50 dark:bg-black/10 flex gap-2 flex-wrap">
+                                            {ccPlanStatus.status === 'active' && (
+                                                <>
+                                                    <button onClick={() => setCcActionModal('pause')} className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors">Pausar</button>
+                                                    <button onClick={() => setCcActionModal('cancel')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors">Cancelar</button>
+                                                </>
+                                            )}
+                                            {ccPlanStatus.status === 'canceled' && (
+                                                <button onClick={() => setCcActionModal('reactivate')} className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-200 transition-colors">Reativar</button>
+                                            )}
+                                            {(ccPlanStatus.status === 'past_due' || ccPlanStatus.status === 'paused') && (
+                                                <button onClick={() => setCcActionModal('reactivate')} className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-200 transition-colors">Reativar</button>
+                                            )}
+                                            {ccPlanStatus.status !== 'active' && (
+                                                <button onClick={() => setCcActionModal('renew')} className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors">Renovar Ciclo</button>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-black text-amber-600 leading-none">{detailChefClub.credits}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Créditos</p>
+                                </div>
+                            ) : !detailChefClub && !ccLoading && (
+                                <div className="col-span-2 border border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-5 text-center">
+                                    <div className="size-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <span className="material-symbols-outlined text-2xl">workspace_premium</span>
                                     </div>
+                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">Cliente ainda não possui assinatura ativa.</p>
+                                    <button
+                                        onClick={() => { void loadCCPlans(); setCcActionModal('create'); }}
+                                        className="mt-3 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 transition-colors"
+                                    >
+                                        Adicionar ao Clube
+                                    </button>
                                 </div>
                             )}
                             <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
@@ -845,6 +1013,81 @@ const Clients: React.FC = () => {
                         </button>
                         <button type="button" onClick={handleConfirmImport} disabled={loading} className="px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
                             {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${parsedData.length} Clientes`}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* CC Action Confirmation Modal */}
+            <Modal
+                isOpen={!!ccActionModal && ccActionModal !== 'create'}
+                onClose={() => setCcActionModal(null)}
+                title={
+                    ccActionModal === 'cancel' ? 'Cancelar Assinatura' :
+                    ccActionModal === 'pause' ? 'Pausar Assinatura' :
+                    ccActionModal === 'reactivate' ? 'Reativar Assinatura' :
+                    'Renovar Ciclo'
+                }
+                maxWidth="sm"
+            >
+                <div className="text-center space-y-4">
+                    <div className={`size-14 rounded-full flex items-center justify-center mx-auto ${ccActionModal === 'cancel' ? 'bg-red-100 text-red-500' : ccActionModal === 'pause' ? 'bg-yellow-100 text-yellow-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-2xl">
+                            {ccActionModal === 'cancel' ? 'cancel' : ccActionModal === 'pause' ? 'pause_circle' : ccActionModal === 'reactivate' ? 'refresh' : 'autorenew'}
+                        </span>
+                    </div>
+                    <p className="text-sm text-slate-500">
+                        {ccActionModal === 'cancel' ? 'Tem certeza que deseja cancelar a assinatura? O histórico de uso será preservado.' :
+                         ccActionModal === 'pause' ? 'A assinatura será pausada. Os créditos atuais não serão perdidos.' :
+                         ccActionModal === 'reactivate' ? 'A assinatura será reativada.' :
+                         'Um novo ciclo será iniciado com novos créditos.'}
+                    </p>
+                    <div className="flex gap-3">
+                        <button onClick={() => setCcActionModal(null)} className="flex-1 py-2.5 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Voltar</button>
+                        <button
+                            onClick={() => void handleCCAction(ccActionModal as 'cancel' | 'pause' | 'reactivate' | 'renew')}
+                            disabled={ccActionLoading}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-bold text-white transition-colors disabled:opacity-60 ${ccActionModal === 'cancel' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'}`}
+                        >
+                            {ccActionLoading ? 'Aguarde...' : 'Confirmar'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* CC Create Plan Selection Modal */}
+            <Modal
+                isOpen={ccActionModal === 'create'}
+                onClose={() => { setCcActionModal(null); setCcSelectedPlanId(''); }}
+                title="Adicionar ao Clube dos Chefes"
+                maxWidth="sm"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-500">Selecione o plano para este cliente:</p>
+                    {ccCreatePlans.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-4 text-center">Nenhum plano ativo encontrado.</p>
+                    ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {ccCreatePlans.map(plan => (
+                                <button
+                                    key={plan.id}
+                                    onClick={() => setCcSelectedPlanId(plan.id)}
+                                    className={`w-full text-left p-3 rounded-lg border transition-all ${ccSelectedPlanId === plan.id ? 'border-amber-500 bg-amber-500/5' : 'border-slate-200 dark:border-slate-700 hover:border-amber-300'}`}
+                                >
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{plan.name}</p>
+                                    <p className="text-xs text-slate-500">R$ {plan.monthly_price.toFixed(2)}/mês</p>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex gap-3 pt-2">
+                        <button onClick={() => { setCcActionModal(null); setCcSelectedPlanId(''); }} className="flex-1 py-2.5 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
+                        <button
+                            onClick={() => void handleCCCreate()}
+                            disabled={!ccSelectedPlanId || ccActionLoading}
+                            className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors disabled:opacity-60"
+                        >
+                            {ccActionLoading ? 'Criando...' : 'Criar Assinatura'}
                         </button>
                     </div>
                 </div>

@@ -394,6 +394,8 @@ const Schedule: React.FC = () => {
 
     setEditingAppointmentId(null);
     setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '', isFitIn: false }));
+    setSelectedServices([]);
+    setServiceSearch('');
     setIsModalOpen(true);
 
     navigate(location.pathname, { replace: true, state: null });
@@ -408,6 +410,11 @@ const Schedule: React.FC = () => {
   const [overbookConflicts, setOverbookConflicts] = useState<CalendarAppointment[]>([]);
   const [forceOverbook, setForceOverbook] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Multiple services selection state
+  const [selectedServices, setSelectedServices] = useState<DBService[]>([]);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [servicesLoadedForEdit, setServicesLoadedForEdit] = useState(false);
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
@@ -778,6 +785,41 @@ const Schedule: React.FC = () => {
     }
   };
 
+  // Multiple services helpers
+  const toggleService = (service: DBService) => {
+    setSelectedServices(prev => {
+      const exists = prev.find(s => s.id === service.id);
+      if (exists) {
+        return prev.filter(s => s.id !== service.id);
+      }
+      return [...prev, service];
+    });
+    setError(null);
+  };
+
+  const removeService = (serviceId: string) => {
+    setSelectedServices(prev => prev.filter(s => s.id !== serviceId));
+  };
+
+  const filteredServices = servicesList.filter(s =>
+    s.name.toLowerCase().includes(serviceSearch.toLowerCase())
+  );
+
+  const totalDurationMinutes = selectedServices.reduce(
+    (sum, s) => sum + (s.duration || 30) + (s.buffer || 0),
+    0
+  );
+  const totalPrice = selectedServices.reduce((sum, s) => sum + (s.price || 0), 0);
+
+  // Auto-update form duration when services change
+  useEffect(() => {
+    if (selectedServices.length > 0) {
+      const hours = totalDurationMinutes / 60;
+      const roundedHours = Math.ceil(hours * 2) / 2; // Round to nearest 0.5
+      setFormData(prev => ({ ...prev, duration: Math.max(0.5, roundedHours) }));
+    }
+  }, [selectedServices, totalDurationMinutes]);
+
   const loadChefClubInfo = async (clientName: string) => {
     const client = clientsList.find(c => c.name === clientName);
     if (!client) {
@@ -852,8 +894,11 @@ const Schedule: React.FC = () => {
     setChefClubInfo(null);
   };
 
-  const handleEditAppointment = (apt: CalendarAppointment) => {
+  const handleEditAppointment = async (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
+    setServicesLoadedForEdit(false);
+    setSelectedServices([]);
+    setServiceSearch('');
     const datePart = apt.startTime.split('T')[0];
 
     setFormData({
@@ -867,6 +912,32 @@ const Schedule: React.FC = () => {
       notes: apt.notes || '',
     });
 
+    // Load appointment_services for this appointment
+    const { data: apptServices } = await supabase
+      .from('appointment_services')
+      .select('service_id, services(id, name, duration, price, buffer)')
+      .eq('appointment_id', apt.id)
+      .eq('tenant_id', tenantId)
+      .order('sort_order', { ascending: true });
+
+    if (apptServices && apptServices.length > 0) {
+      const loadedServices: DBService[] = apptServices
+        .map((as: any): DBService | null => {
+          const service = as.services;
+          if (!service) return null;
+          return {
+            id: service.id,
+            name: service.name,
+            duration: service.duration || 30,
+            buffer: service.buffer || 0,
+            price: service.price || 0,
+          };
+        })
+        .filter((s): s is DBService => s !== null);
+      setSelectedServices(loadedServices);
+    }
+
+    setServicesLoadedForEdit(true);
     void loadChefClubInfo(apt.client);
     setIsDetailDrawerOpen(false);
     setIsModalOpen(true);
@@ -1246,9 +1317,28 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    if (!formData.client || !formData.service) {
-      setError("Por favor, preencha o nome do cliente e o serviço.");
-      return;
+    // Creation: must have at least one service selected
+    if (!editingAppointmentId) {
+      if (!formData.client || selectedServices.length === 0) {
+        setError("Por favor, preencha o nome do cliente e selecione pelo menos um serviço.");
+        return;
+      }
+    } else {
+      // Editing: validate services loaded and not empty
+      if (!servicesLoadedForEdit) {
+        setError('Não foi possível carregar os serviços do agendamento. Tente novamente.');
+        return;
+      }
+      // In edit mode, if selectedServices is empty, block save (user might have cleared by mistake)
+      // We don't allow clearing services in edit mode for Phase 8.1
+      if (selectedServices.length === 0) {
+        setError("Não é permitido remover todos os serviços de um agendamento existente nesta fase.");
+        return;
+      }
+      if (!formData.client) {
+        setError("Por favor, preencha o nome do cliente.");
+        return;
+      }
     }
 
     if (isNewClientMode && !formData.clientPhone) {
@@ -1275,8 +1365,9 @@ const Schedule: React.FC = () => {
     const saveServicesClient = getClientForTable('services', scheduleAppSlug);
     const saveComandaItemsClient = getClientForTable('comanda_items', scheduleAppSlug);
 
-    const selectedService = servicesList.find(s => s.name === formData.service);
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
+    const firstSelectedService = selectedServices.length > 0 ? selectedServices[0] : null;
+    const serviceNamesForEdit = selectedServices.map(s => s.name).join(' + ');
 
     let clientId: string | null = null;
     if (isNewClientMode) {
@@ -1368,18 +1459,18 @@ const Schedule: React.FC = () => {
 
       // UPDATE EXISTING
       const { error: updateError } = await supabase.from('appointments').update({
-        service_id: selectedService?.id || null,
+        service_id: firstSelectedService?.id || null,
         staff_id: formData.staffId || null,
         client_id: clientId,
         client_name: formData.client,
-        service_name: formData.service,
+        service_name: serviceNamesForEdit || formData.service,
         client_phone: formData.clientPhone,
         notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: updatedStartIso,
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
-        price: selectedService?.price || 0,
+        price: totalPrice,
       }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -1402,8 +1493,8 @@ const Schedule: React.FC = () => {
             duration: Number(formData.duration),
             client: formData.client,
             clientPhone: formData.clientPhone || '',
-            service: formData.service,
-            price: selectedService?.price || 0,
+            service: serviceNamesForEdit || formData.service,
+            price: totalPrice,
             startTime: updatedStartIso,
             notes: formData.notes.trim(),
             date: updatedAppointmentDate,
@@ -1413,38 +1504,18 @@ const Schedule: React.FC = () => {
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
-      let finalPrice = selectedService?.price || 0;
+      const serviceNames = selectedServices.map(s => s.name).join(' + ');
 
-      if (selectedService) {
-        const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
-        finalPrice = serviceData?.price || selectedService.price || 0;
-
-        const promo = activePromotions.find(p =>
-          (p.target_type === 'all') ||
-          (p.target_type === 'service' && p.target_id === selectedService.id)
-        );
-
-        if (promo) {
-          if (promo.discount_type === 'fixed') {
-            finalPrice = Math.max(0, finalPrice - promo.discount_value);
-          } else {
-            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-          }
-        }
-      }
-
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_services', {
         p_tenant_id: tenantId,
         p_client_id: clientId,
         p_client_name: formData.client,
         p_client_phone: formData.clientPhone || null,
-        p_service_id: selectedService?.id || null,
         p_staff_id: formData.staffId || null,
         p_start_time: startTimeLine.toISOString(),
-        p_price: finalPrice,
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_is_overbooked: forceOverbookEffective,
+        p_services: selectedServices.map(s => s.id),
       });
 
       if (rpcError || !rpcResult) {
@@ -1454,7 +1525,7 @@ const Schedule: React.FC = () => {
       }
 
       const newAptId = (rpcResult as any).appointment_id;
-      const newComandaId = (rpcResult as any).comanda_id;
+      const totalPriceRpc = (rpcResult as any).total_price || 0;
 
       setAppointments(prev => [...prev, {
         id: newAptId,
@@ -1463,22 +1534,18 @@ const Schedule: React.FC = () => {
         start: formData.start,
         duration: Number(formData.duration),
         client: formData.client,
-        service: formData.service,
+        service: serviceNames,
         status: 'confirmed',
         color: 'bg-blue-500',
         staffName: selectedStaff?.name || '',
         clientPhone: formData.clientPhone || '',
-        price: finalPrice,
+        price: totalPriceRpc,
         startTime: startTimeLine.toISOString(),
         notes: formData.notes.trim(),
         date: startTimeLine.toISOString(),
         source: null,
         channel: null,
       }]);
-
-      if (newComandaId) {
-        setOpenComandasByAppointment(prev => ({ ...prev, [newAptId]: newComandaId }));
-      }
 
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
       navigate('/operation-success', {
@@ -1487,7 +1554,7 @@ const Schedule: React.FC = () => {
           appointment: {
             id: newAptId,
             client: formData.client,
-            service: formData.service,
+            service: serviceNames,
             professional: selectedStaff?.name || '',
             dateTime: startTimeLine.toISOString(),
             status: 'confirmed',
@@ -1507,6 +1574,8 @@ const Schedule: React.FC = () => {
     setForceOverbook(false);
     setOverbookConflicts([]);
     setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '', isFitIn: false });
+    setSelectedServices([]);
+    setServiceSearch('');
     fetchAppointments();
   };
 
@@ -2369,7 +2438,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); setSelectedServices([]); setServiceSearch(''); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2458,24 +2527,81 @@ Podemos confirmar? 😄`;
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
-            <div className="relative">
-              <select
-                value={formData.service}
-                onChange={(e) => handleInputChange('service', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-              >
-                <option value="" disabled>Selecione um serviço...</option>
-                {servicesList.length > 0 ? (
-                  servicesList.map(s => (
-                    <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
-                  ))
-                ) : (
-                  <option disabled>Nenhum serviço disponível</option>
-                )}
-              </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviços</label>
+            <div className="relative mb-2">
+              <input
+                type="text"
+                placeholder="Buscar serviços..."
+                value={serviceSearch}
+                onChange={(e) => setServiceSearch(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 pl-9 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+              />
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">search</span>
             </div>
+            <div className="border border-slate-200 dark:border-white/10 rounded-lg max-h-44 overflow-y-auto custom-scrollbar">
+              {filteredServices.length > 0 ? (
+                filteredServices.map(s => (
+                  <label
+                    key={s.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-slate-100 dark:border-border-dark last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 ${selectedServices.find(sv => sv.id === s.id) ? 'bg-primary/5' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedServices.find(sv => sv.id === s.id))}
+                      onChange={() => toggleService(s)}
+                      className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{s.name}</span>
+                      <span className="ml-2 text-xs text-slate-500">{s.duration}min</span>
+                    </div>
+                    <span className="text-sm font-semibold text-primary">R$ {s.price?.toFixed(2) || '0.00'}</span>
+                  </label>
+                ))
+              ) : (
+                <div className="px-4 py-3 text-center text-xs text-slate-500">Nenhum serviço disponível</div>
+              )}
+            </div>
+
+            {selectedServices.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {editingAppointmentId && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Edição de serviços fica para próxima fase.</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {selectedServices.map((s, idx) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold"
+                    >
+                      <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">{idx + 1}</span>
+                      {s.name}
+                      {!editingAppointmentId && (
+                        <button
+                          type="button"
+                          onClick={() => removeService(s.id)}
+                          className="ml-1 hover:text-red-500 transition-colors"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="material-symbols-outlined text-primary">schedule</span>
+                    <span className="text-slate-600 dark:text-slate-300">Duração total:</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{totalDurationMinutes} min</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="material-symbols-outlined text-primary">payments</span>
+                    <span className="text-slate-600 dark:text-slate-300">Valor total:</span>
+                    <span className="font-bold text-primary">R$ {totalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -2601,7 +2727,7 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); setSelectedServices([]); setServiceSearch(''); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar

@@ -980,7 +980,7 @@ const Checkout: React.FC = () => {
                         .from('comandas')
                         .insert({ ...comandaData, idempotency_key: comandaRequestKeyRef.current })
                         .select()
-                        .single();
+                        .maybeSingle();
 
                     if (insertError) {
                         if (insertError.code === '23505') {
@@ -1122,7 +1122,7 @@ const Checkout: React.FC = () => {
                             .select('total_spent')
                             .eq('id', selectedClient.id)
                             .eq('tenant_id', resolvedTenantId)
-                            .single();
+                            .maybeSingle();
 
                         if (!clientFetchErr) {
                             const newTotal = (clientData?.total_spent || 0) + total;

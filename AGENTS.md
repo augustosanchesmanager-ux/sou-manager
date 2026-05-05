@@ -8,37 +8,10 @@
 
 - **React 19** + **Vite 6** + **TypeScript 5.8** + **Tailwind CSS v4** (CSS-based config, no `tailwind.config` file).
 - **Router**: `react-router-dom` with **HashRouter** (not BrowserRouter). Required for Vercel SPA deployment (`vercel.json` has a catch-all rewrite to `index.html`).
-- **State**: Pure React Context — `AuthContext` → `TenantProvider` → `AppProvider` → `ThemeProvider`. No Redux/Zustand.
+- **State**: Pure React Context — `ThemeProvider` → `LoadingProvider` → `AppProvider` → `AuthProvider` → `TenantProvider` → `HashRouter`. No Redux/Zustand.
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime). Migrations live in `supabase/migrations/`.
 - **AI**: Google Gemini via `@google/generative-ai`.
-- **No test runner**, **no linter**, **no formatter** configured. Do not assume `npm test` or `npm run lint` exist.
-
----
-
-## Dev Commands
-
-```bash
-npm install
-npm run dev      # Vite dev server on port 3000, host 0.0.0.0
-npm run build    # Production build to dist/
-npm run preview  # Preview production build locally
-```
-
----
-
-## Environment Variables
-
-Create `.env.local` in the repo root (do not commit it):
-
-```env
-VITE_SUPABASE_URL=<url>
-VITE_SUPABASE_ANON_KEY=<anon-key>
-VITE_GEMINI_API_KEY=<key>
-VITE_SUPABASE_MULTI_SCHEMA_ENABLED=false   # Optional; see Multi-App Architecture
-VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}  # Optional JSON hostname→appSlug map
-```
-
-`vite.config.ts` also injects `process.env.GEMINI_API_KEY` at build time from `env.GEMINI_API_KEY`.
+- **Dev commands**: `npm run dev` (port 3000), `npm run build`, `npm run typecheck`. **No test runner, no linter, no formatter** configured.
 
 ---
 
@@ -82,7 +55,7 @@ The system is a **multi-tenant SaaS** with optional **multi-schema** support.
 ## Module Boundaries & Path Aliases
 
 - `@/` maps to the **repo root** (`path.resolve(__dirname, '.')`), not `src/`.
-- There are **dual directory structures** — some code lives at root (`components/`, `context/`, `hooks/`, `pages/`, `services/`) and some under `src/`. Check both before creating duplicates.
+- **Dual directory structure**: `components/`, `context/`, `hooks/`, `pages/`, `services/` at root AND `src/context/`, `src/lib/supabase/`, `src/middleware/`, etc. Check both before creating duplicates.
 - Barrel file: `services/supabaseClient.ts` re-exports everything from `src/lib/supabase/`.
 
 ---

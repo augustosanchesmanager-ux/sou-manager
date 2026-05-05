@@ -101,6 +101,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { name: 'Kiosk', icon: 'tablet_android', path: '/kiosk-admin' },
         { name: 'Portal', icon: 'public', path: '/portal-admin' },
         { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers' },
+        { name: 'Importar/Exportar', icon: 'upload_file', path: '/import-export' },
+        { name: 'Templates', icon: 'description', path: '/import-export/templates' },
       ]
     },
     {
