@@ -861,17 +861,17 @@ const Schedule: React.FC = () => {
 
     let availableCredits = 0;
     const { data: credits, error: creditsError } = await supabase
-      .from('customer_credits')
-      .select('available_credits')
-      .eq('tenant_id', tenantId)
-      .eq('subscription_id', subscription.id)
+      .rpc('get_current_subscription_credits', {
+        p_subscription_id: subscription.id,
+        p_tenant_id: tenantId,
+      })
       .maybeSingle();
 
     if (creditsError) {
       console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
     }
     if (credits?.available_credits !== undefined) {
-      availableCredits = credits.available_credits;
+      availableCredits = Number(credits.available_credits);
     }
 
     setChefClubInfo({
@@ -1464,7 +1464,6 @@ const Schedule: React.FC = () => {
         client_id: clientId,
         client_name: formData.client,
         service_name: serviceNamesForEdit || formData.service,
-        client_phone: formData.clientPhone,
         notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: updatedStartIso,
@@ -1515,7 +1514,7 @@ const Schedule: React.FC = () => {
         p_start_time: startTimeLine.toISOString(),
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_services: selectedServices.map(s => s.id),
+        p_services: JSON.stringify(selectedServices.map(s => s.id)),
       });
 
       if (rpcError || !rpcResult) {
