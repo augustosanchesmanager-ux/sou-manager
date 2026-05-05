@@ -545,16 +545,18 @@ const Checkout: React.FC = () => {
                         .eq('id', sub.plan_id)
                         .eq('tenant_id', resolvedTenantId)
                         .maybeSingle(),
-                    clientDb
-                        .from('customer_credits')
-                        .select('available_credits, used_credits, service_balance_map')
-                        .eq('subscription_id', sub.id)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
+                    clientDb.rpc('get_current_subscription_credits', {
+                        p_subscription_id: sub.id,
+                        p_tenant_id: resolvedTenantId,
+                    }).maybeSingle(),
                 ]);
 
-                if (planError) throw planError;
-                if (creditsError) throw creditsError;
+                if (planError) {
+                    console.warn('[selectClient] plan fetch error:', planError);
+                }
+                if (creditsError) {
+                    console.warn('[selectClient] credits fetch error:', creditsError);
+                }
 
                 const serviceBalances = normalizeCreditBalances(
                     credits?.service_balance_map,

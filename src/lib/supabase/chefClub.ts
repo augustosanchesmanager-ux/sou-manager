@@ -89,18 +89,19 @@ export const fetchChefClubSummaryByClient = async (
       .eq('id', subscription.plan_id)
       .maybeSingle(),
     subscriptionResult.client
-      .from('customer_credits')
-      .select('available_credits')
-      .eq('subscription_id', subscription.id)
+      .rpc('get_current_subscription_credits', {
+        p_subscription_id: subscription.id,
+        p_tenant_id: tenantId,
+      })
       .maybeSingle(),
   ]);
 
   if (planResult.error) {
-    throw planResult.error;
+    console.warn('[fetchChefClubSummaryByClient] plan fetch error:', planResult.error);
   }
 
   if (creditsResult.error) {
-    throw creditsResult.error;
+    console.warn('[fetchChefClubSummaryByClient] credits fetch error:', creditsResult.error);
   }
 
   return {
@@ -194,18 +195,19 @@ export const fetchChefClubCreditsByClient = async (
       .eq('id', subscription.plan_id)
       .maybeSingle(),
     subscriptionResult.client
-      .from('customer_credits')
-      .select('id, available_credits, used_credits, service_balance_map')
-      .eq('subscription_id', subscription.id)
+      .rpc('get_current_subscription_credits', {
+        p_subscription_id: subscription.id,
+        p_tenant_id: tenantId,
+      })
       .maybeSingle(),
   ]);
 
   if (planResult.error) {
-    throw planResult.error;
+    console.warn('[fetchChefClubCreditsByClient] plan fetch error:', planResult.error);
   }
 
   if (creditsResult.error) {
-    throw creditsResult.error;
+    console.warn('[fetchChefClubCreditsByClient] credits fetch error:', creditsResult.error);
   }
 
   const credits = creditsResult.data;
