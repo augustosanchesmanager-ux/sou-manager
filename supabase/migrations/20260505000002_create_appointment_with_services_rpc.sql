@@ -50,7 +50,10 @@ BEGIN
     END IF;
 
     v_services_data := p_services;
-    v_service_ids := ARRAY(SELECT jsonb_array_element_text(v_services_data));
+    v_service_ids := ARRAY(
+      SELECT elem::text
+      FROM jsonb_array_elements(v_services_data) AS elem
+    );
 
     -- Validate at least one service
     IF array_length(v_service_ids, 1) IS NULL THEN
