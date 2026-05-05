@@ -49,9 +49,9 @@ BEGIN
         RAISE EXCEPTION 'Selecione pelo menos um servico';
     END IF;
 
-    v_services_data := p_services;
+    v_services_data := COALESCE(p_services::jsonb, p_services);
     v_service_ids := ARRAY(
-      SELECT elem::text
+      SELECT trim(replace(elem::text, '"', ''))::uuid
       FROM jsonb_array_elements(v_services_data) AS elem
     );
 
