@@ -1,0 +1,45 @@
+import type { EntityConfig } from '../types';
+
+export const clientsConfig: EntityConfig = {
+  entity: 'clients',
+  label: 'Cliente',
+  labelPlural: 'Clientes',
+  tableName: 'clients',
+  idField: 'id',
+  requiredColumns: ['Nome', 'Telefone'],
+  optionalColumns: [
+    'Email',
+    'Data de Nascimento',
+    'Origem',
+    'Observações',
+    'Ativo',
+  ],
+  columnMapping: {
+    'Nome': 'name',
+    'Telefone': 'phone',
+    'Email': 'email',
+    'Data de Nascimento': 'birthday',
+    'Origem': 'source',
+    'Observações': 'notes',
+    'Aniversário': 'birthday',
+    'Observacoes': 'notes',
+  },
+  validationRules: {
+    name: { type: 'string', minLength: 2, required: true },
+    phone: { type: 'string', minLength: 10, required: true },
+    email: { type: 'string' },
+    birthday: { type: 'date' },
+    active: { type: 'boolean' },
+  },
+  normalizationRules: {
+    name: { trim: true, title_case: true },
+    phone: { phone_br: true },
+    email: { trim: true, lower: true },
+    birthday: { date_br: true },
+    source: { trim: true },
+    notes: { trim: true },
+    active: { trim: true },
+  },
+  duplicateCheckFields: ['phone', 'email'],
+  defaultAction: 'update',
+};
