@@ -1505,6 +1505,36 @@ const Schedule: React.FC = () => {
     } else {
       const serviceNames = selectedServices.map(s => s.name).join(' + ');
 
+      // Validate required fields
+      if (!tenantId) {
+        setError('Tenant inválido');
+        return;
+      }
+      if (!clientId) {
+        setError('Cliente não selecionado');
+        return;
+      }
+      if (!formData.staffId) {
+        setError('Profissional não selecionado');
+        return;
+      }
+      if (selectedServices.length === 0) {
+        setError('Selecione pelo menos um serviço');
+        return;
+      }
+
+      // Build services payload - MUST be array of objects, NOT stringified
+      const servicesPayload = selectedServices.map((service, index) => ({
+        service_id: service.id,
+        quantity: 1,
+        sort_order: index,
+      }));
+
+      // Validation log
+      console.log('[Schedule] servicesPayload:', JSON.stringify(servicesPayload, null, 2));
+      console.log('[Schedule] Array.isArray:', Array.isArray(servicesPayload));
+      console.log('[Schedule] selectedServices.length:', selectedServices.length);
+
       const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_services', {
         p_tenant_id: tenantId,
         p_client_id: clientId,
@@ -1514,7 +1544,7 @@ const Schedule: React.FC = () => {
         p_start_time: startTimeLine.toISOString(),
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_services: JSON.stringify(selectedServices.map(s => s.id)),
+        p_services: servicesPayload,
       });
 
       if (rpcError || !rpcResult) {

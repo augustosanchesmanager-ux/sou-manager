@@ -12,6 +12,7 @@ interface Expense {
     category: string;
     amount: number;
     date: string;
+    expense_date?: string;
     status: 'paid' | 'pending';
     receipt_url?: string;
 }
@@ -24,8 +25,8 @@ const normalizeDateForInput = (value?: string | null) => {
 };
 
 const normalizeDateForDb = (value: string) => {
-    if (!value) return new Date().toISOString();
-    return value.includes('T') ? value : new Date(`${value}T00:00:00`).toISOString();
+    if (!value) return null;
+    return value;
 };
 
 const Expenses: React.FC = () => {
@@ -73,7 +74,8 @@ const Expenses: React.FC = () => {
                 category: item.category || 'Outros',
                 amount: Number(item.amount || item.val || 0),
                 date: item.date || item.created_at || new Date().toISOString(),
-                status: item.status || 'paid', // Default to paid if not specified
+                expense_date: item.expense_date || null,
+                status: item.status || 'paid',
             })));
         }
         setLoading(false);
@@ -89,7 +91,7 @@ const Expenses: React.FC = () => {
             description: expense.description,
             category: expense.category,
             amount: expense.amount.toString(),
-            date: normalizeDateForInput(expense.date),
+            date: normalizeDateForInput(expense.expense_date ?? expense.date),
             status: expense.status,
         });
         setIsModalOpen(true);
@@ -120,7 +122,8 @@ const Expenses: React.FC = () => {
             description: formData.description,
             category: formData.category,
             amount,
-            date: normalizeDateForDb(formData.date),
+            expense_date: normalizeDateForDb(formData.date),
+            date: new Date().toISOString(),
             status: formData.status,
             type: 'expense',
             payment_method: 'Dinheiro',
@@ -298,7 +301,7 @@ const Expenses: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                                        {new Date(expense.date).toLocaleDateString('pt-BR')}
+                                        {(expense.expense_date ?? expense.date?.slice(0, 10))?.split('-').reverse().join('/')}
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold">
                                         R$ {expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
