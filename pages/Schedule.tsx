@@ -1401,7 +1401,8 @@ const Schedule: React.FC = () => {
         }
       }
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+      const rpcName = 'create_appointment_with_comanda';
+      const payload = {
         p_tenant_id: tenantId,
         p_client_id: clientId,
         p_client_name: formData.client,
@@ -1413,10 +1414,50 @@ const Schedule: React.FC = () => {
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
         p_is_overbooked: forceOverbook,
-      });
+      };
+      const currentBusiness = {
+        tenantId,
+        appSlug: scheduleAppSlug,
+        selectedService,
+        selectedStaff,
+      };
+      const shouldDebugCreateAppointmentRpc =
+        import.meta.env.DEV ||
+        localStorage.getItem('soumanager.debug.createAppointmentRpc') === 'true';
+
+      if (shouldDebugCreateAppointmentRpc) {
+        console.group("DEBUG CREATE APPOINTMENT RPC");
+        console.log("RPC name:", rpcName);
+        console.log("Payload:", payload);
+        console.log("User:", user);
+        console.log("Business/Tenant:", currentBusiness);
+        console.log("Supabase error:", {
+          code: undefined,
+          message: undefined,
+          details: undefined,
+          hint: undefined,
+        });
+        console.groupEnd();
+      }
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, payload);
 
       if (rpcError || !rpcResult) {
         console.error('Erro ao criar agendamento via RPC:', rpcError);
+        if (shouldDebugCreateAppointmentRpc) {
+          console.group("DEBUG CREATE APPOINTMENT RPC");
+          console.log("RPC name:", rpcName);
+          console.log("Payload:", payload);
+          console.log("User:", user);
+          console.log("Business/Tenant:", currentBusiness);
+          console.log("Supabase error:", {
+            code: rpcError?.code,
+            message: rpcError?.message,
+            details: rpcError?.details,
+            hint: rpcError?.hint,
+          });
+          console.groupEnd();
+        }
         setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
         return;
       }
