@@ -1323,6 +1323,111 @@ const client = {
         return createRpcResult(rpcResult, null);
       }
 
+      if (fn === 'create_chef_club_subscription' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_plan_id?: string;
+          p_next_billing_date?: string;
+          p_replace_existing?: boolean;
+        };
+        const db = readDemoDatabase();
+        const tenantId = p.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+        const now = new Date().toISOString();
+        const cycleEnd = new Date(`${p.p_next_billing_date}T12:00:00`).toISOString();
+        const client = db.clients.find((item) => item.id === p.p_client_id && item.tenant_id === tenantId);
+        const plan = db.customer_plans.find((item) => item.id === p.p_plan_id && item.tenant_id === tenantId);
+
+        if (!client) {
+          return createRpcResult(null, new Error('Cliente não encontrado para este tenant'));
+        }
+
+        if (!plan) {
+          return createRpcResult(null, new Error('Plano não encontrado para este tenant'));
+        }
+
+        if (!plan.active) {
+          return createRpcResult(null, new Error('Plano inativo'));
+        }
+
+        const serviceBalanceMap = (plan.service_credit_map || [])
+          .map((entry) => ({
+            service_id: entry.service_id,
+            service_name: entry.service_name,
+            available: Math.max(0, Number(entry.credits) || 0),
+            used: 0,
+          }))
+          .filter((entry) => entry.service_id && entry.service_name && entry.available > 0);
+        const availableCredits = serviceBalanceMap.reduce((total, entry) => total + entry.available, 0);
+
+        if (serviceBalanceMap.length === 0 || availableCredits <= 0) {
+          return createRpcResult(null, new Error('Plano sem créditos por serviço configurados'));
+        }
+
+        let subscription = db.customer_subscriptions.find(
+          (item) => item.tenant_id === tenantId && item.client_id === p.p_client_id && item.status === 'active',
+        );
+
+        if (subscription && !p.p_replace_existing) {
+          return createRpcResult(null, new Error('Cliente já possui assinatura ativa'));
+        }
+
+        if (subscription) {
+          subscription = {
+            ...subscription,
+            plan_id: plan.id,
+            status: 'active',
+            cycle_start: now,
+            cycle_end: cycleEnd,
+            next_billing_date: p.p_next_billing_date || cycleEnd.slice(0, 10),
+            canceled_at: null,
+            updated_at: now,
+          };
+          db.customer_subscriptions = db.customer_subscriptions.map((item) =>
+            item.id === subscription!.id ? subscription! : item,
+          );
+        } else {
+          subscription = {
+            id: `demo-subscription-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            tenant_id: tenantId,
+            client_id: client.id,
+            plan_id: plan.id,
+            status: 'active',
+            started_at: now,
+            cycle_start: now,
+            cycle_end: cycleEnd,
+            next_billing_date: p.p_next_billing_date || cycleEnd.slice(0, 10),
+            canceled_at: null,
+            created_at: now,
+            updated_at: now,
+          };
+          db.customer_subscriptions.push(subscription);
+        }
+
+        const creditRecord = {
+          id: db.customer_credits.find((item) => item.subscription_id === subscription.id)?.id
+            || `demo-credit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          tenant_id: tenantId,
+          subscription_id: subscription.id,
+          client_id: client.id,
+          available_credits: availableCredits,
+          used_credits: 0,
+          service_balance_map: serviceBalanceMap,
+          period_start: subscription.cycle_start,
+          period_end: subscription.cycle_end,
+          created_at: now,
+          updated_at: now,
+        };
+
+        db.customer_credits = [
+          ...db.customer_credits.filter((item) => item.subscription_id !== subscription!.id),
+          creditRecord,
+        ];
+        writeDemoDatabase(db);
+
+        return createRpcResult({ subscription, credits: creditRecord }, null);
+      }
+
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));
     },
     functions: {

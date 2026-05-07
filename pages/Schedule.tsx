@@ -6,6 +6,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
+import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -812,7 +813,7 @@ const Schedule: React.FC = () => {
     let availableCredits = 0;
     const { data: credits, error: creditsError } = await supabase
       .from('customer_credits')
-      .select('available_credits')
+      .select('available_credits, used_credits, service_balance_map')
       .eq('tenant_id', tenantId)
       .eq('subscription_id', subscription.id)
       .maybeSingle();
@@ -820,8 +821,15 @@ const Schedule: React.FC = () => {
     if (creditsError) {
       console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
     }
-    if (credits?.available_credits !== undefined) {
-      availableCredits = credits.available_credits;
+    if (credits) {
+      const serviceBalances = normalizeCreditBalances(
+        credits.service_balance_map,
+        credits.available_credits || 0,
+        credits.used_credits || 0,
+      );
+      availableCredits = serviceBalances.length > 0
+        ? getTotalAvailableCredits(serviceBalances)
+        : credits.available_credits || 0;
     }
 
     setChefClubInfo({

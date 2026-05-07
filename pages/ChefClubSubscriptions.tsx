@@ -264,8 +264,8 @@ const ChefClubSubscriptions: React.FC = () => {
                       {subscription.serviceBalances.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {subscription.serviceBalances.slice(0, 2).map((balance) => (
-                            <div key={`${subscription.id}-${balance.serviceId}`} className="text-[10px] font-bold text-slate-500">
-                              {balance.serviceName}: {balance.available}
+                            <div key={`${subscription.id}-${balance.service_id}`} className="text-[10px] font-bold text-slate-500">
+                              {balance.service_name}: {balance.available}
                             </div>
                           ))}
                         </div>
