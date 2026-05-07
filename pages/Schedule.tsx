@@ -69,6 +69,8 @@ type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
+const SCHEDULE_START_HOUR = 7;
+
 interface AppointmentFiltersState {
   date: string;
   period: ListPeriod;
@@ -367,7 +369,7 @@ const Schedule: React.FC = () => {
   }, [appointments]);
 
   const dynamicTimeSlots = React.useMemo(() => {
-    return Array.from({ length: displayEndHour - 8 + 1 }, (_, i) => i + 8);
+    return Array.from({ length: displayEndHour - SCHEDULE_START_HOUR + 1 }, (_, i) => i + SCHEDULE_START_HOUR);
   }, [displayEndHour]);
 
   const totalSlots = dynamicTimeSlots.length;
@@ -381,7 +383,7 @@ const Schedule: React.FC = () => {
     serviceIds: [],
     staffId: '',
     date: new Date().toISOString().split('T')[0],
-    start: 8,
+    start: SCHEDULE_START_HOUR,
     duration: 1,
     notes: '',
   });
@@ -939,12 +941,12 @@ const Schedule: React.FC = () => {
     // Calcula o novo horário dinamicamente
     const totalHours = dynamicTimeSlots.length;
     const percentage = yPosition / columnRect.height;
-    const exactHour = 8 + (percentage * totalHours);
+    const exactHour = SCHEDULE_START_HOUR + (percentage * totalHours);
 
     // Arredonda para blocos de 15 minutos mais próximos
     const roundedHour = Math.floor(exactHour * 4) / 4;
 
-    if (roundedHour < 8 || roundedHour >= (displayEndHour + 1)) {
+    if (roundedHour < SCHEDULE_START_HOUR || roundedHour >= (displayEndHour + 1)) {
       setToast({ message: 'Horário fora de operação.', type: 'error' });
       return;
     }
@@ -1585,7 +1587,7 @@ const Schedule: React.FC = () => {
     setServiceSearchTerm('');
     setForceOverbook(false);
     setOverbookConflicts([]);
-    setFormData({ client: '', clientPhone: '', service: '', serviceIds: [], staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+    setFormData({ client: '', clientPhone: '', service: '', serviceIds: [], staffId: staffList[0]?.id ?? '', date: formData.date, start: SCHEDULE_START_HOUR, duration: 1, notes: '' });
     fetchAppointments();
   };
 
@@ -2000,7 +2002,7 @@ Podemos confirmar? 😄`;
                               .map((block) => {
                                 const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                                 const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                                const top = (start - 8) * (100 / totalSlots);
+                                const top = (start - SCHEDULE_START_HOUR) * (100 / totalSlots);
                                 const height = (end - start) * (100 / totalSlots);
                                 return (
                                   <div
@@ -2015,7 +2017,7 @@ Podemos confirmar? 😄`;
                               {dynamicTimeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
                             {!showOnlyBlocks && dayApts.map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / totalSlots);
+                              const startOffset = (apt.start - SCHEDULE_START_HOUR) * (100 / totalSlots);
                               const height = apt.duration * (100 / totalSlots);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
@@ -2110,7 +2112,7 @@ Podemos confirmar? 😄`;
                           {!showOnlyBlocks && appointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / totalSlots);
+                              const startOffset = (apt.start - SCHEDULE_START_HOUR) * (100 / totalSlots);
                               const height = apt.duration * (100 / totalSlots);
                               const staffIndex = staffList.findIndex(s => s.id === resource.id);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
@@ -2161,7 +2163,7 @@ Podemos confirmar? 😄`;
 
                             const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                             const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                            const top = (start - 8) * (100 / totalSlots);
+                            const top = (start - SCHEDULE_START_HOUR) * (100 / totalSlots);
                             const height = (end - start) * (100 / totalSlots);
                             return (
                               <div
@@ -2639,8 +2641,8 @@ Podemos confirmar? 😄`;
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
-                    const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
+                    const slotsUntilMidnight = (24 - SCHEDULE_START_HOUR) * 2 + 1;
+                    const allSlots = Array.from({ length: slotsUntilMidnight }, (_, i) => SCHEDULE_START_HOUR + i * 0.5);
                     const aptsOnDay = appointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year

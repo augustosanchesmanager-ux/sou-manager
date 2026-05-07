@@ -23,6 +23,9 @@ interface KioskScheduleProps {
 
 type ScheduleStep = 'service' | 'barber' | 'datetime' | 'confirm' | 'success';
 
+const SCHEDULE_START_HOUR = 7;
+const SCHEDULE_END_HOUR = 20;
+
 const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * 60000);
 const fmtTime = (dt: string) => new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const fmtDate = (d: Date) => d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -96,8 +99,8 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
         }
 
         const isToday = dateStr === new Date().toISOString().split('T')[0];
-        const startHour = isToday ? Math.max(8, new Date().getHours() + 1) : 8;
-        const endHour = 20;
+        const startHour = isToday ? Math.max(SCHEDULE_START_HOUR, new Date().getHours() + 1) : SCHEDULE_START_HOUR;
+        const endHour = SCHEDULE_END_HOUR;
 
         const generated: Slot[] = [];
         for (let h = startHour; h < endHour; h++) {
