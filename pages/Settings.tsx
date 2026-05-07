@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
 
 const BR_STATES = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -88,6 +89,8 @@ const Settings: React.FC = () => {
     const [cepLoading, setCepLoading] = useState(false);
     const [cepMessage, setCepMessage] = useState<string | null>(null);
     const [lastFetchedCep, setLastFetchedCep] = useState('');
+    const notificationPreferences = useNotificationPreferences();
+    const [notificationsMessage, setNotificationsMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const initialDocument = cleanDigits(user?.user_metadata?.document || '');
     const initialPersonType: PersonType = user?.user_metadata?.person_type === 'pf' || user?.user_metadata?.person_type === 'pj'
@@ -322,6 +325,18 @@ const Settings: React.FC = () => {
             setGoalsMessage({ type: 'error', text: err.message || 'Erro ao salvar metas.' });
         } finally {
             setGoalsLoading(false);
+        }
+    };
+
+    const handleSaveNotificationPreferences = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setNotificationsMessage(null);
+
+        try {
+            await notificationPreferences.save();
+            setNotificationsMessage({ type: 'success', text: 'Preferências de notificação salvas com sucesso!' });
+        } catch (err: any) {
+            setNotificationsMessage({ type: 'error', text: err.message || 'Erro ao salvar preferências de notificação.' });
         }
     };
 
@@ -671,6 +686,85 @@ const Settings: React.FC = () => {
                     </form>
                 </section>
             </div>
+
+            {/* Notification Preferences Section */}
+            <section className="bg-white dark:bg-card-dark p-6 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
+                    <span className="material-symbols-outlined text-primary">notifications_active</span>
+                    <h3 className="font-bold text-slate-900 dark:text-white">Notificações</h3>
+                </div>
+                <p className="text-xs text-slate-500 mb-6">
+                    Escolha quais avisos operacionais devem aparecer na central de notificações.
+                </p>
+
+                {(notificationsMessage || notificationPreferences.error) && (
+                    <div className={`mb-4 p-3 rounded-lg border text-sm font-bold flex items-center gap-2 ${
+                        notificationsMessage?.type === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                            : 'bg-red-500/10 border-red-500/20 text-red-500'
+                    }`}>
+                        <span className="material-symbols-outlined text-sm">
+                            {notificationsMessage?.type === 'success' ? 'check_circle' : 'error'}
+                        </span>
+                        {notificationsMessage?.text || notificationPreferences.error}
+                    </div>
+                )}
+
+                <form onSubmit={handleSaveNotificationPreferences} className="space-y-4">
+                    {notificationPreferences.loading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {[1, 2, 3, 4, 5, 6].map((item) => (
+                                <div key={item} className="h-20 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {notificationPreferences.preferences.map((preference) => (
+                                <label
+                                    key={preference.type}
+                                    className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-all ${
+                                        preference.enabled
+                                            ? 'border-primary/30 bg-primary/5'
+                                            : 'border-slate-200 bg-slate-50 dark:border-border-dark dark:bg-white/[0.02]'
+                                    }`}
+                                >
+                                    <span>
+                                        <span className="block text-sm font-bold text-slate-900 dark:text-white">{preference.label}</span>
+                                        <span className="mt-1 block text-xs text-slate-500">{preference.description}</span>
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={preference.enabled}
+                                        onChange={() => {
+                                            setNotificationsMessage(null);
+                                            notificationPreferences.togglePreference(preference.type);
+                                        }}
+                                        className="size-5 shrink-0 accent-primary"
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={notificationPreferences.loading || notificationPreferences.saving || notificationPreferences.preferences.length === 0}
+                        className="w-full md:w-auto px-6 bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {notificationPreferences.saving ? (
+                            <>
+                                <span className="animate-spin material-symbols-outlined text-sm">progress_activity</span>
+                                Salvando...
+                            </>
+                        ) : (
+                            <>
+                                <span className="material-symbols-outlined text-sm">save</span>
+                                Salvar Preferências
+                            </>
+                        )}
+                    </button>
+                </form>
+            </section>
 
             {/* Business Goals Section */}
             <section className="bg-white dark:bg-card-dark p-6 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm">

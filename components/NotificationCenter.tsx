@@ -1,223 +1,192 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { useAuth } from '../context/AuthContext';
+import React from 'react';
 import Button from './ui/Button';
-
-export interface Notification {
-    id: string;
-    type: 'appointment_reminder' | 'stock_low' | 'purchase_request' | 'transaction' | 'system_alert' | 'admin_message';
-    title: string;
-    description: string;
-    read: boolean;
-    created_at: string;
-}
+import type { UseNotificationsResult } from '../src/hooks/useNotifications';
+import type { InternalNotificationSeverity, InternalNotificationType } from '../src/types/notifications';
+import { NOTIFICATION_TYPE_LABELS } from '../src/types/notifications';
 
 interface NotificationCenterProps {
-    onClose?: () => void;
+  controller: UseNotificationsResult;
+  onClose?: () => void;
 }
 
-const NotificationCenter: React.FC<NotificationCenterProps> = ({ onClose }) => {
-    const { user } = useAuth();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [filter, setFilter] = useState<'all' | 'unread'>('unread');
-    const [isLoading, setIsLoading] = useState(true);
+const iconByType: Record<InternalNotificationType, string> = {
+  comanda_aberta: 'receipt_long',
+  estoque_baixo: 'inventory_2',
+  pagamento_a_realizar: 'payments',
+  cobranca_clube_chefes: 'workspace_premium',
+  proximo_cliente: 'event_upcoming',
+  cliente_atrasado: 'alarm',
+};
 
-    const fetchNotifications = async () => {
-        if (!user) return;
-        setIsLoading(true);
+const severityMeta: Record<InternalNotificationSeverity, { label: string; className: string; iconClassName: string }> = {
+  info: {
+    label: 'Info',
+    className: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+    iconClassName: 'text-blue-500 bg-blue-500/10',
+  },
+  warning: {
+    label: 'Atenção',
+    className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+    iconClassName: 'text-amber-500 bg-amber-500/10',
+  },
+  critical: {
+    label: 'Crítico',
+    className: 'bg-red-500/10 text-red-600 border-red-500/20',
+    iconClassName: 'text-red-500 bg-red-500/10',
+  },
+};
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        const startOfDay = new Date(`${todayStr}T00:00:00`).toISOString();
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-        let query = supabase
-            .from('notifications')
-            .select('*')
-            .gte('created_at', startOfDay)
-            .order('created_at', { ascending: false });
+const NotificationCenter: React.FC<NotificationCenterProps> = ({ controller, onClose }) => {
+  const {
+    notifications,
+    filter,
+    setFilter,
+    loading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    archive,
+    refresh,
+  } = controller;
 
-        if (filter === 'unread') {
-            query = query.eq('read', false);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-            console.error('Error fetching notifications:', error);
-        } else {
-            setNotifications(data || []);
-        }
-        setIsLoading(false);
-    };
-
-    useEffect(() => {
-        fetchNotifications();
-
-        if (!user) return;
-
-        // Realtime Subscription
-        const channel = supabase
-            .channel('public:notifications')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'notifications',
-                },
-                (payload) => {
-                    const newNotification = payload.new as Notification;
-                    setNotifications(prev => [newNotification, ...prev]);
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [user, filter]);
-
-    const markAsRead = async (id: string) => {
-        const { error } = await supabase
-            .from('notifications')
-            .update({ read: true })
-            .eq('id', id);
-
-        if (!error) {
-            if (filter === 'unread') {
-                setNotifications(prev => prev.filter(n => n.id !== id));
-            } else {
-                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-            }
-        }
-    };
-
-    const markAllAsRead = async () => {
-        if (!user) return;
-
-        const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-        if (unreadIds.length === 0) return;
-
-        const { error } = await supabase
-            .from('notifications')
-            .update({ read: true })
-            .in('id', unreadIds);
-
-        if (!error) {
-            if (filter === 'unread') {
-                setNotifications([]);
-            } else {
-                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-            }
-        } else {
-            console.error('Erro ao marcar todas como lidas:', error);
-        }
-    };
-
-    const getIcon = (type: Notification['type']) => {
-        switch (type) {
-            case 'appointment_reminder': return 'calendar_today';
-            case 'stock_low': return 'inventory_2';
-            case 'purchase_request': return 'shopping_cart';
-            case 'transaction': return 'payments';
-            case 'admin_message': return 'campaign';
-            default: return 'notifications';
-        }
-    };
-
-    const getIconColor = (type: Notification['type']) => {
-        switch (type) {
-            case 'appointment_reminder': return 'text-blue-500 bg-blue-500/10';
-            case 'stock_low': return 'text-amber-500 bg-amber-500/10';
-            case 'purchase_request': return 'text-primary bg-primary/10';
-            case 'transaction': return 'text-emerald-500 bg-emerald-500/10';
-            case 'admin_message': return 'text-purple-500 bg-purple-500/10';
-            default: return 'text-slate-500 bg-slate-500/10';
-        }
-    };
-
-    return (
-        <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setFilter('unread')}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${filter === 'unread' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}
-                    >
-                        Não lidas
-                    </button>
-                    <button
-                        onClick={() => setFilter('all')}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${filter === 'all' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'}`}
-                    >
-                        Todas
-                    </button>
-                </div>
-                <button
-                    onClick={markAllAsRead}
-                    className="text-xs text-primary hover:underline font-bold"
-                >
-                    Marcar todas como lidas
-                </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
-                {isLoading ? (
-                    <div className="flex flex-col gap-2">
-                        {[1, 2, 3].map(i => (
-                            <div key={i} className="h-20 bg-slate-100 dark:bg-white/5 animate-pulse rounded-xl"></div>
-                        ))}
-                    </div>
-                ) : notifications.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
-                        <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">notifications_off</span>
-                        <p className="text-slate-500 text-sm">Nenhum aviso por aqui.</p>
-                    </div>
-                ) : (
-                    notifications.map(n => (
-                        <div
-                            key={n.id}
-                            className={`p-4 rounded-xl border transition-all flex gap-3 relative overflow-hidden group ${n.read ? 'bg-white dark:bg-card-dark border-slate-100 dark:border-border-dark opacity-70' : 'bg-slate-50 dark:bg-white/5 border-primary/20 shadow-sm'}`}
-                        >
-                            <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${getIconColor(n.type)}`}>
-                                <span className="material-symbols-outlined text-xl">{getIcon(n.type)}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start">
-                                    <h4 className={`text-sm font-bold truncate pr-6 ${n.read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
-                                        {n.title}
-                                    </h4>
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                                        {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">
-                                    {n.description}
-                                </p>
-                            </div>
-
-                            {!n.read && (
-                                <button
-                                    onClick={() => markAsRead(n.id)}
-                                    className="absolute right-2 bottom-2 text-primary opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-primary/10 rounded"
-                                    title="Marcar como lida"
-                                >
-                                    <span className="material-symbols-outlined text-sm">done_all</span>
-                                </button>
-                            )}
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {onClose && (
-                <div className="pt-4 mt-auto">
-                    <Button variant="secondary" className="w-full" onClick={onClose}>
-                        Fechar
-                    </Button>
-                </div>
-            )}
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilter('unread')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              filter === 'unread'
+                ? 'bg-primary text-white'
+                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+            }`}
+          >
+            Não lidas
+          </button>
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              filter === 'all'
+                ? 'bg-primary text-white'
+                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+            }`}
+          >
+            Todas
+          </button>
         </div>
-    );
+        <button
+          onClick={() => void markAllAsRead()}
+          className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
+          disabled={!notifications.some((notification) => notification.status === 'unread')}
+        >
+          Marcar todas como lidas
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-bold text-red-600">
+          {error}
+          <button onClick={() => void refresh()} className="ml-2 underline">
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      <div className="custom-scrollbar flex-1 space-y-2 overflow-y-auto pr-2">
+        {loading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
+            ))}
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <span className="material-symbols-outlined mb-2 text-4xl text-slate-300">notifications_off</span>
+            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Nenhum aviso por aqui.</p>
+            <p className="mt-1 text-xs text-slate-500">Quando algo importante acontecer, aparece nesta central.</p>
+          </div>
+        ) : (
+          notifications.map((notification) => {
+            const severity = severityMeta[notification.severity] || severityMeta.info;
+            const isUnread = notification.status === 'unread';
+
+            return (
+              <div
+                key={notification.id}
+                className={`group relative flex gap-3 overflow-hidden rounded-xl border p-4 transition-all ${
+                  isUnread
+                    ? 'border-primary/20 bg-slate-50 shadow-sm dark:bg-white/5'
+                    : 'border-slate-100 bg-white opacity-75 dark:border-border-dark dark:bg-card-dark'
+                }`}
+              >
+                <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${severity.iconClassName}`}>
+                  <span className="material-symbols-outlined text-xl">{iconByType[notification.type] || 'notifications'}</span>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className={`truncate pr-2 text-sm font-bold ${isUnread ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                      {notification.title}
+                    </h4>
+                    <span className="whitespace-nowrap text-[10px] text-slate-400">
+                      {formatDateTime(notification.created_at)}
+                    </span>
+                  </div>
+
+                  <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{notification.message}</p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                      {NOTIFICATION_TYPE_LABELS[notification.type] || notification.type}
+                    </span>
+                    <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${severity.className}`}>
+                      {severity.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 flex-col gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  {isUnread && (
+                    <button
+                      onClick={() => void markAsRead(notification.id)}
+                      className="rounded-lg p-1.5 text-primary hover:bg-primary/10"
+                      title="Marcar como lida"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">done_all</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => void archive(notification.id)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                    title="Arquivar"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">archive</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {onClose && (
+        <div className="mt-auto pt-4">
+          <Button variant="secondary" className="w-full" onClick={onClose}>
+            Fechar
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default NotificationCenter;
+

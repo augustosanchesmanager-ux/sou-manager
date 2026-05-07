@@ -281,6 +281,31 @@ interface LocalDemoDatabase {
   customer_plans: LocalDemoPlanRecord[];
   customer_subscriptions: LocalDemoSubscriptionRecord[];
   customer_credits: LocalDemoCreditRecord[];
+  notifications: Array<{
+    id: string;
+    tenant_id: string;
+    user_id: string | null;
+    type: string;
+    title: string;
+    message: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    severity: 'info' | 'warning' | 'critical';
+    status: 'unread' | 'read' | 'archived';
+    read_at: string | null;
+    metadata: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+  }>;
+  notification_preferences: Array<{
+    id: string;
+    tenant_id: string;
+    user_id: string;
+    type: string;
+    enabled: boolean;
+    created_at: string;
+    updated_at: string;
+  }>;
 }
 
 const createDemoId = (prefix: string) =>
@@ -601,6 +626,8 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
     ],
     customer_subscriptions: [],
     customer_credits: [],
+    notifications: [],
+    notification_preferences: [],
   };
 };
 
@@ -696,6 +723,8 @@ comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], s
       customer_plans: Array.isArray(parsed.customer_plans) ? parsed.customer_plans : [],
       customer_subscriptions: Array.isArray(parsed.customer_subscriptions) ? parsed.customer_subscriptions : [],
       customer_credits: Array.isArray(parsed.customer_credits) ? parsed.customer_credits : [],
+      notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+      notification_preferences: Array.isArray(parsed.notification_preferences) ? parsed.notification_preferences : [],
     };
   } catch {
     const seed = createSeedDemoDatabase();
@@ -773,6 +802,10 @@ case 'comanda_items':
         return cloneRows(db.customer_subscriptions);
       case 'customer_credits':
         return cloneRows(db.customer_credits);
+      case 'notifications':
+        return cloneRows(db.notifications);
+      case 'notification_preferences':
+        return cloneRows(db.notification_preferences);
       case 'usage_logs':
       case 'alerts':
       case 'notification_channels':
@@ -1003,6 +1036,10 @@ case 'comanda_items':
         db.clients.push(...(nextRows as LocalDemoClientRecord[]));
       } else if (table === 'suppliers') {
         db.suppliers.push(...(nextRows as typeof db.suppliers));
+      } else if (table === 'notifications') {
+        db.notifications.push(...(nextRows as typeof db.notifications));
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences.push(...(nextRows as typeof db.notification_preferences));
       }
 
       writeDemoDatabase(db);
@@ -1040,6 +1077,10 @@ case 'comanda_items':
         db.clients = replaceRows(db.clients);
       } else if (table === 'suppliers') {
         db.suppliers = replaceRows(db.suppliers);
+      } else if (table === 'notifications') {
+        db.notifications = replaceRows(db.notifications);
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences = replaceRows(db.notification_preferences);
       }
 
       writeDemoDatabase(db);
@@ -1066,7 +1107,11 @@ case 'comanda_items':
                   ? db.comanda_items
                   : table === 'suppliers'
                     ? db.suppliers
-                    : db.clients;
+                    : table === 'notifications'
+                      ? db.notifications
+                      : table === 'notification_preferences'
+                        ? db.notification_preferences
+                        : db.clients;
 
       const upsertedRows = rows.map((row) => {
         const existingIndex = targetRows.findIndex((item: any) => item[onConflict] === row[onConflict]);
@@ -1113,6 +1158,10 @@ case 'comanda_items':
         db.clients = remainingRows as LocalDemoClientRecord[];
       } else if (table === 'suppliers') {
         db.suppliers = remainingRows as typeof db.suppliers;
+      } else if (table === 'notifications') {
+        db.notifications = remainingRows as typeof db.notifications;
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences = remainingRows as typeof db.notification_preferences;
       }
 
       writeDemoDatabase(db);
@@ -1139,13 +1188,13 @@ case 'comanda_items':
 };
 
 const createLocalDemoClient = (): SupabaseClient => {
-  const createRpcResult = (data: Record<string, unknown> | null, error: Error | null) => ({
+  const createRpcResult = (data: unknown, error: Error | null) => ({
     data,
     error,
     single: async () => ({ data, error }),
     maybeSingle: async () => ({ data, error }),
     then: (
-      onFulfilled: (value: { data: Record<string, unknown> | null; error: Error | null }) => unknown,
+      onFulfilled: (value: { data: unknown; error: Error | null }) => unknown,
       onRejected?: (reason: unknown) => unknown,
     ) => Promise.resolve({ data, error }).then(onFulfilled, onRejected),
   });
@@ -1200,10 +1249,88 @@ const createLocalDemoClient = (): SupabaseClient => {
     getUser: async () => ({ data: { user: readDemoSession()?.user ?? null }, error: null }),
   };
 
+  const notificationCatalog = [
+    { type: 'comanda_aberta', label: 'Comandas abertas', description: 'Avisar quando uma nova comanda for aberta.' },
+    { type: 'estoque_baixo', label: 'Estoque baixo', description: 'Avisar quando um produto atingir o estoque minimo.' },
+    { type: 'pagamento_a_realizar', label: 'Pagamentos a realizar', description: 'Avisar sobre contas pendentes, vencendo ou vencidas.' },
+    { type: 'cobranca_clube_chefes', label: 'Cobrancas do Clube dos Chefes', description: 'Avisar sobre mensalidades pendentes ou vencidas.' },
+    { type: 'proximo_cliente', label: 'Proximo cliente', description: 'Avisar sobre o proximo atendimento da agenda.' },
+    { type: 'cliente_atrasado', label: 'Cliente atrasado', description: 'Avisar quando o horario do atendimento ja passou.' },
+  ];
+
+  const isNotificationEnabled = (db: LocalDemoDatabase, type: string) => {
+    const preference = db.notification_preferences.find(
+      (item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.user_id === LOCAL_DEMO_USER_ID && item.type === type,
+    );
+    return preference?.enabled !== false;
+  };
+
+  const upsertDemoNotification = (
+    db: LocalDemoDatabase,
+    payload: {
+      type: string;
+      title: string;
+      message: string;
+      entity_type?: string | null;
+      entity_id?: string | null;
+      severity?: 'info' | 'warning' | 'critical';
+      metadata?: Record<string, unknown>;
+    },
+  ) => {
+    if (!isNotificationEnabled(db, payload.type)) return null;
+
+    const now = new Date().toISOString();
+    const existing = db.notifications.find(
+      (item) =>
+        item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+        item.user_id === LOCAL_DEMO_USER_ID &&
+        item.type === payload.type &&
+        (item.entity_type || '') === (payload.entity_type || '') &&
+        (item.entity_id || '') === (payload.entity_id || '') &&
+        item.status === 'unread',
+    );
+
+    if (existing) {
+      existing.title = payload.title;
+      existing.message = payload.message;
+      existing.severity = payload.severity || 'info';
+      existing.metadata = payload.metadata || {};
+      existing.created_at = now;
+      existing.updated_at = now;
+      return existing.id;
+    }
+
+    const row = {
+      id: createDemoId('notification'),
+      tenant_id: LOCAL_DEMO_TENANT_ID,
+      user_id: LOCAL_DEMO_USER_ID,
+      type: payload.type,
+      title: payload.title,
+      message: payload.message,
+      entity_type: payload.entity_type || null,
+      entity_id: payload.entity_id || null,
+      severity: payload.severity || 'info',
+      status: 'unread' as const,
+      read_at: null,
+      metadata: payload.metadata || {},
+      created_at: now,
+      updated_at: now,
+    };
+    db.notifications.push(row);
+    return row.id;
+  };
+
 const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
+    channel: (_name: string) => ({
+      on: () => ({
+        subscribe: () => ({}),
+      }),
+      subscribe: () => ({}),
+    }),
+    removeChannel: async () => null,
     rpc: (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'get_auth_access_context' && readDemoSession()) {
         return createRpcResult({
@@ -1212,6 +1339,178 @@ const client = {
           profile_status: 'active',
           is_super_admin: false,
         }, null);
+      }
+
+      if (fn === 'get_notification_preferences' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        return createRpcResult(
+          notificationCatalog.map((item) => ({
+            ...item,
+            enabled: isNotificationEnabled(db, item.type),
+          })),
+          null,
+        );
+      }
+
+      if (fn === 'set_notification_preferences' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        const preferences = Array.isArray(params?.p_preferences) ? params?.p_preferences as Array<{ type?: string; enabled?: boolean }> : [];
+
+        preferences.forEach((preference) => {
+          if (!preference.type || !notificationCatalog.some((item) => item.type === preference.type)) return;
+          const existing = db.notification_preferences.find(
+            (item) =>
+              item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+              item.user_id === LOCAL_DEMO_USER_ID &&
+              item.type === preference.type,
+          );
+          if (existing) {
+            existing.enabled = preference.enabled !== false;
+            existing.updated_at = now;
+          } else {
+            db.notification_preferences.push({
+              id: createDemoId('notification-preference'),
+              tenant_id: LOCAL_DEMO_TENANT_ID,
+              user_id: LOCAL_DEMO_USER_ID,
+              type: preference.type,
+              enabled: preference.enabled !== false,
+              created_at: now,
+              updated_at: now,
+            });
+          }
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult(
+          notificationCatalog.map((item) => ({
+            ...item,
+            enabled: isNotificationEnabled(db, item.type),
+          })),
+          null,
+        );
+      }
+
+      if (fn === 'list_internal_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const status = params?.p_status as string | null | undefined;
+        const limit = Number(params?.p_limit || 50);
+        const rows = db.notifications
+          .filter((item) =>
+            item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+            item.user_id === LOCAL_DEMO_USER_ID &&
+            (!status || item.status === status),
+          )
+          .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          .slice(0, limit);
+
+        return createRpcResult(rows, null);
+      }
+
+      if (fn === 'count_unread_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        return createRpcResult(
+          db.notifications.filter(
+            (item) =>
+              item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+              item.user_id === LOCAL_DEMO_USER_ID &&
+              item.status === 'unread',
+          ).length,
+          null,
+        );
+      }
+
+      if (fn === 'mark_notification_read' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const id = params?.p_notification_id as string;
+        const row = db.notifications.find((item) => item.id === id && item.user_id === LOCAL_DEMO_USER_ID);
+        if (row) {
+          row.status = 'read';
+          row.read_at = row.read_at || new Date().toISOString();
+          row.updated_at = new Date().toISOString();
+          writeDemoDatabase(db);
+        }
+        return createRpcResult(null, null);
+      }
+
+      if (fn === 'mark_all_notifications_read' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        let count = 0;
+        db.notifications.forEach((item) => {
+          if (item.tenant_id === LOCAL_DEMO_TENANT_ID && item.user_id === LOCAL_DEMO_USER_ID && item.status === 'unread') {
+            item.status = 'read';
+            item.read_at = item.read_at || now;
+            item.updated_at = now;
+            count += 1;
+          }
+        });
+        writeDemoDatabase(db);
+        return createRpcResult(count, null);
+      }
+
+      if (fn === 'archive_notification' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const id = params?.p_notification_id as string;
+        const row = db.notifications.find((item) => item.id === id && item.user_id === LOCAL_DEMO_USER_ID);
+        if (row) {
+          row.status = 'archived';
+          row.read_at = row.read_at || new Date().toISOString();
+          row.updated_at = new Date().toISOString();
+          writeDemoDatabase(db);
+        }
+        return createRpcResult(null, null);
+      }
+
+      if (fn === 'generate_system_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        let generated = 0;
+        db.products
+          .filter((product) => product.tenant_id === LOCAL_DEMO_TENANT_ID && product.active && product.stock_quantity <= product.minimum_stock)
+          .forEach((product) => {
+            const id = upsertDemoNotification(db, {
+              type: 'estoque_baixo',
+              title: 'Estoque baixo',
+              message: `O produto ${product.name} está com estoque abaixo do mínimo.`,
+              entity_type: 'products',
+              entity_id: product.id,
+              severity: product.stock_quantity <= 0 ? 'critical' : 'warning',
+              metadata: { stock_quantity: product.stock_quantity, minimum_stock: product.minimum_stock },
+            });
+            if (id) generated += 1;
+          });
+
+        const openComanda = db.comandas.find((item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.status === 'open');
+        if (openComanda) {
+          const clientRow = db.clients.find((item) => item.id === openComanda.client_id);
+          const id = upsertDemoNotification(db, {
+            type: 'comanda_aberta',
+            title: 'Nova comanda aberta',
+            message: `Uma nova comanda foi aberta para ${clientRow?.name || `comanda #${openComanda.id.slice(0, 8)}`}.`,
+            entity_type: 'comandas',
+            entity_id: openComanda.id,
+            severity: 'info',
+            metadata: { comanda_id: openComanda.id },
+          });
+          if (id) generated += 1;
+        }
+
+        const pendingExpense = db.transactions.find((item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.type === 'expense' && item.status === 'pending');
+        if (pendingExpense) {
+          const id = upsertDemoNotification(db, {
+            type: 'pagamento_a_realizar',
+            title: 'Pagamento a realizar',
+            message: `Existe um pagamento de R$ ${Number(pendingExpense.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} com vencimento em ${new Date(pendingExpense.date).toLocaleDateString('pt-BR')}.`,
+            entity_type: 'transactions',
+            entity_id: pendingExpense.id,
+            severity: new Date(pendingExpense.date) < new Date() ? 'critical' : 'warning',
+            metadata: { amount: pendingExpense.amount, due_date: pendingExpense.date },
+          });
+          if (id) generated += 1;
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({ generated, tenant_id: LOCAL_DEMO_TENANT_ID }, null);
       }
 
       if (fn === 'create_appointment_with_comanda' && isLocalDemoEnabled()) {
