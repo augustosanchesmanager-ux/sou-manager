@@ -10,47 +10,8 @@ import type {
   SubscriptionClient,
   CollectionQueueItem,
   PlanDistribution,
-  ServiceBalanceEntry,
 } from '../types/membership';
-
-const normalizeCreditBalances = (
-  balanceMap: unknown,
-  availableCredits: number,
-  usedCredits: number
-): ServiceBalanceEntry[] => {
-  if (!balanceMap || typeof balanceMap !== 'object') {
-    return availableCredits > 0
-      ? [{ serviceId: 'general', serviceName: 'Geral', available: availableCredits, used: usedCredits }]
-      : [];
-  }
-
-  const map = balanceMap as Record<string, { available: number; used: number }>;
-  return Object.entries(map).map(([serviceId, data]) => ({
-    serviceId,
-    serviceName: serviceId,
-    available: data.available,
-    used: data.used,
-  }));
-};
-
-const normalizePlanServiceCredits = (
-  creditMap: unknown,
-  defaultCredits: number
-): ServiceBalanceEntry[] => {
-  if (!creditMap || typeof creditMap !== 'object') {
-    return defaultCredits > 0
-      ? [{ serviceId: 'general', serviceName: 'Geral', available: defaultCredits, used: 0 }]
-      : [];
-  }
-
-  const map = creditMap as Record<string, number>;
-  return Object.entries(map).map(([serviceId, credits]) => ({
-    serviceId,
-    serviceName: serviceId,
-    available: credits,
-    used: 0,
-  }));
-};
+import { getTotalAvailableCredits, getTotalUsedCredits, normalizeCreditBalances } from '../utils/chefClubCredits';
 
 const getCollectionPriority = (dueDate: string, status: SubscriptionStatus): 'high' | 'medium' | 'low' => {
   const today = new Date();
@@ -216,6 +177,18 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
           newSubscribersThisMonth++;
         }
 
+        const serviceBalances = normalizeCreditBalances(
+          creditRecord?.service_balance_map,
+          creditRecord?.available_credits || 0,
+          creditRecord?.used_credits || 0
+        );
+        const availableCredits = serviceBalances.length > 0
+          ? getTotalAvailableCredits(serviceBalances)
+          : creditRecord?.available_credits || 0;
+        const usedCredits = serviceBalances.length > 0
+          ? getTotalUsedCredits(serviceBalances)
+          : creditRecord?.used_credits || 0;
+
         return {
           id: sub.id,
           client,
@@ -231,13 +204,9 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
           status,
           nextBillingDate: sub.next_billing_date,
           cycleEnd: sub.cycle_end,
-          availableCredits: creditRecord?.available_credits || 0,
-          usedCredits: creditRecord?.used_credits || 0,
-          serviceBalances: normalizeCreditBalances(
-            creditRecord?.service_balance_map,
-            creditRecord?.available_credits || 0,
-            creditRecord?.used_credits || 0
-          ),
+          availableCredits,
+          usedCredits,
+          serviceBalances,
           createdAt: sub.created_at,
           canceledAt: sub.canceled_at,
         };

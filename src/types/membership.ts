@@ -20,8 +20,8 @@ export interface SubscriptionPlan {
 }
 
 export interface ServiceBalanceEntry {
-  serviceId: string;
-  serviceName: string;
+  service_id: string;
+  service_name: string;
   available: number;
   used: number;
 }

@@ -205,6 +205,10 @@ interface LocalDemoDatabase {
     staff_name: string;
     start_time: string;
     duration: number;
+    price?: number;
+    notes?: string;
+    hidden_from_schedule?: boolean;
+    is_overbooked?: boolean;
     status: string;
     idempotency_key?: string | null;
     created_at: string;
@@ -281,6 +285,31 @@ interface LocalDemoDatabase {
   customer_plans: LocalDemoPlanRecord[];
   customer_subscriptions: LocalDemoSubscriptionRecord[];
   customer_credits: LocalDemoCreditRecord[];
+  notifications: Array<{
+    id: string;
+    tenant_id: string;
+    user_id: string | null;
+    type: string;
+    title: string;
+    message: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    severity: 'info' | 'warning' | 'critical';
+    status: 'unread' | 'read' | 'archived';
+    read_at: string | null;
+    metadata: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+  }>;
+  notification_preferences: Array<{
+    id: string;
+    tenant_id: string;
+    user_id: string;
+    type: string;
+    enabled: boolean;
+    created_at: string;
+    updated_at: string;
+  }>;
 }
 
 const createDemoId = (prefix: string) =>
@@ -377,6 +406,8 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         start_time: new Date('2026-04-18T15:00:00-03:00').toISOString(),
         duration: 0.5,
         status: 'confirmed',
+        hidden_from_schedule: false,
+        is_overbooked: false,
         created_at: now,
         updated_at: now,
       },
@@ -601,6 +632,8 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
     ],
     customer_subscriptions: [],
     customer_credits: [],
+    notifications: [],
+    notification_preferences: [],
   };
 };
 
@@ -696,6 +729,8 @@ comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], s
       customer_plans: Array.isArray(parsed.customer_plans) ? parsed.customer_plans : [],
       customer_subscriptions: Array.isArray(parsed.customer_subscriptions) ? parsed.customer_subscriptions : [],
       customer_credits: Array.isArray(parsed.customer_credits) ? parsed.customer_credits : [],
+      notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+      notification_preferences: Array.isArray(parsed.notification_preferences) ? parsed.notification_preferences : [],
     };
   } catch {
     const seed = createSeedDemoDatabase();
@@ -773,6 +808,10 @@ case 'comanda_items':
         return cloneRows(db.customer_subscriptions);
       case 'customer_credits':
         return cloneRows(db.customer_credits);
+      case 'notifications':
+        return cloneRows(db.notifications);
+      case 'notification_preferences':
+        return cloneRows(db.notification_preferences);
       case 'usage_logs':
       case 'alerts':
       case 'notification_channels':
@@ -1003,6 +1042,10 @@ case 'comanda_items':
         db.clients.push(...(nextRows as LocalDemoClientRecord[]));
       } else if (table === 'suppliers') {
         db.suppliers.push(...(nextRows as typeof db.suppliers));
+      } else if (table === 'notifications') {
+        db.notifications.push(...(nextRows as typeof db.notifications));
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences.push(...(nextRows as typeof db.notification_preferences));
       }
 
       writeDemoDatabase(db);
@@ -1040,6 +1083,10 @@ case 'comanda_items':
         db.clients = replaceRows(db.clients);
       } else if (table === 'suppliers') {
         db.suppliers = replaceRows(db.suppliers);
+      } else if (table === 'notifications') {
+        db.notifications = replaceRows(db.notifications);
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences = replaceRows(db.notification_preferences);
       }
 
       writeDemoDatabase(db);
@@ -1066,7 +1113,11 @@ case 'comanda_items':
                   ? db.comanda_items
                   : table === 'suppliers'
                     ? db.suppliers
-                    : db.clients;
+                    : table === 'notifications'
+                      ? db.notifications
+                      : table === 'notification_preferences'
+                        ? db.notification_preferences
+                        : db.clients;
 
       const upsertedRows = rows.map((row) => {
         const existingIndex = targetRows.findIndex((item: any) => item[onConflict] === row[onConflict]);
@@ -1113,6 +1164,10 @@ case 'comanda_items':
         db.clients = remainingRows as LocalDemoClientRecord[];
       } else if (table === 'suppliers') {
         db.suppliers = remainingRows as typeof db.suppliers;
+      } else if (table === 'notifications') {
+        db.notifications = remainingRows as typeof db.notifications;
+      } else if (table === 'notification_preferences') {
+        db.notification_preferences = remainingRows as typeof db.notification_preferences;
       }
 
       writeDemoDatabase(db);
@@ -1139,13 +1194,13 @@ case 'comanda_items':
 };
 
 const createLocalDemoClient = (): SupabaseClient => {
-  const createRpcResult = (data: Record<string, unknown> | null, error: Error | null) => ({
+  const createRpcResult = (data: unknown, error: Error | null) => ({
     data,
     error,
     single: async () => ({ data, error }),
     maybeSingle: async () => ({ data, error }),
     then: (
-      onFulfilled: (value: { data: Record<string, unknown> | null; error: Error | null }) => unknown,
+      onFulfilled: (value: { data: unknown; error: Error | null }) => unknown,
       onRejected?: (reason: unknown) => unknown,
     ) => Promise.resolve({ data, error }).then(onFulfilled, onRejected),
   });
@@ -1200,10 +1255,88 @@ const createLocalDemoClient = (): SupabaseClient => {
     getUser: async () => ({ data: { user: readDemoSession()?.user ?? null }, error: null }),
   };
 
+  const notificationCatalog = [
+    { type: 'comanda_aberta', label: 'Comandas abertas', description: 'Avisar quando uma nova comanda for aberta.' },
+    { type: 'estoque_baixo', label: 'Estoque baixo', description: 'Avisar quando um produto atingir o estoque minimo.' },
+    { type: 'pagamento_a_realizar', label: 'Pagamentos a realizar', description: 'Avisar sobre contas pendentes, vencendo ou vencidas.' },
+    { type: 'cobranca_clube_chefes', label: 'Cobrancas do Clube dos Chefes', description: 'Avisar sobre mensalidades pendentes ou vencidas.' },
+    { type: 'proximo_cliente', label: 'Proximo cliente', description: 'Avisar sobre o proximo atendimento da agenda.' },
+    { type: 'cliente_atrasado', label: 'Cliente atrasado', description: 'Avisar quando o horario do atendimento ja passou.' },
+  ];
+
+  const isNotificationEnabled = (db: LocalDemoDatabase, type: string) => {
+    const preference = db.notification_preferences.find(
+      (item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.user_id === LOCAL_DEMO_USER_ID && item.type === type,
+    );
+    return preference?.enabled !== false;
+  };
+
+  const upsertDemoNotification = (
+    db: LocalDemoDatabase,
+    payload: {
+      type: string;
+      title: string;
+      message: string;
+      entity_type?: string | null;
+      entity_id?: string | null;
+      severity?: 'info' | 'warning' | 'critical';
+      metadata?: Record<string, unknown>;
+    },
+  ) => {
+    if (!isNotificationEnabled(db, payload.type)) return null;
+
+    const now = new Date().toISOString();
+    const existing = db.notifications.find(
+      (item) =>
+        item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+        item.user_id === LOCAL_DEMO_USER_ID &&
+        item.type === payload.type &&
+        (item.entity_type || '') === (payload.entity_type || '') &&
+        (item.entity_id || '') === (payload.entity_id || '') &&
+        item.status === 'unread',
+    );
+
+    if (existing) {
+      existing.title = payload.title;
+      existing.message = payload.message;
+      existing.severity = payload.severity || 'info';
+      existing.metadata = payload.metadata || {};
+      existing.created_at = now;
+      existing.updated_at = now;
+      return existing.id;
+    }
+
+    const row = {
+      id: createDemoId('notification'),
+      tenant_id: LOCAL_DEMO_TENANT_ID,
+      user_id: LOCAL_DEMO_USER_ID,
+      type: payload.type,
+      title: payload.title,
+      message: payload.message,
+      entity_type: payload.entity_type || null,
+      entity_id: payload.entity_id || null,
+      severity: payload.severity || 'info',
+      status: 'unread' as const,
+      read_at: null,
+      metadata: payload.metadata || {},
+      created_at: now,
+      updated_at: now,
+    };
+    db.notifications.push(row);
+    return row.id;
+  };
+
 const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
+    channel: (_name: string) => ({
+      on: () => ({
+        subscribe: () => ({}),
+      }),
+      subscribe: () => ({}),
+    }),
+    removeChannel: async () => null,
     rpc: (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'get_auth_access_context' && readDemoSession()) {
         return createRpcResult({
@@ -1211,6 +1344,310 @@ const client = {
           access_role: 'manager',
           profile_status: 'active',
           is_super_admin: false,
+        }, null);
+      }
+
+      if (fn === 'get_notification_preferences' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        return createRpcResult(
+          notificationCatalog.map((item) => ({
+            ...item,
+            enabled: isNotificationEnabled(db, item.type),
+          })),
+          null,
+        );
+      }
+
+      if (fn === 'set_notification_preferences' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        const preferences = Array.isArray(params?.p_preferences) ? params?.p_preferences as Array<{ type?: string; enabled?: boolean }> : [];
+
+        preferences.forEach((preference) => {
+          if (!preference.type || !notificationCatalog.some((item) => item.type === preference.type)) return;
+          const existing = db.notification_preferences.find(
+            (item) =>
+              item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+              item.user_id === LOCAL_DEMO_USER_ID &&
+              item.type === preference.type,
+          );
+          if (existing) {
+            existing.enabled = preference.enabled !== false;
+            existing.updated_at = now;
+          } else {
+            db.notification_preferences.push({
+              id: createDemoId('notification-preference'),
+              tenant_id: LOCAL_DEMO_TENANT_ID,
+              user_id: LOCAL_DEMO_USER_ID,
+              type: preference.type,
+              enabled: preference.enabled !== false,
+              created_at: now,
+              updated_at: now,
+            });
+          }
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult(
+          notificationCatalog.map((item) => ({
+            ...item,
+            enabled: isNotificationEnabled(db, item.type),
+          })),
+          null,
+        );
+      }
+
+      if (fn === 'list_internal_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const status = params?.p_status as string | null | undefined;
+        const limit = Number(params?.p_limit || 50);
+        const rows = db.notifications
+          .filter((item) =>
+            item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+            item.user_id === LOCAL_DEMO_USER_ID &&
+            (!status || item.status === status),
+          )
+          .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          .slice(0, limit);
+
+        return createRpcResult(rows, null);
+      }
+
+      if (fn === 'count_unread_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        return createRpcResult(
+          db.notifications.filter(
+            (item) =>
+              item.tenant_id === LOCAL_DEMO_TENANT_ID &&
+              item.user_id === LOCAL_DEMO_USER_ID &&
+              item.status === 'unread',
+          ).length,
+          null,
+        );
+      }
+
+      if (fn === 'mark_notification_read' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const id = params?.p_notification_id as string;
+        const row = db.notifications.find((item) => item.id === id && item.user_id === LOCAL_DEMO_USER_ID);
+        if (row) {
+          row.status = 'read';
+          row.read_at = row.read_at || new Date().toISOString();
+          row.updated_at = new Date().toISOString();
+          writeDemoDatabase(db);
+        }
+        return createRpcResult(null, null);
+      }
+
+      if (fn === 'mark_all_notifications_read' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        let count = 0;
+        db.notifications.forEach((item) => {
+          if (item.tenant_id === LOCAL_DEMO_TENANT_ID && item.user_id === LOCAL_DEMO_USER_ID && item.status === 'unread') {
+            item.status = 'read';
+            item.read_at = item.read_at || now;
+            item.updated_at = now;
+            count += 1;
+          }
+        });
+        writeDemoDatabase(db);
+        return createRpcResult(count, null);
+      }
+
+      if (fn === 'archive_notification' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        const id = params?.p_notification_id as string;
+        const row = db.notifications.find((item) => item.id === id && item.user_id === LOCAL_DEMO_USER_ID);
+        if (row) {
+          row.status = 'archived';
+          row.read_at = row.read_at || new Date().toISOString();
+          row.updated_at = new Date().toISOString();
+          writeDemoDatabase(db);
+        }
+        return createRpcResult(null, null);
+      }
+
+      if (fn === 'generate_system_notifications' && isLocalDemoEnabled()) {
+        const db = readDemoDatabase();
+        let generated = 0;
+        db.products
+          .filter((product) => product.tenant_id === LOCAL_DEMO_TENANT_ID && product.active && product.stock_quantity <= product.minimum_stock)
+          .forEach((product) => {
+            const id = upsertDemoNotification(db, {
+              type: 'estoque_baixo',
+              title: 'Estoque baixo',
+              message: `O produto ${product.name} está com estoque abaixo do mínimo.`,
+              entity_type: 'products',
+              entity_id: product.id,
+              severity: product.stock_quantity <= 0 ? 'critical' : 'warning',
+              metadata: { stock_quantity: product.stock_quantity, minimum_stock: product.minimum_stock },
+            });
+            if (id) generated += 1;
+          });
+
+        const openComanda = db.comandas.find((item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.status === 'open');
+        if (openComanda) {
+          const clientRow = db.clients.find((item) => item.id === openComanda.client_id);
+          const id = upsertDemoNotification(db, {
+            type: 'comanda_aberta',
+            title: 'Nova comanda aberta',
+            message: `Uma nova comanda foi aberta para ${clientRow?.name || `comanda #${openComanda.id.slice(0, 8)}`}.`,
+            entity_type: 'comandas',
+            entity_id: openComanda.id,
+            severity: 'info',
+            metadata: { comanda_id: openComanda.id },
+          });
+          if (id) generated += 1;
+        }
+
+        const pendingExpense = db.transactions.find((item) => item.tenant_id === LOCAL_DEMO_TENANT_ID && item.type === 'expense' && item.status === 'pending');
+        if (pendingExpense) {
+          const id = upsertDemoNotification(db, {
+            type: 'pagamento_a_realizar',
+            title: 'Pagamento a realizar',
+            message: `Existe um pagamento de R$ ${Number(pendingExpense.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} com vencimento em ${new Date(pendingExpense.date).toLocaleDateString('pt-BR')}.`,
+            entity_type: 'transactions',
+            entity_id: pendingExpense.id,
+            severity: new Date(pendingExpense.date) < new Date() ? 'critical' : 'warning',
+            metadata: { amount: pendingExpense.amount, due_date: pendingExpense.date },
+          });
+          if (id) generated += 1;
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({ generated, tenant_id: LOCAL_DEMO_TENANT_ID }, null);
+      }
+
+      if (fn === 'create_appointment_with_services' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_client_name?: string;
+          p_client_phone?: string;
+          p_staff_id?: string;
+          p_start_time?: string;
+          p_notes?: string;
+          p_idempotency_key?: string;
+          p_services?: Array<{ service_id?: string; service_name?: string; name?: string }> | string;
+        };
+
+        const db = readDemoDatabase();
+        const tenantId = p.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+
+        if (p.p_idempotency_key) {
+          const existing = db.appointments.find((a) => a.idempotency_key === p.p_idempotency_key && a.tenant_id === tenantId);
+          if (existing) {
+            const existingComanda = db.comandas.find((c) => c.appointment_id === existing.id);
+            const existingComandaItem = existingComanda ? db.comanda_items.find((ci) => ci.comanda_id === existingComanda.id) : null;
+            return createRpcResult({
+              appointment_id: existing.id,
+              comanda_id: existingComanda?.id || null,
+              comanda_item_id: existingComandaItem?.id || null,
+              total_price: existingComanda?.total || 0,
+              total_duration_minutes: Math.round(Number(existing.duration || 0) * 60),
+              appointment_status: existing.status,
+              idempotent: true,
+            }, null);
+          }
+        }
+
+        let requestedServices: Array<{ service_id?: string; service_name?: string; name?: string }> = [];
+        if (Array.isArray(p.p_services)) {
+          requestedServices = p.p_services;
+        } else if (typeof p.p_services === 'string' && p.p_services.trim()) {
+          try {
+            const parsed = JSON.parse(p.p_services);
+            requestedServices = Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            requestedServices = [{ service_name: p.p_services }];
+          }
+        }
+
+        const selectedServices = requestedServices
+          .map((requested) => db.services.find((service) =>
+            service.tenant_id === tenantId &&
+            (service.id === requested.service_id ||
+              service.name.toLowerCase() === `${requested.service_name || requested.name || ''}`.toLowerCase())
+          ))
+          .filter((service): service is typeof db.services[number] => Boolean(service));
+
+        if (selectedServices.length === 0) {
+          return createRpcResult(null, new Error('Selecione pelo menos um servico valido'));
+        }
+
+        const now = new Date().toISOString();
+        const staff = db.staff.find((s) => s.id === p.p_staff_id);
+        const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+        const totalDurationMinutes = selectedServices.reduce((sum, service) => sum + Number(service.duration || 30), 0);
+        const durationHours = Math.max(0.25, Math.round((totalDurationMinutes / 60) * 10) / 10);
+        const firstService = selectedServices[0];
+        const appointmentId = `demo-appointment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaId = `demo-comanda-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        let lastComandaItemId: string | null = null;
+
+        db.appointments.push({
+          id: appointmentId,
+          tenant_id: tenantId,
+          client_id: p.p_client_id || null,
+          service_id: firstService.id,
+          staff_id: p.p_staff_id || null,
+          client_name: p.p_client_name || '',
+          client_phone: p.p_client_phone || '',
+          service_name: selectedServices.length === 1 ? firstService.name : `${firstService.name} +${selectedServices.length - 1}`,
+          staff_name: staff?.name || '',
+          start_time: p.p_start_time || now,
+          duration: durationHours,
+          price: totalPrice,
+          notes: p.p_notes || '',
+          hidden_from_schedule: false,
+          is_overbooked: false,
+          status: 'confirmed',
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        });
+
+        db.comandas.push({
+          id: comandaId,
+          tenant_id: tenantId,
+          appointment_id: appointmentId,
+          client_id: p.p_client_id || null,
+          staff_id: p.p_staff_id || null,
+          status: 'open',
+          total: totalPrice,
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        });
+
+        selectedServices.forEach((service) => {
+          const comandaItemId = `demo-comanda-item-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+          lastComandaItemId = comandaItemId;
+          db.comanda_items.push({
+            id: comandaItemId,
+            tenant_id: tenantId,
+            comanda_id: comandaId,
+            service_id: service.id,
+            staff_id: p.p_staff_id || null,
+            product_name: service.name,
+            quantity: 1,
+            unit_price: Number(service.price || 0),
+            created_at: now,
+            updated_at: now,
+          });
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult({
+          appointment_id: appointmentId,
+          comanda_id: comandaId,
+          comanda_item_id: lastComandaItemId,
+          total_price: totalPrice,
+          service_price: totalPrice,
+          total_duration_minutes: totalDurationMinutes,
+          appointment_status: 'confirmed',
+          idempotent: false,
         }, null);
       }
 
@@ -1273,7 +1710,10 @@ const client = {
           staff_name: staff?.name || '',
           start_time: p.p_start_time || now,
           duration: durationHours,
+          price,
           notes: p.p_notes || '',
+          hidden_from_schedule: false,
+          is_overbooked: false,
           status: 'confirmed',
           idempotency_key: p.p_idempotency_key || null,
           created_at: now,
@@ -1321,6 +1761,111 @@ const client = {
         console.log('[create_appointment_with_comanda] demo RPC result:', rpcResult, 'db.appointments count:', db.appointments.length);
 
         return createRpcResult(rpcResult, null);
+      }
+
+      if (fn === 'create_chef_club_subscription' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_plan_id?: string;
+          p_next_billing_date?: string;
+          p_replace_existing?: boolean;
+        };
+        const db = readDemoDatabase();
+        const tenantId = p.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+        const now = new Date().toISOString();
+        const cycleEnd = new Date(`${p.p_next_billing_date}T12:00:00`).toISOString();
+        const client = db.clients.find((item) => item.id === p.p_client_id && item.tenant_id === tenantId);
+        const plan = db.customer_plans.find((item) => item.id === p.p_plan_id && item.tenant_id === tenantId);
+
+        if (!client) {
+          return createRpcResult(null, new Error('Cliente não encontrado para este tenant'));
+        }
+
+        if (!plan) {
+          return createRpcResult(null, new Error('Plano não encontrado para este tenant'));
+        }
+
+        if (!plan.active) {
+          return createRpcResult(null, new Error('Plano inativo'));
+        }
+
+        const serviceBalanceMap = (plan.service_credit_map || [])
+          .map((entry) => ({
+            service_id: entry.service_id,
+            service_name: entry.service_name,
+            available: Math.max(0, Number(entry.credits) || 0),
+            used: 0,
+          }))
+          .filter((entry) => entry.service_id && entry.service_name && entry.available > 0);
+        const availableCredits = serviceBalanceMap.reduce((total, entry) => total + entry.available, 0);
+
+        if (serviceBalanceMap.length === 0 || availableCredits <= 0) {
+          return createRpcResult(null, new Error('Plano sem créditos por serviço configurados'));
+        }
+
+        let subscription = db.customer_subscriptions.find(
+          (item) => item.tenant_id === tenantId && item.client_id === p.p_client_id && item.status === 'active',
+        );
+
+        if (subscription && !p.p_replace_existing) {
+          return createRpcResult(null, new Error('Cliente já possui assinatura ativa'));
+        }
+
+        if (subscription) {
+          subscription = {
+            ...subscription,
+            plan_id: plan.id,
+            status: 'active',
+            cycle_start: now,
+            cycle_end: cycleEnd,
+            next_billing_date: p.p_next_billing_date || cycleEnd.slice(0, 10),
+            canceled_at: null,
+            updated_at: now,
+          };
+          db.customer_subscriptions = db.customer_subscriptions.map((item) =>
+            item.id === subscription!.id ? subscription! : item,
+          );
+        } else {
+          subscription = {
+            id: `demo-subscription-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            tenant_id: tenantId,
+            client_id: client.id,
+            plan_id: plan.id,
+            status: 'active',
+            started_at: now,
+            cycle_start: now,
+            cycle_end: cycleEnd,
+            next_billing_date: p.p_next_billing_date || cycleEnd.slice(0, 10),
+            canceled_at: null,
+            created_at: now,
+            updated_at: now,
+          };
+          db.customer_subscriptions.push(subscription);
+        }
+
+        const creditRecord = {
+          id: db.customer_credits.find((item) => item.subscription_id === subscription.id)?.id
+            || `demo-credit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          tenant_id: tenantId,
+          subscription_id: subscription.id,
+          client_id: client.id,
+          available_credits: availableCredits,
+          used_credits: 0,
+          service_balance_map: serviceBalanceMap,
+          period_start: subscription.cycle_start,
+          period_end: subscription.cycle_end,
+          created_at: now,
+          updated_at: now,
+        };
+
+        db.customer_credits = [
+          ...db.customer_credits.filter((item) => item.subscription_id !== subscription!.id),
+          creditRecord,
+        ];
+        writeDemoDatabase(db);
+
+        return createRpcResult({ subscription, credits: creditRecord }, null);
       }
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/ui/Button';
 
 interface ComandaItemData {
     id: string;
@@ -25,6 +24,8 @@ interface ComandaItemData {
         product_name: string;
         quantity: number;
         unit_price: number;
+        product_id?: string | null;
+        service_id?: string | null;
     }>;
     staff_ids: string[];
     staff_names: string[];
@@ -144,7 +145,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
             } ${isBulkSelected ? 'ring-1 ring-amber-500/30 ring-inset' : ''}`}
             onClick={onSelect}
         >
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {comanda.status === 'open' && (
                     <button
                         type="button"
@@ -162,7 +163,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                     {comanda.clients.name.slice(0, 1).toUpperCase()}
                 </div>
 
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[180px] flex-1">
                     <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                             {comanda.clients.name}
@@ -221,22 +222,27 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                     </span>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1">
-                    {comanda.status === 'blocked' ? (
+                <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+                    {comanda.status === 'blocked' && (
                         <div className="flex items-center gap-1 rounded-lg bg-blue-500/10 px-2 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
                             <span className="material-symbols-outlined text-[14px]">lock</span>
                             Bloqueada
                         </div>
-                    ) : comanda.status === 'open' ? (
+                    )}
+
+                    {comanda.status === 'open' && (
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, () => navigate(`/checkout/${comanda.id}`))}
                             className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-400 hover:text-amber-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                            title="Fechar comanda"
                         >
                             <span className="material-symbols-outlined text-[14px]">point_of_sale</span>
-                            Fechar
+                            <span className="hidden sm:inline">Fechar</span>
                         </button>
-                    ) : (
+                    )}
+
+                    {(comanda.status === 'open' || comanda.status === 'blocked' || comanda.status === 'paid' || comanda.status === 'cancelled') && (
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, onSelectForSidebar)}
@@ -244,6 +250,18 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                             title="Ver detalhes"
                         >
                             <span className="material-symbols-outlined text-[16px]">visibility</span>
+                        </button>
+                    )}
+
+                    {(comanda.status === 'open' || comanda.status === 'blocked') && (
+                        <button
+                            type="button"
+                            onClick={(e) => handleAction(e, onCancel)}
+                            className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-500/15 dark:text-red-400"
+                            title="Anular comanda"
+                        >
+                            <span className="material-symbols-outlined text-[14px]">block</span>
+                            <span className="hidden sm:inline">Anular</span>
                         </button>
                     )}
                 </div>

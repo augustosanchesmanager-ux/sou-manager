@@ -6,6 +6,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
+import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -95,6 +96,7 @@ interface NewAppointmentForm {
   client: string;
   clientPhone?: string;
   service: string;
+  serviceIds: string[];
   staffId: string;
   date: string;
   start: number;
@@ -376,19 +378,48 @@ const Schedule: React.FC = () => {
     client: '',
     clientPhone: '',
     service: '',
+    serviceIds: [],
     staffId: '',
     date: new Date().toISOString().split('T')[0],
     start: 8,
     duration: 1,
     notes: '',
   });
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+
+  const selectedServices = React.useMemo(
+    () => servicesList.filter((service) => formData.serviceIds.includes(service.id)),
+    [formData.serviceIds, servicesList],
+  );
+  const filteredServicesForModal = React.useMemo(() => {
+    const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return servicesList;
+    return servicesList.filter((service) => service.name.toLowerCase().includes(normalizedSearch));
+  }, [serviceSearchTerm, servicesList]);
+  const selectedServicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+
+  const getServicesLabel = (services: DBService[]) => {
+    if (services.length === 0) return '';
+    if (services.length === 1) return services[0].name;
+    return `${services[0].name} +${services.length - 1}`;
+  };
+
+  const getServicesDurationHours = (services: DBService[]) => {
+    if (services.length === 0) return 1;
+    const totalMinutes = services.reduce(
+      (sum, service) => sum + Number(service.duration || 0) + Number(service.buffer || 0),
+      0,
+    );
+    return Math.max(0.25, Math.round((totalMinutes / 60) * 100) / 100);
+  };
 
   useEffect(() => {
     const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
-    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+    setServiceSearchTerm('');
     setIsModalOpen(true);
 
     navigate(location.pathname, { replace: true, state: null });
@@ -770,6 +801,22 @@ const Schedule: React.FC = () => {
     }
   };
 
+  const toggleServiceSelection = (service: DBService) => {
+    setError(null);
+    setFormData((prev) => {
+      const nextServiceIds = prev.serviceIds.includes(service.id)
+        ? prev.serviceIds.filter((id) => id !== service.id)
+        : [...prev.serviceIds, service.id];
+      const nextServices = servicesList.filter((item) => nextServiceIds.includes(item.id));
+      return {
+        ...prev,
+        serviceIds: nextServiceIds,
+        service: getServicesLabel(nextServices),
+        duration: getServicesDurationHours(nextServices),
+      };
+    });
+  };
+
   const loadChefClubInfo = async (clientName: string) => {
     const client = clientsList.find(c => c.name === clientName);
     if (!client) {
@@ -812,7 +859,7 @@ const Schedule: React.FC = () => {
     let availableCredits = 0;
     const { data: credits, error: creditsError } = await supabase
       .from('customer_credits')
-      .select('available_credits')
+      .select('available_credits, used_credits, service_balance_map')
       .eq('tenant_id', tenantId)
       .eq('subscription_id', subscription.id)
       .maybeSingle();
@@ -820,8 +867,15 @@ const Schedule: React.FC = () => {
     if (creditsError) {
       console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
     }
-    if (credits?.available_credits !== undefined) {
-      availableCredits = credits.available_credits;
+    if (credits) {
+      const serviceBalances = normalizeCreditBalances(
+        credits.service_balance_map,
+        credits.available_credits || 0,
+        credits.used_credits || 0,
+      );
+      availableCredits = serviceBalances.length > 0
+        ? getTotalAvailableCredits(serviceBalances)
+        : credits.available_credits || 0;
     }
 
     setChefClubInfo({
@@ -847,11 +901,13 @@ const Schedule: React.FC = () => {
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
     const datePart = apt.startTime.split('T')[0];
+    const matchedService = servicesList.find((service) => service.name === apt.service);
 
     setFormData({
       client: apt.client,
       clientPhone: apt.clientPhone,
       service: apt.service,
+      serviceIds: matchedService ? [matchedService.id] : [],
       staffId: apt.staffId,
       date: datePart,
       start: apt.start,
@@ -1238,8 +1294,8 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    if (!formData.client || !formData.service) {
-      setError("Por favor, preencha o nome do cliente e o serviço.");
+    if (!formData.client || selectedServices.length === 0) {
+      setError("Por favor, preencha o nome do cliente e selecione ao menos um serviço.");
       return;
     }
 
@@ -1267,8 +1323,10 @@ const Schedule: React.FC = () => {
     const saveServicesClient = getClientForTable('services', scheduleAppSlug);
     const saveComandaItemsClient = getClientForTable('comanda_items', scheduleAppSlug);
 
-    const selectedService = servicesList.find(s => s.name === formData.service);
+    const selectedService = selectedServices[0];
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
+    const selectedServicesLabel = getServicesLabel(selectedServices);
+    const selectedServicesTotalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
 
     let clientId: string | null = null;
     if (isNewClientMode) {
@@ -1340,14 +1398,14 @@ const Schedule: React.FC = () => {
         staff_id: formData.staffId || null,
         client_id: clientId,
         client_name: formData.client,
-        service_name: formData.service,
+        service_name: selectedServicesLabel,
         client_phone: formData.clientPhone,
         notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: updatedStartIso,
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
-        price: selectedService?.price || 0,
+        price: selectedServicesTotalPrice,
       }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -1370,8 +1428,8 @@ const Schedule: React.FC = () => {
             duration: Number(formData.duration),
             client: formData.client,
             clientPhone: formData.clientPhone || '',
-            service: formData.service,
-            price: selectedService?.price || 0,
+            service: selectedServicesLabel,
+            price: selectedServicesTotalPrice,
             startTime: updatedStartIso,
             notes: formData.notes.trim(),
             date: updatedAppointmentDate,
@@ -1381,9 +1439,9 @@ const Schedule: React.FC = () => {
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
-      let finalPrice = selectedService?.price || 0;
+      let finalPrice = selectedServicesTotalPrice;
 
-      if (selectedService) {
+      if (selectedService && selectedServices.length === 1) {
         const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
         finalPrice = serviceData?.price || selectedService.price || 0;
 
@@ -1401,7 +1459,18 @@ const Schedule: React.FC = () => {
         }
       }
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+      const rpcName = selectedServices.length > 1 ? 'create_appointment_with_services' : 'create_appointment_with_comanda';
+      const payload = selectedServices.length > 1 ? {
+        p_tenant_id: tenantId,
+        p_client_id: clientId,
+        p_client_name: formData.client,
+        p_client_phone: formData.clientPhone || null,
+        p_staff_id: formData.staffId || null,
+        p_start_time: startTimeLine.toISOString(),
+        p_notes: formData.notes.trim() || null,
+        p_idempotency_key: scheduleIdempotencyKeyRef.current,
+        p_services: selectedServices.map((service) => ({ service_id: service.id })),
+      } : {
         p_tenant_id: tenantId,
         p_client_id: clientId,
         p_client_name: formData.client,
@@ -1413,16 +1482,57 @@ const Schedule: React.FC = () => {
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
         p_is_overbooked: forceOverbook,
-      });
+      };
+      const currentBusiness = {
+        tenantId,
+        appSlug: scheduleAppSlug,
+        selectedService,
+        selectedStaff,
+      };
+      const shouldDebugCreateAppointmentRpc =
+        import.meta.env.DEV ||
+        localStorage.getItem('soumanager.debug.createAppointmentRpc') === 'true';
+
+      if (shouldDebugCreateAppointmentRpc) {
+        console.group("DEBUG CREATE APPOINTMENT RPC");
+        console.log("RPC name:", rpcName);
+        console.log("Payload:", payload);
+        console.log("User:", user);
+        console.log("Business/Tenant:", currentBusiness);
+        console.log("Supabase error:", {
+          code: undefined,
+          message: undefined,
+          details: undefined,
+          hint: undefined,
+        });
+        console.groupEnd();
+      }
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, payload);
 
       if (rpcError || !rpcResult) {
         console.error('Erro ao criar agendamento via RPC:', rpcError);
+        if (shouldDebugCreateAppointmentRpc) {
+          console.group("DEBUG CREATE APPOINTMENT RPC");
+          console.log("RPC name:", rpcName);
+          console.log("Payload:", payload);
+          console.log("User:", user);
+          console.log("Business/Tenant:", currentBusiness);
+          console.log("Supabase error:", {
+            code: rpcError?.code,
+            message: rpcError?.message,
+            details: rpcError?.details,
+            hint: rpcError?.hint,
+          });
+          console.groupEnd();
+        }
         setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
         return;
       }
 
       const newAptId = (rpcResult as any).appointment_id;
       const newComandaId = (rpcResult as any).comanda_id;
+      const createdTotalPrice = Number((rpcResult as any).total_price ?? (rpcResult as any).service_price ?? finalPrice);
 
       setAppointments(prev => [...prev, {
         id: newAptId,
@@ -1431,12 +1541,12 @@ const Schedule: React.FC = () => {
         start: formData.start,
         duration: Number(formData.duration),
         client: formData.client,
-        service: formData.service,
+        service: selectedServicesLabel,
         status: 'confirmed',
         color: 'bg-blue-500',
         staffName: selectedStaff?.name || '',
         clientPhone: formData.clientPhone || '',
-        price: finalPrice,
+        price: createdTotalPrice,
         startTime: startTimeLine.toISOString(),
         notes: formData.notes.trim(),
         date: startTimeLine.toISOString(),
@@ -1455,7 +1565,7 @@ const Schedule: React.FC = () => {
           appointment: {
             id: newAptId,
             client: formData.client,
-            service: formData.service,
+            service: selectedServicesLabel,
             professional: selectedStaff?.name || '',
             dateTime: startTimeLine.toISOString(),
             status: 'confirmed',
@@ -1472,9 +1582,10 @@ const Schedule: React.FC = () => {
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
+    setServiceSearchTerm('');
     setForceOverbook(false);
     setOverbookConflicts([]);
-    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+    setFormData({ client: '', clientPhone: '', service: '', serviceIds: [], staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
     fetchAppointments();
   };
 
@@ -1783,7 +1894,7 @@ Podemos confirmar? 😄`;
           <button
             onClick={() => {
               setEditingAppointmentId(null);
-              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
@@ -2331,7 +2442,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2420,23 +2531,76 @@ Podemos confirmar? 😄`;
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
-            <div className="relative">
-              <select
-                value={formData.service}
-                onChange={(e) => handleInputChange('service', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-              >
-                <option value="" disabled>Selecione um serviço...</option>
-                {servicesList.length > 0 ? (
-                  servicesList.map(s => (
-                    <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
-                  ))
-                ) : (
-                  <option disabled>Nenhum serviço disponível</option>
-                )}
-              </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className="block text-xs font-bold uppercase text-slate-500">Serviços</label>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
+                {selectedServices.length} selecionado(s)
+              </span>
+            </div>
+            <div className="mb-2 grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-white/10 dark:bg-white/5">
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Qtd.</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white">{selectedServices.length}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Total</p>
+                <p className="text-xs font-black text-emerald-600">R$ {selectedServicesTotal.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Duração</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white">{formData.duration}h</p>
+              </div>
+            </div>
+            <div className="relative mb-2">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+              <input
+                type="text"
+                value={serviceSearchTerm}
+                onChange={(e) => setServiceSearchTerm(e.target.value)}
+                placeholder="Buscar serviço..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white"
+              />
+            </div>
+            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
+              {servicesList.length === 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
+                  Nenhum serviço disponível
+                </div>
+              ) : filteredServicesForModal.length > 0 ? (
+                filteredServicesForModal.map((service) => {
+                  const isSelected = formData.serviceIds.includes(service.id);
+                  return (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => toggleServiceSelection(service)}
+                      className={`flex min-h-[58px] items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary dark:text-blue-300'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
+                      }`}
+                    >
+                      <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${
+                        isSelected
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-slate-300 bg-white dark:border-white/20 dark:bg-transparent'
+                      }`}>
+                        {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-bold">{service.name}</span>
+                        <span className="block text-[10px] text-slate-500">
+                          {service.duration} min • R$ {Number(service.price || 0).toFixed(2)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
+                  Nenhum serviço encontrado
+                </div>
+              )}
             </div>
           </div>
 
@@ -2529,7 +2693,7 @@ Podemos confirmar? 😄`;
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">ObservaÃ§Ãµes</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observações</label>
             <textarea
               value={formData.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
@@ -2541,7 +2705,7 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setServiceSearchTerm(''); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar

@@ -14,6 +14,7 @@ import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar from '../components/ComandaSidebar';
+import ComandaFiltersModal from '../components/ComandaFiltersModal';
 
 type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -190,6 +191,15 @@ const getConsumptionSummary = (comanda: Comanda) => {
     };
 };
 
+const getConsumptionTypeForFilter = (comanda: Comanda): ConsumptionType => {
+    const hasServices = comanda.comanda_items.some((item) => Boolean(item.service_id));
+    const hasProducts = comanda.comanda_items.some((item) => Boolean(item.product_id));
+    if (hasServices && hasProducts) return 'mixed';
+    if (hasServices) return 'service';
+    if (hasProducts) return 'product';
+    return 'all';
+};
+
 const loadComandasPreferences = (): ComandasPreferences => {
     const defaultPreferences: ComandasPreferences = {
         filterStatus: 'all',
@@ -212,7 +222,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
         if (!rawValue) return defaultPreferences;
         const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
         return {
-            filterStatus: ['all', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
+            filterStatus: ['all', 'blocked', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
                 ? (parsed.filterStatus as 'all' | ComandaStatus)
                 : defaultPreferences.filterStatus,
             searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
@@ -471,6 +481,10 @@ const Comandas: React.FC = () => {
             setDateTo('');
             return;
         }
+        if (range === 'custom') {
+            setQuickRange('custom');
+            return;
+        }
         const startDate = new Date(today);
         if (range === '7d') startDate.setDate(startDate.getDate() - 6);
         if (range === '30d') startDate.setDate(startDate.getDate() - 29);
@@ -484,8 +498,19 @@ const Comandas: React.FC = () => {
         applyQuickRange(preferences.quickRange || 'today');
     }, []);
 
+    const todayInputValue = formatDateInputValue(new Date());
+    const hasCustomDateFilter = quickRange !== 'today' || dateFrom !== todayInputValue || dateTo !== todayInputValue;
+    const activeFiltersCount = [
+        filterStatus !== 'all',
+        Boolean(searchTerm.trim()),
+        hasCustomDateFilter,
+        Boolean(staffFilter),
+        Boolean(minTotal),
+        Boolean(maxTotal),
+        consumptionType !== 'all',
+    ].filter(Boolean).length;
     const hasAdvancedFilters = Boolean(staffFilter || minTotal || maxTotal || consumptionType !== 'all');
-    const hasAnyFilter = Boolean(searchTerm.trim() || filterStatus !== 'all' || hasAdvancedFilters);
+    const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
 
     const openCountAll = comandas.filter((c) => c.status === 'open').length;
     const paidCountAll = comandas.filter((c) => c.status === 'paid').length;
@@ -512,7 +537,8 @@ const Comandas: React.FC = () => {
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
-        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax;
+        const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
+        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax && matchesConsumption;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -804,7 +830,7 @@ const Comandas: React.FC = () => {
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <div className="relative flex-1">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
                             <input
@@ -815,9 +841,22 @@ const Comandas: React.FC = () => {
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
                             />
                         </div>
-                        <button onClick={() => setFiltersModalOpen(true)} className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:text-slate-400">
+                        <button
+                            type="button"
+                            onClick={() => setFiltersModalOpen((open) => !open)}
+                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                                activeFiltersCount > 0
+                                    ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-transparent dark:text-slate-400'
+                            }`}
+                        >
                             <span className="material-symbols-outlined text-sm">tune</span>
                             Filtros
+                            {activeFiltersCount > 0 && (
+                                <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">
+                                    {activeFiltersCount}
+                                </span>
+                            )}
                         </button>
                         <select
                             value={quickRange}
@@ -830,17 +869,35 @@ const Comandas: React.FC = () => {
                             <option value="all">Todos</option>
                         </select>
                         <select
-                            value={sortField}
-                            onChange={(e) => setSortField(e.target.value as SortField)}
+                            value={`${sortField}:${sortDirection}`}
+                            onChange={(e) => {
+                                const [nextField, nextDirection] = e.target.value.split(':') as [SortField, SortDirection];
+                                setSortField(nextField);
+                                setSortDirection(nextDirection);
+                            }}
                             className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
                         >
-                            <option value="date">Data</option>
-                            <option value="client">Cliente</option>
-                            <option value="total">Valor</option>
+                            <option value="date:desc">Mais recentes</option>
+                            <option value="date:asc">Mais antigas</option>
+                            <option value="total:desc">Maior valor</option>
+                            <option value="total:asc">Menor valor</option>
+                            <option value="client:asc">Cliente A-Z</option>
+                            <option value="client:desc">Cliente Z-A</option>
+                            <option value="status:asc">Status</option>
+                            <option value="status:desc">Status invertido</option>
                         </select>
-                        <button onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
+                        <button type="button" onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
                         </button>
+                        {hasAnyFilter && (
+                            <button
+                                type="button"
+                                onClick={clearAllFilters}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-400 dark:hover:text-white"
+                            >
+                                Limpar
+                            </button>
+                        )}
                     </div>
 
                     {selectedOpenComandaIds.length > 0 && (
@@ -888,6 +945,32 @@ const Comandas: React.FC = () => {
                     onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
                 />
             </aside>
+
+            <ComandaFiltersModal
+                isOpen={filtersModalOpen}
+                onClose={() => setFiltersModalOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                quickRange={quickRange}
+                onApplyQuickRange={applyQuickRange}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                staffFilter={staffFilter}
+                onStaffFilterChange={setStaffFilter}
+                staffOptions={staffOptions}
+                minTotal={minTotal}
+                maxTotal={maxTotal}
+                onMinTotalChange={setMinTotal}
+                onMaxTotalChange={setMaxTotal}
+                consumptionType={consumptionType}
+                onConsumptionTypeChange={setConsumptionType}
+                sortField={sortField}
+                onSortFieldChange={setSortField}
+                sortDirection={sortDirection}
+                onSortDirectionChange={setSortDirection}
+                activeFiltersCount={activeFiltersCount}
+                onClearAll={clearAllFilters}
+            />
 
             <Modal
                 isOpen={bulkCloseModalOpen}

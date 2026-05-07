@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Logo from './Logo';
@@ -8,31 +8,16 @@ import NotificationCenter from './NotificationCenter';
 import Modal from './ui/Modal';
 import SupportWidget from './SupportWidget';
 import MobileBottomNav, { isMobileBottomNavRoute } from './MobileBottomNav';
-import { supabase } from '../services/supabaseClient';
+import { useNotifications } from '../src/hooks/useNotifications';
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
-
-  const fetchUnreadCount = async () => {
-    if (!user) return;
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('read', false);
-
-    if (!error) setUnreadCount(count || 0);
-  };
-
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
+  const notificationsController = useNotifications('unread');
+  const { unreadCount } = notificationsController;
 
   const displayName = user?.user_metadata?.shop_name || user?.user_metadata?.first_name || 'Minha Barbearia';
   const displayPlan = user?.user_metadata?.plan ? `Plano ${user.user_metadata.plan.charAt(0).toUpperCase() + user.user_metadata.plan.slice(1)}` : 'Plano Free';
@@ -119,7 +104,10 @@ const Layout: React.FC = () => {
           title="Central de Avisos"
           maxWidth="md"
         >
-          <NotificationCenter onClose={() => setIsNotificationsOpen(false)} />
+          <NotificationCenter
+            controller={notificationsController}
+            onClose={() => setIsNotificationsOpen(false)}
+          />
         </Modal>
 
         {/* Widget de Suporte Flutuante */}

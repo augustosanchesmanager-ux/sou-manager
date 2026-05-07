@@ -126,73 +126,28 @@ const ChefClubSubscriptionNew: React.FC = () => {
         setInitialBalances(cloneBalances(selectedPlanBalances));
     }, [selectedPlanBalances]);
 
-    const applyCreditsForSubscription = async (
-        subscriptionId: string,
-        clientId: string,
-        balances: ServiceBalanceEntry[],
-    ) => {
-        const sanitizedBalances = balances
-            .map((balance) => ({
-                service_id: balance.service_id,
-                service_name: balance.service_name,
-                available: Math.max(0, Number(balance.available) || 0),
-                used: Math.max(0, Number(balance.used) || 0),
-            }))
-            .filter((balance) => balance.service_id && balance.service_name && (balance.available > 0 || balance.used > 0));
-
-        const { error } = await barberSupabase
-            .from('customer_credits')
-            .upsert(
-                {
-                    subscription_id: subscriptionId,
-                    tenant_id: tenantId,
-                    client_id: clientId,
-                    available_credits: getTotalAvailableCredits(sanitizedBalances),
-                    used_credits: sanitizedBalances.reduce((total, balance) => total + balance.used, 0),
-                    service_balance_map: sanitizedBalances,
-                    period_start: today.toISOString(),
-                    period_end: null,
-                },
-                { onConflict: 'subscription_id' },
-            );
-
-        return error;
-    };
-
-    const createSubscription = async () => {
+    const createOrReplaceSubscription = async (replaceExisting: boolean) => {
         if (!tenantId || !selectedClient || !selectedPlan) return;
-        const billingDate = new Date(`${nextBillingDate}T12:00:00`);
 
-        const { data, error } = await barberSupabase
-            .from('customer_subscriptions')
-            .insert({
-                tenant_id: tenantId,
-                client_id: selectedClient.id,
-                plan_id: selectedPlan.id,
-                status: 'active',
-                started_at: today.toISOString(),
-                cycle_start: today.toISOString(),
-                cycle_end: billingDate.toISOString(),
-                next_billing_date: nextBillingDate,
-            })
-            .select('id')
-            .single();
+        const { error } = await barberSupabase.rpc('create_chef_club_subscription', {
+            p_tenant_id: tenantId,
+            p_client_id: selectedClient.id,
+            p_plan_id: selectedPlan.id,
+            p_next_billing_date: nextBillingDate,
+            p_replace_existing: replaceExisting,
+        });
 
-        if (error || !data?.id) {
-            setToast({ message: `Erro ao criar assinatura: ${error?.message || 'desconhecido'}`, type: 'error' });
-            return;
-        }
-
-        const creditsError = await applyCreditsForSubscription(data.id, selectedClient.id, initialBalances);
-        if (creditsError) {
-            setToast({ message: `Assinatura criada, mas houve erro ao lancar creditos: ${creditsError.message}`, type: 'error' });
+        if (error) {
+            setToast({ message: `Erro ao ${replaceExisting ? 'trocar plano' : 'criar assinatura'}: ${error.message}`, type: 'error' });
             return;
         }
 
         navigate('/chef-club-subscriptions', {
             state: {
                 toast: {
-                    message: `Assinatura de ${selectedClient.name} criada com sucesso!`,
+                    message: replaceExisting
+                        ? `Plano de ${selectedClient.name} atualizado com sucesso!`
+                        : `Assinatura de ${selectedClient.name} criada com sucesso!`,
                     type: 'success',
                 },
             },
@@ -201,44 +156,15 @@ const ChefClubSubscriptionNew: React.FC = () => {
 
     const replaceSubscriptionPlan = async () => {
         if (!tenantId || !selectedClient || !selectedPlan || !existingSubscription) return;
-        const billingDate = new Date(`${nextBillingDate}T12:00:00`);
 
         if (existingSubscription.plan_id === selectedPlan.id) {
             setToast({ message: 'Este cliente ja esta ativo neste plano.', type: 'info' });
             return;
         }
 
-        const { error } = await barberSupabase
-            .from('customer_subscriptions')
-            .update({
-                plan_id: selectedPlan.id,
-                status: 'active',
-                cycle_start: today.toISOString(),
-                cycle_end: billingDate.toISOString(),
-                next_billing_date: nextBillingDate,
-            })
-            .eq('id', existingSubscription.id)
-            .eq('tenant_id', tenantId);
-
-        if (error) {
-            setToast({ message: `Erro ao trocar plano: ${error.message}`, type: 'error' });
-            return;
-        }
-
-        const creditsError = await applyCreditsForSubscription(existingSubscription.id, selectedClient.id, initialBalances);
-        if (creditsError) {
-            setToast({ message: `Plano trocado, mas houve erro ao atualizar creditos: ${creditsError.message}`, type: 'error' });
-            return;
-        }
-
-        navigate('/chef-club-subscriptions', {
-            state: {
-                toast: {
-                    message: `Plano de ${selectedClient.name} atualizado com sucesso!`,
-                    type: 'success',
-                },
-            },
-        });
+        setSaving(true);
+        await createOrReplaceSubscription(true);
+        setSaving(false);
     };
 
     const handleConfirm = async () => {
@@ -278,7 +204,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
             return;
         }
 
-        await createSubscription();
+        await createOrReplaceSubscription(false);
         setSaving(false);
     };
 
@@ -410,7 +336,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
                                 <div className="flex items-center justify-between gap-4 mb-3">
                                     <div>
                                         <p className="text-[10px] uppercase font-black text-slate-500">Creditos Iniciais por Servico</p>
-                                        <p className="text-xs text-slate-500 mt-1">Voce pode ajustar antes de ativar a assinatura.</p>
+                                        <p className="text-xs text-slate-500 mt-1">Os creditos serao gerados pelo plano na ativacao da assinatura.</p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-2xl font-black text-amber-600">{getTotalAvailableCredits(initialBalances)}</p>
@@ -429,19 +355,9 @@ const ChefClubSubscriptionNew: React.FC = () => {
                                             </div>
                                             <div>
                                                 <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Creditos</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    value={balance.available}
-                                                    onChange={(e) => {
-                                                        const nextValue = Math.max(0, Number(e.target.value) || 0);
-                                                        setInitialBalances((current) => current.map((item, itemIndex) => (
-                                                            itemIndex === index ? { ...item, available: nextValue } : item
-                                                        )));
-                                                    }}
-                                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm font-bold text-amber-600 outline-none focus:ring-1 focus:ring-primary"
-                                                />
+                                                <div className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm font-bold text-amber-600">
+                                                    {balance.available}
+                                                </div>
                                             </div>
                                         </div>
                                     )) : (

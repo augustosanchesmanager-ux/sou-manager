@@ -30,8 +30,29 @@ interface ParsedClient {
     birthday: string;
 }
 
+interface OpenComandaSummary {
+    id: string;
+    total: number;
+    status: 'open';
+    created_at: string;
+}
+
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
+
+const formatCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+const getDisplayId = (id: string) => {
+    const hexStr = id.replace(/-/g, '').slice(0, 8);
+    const num = parseInt(hexStr, 16);
+    return Number.isNaN(num) ? 1000 : (num % 89999) + 1000;
+};
+const formatDateTime = (value: string) => new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
 
 const Clients: React.FC = () => {
     const navigate = useNavigate();
@@ -76,20 +97,55 @@ const Clients: React.FC = () => {
     // Detail View
     const [detailClient, setDetailClient] = useState<Client | null>(null);
     const [detailChefClub, setDetailChefClub] = useState<{ planName: string; credits: number; status: string } | null>(null);
+    const [detailOpenComandas, setDetailOpenComandas] = useState<OpenComandaSummary[]>([]);
+    const [detailOpenComandasCount, setDetailOpenComandasCount] = useState(0);
+    const [detailOpenComandasLoading, setDetailOpenComandasLoading] = useState(false);
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
 
     const openClientDetails = useCallback(async (client: Client) => {
         setDetailClient(client);
         setDetailChefClub(null);
+        setDetailOpenComandas([]);
+        setDetailOpenComandasCount(0);
+        setDetailOpenComandasLoading(Boolean(tenantId));
 
         try {
-            const summary = await fetchChefClubSummaryByClient(client.id, tenantId);
-            setDetailChefClub(summary);
+            const [clubSummary, openComandasResult] = await Promise.all([
+                fetchChefClubSummaryByClient(client.id, tenantId).catch((error) => {
+                    console.error('Erro ao carregar resumo do Clube do Chefe:', error);
+                    return null;
+                }),
+                tenantId
+                    ? barberSupabase
+                        .from('comandas')
+                        .select('id, total, status, created_at', { count: 'exact' })
+                        .eq('tenant_id', tenantId)
+                        .eq('client_id', client.id)
+                        .eq('status', 'open')
+                        .order('created_at', { ascending: false })
+                        .limit(3)
+                    : Promise.resolve({ data: [], error: null, count: 0 }),
+            ]);
+
+            setDetailChefClub(clubSummary);
+
+            if (openComandasResult.error) {
+                console.error('Erro ao carregar comandas abertas do cliente:', openComandasResult.error);
+                setDetailOpenComandas([]);
+                setDetailOpenComandasCount(0);
+            } else {
+                setDetailOpenComandas((openComandasResult.data || []) as OpenComandaSummary[]);
+                setDetailOpenComandasCount(openComandasResult.count || 0);
+            }
         } catch (error) {
-            console.error('Erro ao carregar resumo do Clube do Chefe:', error);
+            console.error('Erro ao carregar detalhes do cliente:', error);
             setDetailChefClub(null);
+            setDetailOpenComandas([]);
+            setDetailOpenComandasCount(0);
+        } finally {
+            setDetailOpenComandasLoading(false);
         }
-    }, [tenantId]);
+    }, [barberSupabase, tenantId]);
 
     const fetchClients = useCallback(async () => {
         let loadingId: string | undefined;
@@ -598,6 +654,56 @@ const Clients: React.FC = () => {
                                 <p className="text-[10px] text-slate-500 uppercase font-bold">Total Gasto</p>
                                 <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
                             </div>
+                            {detailOpenComandasLoading && (
+                                <div className="col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Verificando comandas abertas...</p>
+                                </div>
+                            )}
+                            {!detailOpenComandasLoading && detailOpenComandasCount > 0 && (
+                                <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                                                Este cliente possui comanda aberta
+                                            </p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                {detailOpenComandasCount === 1
+                                                    ? '1 comanda em aberto'
+                                                    : `${detailOpenComandasCount} comandas em aberto`}
+                                            </p>
+                                        </div>
+                                        <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-500/30 bg-white/70 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:bg-white/5 dark:text-amber-300">
+                                            <span className="material-symbols-outlined text-[12px]">receipt_long</span>
+                                            Aberta
+                                        </span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {detailOpenComandas.map((comanda) => (
+                                            <div key={comanda.id} className="flex flex-col gap-2 rounded-lg bg-white/80 p-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">
+                                                        Comanda #{getDisplayId(comanda.id)}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                        {formatCurrency(comanda.total)} • {formatDateTime(comanda.created_at)} • open
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDetailClient(null);
+                                                        navigate(`/checkout/${comanda.id}`);
+                                                    }}
+                                                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
+                                                >
+                                                    <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                                    Ver comanda
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             {detailChefClub && (
                                 <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
                                     <div className="flex items-center gap-3">

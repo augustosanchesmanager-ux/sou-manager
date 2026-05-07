@@ -5,7 +5,12 @@ import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
-import { normalizePlanServiceCredits } from '../src/utils/chefClubCredits';
+import {
+    getTotalAvailableCredits,
+    getTotalUsedCredits,
+    normalizeCreditBalances,
+    normalizePlanServiceCredits,
+} from '../src/utils/chefClubCredits';
 import type { ServiceBalanceEntry, ServiceCreditsEntry } from '../src/utils/chefClubCredits';
 
 interface Plan {
@@ -150,10 +155,11 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
                 if (creditsRes.data) {
                     setCredits(creditsRes.data as CreditRecord);
-                    const balanceMap = (creditsRes.data as CreditRecord).service_balance_map;
-                    if (Array.isArray(balanceMap)) {
-                        setEditCredits(balanceMap as ServiceBalanceEntry[]);
-                    }
+                    setEditCredits(normalizeCreditBalances(
+                        (creditsRes.data as CreditRecord).service_balance_map,
+                        (creditsRes.data as CreditRecord).available_credits,
+                        (creditsRes.data as CreditRecord).used_credits,
+                    ));
                 }
 
                 setNextBillingDate(subRes.data.next_billing_date || '');
@@ -190,7 +196,8 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                     .from('customer_credits')
                     .update({
                         service_balance_map: editCredits,
-                        available_credits: editCredits.reduce((sum, c) => sum + (c.available || 0), 0),
+                        available_credits: getTotalAvailableCredits(editCredits),
+                        used_credits: getTotalUsedCredits(editCredits),
                     })
                     .eq('subscription_id', subscriptionId)
                     .eq('tenant_id', tenantId);
@@ -281,8 +288,13 @@ const ChefClubSubscriptionDetail: React.FC = () => {
     }
 
     const planServices = plan ? normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits) : [];
-    const totalAvailable = credits?.available_credits || 0;
-    const totalUsed = credits?.used_credits || 0;
+    const serviceBalances = normalizeCreditBalances(
+        credits?.service_balance_map,
+        credits?.available_credits || 0,
+        credits?.used_credits || 0,
+    );
+    const totalAvailable = serviceBalances.length > 0 ? getTotalAvailableCredits(serviceBalances) : credits?.available_credits || 0;
+    const totalUsed = serviceBalances.length > 0 ? getTotalUsedCredits(serviceBalances) : credits?.used_credits || 0;
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 animate-fade-in p-4 md:p-6">
@@ -376,15 +388,15 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                     {planServices.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {planServices.map((entry) => {
-                                const balance = credits?.service_balance_map?.find((b: ServiceBalanceEntry) => b.service_id === entry.service_id);
+                                const balance = serviceBalances.find((b: ServiceBalanceEntry) => b.service_id === entry.service_id);
                                 return (
                                     <div key={entry.service_id || entry.service_name} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
                                         <div>
                                             <p className="font-bold text-slate-900 dark:text-white">{entry.service_name}</p>
-                                            <p className="text-xs text-slate-500 mt-1">{entry.credits} créditos/cycle no plano</p>
+                                            <p className="text-xs text-slate-500 mt-1">limite do plano: {entry.credits}/ciclo</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-xl font-black text-amber-500">{balance?.available ?? entry.credits}</p>
+                                            <p className="text-xl font-black text-amber-500">{balance?.available ?? 0}</p>
                                             <p className="text-[10px] text-slate-500">disponíveis</p>
                                         </div>
                                     </div>
@@ -470,11 +482,11 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                         <div className="space-y-3">
                             <p className="text-sm text-slate-500">Ajuste manualmente os créditos disponíveis por serviço.</p>
                             {editCredits.length > 0 ? editCredits.map((balance, index) => (
-                                <div key={`${balance.serviceId}-${index}`} className="grid grid-cols-[1fr_100px] gap-3 items-end">
+                                <div key={`${balance.service_id}-${index}`} className="grid grid-cols-[1fr_100px] gap-3 items-end">
                                     <div>
                                         <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Serviço</label>
                                         <div className="rounded-lg border border-slate-200 dark:border-border-dark px-3 py-2 text-sm font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-background-dark">
-                                            {balance.serviceName}
+                                            {balance.service_name}
                                         </div>
                                     </div>
                                     <div>
