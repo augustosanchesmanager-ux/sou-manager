@@ -2,7 +2,6 @@ import React from 'react';
 import DatePickerInput from './ui/DatePickerInput';
 
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
-type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type ConsumptionType = 'all' | 'service' | 'product' | 'mixed';
@@ -29,35 +28,14 @@ interface ComandaFiltersModalProps {
 
     consumptionType: ConsumptionType;
     onConsumptionTypeChange: (value: ConsumptionType) => void;
-}
 
-const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
-
-const loadPreferences = (): Partial<{
-    filterStatus: 'all' | ComandaStatus;
-    searchTerm: string;
-    dateFrom: string;
-    dateTo: string;
-    quickRange: QuickRange;
     sortField: SortField;
+    onSortFieldChange: (value: SortField) => void;
     sortDirection: SortDirection;
-    staffFilter: string;
-    minTotal: string;
-    maxTotal: string;
-    consumptionType: ConsumptionType;
-}> => {
-    if (typeof window === 'undefined') {
-        return {};
-    }
-
-    try {
-        const rawValue = localStorage.getItem(COMANDAS_PREFERENCES_KEY);
-        if (!rawValue) return {};
-        return JSON.parse(rawValue);
-    } catch {
-        return {};
-    }
-};
+    onSortDirectionChange: (value: SortDirection) => void;
+    activeFiltersCount: number;
+    onClearAll: () => void;
+}
 
 const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
     isOpen,
@@ -77,9 +55,13 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
     onMaxTotalChange,
     consumptionType,
     onConsumptionTypeChange,
+    sortField,
+    onSortFieldChange,
+    sortDirection,
+    onSortDirectionChange,
+    activeFiltersCount,
+    onClearAll,
 }) => {
-    const prefs = loadPreferences();
-
     const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 
     const quickRanges: { key: QuickRange; label: string }[] = [
@@ -96,7 +78,14 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#121826]">
                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/8">
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros</h2>
+                    <div>
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros</h2>
+                        {activeFiltersCount > 0 && (
+                            <p className="mt-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                                {activeFiltersCount} filtro(s) aplicado(s)
+                            </p>
+                        )}
+                    </div>
                     <button
                         type="button"
                         onClick={onClose}
@@ -223,18 +212,36 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                             <option value="mixed">Misto</option>
                         </select>
                     </div>
+
+                    <div>
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Ordenacao
+                        </label>
+                        <select
+                            value={`${sortField}:${sortDirection}`}
+                            onChange={(e) => {
+                                const [nextField, nextDirection] = e.target.value.split(':') as [SortField, SortDirection];
+                                onSortFieldChange(nextField);
+                                onSortDirectionChange(nextDirection);
+                            }}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                        >
+                            <option value="date:desc">Mais recentes primeiro</option>
+                            <option value="date:asc">Mais antigas primeiro</option>
+                            <option value="total:desc">Maior valor</option>
+                            <option value="total:asc">Menor valor</option>
+                            <option value="client:asc">Cliente A-Z</option>
+                            <option value="client:desc">Cliente Z-A</option>
+                            <option value="status:asc">Status</option>
+                            <option value="status:desc">Status invertido</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div className="flex gap-3 border-t border-slate-200 px-5 py-4 dark:border-white/8">
                     <button
                         type="button"
-                        onClick={() => {
-                            onStaffFilterChange('');
-                            onMinTotalChange('');
-                            onMaxTotalChange('');
-                            onConsumptionTypeChange('all');
-                            onApplyQuickRange('today');
-                        }}
+                        onClick={onClearAll}
                         className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/5"
                     >
                         Limpar tudo

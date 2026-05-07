@@ -205,6 +205,10 @@ interface LocalDemoDatabase {
     staff_name: string;
     start_time: string;
     duration: number;
+    price?: number;
+    notes?: string;
+    hidden_from_schedule?: boolean;
+    is_overbooked?: boolean;
     status: string;
     idempotency_key?: string | null;
     created_at: string;
@@ -402,6 +406,8 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         start_time: new Date('2026-04-18T15:00:00-03:00').toISOString(),
         duration: 0.5,
         status: 'confirmed',
+        hidden_from_schedule: false,
+        is_overbooked: false,
         created_at: now,
         updated_at: now,
       },
@@ -1513,6 +1519,138 @@ const client = {
         return createRpcResult({ generated, tenant_id: LOCAL_DEMO_TENANT_ID }, null);
       }
 
+      if (fn === 'create_appointment_with_services' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_tenant_id?: string;
+          p_client_id?: string;
+          p_client_name?: string;
+          p_client_phone?: string;
+          p_staff_id?: string;
+          p_start_time?: string;
+          p_notes?: string;
+          p_idempotency_key?: string;
+          p_services?: Array<{ service_id?: string; service_name?: string; name?: string }> | string;
+        };
+
+        const db = readDemoDatabase();
+        const tenantId = p.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+
+        if (p.p_idempotency_key) {
+          const existing = db.appointments.find((a) => a.idempotency_key === p.p_idempotency_key && a.tenant_id === tenantId);
+          if (existing) {
+            const existingComanda = db.comandas.find((c) => c.appointment_id === existing.id);
+            const existingComandaItem = existingComanda ? db.comanda_items.find((ci) => ci.comanda_id === existingComanda.id) : null;
+            return createRpcResult({
+              appointment_id: existing.id,
+              comanda_id: existingComanda?.id || null,
+              comanda_item_id: existingComandaItem?.id || null,
+              total_price: existingComanda?.total || 0,
+              total_duration_minutes: Math.round(Number(existing.duration || 0) * 60),
+              appointment_status: existing.status,
+              idempotent: true,
+            }, null);
+          }
+        }
+
+        let requestedServices: Array<{ service_id?: string; service_name?: string; name?: string }> = [];
+        if (Array.isArray(p.p_services)) {
+          requestedServices = p.p_services;
+        } else if (typeof p.p_services === 'string' && p.p_services.trim()) {
+          try {
+            const parsed = JSON.parse(p.p_services);
+            requestedServices = Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            requestedServices = [{ service_name: p.p_services }];
+          }
+        }
+
+        const selectedServices = requestedServices
+          .map((requested) => db.services.find((service) =>
+            service.tenant_id === tenantId &&
+            (service.id === requested.service_id ||
+              service.name.toLowerCase() === `${requested.service_name || requested.name || ''}`.toLowerCase())
+          ))
+          .filter((service): service is typeof db.services[number] => Boolean(service));
+
+        if (selectedServices.length === 0) {
+          return createRpcResult(null, new Error('Selecione pelo menos um servico valido'));
+        }
+
+        const now = new Date().toISOString();
+        const staff = db.staff.find((s) => s.id === p.p_staff_id);
+        const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+        const totalDurationMinutes = selectedServices.reduce((sum, service) => sum + Number(service.duration || 30), 0);
+        const durationHours = Math.max(0.25, Math.round((totalDurationMinutes / 60) * 10) / 10);
+        const firstService = selectedServices[0];
+        const appointmentId = `demo-appointment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const comandaId = `demo-comanda-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        let lastComandaItemId: string | null = null;
+
+        db.appointments.push({
+          id: appointmentId,
+          tenant_id: tenantId,
+          client_id: p.p_client_id || null,
+          service_id: firstService.id,
+          staff_id: p.p_staff_id || null,
+          client_name: p.p_client_name || '',
+          client_phone: p.p_client_phone || '',
+          service_name: selectedServices.length === 1 ? firstService.name : `${firstService.name} +${selectedServices.length - 1}`,
+          staff_name: staff?.name || '',
+          start_time: p.p_start_time || now,
+          duration: durationHours,
+          price: totalPrice,
+          notes: p.p_notes || '',
+          hidden_from_schedule: false,
+          is_overbooked: false,
+          status: 'confirmed',
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        });
+
+        db.comandas.push({
+          id: comandaId,
+          tenant_id: tenantId,
+          appointment_id: appointmentId,
+          client_id: p.p_client_id || null,
+          staff_id: p.p_staff_id || null,
+          status: 'open',
+          total: totalPrice,
+          idempotency_key: p.p_idempotency_key || null,
+          created_at: now,
+          updated_at: now,
+        });
+
+        selectedServices.forEach((service) => {
+          const comandaItemId = `demo-comanda-item-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+          lastComandaItemId = comandaItemId;
+          db.comanda_items.push({
+            id: comandaItemId,
+            tenant_id: tenantId,
+            comanda_id: comandaId,
+            service_id: service.id,
+            staff_id: p.p_staff_id || null,
+            product_name: service.name,
+            quantity: 1,
+            unit_price: Number(service.price || 0),
+            created_at: now,
+            updated_at: now,
+          });
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult({
+          appointment_id: appointmentId,
+          comanda_id: comandaId,
+          comanda_item_id: lastComandaItemId,
+          total_price: totalPrice,
+          service_price: totalPrice,
+          total_duration_minutes: totalDurationMinutes,
+          appointment_status: 'confirmed',
+          idempotent: false,
+        }, null);
+      }
+
       if (fn === 'create_appointment_with_comanda' && isLocalDemoEnabled()) {
         console.log('[create_appointment_with_comanda] demo RPC called with params:', params);
         const p = params as {
@@ -1572,7 +1710,10 @@ const client = {
           staff_name: staff?.name || '',
           start_time: p.p_start_time || now,
           duration: durationHours,
+          price,
           notes: p.p_notes || '',
+          hidden_from_schedule: false,
+          is_overbooked: false,
           status: 'confirmed',
           idempotency_key: p.p_idempotency_key || null,
           created_at: now,
