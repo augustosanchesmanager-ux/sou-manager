@@ -552,13 +552,12 @@ const Comandas: React.FC = () => {
     });
 
     useEffect(() => {
-        if (sortedComandas.length === 0) {
-            setSelectedComandaId(null);
+        if (!selectedComandaId) {
             return;
         }
-        if (!selectedComandaId || !sortedComandas.some((c) => c.id === selectedComandaId)) {
-            const nextDefault = sortedComandas.find((c) => c.status === 'open') || sortedComandas[0];
-            setSelectedComandaId(nextDefault.id);
+
+        if (!sortedComandas.some((c) => c.id === selectedComandaId)) {
+            setSelectedComandaId(null);
         }
     }, [selectedComandaId, sortedComandas]);
 
@@ -936,15 +935,17 @@ const Comandas: React.FC = () => {
                 </div>
             </section>
 
-            <aside className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#121826] xl:sticky xl:top-6 xl:left-auto xl:right-auto xl:bottom-auto xl:z-auto xl:block xl:w-80 xl:shrink-0 xl:rounded-2xl xl:border xl:border-slate-200 xl:dark:border-white/8">
-                <ComandaSidebar
-                    comanda={selectedComanda}
-                    onClose={() => setSelectedComandaId(null)}
-                    onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
-                    onPrint={() => selectedComanda && handlePrint(selectedComanda)}
-                    onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
-                />
-            </aside>
+            {selectedComanda && (
+                <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-[#121826] md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
+                    <ComandaSidebar
+                        comanda={selectedComanda}
+                        onClose={() => setSelectedComandaId(null)}
+                        onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
+                        onPrint={() => selectedComanda && handlePrint(selectedComanda)}
+                        onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
+                    />
+                </aside>
+            )}
 
             <ComandaFiltersModal
                 isOpen={filtersModalOpen}
