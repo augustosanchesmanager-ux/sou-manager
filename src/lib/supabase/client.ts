@@ -236,6 +236,7 @@ interface LocalDemoDatabase {
   transactions: Array<{
     id: string;
     tenant_id: string;
+    user_id?: string;
     type: string;
     amount: number;
     date: string;
@@ -243,6 +244,8 @@ interface LocalDemoDatabase {
     category?: string;
     status?: string;
     payment_method?: string;
+    due_day?: number;
+    notes?: string;
   }>;
   comandas: Array<{
     id: string;
@@ -1046,6 +1049,8 @@ case 'comanda_items':
         db.notifications.push(...(nextRows as typeof db.notifications));
       } else if (table === 'notification_preferences') {
         db.notification_preferences.push(...(nextRows as typeof db.notification_preferences));
+      } else if (table === 'transactions') {
+        db.transactions.push(...(nextRows as typeof db.transactions));
       }
 
       writeDemoDatabase(db);
@@ -1087,6 +1092,8 @@ case 'comanda_items':
         db.notifications = replaceRows(db.notifications);
       } else if (table === 'notification_preferences') {
         db.notification_preferences = replaceRows(db.notification_preferences);
+      } else if (table === 'transactions') {
+        db.transactions = replaceRows(db.transactions);
       }
 
       writeDemoDatabase(db);
@@ -1117,6 +1124,8 @@ case 'comanda_items':
                       ? db.notifications
                       : table === 'notification_preferences'
                         ? db.notification_preferences
+                        : table === 'transactions'
+                          ? db.transactions
                         : db.clients;
 
       const upsertedRows = rows.map((row) => {
@@ -1168,6 +1177,8 @@ case 'comanda_items':
         db.notifications = remainingRows as typeof db.notifications;
       } else if (table === 'notification_preferences') {
         db.notification_preferences = remainingRows as typeof db.notification_preferences;
+      } else if (table === 'transactions') {
+        db.transactions = remainingRows as typeof db.transactions;
       }
 
       writeDemoDatabase(db);

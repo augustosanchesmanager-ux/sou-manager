@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRecurringBills, BILL_CATEGORIES } from '../src/hooks/useRecurringBills';
 import type { RecurringBill } from '../src/hooks/useRecurringBills';
 import Modal from './ui/Modal';
@@ -45,6 +45,22 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    console.debug('[RecurringBills] render filters/state before list render', {
+      loading,
+      error,
+      billsCount: bills.length,
+      generatedExpensesCount: generatedExpenses.length,
+      activeBillsCount: bills.filter((bill) => bill.is_active).length,
+      totals,
+    });
+  }, [bills, error, generatedExpenses, loading, totals]);
+
+  useEffect(() => {
+    if (!error) return;
+    setToast({ message: `Erro ao carregar contas fixas: ${error}`, type: 'error' });
+  }, [error]);
+
   const openNewModal = () => {
     setEditingBill(null);
     setFormData({
@@ -85,6 +101,16 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
         notes: formData.notes,
       };
 
+      if (Number.isNaN(payload.amount) || payload.amount <= 0) {
+        throw new Error('Informe um valor válido para a conta fixa.');
+      }
+
+      if (Number.isNaN(payload.due_day) || payload.due_day < 1 || payload.due_day > 31) {
+        throw new Error('Informe um dia de vencimento entre 1 e 31.');
+      }
+
+      console.debug('[RecurringBills] form payload before save', payload);
+
       if (editingBill) {
         await updateBill(editingBill.id, payload);
         setToast({ message: 'Conta atualizada!', type: 'success' });
@@ -96,6 +122,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
       setIsModalOpen(false);
       refresh();
     } catch (err: any) {
+      console.error('[RecurringBills] Erro completo ao salvar conta fixa:', err);
       setToast({ message: err.message || 'Erro ao salvar', type: 'error' });
     } finally {
       setSaving(false);
@@ -110,6 +137,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
       setToast({ message: 'Conta excluída!', type: 'info' });
       refresh();
     } catch (err: any) {
+      console.error('[RecurringBills] Erro completo ao excluir conta fixa:', err);
       setToast({ message: err.message || 'Erro ao excluir', type: 'error' });
     }
   };
