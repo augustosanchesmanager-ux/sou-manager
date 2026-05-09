@@ -1601,11 +1601,15 @@ const Schedule: React.FC = () => {
     return `"${normalized.replace(/"/g, '""')}"`;
   };
 
+  const toCSVLine = (fields: Array<string | number | null | undefined>) => fields.map(escapeCSV).join(';');
+
+  const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
+
   const isSharedServiceItem = (item: any, participants: any[]) => {
     if (participants.length === 0) return false;
     if (participants.length > 1) return true;
     const [participant] = participants;
-    return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+    return participant.role !== 'primary' || getParticipantStaffId(participant) !== item.staff_id;
   };
 
   const exportToCSV = async () => {
@@ -1653,7 +1657,7 @@ const Schedule: React.FC = () => {
     const { data: participants, error: participantsError } = itemIds.length > 0
       ? await scheduleClient
         .from('service_execution_participants')
-        .select('comanda_item_id, professional_id, role, payout_type, payout_value')
+        .select('*')
         .eq('tenant_id', tenantId)
         .in('comanda_item_id', itemIds)
       : { data: [] as any[], error: null };
@@ -1663,7 +1667,7 @@ const Schedule: React.FC = () => {
     }
 
     const participantRows = (participants || []) as any[];
-    const participantStaffIds = participantRows.map((participant) => participant.professional_id).filter(Boolean);
+    const participantStaffIds = participantRows.map(getParticipantStaffId).filter(Boolean);
     const itemStaffIds = itemRows.map((item) => item.staff_id).filter(Boolean);
     const staffIds = Array.from(new Set([...participantStaffIds, ...itemStaffIds]));
     const { data: staffRows } = staffIds.length > 0
@@ -1693,8 +1697,8 @@ const Schedule: React.FC = () => {
       'Telefone',
       'Serviço',
       'Profissional',
-      'Duração (min)',
-      'Valor (R$)',
+      'Duração',
+      'Valor',
       'Status',
       'Valor do serviço',
       'Valor pago',
@@ -1713,12 +1717,17 @@ const Schedule: React.FC = () => {
       const serviceItems = comandaItems.filter((item) => Boolean(item.service_id));
       const serviceParticipants = serviceItems.flatMap((item) => participantsByItem[item.id] || []);
       const isShared = serviceItems.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+      const visibleParticipants = isShared ? serviceParticipants : [];
       const participantNames = serviceParticipants
-        .map((participant) => staffById[participant.professional_id] || participant.professional_id)
-        .filter(Boolean);
-      const splitDescription = serviceParticipants
         .map((participant) => {
-          const name = staffById[participant.professional_id] || 'Profissional';
+          const staffId = getParticipantStaffId(participant);
+          return staffById[staffId] || staffId;
+        })
+        .filter(Boolean);
+      const splitDescription = visibleParticipants
+        .map((participant) => {
+          const staffId = getParticipantStaffId(participant);
+          const name = staffById[staffId] || 'Profissional';
           const value = participant.payout_type === 'percentage'
             ? `${participant.payout_value}%`
             : `R$ ${Number(participant.payout_value || 0).toFixed(2).replace('.', ',')}`;
@@ -1726,8 +1735,9 @@ const Schedule: React.FC = () => {
         })
         .join(' | ');
       const primaryParticipant = serviceParticipants.find((participant) => participant.role === 'primary');
+      const primaryStaffId = getParticipantStaffId(primaryParticipant);
       const primaryName = primaryParticipant
-        ? staffById[primaryParticipant.professional_id] || primaryParticipant.professional_id
+        ? staffById[primaryStaffId] || primaryStaffId
         : apt.staffName;
       const paidValue = comanda?.status === 'paid' ? Number(comanda.total || 0) : 0;
       const paymentStatus = comanda?.status === 'paid'
@@ -1737,27 +1747,27 @@ const Schedule: React.FC = () => {
           : 'Pendente';
 
       return [
-        escapeCSV(dateStr),
-        escapeCSV(getDecimalTimeLabel(apt.start)),
-        escapeCSV(getDecimalTimeLabel(apt.start + apt.duration)),
-        escapeCSV(apt.client),
-        escapeCSV(apt.clientPhone || ''),
-        escapeCSV(apt.service),
-        escapeCSV(apt.staffName),
+        dateStr,
+        getDecimalTimeLabel(apt.start),
+        getDecimalTimeLabel(apt.start + apt.duration),
+        apt.client,
+        apt.clientPhone || '',
+        apt.service,
+        apt.staffName,
         apt.duration * 60,
         Number(apt.price || 0).toFixed(2).replace('.', ','),
-        escapeCSV(apt.status),
+        apt.status,
         Number(apt.price || 0).toFixed(2).replace('.', ','),
         paidValue.toFixed(2).replace('.', ','),
-        escapeCSV(paymentStatus),
-        escapeCSV(isShared ? 'Sim' : 'Não'),
-        escapeCSV(Array.from(new Set(participantNames)).join(' / ')),
-        escapeCSV(splitDescription),
-        escapeCSV(primaryName),
-      ].join(',');
+        paymentStatus,
+        isShared ? 'Sim' : 'Não',
+        isShared ? Array.from(new Set(participantNames)).join(' / ') : '',
+        isShared ? splitDescription || '-' : '-',
+        primaryName,
+      ];
     });
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // \uFEFF for BOM (UTF-8 Excel interpretation)
+    const csvContent = '\uFEFF' + [toCSVLine(headers), ...rows.map(toCSVLine)].join('\n'); // \uFEFF for BOM (UTF-8 Excel interpretation)
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -2164,19 +2174,22 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
-                                  title={`${apt.client} — ${apt.service}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
-                                  {apt.isOverbooked && (
-                                    <span className="absolute top-0.5 right-0.5 text-[8px] bg-amber-400 text-white rounded px-0.5 font-black">ENCAIXE</span>
-                                  )}
-                                  <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
-                                    <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
+                                  <div className="flex min-w-0 items-center gap-1">
+                                    <span className="shrink-0 rounded bg-black/25 px-1 py-0.5 text-[8px] font-black leading-none text-white">
+                                      {getDecimalTimeLabel(apt.start)}
+                                    </span>
+                                    {apt.isOverbooked && (
+                                      <span className="shrink-0 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black leading-none text-white">ENCAIXE</span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-sm">
                                     {apt.client}
                                   </p>
-                                  <p className="text-[9px] text-white/90 font-bold truncate drop-shadow-sm">
-                                    <span className="material-symbols-outlined text-[9px] align-middle mr-0.5">content_cut</span>
+                                  <p className="truncate text-[9px] font-bold leading-tight text-white/90 drop-shadow-sm">
                                     {apt.service}
                                   </p>
                                 </div>
@@ -2260,29 +2273,29 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
-                                  title={`${apt.client} — ${apt.service}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
-                                  <div className="flex items-center justify-between mb-0.5 shrink-0">
+                                  <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
                                     <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter leading-none">
-                                      {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
+                                      {getDecimalTimeLabel(apt.start)}
                                     </span>
-                                    <div className="flex bg-black/10 rounded px-1 py-0.5">
+                                    {apt.isOverbooked && (
+                                      <span className="min-w-0 truncate rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black uppercase leading-none text-white">
+                                        Encaixe
+                                      </span>
+                                    )}
+                                    <div className="flex shrink-0 bg-black/10 rounded px-1 py-0.5">
                                       {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
                                       {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
                                       {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
                                     </div>
                                   </div>
-                                  <p className="text-xs font-black text-white truncate leading-none drop-shadow-sm mt-0.5">
+                                  <p className="min-w-0 truncate text-xs font-black leading-tight text-white drop-shadow-sm">
                                     {apt.client}
                                   </p>
-                                  {apt.isOverbooked && (
-                                    <span className="mt-0.5 w-fit rounded bg-amber-400 px-1 text-[8px] font-black uppercase leading-tight text-white">
-                                      Encaixe
-                                    </span>
-                                  )}
-                                  <p className="text-[10px] text-white/90 font-bold truncate leading-none drop-shadow-sm mt-0.5">
+                                  <p className="min-w-0 truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow-sm">
                                     {apt.service}
                                   </p>
                                 </div>

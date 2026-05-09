@@ -152,6 +152,8 @@ const isSharedExecution = (item: Pick<CartItem, 'staff_id' | 'execution_particip
     return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
 };
 
+const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
+
 const isFutureOrOpenDate = (value?: string | null) => {
     if (!value) return true;
     const parsed = new Date(value);
@@ -473,7 +475,7 @@ const Checkout: React.FC = () => {
                     const { data: participantRows, error: participantsError } = itemIds.length > 0
                         ? await client
                             .from('service_execution_participants')
-                            .select('id, comanda_item_id, professional_id, role, payout_type, payout_value, affects_revenue, affects_commission')
+                            .select('*')
                             .eq('tenant_id', resolvedTenantId)
                             .in('comanda_item_id', itemIds)
                         : { data: [] as any[], error: null };
@@ -482,7 +484,7 @@ const Checkout: React.FC = () => {
 
                     const participantProfessionalIds = Array.from(new Set(
                         ((participantRows || []) as any[])
-                            .map((participant) => participant.professional_id)
+                            .map(getParticipantStaffId)
                             .filter(Boolean),
                     ));
                     const { data: participantStaffRows } = participantProfessionalIds.length > 0
@@ -498,10 +500,11 @@ const Checkout: React.FC = () => {
                     }, {} as Record<string, string>);
                     const participantsByItemId = ((participantRows || []) as any[]).reduce((acc, participant) => {
                         if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+                        const professionalId = getParticipantStaffId(participant);
                         acc[participant.comanda_item_id].push({
                             id: participant.id,
-                            professional_id: participant.professional_id,
-                            professional_name: participantStaffById[participant.professional_id],
+                            professional_id: professionalId,
+                            professional_name: participantStaffById[professionalId],
                             role: participant.role,
                             payout_type: participant.payout_type,
                             payout_value: Number(participant.payout_value || 0),
@@ -1141,7 +1144,7 @@ const Checkout: React.FC = () => {
                         participants.forEach(p => {
                             allParticipantsToInsert.push({
                                 comanda_item_id: itemId,
-                                professional_id: p.professional_id,
+                                staff_id: p.professional_id,
                                 role: p.role,
                                 payout_type: p.payout_type,
                                 payout_value: p.payout_value,
@@ -1153,7 +1156,7 @@ const Checkout: React.FC = () => {
                     } else if (item.staff_id) {
                         allParticipantsToInsert.push({
                             comanda_item_id: itemId,
-                            professional_id: item.staff_id,
+                            staff_id: item.staff_id,
                             role: 'primary',
                             payout_type: 'percentage',
                             payout_value: 40,

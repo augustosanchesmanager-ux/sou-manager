@@ -34,7 +34,8 @@ interface ComandaItem {
 
 interface ServiceExecutionParticipantRow {
     comanda_item_id: string;
-    professional_id: string | null;
+    staff_id?: string | null;
+    professional_id?: string | null;
     role: string | null;
     payout_type: string | null;
     payout_value: number | null;
@@ -652,11 +653,13 @@ const Comandas: React.FC = () => {
         return 'Pendente';
     };
 
+    const getParticipantStaffId = (participant: ServiceExecutionParticipantRow) => participant.staff_id || participant.professional_id || '';
+
     const isSharedServiceItem = (item: ComandaItem, participants: ServiceExecutionParticipantRow[]) => {
         if (participants.length === 0) return false;
         if (participants.length > 1) return true;
         const [participant] = participants;
-        return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+        return participant.role !== 'primary' || getParticipantStaffId(participant) !== item.staff_id;
     };
 
     const generateCSV = async () => {
@@ -678,7 +681,7 @@ const Comandas: React.FC = () => {
         const { data: participants, error: participantsError } = itemIds.length > 0
             ? await client
                 .from('service_execution_participants')
-                .select('comanda_item_id, professional_id, role, payout_type, payout_value')
+                .select('*')
                 .eq('tenant_id', resolvedTenantId)
                 .in('comanda_item_id', itemIds)
             : { data: [] as ServiceExecutionParticipantRow[], error: null };
@@ -690,7 +693,7 @@ const Comandas: React.FC = () => {
         }
 
         const participantRows = (participants || []) as ServiceExecutionParticipantRow[];
-        const participantStaffIds = participantRows.map((participant) => participant.professional_id).filter((id): id is string => Boolean(id));
+        const participantStaffIds = participantRows.map(getParticipantStaffId).filter((id): id is string => Boolean(id));
         const { data: participantStaffRows } = participantStaffIds.length > 0
             ? await client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).in('id', Array.from(new Set(participantStaffIds)))
             : { data: [] as StaffLookup[] };
@@ -737,7 +740,10 @@ const Comandas: React.FC = () => {
             const sharedService = services.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
             const participantNames = Array.from(new Set(
                 serviceParticipantRows
-                    .map((participant) => participant.professional_id ? (staffById[participant.professional_id] || participant.professional_id) : '')
+                    .map((participant) => {
+                        const staffId = getParticipantStaffId(participant);
+                        return staffId ? (staffById[staffId] || staffId) : '';
+                    })
                     .filter(Boolean),
             ));
             const paidValue = c.status === 'paid' ? Number(c.total || 0) : 0;
@@ -763,7 +769,7 @@ const Comandas: React.FC = () => {
                 escapeCSV(c.payment_method || 'Não informado'),
                 escapeCSV(getPaymentStatusLabel(c.status)),
                 escapeCSV(sharedService ? 'Sim' : 'Não'),
-                escapeCSV(participantNames.join(' / ')),
+                escapeCSV(sharedService ? participantNames.join(' / ') : ''),
                 escapeCSV(observations || '-'),
                 escapeCSV('Não registrado'),
             ];

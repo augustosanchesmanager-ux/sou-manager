@@ -22,6 +22,7 @@ interface CommissionItem {
     product_name: string;
     quantity: number;
     unit_price: number;
+    total_value: number;
     created_at: string;
 }
 
@@ -50,7 +51,8 @@ interface ComandaExportRow {
 
 interface ParticipantExportRow {
     comanda_item_id: string;
-    professional_id: string | null;
+    staff_id?: string | null;
+    professional_id?: string | null;
     role: string | null;
     payout_type: 'percentage' | 'fixed' | string | null;
     payout_value: number | null;
@@ -95,6 +97,14 @@ const formatParticipationRole = (role?: string | null) => {
     return role || 'Principal';
 };
 
+const getParticipantStaffId = (participant: ParticipantExportRow) => participant.staff_id || participant.professional_id || '';
+
+const getComandaItemValue = (item: any) => {
+    const persistedTotal = Number(item.total ?? item.total_price ?? item.line_total ?? item.subtotal);
+    if (Number.isFinite(persistedTotal) && persistedTotal > 0) return persistedTotal;
+    return Number(item.unit_price || 0) * Number(item.quantity || 0);
+};
+
 const isSharedCommissionItem = (
     item: { staff_id?: string | null },
     comanda: { staff_id?: string | null },
@@ -104,7 +114,7 @@ const isSharedCommissionItem = (
     if (participants.length > 1) return true;
     const [participant] = participants;
     const mainProfessionalId = item.staff_id || comanda.staff_id || null;
-    return participant.role !== 'primary' || participant.professional_id !== mainProfessionalId;
+    return participant.role !== 'primary' || getParticipantStaffId(participant) !== mainProfessionalId;
 };
 
 const Commissions: React.FC = () => {
@@ -155,7 +165,7 @@ try {
                     .lte('created_at', endOfRangeStr),
                 barberSupabase
                     .from('comanda_items')
-                    .select('id, staff_id, product_name, quantity, unit_price, comanda_id')
+                    .select('*')
                     .eq('tenant_id', tenantId),
             ]);
 
@@ -165,7 +175,10 @@ try {
 
             const staffList = (staffRes.data || []) as StaffMember[];
             const comandasMap = new Map((comandasRes.data || [] as any[]).map((c: any) => [c.id, c]));
+            const seenItemIds = new Set<string>();
             const items = (itemsRes.data || [] as any[]).map((item: any) => {
+                if (!item.service_id || seenItemIds.has(item.id)) return null;
+                seenItemIds.add(item.id);
                 const comanda = item.comanda_id ? comandasMap.get(item.comanda_id) : null;
                 if (!comanda) return null;
                 return {
@@ -174,13 +187,14 @@ try {
                     product_name: item.product_name,
                     quantity: Number(item.quantity || 0),
                     unit_price: Number(item.unit_price || 0),
+                    total_value: getComandaItemValue(item),
                     created_at: comanda?.created_at || '',
                 };
             }).filter(Boolean) as CommissionItem[];
 
             const grouped = staffList.map((member) => {
                 const memberItems = items.filter((item) => item.staff_id === member.id);
-                const grossSales = memberItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+                const grossSales = memberItems.reduce((sum, item) => sum + item.total_value, 0);
                 const servicesCount = memberItems.reduce((sum, item) => sum + item.quantity, 0);
                 const commissionRate = normalizeRate(member.commission_rate) * 100;
                 const lastServiceDate = memberItems.length > 0
@@ -280,7 +294,7 @@ try {
                 comandaIds.length > 0
                     ? barberSupabase
                         .from('comanda_items')
-                        .select('id, comanda_id, staff_id, product_name, quantity, unit_price, service_id')
+                        .select('*')
                         .eq('tenant_id', tenantId)
                         .in('comanda_id', comandaIds)
                     : Promise.resolve({ data: [] as any[], error: null }),
@@ -301,7 +315,7 @@ try {
             const { data: participants, error: participantsError } = itemIds.length > 0
                 ? await barberSupabase
                     .from('service_execution_participants')
-                    .select('comanda_item_id, professional_id, role, payout_type, payout_value, affects_commission')
+                    .select('*')
                     .eq('tenant_id', tenantId)
                     .in('comanda_item_id', itemIds)
                 : { data: [] as ParticipantExportRow[], error: null };
@@ -346,14 +360,14 @@ try {
                 const comanda = comandaById[item.comanda_id];
                 if (!comanda) return [];
 
-                const serviceValue = Number(item.unit_price || 0) * Number(item.quantity || 0);
+                const serviceValue = getComandaItemValue(item);
                 const savedParticipants = (participantsByItem[item.id] || []).filter((participant) => participant.affects_commission !== false);
                 const isShared = isSharedCommissionItem(item, comanda, savedParticipants);
                 const participantsForCommission = isShared
                     ? savedParticipants
                     : [{
                         comanda_item_id: item.id,
-                        professional_id: item.staff_id || comanda.staff_id || null,
+                        staff_id: item.staff_id || comanda.staff_id || null,
                         role: 'primary',
                         payout_type: 'percentage',
                         payout_value: 100,
@@ -361,14 +375,18 @@ try {
                     } as ParticipantExportRow];
                 const participantNames = Array.from(new Set(
                     participantsForCommission
-                        .map((participant) => participant.professional_id ? staffById[participant.professional_id]?.name || participant.professional_id : '')
+                        .map((participant) => {
+                            const staffId = getParticipantStaffId(participant);
+                            return staffId ? staffById[staffId]?.name || staffId : '';
+                        })
                         .filter(Boolean),
                 ));
 
                 return participantsForCommission
-                    .filter((participant) => Boolean(participant.professional_id))
+                    .filter((participant) => Boolean(getParticipantStaffId(participant)))
                     .map((participant) => {
-                        const staffMember = participant.professional_id ? staffById[participant.professional_id] : null;
+                        const staffId = getParticipantStaffId(participant);
+                        const staffMember = staffId ? staffById[staffId] : null;
                         const participationRate = participant.payout_type === 'percentage'
                             ? normalizePercentage(participant.payout_value)
                             : null;
@@ -384,7 +402,7 @@ try {
                             escapeCSV(comanda.id),
                             escapeCSV(item.product_name),
                             formatMoneyForExport(serviceValue),
-                            escapeCSV(staffMember?.name || participant.professional_id || 'Profissional'),
+                            escapeCSV(staffMember?.name || staffId || 'Profissional'),
                             escapeCSV(formatParticipationRole(participant.role)),
                             escapeCSV(participationRate == null ? '' : `${(participationRate * 100).toFixed(2).replace('.', ',')}%`),
                             formatMoneyForExport(commissionBase),
@@ -616,7 +634,7 @@ try {
                                                     {item.unit_price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-white">
-                                                    {(item.unit_price * item.quantity).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    {item.total_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </td>
                                             </tr>
                                         ))}
