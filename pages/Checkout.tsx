@@ -132,6 +132,32 @@ const toMonthInputValue = (value?: string | null) => {
     return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const normalizePercentageValue = (value: number) => {
+    if (!Number.isFinite(value)) return 0;
+    return value > 1 ? value / 100 : value;
+};
+
+const formatPayoutValue = (participant: Pick<CartParticipant, 'payout_type' | 'payout_value'>) => {
+    if (participant.payout_type === 'percentage') {
+        return `${(normalizePercentageValue(participant.payout_value) * 100).toFixed(0)}%`;
+    }
+    return `R$ ${Number(participant.payout_value || 0).toFixed(2)}`;
+};
+
+const isSharedExecution = (item: Pick<CartItem, 'staff_id' | 'execution_participants'>) => {
+    const participants = item.execution_participants || [];
+    if (participants.length === 0) return false;
+    if (participants.length > 1) return true;
+    const [participant] = participants;
+    return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+};
+
+const isFutureOrOpenDate = (value?: string | null) => {
+    if (!value) return true;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) || parsed.getTime() >= Date.now();
+};
+
 const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
 
 const Checkout: React.FC = () => {
@@ -265,6 +291,7 @@ const Checkout: React.FC = () => {
     const discountValue = parseFloat(discount) || 0;
     const total = Math.max(0, subtotal - discountValue);
     const isLegacyClubSettlement = paymentStatus === 'paid' && closureMode === 'legacy_membership';
+    const shouldShowPaymentMethod = paymentStatus === 'paid';
     const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement;
     const shouldDeductMembershipCredits = paymentStatus === 'paid' && !isLegacyClubSettlement;
 
@@ -293,6 +320,64 @@ const Checkout: React.FC = () => {
         resetComandaRequestKey();
     }, [checkoutEntryMode, comandaId]);
 
+    const loadChefClubForClient = useCallback(async (clientId: string, resolvedTenantId: string) => {
+        const clientDb = getScopedClient('barber');
+        const { data: sub, error: subError } = await clientDb
+            .from('customer_subscriptions')
+            .select('id, plan_id, cycle_end, next_billing_date, created_at')
+            .eq('client_id', clientId)
+            .eq('tenant_id', resolvedTenantId)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (subError) throw subError;
+
+        if (!sub || !isFutureOrOpenDate(sub.cycle_end || sub.next_billing_date)) {
+            setChefClubInfo(null);
+            return null;
+        }
+
+        const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
+            clientDb
+                .from('customer_plans')
+                .select('name')
+                .eq('id', sub.plan_id)
+                .eq('tenant_id', resolvedTenantId)
+                .maybeSingle(),
+            clientDb
+                .from('customer_credits')
+                .select('available_credits, used_credits, service_balance_map, period_end')
+                .eq('subscription_id', sub.id)
+                .eq('tenant_id', resolvedTenantId)
+                .maybeSingle(),
+        ]);
+
+        if (planError) throw planError;
+        if (creditsError) throw creditsError;
+
+        if (!credits || !isFutureOrOpenDate(credits.period_end)) {
+            setChefClubInfo(null);
+            return null;
+        }
+
+        const serviceBalances = normalizeCreditBalances(
+            credits.service_balance_map,
+            credits.available_credits || 0,
+            credits.used_credits || 0,
+        );
+
+        const nextInfo = {
+            id: sub.id,
+            planName: plan?.name || 'Plano ativo',
+            credits: getTotalAvailableCredits(serviceBalances),
+            serviceBalances,
+        };
+        setChefClubInfo(nextInfo);
+        return nextInfo;
+    }, []);
+
     // Fetch initial data
     const fetchData = useCallback(async () => {
         if (!tenantId) {
@@ -315,7 +400,7 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'load checkout data',
             });
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
 
             const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
                 client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
@@ -384,6 +469,48 @@ const Checkout: React.FC = () => {
                     setLegacyReferenceMonth(toMonthInputValue(comanda.legacy_reference_month));
                     setRelatedAppointmentId(comanda.appointment_id || null);
 
+                    const itemIds = (comandaItems || []).map((item: any) => item.id);
+                    const { data: participantRows, error: participantsError } = itemIds.length > 0
+                        ? await client
+                            .from('service_execution_participants')
+                            .select('id, comanda_item_id, professional_id, role, payout_type, payout_value, affects_revenue, affects_commission')
+                            .eq('tenant_id', resolvedTenantId)
+                            .in('comanda_item_id', itemIds)
+                        : { data: [] as any[], error: null };
+
+                    if (participantsError) throw participantsError;
+
+                    const participantProfessionalIds = Array.from(new Set(
+                        ((participantRows || []) as any[])
+                            .map((participant) => participant.professional_id)
+                            .filter(Boolean),
+                    ));
+                    const { data: participantStaffRows } = participantProfessionalIds.length > 0
+                        ? await client
+                            .from('staff')
+                            .select('id, name')
+                            .eq('tenant_id', resolvedTenantId)
+                            .in('id', participantProfessionalIds)
+                        : { data: [] as any[] };
+                    const participantStaffById = ((participantStaffRows || []) as any[]).reduce((acc, professional) => {
+                        acc[professional.id] = professional.name;
+                        return acc;
+                    }, {} as Record<string, string>);
+                    const participantsByItemId = ((participantRows || []) as any[]).reduce((acc, participant) => {
+                        if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+                        acc[participant.comanda_item_id].push({
+                            id: participant.id,
+                            professional_id: participant.professional_id,
+                            professional_name: participantStaffById[participant.professional_id],
+                            role: participant.role,
+                            payout_type: participant.payout_type,
+                            payout_value: Number(participant.payout_value || 0),
+                            affects_revenue: participant.affects_revenue !== false,
+                            affects_commission: participant.affects_commission !== false,
+                        });
+                        return acc;
+                    }, {} as Record<string, CartParticipant[]>);
+
                     const mappedItems: CartItem[] = (comandaItems || []).map((item: any) => ({
                         id: item.id,
                         dbId: item.id,
@@ -393,9 +520,16 @@ const Checkout: React.FC = () => {
                         quantity: item.quantity,
                         service_id: item.service_id,
                         product_id: item.product_id,
-                        staff_id: item.staff_id
+                        staff_id: item.staff_id,
+                        execution_participants: participantsByItemId[item.id] || undefined,
                     }));
                     setCart(mappedItems);
+
+                    if (selectedClientData?.id) {
+                        await loadChefClubForClient(selectedClientData.id, resolvedTenantId);
+                    } else {
+                        setChefClubInfo(null);
+                    }
                 }
             }
         } catch (error) {
@@ -408,7 +542,7 @@ const Checkout: React.FC = () => {
             setActivePromotions([]);
         }
         setLoading(false);
-    }, [appSlug, comandaId, schema, tenantId]);
+    }, [appSlug, comandaId, loadChefClubForClient, schema, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -496,7 +630,7 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'select checkout client',
             });
-            const clientDb = getScopedClient(currentAppSlug);
+            const clientDb = getScopedClient('barber');
 
             if (!comandaId && supportsOpenComandaState) {
                 const { data: openComandas, error: openComandasError } = await clientDb
@@ -523,63 +657,36 @@ const Checkout: React.FC = () => {
                 }
             }
 
-            if (pendingClient) setSelectedClient(pendingClient);
-
-        const targetClient = pendingClient || client;
-        setSelectedClient(targetClient);
-        const { data: sub, error: subError } = await clientDb
-            .from('customer_subscriptions')
-            .select('id, plan_id')
-                .eq('client_id', targetClient.id)
-                .eq('tenant_id', resolvedTenantId)
-                .eq('status', 'active')
-                .maybeSingle();
-
-            if (subError) throw subError;
-
-            if (sub) {
-                const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
-                    clientDb
-                        .from('customer_plans')
-                        .select('name')
-                        .eq('id', sub.plan_id)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
-                    clientDb
-                        .from('customer_credits')
-                        .select('available_credits, used_credits, service_balance_map')
-                        .eq('subscription_id', sub.id)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
-                ]);
-
-                if (planError) throw planError;
-                if (creditsError) throw creditsError;
-
-                const serviceBalances = normalizeCreditBalances(
-                    credits?.service_balance_map,
-                    credits?.available_credits || 0,
-                    credits?.used_credits || 0,
-                );
-
-                setChefClubInfo({
-                    id: sub.id,
-                    planName: plan?.name || 'Plano ativo',
-                    credits: getTotalAvailableCredits(serviceBalances),
-                    serviceBalances,
-                });
-            } else {
-                setChefClubInfo(null);
-            }
+            const targetClient = pendingClient || client;
+            setSelectedClient(targetClient);
+            await loadChefClubForClient(targetClient.id, resolvedTenantId);
         } catch (error) {
             console.error('Error selecting checkout client:', error);
             setToast({ message: 'Erro ao carregar dados do cliente.', type: 'error' });
         }
     };
 
-    const handleConfirmDuplicate = () => {
+    const handleConfirmDuplicate = async () => {
         // User chose to proceed anyway
-        if (pendingClient) setSelectedClient(pendingClient);
+        if (pendingClient) {
+            setSelectedClient(pendingClient);
+            if (tenantId) {
+                try {
+                    const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
+                    const { tenantId: resolvedTenantId } = requireTenantContext({
+                        tenantId,
+                        appSlug: currentAppSlug,
+                        schema,
+                        table: 'comandas',
+                        operation: 'confirm duplicate checkout client',
+                    });
+                    await loadChefClubForClient(pendingClient.id, resolvedTenantId);
+                } catch (error) {
+                    console.error('Error loading duplicate client club info:', error);
+                    setToast({ message: 'Cliente selecionado, mas não foi possível carregar créditos do Clube.', type: 'info' });
+                }
+            }
+        }
         setShowDuplicateModal(false);
         setDuplicateComanda(null);
         setPendingClient(null);
@@ -690,7 +797,7 @@ const Checkout: React.FC = () => {
                 table: 'products',
                 operation: 'create product during checkout',
             });
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
 
             const payload = {
                 tenant_id: resolvedTenantId,
@@ -748,7 +855,7 @@ const Checkout: React.FC = () => {
                 table: 'services',
                 operation: 'create service during checkout',
             });
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
 
             const payload = {
                 tenant_id: resolvedTenantId,
@@ -796,7 +903,7 @@ const Checkout: React.FC = () => {
 
     const calculateParticipantPayout = (itemUnitPrice: number, participant: CartParticipant): number => {
         if (participant.payout_type === 'percentage') {
-            return itemUnitPrice * (participant.payout_value / 100);
+            return itemUnitPrice * normalizePercentageValue(participant.payout_value);
         }
         return participant.payout_value;
     };
@@ -812,6 +919,10 @@ const Checkout: React.FC = () => {
             if (item.id !== itemId) return item;
             
             const existingParticipants = item.execution_participants || [];
+            if (existingParticipants.some((participant) => participant.professional_id === professionalId)) {
+                setToast({ message: 'Este profissional já participa deste serviço.', type: 'info' });
+                return item;
+            }
             const isPrimary = role === 'primary';
             
             const newParticipant: CartParticipant = {
@@ -893,7 +1004,7 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'finish checkout',
             });
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
             let currentComandaId = comandaId;
             const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
@@ -906,9 +1017,7 @@ const Checkout: React.FC = () => {
                 status: paymentStatus === 'paid' ? 'paid' : 'open',
                 total: total,
                 discount: discountValue,
-                payment_method: paymentStatus === 'paid'
-                    ? (shouldApplyFinancialEffects ? paymentMethod : 'other')
-                    : null,
+                payment_method: paymentStatus === 'paid' ? paymentMethod : null,
                 closure_mode: paymentStatus === 'paid' ? closureMode : 'standard',
                 closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? (closureNote.trim() || null) : null,
                 financial_effect: paymentStatus === 'paid' ? shouldApplyFinancialEffects : true,
@@ -1150,7 +1259,7 @@ const Checkout: React.FC = () => {
             const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
             if (shouldDeductMembershipCredits && creditItems.length > 0 && chefClubInfo) {
                 for (const creditItem of creditItems) {
-                    const { error: creditErr } = await supabase.rpc('deduct_chef_club_credits', {
+                    const { error: creditErr } = await client.rpc('deduct_chef_club_credits', {
                         p_subscription_id: chefClubInfo.id,
                         p_service_id: creditItem.service_id,
                         p_amount: 1,
@@ -1339,10 +1448,13 @@ const Checkout: React.FC = () => {
                                                     {item.type === 'service' && (
                                                         <button
                                                             onClick={() => { setSharedExecutionItemId(item.id); setIsSharedExecutionModalOpen(true); }}
-                                                            className={`ml-1 p-1 rounded transition-all ${(item.execution_participants?.length ?? 0) > 0 ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-primary hover:bg-primary/10'}`}
+                                                            className={`ml-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition-all ${isSharedExecution(item) ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-primary hover:bg-primary/10'}`}
                                                             title="Execução compartilhada"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">group_add</span>
+                                                            <span className="text-[10px] font-black uppercase">
+                                                                {isSharedExecution(item) ? 'Compartilhado' : 'Compartilhar'}
+                                                            </span>
                                                         </button>
                                                     )}
                                                 </div>
@@ -1357,7 +1469,7 @@ const Checkout: React.FC = () => {
                                                                 </span>
                                                                 <span className="font-bold text-slate-700 dark:text-slate-200">
                                                                     R$ {calculateParticipantPayout(item.price, p).toFixed(2)}
-                                                                    {p.payout_type === 'percentage' && ` (${p.payout_value}%)`}
+                                                                    {p.payout_type === 'percentage' && ` (${formatPayoutValue(p)})`}
                                                                 </span>
                                                             </div>
                                                         ))}
@@ -1565,7 +1677,7 @@ const Checkout: React.FC = () => {
                             </div>
                         </div>
 
-                        {shouldApplyFinancialEffects && (
+                        {shouldShowPaymentMethod && (
                             <div className="mb-8 animate-fade-in">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
                                 <div className="grid grid-cols-2 gap-3">
@@ -2080,7 +2192,7 @@ const Checkout: React.FC = () => {
                                     <div key={p.id} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-white/5 rounded-lg">
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-slate-800 dark:text-white">{p.professional_name || 'Profissional'}</p>
-                                            <p className="text-[10px] text-slate-500">{p.role === 'primary' ? 'Principal' : p.role === 'assistant' ? 'Apoio' : 'Coexecutor'} • {p.payout_value}{p.payout_type === 'percentage' ? '%' : 'R$'}</p>
+                                            <p className="text-[10px] text-slate-500">{p.role === 'primary' ? 'Principal' : p.role === 'assistant' ? 'Apoio' : 'Coexecutor'} • {formatPayoutValue(p)}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm font-bold text-emerald-600">R$ {calculateParticipantPayout(item.price, p).toFixed(2)}</p>

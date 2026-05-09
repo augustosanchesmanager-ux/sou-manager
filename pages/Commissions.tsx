@@ -4,7 +4,7 @@ import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
 
 interface StaffMember {
     id: string;
@@ -17,6 +17,8 @@ interface StaffMember {
 interface CommissionItem {
     id: string;
     staff_id: string | null;
+    comanda_id?: string;
+    client_name?: string;
     product_name: string;
     quantity: number;
     unit_price: number;
@@ -35,6 +37,75 @@ interface CommissionRow {
     lastServiceDate: string | null;
     items: CommissionItem[];
 }
+
+interface ComandaExportRow {
+    id: string;
+    created_at: string;
+    closed_at?: string | null;
+    status: 'open' | 'paid' | 'blocked' | 'cancelled';
+    staff_id?: string | null;
+    client_id?: string | null;
+    payment_method?: string | null;
+}
+
+interface ParticipantExportRow {
+    comanda_item_id: string;
+    professional_id: string | null;
+    role: string | null;
+    payout_type: 'percentage' | 'fixed' | string | null;
+    payout_value: number | null;
+    affects_commission?: boolean | null;
+}
+
+const normalizeRate = (value: number | null | undefined) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 1 ? numeric / 100 : numeric;
+};
+
+const normalizePercentage = (value: number | null | undefined) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 1 ? numeric / 100 : numeric;
+};
+
+const escapeCSV = (value: string | number | null | undefined) => {
+    const normalized = value == null ? '' : String(value);
+    return `"${normalized.replace(/"/g, '""')}"`;
+};
+
+const formatMoneyForExport = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
+
+const getCommissionStatus = (status: ComandaExportRow['status']) => {
+    if (status === 'paid') return 'Confirmada';
+    if (status === 'cancelled') return 'Cancelada';
+    return 'Pendente';
+};
+
+const getPaymentStatus = (status: ComandaExportRow['status']) => {
+    if (status === 'paid') return 'Pago';
+    if (status === 'cancelled') return 'Cancelado';
+    return 'Pendente';
+};
+
+const formatParticipationRole = (role?: string | null) => {
+    if (role === 'primary') return 'Principal';
+    if (role === 'assistant') return 'Apoio';
+    if (role === 'co_executor') return 'Coexecutor';
+    return role || 'Principal';
+};
+
+const isSharedCommissionItem = (
+    item: { staff_id?: string | null },
+    comanda: { staff_id?: string | null },
+    participants: ParticipantExportRow[],
+) => {
+    if (participants.length === 0) return false;
+    if (participants.length > 1) return true;
+    const [participant] = participants;
+    const mainProfessionalId = item.staff_id || comanda.staff_id || null;
+    return participant.role !== 'primary' || participant.professional_id !== mainProfessionalId;
+};
 
 const Commissions: React.FC = () => {
     const { tenantId } = useAuth();
@@ -69,7 +140,7 @@ const Commissions: React.FC = () => {
 
 try {
             const [staffRes, comandasRes, itemsRes] = await Promise.all([
-                supabase
+                barberSupabase
                     .from('staff')
                     .select('id, name, role, avatar, commission_rate')
                     .eq('tenant_id', tenantId)
@@ -111,7 +182,7 @@ try {
                 const memberItems = items.filter((item) => item.staff_id === member.id);
                 const grossSales = memberItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
                 const servicesCount = memberItems.reduce((sum, item) => sum + item.quantity, 0);
-                const commissionRate = Number(member.commission_rate || 0);
+                const commissionRate = normalizeRate(member.commission_rate) * 100;
                 const lastServiceDate = memberItems.length > 0
                     ? memberItems
                         .map((item) => item.created_at)
@@ -127,7 +198,7 @@ try {
                     commissionRate,
                     servicesCount,
                     grossSales,
-                    commissionValue: grossSales * (commissionRate / 100),
+                    commissionValue: grossSales * normalizeRate(member.commission_rate),
                     lastServiceDate,
                     items: memberItems,
                 };
@@ -166,6 +237,186 @@ try {
         null
     );
 
+    const exportCommissions = async () => {
+        if (!tenantId || !startDate || !endDate) {
+            setToast({ message: 'Informe um período válido para exportar comissões.', type: 'error' });
+            return;
+        }
+
+        const startOfRange = new Date(startDate);
+        startOfRange.setHours(0, 0, 0, 0);
+        const endOfRange = new Date(endDate);
+        endOfRange.setHours(23, 59, 59, 999);
+
+        try {
+            const [staffRes, comandasRes] = await Promise.all([
+                barberSupabase
+                    .from('staff')
+                    .select('id, name, role, avatar, commission_rate')
+                    .eq('tenant_id', tenantId),
+                barberSupabase
+                    .from('comandas')
+                    .select('id, created_at, closed_at, status, staff_id, client_id, payment_method, hidden_from_financial')
+                    .eq('tenant_id', tenantId)
+                    .in('status', ['open', 'paid', 'blocked', 'cancelled'])
+                    .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
+                    .gte('created_at', startOfRange.toISOString())
+                    .lte('created_at', endOfRange.toISOString()),
+            ]);
+
+            if (staffRes.error) throw staffRes.error;
+            if (comandasRes.error) throw comandasRes.error;
+
+            const staffList = (staffRes.data || []) as StaffMember[];
+            const staffById = staffList.reduce((acc, staff) => {
+                acc[staff.id] = staff;
+                return acc;
+            }, {} as Record<string, StaffMember>);
+            const comandas = (comandasRes.data || []) as ComandaExportRow[];
+            const comandaIds = comandas.map((comanda) => comanda.id);
+            const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+
+            const [itemsRes, clientsRes] = await Promise.all([
+                comandaIds.length > 0
+                    ? barberSupabase
+                        .from('comanda_items')
+                        .select('id, comanda_id, staff_id, product_name, quantity, unit_price, service_id')
+                        .eq('tenant_id', tenantId)
+                        .in('comanda_id', comandaIds)
+                    : Promise.resolve({ data: [] as any[], error: null }),
+                clientIds.length > 0
+                    ? barberSupabase
+                        .from('clients')
+                        .select('id, name')
+                        .eq('tenant_id', tenantId)
+                        .in('id', clientIds)
+                    : Promise.resolve({ data: [] as any[], error: null }),
+            ]);
+
+            if (itemsRes.error) throw itemsRes.error;
+            if (clientsRes.error) throw clientsRes.error;
+
+            const serviceItems = ((itemsRes.data || []) as any[]).filter((item) => Boolean(item.service_id));
+            const itemIds = serviceItems.map((item) => item.id);
+            const { data: participants, error: participantsError } = itemIds.length > 0
+                ? await barberSupabase
+                    .from('service_execution_participants')
+                    .select('comanda_item_id, professional_id, role, payout_type, payout_value, affects_commission')
+                    .eq('tenant_id', tenantId)
+                    .in('comanda_item_id', itemIds)
+                : { data: [] as ParticipantExportRow[], error: null };
+
+            if (participantsError) throw participantsError;
+
+            const clientById = ((clientsRes.data || []) as any[]).reduce((acc, client) => {
+                acc[client.id] = client.name;
+                return acc;
+            }, {} as Record<string, string>);
+            const comandaById = comandas.reduce((acc, comanda) => {
+                acc[comanda.id] = comanda;
+                return acc;
+            }, {} as Record<string, ComandaExportRow>);
+            const participantsByItem = ((participants || []) as ParticipantExportRow[]).reduce((acc, participant) => {
+                if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+                acc[participant.comanda_item_id].push(participant);
+                return acc;
+            }, {} as Record<string, ParticipantExportRow[]>);
+
+            const headers = [
+                'Data',
+                'Cliente',
+                'ID da comanda',
+                'Serviço',
+                'Valor do serviço',
+                'Profissional',
+                'Tipo de participação',
+                'Percentual de participação',
+                'Valor base da comissão',
+                'Percentual de comissão',
+                'Valor da comissão',
+                'Serviço compartilhado',
+                'Participantes do serviço',
+                'Status da comanda',
+                'Status de pagamento',
+                'Status da comissão',
+                'Forma de pagamento',
+            ];
+
+            const rows = serviceItems.flatMap((item) => {
+                const comanda = comandaById[item.comanda_id];
+                if (!comanda) return [];
+
+                const serviceValue = Number(item.unit_price || 0) * Number(item.quantity || 0);
+                const savedParticipants = (participantsByItem[item.id] || []).filter((participant) => participant.affects_commission !== false);
+                const isShared = isSharedCommissionItem(item, comanda, savedParticipants);
+                const participantsForCommission = isShared
+                    ? savedParticipants
+                    : [{
+                        comanda_item_id: item.id,
+                        professional_id: item.staff_id || comanda.staff_id || null,
+                        role: 'primary',
+                        payout_type: 'percentage',
+                        payout_value: 100,
+                        affects_commission: true,
+                    } as ParticipantExportRow];
+                const participantNames = Array.from(new Set(
+                    participantsForCommission
+                        .map((participant) => participant.professional_id ? staffById[participant.professional_id]?.name || participant.professional_id : '')
+                        .filter(Boolean),
+                ));
+
+                return participantsForCommission
+                    .filter((participant) => Boolean(participant.professional_id))
+                    .map((participant) => {
+                        const staffMember = participant.professional_id ? staffById[participant.professional_id] : null;
+                        const participationRate = participant.payout_type === 'percentage'
+                            ? normalizePercentage(participant.payout_value)
+                            : null;
+                        const commissionBase = participant.payout_type === 'percentage'
+                            ? serviceValue * Number(participationRate || 0)
+                            : Number(participant.payout_value || 0);
+                        const commissionRate = normalizeRate(staffMember?.commission_rate);
+                        const commissionValue = commissionBase * commissionRate;
+
+                        return [
+                            escapeCSV(new Date(comanda.created_at).toLocaleDateString('pt-BR')),
+                            escapeCSV(comanda.client_id ? clientById[comanda.client_id] || 'Cliente sem nome' : 'Cliente sem nome'),
+                            escapeCSV(comanda.id),
+                            escapeCSV(item.product_name),
+                            formatMoneyForExport(serviceValue),
+                            escapeCSV(staffMember?.name || participant.professional_id || 'Profissional'),
+                            escapeCSV(formatParticipationRole(participant.role)),
+                            escapeCSV(participationRate == null ? '' : `${(participationRate * 100).toFixed(2).replace('.', ',')}%`),
+                            formatMoneyForExport(commissionBase),
+                            escapeCSV(`${(commissionRate * 100).toFixed(2).replace('.', ',')}%`),
+                            formatMoneyForExport(commissionValue),
+                            escapeCSV(isShared ? 'Sim' : 'Não'),
+                            escapeCSV(participantNames.join(' / ')),
+                            escapeCSV(comanda.status),
+                            escapeCSV(getPaymentStatus(comanda.status)),
+                            escapeCSV(getCommissionStatus(comanda.status)),
+                            escapeCSV(comanda.payment_method || 'Não informado'),
+                        ];
+                    });
+            });
+
+            const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(';'), ...rows.map((row) => row.join(';'))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `comissoes_${startDate}_${endDate}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setToast({ message: 'Relatório de comissões exportado com sucesso.', type: 'success' });
+        } catch (error) {
+            console.error('Erro ao exportar comissoes:', error);
+            setToast({ message: 'Erro ao exportar relatório de comissões.', type: 'error' });
+        }
+    };
+
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -176,7 +427,7 @@ try {
                     <p className="text-slate-500 mt-1">Acompanhe a producao variavel por profissional e o valor previsto para repasse.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="secondary" leftIcon="download" onClick={() => setToast({ message: 'Exportacao de comissoes sera adicionada em breve.', type: 'info' })}>
+                    <Button variant="secondary" leftIcon="download" onClick={exportCommissions}>
                         Exportar
                     </Button>
                     <Button leftIcon="refresh" onClick={fetchData}>

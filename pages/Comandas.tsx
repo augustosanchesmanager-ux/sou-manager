@@ -32,6 +32,14 @@ interface ComandaItem {
     service_id?: string | null;
 }
 
+interface ServiceExecutionParticipantRow {
+    comanda_item_id: string;
+    professional_id: string | null;
+    role: string | null;
+    payout_type: string | null;
+    payout_value: number | null;
+}
+
 interface Comanda {
     id: string;
     client_id: string;
@@ -49,11 +57,14 @@ interface Comanda {
     membership_credit_effect?: boolean | null;
     legacy_reference_month?: string | null;
     closed_at?: string | null;
+    discount?: number | null;
+    payment_method?: string | null;
     total: number;
     created_at: string;
     clients: {
         name: string;
         avatar: string;
+        phone?: string | null;
     };
     staff?: {
         name: string;
@@ -71,6 +82,7 @@ interface ClientLookup {
     id: string;
     name: string;
     avatar: string | null;
+    phone?: string | null;
 }
 
 interface StaffLookup {
@@ -311,7 +323,7 @@ const Comandas: React.FC = () => {
         setLoading(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({
@@ -356,7 +368,7 @@ const Comandas: React.FC = () => {
             ].filter((id): id is string => Boolean(id))));
 
             const [clientsResult, staffResult, appointmentsResult] = await Promise.all([
-                clientIds.length > 0 ? client.from('clients').select('id, name, avatar').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
+                clientIds.length > 0 ? client.from('clients').select('id, name, avatar, phone').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
                 staffIds.length > 0 ? client.from('staff').select('id, name').in('id', staffIds) : Promise.resolve({ data: [] as StaffLookup[], error: null }),
                 appointmentIds.length > 0 ? client.from('appointments').select('id, start_time').in('id', appointmentIds) : Promise.resolve({ data: [] as AppointmentLookup[], error: null }),
             ]);
@@ -383,6 +395,7 @@ const Comandas: React.FC = () => {
                     clients: {
                         name: clientsById[comanda.client_id]?.name || 'Cliente sem nome',
                         avatar: clientsById[comanda.client_id]?.avatar || '',
+                        phone: clientsById[comanda.client_id]?.phone || null,
                     },
                     staff: comanda.staff_id ? staffById[comanda.staff_id] : undefined,
                     appointment: comanda.appointment_id ? { start_time: appointmentsById[comanda.appointment_id]?.start_time || null } : undefined,
@@ -626,16 +639,145 @@ const Comandas: React.FC = () => {
         applyQuickRange('today');
     };
 
-    const generateCSV = () => {
-        const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
-        const rows = sortedComandas.map((c) => [getDisplayId(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
-        const csvContent = `data:text/csv;charset=utf-8,${[headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')}`;
+    const escapeCSV = (value: string | number | null | undefined) => {
+        const normalized = value == null ? '' : String(value);
+        return `"${normalized.replace(/"/g, '""')}"`;
+    };
+
+    const formatExportMoney = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
+
+    const getPaymentStatusLabel = (status: ComandaStatus) => {
+        if (status === 'paid') return 'Pago';
+        if (status === 'cancelled') return 'Cancelado';
+        return 'Pendente';
+    };
+
+    const isSharedServiceItem = (item: ComandaItem, participants: ServiceExecutionParticipantRow[]) => {
+        if (participants.length === 0) return false;
+        if (participants.length > 1) return true;
+        const [participant] = participants;
+        return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+    };
+
+    const generateCSV = async () => {
+        if (!tenantId) {
+            setToast({ message: 'Tenant inválido para exportar comandas.', type: 'error' });
+            return;
+        }
+
+        const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+        const client = getScopedClient('barber');
+        const resolvedTenantId = requireTenantContext({
+            tenantId,
+            appSlug: currentAppSlug,
+            schema,
+            table: 'comandas',
+            operation: 'export comandas',
+        }).tenantId;
+        const itemIds = sortedComandas.flatMap((comanda) => comanda.comanda_items.map((item) => item.id));
+        const { data: participants, error: participantsError } = itemIds.length > 0
+            ? await client
+                .from('service_execution_participants')
+                .select('comanda_item_id, professional_id, role, payout_type, payout_value')
+                .eq('tenant_id', resolvedTenantId)
+                .in('comanda_item_id', itemIds)
+            : { data: [] as ServiceExecutionParticipantRow[], error: null };
+
+        if (participantsError) {
+            console.warn('Erro ao carregar compartilhamentos para exportacao de comandas:', participantsError);
+            setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
+            return;
+        }
+
+        const participantRows = (participants || []) as ServiceExecutionParticipantRow[];
+        const participantStaffIds = participantRows.map((participant) => participant.professional_id).filter((id): id is string => Boolean(id));
+        const { data: participantStaffRows } = participantStaffIds.length > 0
+            ? await client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).in('id', Array.from(new Set(participantStaffIds)))
+            : { data: [] as StaffLookup[] };
+        const staffById = ((participantStaffRows || []) as StaffLookup[]).reduce((acc, staff) => {
+            acc[staff.id] = staff.name;
+            return acc;
+        }, {} as Record<string, string>);
+        const participantsByItem = participantRows.reduce((acc, participant) => {
+            if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+            acc[participant.comanda_item_id].push(participant);
+            return acc;
+        }, {} as Record<string, ServiceExecutionParticipantRow[]>);
+
+        const headers = [
+            'ID da comanda',
+            'Data de abertura',
+            'Data de fechamento',
+            'Cliente',
+            'Telefone',
+            'Status da comanda',
+            'Profissional principal',
+            'Serviços',
+            'Produtos',
+            'Subtotal serviços',
+            'Subtotal produtos',
+            'Desconto',
+            'Créditos Clube do Chefe utilizados',
+            'Valor total',
+            'Valor pago',
+            'Saldo pendente',
+            'Forma de pagamento',
+            'Status de pagamento',
+            'Serviço compartilhado',
+            'Profissionais participantes',
+            'Observações',
+            'Usuário responsável',
+        ];
+        const rows = sortedComandas.map((c) => {
+            const services = c.comanda_items.filter((item) => Boolean(item.service_id));
+            const products = c.comanda_items.filter((item) => Boolean(item.product_id) || !item.service_id);
+            const serviceSubtotal = services.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
+            const productSubtotal = products.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
+            const serviceParticipantRows = services.flatMap((item) => participantsByItem[item.id] || []);
+            const sharedService = services.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+            const participantNames = Array.from(new Set(
+                serviceParticipantRows
+                    .map((participant) => participant.professional_id ? (staffById[participant.professional_id] || participant.professional_id) : '')
+                    .filter(Boolean),
+            ));
+            const paidValue = c.status === 'paid' ? Number(c.total || 0) : 0;
+            const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
+            const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
+            return [
+                escapeCSV(getDisplayId(c.id)),
+                escapeCSV(new Date(c.created_at).toLocaleString('pt-BR')),
+                escapeCSV(c.closed_at ? new Date(c.closed_at).toLocaleString('pt-BR') : ''),
+                escapeCSV(c.clients.name),
+                escapeCSV(c.clients.phone || ''),
+                escapeCSV(STATUS_LABELS[c.status]),
+                escapeCSV(c.staff?.name || c.staff_names[0] || 'Sem profissional'),
+                escapeCSV(services.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
+                escapeCSV(products.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
+                formatExportMoney(serviceSubtotal),
+                formatExportMoney(productSubtotal),
+                formatExportMoney(Number(c.discount || 0)),
+                formatExportMoney(0),
+                formatExportMoney(Number(c.total || 0)),
+                formatExportMoney(paidValue),
+                formatExportMoney(pendingValue),
+                escapeCSV(c.payment_method || 'Não informado'),
+                escapeCSV(getPaymentStatusLabel(c.status)),
+                escapeCSV(sharedService ? 'Sim' : 'Não'),
+                escapeCSV(participantNames.join(' / ')),
+                escapeCSV(observations || '-'),
+                escapeCSV('Não registrado'),
+            ];
+        });
+        const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = window.document.createElement('a');
-        link.setAttribute('href', encodeURI(csvContent));
+        link.setAttribute('href', url);
         link.setAttribute('download', `comandas_${new Date().toISOString().slice(0, 10)}.csv`);
         window.document.body.appendChild(link);
         link.click();
         window.document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const copyToClipboard = async () => {
@@ -682,7 +824,7 @@ const Comandas: React.FC = () => {
         setDeleting(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({ tenantId, appSlug: currentAppSlug, schema, table: 'comandas', operation: 'cancel comanda' }).tenantId;

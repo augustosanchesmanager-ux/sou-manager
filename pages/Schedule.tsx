@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase, getClientForTable, ensureAppSupportsModule } from '../services/supabaseClient';
+import { supabase, getClientForTable, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -69,7 +69,10 @@ type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
-const SCHEDULE_START_HOUR = 7;
+const SCHEDULE_START_HOUR = 0;
+const SCHEDULE_END_HOUR = 24;
+const SCHEDULE_SLOT_DURATION = 0.5;
+const SCHEDULE_TOTAL_HOURS = SCHEDULE_END_HOUR - SCHEDULE_START_HOUR;
 
 interface AppointmentFiltersState {
   date: string;
@@ -214,6 +217,9 @@ const getDecimalTimeLabel = (value: number) => {
   const minutes = Math.round((value % 1) * 60);
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
+
+const getTimelinePercent = (value: number) =>
+  ((value - SCHEDULE_START_HOUR) / SCHEDULE_TOTAL_HOURS) * 100;
 
 const getAppointmentEndLabel = (appointment: CalendarAppointment) =>
   getDecimalTimeLabel(appointment.start + appointment.duration);
@@ -361,18 +367,13 @@ const Schedule: React.FC = () => {
   const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
 
-  // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
-  const displayEndHour = React.useMemo(() => {
-    if (appointments.length === 0) return 20;
-    const maxAptEndTime = Math.max(...appointments.map(a => a.start + a.duration));
-    return Math.min(23, Math.max(20, Math.ceil(maxAptEndTime - 1)));
-  }, [appointments]);
-
   const dynamicTimeSlots = React.useMemo(() => {
-    return Array.from({ length: displayEndHour - SCHEDULE_START_HOUR + 1 }, (_, i) => i + SCHEDULE_START_HOUR);
-  }, [displayEndHour]);
+    return Array.from(
+      { length: (SCHEDULE_TOTAL_HOURS / SCHEDULE_SLOT_DURATION) },
+      (_, i) => SCHEDULE_START_HOUR + i * SCHEDULE_SLOT_DURATION,
+    );
+  }, []);
 
-  const totalSlots = dynamicTimeSlots.length;
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
 
   // Form State
@@ -633,7 +634,7 @@ const Schedule: React.FC = () => {
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
-          isOverbooked: apt.is_overbooked || false,
+          isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
         };
       });
       setAppointments(mapped);
@@ -826,7 +827,8 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data: subscription, error: subError } = await supabase
+    const barberClient = getScopedClient('barber');
+    const { data: subscription, error: subError } = await barberClient
       .from('customer_subscriptions')
       .select('id, plan_id, status, tenant_id')
       .eq('tenant_id', tenantId)
@@ -844,7 +846,7 @@ const Schedule: React.FC = () => {
     }
 
     let planName = 'Plano ativo';
-    const { data: plan, error: planError } = await supabase
+    const { data: plan, error: planError } = await barberClient
       .from('customer_plans')
       .select('name')
       .eq('tenant_id', tenantId)
@@ -859,7 +861,7 @@ const Schedule: React.FC = () => {
     }
 
     let availableCredits = 0;
-    const { data: credits, error: creditsError } = await supabase
+    const { data: credits, error: creditsError } = await barberClient
       .from('customer_credits')
       .select('available_credits, used_credits, service_balance_map')
       .eq('tenant_id', tenantId)
@@ -939,14 +941,13 @@ const Schedule: React.FC = () => {
     const yPosition = e.clientY - columnRect.top;
 
     // Calcula o novo horário dinamicamente
-    const totalHours = dynamicTimeSlots.length;
     const percentage = yPosition / columnRect.height;
-    const exactHour = SCHEDULE_START_HOUR + (percentage * totalHours);
+    const exactHour = SCHEDULE_START_HOUR + (percentage * SCHEDULE_TOTAL_HOURS);
 
     // Arredonda para blocos de 15 minutos mais próximos
     const roundedHour = Math.floor(exactHour * 4) / 4;
 
-    if (roundedHour < SCHEDULE_START_HOUR || roundedHour >= (displayEndHour + 1)) {
+    if (roundedHour < SCHEDULE_START_HOUR || roundedHour >= SCHEDULE_END_HOUR) {
       setToast({ message: 'Horário fora de operação.', type: 'error' });
       return;
     }
@@ -1595,31 +1596,164 @@ const Schedule: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
-  const exportToCSV = () => {
+  const escapeCSV = (value: string | number | null | undefined) => {
+    const normalized = value == null ? '' : String(value);
+    return `"${normalized.replace(/"/g, '""')}"`;
+  };
+
+  const isSharedServiceItem = (item: any, participants: any[]) => {
+    if (participants.length === 0) return false;
+    if (participants.length > 1) return true;
+    const [participant] = participants;
+    return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+  };
+
+  const exportToCSV = async () => {
     if (appointments.length === 0) {
       setToast({ message: 'Não há agendamentos para exportar no período selecionado.', type: 'error' });
       return;
     }
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para exportar agenda.', type: 'error' });
+      return;
+    }
 
-    const headers = ['Data', 'Início', 'Fim', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Duração (min)', 'Valor (R$)', 'Status'];
+    const scheduleClient = getScopedClient('barber');
+    const appointmentIds = appointments.map((apt) => apt.id);
+    const { data: comandas, error: comandasError } = await scheduleClient
+      .from('comandas')
+      .select('id, appointment_id, status, total, payment_method, staff_id')
+      .eq('tenant_id', tenantId)
+      .in('appointment_id', appointmentIds);
+
+    if (comandasError) {
+      console.warn('Erro ao carregar comandas para exportacao da agenda:', comandasError);
+    }
+
+    const comandaRows = (comandas || []) as any[];
+    const comandasByAppointment = comandaRows.reduce((acc, comanda) => {
+      if (comanda.appointment_id) acc[comanda.appointment_id] = comanda;
+      return acc;
+    }, {} as Record<string, any>);
+    const comandaIds = comandaRows.map((comanda) => comanda.id);
+    const { data: items, error: itemsError } = comandaIds.length > 0
+      ? await scheduleClient
+        .from('comanda_items')
+        .select('id, comanda_id, product_name, quantity, unit_price, service_id, staff_id')
+        .eq('tenant_id', tenantId)
+        .in('comanda_id', comandaIds)
+      : { data: [] as any[], error: null };
+
+    if (itemsError) {
+      console.warn('Erro ao carregar itens para exportacao da agenda:', itemsError);
+    }
+
+    const itemRows = (items || []) as any[];
+    const itemIds = itemRows.map((item) => item.id);
+    const { data: participants, error: participantsError } = itemIds.length > 0
+      ? await scheduleClient
+        .from('service_execution_participants')
+        .select('comanda_item_id, professional_id, role, payout_type, payout_value')
+        .eq('tenant_id', tenantId)
+        .in('comanda_item_id', itemIds)
+      : { data: [] as any[], error: null };
+
+    if (participantsError) {
+      console.warn('Erro ao carregar participantes para exportacao da agenda:', participantsError);
+    }
+
+    const participantRows = (participants || []) as any[];
+    const participantStaffIds = participantRows.map((participant) => participant.professional_id).filter(Boolean);
+    const itemStaffIds = itemRows.map((item) => item.staff_id).filter(Boolean);
+    const staffIds = Array.from(new Set([...participantStaffIds, ...itemStaffIds]));
+    const { data: staffRows } = staffIds.length > 0
+      ? await scheduleClient.from('staff').select('id, name').eq('tenant_id', tenantId).in('id', staffIds)
+      : { data: [] as any[] };
+    const staffById = ((staffRows || []) as any[]).reduce((acc, staff) => {
+      acc[staff.id] = staff.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const itemsByComanda = itemRows.reduce((acc, item) => {
+      if (!acc[item.comanda_id]) acc[item.comanda_id] = [];
+      acc[item.comanda_id].push(item);
+      return acc;
+    }, {} as Record<string, any[]>);
+    const participantsByItem = participantRows.reduce((acc, participant) => {
+      if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+      acc[participant.comanda_item_id].push(participant);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const headers = [
+      'Data',
+      'Início',
+      'Fim',
+      'Cliente',
+      'Telefone',
+      'Serviço',
+      'Profissional',
+      'Duração (min)',
+      'Valor (R$)',
+      'Status',
+      'Valor do serviço',
+      'Valor pago',
+      'Status de pagamento',
+      'Serviço compartilhado',
+      'Profissionais participantes',
+      'Divisão do serviço',
+      'Profissional principal',
+    ];
 
     const rows = appointments.map(apt => {
-      const dateStr = apt.date.split('-').reverse().join('/');
-      const startHour = `${Math.floor(apt.start).toString().padStart(2, '0')}:${(apt.start % 1 === 0 ? '00' : '30')}`;
-      const endCalc = apt.start + apt.duration;
-      const endHour = `${Math.floor(endCalc).toString().padStart(2, '0')}:${(endCalc % 1 === 0 ? '00' : '30')}`;
+      const parsedDate = new Date(apt.date);
+      const dateStr = Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toLocaleDateString('pt-BR');
+      const comanda = comandasByAppointment[apt.id];
+      const comandaItems = comanda ? (itemsByComanda[comanda.id] || []) : [];
+      const serviceItems = comandaItems.filter((item) => Boolean(item.service_id));
+      const serviceParticipants = serviceItems.flatMap((item) => participantsByItem[item.id] || []);
+      const isShared = serviceItems.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+      const participantNames = serviceParticipants
+        .map((participant) => staffById[participant.professional_id] || participant.professional_id)
+        .filter(Boolean);
+      const splitDescription = serviceParticipants
+        .map((participant) => {
+          const name = staffById[participant.professional_id] || 'Profissional';
+          const value = participant.payout_type === 'percentage'
+            ? `${participant.payout_value}%`
+            : `R$ ${Number(participant.payout_value || 0).toFixed(2).replace('.', ',')}`;
+          return `${name}: ${value}`;
+        })
+        .join(' | ');
+      const primaryParticipant = serviceParticipants.find((participant) => participant.role === 'primary');
+      const primaryName = primaryParticipant
+        ? staffById[primaryParticipant.professional_id] || primaryParticipant.professional_id
+        : apt.staffName;
+      const paidValue = comanda?.status === 'paid' ? Number(comanda.total || 0) : 0;
+      const paymentStatus = comanda?.status === 'paid'
+        ? 'Pago'
+        : comanda?.status === 'cancelled'
+          ? 'Cancelado'
+          : 'Pendente';
 
       return [
-        dateStr,
-        startHour,
-        endHour,
-        `"${apt.client}"`,
-        `"${apt.clientPhone || ''}"`,
-        `"${apt.service}"`,
-        `"${apt.staffName}"`,
+        escapeCSV(dateStr),
+        escapeCSV(getDecimalTimeLabel(apt.start)),
+        escapeCSV(getDecimalTimeLabel(apt.start + apt.duration)),
+        escapeCSV(apt.client),
+        escapeCSV(apt.clientPhone || ''),
+        escapeCSV(apt.service),
+        escapeCSV(apt.staffName),
         apt.duration * 60,
-        apt.price || 0,
-        apt.status
+        Number(apt.price || 0).toFixed(2).replace('.', ','),
+        escapeCSV(apt.status),
+        Number(apt.price || 0).toFixed(2).replace('.', ','),
+        paidValue.toFixed(2).replace('.', ','),
+        escapeCSV(paymentStatus),
+        escapeCSV(isShared ? 'Sim' : 'Não'),
+        escapeCSV(Array.from(new Set(participantNames)).join(' / ')),
+        escapeCSV(splitDescription),
+        escapeCSV(primaryName),
       ].join(',');
     });
 
@@ -1968,7 +2102,7 @@ Podemos confirmar? 😄`;
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
-                          {hour}:00
+                          {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
                     </div>
@@ -2002,8 +2136,8 @@ Podemos confirmar? 😄`;
                               .map((block) => {
                                 const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                                 const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                                const top = (start - SCHEDULE_START_HOUR) * (100 / totalSlots);
-                                const height = (end - start) * (100 / totalSlots);
+                                const top = getTimelinePercent(start);
+                                const height = getTimelinePercent(end) - getTimelinePercent(start);
                                 return (
                                   <div
                                     key={block.id}
@@ -2017,8 +2151,8 @@ Podemos confirmar? 😄`;
                               {dynamicTimeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
                             {!showOnlyBlocks && dayApts.map((apt, idx) => {
-                              const startOffset = (apt.start - SCHEDULE_START_HOUR) * (100 / totalSlots);
-                              const height = apt.duration * (100 / totalSlots);
+                              const startOffset = getTimelinePercent(apt.start);
+                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
                               const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
@@ -2089,7 +2223,7 @@ Podemos confirmar? 😄`;
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
-                          {hour}:00
+                          {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
                     </div>
@@ -2112,8 +2246,8 @@ Podemos confirmar? 😄`;
                           {!showOnlyBlocks && appointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
-                              const startOffset = (apt.start - SCHEDULE_START_HOUR) * (100 / totalSlots);
-                              const height = apt.duration * (100 / totalSlots);
+                              const startOffset = getTimelinePercent(apt.start);
+                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const staffIndex = staffList.findIndex(s => s.id === resource.id);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
@@ -2126,9 +2260,9 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80`}
+                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
-                                  title={`${apt.client} — ${apt.service}`}
+                                  title={`${apt.client} — ${apt.service}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
                                   <div className="flex items-center justify-between mb-0.5 shrink-0">
                                     <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter leading-none">
@@ -2143,6 +2277,11 @@ Podemos confirmar? 😄`;
                                   <p className="text-xs font-black text-white truncate leading-none drop-shadow-sm mt-0.5">
                                     {apt.client}
                                   </p>
+                                  {apt.isOverbooked && (
+                                    <span className="mt-0.5 w-fit rounded bg-amber-400 px-1 text-[8px] font-black uppercase leading-tight text-white">
+                                      Encaixe
+                                    </span>
+                                  )}
                                   <p className="text-[10px] text-white/90 font-bold truncate leading-none drop-shadow-sm mt-0.5">
                                     {apt.service}
                                   </p>
@@ -2163,8 +2302,8 @@ Podemos confirmar? 😄`;
 
                             const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                             const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                            const top = (start - SCHEDULE_START_HOUR) * (100 / totalSlots);
-                            const height = (end - start) * (100 / totalSlots);
+                            const top = getTimelinePercent(start);
+                            const height = getTimelinePercent(end) - getTimelinePercent(start);
                             return (
                               <div
                                 key={block.id}
@@ -2444,7 +2583,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2631,6 +2770,28 @@ Podemos confirmar? 😄`;
             />
           </div>
 
+          {!editingAppointmentId && (
+            <button
+              type="button"
+              onClick={() => setForceOverbook((current) => !current)}
+              className={`w-full rounded-lg border px-3 py-3 text-left transition-all ${
+                forceOverbook
+                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-black">
+                <span className="material-symbols-outlined text-base">event_repeat</span>
+                Encaixe
+              </span>
+              <span className="mt-1 block text-xs font-semibold opacity-80">
+                {forceOverbook
+                  ? 'Ativo: permite criar em horário ocupado e marca o agendamento como encaixe.'
+                  : 'Use para atender em um horário já ocupado.'}
+              </span>
+            </button>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário</label>
@@ -2641,8 +2802,7 @@ Podemos confirmar? 😄`;
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    const slotsUntilMidnight = (24 - SCHEDULE_START_HOUR) * 2 + 1;
-                    const allSlots = Array.from({ length: slotsUntilMidnight }, (_, i) => SCHEDULE_START_HOUR + i * 0.5);
+                    const allSlots = dynamicTimeSlots;
                     const aptsOnDay = appointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
@@ -2661,11 +2821,11 @@ Podemos confirmar? 😄`;
                         slot < (apt.start + apt.duration) && slotEnd > apt.start
                       );
                       const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
-                      const isDisabled = hasConflict || hasBlock;
+                      const isDisabled = hasBlock || (hasConflict && !forceOverbook);
 
                       return (
-                        <option key={slot} value={slot} disabled={isDisabled} className={isDisabled ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                        <option key={slot} value={slot} disabled={isDisabled} className={hasConflict || hasBlock ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
+                          {getDecimalTimeLabel(slot)} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
                         </option>
                       );
                     });
@@ -2707,7 +2867,7 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setServiceSearchTerm(''); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar

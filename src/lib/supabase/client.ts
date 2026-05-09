@@ -1540,6 +1540,7 @@ const client = {
           p_start_time?: string;
           p_notes?: string;
           p_idempotency_key?: string;
+          p_is_overbooked?: boolean;
           p_services?: Array<{ service_id?: string; service_name?: string; name?: string }> | string;
         };
 
@@ -1612,7 +1613,7 @@ const client = {
           price: totalPrice,
           notes: p.p_notes || '',
           hidden_from_schedule: false,
-          is_overbooked: false,
+          is_overbooked: Boolean(p.p_is_overbooked),
           status: 'confirmed',
           idempotency_key: p.p_idempotency_key || null,
           created_at: now,
@@ -1675,6 +1676,7 @@ const client = {
           p_price?: number;
           p_notes?: string;
           p_idempotency_key?: string;
+          p_is_overbooked?: boolean;
         };
 
         const db = readDemoDatabase();
@@ -1724,7 +1726,7 @@ const client = {
           price,
           notes: p.p_notes || '',
           hidden_from_schedule: false,
-          is_overbooked: false,
+          is_overbooked: Boolean(p.p_is_overbooked),
           status: 'confirmed',
           idempotency_key: p.p_idempotency_key || null,
           created_at: now,
