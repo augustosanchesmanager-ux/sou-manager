@@ -30,6 +30,7 @@ interface PlanOption {
 interface ExistingSubscription {
     id: string;
     plan_id: string;
+    status: string;
 }
 
 const toDateOnly = (d: Date) => {
@@ -185,10 +186,12 @@ const ChefClubSubscriptionNew: React.FC = () => {
 
         const { data: activeSub, error: activeSubError } = await barberSupabase
             .from('customer_subscriptions')
-            .select('id, plan_id')
+            .select('id, plan_id, status')
             .eq('tenant_id', tenantId)
             .eq('client_id', selectedClient.id)
-            .eq('status', 'active')
+            .in('status', ['active', 'past_due', 'paused'])
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (activeSubError) {
@@ -200,7 +203,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
         if (activeSub?.id) {
             setExistingSubscription(activeSub as ExistingSubscription);
             setSaving(false);
-            setToast({ message: 'Cliente ja possui assinatura ativa. Voce pode trocar o plano.', type: 'info' });
+            setToast({ message: 'Cliente ja possui assinatura aberta. Voce pode trocar o plano.', type: 'info' });
             return;
         }
 
