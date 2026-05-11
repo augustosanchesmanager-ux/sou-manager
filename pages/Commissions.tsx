@@ -51,6 +51,7 @@ interface CommissionBaseChoice {
 
 interface CommissionAuditLine {
     comanda_id: string;
+    client_name: string;
     comanda_status: string;
     payment_status: string;
     payment_method: string;
@@ -177,6 +178,13 @@ const formatMoneyForExport = (value: number) => Number(value || 0).toFixed(2).re
 
 const formatMoneyLabel = (value: number) =>
     Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const CLIENT_NAME_FALLBACK = 'Cliente não informado';
+
+const normalizeClientName = (value?: string | null) => {
+    const normalized = String(value || '').trim();
+    return normalized || CLIENT_NAME_FALLBACK;
+};
 
 const formatSavedPayout = (participant: ParticipantRow, staffName: string) => {
     if (participant.payout_type === 'fixed') {
@@ -453,13 +461,14 @@ const Commissions: React.FC = () => {
                     const payoutValueNormalized = participant.payout_type === 'percentage' ? normalizePercentage(participant.payout_value) : null;
                     const sharedValue = isShared ? commissionBase : 0;
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
+                    const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
 
                     return {
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
                         comandaItemId: item.id,
                         createdAt: comanda.created_at,
-                        clientName: comanda.client_id ? clientById[comanda.client_id] || 'Cliente sem nome' : 'Cliente sem nome',
+                        clientName,
                         serviceName: item.product_name || 'Servico',
                         quantity,
                         unitPrice: toNumber(item.unit_price),
@@ -487,6 +496,7 @@ const Commissions: React.FC = () => {
                         paymentMethod: getPaymentMethodLabel(comanda),
                         audit: {
                             comanda_id: comanda.id,
+                            client_name: clientName,
                             comanda_status: comanda.status,
                             payment_status: getPaymentStatus(comanda.status),
                             payment_method: getPaymentMethodLabel(comanda),
@@ -667,7 +677,7 @@ const Commissions: React.FC = () => {
 
             const rowsForExport = lines.map((line) => [
                 escapeCSV(new Date(line.createdAt).toLocaleDateString('pt-BR')),
-                escapeCSV(line.clientName),
+                escapeCSV(normalizeClientName(line.clientName)),
                 escapeCSV(line.comandaId),
                 escapeCSV(line.serviceName),
                 formatMoneyForExport(line.itemValue),
@@ -715,6 +725,7 @@ const Commissions: React.FC = () => {
             const lines = commissionLines.length > 0 ? commissionLines : await loadCommissionLines();
             const headers: Array<keyof CommissionAuditLine> = [
                 'comanda_id',
+                'client_name',
                 'comanda_status',
                 'payment_status',
                 'payment_method',
@@ -970,24 +981,23 @@ const Commissions: React.FC = () => {
 
                         <div className="rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden">
                             <div className="overflow-x-auto max-h-[420px]">
-                                <table className="w-full min-w-[1120px]">
+                                <table className="w-full min-w-[1180px]">
                                     <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
                                         <tr>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Cliente</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Servico</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Qtd</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Valor vendido</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Divisao lancada</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Valor compartilhado</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Base</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Divisao/Regra</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Comissao</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                                         {selectedRow.items.map((item) => (
                                             <tr key={item.id}>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{new Date(item.createdAt).toLocaleDateString('pt-BR')}</td>
+                                                <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">
                                                     <div>{item.serviceName}</div>
                                                     {item.isShared && <div className="text-xs text-amber-600 dark:text-amber-300">Compartilhado: {item.participantNames}</div>}
@@ -997,18 +1007,20 @@ const Commissions: React.FC = () => {
                                                     {item.itemValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    {item.isShared ? item.divisionLaunched : '-'}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    {item.isShared ? item.sharedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-white">
-                                                    {item.commissionBase.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    <div>{item.isShared ? item.divisionLaunched : '-'}</div>
+                                                    {item.isShared && (
+                                                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                            Compartilhado: {item.sharedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                        Base: {item.commissionBase.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400">Status: {item.commissionStatus}</div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-bold text-emerald-500">
                                                     {item.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{item.commissionStatus}</td>
                                             </tr>
                                         ))}
                                     </tbody>
