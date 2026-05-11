@@ -163,6 +163,26 @@ interface LocalDemoCreditRecord {
   updated_at: string;
 }
 
+interface LocalDemoReceivableRecord {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  subscription_id: string;
+  plan_id: string;
+  billing_cycle_start: string;
+  billing_cycle_end: string;
+  due_date: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled' | 'refunded';
+  payment_method: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  transaction_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface LocalDemoDatabase {
   clients: LocalDemoClientRecord[];
   suppliers: Array<{
@@ -288,6 +308,7 @@ interface LocalDemoDatabase {
   customer_plans: LocalDemoPlanRecord[];
   customer_subscriptions: LocalDemoSubscriptionRecord[];
   customer_credits: LocalDemoCreditRecord[];
+  customer_subscription_receivables: LocalDemoReceivableRecord[];
   notifications: Array<{
     id: string;
     tenant_id: string;
@@ -635,6 +656,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
     ],
     customer_subscriptions: [],
     customer_credits: [],
+    customer_subscription_receivables: [],
     notifications: [],
     notification_preferences: [],
   };
@@ -732,6 +754,9 @@ comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], s
       customer_plans: Array.isArray(parsed.customer_plans) ? parsed.customer_plans : [],
       customer_subscriptions: Array.isArray(parsed.customer_subscriptions) ? parsed.customer_subscriptions : [],
       customer_credits: Array.isArray(parsed.customer_credits) ? parsed.customer_credits : [],
+      customer_subscription_receivables: Array.isArray(parsed.customer_subscription_receivables)
+        ? parsed.customer_subscription_receivables
+        : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
       notification_preferences: Array.isArray(parsed.notification_preferences) ? parsed.notification_preferences : [],
     };
@@ -811,6 +836,8 @@ case 'comanda_items':
         return cloneRows(db.customer_subscriptions);
       case 'customer_credits':
         return cloneRows(db.customer_credits);
+      case 'customer_subscription_receivables':
+        return cloneRows(db.customer_subscription_receivables);
       case 'notifications':
         return cloneRows(db.notifications);
       case 'notification_preferences':
@@ -926,6 +953,24 @@ case 'comanda_items':
       filters.push((row) => row[field] !== value);
       return builder;
     },
+    not(field: string, operator: string, value: unknown) {
+      filters.push((row) => {
+        if (operator === 'is' && value === null) {
+          return row[field] !== null && row[field] !== undefined;
+        }
+
+        if (operator === 'eq') {
+          return row[field] !== value;
+        }
+
+        if (operator === 'in' && Array.isArray(value)) {
+          return !value.includes(row[field]);
+        }
+
+        return true;
+      });
+      return builder;
+    },
     gte(field: string, value: unknown) {
       filters.push((row) => row[field] >= value);
       return builder;
@@ -1031,6 +1076,8 @@ case 'comanda_items':
         db.customer_subscriptions.push(...(nextRows as LocalDemoSubscriptionRecord[]));
       } else if (table === 'customer_credits') {
         db.customer_credits.push(...(nextRows as LocalDemoCreditRecord[]));
+      } else if (table === 'customer_subscription_receivables') {
+        db.customer_subscription_receivables.push(...(nextRows as LocalDemoReceivableRecord[]));
       } else if (table === 'customer_plans') {
         db.customer_plans.push(...(nextRows as LocalDemoPlanRecord[]));
       } else if (table === 'appointments') {
@@ -1074,6 +1121,8 @@ case 'comanda_items':
         db.customer_subscriptions = replaceRows(db.customer_subscriptions);
       } else if (table === 'customer_credits') {
         db.customer_credits = replaceRows(db.customer_credits);
+      } else if (table === 'customer_subscription_receivables') {
+        db.customer_subscription_receivables = replaceRows(db.customer_subscription_receivables);
       } else if (table === 'customer_plans') {
         db.customer_plans = replaceRows(db.customer_plans);
       } else if (table === 'appointments') {
@@ -1110,9 +1159,11 @@ case 'comanda_items':
         ? db.customer_credits
         : table === 'customer_subscriptions'
           ? db.customer_subscriptions
-          : table === 'customer_plans'
-            ? db.customer_plans
-            : table === 'appointments'
+          : table === 'customer_subscription_receivables'
+            ? db.customer_subscription_receivables
+            : table === 'customer_plans'
+              ? db.customer_plans
+              : table === 'appointments'
               ? db.appointments
               : table === 'comandas'
                 ? db.comandas
@@ -1159,6 +1210,8 @@ case 'comanda_items':
         db.customer_subscriptions = remainingRows as LocalDemoSubscriptionRecord[];
       } else if (table === 'customer_credits') {
         db.customer_credits = remainingRows as LocalDemoCreditRecord[];
+      } else if (table === 'customer_subscription_receivables') {
+        db.customer_subscription_receivables = remainingRows as LocalDemoReceivableRecord[];
       } else if (table === 'customer_plans') {
         db.customer_plans = remainingRows as LocalDemoPlanRecord[];
       } else if (table === 'appointments') {
@@ -1776,6 +1829,206 @@ const client = {
         return createRpcResult(rpcResult, null);
       }
 
+      if ((fn === 'generate_club_receivables' || fn === 'refresh_club_receivable_statuses') && isLocalDemoEnabled()) {
+        const p = params as { p_tenant_id?: string };
+        const db = readDemoDatabase();
+        const tenantId = p?.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+        const today = new Date().toISOString().slice(0, 10);
+        let generated = 0;
+        let updated = 0;
+
+        if (fn === 'generate_club_receivables') {
+          db.customer_subscriptions
+            .filter((subscription) => subscription.tenant_id === tenantId && ['active', 'past_due'].includes(subscription.status))
+            .forEach((subscription) => {
+              const plan = db.customer_plans.find((item) => item.id === subscription.plan_id && item.tenant_id === tenantId);
+              if (!plan) return;
+
+              const exists = db.customer_subscription_receivables.some(
+                (item) =>
+                  item.subscription_id === subscription.id &&
+                  item.billing_cycle_start === subscription.cycle_start &&
+                  item.billing_cycle_end === subscription.cycle_end,
+              );
+
+              if (!exists) {
+                const now = new Date().toISOString();
+                db.customer_subscription_receivables.push({
+                  id: createDemoId('customer_subscription_receivables'),
+                  tenant_id: tenantId,
+                  customer_id: subscription.client_id,
+                  subscription_id: subscription.id,
+                  plan_id: subscription.plan_id,
+                  billing_cycle_start: subscription.cycle_start,
+                  billing_cycle_end: subscription.cycle_end,
+                  due_date: subscription.cycle_start.slice(0, 10),
+                  amount: Number(plan.monthly_price || 0),
+                  status: subscription.cycle_start.slice(0, 10) < today ? 'overdue' : 'pending',
+                  payment_method: null,
+                  paid_at: null,
+                  paid_by: null,
+                  transaction_id: null,
+                  notes: null,
+                  created_at: now,
+                  updated_at: now,
+                });
+              }
+
+              generated += 1;
+            });
+        }
+
+        db.customer_subscription_receivables = db.customer_subscription_receivables.map((receivable) => {
+          if (receivable.tenant_id === tenantId && receivable.status === 'pending' && receivable.due_date < today) {
+            updated += 1;
+            return { ...receivable, status: 'overdue', updated_at: new Date().toISOString() };
+          }
+          return receivable;
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult(fn === 'generate_club_receivables' ? generated : updated, null);
+      }
+
+      if (fn === 'pay_club_receivable' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_receivable_id?: string;
+          p_payment_method?: string;
+          p_paid_at?: string;
+          p_notes?: string | null;
+        };
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        const receivable = db.customer_subscription_receivables.find((item) => item.id === p.p_receivable_id);
+
+        if (!receivable) {
+          return createRpcResult(null, new Error('Recebimento não encontrado'));
+        }
+
+        if (!['pending', 'overdue'].includes(receivable.status)) {
+          return createRpcResult(null, new Error('Recebimento não está pendente ou atrasado'));
+        }
+
+        if (receivable.transaction_id) {
+          return createRpcResult(null, new Error('Recebimento já possui lançamento financeiro'));
+        }
+
+        const plan = db.customer_plans.find((item) => item.id === receivable.plan_id && item.tenant_id === receivable.tenant_id);
+        const subscription = db.customer_subscriptions.find((item) => item.id === receivable.subscription_id);
+
+        if (!plan || !subscription) {
+          return createRpcResult(null, new Error('Assinatura ou plano não encontrado'));
+        }
+
+        const plannedServiceBalanceMap = (plan.service_credit_map || [])
+          .map((entry) => ({
+            service_id: entry.service_id,
+            service_name: entry.service_name,
+            available: Math.max(0, Number(entry.credits) || 0),
+            used: 0,
+          }))
+          .filter((entry) => entry.service_id && entry.service_name && entry.available > 0);
+        const availableCredits = plannedServiceBalanceMap.reduce((total, entry) => total + entry.available, 0);
+
+        if (availableCredits <= 0) {
+          return createRpcResult(null, new Error('Plano sem créditos por serviço configurados'));
+        }
+
+        const transaction = {
+          id: createDemoId('transactions'),
+          tenant_id: receivable.tenant_id,
+          user_id: LOCAL_DEMO_USER_ID,
+          type: 'income',
+          amount: Number(receivable.amount || 0),
+          date: p.p_paid_at || now,
+          description: `Mensalidade Clube do Chefe - ${plan.name}`,
+          category: 'Receita recorrente Clube do Chefe',
+          status: 'paid',
+          payment_method: p.p_payment_method || 'Pix',
+          notes: p.p_notes || undefined,
+        };
+        db.transactions.push(transaction);
+
+        db.customer_subscription_receivables = db.customer_subscription_receivables.map((item) =>
+          item.id === receivable.id
+            ? {
+                ...item,
+                status: 'paid',
+                payment_method: p.p_payment_method || 'Pix',
+                paid_at: p.p_paid_at || now,
+                paid_by: LOCAL_DEMO_USER_ID,
+                transaction_id: transaction.id,
+                notes: p.p_notes || null,
+                updated_at: now,
+              }
+            : item,
+        );
+
+        db.customer_credits = [
+          ...db.customer_credits.filter((item) => item.subscription_id !== receivable.subscription_id),
+          {
+            id: db.customer_credits.find((item) => item.subscription_id === receivable.subscription_id)?.id || createDemoId('customer_credits'),
+            tenant_id: receivable.tenant_id,
+            subscription_id: receivable.subscription_id,
+            client_id: receivable.customer_id,
+            available_credits: availableCredits,
+            used_credits: 0,
+            service_balance_map: plannedServiceBalanceMap,
+            period_start: receivable.billing_cycle_start,
+            period_end: receivable.billing_cycle_end,
+            created_at: now,
+            updated_at: now,
+          },
+        ];
+
+        const nextCycleStart = receivable.billing_cycle_end;
+        const nextCycleEndDate = new Date(nextCycleStart);
+        nextCycleEndDate.setMonth(nextCycleEndDate.getMonth() + 1);
+        const nextCycleEnd = nextCycleEndDate.toISOString();
+
+        db.customer_subscriptions = db.customer_subscriptions.map((item) =>
+          item.id === subscription.id
+            ? {
+                ...item,
+                status: 'active',
+                cycle_start: receivable.billing_cycle_start,
+                cycle_end: receivable.billing_cycle_end,
+                next_billing_date: receivable.billing_cycle_end.slice(0, 10),
+                updated_at: now,
+              }
+            : item,
+        );
+
+        if (!db.customer_subscription_receivables.some((item) =>
+          item.subscription_id === subscription.id &&
+          item.billing_cycle_start === nextCycleStart &&
+          item.billing_cycle_end === nextCycleEnd
+        )) {
+          db.customer_subscription_receivables.push({
+            id: createDemoId('customer_subscription_receivables'),
+            tenant_id: receivable.tenant_id,
+            customer_id: receivable.customer_id,
+            subscription_id: subscription.id,
+            plan_id: plan.id,
+            billing_cycle_start: nextCycleStart,
+            billing_cycle_end: nextCycleEnd,
+            due_date: nextCycleStart.slice(0, 10),
+            amount: Number(plan.monthly_price || 0),
+            status: 'pending',
+            payment_method: null,
+            paid_at: null,
+            paid_by: null,
+            transaction_id: null,
+            notes: null,
+            created_at: now,
+            updated_at: now,
+          });
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({ receivable, transaction }, null);
+      }
+
       if (fn === 'create_chef_club_subscription' && isLocalDemoEnabled()) {
         const p = params as {
           p_tenant_id?: string;
@@ -1803,7 +2056,7 @@ const client = {
           return createRpcResult(null, new Error('Plano inativo'));
         }
 
-        const serviceBalanceMap = (plan.service_credit_map || [])
+        const plannedServiceBalanceMap = (plan.service_credit_map || [])
           .map((entry) => ({
             service_id: entry.service_id,
             service_name: entry.service_name,
@@ -1811,11 +2064,17 @@ const client = {
             used: 0,
           }))
           .filter((entry) => entry.service_id && entry.service_name && entry.available > 0);
-        const availableCredits = serviceBalanceMap.reduce((total, entry) => total + entry.available, 0);
+        const availableCredits = plannedServiceBalanceMap.reduce((total, entry) => total + entry.available, 0);
 
-        if (serviceBalanceMap.length === 0 || availableCredits <= 0) {
+        if (plannedServiceBalanceMap.length === 0 || availableCredits <= 0) {
           return createRpcResult(null, new Error('Plano sem créditos por serviço configurados'));
         }
+
+        const pendingServiceBalanceMap = plannedServiceBalanceMap.map((entry) => ({
+          ...entry,
+          available: 0,
+          used: 0,
+        }));
 
         let subscription = db.customer_subscriptions.find(
           (item) => item.tenant_id === tenantId && item.client_id === p.p_client_id && item.status === 'active',
@@ -1863,9 +2122,9 @@ const client = {
           tenant_id: tenantId,
           subscription_id: subscription.id,
           client_id: client.id,
-          available_credits: availableCredits,
+          available_credits: 0,
           used_credits: 0,
-          service_balance_map: serviceBalanceMap,
+          service_balance_map: pendingServiceBalanceMap,
           period_start: subscription.cycle_start,
           period_end: subscription.cycle_end,
           created_at: now,
@@ -1876,9 +2135,39 @@ const client = {
           ...db.customer_credits.filter((item) => item.subscription_id !== subscription!.id),
           creditRecord,
         ];
+
+        const existingReceivable = db.customer_subscription_receivables.find(
+          (item) =>
+            item.subscription_id === subscription!.id &&
+            item.billing_cycle_start === subscription!.cycle_start &&
+            item.billing_cycle_end === subscription!.cycle_end,
+        );
+        const receivable = {
+          id: existingReceivable?.id || `demo-receivable-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          tenant_id: tenantId,
+          customer_id: client.id,
+          subscription_id: subscription.id,
+          plan_id: plan.id,
+          billing_cycle_start: subscription.cycle_start,
+          billing_cycle_end: subscription.cycle_end,
+          due_date: subscription.cycle_start.slice(0, 10),
+          amount: Number(plan.monthly_price || 0),
+          status: new Date(subscription.cycle_start.slice(0, 10)) < new Date(new Date().toISOString().slice(0, 10)) ? 'overdue' : 'pending',
+          payment_method: null,
+          paid_at: null,
+          paid_by: null,
+          transaction_id: null,
+          notes: null,
+          created_at: existingReceivable?.created_at || now,
+          updated_at: now,
+        } as LocalDemoReceivableRecord;
+        db.customer_subscription_receivables = [
+          ...db.customer_subscription_receivables.filter((item) => item.id !== receivable.id),
+          receivable,
+        ];
         writeDemoDatabase(db);
 
-        return createRpcResult({ subscription, credits: creditRecord }, null);
+        return createRpcResult({ subscription, receivable_id: receivable.id, credits: creditRecord }, null);
       }
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));

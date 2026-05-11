@@ -15,6 +15,7 @@ const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const ChefClubPlans = lazy(() => import('./pages/ChefClubPlans'));
+const ChefClubReceivables = lazy(() => import('./pages/ChefClubReceivables'));
 const ChefClubSubscriptionDetail = lazy(() => import('./pages/ChefClubSubscriptionDetail'));
 const ChefClubSubscriptionNew = lazy(() => import('./pages/ChefClubSubscriptionNew'));
 const ChefClubSubscriptions = lazy(() => import('./pages/ChefClubSubscriptions'));
@@ -197,6 +198,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
             <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
+            <Route path="/chef-club-receivables" element={<ManagerRoute><ChefClubReceivables /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions/:subscriptionId" element={<ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute>} />

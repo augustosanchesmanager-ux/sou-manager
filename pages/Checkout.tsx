@@ -324,9 +324,10 @@ const Checkout: React.FC = () => {
 
     const loadChefClubForClient = useCallback(async (clientId: string, resolvedTenantId: string) => {
         const clientDb = getScopedClient('barber');
+        const nowIso = new Date().toISOString();
         const { data: sub, error: subError } = await clientDb
             .from('customer_subscriptions')
-            .select('id, plan_id, cycle_end, next_billing_date, created_at')
+            .select('id, plan_id, cycle_start, cycle_end, next_billing_date, created_at')
             .eq('client_id', clientId)
             .eq('tenant_id', resolvedTenantId)
             .eq('status', 'active')
@@ -337,6 +338,25 @@ const Checkout: React.FC = () => {
         if (subError) throw subError;
 
         if (!sub || !isFutureOrOpenDate(sub.cycle_end || sub.next_billing_date)) {
+            setChefClubInfo(null);
+            return null;
+        }
+
+        const { data: paidCycle, error: paidCycleError } = await clientDb
+            .from('customer_subscription_receivables')
+            .select('id')
+            .eq('tenant_id', resolvedTenantId)
+            .eq('subscription_id', sub.id)
+            .eq('status', 'paid')
+            .not('transaction_id', 'is', null)
+            .lte('billing_cycle_start', nowIso)
+            .gte('billing_cycle_end', nowIso)
+            .limit(1)
+            .maybeSingle();
+
+        if (paidCycleError) throw paidCycleError;
+
+        if (!paidCycle) {
             setChefClubInfo(null);
             return null;
         }

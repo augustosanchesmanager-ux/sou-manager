@@ -67,14 +67,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       items: [
         { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard' },
         { name: 'Visão do Negócio', icon: 'query_stats', path: '/bi' },
-        { name: 'Relatórios', icon: 'summarize', path: '/reports' },
         { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return' },
         {
-          name: 'Clube dos Chefes',
+          name: 'Clube do Chefe',
           icon: 'workspace_premium',
           children: [
             { name: 'Planos', path: '/chef-club-plans' },
             { name: 'Assinaturas', path: '/chef-club-subscriptions' },
+            { name: 'Créditos', path: '/chef-club-subscriptions' },
           ]
         }
       ]
@@ -108,11 +108,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       icon: 'payments',
       items: [
         { name: 'Visão Geral', icon: 'account_balance_wallet', path: '/financial' },
-        { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow' },
-        { name: 'Folha de Pagamento', icon: 'payments', path: '/payroll' },
-        { name: 'Gestão de Despesas', icon: 'money_off', path: '/expenses' },
-        { name: 'Gestão de Recibos', icon: 'receipt_long', path: '/receipts' },
+        { name: 'Entradas', icon: 'trending_up', path: '/cashflow' },
+        { name: 'Saídas', icon: 'trending_down', path: '/expenses' },
+        { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses' },
+        { name: 'Contas a Receber', icon: 'event_available', path: '/receipts' },
+        { name: 'Recebimentos do Clube', icon: 'workspace_premium', path: '/chef-club-receivables' },
         { name: 'Comissões', icon: 'percent', path: '/commissions' },
+        { name: 'Relatórios', icon: 'summarize', path: '/reports' },
       ]
     }
   ];
@@ -401,7 +403,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                               const isChildActive = isActive(simpleChild.path);
                               return (
                                 <Link
-                                  key={simpleChild.path}
+                                  key={`${simpleChild.name}-${simpleChild.path}`}
                                   to={simpleChild.path}
                                   onClick={onClose}
                                   className={`flex items-center w-full px-3 py-2 rounded-lg transition-all text-sm relative group/subitem
@@ -424,7 +426,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                   // Single Item
                   const isSingleActive = isActive(item.path!);
                   return (
-                    <div key={item.path} className="relative group/menuitem">
+                    <div key={`${item.name}-${item.path}`} className="relative group/menuitem">
                       <Link
                         to={item.path!}
                         onClick={onClose}
