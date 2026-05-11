@@ -114,13 +114,22 @@ const ChefClubSubscriptions: React.FC = () => {
             <p className="text-slate-500 text-sm font-medium">Gestão de Assinaturas e Cobranças</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate('/chef-club-subscriptions/new?from=subscriptions')}
-          className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-primary/20 transition-all"
-        >
-          <span className="material-symbols-outlined">person_add</span>
-          Novo Assinante
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <button
+            onClick={() => navigate('/chef-club-receivables')}
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-white dark:bg-card-dark text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-2xl text-sm font-black uppercase tracking-widest hover:border-primary/40 transition-all"
+          >
+            <span className="material-symbols-outlined">payments</span>
+            Recebimentos
+          </button>
+          <button
+            onClick={() => navigate('/chef-club-subscriptions/new?from=subscriptions')}
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-primary/20 transition-all"
+          >
+            <span className="material-symbols-outlined">person_add</span>
+            Novo Assinante
+          </button>
+        </div>
       </div>
 
       {/* KPIs do Clube */}
@@ -264,8 +273,8 @@ const ChefClubSubscriptions: React.FC = () => {
                       {subscription.serviceBalances.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {subscription.serviceBalances.slice(0, 2).map((balance) => (
-                            <div key={`${subscription.id}-${balance.serviceId}`} className="text-[10px] font-bold text-slate-500">
-                              {balance.serviceName}: {balance.available}
+                            <div key={`${subscription.id}-${balance.service_id}`} className="text-[10px] font-bold text-slate-500">
+                              {balance.service_name}: {balance.available}
                             </div>
                           ))}
                         </div>

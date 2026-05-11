@@ -14,6 +14,7 @@ import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar from '../components/ComandaSidebar';
+import ComandaFiltersModal from '../components/ComandaFiltersModal';
 
 type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -29,6 +30,15 @@ interface ComandaItem {
     unit_price: number;
     product_id?: string | null;
     service_id?: string | null;
+}
+
+interface ServiceExecutionParticipantRow {
+    comanda_item_id: string;
+    staff_id?: string | null;
+    professional_id?: string | null;
+    role: string | null;
+    payout_type: string | null;
+    payout_value: number | null;
 }
 
 interface Comanda {
@@ -48,11 +58,14 @@ interface Comanda {
     membership_credit_effect?: boolean | null;
     legacy_reference_month?: string | null;
     closed_at?: string | null;
+    discount?: number | null;
+    payment_method?: string | null;
     total: number;
     created_at: string;
     clients: {
         name: string;
         avatar: string;
+        phone?: string | null;
     };
     staff?: {
         name: string;
@@ -70,6 +83,7 @@ interface ClientLookup {
     id: string;
     name: string;
     avatar: string | null;
+    phone?: string | null;
 }
 
 interface StaffLookup {
@@ -190,6 +204,15 @@ const getConsumptionSummary = (comanda: Comanda) => {
     };
 };
 
+const getConsumptionTypeForFilter = (comanda: Comanda): ConsumptionType => {
+    const hasServices = comanda.comanda_items.some((item) => Boolean(item.service_id));
+    const hasProducts = comanda.comanda_items.some((item) => Boolean(item.product_id));
+    if (hasServices && hasProducts) return 'mixed';
+    if (hasServices) return 'service';
+    if (hasProducts) return 'product';
+    return 'all';
+};
+
 const loadComandasPreferences = (): ComandasPreferences => {
     const defaultPreferences: ComandasPreferences = {
         filterStatus: 'all',
@@ -212,7 +235,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
         if (!rawValue) return defaultPreferences;
         const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
         return {
-            filterStatus: ['all', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
+            filterStatus: ['all', 'blocked', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
                 ? (parsed.filterStatus as 'all' | ComandaStatus)
                 : defaultPreferences.filterStatus,
             searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
@@ -301,7 +324,7 @@ const Comandas: React.FC = () => {
         setLoading(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({
@@ -346,7 +369,7 @@ const Comandas: React.FC = () => {
             ].filter((id): id is string => Boolean(id))));
 
             const [clientsResult, staffResult, appointmentsResult] = await Promise.all([
-                clientIds.length > 0 ? client.from('clients').select('id, name, avatar').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
+                clientIds.length > 0 ? client.from('clients').select('id, name, avatar, phone').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
                 staffIds.length > 0 ? client.from('staff').select('id, name').in('id', staffIds) : Promise.resolve({ data: [] as StaffLookup[], error: null }),
                 appointmentIds.length > 0 ? client.from('appointments').select('id, start_time').in('id', appointmentIds) : Promise.resolve({ data: [] as AppointmentLookup[], error: null }),
             ]);
@@ -373,6 +396,7 @@ const Comandas: React.FC = () => {
                     clients: {
                         name: clientsById[comanda.client_id]?.name || 'Cliente sem nome',
                         avatar: clientsById[comanda.client_id]?.avatar || '',
+                        phone: clientsById[comanda.client_id]?.phone || null,
                     },
                     staff: comanda.staff_id ? staffById[comanda.staff_id] : undefined,
                     appointment: comanda.appointment_id ? { start_time: appointmentsById[comanda.appointment_id]?.start_time || null } : undefined,
@@ -471,6 +495,10 @@ const Comandas: React.FC = () => {
             setDateTo('');
             return;
         }
+        if (range === 'custom') {
+            setQuickRange('custom');
+            return;
+        }
         const startDate = new Date(today);
         if (range === '7d') startDate.setDate(startDate.getDate() - 6);
         if (range === '30d') startDate.setDate(startDate.getDate() - 29);
@@ -484,8 +512,19 @@ const Comandas: React.FC = () => {
         applyQuickRange(preferences.quickRange || 'today');
     }, []);
 
+    const todayInputValue = formatDateInputValue(new Date());
+    const hasCustomDateFilter = quickRange !== 'today' || dateFrom !== todayInputValue || dateTo !== todayInputValue;
+    const activeFiltersCount = [
+        filterStatus !== 'all',
+        Boolean(searchTerm.trim()),
+        hasCustomDateFilter,
+        Boolean(staffFilter),
+        Boolean(minTotal),
+        Boolean(maxTotal),
+        consumptionType !== 'all',
+    ].filter(Boolean).length;
     const hasAdvancedFilters = Boolean(staffFilter || minTotal || maxTotal || consumptionType !== 'all');
-    const hasAnyFilter = Boolean(searchTerm.trim() || filterStatus !== 'all' || hasAdvancedFilters);
+    const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
 
     const openCountAll = comandas.filter((c) => c.status === 'open').length;
     const paidCountAll = comandas.filter((c) => c.status === 'paid').length;
@@ -512,7 +551,8 @@ const Comandas: React.FC = () => {
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
-        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax;
+        const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
+        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax && matchesConsumption;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -526,13 +566,12 @@ const Comandas: React.FC = () => {
     });
 
     useEffect(() => {
-        if (sortedComandas.length === 0) {
-            setSelectedComandaId(null);
+        if (!selectedComandaId) {
             return;
         }
-        if (!selectedComandaId || !sortedComandas.some((c) => c.id === selectedComandaId)) {
-            const nextDefault = sortedComandas.find((c) => c.status === 'open') || sortedComandas[0];
-            setSelectedComandaId(nextDefault.id);
+
+        if (!sortedComandas.some((c) => c.id === selectedComandaId)) {
+            setSelectedComandaId(null);
         }
     }, [selectedComandaId, sortedComandas]);
 
@@ -601,16 +640,187 @@ const Comandas: React.FC = () => {
         applyQuickRange('today');
     };
 
-    const generateCSV = () => {
-        const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
-        const rows = sortedComandas.map((c) => [getDisplayId(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
-        const csvContent = `data:text/csv;charset=utf-8,${[headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')}`;
+    const escapeCSV = (value: string | number | null | undefined) => {
+        const normalized = value == null ? '' : String(value);
+        return `"${normalized.replace(/"/g, '""')}"`;
+    };
+
+    const formatExportMoney = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
+
+    const getPaymentStatusLabel = (status: ComandaStatus) => {
+        if (status === 'paid') return 'Pago';
+        if (status === 'cancelled') return 'Cancelado';
+        return 'Pendente';
+    };
+
+    const getParticipantStaffId = (participant: ServiceExecutionParticipantRow) => participant.staff_id || participant.professional_id || '';
+
+    const normalizeParticipantPercentage = (value: number | null | undefined) => {
+        const numeric = Number(value || 0);
+        if (!Number.isFinite(numeric)) return 0;
+        return numeric > 1 ? numeric / 100 : numeric;
+    };
+
+    const getParticipantSharedValue = (serviceValue: number, participant: ServiceExecutionParticipantRow) => {
+        if (participant.payout_type === 'fixed') return Number(participant.payout_value || 0);
+        return serviceValue * normalizeParticipantPercentage(participant.payout_value);
+    };
+
+    const formatParticipantPayout = (participant: ServiceExecutionParticipantRow, name: string) => {
+        if (participant.payout_type === 'fixed') {
+            return `${name} R$ ${formatExportMoney(Number(participant.payout_value || 0))}`;
+        }
+        const percent = normalizeParticipantPercentage(participant.payout_value) * 100;
+        return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
+    };
+
+    const isSharedServiceItem = (item: ComandaItem, participants: ServiceExecutionParticipantRow[]) => {
+        if (participants.length === 0) return false;
+        if (participants.length > 1) return true;
+        const [participant] = participants;
+        const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
+        const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
+        return !isPrimaryMainProfessional || !isFullPercentagePayout;
+    };
+
+    const generateCSV = async () => {
+        if (!tenantId) {
+            setToast({ message: 'Tenant inválido para exportar comandas.', type: 'error' });
+            return;
+        }
+
+        const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+        const client = getScopedClient('barber');
+        const resolvedTenantId = requireTenantContext({
+            tenantId,
+            appSlug: currentAppSlug,
+            schema,
+            table: 'comandas',
+            operation: 'export comandas',
+        }).tenantId;
+        const itemIds = sortedComandas.flatMap((comanda) => comanda.comanda_items.map((item) => item.id));
+        const { data: participants, error: participantsError } = itemIds.length > 0
+            ? await client
+                .from('service_execution_participants')
+                .select('*')
+                .eq('tenant_id', resolvedTenantId)
+                .in('comanda_item_id', itemIds)
+            : { data: [] as ServiceExecutionParticipantRow[], error: null };
+
+        if (participantsError) {
+            console.warn('Erro ao carregar compartilhamentos para exportacao de comandas:', participantsError);
+            setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
+            return;
+        }
+
+        const participantRows = (participants || []) as ServiceExecutionParticipantRow[];
+        const participantStaffIds = participantRows.map(getParticipantStaffId).filter((id): id is string => Boolean(id));
+        const { data: participantStaffRows } = participantStaffIds.length > 0
+            ? await client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).in('id', Array.from(new Set(participantStaffIds)))
+            : { data: [] as StaffLookup[] };
+        const staffById = ((participantStaffRows || []) as StaffLookup[]).reduce((acc, staff) => {
+            acc[staff.id] = staff.name;
+            return acc;
+        }, {} as Record<string, string>);
+        const participantsByItem = participantRows.reduce((acc, participant) => {
+            if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+            acc[participant.comanda_item_id].push(participant);
+            return acc;
+        }, {} as Record<string, ServiceExecutionParticipantRow[]>);
+
+        const headers = [
+            'ID da comanda',
+            'Data de abertura',
+            'Data de fechamento',
+            'Cliente',
+            'Telefone',
+            'Status da comanda',
+            'Profissional principal',
+            'Serviços',
+            'Produtos',
+            'Subtotal serviços',
+            'Subtotal produtos',
+            'Desconto',
+            'Créditos Clube do Chefe utilizados',
+            'Valor total',
+            'Valor pago',
+            'Saldo pendente',
+            'Forma de pagamento',
+            'Status de pagamento',
+            'Serviço compartilhado',
+            'Valor do serviço',
+            'Valor compartilhado',
+            'Profissionais participantes',
+            'Divisão lançada',
+            'Base por participante',
+            'Observações',
+            'Usuário responsável',
+        ];
+        const rows = sortedComandas.map((c) => {
+            const services = c.comanda_items.filter((item) => Boolean(item.service_id));
+            const products = c.comanda_items.filter((item) => Boolean(item.product_id) || !item.service_id);
+            const serviceSubtotal = services.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
+            const productSubtotal = products.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
+            const sharedService = services.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+            const serviceValue = services.reduce((sum, item) => sum + Number(item.unit_price || 0), 0);
+            const sharedDetails = sharedService
+                ? services.flatMap((item) => (participantsByItem[item.id] || []).map((participant) => {
+                    const staffId = getParticipantStaffId(participant);
+                    const name = staffId ? (staffById[staffId] || staffId) : 'Profissional';
+                    const participantBase = getParticipantSharedValue(Number(item.unit_price || 0), participant);
+                    return { participant, name, participantBase };
+                }))
+                : [];
+            const participantNames = Array.from(new Set(sharedDetails.map((detail) => detail.name).filter(Boolean)));
+            const divisionLaunched = sharedDetails
+                .map((detail) => formatParticipantPayout(detail.participant, detail.name))
+                .join(' / ');
+            const baseByParticipant = sharedDetails
+                .map((detail) => `${detail.name} R$ ${formatExportMoney(detail.participantBase)}`)
+                .join(' / ');
+            const sharedValue = sharedDetails.reduce((sum, detail) => sum + detail.participantBase, 0);
+            const paidValue = c.status === 'paid' ? Number(c.total || 0) : 0;
+            const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
+            const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
+            return [
+                escapeCSV(getDisplayId(c.id)),
+                escapeCSV(new Date(c.created_at).toLocaleString('pt-BR')),
+                escapeCSV(c.closed_at ? new Date(c.closed_at).toLocaleString('pt-BR') : ''),
+                escapeCSV(c.clients.name),
+                escapeCSV(c.clients.phone || ''),
+                escapeCSV(STATUS_LABELS[c.status]),
+                escapeCSV(c.staff?.name || c.staff_names[0] || 'Sem profissional'),
+                escapeCSV(services.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
+                escapeCSV(products.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
+                formatExportMoney(serviceSubtotal),
+                formatExportMoney(productSubtotal),
+                formatExportMoney(Number(c.discount || 0)),
+                formatExportMoney(0),
+                formatExportMoney(Number(c.total || 0)),
+                formatExportMoney(paidValue),
+                formatExportMoney(pendingValue),
+                escapeCSV(c.payment_method || 'Não informado'),
+                escapeCSV(getPaymentStatusLabel(c.status)),
+                escapeCSV(sharedService ? 'Sim' : 'Não'),
+                formatExportMoney(serviceValue),
+                sharedService ? formatExportMoney(sharedValue) : '-',
+                escapeCSV(sharedService ? participantNames.join(' / ') : ''),
+                escapeCSV(sharedService ? divisionLaunched || '-' : '-'),
+                escapeCSV(sharedService ? baseByParticipant || '-' : '-'),
+                escapeCSV(observations || '-'),
+                escapeCSV('Não registrado'),
+            ];
+        });
+        const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = window.document.createElement('a');
-        link.setAttribute('href', encodeURI(csvContent));
+        link.setAttribute('href', url);
         link.setAttribute('download', `comandas_${new Date().toISOString().slice(0, 10)}.csv`);
         window.document.body.appendChild(link);
         link.click();
         window.document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const copyToClipboard = async () => {
@@ -657,7 +867,7 @@ const Comandas: React.FC = () => {
         setDeleting(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient(currentAppSlug);
+            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({ tenantId, appSlug: currentAppSlug, schema, table: 'comandas', operation: 'cancel comanda' }).tenantId;
@@ -804,7 +1014,7 @@ const Comandas: React.FC = () => {
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <div className="relative flex-1">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
                             <input
@@ -815,9 +1025,22 @@ const Comandas: React.FC = () => {
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
                             />
                         </div>
-                        <button onClick={() => setFiltersModalOpen(true)} className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-slate-300 dark:border-white/10 dark:text-slate-400">
+                        <button
+                            type="button"
+                            onClick={() => setFiltersModalOpen((open) => !open)}
+                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                                activeFiltersCount > 0
+                                    ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-transparent dark:text-slate-400'
+                            }`}
+                        >
                             <span className="material-symbols-outlined text-sm">tune</span>
                             Filtros
+                            {activeFiltersCount > 0 && (
+                                <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">
+                                    {activeFiltersCount}
+                                </span>
+                            )}
                         </button>
                         <select
                             value={quickRange}
@@ -830,17 +1053,35 @@ const Comandas: React.FC = () => {
                             <option value="all">Todos</option>
                         </select>
                         <select
-                            value={sortField}
-                            onChange={(e) => setSortField(e.target.value as SortField)}
+                            value={`${sortField}:${sortDirection}`}
+                            onChange={(e) => {
+                                const [nextField, nextDirection] = e.target.value.split(':') as [SortField, SortDirection];
+                                setSortField(nextField);
+                                setSortDirection(nextDirection);
+                            }}
                             className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
                         >
-                            <option value="date">Data</option>
-                            <option value="client">Cliente</option>
-                            <option value="total">Valor</option>
+                            <option value="date:desc">Mais recentes</option>
+                            <option value="date:asc">Mais antigas</option>
+                            <option value="total:desc">Maior valor</option>
+                            <option value="total:asc">Menor valor</option>
+                            <option value="client:asc">Cliente A-Z</option>
+                            <option value="client:desc">Cliente Z-A</option>
+                            <option value="status:asc">Status</option>
+                            <option value="status:desc">Status invertido</option>
                         </select>
-                        <button onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
+                        <button type="button" onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
                         </button>
+                        {hasAnyFilter && (
+                            <button
+                                type="button"
+                                onClick={clearAllFilters}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-400 dark:hover:text-white"
+                            >
+                                Limpar
+                            </button>
+                        )}
                     </div>
 
                     {selectedOpenComandaIds.length > 0 && (
@@ -879,15 +1120,43 @@ const Comandas: React.FC = () => {
                 </div>
             </section>
 
-            <aside className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#121826] xl:sticky xl:top-6 xl:left-auto xl:right-auto xl:bottom-auto xl:z-auto xl:block xl:w-80 xl:shrink-0 xl:rounded-2xl xl:border xl:border-slate-200 xl:dark:border-white/8">
-                <ComandaSidebar
-                    comanda={selectedComanda}
-                    onClose={() => setSelectedComandaId(null)}
-                    onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
-                    onPrint={() => selectedComanda && handlePrint(selectedComanda)}
-                    onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
-                />
-            </aside>
+            {selectedComanda && (
+                <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-[#121826] md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
+                    <ComandaSidebar
+                        comanda={selectedComanda}
+                        onClose={() => setSelectedComandaId(null)}
+                        onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
+                        onPrint={() => selectedComanda && handlePrint(selectedComanda)}
+                        onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
+                    />
+                </aside>
+            )}
+
+            <ComandaFiltersModal
+                isOpen={filtersModalOpen}
+                onClose={() => setFiltersModalOpen(false)}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                quickRange={quickRange}
+                onApplyQuickRange={applyQuickRange}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                staffFilter={staffFilter}
+                onStaffFilterChange={setStaffFilter}
+                staffOptions={staffOptions}
+                minTotal={minTotal}
+                maxTotal={maxTotal}
+                onMinTotalChange={setMinTotal}
+                onMaxTotalChange={setMaxTotal}
+                consumptionType={consumptionType}
+                onConsumptionTypeChange={setConsumptionType}
+                sortField={sortField}
+                onSortFieldChange={setSortField}
+                sortDirection={sortDirection}
+                onSortDirectionChange={setSortDirection}
+                activeFiltersCount={activeFiltersCount}
+                onClearAll={clearAllFilters}
+            />
 
             <Modal
                 isOpen={bulkCloseModalOpen}

@@ -140,10 +140,10 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     const openingInfo = formatOpeningInfo();
 
     return (
-        <div className="h-full overflow-y-auto p-4 xl:sticky xl:top-6">
+        <div className="h-full overflow-y-auto p-4">
             <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-white/8 dark:bg-white/[0.03]">
                 <div className="mb-4 flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Comanda
                         </p>
@@ -151,12 +151,23 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                             #{getDisplayId(comanda.id)}
                         </h2>
                     </div>
-                    <span
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${statusMeta.className}`}
-                    >
-                        <span className={`size-1.5 rounded-full ${statusMeta.dotClassName}`} />
-                        {statusMeta.label}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                        <span
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${statusMeta.className}`}
+                        >
+                            <span className={`size-1.5 rounded-full ${statusMeta.dotClassName}`} />
+                            {statusMeta.label}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            aria-label="Fechar painel da comanda"
+                            title="Fechar painel"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="mb-4">

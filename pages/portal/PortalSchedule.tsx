@@ -16,6 +16,9 @@ interface Slot { time: string; datetime: string; }
 
 type ScheduleStep = 'service' | 'barber' | 'datetime' | 'confirm' | 'success';
 
+const SCHEDULE_START_HOUR = 7;
+const SCHEDULE_END_HOUR = 20;
+
 const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * 60000);
 
 const PortalSchedule: React.FC = () => {
@@ -140,8 +143,8 @@ const PortalSchedule: React.FC = () => {
             }
 
             const isToday = dateStr === new Date().toISOString().split('T')[0];
-            const startHour = isToday ? Math.max(9, new Date().getHours() + 1) : 9;
-            const endHour = 20;
+            const startHour = isToday ? Math.max(SCHEDULE_START_HOUR, new Date().getHours() + 1) : SCHEDULE_START_HOUR;
+            const endHour = SCHEDULE_END_HOUR;
 
             const generated: Slot[] = [];
             for (let h = startHour; h < endHour; h++) {

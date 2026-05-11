@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase, getClientForTable, ensureAppSupportsModule } from '../services/supabaseClient';
+import { supabase, getClientForTable, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
+import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -68,6 +69,11 @@ type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
+const SCHEDULE_START_HOUR = 0;
+const SCHEDULE_END_HOUR = 24;
+const SCHEDULE_SLOT_DURATION = 0.5;
+const SCHEDULE_TOTAL_HOURS = SCHEDULE_END_HOUR - SCHEDULE_START_HOUR;
+
 interface AppointmentFiltersState {
   date: string;
   period: ListPeriod;
@@ -95,6 +101,7 @@ interface NewAppointmentForm {
   client: string;
   clientPhone?: string;
   service: string;
+  serviceIds: string[];
   staffId: string;
   date: string;
   start: number;
@@ -210,6 +217,9 @@ const getDecimalTimeLabel = (value: number) => {
   const minutes = Math.round((value % 1) * 60);
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
+
+const getTimelinePercent = (value: number) =>
+  ((value - SCHEDULE_START_HOUR) / SCHEDULE_TOTAL_HOURS) * 100;
 
 const getAppointmentEndLabel = (appointment: CalendarAppointment) =>
   getDecimalTimeLabel(appointment.start + appointment.duration);
@@ -357,18 +367,13 @@ const Schedule: React.FC = () => {
   const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
 
-  // Lógica de Horário Dinâmico (Opção C: Expansão Automática)
-  const displayEndHour = React.useMemo(() => {
-    if (appointments.length === 0) return 20;
-    const maxAptEndTime = Math.max(...appointments.map(a => a.start + a.duration));
-    return Math.min(23, Math.max(20, Math.ceil(maxAptEndTime - 1)));
-  }, [appointments]);
-
   const dynamicTimeSlots = React.useMemo(() => {
-    return Array.from({ length: displayEndHour - 8 + 1 }, (_, i) => i + 8);
-  }, [displayEndHour]);
+    return Array.from(
+      { length: (SCHEDULE_TOTAL_HOURS / SCHEDULE_SLOT_DURATION) },
+      (_, i) => SCHEDULE_START_HOUR + i * SCHEDULE_SLOT_DURATION,
+    );
+  }, []);
 
-  const totalSlots = dynamicTimeSlots.length;
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
 
   // Form State
@@ -376,19 +381,48 @@ const Schedule: React.FC = () => {
     client: '',
     clientPhone: '',
     service: '',
+    serviceIds: [],
     staffId: '',
     date: new Date().toISOString().split('T')[0],
-    start: 8,
+    start: SCHEDULE_START_HOUR,
     duration: 1,
     notes: '',
   });
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+
+  const selectedServices = React.useMemo(
+    () => servicesList.filter((service) => formData.serviceIds.includes(service.id)),
+    [formData.serviceIds, servicesList],
+  );
+  const filteredServicesForModal = React.useMemo(() => {
+    const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return servicesList;
+    return servicesList.filter((service) => service.name.toLowerCase().includes(normalizedSearch));
+  }, [serviceSearchTerm, servicesList]);
+  const selectedServicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+
+  const getServicesLabel = (services: DBService[]) => {
+    if (services.length === 0) return '';
+    if (services.length === 1) return services[0].name;
+    return `${services[0].name} +${services.length - 1}`;
+  };
+
+  const getServicesDurationHours = (services: DBService[]) => {
+    if (services.length === 0) return 1;
+    const totalMinutes = services.reduce(
+      (sum, service) => sum + Number(service.duration || 0) + Number(service.buffer || 0),
+      0,
+    );
+    return Math.max(0.25, Math.round((totalMinutes / 60) * 100) / 100);
+  };
 
   useEffect(() => {
     const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
-    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+    setServiceSearchTerm('');
     setIsModalOpen(true);
 
     navigate(location.pathname, { replace: true, state: null });
@@ -600,7 +634,7 @@ const Schedule: React.FC = () => {
           date: apt.start_time,
           source: apt.source || null,
           channel: apt.channel || null,
-          isOverbooked: apt.is_overbooked || false,
+          isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
         };
       });
       setAppointments(mapped);
@@ -770,6 +804,22 @@ const Schedule: React.FC = () => {
     }
   };
 
+  const toggleServiceSelection = (service: DBService) => {
+    setError(null);
+    setFormData((prev) => {
+      const nextServiceIds = prev.serviceIds.includes(service.id)
+        ? prev.serviceIds.filter((id) => id !== service.id)
+        : [...prev.serviceIds, service.id];
+      const nextServices = servicesList.filter((item) => nextServiceIds.includes(item.id));
+      return {
+        ...prev,
+        serviceIds: nextServiceIds,
+        service: getServicesLabel(nextServices),
+        duration: getServicesDurationHours(nextServices),
+      };
+    });
+  };
+
   const loadChefClubInfo = async (clientName: string) => {
     const client = clientsList.find(c => c.name === clientName);
     if (!client) {
@@ -777,7 +827,8 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const { data: subscription, error: subError } = await supabase
+    const barberClient = getScopedClient('barber');
+    const { data: subscription, error: subError } = await barberClient
       .from('customer_subscriptions')
       .select('id, plan_id, status, tenant_id')
       .eq('tenant_id', tenantId)
@@ -795,7 +846,7 @@ const Schedule: React.FC = () => {
     }
 
     let planName = 'Plano ativo';
-    const { data: plan, error: planError } = await supabase
+    const { data: plan, error: planError } = await barberClient
       .from('customer_plans')
       .select('name')
       .eq('tenant_id', tenantId)
@@ -810,9 +861,9 @@ const Schedule: React.FC = () => {
     }
 
     let availableCredits = 0;
-    const { data: credits, error: creditsError } = await supabase
+    const { data: credits, error: creditsError } = await barberClient
       .from('customer_credits')
-      .select('available_credits')
+      .select('available_credits, used_credits, service_balance_map')
       .eq('tenant_id', tenantId)
       .eq('subscription_id', subscription.id)
       .maybeSingle();
@@ -820,8 +871,15 @@ const Schedule: React.FC = () => {
     if (creditsError) {
       console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
     }
-    if (credits?.available_credits !== undefined) {
-      availableCredits = credits.available_credits;
+    if (credits) {
+      const serviceBalances = normalizeCreditBalances(
+        credits.service_balance_map,
+        credits.available_credits || 0,
+        credits.used_credits || 0,
+      );
+      availableCredits = serviceBalances.length > 0
+        ? getTotalAvailableCredits(serviceBalances)
+        : credits.available_credits || 0;
     }
 
     setChefClubInfo({
@@ -847,11 +905,13 @@ const Schedule: React.FC = () => {
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
     const datePart = apt.startTime.split('T')[0];
+    const matchedService = servicesList.find((service) => service.name === apt.service);
 
     setFormData({
       client: apt.client,
       clientPhone: apt.clientPhone,
       service: apt.service,
+      serviceIds: matchedService ? [matchedService.id] : [],
       staffId: apt.staffId,
       date: datePart,
       start: apt.start,
@@ -881,14 +941,13 @@ const Schedule: React.FC = () => {
     const yPosition = e.clientY - columnRect.top;
 
     // Calcula o novo horário dinamicamente
-    const totalHours = dynamicTimeSlots.length;
     const percentage = yPosition / columnRect.height;
-    const exactHour = 8 + (percentage * totalHours);
+    const exactHour = SCHEDULE_START_HOUR + (percentage * SCHEDULE_TOTAL_HOURS);
 
     // Arredonda para blocos de 15 minutos mais próximos
     const roundedHour = Math.floor(exactHour * 4) / 4;
 
-    if (roundedHour < 8 || roundedHour >= (displayEndHour + 1)) {
+    if (roundedHour < SCHEDULE_START_HOUR || roundedHour >= SCHEDULE_END_HOUR) {
       setToast({ message: 'Horário fora de operação.', type: 'error' });
       return;
     }
@@ -1238,8 +1297,8 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    if (!formData.client || !formData.service) {
-      setError("Por favor, preencha o nome do cliente e o serviço.");
+    if (!formData.client || selectedServices.length === 0) {
+      setError("Por favor, preencha o nome do cliente e selecione ao menos um serviço.");
       return;
     }
 
@@ -1267,8 +1326,10 @@ const Schedule: React.FC = () => {
     const saveServicesClient = getClientForTable('services', scheduleAppSlug);
     const saveComandaItemsClient = getClientForTable('comanda_items', scheduleAppSlug);
 
-    const selectedService = servicesList.find(s => s.name === formData.service);
+    const selectedService = selectedServices[0];
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
+    const selectedServicesLabel = getServicesLabel(selectedServices);
+    const selectedServicesTotalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
 
     let clientId: string | null = null;
     if (isNewClientMode) {
@@ -1340,14 +1401,14 @@ const Schedule: React.FC = () => {
         staff_id: formData.staffId || null,
         client_id: clientId,
         client_name: formData.client,
-        service_name: formData.service,
+        service_name: selectedServicesLabel,
         client_phone: formData.clientPhone,
         notes: formData.notes.trim(),
         staff_name: selectedStaff?.name || '',
         start_time: updatedStartIso,
         end_time: endTimeLine.toISOString(),
         duration: Number(formData.duration),
-        price: selectedService?.price || 0,
+        price: selectedServicesTotalPrice,
       }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
 
       if (updateError) {
@@ -1370,8 +1431,8 @@ const Schedule: React.FC = () => {
             duration: Number(formData.duration),
             client: formData.client,
             clientPhone: formData.clientPhone || '',
-            service: formData.service,
-            price: selectedService?.price || 0,
+            service: selectedServicesLabel,
+            price: selectedServicesTotalPrice,
             startTime: updatedStartIso,
             notes: formData.notes.trim(),
             date: updatedAppointmentDate,
@@ -1381,9 +1442,9 @@ const Schedule: React.FC = () => {
 
       setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
     } else {
-      let finalPrice = selectedService?.price || 0;
+      let finalPrice = selectedServicesTotalPrice;
 
-      if (selectedService) {
+      if (selectedService && selectedServices.length === 1) {
         const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
         finalPrice = serviceData?.price || selectedService.price || 0;
 
@@ -1401,7 +1462,18 @@ const Schedule: React.FC = () => {
         }
       }
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('create_appointment_with_comanda', {
+      const rpcName = selectedServices.length > 1 ? 'create_appointment_with_services' : 'create_appointment_with_comanda';
+      const payload = selectedServices.length > 1 ? {
+        p_tenant_id: tenantId,
+        p_client_id: clientId,
+        p_client_name: formData.client,
+        p_client_phone: formData.clientPhone || null,
+        p_staff_id: formData.staffId || null,
+        p_start_time: startTimeLine.toISOString(),
+        p_notes: formData.notes.trim() || null,
+        p_idempotency_key: scheduleIdempotencyKeyRef.current,
+        p_services: selectedServices.map((service) => ({ service_id: service.id })),
+      } : {
         p_tenant_id: tenantId,
         p_client_id: clientId,
         p_client_name: formData.client,
@@ -1413,16 +1485,57 @@ const Schedule: React.FC = () => {
         p_notes: formData.notes.trim() || null,
         p_idempotency_key: scheduleIdempotencyKeyRef.current,
         p_is_overbooked: forceOverbook,
-      });
+      };
+      const currentBusiness = {
+        tenantId,
+        appSlug: scheduleAppSlug,
+        selectedService,
+        selectedStaff,
+      };
+      const shouldDebugCreateAppointmentRpc =
+        import.meta.env.DEV ||
+        localStorage.getItem('soumanager.debug.createAppointmentRpc') === 'true';
+
+      if (shouldDebugCreateAppointmentRpc) {
+        console.group("DEBUG CREATE APPOINTMENT RPC");
+        console.log("RPC name:", rpcName);
+        console.log("Payload:", payload);
+        console.log("User:", user);
+        console.log("Business/Tenant:", currentBusiness);
+        console.log("Supabase error:", {
+          code: undefined,
+          message: undefined,
+          details: undefined,
+          hint: undefined,
+        });
+        console.groupEnd();
+      }
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, payload);
 
       if (rpcError || !rpcResult) {
         console.error('Erro ao criar agendamento via RPC:', rpcError);
+        if (shouldDebugCreateAppointmentRpc) {
+          console.group("DEBUG CREATE APPOINTMENT RPC");
+          console.log("RPC name:", rpcName);
+          console.log("Payload:", payload);
+          console.log("User:", user);
+          console.log("Business/Tenant:", currentBusiness);
+          console.log("Supabase error:", {
+            code: rpcError?.code,
+            message: rpcError?.message,
+            details: rpcError?.details,
+            hint: rpcError?.hint,
+          });
+          console.groupEnd();
+        }
         setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
         return;
       }
 
       const newAptId = (rpcResult as any).appointment_id;
       const newComandaId = (rpcResult as any).comanda_id;
+      const createdTotalPrice = Number((rpcResult as any).total_price ?? (rpcResult as any).service_price ?? finalPrice);
 
       setAppointments(prev => [...prev, {
         id: newAptId,
@@ -1431,12 +1544,12 @@ const Schedule: React.FC = () => {
         start: formData.start,
         duration: Number(formData.duration),
         client: formData.client,
-        service: formData.service,
+        service: selectedServicesLabel,
         status: 'confirmed',
         color: 'bg-blue-500',
         staffName: selectedStaff?.name || '',
         clientPhone: formData.clientPhone || '',
-        price: finalPrice,
+        price: createdTotalPrice,
         startTime: startTimeLine.toISOString(),
         notes: formData.notes.trim(),
         date: startTimeLine.toISOString(),
@@ -1455,7 +1568,7 @@ const Schedule: React.FC = () => {
           appointment: {
             id: newAptId,
             client: formData.client,
-            service: formData.service,
+            service: selectedServicesLabel,
             professional: selectedStaff?.name || '',
             dateTime: startTimeLine.toISOString(),
             status: 'confirmed',
@@ -1472,9 +1585,10 @@ const Schedule: React.FC = () => {
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
+    setServiceSearchTerm('');
     setForceOverbook(false);
     setOverbookConflicts([]);
-    setFormData({ client: '', clientPhone: '', service: '', staffId: staffList[0]?.id ?? '', date: formData.date, start: 8, duration: 1, notes: '' });
+    setFormData({ client: '', clientPhone: '', service: '', serviceIds: [], staffId: staffList[0]?.id ?? '', date: formData.date, start: SCHEDULE_START_HOUR, duration: 1, notes: '' });
     fetchAppointments();
   };
 
@@ -1482,35 +1596,209 @@ const Schedule: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
-  const exportToCSV = () => {
+  const escapeCSV = (value: string | number | null | undefined) => {
+    const normalized = value == null ? '' : String(value);
+    return `"${normalized.replace(/"/g, '""')}"`;
+  };
+
+  const toCSVLine = (fields: Array<string | number | null | undefined>) => fields.map(escapeCSV).join(';');
+
+  const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
+
+  const normalizeParticipantPercentage = (value: unknown) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 1 ? numeric / 100 : numeric;
+  };
+
+  const getParticipantSharedValue = (serviceValue: number, participant: any) => {
+    if (participant?.payout_type === 'fixed') return Number(participant.payout_value || 0);
+    return serviceValue * normalizeParticipantPercentage(participant?.payout_value);
+  };
+
+  const formatExportMoneyValue = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
+
+  const formatParticipantPayout = (participant: any, name: string) => {
+    if (participant?.payout_type === 'fixed') {
+      return `${name} R$ ${formatExportMoneyValue(Number(participant.payout_value || 0))}`;
+    }
+    const percent = normalizeParticipantPercentage(participant?.payout_value) * 100;
+    return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
+  };
+
+  const isSharedServiceItem = (item: any, participants: any[]) => {
+    if (participants.length === 0) return false;
+    if (participants.length > 1) return true;
+    const [participant] = participants;
+    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
+    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
+    return !isPrimaryMainProfessional || !isFullPercentagePayout;
+  };
+
+  const exportToCSV = async () => {
     if (appointments.length === 0) {
       setToast({ message: 'Não há agendamentos para exportar no período selecionado.', type: 'error' });
       return;
     }
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para exportar agenda.', type: 'error' });
+      return;
+    }
 
-    const headers = ['Data', 'Início', 'Fim', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Duração (min)', 'Valor (R$)', 'Status'];
+    const scheduleClient = getScopedClient('barber');
+    const appointmentIds = appointments.map((apt) => apt.id);
+    const { data: comandas, error: comandasError } = await scheduleClient
+      .from('comandas')
+      .select('id, appointment_id, status, total, payment_method, staff_id')
+      .eq('tenant_id', tenantId)
+      .in('appointment_id', appointmentIds);
+
+    if (comandasError) {
+      console.warn('Erro ao carregar comandas para exportacao da agenda:', comandasError);
+    }
+
+    const comandaRows = (comandas || []) as any[];
+    const comandasByAppointment = comandaRows.reduce((acc, comanda) => {
+      if (comanda.appointment_id) acc[comanda.appointment_id] = comanda;
+      return acc;
+    }, {} as Record<string, any>);
+    const comandaIds = comandaRows.map((comanda) => comanda.id);
+    const { data: items, error: itemsError } = comandaIds.length > 0
+      ? await scheduleClient
+        .from('comanda_items')
+        .select('id, comanda_id, product_name, quantity, unit_price, service_id, staff_id')
+        .eq('tenant_id', tenantId)
+        .in('comanda_id', comandaIds)
+      : { data: [] as any[], error: null };
+
+    if (itemsError) {
+      console.warn('Erro ao carregar itens para exportacao da agenda:', itemsError);
+    }
+
+    const itemRows = (items || []) as any[];
+    const itemIds = itemRows.map((item) => item.id);
+    const { data: participants, error: participantsError } = itemIds.length > 0
+      ? await scheduleClient
+        .from('service_execution_participants')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .in('comanda_item_id', itemIds)
+      : { data: [] as any[], error: null };
+
+    if (participantsError) {
+      console.warn('Erro ao carregar participantes para exportacao da agenda:', participantsError);
+    }
+
+    const participantRows = (participants || []) as any[];
+    const participantStaffIds = participantRows.map(getParticipantStaffId).filter(Boolean);
+    const itemStaffIds = itemRows.map((item) => item.staff_id).filter(Boolean);
+    const staffIds = Array.from(new Set([...participantStaffIds, ...itemStaffIds]));
+    const { data: staffRows } = staffIds.length > 0
+      ? await scheduleClient.from('staff').select('id, name').eq('tenant_id', tenantId).in('id', staffIds)
+      : { data: [] as any[] };
+    const staffById = ((staffRows || []) as any[]).reduce((acc, staff) => {
+      acc[staff.id] = staff.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const itemsByComanda = itemRows.reduce((acc, item) => {
+      if (!acc[item.comanda_id]) acc[item.comanda_id] = [];
+      acc[item.comanda_id].push(item);
+      return acc;
+    }, {} as Record<string, any[]>);
+    const participantsByItem = participantRows.reduce((acc, participant) => {
+      if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+      acc[participant.comanda_item_id].push(participant);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const headers = [
+      'Data',
+      'Início',
+      'Fim',
+      'Cliente',
+      'Telefone',
+      'Serviço',
+      'Profissional',
+      'Duração',
+      'Valor',
+      'Status',
+      'Valor do serviço',
+      'Valor compartilhado',
+      'Valor pago',
+      'Status de pagamento',
+      'Serviço compartilhado',
+      'Profissionais participantes',
+      'Divisão lançada',
+      'Base por participante',
+      'Profissional principal',
+    ];
 
     const rows = appointments.map(apt => {
-      const dateStr = apt.date.split('-').reverse().join('/');
-      const startHour = `${Math.floor(apt.start).toString().padStart(2, '0')}:${(apt.start % 1 === 0 ? '00' : '30')}`;
-      const endCalc = apt.start + apt.duration;
-      const endHour = `${Math.floor(endCalc).toString().padStart(2, '0')}:${(endCalc % 1 === 0 ? '00' : '30')}`;
+      const parsedDate = new Date(apt.date);
+      const dateStr = Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toLocaleDateString('pt-BR');
+      const comanda = comandasByAppointment[apt.id];
+      const comandaItems = comanda ? (itemsByComanda[comanda.id] || []) : [];
+      const serviceItems = comandaItems.filter((item) => Boolean(item.service_id));
+      const isShared = serviceItems.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+      const serviceValue = serviceItems.length > 0
+        ? serviceItems.reduce((sum, item) => sum + Number(item.unit_price || 0), 0)
+        : Number(apt.price || 0);
+      const visibleParticipantDetails = isShared
+        ? serviceItems.flatMap((item) => (participantsByItem[item.id] || [])
+          .map((participant) => {
+            const staffId = getParticipantStaffId(participant);
+            const name = staffById[staffId] || staffId || 'Profissional';
+            const itemValue = Number(item.unit_price || 0);
+            const participantBase = getParticipantSharedValue(itemValue, participant);
+            return { participant, name, participantBase };
+          }))
+        : [];
+      const participantNames = visibleParticipantDetails.map((detail) => detail.name).filter(Boolean);
+      const splitDescription = visibleParticipantDetails
+        .map((detail) => formatParticipantPayout(detail.participant, detail.name))
+        .join(' / ');
+      const baseByParticipant = visibleParticipantDetails
+        .map((detail) => `${detail.name} R$ ${formatExportMoneyValue(detail.participantBase)}`)
+        .join(' / ');
+      const sharedValue = visibleParticipantDetails.reduce((sum, detail) => sum + detail.participantBase, 0);
+      const serviceParticipants = serviceItems.flatMap((item) => participantsByItem[item.id] || []);
+      const primaryParticipant = serviceParticipants.find((participant) => participant.role === 'primary');
+      const primaryStaffId = getParticipantStaffId(primaryParticipant);
+      const primaryName = primaryParticipant
+        ? staffById[primaryStaffId] || primaryStaffId
+        : apt.staffName;
+      const paidValue = comanda?.status === 'paid' ? Number(comanda.total || 0) : 0;
+      const paymentStatus = comanda?.status === 'paid'
+        ? 'Pago'
+        : comanda?.status === 'cancelled'
+          ? 'Cancelado'
+          : 'Pendente';
 
       return [
         dateStr,
-        startHour,
-        endHour,
-        `"${apt.client}"`,
-        `"${apt.clientPhone || ''}"`,
-        `"${apt.service}"`,
-        `"${apt.staffName}"`,
+        getDecimalTimeLabel(apt.start),
+        getDecimalTimeLabel(apt.start + apt.duration),
+        apt.client,
+        apt.clientPhone || '',
+        apt.service,
+        apt.staffName,
         apt.duration * 60,
-        apt.price || 0,
-        apt.status
-      ].join(',');
+        formatExportMoneyValue(Number(apt.price || 0)),
+        apt.status,
+        formatExportMoneyValue(serviceValue),
+        isShared ? formatExportMoneyValue(sharedValue) : '-',
+        formatExportMoneyValue(paidValue),
+        paymentStatus,
+        isShared ? 'Sim' : 'Não',
+        isShared ? Array.from(new Set(participantNames)).join(' / ') : '',
+        isShared ? splitDescription || '-' : '-',
+        isShared ? baseByParticipant || '-' : '-',
+        primaryName,
+      ];
     });
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // \uFEFF for BOM (UTF-8 Excel interpretation)
+    const csvContent = '\uFEFF' + [toCSVLine(headers), ...rows.map(toCSVLine)].join('\n'); // \uFEFF for BOM (UTF-8 Excel interpretation)
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1783,7 +2071,7 @@ Podemos confirmar? 😄`;
           <button
             onClick={() => {
               setEditingAppointmentId(null);
-              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', duration: 1, notes: '' }));
+              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
@@ -1855,7 +2143,7 @@ Podemos confirmar? 😄`;
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
-                          {hour}:00
+                          {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
                     </div>
@@ -1889,8 +2177,8 @@ Podemos confirmar? 😄`;
                               .map((block) => {
                                 const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                                 const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                                const top = (start - 8) * (100 / totalSlots);
-                                const height = (end - start) * (100 / totalSlots);
+                                const top = getTimelinePercent(start);
+                                const height = getTimelinePercent(end) - getTimelinePercent(start);
                                 return (
                                   <div
                                     key={block.id}
@@ -1904,8 +2192,8 @@ Podemos confirmar? 😄`;
                               {dynamicTimeSlots.map(h => <div key={h} className="flex-1 border-b border-slate-100 dark:border-border-dark/50" />)}
                             </div>
                             {!showOnlyBlocks && dayApts.map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / totalSlots);
-                              const height = apt.duration * (100 / totalSlots);
+                              const startOffset = getTimelinePercent(apt.start);
+                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
                               const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
@@ -1917,19 +2205,22 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md p-1.5 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
-                                  title={`${apt.client} — ${apt.service}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
-                                  {apt.isOverbooked && (
-                                    <span className="absolute top-0.5 right-0.5 text-[8px] bg-amber-400 text-white rounded px-0.5 font-black">ENCAIXE</span>
-                                  )}
-                                  <p className="text-[10px] font-black text-white truncate leading-tight drop-shadow-sm">
-                                    <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">person</span>
+                                  <div className="flex min-w-0 items-center gap-1">
+                                    <span className="shrink-0 rounded bg-black/25 px-1 py-0.5 text-[8px] font-black leading-none text-white">
+                                      {getDecimalTimeLabel(apt.start)}
+                                    </span>
+                                    {apt.isOverbooked && (
+                                      <span className="shrink-0 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black leading-none text-white">ENCAIXE</span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-sm">
                                     {apt.client}
                                   </p>
-                                  <p className="text-[9px] text-white/90 font-bold truncate drop-shadow-sm">
-                                    <span className="material-symbols-outlined text-[9px] align-middle mr-0.5">content_cut</span>
+                                  <p className="truncate text-[9px] font-bold leading-tight text-white/90 drop-shadow-sm">
                                     {apt.service}
                                   </p>
                                 </div>
@@ -1976,7 +2267,7 @@ Podemos confirmar? 😄`;
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
-                          {hour}:00
+                          {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
                     </div>
@@ -1999,8 +2290,8 @@ Podemos confirmar? 😄`;
                           {!showOnlyBlocks && appointments
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
-                              const startOffset = (apt.start - 8) * (100 / totalSlots);
-                              const height = apt.duration * (100 / totalSlots);
+                              const startOffset = getTimelinePercent(apt.start);
+                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const staffIndex = staffList.findIndex(s => s.id === resource.id);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
@@ -2013,24 +2304,29 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80`}
+                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
-                                  title={`${apt.client} — ${apt.service}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
-                                  <div className="flex items-center justify-between mb-0.5 shrink-0">
+                                  <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
                                     <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter leading-none">
-                                      {Math.floor(apt.start)}:{apt.start % 1 === 0 ? '00' : '30'}
+                                      {getDecimalTimeLabel(apt.start)}
                                     </span>
-                                    <div className="flex bg-black/10 rounded px-1 py-0.5">
+                                    {apt.isOverbooked && (
+                                      <span className="min-w-0 truncate rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black uppercase leading-none text-white">
+                                        Encaixe
+                                      </span>
+                                    )}
+                                    <div className="flex shrink-0 bg-black/10 rounded px-1 py-0.5">
                                       {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
                                       {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
                                       {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
                                     </div>
                                   </div>
-                                  <p className="text-xs font-black text-white truncate leading-none drop-shadow-sm mt-0.5">
+                                  <p className="min-w-0 truncate text-xs font-black leading-tight text-white drop-shadow-sm">
                                     {apt.client}
                                   </p>
-                                  <p className="text-[10px] text-white/90 font-bold truncate leading-none drop-shadow-sm mt-0.5">
+                                  <p className="min-w-0 truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow-sm">
                                     {apt.service}
                                   </p>
                                 </div>
@@ -2050,8 +2346,8 @@ Podemos confirmar? 😄`;
 
                             const start = Number(block.start_time?.slice(0, 2) || '0') + Number(block.start_time?.slice(3, 5) || '0') / 60;
                             const end = Number(block.end_time?.slice(0, 2) || '0') + Number(block.end_time?.slice(3, 5) || '0') / 60;
-                            const top = (start - 8) * (100 / totalSlots);
-                            const height = (end - start) * (100 / totalSlots);
+                            const top = getTimelinePercent(start);
+                            const height = getTimelinePercent(end) - getTimelinePercent(start);
                             return (
                               <div
                                 key={block.id}
@@ -2331,7 +2627,7 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setError(null); }}
+        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
         title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
         maxWidth="md"
       >
@@ -2420,23 +2716,76 @@ Podemos confirmar? 😄`;
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Serviço</label>
-            <div className="relative">
-              <select
-                value={formData.service}
-                onChange={(e) => handleInputChange('service', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-              >
-                <option value="" disabled>Selecione um serviço...</option>
-                {servicesList.length > 0 ? (
-                  servicesList.map(s => (
-                    <option key={s.id} value={s.name}>{s.name} ({s.duration} min)</option>
-                  ))
-                ) : (
-                  <option disabled>Nenhum serviço disponível</option>
-                )}
-              </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className="block text-xs font-bold uppercase text-slate-500">Serviços</label>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
+                {selectedServices.length} selecionado(s)
+              </span>
+            </div>
+            <div className="mb-2 grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-white/10 dark:bg-white/5">
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Qtd.</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white">{selectedServices.length}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Total</p>
+                <p className="text-xs font-black text-emerald-600">R$ {selectedServicesTotal.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400">Duração</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white">{formData.duration}h</p>
+              </div>
+            </div>
+            <div className="relative mb-2">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+              <input
+                type="text"
+                value={serviceSearchTerm}
+                onChange={(e) => setServiceSearchTerm(e.target.value)}
+                placeholder="Buscar serviço..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white"
+              />
+            </div>
+            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
+              {servicesList.length === 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
+                  Nenhum serviço disponível
+                </div>
+              ) : filteredServicesForModal.length > 0 ? (
+                filteredServicesForModal.map((service) => {
+                  const isSelected = formData.serviceIds.includes(service.id);
+                  return (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => toggleServiceSelection(service)}
+                      className={`flex min-h-[58px] items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary dark:text-blue-300'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
+                      }`}
+                    >
+                      <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${
+                        isSelected
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-slate-300 bg-white dark:border-white/20 dark:bg-transparent'
+                      }`}>
+                        {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-bold">{service.name}</span>
+                        <span className="block text-[10px] text-slate-500">
+                          {service.duration} min • R$ {Number(service.price || 0).toFixed(2)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
+                  Nenhum serviço encontrado
+                </div>
+              )}
             </div>
           </div>
 
@@ -2465,6 +2814,28 @@ Podemos confirmar? 😄`;
             />
           </div>
 
+          {!editingAppointmentId && (
+            <button
+              type="button"
+              onClick={() => setForceOverbook((current) => !current)}
+              className={`w-full rounded-lg border px-3 py-3 text-left transition-all ${
+                forceOverbook
+                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-black">
+                <span className="material-symbols-outlined text-base">event_repeat</span>
+                Encaixe
+              </span>
+              <span className="mt-1 block text-xs font-semibold opacity-80">
+                {forceOverbook
+                  ? 'Ativo: permite criar em horário ocupado e marca o agendamento como encaixe.'
+                  : 'Use para atender em um horário já ocupado.'}
+              </span>
+            </button>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário</label>
@@ -2475,8 +2846,7 @@ Podemos confirmar? 😄`;
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
                 >
                   {(() => {
-                    // Gerando slots de 8h às 00h (33 slots total: 8, 8.5, ..., 24)
-                    const allSlots = Array.from({ length: 33 }, (_, i) => 8 + i * 0.5);
+                    const allSlots = dynamicTimeSlots;
                     const aptsOnDay = appointments.filter(a => {
                       const aptDate = new Date(a.date);
                       const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
@@ -2495,11 +2865,11 @@ Podemos confirmar? 😄`;
                         slot < (apt.start + apt.duration) && slotEnd > apt.start
                       );
                       const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
-                      const isDisabled = hasConflict || hasBlock;
+                      const isDisabled = hasBlock || (hasConflict && !forceOverbook);
 
                       return (
-                        <option key={slot} value={slot} disabled={isDisabled} className={isDisabled ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {Math.floor(slot)}:{slot % 1 === 0 ? '00' : '30'} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                        <option key={slot} value={slot} disabled={isDisabled} className={hasConflict || hasBlock ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
+                          {getDecimalTimeLabel(slot)} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
                         </option>
                       );
                     });
@@ -2529,7 +2899,7 @@ Podemos confirmar? 😄`;
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">ObservaÃ§Ãµes</label>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observações</label>
             <textarea
               value={formData.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
@@ -2541,7 +2911,7 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setError(null); }}
+              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar

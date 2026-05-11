@@ -15,6 +15,7 @@ const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const ChefClubPlans = lazy(() => import('./pages/ChefClubPlans'));
+const ChefClubReceivables = lazy(() => import('./pages/ChefClubReceivables'));
 const ChefClubSubscriptionDetail = lazy(() => import('./pages/ChefClubSubscriptionDetail'));
 const ChefClubSubscriptionNew = lazy(() => import('./pages/ChefClubSubscriptionNew'));
 const ChefClubSubscriptions = lazy(() => import('./pages/ChefClubSubscriptions'));
@@ -24,6 +25,9 @@ const Commissions = lazy(() => import('./pages/Commissions'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Financial = lazy(() => import('./pages/Financial'));
+const FinancialOverview = lazy(() => import('./pages/FinancialOverview'));
+const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
+const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
@@ -197,14 +201,18 @@ const AppRoutes: React.FC = () => {
             <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
             <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
+            <Route path="/chef-club-receivables" element={<ManagerRoute><ChefClubReceivables /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
             <Route path="/chef-club-subscriptions/:subscriptionId" element={<ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute>} />
 
-            <Route path="/financial" element={<ManagerRoute><Financial /></ManagerRoute>} />
+            <Route path="/financial" element={<Navigate to="/financial-overview" replace />} />
+            <Route path="/financial-overview" element={<ManagerRoute><FinancialOverview /></ManagerRoute>} />
             <Route path="/cashflow" element={<ManagerRoute><Cashflow /></ManagerRoute>} />
+            <Route path="/cash-closing" element={<ManagerRoute><CashClosingPage /></ManagerRoute>} />
             <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
             <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
+            <Route path="/accounts-receivable" element={<ManagerRoute><AccountsReceivable /></ManagerRoute>} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
             <Route path="/commissions" element={<ManagerRoute><Commissions /></ManagerRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />

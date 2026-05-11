@@ -1,6 +1,11 @@
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { getSharedClient, supabase } from '../../../services/supabaseClient';
-import { normalizeCreditBalances, type ServiceBalanceEntry } from '../../utils/chefClubCredits';
+import {
+  getTotalAvailableCredits,
+  getTotalUsedCredits,
+  normalizeCreditBalances,
+  type ServiceBalanceEntry,
+} from '../../utils/chefClubCredits';
 
 interface QueryResult<T> {
   data: T | null;
@@ -215,8 +220,12 @@ export const fetchChefClubCreditsByClient = async (
     credits?.used_credits || 0,
   );
 
-  const totalCredits = credits?.available_credits || 0;
-  const usedCredits = credits?.used_credits || 0;
+  const totalCredits = serviceBalances.length > 0
+    ? getTotalAvailableCredits(serviceBalances)
+    : credits?.available_credits || 0;
+  const usedCredits = serviceBalances.length > 0
+    ? getTotalUsedCredits(serviceBalances)
+    : credits?.used_credits || 0;
 
   return {
     subscriptionId: subscription.id,
@@ -303,8 +312,12 @@ export const fetchChefClubCreditsByClients = async (
       credits?.used_credits || 0,
     );
 
-    const totalCredits = credits?.available_credits || 0;
-    const usedCredits = credits?.used_credits || 0;
+    const totalCredits = serviceBalances.length > 0
+      ? getTotalAvailableCredits(serviceBalances)
+      : credits?.available_credits || 0;
+    const usedCredits = serviceBalances.length > 0
+      ? getTotalUsedCredits(serviceBalances)
+      : credits?.used_credits || 0;
 
     resultMap.set(subscription.client_id, {
       subscriptionId: subscription.id,
