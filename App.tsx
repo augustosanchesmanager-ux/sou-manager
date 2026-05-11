@@ -26,6 +26,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Financial = lazy(() => import('./pages/Financial'));
 const FinancialOverview = lazy(() => import('./pages/FinancialOverview'));
+const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
 const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
 const Landing = lazy(() => import('./pages/Landing'));
@@ -211,7 +212,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/cash-closing" element={<ManagerRoute><CashClosingPage /></ManagerRoute>} />
             <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
             <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
-            <Route path="/accounts-receivable" element={<Navigate to="/receipts" replace />} />
+            <Route path="/accounts-receivable" element={<ManagerRoute><AccountsReceivable /></ManagerRoute>} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
             <Route path="/commissions" element={<ManagerRoute><Commissions /></ManagerRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />

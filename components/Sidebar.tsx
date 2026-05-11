@@ -109,10 +109,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       items: [
         { name: 'Visao Geral',            icon: 'account_balance_wallet', path: '/financial-overview' },
         { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow' },
-        { name: 'Recibos / A Receber',     icon: 'receipt_long',           path: '/receipts' },
+        { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable' },
+        { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts' },
         { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses' },
         { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables' },
-        { name: 'Fechamento de Caixa',     icon: 'lock',                   path: '/cash-closing' },
+        { name: 'Conferencia de Caixa',   icon: 'lock',                   path: '/cash-closing' },
         { name: 'Comissoes',               icon: 'percent',                path: '/commissions' },
         { name: 'Relatorios',              icon: 'summarize',              path: '/reports' },
       ]
