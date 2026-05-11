@@ -1605,11 +1605,34 @@ const Schedule: React.FC = () => {
 
   const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
 
+  const normalizeParticipantPercentage = (value: unknown) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 1 ? numeric / 100 : numeric;
+  };
+
+  const getParticipantSharedValue = (serviceValue: number, participant: any) => {
+    if (participant?.payout_type === 'fixed') return Number(participant.payout_value || 0);
+    return serviceValue * normalizeParticipantPercentage(participant?.payout_value);
+  };
+
+  const formatExportMoneyValue = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
+
+  const formatParticipantPayout = (participant: any, name: string) => {
+    if (participant?.payout_type === 'fixed') {
+      return `${name} R$ ${formatExportMoneyValue(Number(participant.payout_value || 0))}`;
+    }
+    const percent = normalizeParticipantPercentage(participant?.payout_value) * 100;
+    return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
+  };
+
   const isSharedServiceItem = (item: any, participants: any[]) => {
     if (participants.length === 0) return false;
     if (participants.length > 1) return true;
     const [participant] = participants;
-    return participant.role !== 'primary' || getParticipantStaffId(participant) !== item.staff_id;
+    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
+    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
+    return !isPrimaryMainProfessional || !isFullPercentagePayout;
   };
 
   const exportToCSV = async () => {
@@ -1701,11 +1724,13 @@ const Schedule: React.FC = () => {
       'Valor',
       'Status',
       'Valor do serviço',
+      'Valor compartilhado',
       'Valor pago',
       'Status de pagamento',
       'Serviço compartilhado',
       'Profissionais participantes',
-      'Divisão do serviço',
+      'Divisão lançada',
+      'Base por participante',
       'Profissional principal',
     ];
 
@@ -1715,25 +1740,29 @@ const Schedule: React.FC = () => {
       const comanda = comandasByAppointment[apt.id];
       const comandaItems = comanda ? (itemsByComanda[comanda.id] || []) : [];
       const serviceItems = comandaItems.filter((item) => Boolean(item.service_id));
-      const serviceParticipants = serviceItems.flatMap((item) => participantsByItem[item.id] || []);
       const isShared = serviceItems.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
-      const visibleParticipants = isShared ? serviceParticipants : [];
-      const participantNames = serviceParticipants
-        .map((participant) => {
-          const staffId = getParticipantStaffId(participant);
-          return staffById[staffId] || staffId;
-        })
-        .filter(Boolean);
-      const splitDescription = visibleParticipants
-        .map((participant) => {
-          const staffId = getParticipantStaffId(participant);
-          const name = staffById[staffId] || 'Profissional';
-          const value = participant.payout_type === 'percentage'
-            ? `${participant.payout_value}%`
-            : `R$ ${Number(participant.payout_value || 0).toFixed(2).replace('.', ',')}`;
-          return `${name}: ${value}`;
-        })
-        .join(' | ');
+      const serviceValue = serviceItems.length > 0
+        ? serviceItems.reduce((sum, item) => sum + Number(item.unit_price || 0), 0)
+        : Number(apt.price || 0);
+      const visibleParticipantDetails = isShared
+        ? serviceItems.flatMap((item) => (participantsByItem[item.id] || [])
+          .map((participant) => {
+            const staffId = getParticipantStaffId(participant);
+            const name = staffById[staffId] || staffId || 'Profissional';
+            const itemValue = Number(item.unit_price || 0);
+            const participantBase = getParticipantSharedValue(itemValue, participant);
+            return { participant, name, participantBase };
+          }))
+        : [];
+      const participantNames = visibleParticipantDetails.map((detail) => detail.name).filter(Boolean);
+      const splitDescription = visibleParticipantDetails
+        .map((detail) => formatParticipantPayout(detail.participant, detail.name))
+        .join(' / ');
+      const baseByParticipant = visibleParticipantDetails
+        .map((detail) => `${detail.name} R$ ${formatExportMoneyValue(detail.participantBase)}`)
+        .join(' / ');
+      const sharedValue = visibleParticipantDetails.reduce((sum, detail) => sum + detail.participantBase, 0);
+      const serviceParticipants = serviceItems.flatMap((item) => participantsByItem[item.id] || []);
       const primaryParticipant = serviceParticipants.find((participant) => participant.role === 'primary');
       const primaryStaffId = getParticipantStaffId(primaryParticipant);
       const primaryName = primaryParticipant
@@ -1755,14 +1784,16 @@ const Schedule: React.FC = () => {
         apt.service,
         apt.staffName,
         apt.duration * 60,
-        Number(apt.price || 0).toFixed(2).replace('.', ','),
+        formatExportMoneyValue(Number(apt.price || 0)),
         apt.status,
-        Number(apt.price || 0).toFixed(2).replace('.', ','),
-        paidValue.toFixed(2).replace('.', ','),
+        formatExportMoneyValue(serviceValue),
+        isShared ? formatExportMoneyValue(sharedValue) : '-',
+        formatExportMoneyValue(paidValue),
         paymentStatus,
         isShared ? 'Sim' : 'Não',
         isShared ? Array.from(new Set(participantNames)).join(' / ') : '',
         isShared ? splitDescription || '-' : '-',
+        isShared ? baseByParticipant || '-' : '-',
         primaryName,
       ];
     });

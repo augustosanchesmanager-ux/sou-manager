@@ -655,11 +655,32 @@ const Comandas: React.FC = () => {
 
     const getParticipantStaffId = (participant: ServiceExecutionParticipantRow) => participant.staff_id || participant.professional_id || '';
 
+    const normalizeParticipantPercentage = (value: number | null | undefined) => {
+        const numeric = Number(value || 0);
+        if (!Number.isFinite(numeric)) return 0;
+        return numeric > 1 ? numeric / 100 : numeric;
+    };
+
+    const getParticipantSharedValue = (serviceValue: number, participant: ServiceExecutionParticipantRow) => {
+        if (participant.payout_type === 'fixed') return Number(participant.payout_value || 0);
+        return serviceValue * normalizeParticipantPercentage(participant.payout_value);
+    };
+
+    const formatParticipantPayout = (participant: ServiceExecutionParticipantRow, name: string) => {
+        if (participant.payout_type === 'fixed') {
+            return `${name} R$ ${formatExportMoney(Number(participant.payout_value || 0))}`;
+        }
+        const percent = normalizeParticipantPercentage(participant.payout_value) * 100;
+        return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
+    };
+
     const isSharedServiceItem = (item: ComandaItem, participants: ServiceExecutionParticipantRow[]) => {
         if (participants.length === 0) return false;
         if (participants.length > 1) return true;
         const [participant] = participants;
-        return participant.role !== 'primary' || getParticipantStaffId(participant) !== item.staff_id;
+        const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
+        const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
+        return !isPrimaryMainProfessional || !isFullPercentagePayout;
     };
 
     const generateCSV = async () => {
@@ -727,7 +748,11 @@ const Comandas: React.FC = () => {
             'Forma de pagamento',
             'Status de pagamento',
             'Serviço compartilhado',
+            'Valor do serviço',
+            'Valor compartilhado',
             'Profissionais participantes',
+            'Divisão lançada',
+            'Base por participante',
             'Observações',
             'Usuário responsável',
         ];
@@ -736,16 +761,24 @@ const Comandas: React.FC = () => {
             const products = c.comanda_items.filter((item) => Boolean(item.product_id) || !item.service_id);
             const serviceSubtotal = services.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
             const productSubtotal = products.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
-            const serviceParticipantRows = services.flatMap((item) => participantsByItem[item.id] || []);
             const sharedService = services.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
-            const participantNames = Array.from(new Set(
-                serviceParticipantRows
-                    .map((participant) => {
-                        const staffId = getParticipantStaffId(participant);
-                        return staffId ? (staffById[staffId] || staffId) : '';
-                    })
-                    .filter(Boolean),
-            ));
+            const serviceValue = services.reduce((sum, item) => sum + Number(item.unit_price || 0), 0);
+            const sharedDetails = sharedService
+                ? services.flatMap((item) => (participantsByItem[item.id] || []).map((participant) => {
+                    const staffId = getParticipantStaffId(participant);
+                    const name = staffId ? (staffById[staffId] || staffId) : 'Profissional';
+                    const participantBase = getParticipantSharedValue(Number(item.unit_price || 0), participant);
+                    return { participant, name, participantBase };
+                }))
+                : [];
+            const participantNames = Array.from(new Set(sharedDetails.map((detail) => detail.name).filter(Boolean)));
+            const divisionLaunched = sharedDetails
+                .map((detail) => formatParticipantPayout(detail.participant, detail.name))
+                .join(' / ');
+            const baseByParticipant = sharedDetails
+                .map((detail) => `${detail.name} R$ ${formatExportMoney(detail.participantBase)}`)
+                .join(' / ');
+            const sharedValue = sharedDetails.reduce((sum, detail) => sum + detail.participantBase, 0);
             const paidValue = c.status === 'paid' ? Number(c.total || 0) : 0;
             const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
             const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
@@ -769,7 +802,11 @@ const Comandas: React.FC = () => {
                 escapeCSV(c.payment_method || 'Não informado'),
                 escapeCSV(getPaymentStatusLabel(c.status)),
                 escapeCSV(sharedService ? 'Sim' : 'Não'),
+                formatExportMoney(serviceValue),
+                sharedService ? formatExportMoney(sharedValue) : '-',
                 escapeCSV(sharedService ? participantNames.join(' / ') : ''),
+                escapeCSV(sharedService ? divisionLaunched || '-' : '-'),
+                escapeCSV(sharedService ? baseByParticipant || '-' : '-'),
                 escapeCSV(observations || '-'),
                 escapeCSV('Não registrado'),
             ];
