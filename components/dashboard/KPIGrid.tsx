@@ -12,6 +12,7 @@ interface DashboardMetrics {
   previousAvgTicket?: number;
   revenueGoal?: number;
   appointmentsGoal?: number;
+  openComandasCount?: number;
 }
 
 interface KPIGridProps {
@@ -32,23 +33,28 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
     month: 'Este Mês',
   };
 
+  const periodLabel = LABEL_MAP[period] || period;
+
+  const getRevenueLabel = () => {
+    if (period === 'today') return 'Faturamento de hoje';
+    return `Faturamento da ${periodLabel}`;
+  };
+
   const getAppointmentLabel = () => {
-    const pending = 0;
-    const confirmed = metrics.todayAppointments - pending;
-    return `${metrics.todayAppointments} ${LABEL_MAP[period]}`;
+    return `Agendamentos de hoje`;
   };
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       <KPICard
         type="revenue"
         value={metrics.revenue}
         previousValue={metrics.revenuePrevious}
         goal={metrics.revenueGoal}
-        label={`Faturamento do ${LABEL_MAP[period]}`}
+        label={getRevenueLabel()}
         onClick={() => onKpiClick?.('revenue')}
       />
-      
+
       <KPICard
         type="appointments"
         value={metrics.todayAppointments}
@@ -57,21 +63,27 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
         label={getAppointmentLabel()}
         onClick={() => onKpiClick?.('appointments')}
       />
-      
+
       <KPICard
-        type="clients"
-        value={metrics.totalClients}
-        previousValue={metrics.previousClients}
-        label="Total de Clientes"
-        onClick={() => onKpiClick?.('clients')}
+        type="comandas"
+        value={metrics.openComandasCount ?? 0}
+        label="Comandas Abertas"
+        onClick={() => onKpiClick?.('comandas')}
       />
-      
+
       <KPICard
         type="ticket"
         value={metrics.avgTicket}
         previousValue={metrics.previousAvgTicket}
-        label="Ticket Médio"
+        label="Ticket médio de hoje"
         onClick={() => onKpiClick?.('ticket')}
+      />
+
+      <KPICard
+        type="cash"
+        value={0}
+        label="Caixa de hoje"
+        onClick={() => onKpiClick?.('cash')}
       />
     </div>
   );

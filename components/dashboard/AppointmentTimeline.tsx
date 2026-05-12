@@ -9,6 +9,7 @@ interface AppointmentTimelineProps {
   onComplete?: (id: string) => void;
   onCancel?: (id: string) => void;
   maxItems?: number;
+  onNewAppointment?: () => void;
 }
 
 const STATUS_COLORS = {
@@ -37,6 +38,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
   onComplete,
   onCancel,
   maxItems = 5,
+  onNewAppointment,
 }) => {
   const visibleAppointments = appointments.slice(0, maxItems);
   const remainingCount = appointments.length - maxItems;
@@ -64,15 +66,28 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
       <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-6 text-center">
         <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">event_busy</span>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-          Nenhum agendamento hoje
+          Nenhum agendamento para hoje.
         </p>
-        <Link
-          to="/schedule"
-          className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-primary hover:text-blue-600 transition-colors"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-          Agendar novo cliente
-        </Link>
+        <p className="text-xs text-slate-400 mt-1">
+          Aproveite para cadastrar um encaixe ou confirmar retornos.
+        </p>
+        <div className="flex items-center justify-center gap-3 mt-4">
+          {onNewAppointment && (
+            <button
+              onClick={onNewAppointment}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Novo agendamento
+            </button>
+          )}
+          <Link
+            to="/schedule"
+            className="px-4 py-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl transition-colors"
+          >
+            Ver agenda completa →
+          </Link>
+        </div>
       </div>
     );
   }
@@ -80,7 +95,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
   return (
     <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
       <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-        <h3 className="font-bold text-slate-900 dark:text-white">Próximos Atendimentos</h3>
+        <h3 className="font-bold text-slate-900 dark:text-white">Agenda de hoje</h3>
         <Link to="/schedule" className="text-xs font-bold text-primary hover:text-blue-600 transition-colors">
           Ver todos →
         </Link>

@@ -103,6 +103,7 @@ export const fetchDashboardData = async ({
     last60to90daysAppointmentsRes,
     todayAppointmentsByStaffRes,
     todayAppointmentsCountRes,
+    openComandasRes,
   ] = await Promise.all([
     clientsClient
       .from('clients')
@@ -233,6 +234,12 @@ export const fetchDashboardData = async ({
         const d = new Date();
         return d.toISOString();
       })()),
+    // Open comandas count
+    getClientForTable('comandas', APP_SLUG_FOR_DASHBOARD)
+      .from('comandas')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('status', 'open'),
   ]);
 
   logSupabaseError('clients', clientsRes.error);
@@ -248,6 +255,7 @@ export const fetchDashboardData = async ({
   logSupabaseError('appointments.last-60-to-90-days', last60to90daysAppointmentsRes.error);
   logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
   logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
+  logSupabaseError('comandas.open', openComandasRes.error);
 
   const goalsRes = await supabase
     .from('tenant_goals')
@@ -313,6 +321,7 @@ export const fetchDashboardData = async ({
       goals.appointments_goal || 0,
     ),
     profile: (profileRes.data as DashboardProfile | null) || null,
+    openComandasCount: openComandasRes.count || 0,
   };
 };
 

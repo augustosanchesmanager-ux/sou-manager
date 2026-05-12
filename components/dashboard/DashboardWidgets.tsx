@@ -19,6 +19,7 @@ interface DashboardWidgetsProps {
   birthdaysTomorrow: string[];
   teamStatus: { id: string; name: string; active: boolean }[];
   loading?: boolean;
+  totalClients?: number;
 }
 
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
@@ -27,14 +28,15 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   birthdaysTomorrow,
   teamStatus,
   loading,
+  totalClients = 0,
 }) => {
   const activeTeam = teamStatus.filter((t) => t.active).length;
   const totalTeam = teamStatus.length;
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
           <div key={i} className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
             <div className="animate-pulse space-y-3">
               <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
@@ -47,13 +49,13 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-3">
           <span className="material-symbols-outlined text-purple-500">psychology</span>
           <h4 className="font-bold text-slate-900 dark:text-white text-sm">Retorno Inteligente</h4>
         </div>
-        
+
         <div className="space-y-2">
           <p className="text-2xl font-black text-slate-900 dark:text-white">
             {returningClients.length}
@@ -120,7 +122,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <span className="material-symbols-outlined text-pink-500">cake</span>
           <h4 className="font-bold text-slate-900 dark:text-white text-sm">Aniversários</h4>
         </div>
-        
+
         <div className="space-y-2">
           <p className="text-2xl font-black text-slate-900 dark:text-white">
             {birthdaysToday.length}
@@ -159,7 +161,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <span className="material-symbols-outlined text-blue-500">groups</span>
           <h4 className="font-bold text-slate-900 dark:text-white text-sm">Status Equipe</h4>
         </div>
-        
+
         <div className="space-y-2">
           <p className="text-2xl font-black text-slate-900 dark:text-white">
             {activeTeam}<span className="text-slate-400">/{totalTeam}</span>
@@ -173,8 +175,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
               <div
                 key={member.id}
                 className={`w-3 h-3 rounded-full ${
-                  member.active 
-                    ? 'bg-emerald-500' 
+                  member.active
+                    ? 'bg-emerald-500'
                     : 'bg-slate-200 dark:bg-slate-600'
                 }`}
                 title={member.name}
@@ -188,6 +190,29 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-blue-600 transition-colors"
         >
           Ver equipe →
+        </Link>
+      </div>
+
+      <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="material-symbols-outlined text-blue-500">group</span>
+          <h4 className="font-bold text-slate-900 dark:text-white text-sm">Base de clientes</h4>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-2xl font-black text-slate-900 dark:text-white">
+            {totalClients}
+          </p>
+          <p className="text-xs text-slate-500">
+            {totalClients === 1 ? 'cliente cadastrado' : 'clientes cadastrados'}
+          </p>
+        </div>
+
+        <Link
+          to="/clients"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-blue-600 transition-colors"
+        >
+          Ver clientes →
         </Link>
       </div>
     </div>
