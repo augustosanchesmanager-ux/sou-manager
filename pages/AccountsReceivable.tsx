@@ -67,6 +67,7 @@ const AccountsReceivable: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const [openComandas, setOpenComandas] = useState<ComandaRecord[]>([]);
+    const [markingPaid, setMarkingPaid] = useState<string | null>(null);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
 
@@ -177,9 +178,24 @@ const AccountsReceivable: React.FC = () => {
         }
     }, [tenantId, filterMonth]);
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const handleMarkPaid = async (comandaId: string) => {
+        if (!tenantId) return;
+        setMarkingPaid(comandaId);
+        try {
+            const { error } = await supabase
+                .from('comandas')
+                .update({ status: 'paid', closed_at: new Date().toISOString() })
+                .eq('id', comandaId)
+                .eq('tenant_id', tenantId);
+            if (error) throw error;
+            setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
+            await fetchData();
+        } catch (error: any) {
+            setToast({ message: error?.message || 'Erro ao dar baixa.', type: 'error' });
+        } finally {
+            setMarkingPaid(null);
+        }
+    };
 
     const allEntries: AREntry[] = useMemo(() => {
         const entries: AREntry[] = [];
@@ -407,7 +423,7 @@ const AccountsReceivable: React.FC = () => {
                         <table className="min-w-full text-left">
                             <thead className="bg-slate-50/90 dark:bg-white/5">
                                 <tr>
-                                    {['Origem', 'Cliente', 'Descricao', 'Data / Vencimento', 'Valor', 'Status'].map(col => (
+                                    {['Origem', 'Cliente', 'Descricao', 'Data / Vencimento', 'Valor', 'Status', ''].map(col => (
                                         <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                                             {col}
                                         </th>
@@ -434,6 +450,22 @@ const AccountsReceivable: React.FC = () => {
                                             <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase border ${getStatusBadge(entry.status)}`}>
                                                 {getStatusLabel(entry.status)}
                                             </span>
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            {entry.source === 'comanda' && entry.status === 'open' && (
+                                                <button
+                                                    onClick={() => handleMarkPaid(entry.id)}
+                                                    disabled={markingPaid === entry.id}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/20 transition disabled:opacity-50"
+                                                >
+                                                    {markingPaid === entry.id ? (
+                                                        <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                    )}
+                                                    Dar baixa
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
