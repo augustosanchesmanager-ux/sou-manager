@@ -200,6 +200,10 @@ const AccountsReceivable: React.FC = () => {
         }
     };
 
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
     const allEntries: AREntry[] = useMemo(() => {
         const entries: AREntry[] = [];
 
