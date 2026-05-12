@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, CalendarRange, FileText, Package, Users, Wallet } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { useAuth } from '../context/AuthContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
@@ -70,6 +71,11 @@ const AccountsReceivable: React.FC = () => {
     const [markingPaid, setMarkingPaid] = useState<string | null>(null);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
+
+    const [baixaModalOpen, setBaixaModalOpen] = useState(false);
+    const [baixaComanda, setBaixaComanda] = useState<{ id: string; amount: number; clientName: string } | null>(null);
+    const [baixaAmount, setBaixaAmount] = useState('');
+    const [baixaDate, setBaixaDate] = useState(new Date().toISOString().split('T')[0]);
 
     const [clubClients, setClubClients] = useState<Record<string, { name: string }>>({});
     const [clubPlans, setClubPlans] = useState<Record<string, { name: string }>>({});
@@ -180,18 +186,30 @@ const AccountsReceivable: React.FC = () => {
         }
     }, [tenantId, filterMonth]);
 
-    const handleMarkPaid = async (comandaId: string) => {
-        if (!tenantId) return;
-        setMarkingPaid(comandaId);
+    const handleOpenBaixaModal = (comanda: { id: string; amount: number; clientName: string }) => {
+        setBaixaComanda(comanda);
+        setBaixaAmount(String(comanda.amount));
+        setBaixaDate(new Date().toISOString().split('T')[0]);
+        setBaixaModalOpen(true);
+    };
+
+    const handleConfirmBaixa = async () => {
+        if (!tenantId || !baixaComanda) return;
+        setMarkingPaid(baixaComanda.id);
         try {
             const barberSupabase = getScopedClient('barber');
             const { error } = await barberSupabase
                 .from('comandas')
-                .update({ status: 'paid', closed_at: new Date().toISOString() })
-                .eq('id', comandaId)
+                .update({
+                    status: 'paid',
+                    closed_at: new Date(baixaDate + 'T00:00:00').toISOString(),
+                })
+                .eq('id', baixaComanda.id)
                 .eq('tenant_id', tenantId);
             if (error) throw error;
             setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
+            setBaixaModalOpen(false);
+            setBaixaComanda(null);
             await fetchData();
         } catch (error: any) {
             setToast({ message: error?.message || 'Erro ao dar baixa.', type: 'error' });
@@ -300,6 +318,7 @@ const AccountsReceivable: React.FC = () => {
     };
 
     return (
+        <>
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -461,7 +480,7 @@ const AccountsReceivable: React.FC = () => {
                                         <td className="px-5 py-4">
                                             {entry.source === 'comanda' && entry.status === 'open' && (
                                                 <button
-                                                    onClick={() => handleMarkPaid(entry.id)}
+                                                    onClick={() => handleOpenBaixaModal({ id: entry.id, amount: entry.amount, clientName: entry.clientName })}
                                                     disabled={markingPaid === entry.id}
                                                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/20 transition disabled:opacity-50"
                                                 >
@@ -482,6 +501,69 @@ const AccountsReceivable: React.FC = () => {
                 </section>
             )}
         </div>
+
+        <Modal
+            isOpen={baixaModalOpen}
+            onClose={() => { setBaixaModalOpen(false); setBaixaComanda(null); }}
+            title="Dar Baixa na Comanda"
+            maxWidth="sm"
+        >
+            {baixaComanda && (
+                <div className="space-y-5">
+                    <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4">
+                        <p className="text-xs font-black uppercase text-slate-500 mb-1">Cliente</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{baixaComanda.clientName}</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">
+                            Valor Recebido
+                        </label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-bold">R$</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={baixaAmount}
+                                onChange={e => setBaixaAmount(e.target.value)}
+                                className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-primary [color-scheme:light] dark:[color-scheme:dark]"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 mb-2">
+                            Data do Pagamento
+                        </label>
+                        <input
+                            type="date"
+                            value={baixaDate}
+                            onChange={e => setBaixaDate(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-primary [color-scheme:light] dark:[color-scheme:dark]"
+                        />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() => { setBaixaModalOpen(false); setBaixaComanda(null); }}
+                            className="flex-1"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            leftIcon="check_circle"
+                            onClick={handleConfirmBaixa}
+                            disabled={markingPaid !== null || !baixaAmount}
+                            className="flex-1"
+                        >
+                            {markingPaid ? 'Baixando...' : 'Confirmar Baixa'}
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </Modal>
+        </>
     );
 };
 
