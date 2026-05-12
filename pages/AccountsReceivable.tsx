@@ -110,8 +110,9 @@ const AccountsReceivable: React.FC = () => {
                 ),
                 supabase
                     .from('transactions')
-                    .select('id, status, category, amount, description, date, payment_method')
+                    .select('id, status, category, amount, description, date, payment_method, type')
                     .eq('tenant_id', tenantId)
+                    .eq('type', 'income')
                     .gte('date', startOfMonth)
                     .lte('date', endOfMonth)
                     .order('date', { ascending: false }),
