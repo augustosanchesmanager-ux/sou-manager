@@ -5,7 +5,7 @@ import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
+import { supabase, getScopedClient } from '../services/supabaseClient';
 
 type ARSource = 'comanda' | 'clube' | 'recibo';
 type ARStatus = 'pending' | 'overdue' | 'open' | 'Pendente';
@@ -91,25 +91,27 @@ const AccountsReceivable: React.FC = () => {
         const startOfMonth = new Date(year, month - 1, 1).toISOString();
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
+        const barberSupabase = getScopedClient('barber');
+
         try {
             const [
                 comandasResult,
                 clubResult,
                 transactionsResult,
             ] = await Promise.all([
-                supabase
+                barberSupabase
                     .from('comandas')
                     .select('id, client_id, status, total, created_at, clients(name)')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'open'),
-                supabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
-                    supabase
+                barberSupabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
+                    barberSupabase
                         .from('customer_subscription_receivables')
                         .select('id, customer_id, subscription_id, plan_id, due_date, amount, status')
                         .eq('tenant_id', tenantId)
                         .in('status', ['pending', 'overdue'])
                 ),
-                supabase
+                barberSupabase
                     .from('transactions')
                     .select('id, status, category, amount, description, date, payment_method, type')
                     .eq('tenant_id', tenantId)
@@ -155,10 +157,10 @@ const AccountsReceivable: React.FC = () => {
             const planIds = Array.from(new Set(clubData.map(r => r.plan_id).filter(Boolean)));
             const [clientsRes, plansRes] = await Promise.all([
                 customerIds.length > 0
-                    ? supabase.from('clients').select('id, name').eq('tenant_id', tenantId).in('id', customerIds)
+                    ? barberSupabase.from('clients').select('id, name').eq('tenant_id', tenantId).in('id', customerIds)
                     : Promise.resolve({ data: [], error: null }),
                 planIds.length > 0
-                    ? supabase.from('customer_plans').select('id, name').eq('tenant_id', tenantId).in('id', planIds)
+                    ? barberSupabase.from('customer_plans').select('id, name').eq('tenant_id', tenantId).in('id', planIds)
                     : Promise.resolve({ data: [], error: null }),
             ]);
             if (clientsRes.error) console.error('Error loading club clients:', clientsRes.error);
@@ -182,7 +184,8 @@ const AccountsReceivable: React.FC = () => {
         if (!tenantId) return;
         setMarkingPaid(comandaId);
         try {
-            const { error } = await supabase
+            const barberSupabase = getScopedClient('barber');
+            const { error } = await barberSupabase
                 .from('comandas')
                 .update({ status: 'paid', closed_at: new Date().toISOString() })
                 .eq('id', comandaId)
