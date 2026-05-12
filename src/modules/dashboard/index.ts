@@ -8,6 +8,7 @@ export { AppointmentDetailModal } from './components/AppointmentDetailModal';
 export { TeamStatusCard } from './components/TeamStatusCard';
 export { UpcomingBirthdaysCard } from './components/UpcomingBirthdaysCard';
 export { NewClientModal } from './components/NewClientModal';
+export { QuickScheduleModal } from './components/QuickScheduleModal';
 export type {
   DashboardAppointment,
   DashboardChartPoint,

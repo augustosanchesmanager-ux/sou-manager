@@ -103,6 +103,7 @@ export interface DashboardData {
   chartData: DashboardChartPoint[];
   metrics: DashboardMetrics;
   profile: DashboardProfile | null;
+  openComandasCount?: number;
 }
 
 export interface QuickAppointmentPayload {
