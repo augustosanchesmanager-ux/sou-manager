@@ -107,14 +107,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       title: 'FINANCEIRO',
       icon: 'payments',
       items: [
-        { name: 'Visão Geral', icon: 'account_balance_wallet', path: '/financial' },
-        { name: 'Entradas', icon: 'trending_up', path: '/cashflow' },
-        { name: 'Saídas', icon: 'trending_down', path: '/expenses' },
-        { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses' },
-        { name: 'Contas a Receber', icon: 'event_available', path: '/receipts' },
-        { name: 'Recebimentos do Clube', icon: 'workspace_premium', path: '/chef-club-receivables' },
-        { name: 'Comissões', icon: 'percent', path: '/commissions' },
-        { name: 'Relatórios', icon: 'summarize', path: '/reports' },
+        { name: 'Visao Geral',            icon: 'account_balance_wallet', path: '/financial-overview' },
+        { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow' },
+        { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable' },
+        { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts' },
+        { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses' },
+        { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables' },
+        { name: 'Conferencia de Caixa',   icon: 'lock',                   path: '/cash-closing' },
+        { name: 'Comissoes',               icon: 'percent',                path: '/commissions' },
+        { name: 'Relatorios',              icon: 'summarize',              path: '/reports' },
       ]
     }
   ];

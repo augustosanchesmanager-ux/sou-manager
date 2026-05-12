@@ -11,7 +11,7 @@
 - **State**: Pure React Context — `AuthContext` → `TenantProvider` → `AppProvider` → `ThemeProvider`. No Redux/Zustand.
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime). Migrations live in `supabase/migrations/`.
 - **AI**: Google Gemini via `@google/generative-ai`.
-- **No test runner**, **no linter**, **no formatter** configured. Do not assume `npm test` or `npm run lint` exist.
+- **No formatter** configured.
 
 ---
 
