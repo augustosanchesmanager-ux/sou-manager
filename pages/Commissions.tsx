@@ -18,6 +18,7 @@ type ComandaStatus = 'open' | 'paid' | 'blocked' | 'cancelled';
 
 interface ComandaRow {
     id: string;
+    appointment_id?: string | null;
     created_at: string;
     closed_at?: string | null;
     status: ComandaStatus;
@@ -297,6 +298,13 @@ const isSharedCommissionItem = (
     return participantStaffId !== mainProfessionalId;
 };
 
+const getCommissionDate = (comanda: ComandaRow, appointmentsById: Record<string, { start_time: string }>): string => {
+    if (comanda.appointment_id && appointmentsById[comanda.appointment_id]?.start_time) {
+        return appointmentsById[comanda.appointment_id].start_time;
+    }
+    return comanda.created_at;
+};
+
 const getLineStatusBucket = (line: CommissionLine) => {
     if (line.comandaStatus === 'paid') return 'confirmed';
     if (line.comandaStatus === 'cancelled') return 'cancelled';
@@ -336,10 +344,8 @@ const Commissions: React.FC = () => {
                 .from('comandas')
                 .select('*')
                 .eq('tenant_id', tenantId)
-                .in('status', ['open', 'paid', 'blocked', 'cancelled'])
-                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
-                .gte('created_at', startOfRange.toISOString())
-                .lte('created_at', endOfRange.toISOString()),
+                .in('status', ['paid', 'cancelled'])
+                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false'),
         ]);
 
         if (staffRes.error) throw staffRes.error;
@@ -353,6 +359,12 @@ const Commissions: React.FC = () => {
         const comandas = (comandasRes.data || []) as ComandaRow[];
         const comandaIds = comandas.map((comanda) => comanda.id);
         const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+
+        const appointmentIds = Array.from(new Set(
+            comandas
+                .map((c) => c.appointment_id)
+                .filter((id): id is string => Boolean(id))
+        ));
 
         const [itemsRes, clientsRes] = await Promise.all([
             comandaIds.length > 0
@@ -373,6 +385,15 @@ const Commissions: React.FC = () => {
 
         if (itemsRes.error) throw itemsRes.error;
         if (clientsRes.error) throw clientsRes.error;
+
+        const appointmentsResult = appointmentIds.length > 0
+            ? await client.from('appointments').select('id, start_time').in('id', appointmentIds)
+            : { data: [] as { id: string; start_time: string }[], error: null };
+
+        const appointmentsById = ((appointmentsResult.data) || []).reduce((acc, a) => {
+            acc[a.id] = a;
+            return acc;
+        }, {} as Record<string, { start_time: string }>);
 
         const rawServiceItems = ((itemsRes.data || []) as any[]).filter(isServiceItem);
         const serviceItems = Array.from(
@@ -409,6 +430,10 @@ const Commissions: React.FC = () => {
         return serviceItems.flatMap((item): CommissionLine[] => {
             const comanda = comandaById[item.comanda_id];
             if (!comanda) return [];
+
+            const commissionDate = getCommissionDate(comanda, appointmentsById);
+            const commissionDateObj = new Date(commissionDate);
+            if (commissionDateObj < startOfRange || commissionDateObj > endOfRange) return [];
 
             const itemValue = getComandaItemValue(item);
             const baseChoice = getCommissionBaseChoice(item);
@@ -472,7 +497,7 @@ const Commissions: React.FC = () => {
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
                         comandaItemId: item.id,
-                        createdAt: comanda.created_at,
+                        createdAt: getCommissionDate(comanda, appointmentsById),
                         clientName,
                         serviceName: item.product_name || 'Servico',
                         quantity,
