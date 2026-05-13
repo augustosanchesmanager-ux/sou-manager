@@ -285,11 +285,16 @@ const isSharedCommissionItem = (
 ) => {
     if (participants.length === 0) return false;
     if (participants.length > 1) return true;
+
     const [participant] = participants;
     const mainProfessionalId = item.staff_id || comanda.staff_id || null;
-    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === mainProfessionalId;
-    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizePercentage(participant.payout_value) === 1;
-    return !isPrimaryMainProfessional || !isFullPercentagePayout;
+    const participantStaffId = getParticipantStaffId(participant);
+
+    if (!mainProfessionalId || !participantStaffId) {
+        return true;
+    }
+
+    return participantStaffId !== mainProfessionalId;
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
