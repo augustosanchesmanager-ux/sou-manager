@@ -300,38 +300,105 @@ const buildSoloParticipant = (comandaItemId: string, staffId?: string | null): P
     affects_commission: true,
 });
 
+const buildInferredPrimaryParticipant = (
+    comandaItemId: string,
+    staffId: string,
+    participant: ParticipantRow,
+    itemValue: number,
+): ParticipantRow | null => {
+    if (participant.payout_type === 'fixed') {
+        const remainingValue = Math.max(0, itemValue - toNumber(participant.payout_value));
+        if (remainingValue <= 0) return null;
+        return {
+            ...buildSoloParticipant(comandaItemId, staffId),
+            payout_type: 'fixed',
+            payout_value: remainingValue,
+        };
+    }
+
+    const participantRate = normalizePercentage(participant.payout_value);
+    const remainingRate = Math.max(0, 1 - participantRate);
+    if (remainingRate <= 0) return null;
+    return {
+        ...buildSoloParticipant(comandaItemId, staffId),
+        payout_value: remainingRate * 100,
+    };
+};
+
+const hasPartialSavedPayout = (participant: ParticipantRow, itemValue: number) => {
+    if (participant.payout_type === 'fixed') {
+        const payoutValue = toNumber(participant.payout_value);
+        return payoutValue > 0 && payoutValue < itemValue;
+    }
+
+    const payoutRate = normalizePercentage(participant.payout_value);
+    return payoutRate > 0 && payoutRate < 1;
+};
+
 const normalizeCommissionParticipants = (
     item: { id: string; staff_id?: string | null },
     comanda: { staff_id?: string | null },
     participants: ParticipantRow[],
+    itemValue: number,
     staffById: Record<string, StaffMember>,
 ) => {
+    const mainStaffId = item.staff_id || comanda.staff_id || null;
+    const mainStaffReceivesCommission = mainStaffId ? receivesCommission(staffById[mainStaffId]) : false;
     const commissionableByStaffId = participants.reduce((acc, participant) => {
         const staffId = getParticipantStaffId(participant);
-        if (!staffId || participant.affects_commission === false || !receivesCommission(staffById[staffId])) {
+        if (!staffId || !receivesCommission(staffById[staffId])) {
             return acc;
         }
         if (!acc.has(staffId)) acc.set(staffId, participant);
         return acc;
     }, new Map<string, ParticipantRow>());
 
-    const uniqueParticipants = Array.from(commissionableByStaffId.values());
-    const uniqueStaffIds = uniqueParticipants.map(getParticipantStaffId).filter(Boolean);
-    const isShared = uniqueStaffIds.length > 1;
-
-    if (isShared) {
+    if (commissionableByStaffId.size === 0) {
         return {
-            participants: uniqueParticipants,
-            participantStaffIds: uniqueStaffIds,
-            isShared,
+            participants: mainStaffReceivesCommission ? [buildSoloParticipant(item.id, mainStaffId)] : [],
+            participantStaffIds: mainStaffReceivesCommission && mainStaffId ? [mainStaffId] : [],
+            isShared: false,
         };
     }
 
-    const soloStaffId = uniqueStaffIds[0] || item.staff_id || comanda.staff_id || null;
+    if (commissionableByStaffId.size === 1) {
+        const [onlyParticipant] = Array.from(commissionableByStaffId.values());
+        const onlyStaffId = getParticipantStaffId(onlyParticipant);
+
+        if (onlyStaffId === mainStaffId) {
+            return {
+                participants: [buildSoloParticipant(item.id, onlyStaffId)],
+                participantStaffIds: [onlyStaffId],
+                isShared: false,
+            };
+        }
+
+        // Legacy splits may save only the supporting barber; infer the primary barber from the item/comanda when payout is partial.
+        const inferredPrimary = mainStaffReceivesCommission && mainStaffId && hasPartialSavedPayout(onlyParticipant, itemValue)
+            ? buildInferredPrimaryParticipant(item.id, mainStaffId, onlyParticipant, itemValue)
+            : null;
+
+        if (inferredPrimary) {
+            return {
+                participants: [inferredPrimary, onlyParticipant],
+                participantStaffIds: [mainStaffId, onlyStaffId],
+                isShared: true,
+            };
+        }
+
+        return {
+            participants: [buildSoloParticipant(item.id, onlyStaffId)],
+            participantStaffIds: [onlyStaffId],
+            isShared: false,
+        };
+    }
+
+    const uniqueParticipants = Array.from(commissionableByStaffId.values());
+    const uniqueStaffIds = uniqueParticipants.map(getParticipantStaffId).filter(Boolean);
     return {
-        participants: soloStaffId ? [buildSoloParticipant(item.id, soloStaffId)] : [],
-        participantStaffIds: soloStaffId ? [soloStaffId] : [],
-        isShared: false,
+        participants: uniqueParticipants,
+        participantStaffIds: uniqueStaffIds,
+        isShared: uniqueStaffIds.length > 1,
     };
 };
 
@@ -473,6 +540,7 @@ const Commissions: React.FC = () => {
                 { id: item.id, staff_id: item.staff_id },
                 comanda,
                 participantsByItem[item.id] || [],
+                itemValue,
                 staffById,
             );
             const isShared = normalizedParticipants.isShared;
