@@ -291,18 +291,48 @@ const formatParticipationRole = (role?: string | null) => {
 
 const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || participant.professional_id || '';
 
-const isSharedCommissionItem = (
-    item: { staff_id?: string | null },
+const buildSoloParticipant = (comandaItemId: string, staffId?: string | null): ParticipantRow => ({
+    comanda_item_id: comandaItemId,
+    staff_id: staffId || null,
+    role: 'primary',
+    payout_type: 'percentage',
+    payout_value: 100,
+    affects_commission: true,
+});
+
+const normalizeCommissionParticipants = (
+    item: { id: string; staff_id?: string | null },
     comanda: { staff_id?: string | null },
     participants: ParticipantRow[],
+    staffById: Record<string, StaffMember>,
 ) => {
-    if (participants.length === 0) return false;
-    if (participants.length > 1) return true;
-    const [participant] = participants;
-    const mainProfessionalId = item.staff_id || comanda.staff_id || null;
-    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === mainProfessionalId;
-    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizePercentage(participant.payout_value) === 1;
-    return !isPrimaryMainProfessional || !isFullPercentagePayout;
+    const commissionableByStaffId = participants.reduce((acc, participant) => {
+        const staffId = getParticipantStaffId(participant);
+        if (!staffId || participant.affects_commission === false || !receivesCommission(staffById[staffId])) {
+            return acc;
+        }
+        if (!acc.has(staffId)) acc.set(staffId, participant);
+        return acc;
+    }, new Map<string, ParticipantRow>());
+
+    const uniqueParticipants = Array.from(commissionableByStaffId.values());
+    const uniqueStaffIds = uniqueParticipants.map(getParticipantStaffId).filter(Boolean);
+    const isShared = uniqueStaffIds.length > 1;
+
+    if (isShared) {
+        return {
+            participants: uniqueParticipants,
+            participantStaffIds: uniqueStaffIds,
+            isShared,
+        };
+    }
+
+    const soloStaffId = uniqueStaffIds[0] || item.staff_id || comanda.staff_id || null;
+    return {
+        participants: soloStaffId ? [buildSoloParticipant(item.id, soloStaffId)] : [],
+        participantStaffIds: soloStaffId ? [soloStaffId] : [],
+        isShared: false,
+    };
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
@@ -439,22 +469,15 @@ const Commissions: React.FC = () => {
             const itemValue = getComandaItemValue(item);
             const baseChoice = getCommissionBaseChoice(item);
             const quantity = getQuantity(item);
-            const savedParticipants = (participantsByItem[item.id] || [])
-                .filter((participant) => getParticipantStaffId(participant))
-                .filter((participant) => participant.affects_commission !== false)
-                .filter((participant) => receivesCommission(staffById[getParticipantStaffId(participant)]));
-            const isShared = isSharedCommissionItem(item, comanda, savedParticipants);
-            const participantStaffIds = Array.from(new Set(savedParticipants.map(getParticipantStaffId).filter(Boolean)));
-            const participantsForCommission = savedParticipants.length > 0
-                ? savedParticipants
-                : [{
-                    comanda_item_id: item.id,
-                    staff_id: item.staff_id || comanda.staff_id || null,
-                    role: 'primary',
-                    payout_type: 'percentage',
-                    payout_value: 100,
-                    affects_commission: true,
-                } as ParticipantRow];
+            const normalizedParticipants = normalizeCommissionParticipants(
+                { id: item.id, staff_id: item.staff_id },
+                comanda,
+                participantsByItem[item.id] || [],
+                staffById,
+            );
+            const isShared = normalizedParticipants.isShared;
+            const participantStaffIds = normalizedParticipants.participantStaffIds;
+            const participantsForCommission = normalizedParticipants.participants;
             const productionDate = getProductionDate(comanda, appointmentById);
             const getParticipantName = (participant: ParticipantRow) => {
                 const staffId = getParticipantStaffId(participant);
@@ -568,7 +591,7 @@ const Commissions: React.FC = () => {
                             base_participante: commissionBase,
                             commission_rate: nullableNumber(staff?.commission_rate),
                             commission_rate_normalizado: commissionRate,
-                            participants_count: savedParticipants.length,
+                            participants_count: participantsForCommission.length,
                             participants_staff_ids: participantStaffIds.join(' / '),
                             is_shared_real: isShared ? 'Sim' : 'Nao',
                             commission_value: commissionValue,
