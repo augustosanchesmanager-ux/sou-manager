@@ -203,6 +203,7 @@ const Receipts: React.FC = () => {
                                 'wrong_charge_cancellation',
                                 'payment_method_correction',
                                 'transaction_reclassification',
+                                'receipt_review',
                                 'mark_for_review',
                             ],
                         }}

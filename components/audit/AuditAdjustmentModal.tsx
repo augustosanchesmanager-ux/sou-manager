@@ -3,6 +3,7 @@ import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import AuditAdjustmentHistory from './AuditAdjustmentHistory';
 import {
+    AUDIT_ADJUSTMENT_PHASE_NOTICE,
     AUDIT_ADJUSTMENT_REASON_LABELS,
     AUDIT_ADJUSTMENT_RPC_NOTICE,
     AUDIT_ADJUSTMENT_TYPE_LABELS,
@@ -64,7 +65,7 @@ const AuditAdjustmentModal: React.FC<AuditAdjustmentModalProps> = ({
         onClose();
     };
 
-    const canPrepare = reasonNote.trim().length > 0 && confirmationChecked;
+    const canPrepare = Boolean(adjustmentType && reasonType && reasonNote.trim().length > 0 && confirmationChecked);
 
     const handlePrepare = () => {
         if (!canPrepare) return;
@@ -106,7 +107,7 @@ const AuditAdjustmentModal: React.FC<AuditAdjustmentModalProps> = ({
             <div className="space-y-5">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-500/10">
                     <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
-                        Nenhuma alteração financeira será aplicada nesta etapa.
+                        {AUDIT_ADJUSTMENT_PHASE_NOTICE}
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
                         {AUDIT_ADJUSTMENT_RPC_NOTICE}
@@ -135,7 +136,7 @@ const AuditAdjustmentModal: React.FC<AuditAdjustmentModalProps> = ({
                     </div>
                     <div>
                         <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                            Impacto financeiro
+                            Impacto financeiro estimado
                         </label>
                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 dark:border-border-dark dark:bg-white/5 dark:text-white">
                             {context.financialImpactLabel || 'A avaliar na RPC transacional futura'}

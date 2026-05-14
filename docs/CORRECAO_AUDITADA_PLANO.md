@@ -23,6 +23,22 @@ Esta fase não aplica migration, não altera schema remoto, não cria RPC e não
 - Clube do Chefe
   - Apenas mapeado para fase futura. Esta entrega não altera fluxo do Clube.
 
+## Tipos de ajuste preparados
+
+- Marcar item para revisão.
+- Corrigir comissão.
+- Corrigir participação de serviço.
+- Corrigir data real de pagamento.
+- Corrigir forma de pagamento.
+- Estornar baixa.
+- Cancelar cobrança indevida.
+- Marcar cliente duplicado.
+- Reclassificar lançamento.
+- Ocultar do financeiro com motivo.
+- Corrigir divergência de caixa.
+- Revisar recibo.
+- Revisar cobrança do Clube, apenas como tipo futuro sem ponto de entrada ativo nesta entrega.
+
 ## Permissões previstas
 
 O botão visual aparece apenas para:
@@ -96,6 +112,7 @@ Barbeiro e recepção não solicitam ajuste financeiro nesta camada.
 - Nunca apagar o lançamento original.
 - Criar evento reverso para estorno/devolução.
 - Registrar usuário e data.
+- Garantir idempotência.
 
 ## Riscos conhecidos
 

@@ -996,6 +996,7 @@ const Comandas: React.FC = () => {
                                     'settlement_reversal',
                                     'payment_date_correction',
                                     'payment_method_correction',
+                                    'hide_from_financial_with_reason',
                                     'mark_for_review',
                                 ],
                             }}

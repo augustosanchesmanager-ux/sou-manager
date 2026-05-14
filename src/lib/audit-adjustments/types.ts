@@ -17,6 +17,9 @@ export type AuditAdjustmentType =
     | 'duplicate_client_mark'
     | 'transaction_reclassification'
     | 'hide_from_financial_with_reason'
+    | 'cash_difference_correction'
+    | 'receipt_review'
+    | 'chef_club_charge_review'
     | 'mark_for_review';
 
 export type AuditAdjustmentReasonType =
@@ -62,7 +65,10 @@ export interface AuditAdjustmentDraft {
 }
 
 export const AUDIT_ADJUSTMENT_RPC_NOTICE =
-    'A aplicação financeira deste ajuste dependerá da RPC transacional futura.';
+    'A aplicação financeira definitiva dependerá de validação e processamento auditado em uma RPC transacional futura.';
+
+export const AUDIT_ADJUSTMENT_PHASE_NOTICE =
+    'Esta ação prepara uma solicitação de correção auditada. Nesta etapa, nenhum dado financeiro será alterado diretamente.';
 
 export const AUDIT_ADJUSTMENT_TYPE_LABELS: Record<AuditAdjustmentType, string> = {
     commission_correction: 'Corrigir comissão',
@@ -74,6 +80,9 @@ export const AUDIT_ADJUSTMENT_TYPE_LABELS: Record<AuditAdjustmentType, string> =
     duplicate_client_mark: 'Marcar cliente duplicado',
     transaction_reclassification: 'Reclassificar lançamento',
     hide_from_financial_with_reason: 'Ocultar do financeiro com motivo',
+    cash_difference_correction: 'Corrigir divergência de caixa',
+    receipt_review: 'Revisar recibo',
+    chef_club_charge_review: 'Revisar cobrança do Clube',
     mark_for_review: 'Marcar item para revisão',
 };
 
@@ -85,7 +94,7 @@ export const AUDIT_ADJUSTMENT_REASON_LABELS: Record<AuditAdjustmentReasonType, s
     wrong_payment_method: 'Forma de pagamento incorreta',
     wrong_payment_date: 'Data de pagamento incorreta',
     wrong_commission_or_participation: 'Participação/comissão incorreta',
-    administrative_adjustment: 'Ajuste administrativo',
+    administrative_adjustment: 'Dados legados inconsistentes',
     cash_difference: 'Divergência de caixa',
     other: 'Outro',
 };
@@ -101,6 +110,8 @@ export const DEFAULT_AUDIT_ADJUSTMENT_TYPES: AuditAdjustmentType[] = [
     'duplicate_client_mark',
     'transaction_reclassification',
     'hide_from_financial_with_reason',
+    'cash_difference_correction',
+    'receipt_review',
 ];
 
 export const canRequestAuditAdjustment = (

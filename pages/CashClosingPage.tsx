@@ -364,6 +364,7 @@ const CashClosingPage: React.FC = () => {
                             financialImpactLabel: 'Impacto potencial em divergencia e conferencia de caixa',
                             allowedAdjustmentTypes: [
                                 'transaction_reclassification',
+                                'cash_difference_correction',
                                 'settlement_reversal',
                                 'payment_date_correction',
                                 'payment_method_correction',
