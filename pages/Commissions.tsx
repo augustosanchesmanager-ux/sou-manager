@@ -44,7 +44,6 @@ interface AppointmentRow {
 interface ParticipantRow {
     comanda_item_id: string;
     staff_id?: string | null;
-    professional_id?: string | null;
     role: string | null;
     payout_type: 'percentage' | 'fixed' | string | null;
     payout_value: number | null;
@@ -289,7 +288,7 @@ const formatParticipationRole = (role?: string | null) => {
     return role || 'Principal';
 };
 
-const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || participant.professional_id || '';
+const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || '';
 
 const buildSoloParticipant = (comandaItemId: string, staffId?: string | null): ParticipantRow => ({
     comanda_item_id: comandaItemId,
@@ -357,6 +356,7 @@ const normalizeCommissionParticipants = (
         return {
             participants: mainStaffReceivesCommission ? [buildSoloParticipant(item.id, mainStaffId)] : [],
             participantStaffIds: mainStaffReceivesCommission && mainStaffId ? [mainStaffId] : [],
+            sharedStaffIds: mainStaffReceivesCommission && mainStaffId ? [mainStaffId] : [],
             isShared: false,
         };
     }
@@ -369,35 +369,53 @@ const normalizeCommissionParticipants = (
             return {
                 participants: [buildSoloParticipant(item.id, onlyStaffId)],
                 participantStaffIds: [onlyStaffId],
+                sharedStaffIds: [onlyStaffId],
                 isShared: false,
             };
         }
 
-        // Legacy splits may save only the supporting barber; infer the primary barber from the item/comanda when payout is partial.
-        const inferredPrimary = mainStaffReceivesCommission && mainStaffId && hasPartialSavedPayout(onlyParticipant, itemValue)
+        if (!mainStaffId) {
+            return {
+                participants: [buildSoloParticipant(item.id, onlyStaffId)],
+                participantStaffIds: [onlyStaffId],
+                sharedStaffIds: [onlyStaffId],
+                isShared: false,
+            };
+        }
+
+        // Legacy splits may save only the supporting barber; the primary professional can live on the item/comanda.
+        const inferredPrimary = hasPartialSavedPayout(onlyParticipant, itemValue)
             ? buildInferredPrimaryParticipant(item.id, mainStaffId, onlyParticipant, itemValue)
             : null;
+
+        const sharedStaffIds = [mainStaffId, onlyStaffId].filter(Boolean) as string[];
 
         if (inferredPrimary) {
             return {
                 participants: [inferredPrimary, onlyParticipant],
-                participantStaffIds: [mainStaffId, onlyStaffId],
+                participantStaffIds: [mainStaffId, onlyStaffId].filter(Boolean) as string[],
+                sharedStaffIds,
                 isShared: true,
             };
         }
 
         return {
-            participants: [buildSoloParticipant(item.id, onlyStaffId)],
+            participants: [onlyParticipant],
             participantStaffIds: [onlyStaffId],
-            isShared: false,
+            sharedStaffIds,
+            isShared: true,
         };
     }
 
     const uniqueParticipants = Array.from(commissionableByStaffId.values());
     const uniqueStaffIds = uniqueParticipants.map(getParticipantStaffId).filter(Boolean);
+    const sharedStaffIds = mainStaffId && !uniqueStaffIds.includes(mainStaffId)
+        ? [mainStaffId, ...uniqueStaffIds]
+        : uniqueStaffIds;
     return {
         participants: uniqueParticipants,
         participantStaffIds: uniqueStaffIds,
+        sharedStaffIds,
         isShared: uniqueStaffIds.length > 1,
     };
 };
@@ -546,14 +564,14 @@ const Commissions: React.FC = () => {
             const isShared = normalizedParticipants.isShared;
             const participantStaffIds = normalizedParticipants.participantStaffIds;
             const participantsForCommission = normalizedParticipants.participants;
+            const sharedStaffIds = normalizedParticipants.sharedStaffIds;
             const productionDate = getProductionDate(comanda, appointmentById);
             const getParticipantName = (participant: ParticipantRow) => {
                 const staffId = getParticipantStaffId(participant);
                 return staffId ? staffById[staffId]?.name || staffId : 'Profissional';
             };
-            const sharedParticipantNamesByStaffId = participantsForCommission.reduce((acc, participant) => {
-                const participantStaffId = getParticipantStaffId(participant);
-                acc[participantStaffId] = getParticipantName(participant);
+            const sharedParticipantNamesByStaffId = sharedStaffIds.reduce((acc, staffId) => {
+                acc[staffId] = staffById[staffId]?.name || staffId;
                 return acc;
             }, {} as Record<string, string>);
             const divisionLaunched = isShared
