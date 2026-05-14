@@ -483,13 +483,11 @@ const Commissions: React.FC = () => {
                 const staffId = getParticipantStaffId(participant);
                 return staffId ? staffById[staffId]?.name || staffId : 'Profissional';
             };
-            const participantNames = isShared
-                ? Array.from(new Set(
-                    participantsForCommission
-                        .map((participant) => getParticipantName(participant))
-                        .filter(Boolean),
-                )).join(' / ')
-                : '';
+            const sharedParticipantNamesByStaffId = participantsForCommission.reduce((acc, participant) => {
+                const participantStaffId = getParticipantStaffId(participant);
+                acc[participantStaffId] = getParticipantName(participant);
+                return acc;
+            }, {} as Record<string, string>);
             const divisionLaunched = isShared
                 ? participantsForCommission.map((participant) => formatSavedPayout(participant, getParticipantName(participant))).join(' / ')
                 : '';
@@ -517,6 +515,13 @@ const Commissions: React.FC = () => {
                     const payoutValue = participant.payout_value == null ? null : toNumber(participant.payout_value);
                     const payoutValueNormalized = participant.payout_type === 'percentage' ? normalizePercentage(participant.payout_value) : null;
                     const sharedValue = isShared ? commissionBase : 0;
+                    const participantNames = isShared
+                        ? Object.entries(sharedParticipantNamesByStaffId)
+                            .filter(([participantStaffId]) => participantStaffId !== staffId)
+                            .map(([, name]) => name)
+                            .filter(Boolean)
+                            .join(' / ')
+                        : '';
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
                     const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
 
@@ -1078,7 +1083,9 @@ const Commissions: React.FC = () => {
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">
                                                     <div>{item.serviceName}</div>
-                                                    {item.isShared && <div className="text-xs text-amber-600 dark:text-amber-300">Compartilhado: {item.participantNames}</div>}
+                                                    {item.isShared && item.participantNames && (
+                                                        <div className="text-xs text-amber-600 dark:text-amber-300">Compartilhado: {item.participantNames}</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{item.quantity}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
