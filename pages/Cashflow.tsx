@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowDownCircle, ArrowUpCircle, CalendarRange, Wallet } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
@@ -9,6 +10,8 @@ import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+
+type ActiveTab = 'all' | 'income' | 'expense';
 
 interface TransactionRecord {
     id: string;
@@ -24,6 +27,12 @@ interface TransactionRecord {
 const Cashflow: React.FC = () => {
     const { tenantId } = useAuth();
     const hasTenantContext = Boolean(tenantId);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+        const type = searchParams.get('type');
+        if (type === 'income' || type === 'expense') return type;
+        return 'all';
+    });
     const [filterMonth, setFilterMonth] = useState(() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -32,6 +41,15 @@ const Cashflow: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [entries, setEntries] = useState<EnrichedCashFlowEntry[]>([]);
     const [selectedEntry, setSelectedEntry] = useState<EnrichedCashFlowEntry | null>(null);
+
+    const handleTabChange = (tab: ActiveTab) => {
+        setActiveTab(tab);
+        if (tab === 'all') {
+            setSearchParams({});
+        } else {
+            setSearchParams({ type: tab });
+        }
+    };
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterMonth) {
@@ -106,6 +124,19 @@ const Cashflow: React.FC = () => {
         ? totalEntradas / entries.filter((entry) => entry.type === 'entrada').length
         : 0;
 
+    const filteredEntries = entries.filter((entry) => {
+        if (activeTab === 'all') return true;
+        if (activeTab === 'income') return entry.type === 'entrada';
+        if (activeTab === 'expense') return entry.type === 'saida';
+        return true;
+    });
+
+    const tabTitles: Record<ActiveTab, string> = {
+        all: 'Fluxo de Caixa',
+        income: 'Entradas',
+        expense: 'Saídas',
+    };
+
     const chartData = useMemo(() => {
         const grouped = entries.reduce<Record<string, { entradas: number; saidas: number; saldo: number }>>((acc, entry) => {
             const label = new Date(`${entry.date}`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -171,7 +202,7 @@ const Cashflow: React.FC = () => {
 
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Fluxo de Caixa</h2>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{tabTitles[activeTab]}</h2>
                     <p className="text-slate-500 mt-1">Leitura real das transacoes financeiras registradas no periodo.</p>
                 </div>
 
@@ -192,6 +223,39 @@ const Cashflow: React.FC = () => {
                         Atualizar
                     </Button>
                 </div>
+            </div>
+
+            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
+                <button
+                    onClick={() => handleTabChange('all')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'all'
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    Todos
+                </button>
+                <button
+                    onClick={() => handleTabChange('income')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'income'
+                            ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    Entradas
+                </button>
+                <button
+                    onClick={() => handleTabChange('expense')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'expense'
+                            ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    Saídas
+                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -238,7 +302,7 @@ const Cashflow: React.FC = () => {
                     <div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                     <p className="mt-3 text-sm text-slate-500">Carregando transacoes do periodo...</p>
                 </section>
-            ) : entries.length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
                 <EmptyStateFinance
                     title="Nenhuma movimentacao encontrada"
                     description={
@@ -273,7 +337,7 @@ const Cashflow: React.FC = () => {
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Tabela somente leitura com dados reais do financeiro.</p>
                             </div>
                             <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
-                                {entries.length} registros
+                                {filteredEntries.length} registros
                             </div>
                         </div>
 
@@ -289,7 +353,7 @@ const Cashflow: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                    {entries.map((entry) => (
+                                    {filteredEntries.map((entry) => (
                                         <tr key={entry.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{new Date(entry.date).toLocaleDateString('pt-BR')}</td>
                                             <td className="px-5 py-4 text-sm font-semibold text-slate-900 dark:text-white">{entry.description}</td>
