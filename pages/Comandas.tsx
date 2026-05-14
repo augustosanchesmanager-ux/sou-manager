@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import ComandaListItem from '../components/ComandaListItem';
@@ -979,6 +980,27 @@ const Comandas: React.FC = () => {
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sortedComandas.length} comanda(s) • {dateFilterDescription}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <AuditAdjustmentButton
+                            context={{
+                                sourceType: 'comanda',
+                                sourceLabel: 'Gestao de Comandas',
+                                beforeSnapshot: {
+                                    total_filtrado: sortedComandas.length,
+                                    abertas: openCount,
+                                    total_aberto: totalOpen,
+                                    periodo: dateFilterDescription,
+                                },
+                                financialImpactLabel: 'Possivel impacto em baixa, comissao e contas a receber',
+                                allowedAdjustmentTypes: [
+                                    'service_participation_correction',
+                                    'settlement_reversal',
+                                    'payment_date_correction',
+                                    'payment_method_correction',
+                                    'mark_for_review',
+                                ],
+                            }}
+                            defaultAdjustmentType="mark_for_review"
+                        />
                         <Button size="sm" onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir</Button>
                         <Button size="sm" variant="secondary" onClick={() => navigate('/checkout?mode=pdv')} leftIcon="point_of_sale">PDV</Button>
                     </div>

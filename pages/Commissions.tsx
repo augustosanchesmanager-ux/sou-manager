@@ -3,6 +3,7 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
 import { getEffectiveCommissionRate, receivesCommission } from '../src/lib/staff/roles';
@@ -830,6 +831,27 @@ const Commissions: React.FC = () => {
                     <p className="text-slate-500 mt-1">Acompanhe a producao variavel por profissional e o valor previsto para repasse.</p>
                 </div>
                 <div className="flex gap-2">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'commission',
+                            sourceLabel: 'Relatorio de Comissoes',
+                            beforeSnapshot: {
+                                profissionais: filteredRows.length,
+                                comissao_confirmada: confirmedCommission,
+                                comissao_pendente: pendingCommission,
+                                comissao_cancelada: cancelledCommission,
+                                periodo_inicio: startDate,
+                                periodo_fim: endDate,
+                            },
+                            financialImpactLabel: 'Impacto potencial em repasse de comissao',
+                            allowedAdjustmentTypes: [
+                                'commission_correction',
+                                'service_participation_correction',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="commission_correction"
+                    />
                     <Button variant="secondary" leftIcon="download" onClick={exportCommissions}>
                         Exportar
                     </Button>

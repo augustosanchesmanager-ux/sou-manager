@@ -4,6 +4,7 @@ import { AlertCircle, CalendarRange, FileText, Package, Users, Wallet } from 'lu
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
+import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 
@@ -310,6 +311,28 @@ const AccountsReceivable: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'accounts_receivable',
+                            sourceLabel: 'Contas a Receber',
+                            beforeSnapshot: {
+                                total_em_aberto: totals.open,
+                                comandas_abertas: totals.comandas.count,
+                                recibos_pendentes: totals.recibos.count,
+                                clube_pendente_ou_atrasado: totals.clube.count,
+                                mes: filterMonth,
+                            },
+                            financialImpactLabel: 'Impacto potencial em baixa, recebiveis e fluxo de caixa',
+                            allowedAdjustmentTypes: [
+                                'payment_date_correction',
+                                'payment_method_correction',
+                                'settlement_reversal',
+                                'wrong_charge_cancellation',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="mark_for_review"
+                    />
                     <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
                         <CalendarRange className="h-4 w-4 text-slate-400" />
                         <input

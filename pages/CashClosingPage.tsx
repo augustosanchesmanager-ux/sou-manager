@@ -16,6 +16,7 @@ import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
+import { AuditAdjustmentButton } from '../components/audit';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -348,6 +349,29 @@ const CashClosingPage: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'cash_closing',
+                            sourceLabel: 'Conferencia de Caixa',
+                            beforeSnapshot: {
+                                data: filterDate,
+                                entradas: totalEntradas,
+                                saidas: totalSaidas,
+                                saldo: saldoAtual,
+                                comandas_abertas: openComandasCount,
+                                total_comandas_abertas: openComandasTotal,
+                            },
+                            financialImpactLabel: 'Impacto potencial em divergencia e conferencia de caixa',
+                            allowedAdjustmentTypes: [
+                                'transaction_reclassification',
+                                'settlement_reversal',
+                                'payment_date_correction',
+                                'payment_method_correction',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="mark_for_review"
+                    />
                     <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
                         <CalendarRange className="h-4 w-4 text-slate-400" />
                         <input

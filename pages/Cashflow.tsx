@@ -7,6 +7,7 @@ import Modal from '../components/ui/Modal';
 import CashFlowChart from '../components/financial/CashFlowChart';
 import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
+import { AuditAdjustmentButton } from '../components/audit';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -207,6 +208,29 @@ const Cashflow: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'cashflow',
+                            sourceLabel: 'Fluxo de Caixa',
+                            beforeSnapshot: {
+                                entradas: totalEntradas,
+                                saidas: totalSaidas,
+                                saldo: saldoAtual,
+                                registros: filteredEntries.length,
+                                mes: filterMonth,
+                                aba: activeTab,
+                            },
+                            financialImpactLabel: 'Impacto potencial em classificacao, caixa e relatorios',
+                            allowedAdjustmentTypes: [
+                                'transaction_reclassification',
+                                'payment_date_correction',
+                                'payment_method_correction',
+                                'hide_from_financial_with_reason',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="transaction_reclassification"
+                    />
                     <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
                         <CalendarRange className="h-4 w-4 text-slate-400" />
                         <input

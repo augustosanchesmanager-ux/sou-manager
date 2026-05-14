@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
+import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 
@@ -184,13 +185,38 @@ const Receipts: React.FC = () => {
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Gestão de Recibos</h2>
                     <p className="text-slate-500 mt-1">Emissão, controle e impressão de recibos da barbearia.</p>
                 </div>
-                <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
-                >
-                    <span className="material-symbols-outlined">receipt_long</span>
-                    + EMITIR NOVO RECIBO
-                </button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'receipt',
+                            sourceLabel: 'Gestao de Recibos',
+                            beforeSnapshot: {
+                                total_recibos: receipts.length,
+                                filtrados: filteredReceipts.length,
+                                status: filterStatus,
+                                tipo: filterType,
+                                periodo_inicio: filterPeriodStart,
+                                periodo_fim: filterPeriodEnd,
+                            },
+                            financialImpactLabel: 'Impacto potencial em recibos e transacoes vinculadas',
+                            allowedAdjustmentTypes: [
+                                'wrong_charge_cancellation',
+                                'payment_method_correction',
+                                'transaction_reclassification',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="mark_for_review"
+                        size="md"
+                    />
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
+                    >
+                        <span className="material-symbols-outlined">receipt_long</span>
+                        + EMITIR NOVO RECIBO
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
