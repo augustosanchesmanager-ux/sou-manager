@@ -15,6 +15,7 @@ import {
     getTotalAvailableCredits,
     normalizeCreditBalances,
 } from '../src/utils/chefClubCredits';
+import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -158,6 +159,25 @@ const isFutureOrOpenDate = (value?: string | null) => {
     if (!value) return true;
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) || parsed.getTime() >= Date.now();
+};
+
+const DIRECT_SETTLEMENT_BLOCK_MESSAGE = 'Esta comanda pertence a um atendimento anterior ou foi cadastrada fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.';
+
+const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const isBeforeTodayLocal = (value?: string | null) => {
+    if (!value) return false;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return false;
+    return startOfLocalDay(parsed).getTime() < startOfLocalDay(new Date()).getTime();
+};
+
+const isCreatedAfterAppointmentDay = (createdAt?: string | null, appointmentStartTime?: string | null) => {
+    if (!createdAt || !appointmentStartTime) return false;
+    const created = new Date(createdAt);
+    const appointment = new Date(appointmentStartTime);
+    if (Number.isNaN(created.getTime()) || Number.isNaN(appointment.getTime())) return false;
+    return startOfLocalDay(created).getTime() > startOfLocalDay(appointment).getTime();
 };
 
 const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
@@ -1032,6 +1052,38 @@ const Checkout: React.FC = () => {
             const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
 
+            if (paymentStatus === 'paid' && relatedAppointmentId) {
+                const [{ data: appointmentForSettlement }, { data: comandaForSettlement }] = await Promise.all([
+                    client
+                        .from('appointments')
+                        .select('id, start_time')
+                        .eq('id', relatedAppointmentId)
+                        .eq('tenant_id', resolvedTenantId)
+                        .maybeSingle(),
+                    currentComandaId
+                        ? client
+                            .from('comandas')
+                            .select('id, created_at')
+                            .eq('id', currentComandaId)
+                            .eq('tenant_id', resolvedTenantId)
+                            .maybeSingle()
+                        : client
+                            .from('comandas')
+                            .select('id, created_at')
+                            .eq('appointment_id', relatedAppointmentId)
+                            .eq('tenant_id', resolvedTenantId)
+                            .maybeSingle(),
+                ]);
+
+                if (
+                    isBeforeTodayLocal(appointmentForSettlement?.start_time) ||
+                    isCreatedAfterAppointmentDay(comandaForSettlement?.created_at, appointmentForSettlement?.start_time)
+                ) {
+                    setToast({ message: DIRECT_SETTLEMENT_BLOCK_MESSAGE, type: 'error' });
+                    return;
+                }
+            }
+
             // 1. Create or Update Comanda
             const comandaData: any = {
                 client_id: selectedClient.id,
@@ -1179,7 +1231,8 @@ const Checkout: React.FC = () => {
                             staff_id: item.staff_id,
                             role: 'primary',
                             payout_type: 'percentage',
-                            payout_value: 40,
+                            // payout_value represents service participation, not the barber commission rate.
+                            payout_value: 100,
                             affects_revenue: true,
                             affects_commission: true,
                             tenant_id: resolvedTenantId
@@ -1197,85 +1250,31 @@ const Checkout: React.FC = () => {
 
             // 4. If PAID, mark comanda as paid
             if (paymentStatus === 'paid') {
-                const { error: updateError } = await client
-                    .from('comandas')
-                    .update({
-                        status: 'paid',
-                        closure_mode: closureMode,
-                        closure_note: isLegacyClubSettlement ? (closureNote.trim() || null) : null,
-                        financial_effect: shouldApplyFinancialEffects,
-                        membership_credit_effect: shouldDeductMembershipCredits,
-                        legacy_reference_month: isLegacyClubSettlement ? `${legacyReferenceMonth}-01` : null,
-                        closed_at: new Date().toISOString(),
-                    })
-                    .eq('id', currentComandaId);
-
-                if (updateError) {
-                    console.warn('Error updating comanda status:', updateError);
-                }
-
-                if (relatedAppointmentId) {
-                    const { error: appointmentSyncError } = await client
-                        .from('appointments')
-                        .update({ status: 'completed' })
-                        .eq('id', relatedAppointmentId)
-                        .eq('tenant_id', resolvedTenantId);
-
-                    if (appointmentSyncError) {
-                        console.warn('Checkout finalized without appointment sync:', appointmentSyncError);
-                    }
-                }
-
-                if (shouldApplyFinancialEffects) {
-                    try {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        const { error: transError } = await client.from('transactions').insert({
-                            user_id: user?.id,
-                            type: 'income',
-                            category: incomeCategory,
-                            amount: total,
-                            description: paymentMethod === 'other' && paymentDescription
-                                ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
-                                : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
-                            payment_method: paymentMethod,
-                            date: new Date().toISOString(),
-                            tenant_id: resolvedTenantId
-                        });
-                        if (transError) {
-                            console.warn('Checkout finalized without transaction record:', transError);
-                        }
-                    } catch (transactionError) {
-                        console.warn('Checkout finalized but transaction logging failed:', transactionError);
-                    }
-
-                    try {
-                        const { data: clientData, error: clientFetchErr } = await client
-                            .from('clients')
-                            .select('total_spent')
-                            .eq('id', selectedClient.id)
-                            .eq('tenant_id', resolvedTenantId)
-                            .single();
-
-                        if (!clientFetchErr) {
-                            const newTotal = (clientData?.total_spent || 0) + total;
-                            const lastServiceStr = cart.length > 0 ? cart[0].name : '';
-
-                            const { error: clientUpdateError } = await client.from('clients').update({
-                                total_spent: newTotal,
-                                last_visit: new Date().toISOString(),
-                                last_service: lastServiceStr
-                            }).eq('id', selectedClient.id).eq('tenant_id', resolvedTenantId);
-
-                            if (clientUpdateError) {
-                                console.warn('Checkout finalized without client stats update:', clientUpdateError);
-                            }
-                        } else {
-                            console.warn('Checkout finalized without loading client stats:', clientFetchErr);
-                        }
-                    } catch (clientStatsError) {
-                        console.warn('Checkout finalized but client stats update failed:', clientStatsError);
-                    }
-                }
+                await settleCheckoutComanda({
+                    client: selectedClient,
+                    comandaId: currentComandaId,
+                    appointmentId: relatedAppointmentId,
+                    tenantId: resolvedTenantId,
+                    supabase,
+                    clientDb: client,
+                    paymentMethod,
+                    paidAmount: total,
+                    incomeCategory,
+                    description: paymentMethod === 'other' && paymentDescription
+                        ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
+                        : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
+                    shouldApplyFinancialEffects,
+                    closure: {
+                        mode: closureMode,
+                        note: isLegacyClubSettlement ? (closureNote.trim() || null) : null,
+                        financialEffect: shouldApplyFinancialEffects,
+                        membershipCreditEffect: shouldDeductMembershipCredits,
+                        legacyReferenceMonth: isLegacyClubSettlement ? `${legacyReferenceMonth}-01` : null,
+                    },
+                    clientStats: {
+                        lastService: cart.length > 0 ? cart[0].name : '',
+                    },
+                });
             }
 
             // 5. Deduct Chef Club Credits if used

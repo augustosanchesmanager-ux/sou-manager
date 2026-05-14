@@ -4,6 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import { getDefaultCommissionRateForRole } from '../src/lib/staff/roles';
 
 interface TeamMember {
     id: string;
@@ -33,7 +34,8 @@ const Team: React.FC = () => {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
+    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
+    const [commissionEditedManually, setCommissionEditedManually] = useState(false);
 
     const fetchTeam = useCallback(async () => {
         if (!tenantId) {
@@ -65,12 +67,14 @@ const Team: React.FC = () => {
 
     const openNewModal = () => {
         setEditingMember(null);
-        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
+        setCommissionEditedManually(false);
+        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
         setShowModal(true);
     };
 
     const openEditModal = (member: TeamMember) => {
         setEditingMember(member);
+        setCommissionEditedManually(false);
         setForm({
             name: member.name,
             email: member.email,
@@ -81,6 +85,21 @@ const Team: React.FC = () => {
             password: '', // Não editamos senha por aqui
         });
         setShowModal(true);
+    };
+
+    const handleRoleChange = (role: string) => {
+        setForm((current) => ({
+            ...current,
+            role,
+            commission_rate: commissionEditedManually
+                ? current.commission_rate
+                : String(getDefaultCommissionRateForRole(role)),
+        }));
+    };
+
+    const handleCommissionRateChange = (value: string) => {
+        setCommissionEditedManually(true);
+        setForm((current) => ({ ...current, commission_rate: value }));
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -334,14 +353,14 @@ const Team: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
-                            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                            <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
                                 {roles.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Comissão (%)</label>
-                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
+                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => handleCommissionRateChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
                         </div>
                     </div>

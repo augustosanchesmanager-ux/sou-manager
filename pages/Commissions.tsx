@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
+import { getEffectiveCommissionRate, receivesCommission } from '../src/lib/staff/roles';
 
 interface StaffMember {
     id: string;
@@ -21,6 +22,7 @@ interface ComandaRow {
     created_at: string;
     closed_at?: string | null;
     status: ComandaStatus;
+    appointment_id?: string | null;
     staff_id?: string | null;
     client_id?: string | null;
     payment_method?: string | null;
@@ -31,6 +33,11 @@ interface ComandaRow {
     closure_mode?: string | null;
     financial_effect?: boolean | null;
     membership_credit_effect?: boolean | null;
+}
+
+interface AppointmentRow {
+    id: string;
+    start_time?: string | null;
 }
 
 interface ParticipantRow {
@@ -239,6 +246,11 @@ const getComandaItemValue = (item: any) => {
     return getCommissionBaseChoice(item).value;
 };
 
+const getProductionDate = (comanda: ComandaRow, appointmentById: Record<string, AppointmentRow>) => {
+    const appointmentStartTime = comanda.appointment_id ? appointmentById[comanda.appointment_id]?.start_time : null;
+    return appointmentStartTime || comanda.closed_at || comanda.created_at;
+};
+
 const isServiceItem = (item: any) => {
     const type = String(item.type || item.item_type || '').toLowerCase();
     return Boolean(item.service_id) || type === 'service' || type === 'servico' || type === 'serviço';
@@ -332,9 +344,7 @@ const Commissions: React.FC = () => {
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .in('status', ['open', 'paid', 'blocked', 'cancelled'])
-                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
-                .gte('created_at', startOfRange.toISOString())
-                .lte('created_at', endOfRange.toISOString()),
+                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false'),
         ]);
 
         if (staffRes.error) throw staffRes.error;
@@ -346,8 +356,28 @@ const Commissions: React.FC = () => {
             return acc;
         }, {} as Record<string, StaffMember>);
         const comandas = (comandasRes.data || []) as ComandaRow[];
-        const comandaIds = comandas.map((comanda) => comanda.id);
-        const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+        const appointmentIds = Array.from(new Set(comandas.map((comanda) => comanda.appointment_id).filter((id): id is string => Boolean(id))));
+        const { data: appointments, error: appointmentsError } = appointmentIds.length > 0
+            ? await client
+                .from('appointments')
+                .select('id, start_time')
+                .eq('tenant_id', tenantId)
+                .in('id', appointmentIds)
+            : { data: [] as AppointmentRow[], error: null };
+
+        if (appointmentsError) throw appointmentsError;
+
+        const appointmentById = ((appointments || []) as AppointmentRow[]).reduce((acc, appointment) => {
+            acc[appointment.id] = appointment;
+            return acc;
+        }, {} as Record<string, AppointmentRow>);
+        const comandasInProductionRange = comandas.filter((comanda) => {
+            const productionDate = new Date(getProductionDate(comanda, appointmentById));
+            if (Number.isNaN(productionDate.getTime())) return false;
+            return productionDate >= startOfRange && productionDate <= endOfRange;
+        });
+        const comandaIds = comandasInProductionRange.map((comanda) => comanda.id);
+        const clientIds = Array.from(new Set(comandasInProductionRange.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
 
         const [itemsRes, clientsRes] = await Promise.all([
             comandaIds.length > 0
@@ -391,7 +421,7 @@ const Commissions: React.FC = () => {
             acc[currentClient.id] = currentClient.name;
             return acc;
         }, {} as Record<string, string>);
-        const comandaById = comandas.reduce((acc, comanda) => {
+        const comandaById = comandasInProductionRange.reduce((acc, comanda) => {
             acc[comanda.id] = comanda;
             return acc;
         }, {} as Record<string, ComandaRow>);
@@ -410,7 +440,8 @@ const Commissions: React.FC = () => {
             const quantity = getQuantity(item);
             const savedParticipants = (participantsByItem[item.id] || [])
                 .filter((participant) => getParticipantStaffId(participant))
-                .filter((participant) => participant.affects_commission !== false);
+                .filter((participant) => participant.affects_commission !== false)
+                .filter((participant) => receivesCommission(staffById[getParticipantStaffId(participant)]));
             const isShared = isSharedCommissionItem(item, comanda, savedParticipants);
             const participantStaffIds = Array.from(new Set(savedParticipants.map(getParticipantStaffId).filter(Boolean)));
             const participantsForCommission = savedParticipants.length > 0
@@ -423,6 +454,7 @@ const Commissions: React.FC = () => {
                     payout_value: 100,
                     affects_commission: true,
                 } as ParticipantRow];
+            const productionDate = getProductionDate(comanda, appointmentById);
             const getParticipantName = (participant: ParticipantRow) => {
                 const staffId = getParticipantStaffId(participant);
                 return staffId ? staffById[staffId]?.name || staffId : 'Profissional';
@@ -445,16 +477,17 @@ const Commissions: React.FC = () => {
 
             return participantsForCommission
                 .filter((participant) => getParticipantStaffId(participant))
-                .map((participant) => {
+                .flatMap((participant): CommissionLine[] => {
                     const staffId = getParticipantStaffId(participant);
                     const staff = staffById[staffId];
+                    if (!receivesCommission(staff)) return [];
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
                         : null;
                     const commissionBase = participant.payout_type === 'fixed'
                         ? toNumber(participant.payout_value)
                         : itemValue * Number(participationRate || 0);
-                    const commissionRate = normalizeRate(staff?.commission_rate);
+                    const commissionRate = getEffectiveCommissionRate(staff);
                     const commissionValue = commissionBase * commissionRate;
                     const payoutType = participant.payout_type || '';
                     const payoutValue = participant.payout_value == null ? null : toNumber(participant.payout_value);
@@ -463,11 +496,11 @@ const Commissions: React.FC = () => {
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
                     const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
 
-                    return {
+                    return [{
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
                         comandaItemId: item.id,
-                        createdAt: comanda.created_at,
+                        createdAt: productionDate,
                         clientName,
                         serviceName: item.product_name || 'Servico',
                         quantity,
@@ -539,7 +572,7 @@ const Commissions: React.FC = () => {
                             is_shared_real: isShared ? 'Sim' : 'Nao',
                             commission_value: commissionValue,
                         },
-                    };
+                    }];
                 });
         });
     }, [endDate, startDate, tenantId]);

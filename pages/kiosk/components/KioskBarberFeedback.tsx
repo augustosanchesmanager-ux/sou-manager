@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
 import { supabase } from '../../../services/supabaseClient';
+import { shouldAppearOnSchedule } from '../../../src/lib/staff/roles';
 
 interface Client { id: string; name: string; }
-interface Barber { id: string; name: string; }
+interface Barber { id: string; name: string; role?: string; }
 
 interface KioskBarberFeedbackProps {
     tenantId: string;
@@ -30,8 +31,8 @@ const KioskBarberFeedback: React.FC<KioskBarberFeedbackProps> = ({ tenantId, cli
     useEffect(() => { loadBarbers(); }, []);
 
     const loadBarbers = async () => {
-        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active');
-        setBarbers(data || []);
+        const { data } = await supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active');
+        setBarbers(((data || []) as Barber[]).filter(shouldAppearOnSchedule));
     };
 
     const toggleTag = (tag: string) => {

@@ -7,6 +7,7 @@ import {
   normalizeAppointmentRecord,
   normalizeServiceRecord,
 } from './selectors';
+import { shouldAppearOnSchedule } from '../../lib/staff/roles';
 import type {
   DashboardClient,
   DashboardData,
@@ -109,7 +110,7 @@ export const fetchDashboardData = async ({
       .select('id, name, phone, email, birthday, last_visit, avatar')
       .eq('tenant_id', tenantId)
       .order('name'),
-    supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active'),
+    supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active'),
     fetchServicesWithFallback(tenantId),
     appointmentsClient
       .from('appointments')
@@ -263,7 +264,7 @@ export const fetchDashboardData = async ({
   const goals = goalsRes.data || { revenue_goal: 0, appointments_goal: 0, clients_goal: 0 };
 
   const clients = (clientsRes.data || []) as DashboardClient[];
-  const staffList = ((staffRes.data || []) as DashboardStaff[]).map((staff) => ({
+  const staffList = ((staffRes.data || []) as Array<DashboardStaff & { role?: string }>).filter(shouldAppearOnSchedule).map((staff) => ({
     id: staff.id,
     name: staff.name,
   }));
@@ -315,4 +316,3 @@ export const fetchDashboardData = async ({
     profile: (profileRes.data as DashboardProfile | null) || null,
   };
 };
-

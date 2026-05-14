@@ -167,20 +167,13 @@ const Receipts: React.FC = () => {
 
         if (error) {
             console.error('Error creating receipt:', error);
-            setReceipts([...receipts, {
-                id: Date.now().toString(),
-                number: `REC-${new Date().getFullYear()}-${Date.now().toString().substring(6)}`,
-                date: new Date().toISOString(),
-                type: newReceipt.type,
-                name: newReceipt.name,
-                amount: parseFloat(newReceipt.amount),
-                paymentMethod: newReceipt.paymentMethod,
-                status: 'Pago'
-            }]);
+            alert(`Erro ao criar recibo financeiro: ${error.message}`);
+            return;
         }
         
         setIsCreateModalOpen(false);
         setNewReceipt({ name: '', type: 'Receita', amount: '', paymentMethod: 'Dinheiro', description: '', signature: '' });
+        await fetchReceipts();
     };
 
     return (

@@ -7,6 +7,7 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
+import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -454,13 +455,13 @@ const Schedule: React.FC = () => {
     const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active'),
       servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       clientsClient.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
-    if (staffRes.data) setStaffList(staffRes.data);
+    if (staffRes.data) setStaffList((staffRes.data as DBStaff[]).filter(shouldAppearOnSchedule));
 
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
