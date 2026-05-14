@@ -19,7 +19,6 @@ import {
   AppointmentTimeline,
   DashboardWidgets,
   TodayPendings,
-  NextAppointmentCard,
   TodayCashCard,
 } from '../components/dashboard';
 
@@ -217,11 +216,6 @@ const Dashboard: React.FC = () => {
               setSelectedAppointment(apt);
               setIsDetailModalOpen(true);
             }}
-            onNewAppointment={() => setShowQuickScheduleModal(true)}
-          />
-          <NextAppointmentCard
-            appointments={data.appointments}
-            loading={loading}
             onNewAppointment={() => setShowQuickScheduleModal(true)}
           />
         </div>

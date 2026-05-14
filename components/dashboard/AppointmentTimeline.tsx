@@ -95,7 +95,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
   return (
     <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
       <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-        <h3 className="font-bold text-slate-900 dark:text-white">Agenda de hoje</h3>
+        <h3 className="font-bold text-slate-900 dark:text-white">Próximos agendamentos</h3>
         <Link to="/schedule" className="text-xs font-bold text-primary hover:text-blue-600 transition-colors">
           Ver todos →
         </Link>
@@ -145,11 +145,24 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
         })}
       </div>
 
-      {remainingCount > 0 && (
-        <div className="p-3 text-center border-t border-slate-100 dark:border-slate-700">
-          <Link to="/schedule" className="text-xs font-medium text-slate-500 hover:text-primary transition-colors">
-            +{remainingCount} agendamentos →
-          </Link>
+      {(remainingCount > 0 || onNewAppointment) && (
+        <div className="p-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+          {remainingCount > 0 && (
+            <div className="text-center">
+              <Link to="/schedule" className="text-xs font-medium text-slate-500 hover:text-primary transition-colors">
+                +{remainingCount} agendamentos →
+              </Link>
+            </div>
+          )}
+          {onNewAppointment && (
+            <button
+              onClick={onNewAppointment}
+              className="w-full py-2.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Novo agendamento
+            </button>
+          )}
         </div>
       )}
     </div>
