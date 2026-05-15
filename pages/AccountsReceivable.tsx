@@ -223,7 +223,7 @@ const AccountsReceivable: React.FC = () => {
         }
 
         const paidAmount = Number(String(settlementPaidAmount).replace(',', '.'));
-        if (!settlementPaymentMethod || !settlementPaymentDate || paidAmount <= 0) {
+        if (!settlementPaymentMethod || !settlementPaymentDate || !Number.isFinite(paidAmount) || paidAmount <= 0) {
             setToast({ message: 'Informe forma de pagamento, data real e valor valido para dar baixa.', type: 'error' });
             return;
         }
