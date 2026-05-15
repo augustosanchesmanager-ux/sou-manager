@@ -1051,6 +1051,8 @@ const Checkout: React.FC = () => {
             let currentComandaId = comandaId;
             const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
+            const shouldSettleViaRpc = paymentStatus === 'paid' && !isLegacyClubSettlement;
+            const paymentDateReal = new Date().toISOString();
 
             if (paymentStatus === 'paid' && relatedAppointmentId) {
                 const [{ data: appointmentForSettlement }, { data: comandaForSettlement }] = await Promise.all([
@@ -1089,10 +1091,10 @@ const Checkout: React.FC = () => {
                 client_id: selectedClient.id,
                 staff_id: comandaStaffId,
                 appointment_id: relatedAppointmentId,
-                status: paymentStatus === 'paid' ? 'paid' : 'open',
+                status: shouldSettleViaRpc ? 'open' : (paymentStatus === 'paid' ? 'paid' : 'open'),
                 total: total,
                 discount: discountValue,
-                payment_method: paymentStatus === 'paid' ? paymentMethod : null,
+                payment_method: shouldSettleViaRpc ? null : (paymentStatus === 'paid' ? paymentMethod : null),
                 closure_mode: paymentStatus === 'paid' ? closureMode : 'standard',
                 closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? (closureNote.trim() || null) : null,
                 financial_effect: paymentStatus === 'paid' ? shouldApplyFinancialEffects : true,
@@ -1100,7 +1102,7 @@ const Checkout: React.FC = () => {
                 legacy_reference_month: paymentStatus === 'paid' && isLegacyClubSettlement
                     ? `${legacyReferenceMonth}-01`
                     : null,
-                closed_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
+                closed_at: shouldSettleViaRpc ? null : (paymentStatus === 'paid' ? paymentDateReal : null),
                 tenant_id: resolvedTenantId
             };
 
@@ -1249,7 +1251,7 @@ const Checkout: React.FC = () => {
             }
 
             // 4. If PAID, mark comanda as paid
-            if (paymentStatus === 'paid') {
+            if (shouldSettleViaRpc) {
                 await settleCheckoutComanda({
                     client: selectedClient,
                     comandaId: currentComandaId,
@@ -1259,6 +1261,10 @@ const Checkout: React.FC = () => {
                     clientDb: client,
                     paymentMethod,
                     paidAmount: total,
+                    paymentDateReal,
+                    source: 'checkout',
+                    notes: paymentMethod === 'other' && paymentDescription ? paymentDescription : null,
+                    idempotencyKey: `finance-settle-${currentComandaId}-${comandaRequestKeyRef.current}`,
                     incomeCategory,
                     description: paymentMethod === 'other' && paymentDescription
                         ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`

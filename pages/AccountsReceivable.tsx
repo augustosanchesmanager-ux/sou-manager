@@ -7,6 +7,7 @@ import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
+import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 
 type ARSource = 'comanda' | 'clube' | 'recibo';
 type ARStatus = 'pending' | 'overdue' | 'open' | 'Pendente';
@@ -53,6 +54,12 @@ interface ReceiptRecord {
 }
 
 type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
+type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
+
+const toDateTimeInputValue = (date: Date) => {
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
 
 const AccountsReceivable: React.FC = () => {
     const { tenantId } = useAuth();
@@ -69,6 +76,10 @@ const AccountsReceivable: React.FC = () => {
 
     const [openComandas, setOpenComandas] = useState<ComandaRecord[]>([]);
     const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+    const [settlementEntry, setSettlementEntry] = useState<AREntry | null>(null);
+    const [settlementPaymentMethod, setSettlementPaymentMethod] = useState<PaymentMethod>('pix');
+    const [settlementPaymentDate, setSettlementPaymentDate] = useState(() => toDateTimeInputValue(new Date()));
+    const [settlementNotes, setSettlementNotes] = useState('');
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
 
@@ -181,21 +192,47 @@ const AccountsReceivable: React.FC = () => {
         }
     }, [tenantId, filterMonth]);
 
-    const handleMarkPaid = async (comandaId: string) => {
-        if (!tenantId) return;
-        setMarkingPaid(comandaId);
+    const openSettlementModal = (entry: AREntry) => {
+        setSettlementEntry(entry);
+        setSettlementPaymentMethod('pix');
+        setSettlementPaymentDate(toDateTimeInputValue(new Date()));
+        setSettlementNotes('');
+    };
+
+    const closeSettlementModal = () => {
+        if (markingPaid) return;
+        setSettlementEntry(null);
+        setSettlementNotes('');
+    };
+
+    const handleConfirmSettlement = async () => {
+        if (!tenantId || !settlementEntry) return;
+
+        const paidAmount = Number(settlementEntry.amount || 0);
+        if (!settlementPaymentMethod || !settlementPaymentDate || paidAmount <= 0) {
+            setToast({ message: 'Informe forma de pagamento, data real e valor valido para dar baixa.', type: 'error' });
+            return;
+        }
+
+        setMarkingPaid(settlementEntry.id);
         try {
-            const barberSupabase = getScopedClient('barber');
-            const { error } = await barberSupabase
-                .from('comandas')
-                .update({ status: 'paid', closed_at: new Date().toISOString() })
-                .eq('id', comandaId)
-                .eq('tenant_id', tenantId);
-            if (error) throw error;
+            await settleCheckoutComanda({
+                comandaId: settlementEntry.id,
+                tenantId,
+                supabase,
+                paymentMethod: settlementPaymentMethod,
+                paidAmount,
+                paymentDateReal: new Date(settlementPaymentDate).toISOString(),
+                source: 'accounts_receivable',
+                notes: settlementNotes.trim() || null,
+            });
             setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
+            setSettlementEntry(null);
+            setSettlementNotes('');
             await fetchData();
         } catch (error: any) {
-            setToast({ message: error?.message || 'Erro ao dar baixa.', type: 'error' });
+            console.error('Erro ao dar baixa via RPC:', error);
+            setToast({ message: error?.message || 'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada.', type: 'error' });
         } finally {
             setMarkingPaid(null);
         }
@@ -303,6 +340,88 @@ const AccountsReceivable: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {settlementEntry && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+                    <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-950 dark:text-white">Dar baixa financeira</h3>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    A baixa será registrada pela RPC financeira central.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeSettlementModal}
+                                disabled={Boolean(markingPaid)}
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/5"
+                            >
+                                <span className="material-symbols-outlined text-xl">close</span>
+                            </button>
+                        </div>
+
+                        <div className="mt-5 rounded-xl bg-slate-50 dark:bg-white/5 p-4 text-sm">
+                            <div className="flex justify-between gap-4">
+                                <span className="text-slate-500">Cliente</span>
+                                <strong className="text-slate-900 dark:text-white">{settlementEntry.clientName}</strong>
+                            </div>
+                            <div className="mt-2 flex justify-between gap-4">
+                                <span className="text-slate-500">Valor</span>
+                                <strong className="text-slate-900 dark:text-white">
+                                    {settlementEntry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 grid gap-4">
+                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                Forma de pagamento
+                                <select
+                                    value={settlementPaymentMethod}
+                                    onChange={(event) => setSettlementPaymentMethod(event.target.value as PaymentMethod)}
+                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                >
+                                    <option value="pix">Pix</option>
+                                    <option value="cash">Dinheiro</option>
+                                    <option value="credit">Cartao de credito</option>
+                                    <option value="debit">Cartao de debito</option>
+                                    <option value="other">Outro</option>
+                                </select>
+                            </label>
+
+                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                Data real do pagamento
+                                <input
+                                    type="datetime-local"
+                                    value={settlementPaymentDate}
+                                    onChange={(event) => setSettlementPaymentDate(event.target.value)}
+                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                />
+                            </label>
+
+                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                Observacao
+                                <textarea
+                                    value={settlementNotes}
+                                    onChange={(event) => setSettlementNotes(event.target.value)}
+                                    rows={3}
+                                    className="resize-none rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                    placeholder="Opcional"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <Button variant="secondary" onClick={closeSettlementModal} disabled={Boolean(markingPaid)}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleConfirmSettlement} disabled={markingPaid === settlementEntry.id}>
+                                {markingPaid === settlementEntry.id ? 'Registrando...' : 'Confirmar baixa'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
@@ -484,7 +603,7 @@ const AccountsReceivable: React.FC = () => {
                                         <td className="px-5 py-4">
                                             {entry.source === 'comanda' && entry.status === 'open' && (
                                                 <button
-                                                    onClick={() => handleMarkPaid(entry.id)}
+                                                    onClick={() => openSettlementModal(entry)}
                                                     disabled={markingPaid === entry.id}
                                                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/20 transition disabled:opacity-50"
                                                 >

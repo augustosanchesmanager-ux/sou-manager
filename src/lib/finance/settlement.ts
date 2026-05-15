@@ -1,17 +1,23 @@
-// Temporary frontend settlement organizer. The durable financial settlement must become a transactional RPC.
+const SETTLEMENT_ERROR_MESSAGE =
+  'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
+
 export interface CheckoutSettlementInput {
-  client: any;
   comandaId: string;
-  appointmentId?: string | null;
   tenantId: string;
   supabase: any;
-  clientDb: any;
   paymentMethod: string;
   paidAmount: number;
-  incomeCategory: string;
-  description: string;
-  shouldApplyFinancialEffects: boolean;
-  closure: {
+  paymentDateReal?: string;
+  source?: string;
+  notes?: string | null;
+  idempotencyKey?: string | null;
+  client?: any;
+  appointmentId?: string | null;
+  clientDb?: any;
+  incomeCategory?: string;
+  description?: string;
+  shouldApplyFinancialEffects?: boolean;
+  closure?: {
     mode: string;
     note?: string | null;
     financialEffect: boolean;
@@ -23,99 +29,67 @@ export interface CheckoutSettlementInput {
   };
 }
 
+export interface CheckoutSettlementResult {
+  success: boolean;
+  idempotent: boolean;
+  comandaId: string;
+  transactionId: string;
+  status: string;
+  message: string;
+}
+
+const createSettlementKey = (comandaId: string) => {
+  const randomId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `finance-settle-${comandaId}-${randomId}`;
+};
+
 export const settleCheckoutComanda = async ({
-  client,
   comandaId,
-  appointmentId,
   tenantId,
   supabase,
-  clientDb,
   paymentMethod,
   paidAmount,
-  incomeCategory,
-  description,
-  shouldApplyFinancialEffects,
-  closure,
-  clientStats,
-}: CheckoutSettlementInput) => {
-  const paymentDateReal = new Date().toISOString();
-  const { data: authData } = await supabase.auth.getUser();
-  const settledByUserId = authData?.user?.id || null;
-
-  const { error: updateError } = await clientDb
-    .from('comandas')
-    .update({
-      status: 'paid',
-      closure_mode: closure.mode,
-      closure_note: closure.note || null,
-      financial_effect: closure.financialEffect,
-      membership_credit_effect: closure.membershipCreditEffect,
-      legacy_reference_month: closure.legacyReferenceMonth || null,
-      closed_at: paymentDateReal,
-    })
-    .eq('id', comandaId)
-    .eq('tenant_id', tenantId);
-
-  if (updateError) {
-    console.warn('Error updating comanda status:', updateError);
+  paymentDateReal,
+  source = 'checkout',
+  notes,
+  idempotencyKey,
+}: CheckoutSettlementInput): Promise<CheckoutSettlementResult> => {
+  if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
+  if (!comandaId) throw new Error('comanda_id obrigatório para baixa financeira.');
+  if (!paymentMethod) throw new Error('Forma de pagamento obrigatória para baixa financeira.');
+  if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+    throw new Error('Valor pago deve ser maior que zero para baixa financeira.');
   }
 
-  if (appointmentId) {
-    const { error: appointmentSyncError } = await clientDb
-      .from('appointments')
-      .update({ status: 'completed' })
-      .eq('id', appointmentId)
-      .eq('tenant_id', tenantId);
+  const key = idempotencyKey || createSettlementKey(comandaId);
+  const { data, error } = await supabase.rpc('finance_settle_comanda', {
+    p_tenant_id: tenantId,
+    p_comanda_id: comandaId,
+    p_payment_method: paymentMethod,
+    p_paid_amount: paidAmount,
+    p_payment_date_real: paymentDateReal || new Date().toISOString(),
+    p_source: source,
+    p_notes: notes || null,
+    p_idempotency_key: key,
+  });
 
-    if (appointmentSyncError) {
-      console.warn('Checkout finalized without appointment sync:', appointmentSyncError);
-    }
+  if (error) {
+    console.error('finance_settle_comanda failed:', error);
+    throw new Error(SETTLEMENT_ERROR_MESSAGE);
   }
 
-  if (!shouldApplyFinancialEffects) return;
-
-  try {
-    const { error: transError } = await clientDb.from('transactions').insert({
-      user_id: settledByUserId,
-      type: 'income',
-      category: incomeCategory,
-      amount: paidAmount,
-      description,
-      payment_method: paymentMethod,
-      date: paymentDateReal,
-      tenant_id: tenantId,
-    });
-
-    if (transError) {
-      console.warn('Checkout finalized without transaction record:', transError);
-    }
-  } catch (transactionError) {
-    console.warn('Checkout finalized but transaction logging failed:', transactionError);
+  const result = data || {};
+  if (result.success !== true) {
+    console.error('finance_settle_comanda returned an invalid result:', result);
+    throw new Error(SETTLEMENT_ERROR_MESSAGE);
   }
 
-  try {
-    const { data: clientData, error: clientFetchErr } = await clientDb
-      .from('clients')
-      .select('total_spent')
-      .eq('id', client.id)
-      .eq('tenant_id', tenantId)
-      .single();
-
-    if (!clientFetchErr) {
-      const newTotal = (clientData?.total_spent || 0) + paidAmount;
-      const { error: clientUpdateError } = await clientDb.from('clients').update({
-        total_spent: newTotal,
-        last_visit: paymentDateReal,
-        last_service: clientStats?.lastService || '',
-      }).eq('id', client.id).eq('tenant_id', tenantId);
-
-      if (clientUpdateError) {
-        console.warn('Checkout finalized without client stats update:', clientUpdateError);
-      }
-    } else {
-      console.warn('Checkout finalized without loading client stats:', clientFetchErr);
-    }
-  } catch (clientStatsError) {
-    console.warn('Checkout finalized but client stats update failed:', clientStatsError);
-  }
+  return {
+    success: true,
+    idempotent: Boolean(result.idempotent),
+    comandaId: result.comanda_id || comandaId,
+    transactionId: result.transaction_id,
+    status: result.status || 'paid',
+    message: result.message || 'Baixa financeira registrada com sucesso.',
+  };
 };
