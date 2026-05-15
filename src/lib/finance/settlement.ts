@@ -1,5 +1,6 @@
 const SETTLEMENT_ERROR_MESSAGE =
   'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
+const SETTLEMENT_TIMEOUT_MS = 30000;
 
 export interface CheckoutSettlementInput {
   comandaId: string;
@@ -43,6 +44,19 @@ const createSettlementKey = (comandaId: string) => {
   return `finance-settle-${comandaId}-${randomId}`;
 };
 
+const withSettlementTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Tempo limite excedido ao registrar a baixa financeira.')), SETTLEMENT_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 export const settleCheckoutComanda = async ({
   comandaId,
   tenantId,
@@ -62,16 +76,18 @@ export const settleCheckoutComanda = async ({
   }
 
   const key = idempotencyKey || createSettlementKey(comandaId);
-  const { data, error } = await supabase.rpc('finance_settle_comanda', {
-    p_tenant_id: tenantId,
-    p_comanda_id: comandaId,
-    p_payment_method: paymentMethod,
-    p_paid_amount: paidAmount,
-    p_payment_date_real: paymentDateReal || new Date().toISOString(),
-    p_source: source,
-    p_notes: notes || null,
-    p_idempotency_key: key,
-  });
+  const { data, error } = await withSettlementTimeout<any>(
+    supabase.rpc('finance_settle_comanda', {
+      p_tenant_id: tenantId,
+      p_comanda_id: comandaId,
+      p_payment_method: paymentMethod,
+      p_paid_amount: paidAmount,
+      p_payment_date_real: paymentDateReal || new Date().toISOString(),
+      p_source: source,
+      p_notes: notes || null,
+      p_idempotency_key: key,
+    }),
+  );
 
   if (error) {
     console.error('finance_settle_comanda failed:', error);

@@ -61,6 +61,11 @@ const toDateTimeInputValue = (date: Date) => {
     return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 };
 
+const createSettlementKey = (comandaId: string) => {
+    const randomId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `finance-settle-${comandaId}-${randomId}`;
+};
+
 const AccountsReceivable: React.FC = () => {
     const { tenantId } = useAuth();
     const hasTenantContext = Boolean(tenantId);
@@ -80,6 +85,7 @@ const AccountsReceivable: React.FC = () => {
     const [settlementPaymentMethod, setSettlementPaymentMethod] = useState<PaymentMethod>('pix');
     const [settlementPaymentDate, setSettlementPaymentDate] = useState(() => toDateTimeInputValue(new Date()));
     const [settlementNotes, setSettlementNotes] = useState('');
+    const [settlementIdempotencyKey, setSettlementIdempotencyKey] = useState<string | null>(null);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
 
@@ -197,16 +203,21 @@ const AccountsReceivable: React.FC = () => {
         setSettlementPaymentMethod('pix');
         setSettlementPaymentDate(toDateTimeInputValue(new Date()));
         setSettlementNotes('');
+        setSettlementIdempotencyKey(createSettlementKey(entry.id));
     };
 
     const closeSettlementModal = () => {
         if (markingPaid) return;
         setSettlementEntry(null);
         setSettlementNotes('');
+        setSettlementIdempotencyKey(null);
     };
 
     const handleConfirmSettlement = async () => {
-        if (!tenantId || !settlementEntry) return;
+        if (!tenantId || !settlementEntry) {
+            setToast({ message: 'Contexto invalido para baixa financeira. Atualize a pagina e tente novamente.', type: 'error' });
+            return;
+        }
 
         const paidAmount = Number(settlementEntry.amount || 0);
         if (!settlementPaymentMethod || !settlementPaymentDate || paidAmount <= 0) {
@@ -215,20 +226,24 @@ const AccountsReceivable: React.FC = () => {
         }
 
         setMarkingPaid(settlementEntry.id);
+        setToast({ message: 'Registrando baixa financeira...', type: 'info' });
         try {
+            const barberSupabase = getScopedClient('barber');
             await settleCheckoutComanda({
                 comandaId: settlementEntry.id,
                 tenantId,
-                supabase,
+                supabase: barberSupabase,
                 paymentMethod: settlementPaymentMethod,
                 paidAmount,
                 paymentDateReal: new Date(settlementPaymentDate).toISOString(),
                 source: 'accounts_receivable',
                 notes: settlementNotes.trim() || null,
+                idempotencyKey: settlementIdempotencyKey || createSettlementKey(settlementEntry.id),
             });
             setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
             setSettlementEntry(null);
             setSettlementNotes('');
+            setSettlementIdempotencyKey(null);
             await fetchData();
         } catch (error: any) {
             console.error('Erro ao dar baixa via RPC:', error);
@@ -412,10 +427,10 @@ const AccountsReceivable: React.FC = () => {
                         </div>
 
                         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                            <Button variant="secondary" onClick={closeSettlementModal} disabled={Boolean(markingPaid)}>
+                            <Button type="button" variant="secondary" onClick={closeSettlementModal} disabled={Boolean(markingPaid)}>
                                 Cancelar
                             </Button>
-                            <Button onClick={handleConfirmSettlement} disabled={markingPaid === settlementEntry.id}>
+                            <Button type="button" onClick={handleConfirmSettlement} isLoading={markingPaid === settlementEntry.id}>
                                 {markingPaid === settlementEntry.id ? 'Registrando...' : 'Confirmar baixa'}
                             </Button>
                         </div>
