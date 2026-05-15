@@ -50,10 +50,13 @@ DECLARE
   v_auth_tenant_id UUID;
   v_is_super_admin BOOLEAN := false;
   v_access_role TEXT;
+  v_membership_role TEXT;
+  v_has_authorized_membership BOOLEAN := false;
   v_comanda public.comandas%ROWTYPE;
   v_existing_transaction public.transactions%ROWTYPE;
   v_transaction_id UUID;
   v_payment_date_real TIMESTAMPTZ := COALESCE(p_payment_date_real, now());
+  v_settled_at TIMESTAMPTZ := now();
   v_source TEXT := NULLIF(BTRIM(COALESCE(p_source, '')), '');
   v_notes TEXT := NULLIF(BTRIM(COALESCE(p_notes, '')), '');
   v_idempotency_key TEXT := NULLIF(BTRIM(COALESCE(p_idempotency_key, '')), '');
@@ -96,12 +99,31 @@ BEGIN
     LIMIT 1;
   END IF;
 
+  SELECT LOWER(BTRIM(COALESCE(ut.role, '')))
+  INTO v_membership_role
+  FROM public.user_tenants ut
+  WHERE ut.user_id = v_auth_uid
+    AND ut.tenant_id = p_tenant_id
+  ORDER BY COALESCE(ut.is_primary, false) DESC
+  LIMIT 1;
+
+  v_has_authorized_membership := COALESCE(v_membership_role IN (
+    'owner',
+    'admin',
+    'manager',
+    'gerente',
+    'superadmin',
+    'super admin'
+  ), false);
+
   IF NOT COALESCE(v_is_super_admin, false)
-     AND v_access_role NOT IN ('owner', 'admin', 'manager', 'gerente', 'superadmin', 'super admin') THEN
+     AND COALESCE(v_access_role, '') NOT IN ('owner', 'admin', 'manager', 'gerente', 'superadmin', 'super admin')
+     AND NOT COALESCE(v_has_authorized_membership, false) THEN
     RAISE EXCEPTION 'Usuário sem permissão para baixa financeira central';
   END IF;
 
   IF NOT COALESCE(v_is_super_admin, false)
+     AND NOT COALESCE(v_has_authorized_membership, false)
      AND v_auth_tenant_id IS DISTINCT FROM p_tenant_id THEN
     RAISE EXCEPTION 'Tenant não autorizado';
   END IF;
@@ -182,9 +204,9 @@ BEGIN
     closure_mode = COALESCE(NULLIF(closure_mode, ''), 'standard'),
     financial_effect = true,
     payment_date_real = v_payment_date_real,
-    settled_at = now(),
+    settled_at = v_settled_at,
     settled_by_user_id = v_auth_uid,
-    closed_at = COALESCE(closed_at, v_payment_date_real)
+    closed_at = v_payment_date_real
   WHERE id = p_comanda_id
     AND tenant_id = p_tenant_id;
 
@@ -222,9 +244,14 @@ BEGIN
       'source', COALESCE(v_source, 'financeiro'),
       'comanda_id', p_comanda_id,
       'tenant_id', p_tenant_id,
+      'comanda_total', COALESCE(v_comanda.total, 0),
+      'paid_amount', p_paid_amount,
+      'amount_difference', p_paid_amount - COALESCE(v_comanda.total, 0),
       'payment_date_real', v_payment_date_real,
-      'settled_at', now(),
-      'settled_by_user_id', v_auth_uid
+      'settled_at', v_settled_at,
+      'settled_by_user_id', v_auth_uid,
+      'notes', v_notes,
+      'idempotency_key', v_idempotency_key
     )
   )
   RETURNING id INTO v_transaction_id;
