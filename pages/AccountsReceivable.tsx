@@ -84,6 +84,7 @@ const AccountsReceivable: React.FC = () => {
     const [settlementEntry, setSettlementEntry] = useState<AREntry | null>(null);
     const [settlementPaymentMethod, setSettlementPaymentMethod] = useState<PaymentMethod>('pix');
     const [settlementPaymentDate, setSettlementPaymentDate] = useState(() => toDateTimeInputValue(new Date()));
+    const [settlementPaidAmount, setSettlementPaidAmount] = useState('');
     const [settlementNotes, setSettlementNotes] = useState('');
     const [settlementIdempotencyKey, setSettlementIdempotencyKey] = useState<string | null>(null);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
@@ -202,6 +203,7 @@ const AccountsReceivable: React.FC = () => {
         setSettlementEntry(entry);
         setSettlementPaymentMethod('pix');
         setSettlementPaymentDate(toDateTimeInputValue(new Date()));
+        setSettlementPaidAmount(Number(entry.amount || 0).toFixed(2));
         setSettlementNotes('');
         setSettlementIdempotencyKey(createSettlementKey(entry.id));
     };
@@ -209,6 +211,7 @@ const AccountsReceivable: React.FC = () => {
     const closeSettlementModal = () => {
         if (markingPaid) return;
         setSettlementEntry(null);
+        setSettlementPaidAmount('');
         setSettlementNotes('');
         setSettlementIdempotencyKey(null);
     };
@@ -219,7 +222,7 @@ const AccountsReceivable: React.FC = () => {
             return;
         }
 
-        const paidAmount = Number(settlementEntry.amount || 0);
+        const paidAmount = Number(String(settlementPaidAmount).replace(',', '.'));
         if (!settlementPaymentMethod || !settlementPaymentDate || paidAmount <= 0) {
             setToast({ message: 'Informe forma de pagamento, data real e valor valido para dar baixa.', type: 'error' });
             return;
@@ -242,6 +245,7 @@ const AccountsReceivable: React.FC = () => {
             });
             setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
             setSettlementEntry(null);
+            setSettlementPaidAmount('');
             setSettlementNotes('');
             setSettlementIdempotencyKey(null);
             await fetchData();
@@ -381,7 +385,7 @@ const AccountsReceivable: React.FC = () => {
                                 <strong className="text-slate-900 dark:text-white">{settlementEntry.clientName}</strong>
                             </div>
                             <div className="mt-2 flex justify-between gap-4">
-                                <span className="text-slate-500">Valor</span>
+                                <span className="text-slate-500">Valor da comanda</span>
                                 <strong className="text-slate-900 dark:text-white">
                                     {settlementEntry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </strong>
@@ -389,6 +393,23 @@ const AccountsReceivable: React.FC = () => {
                         </div>
 
                         <div className="mt-5 grid gap-4">
+                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                Valor pago
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={settlementPaidAmount}
+                                    onChange={(event) => setSettlementPaidAmount(event.target.value)}
+                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                    placeholder="0,00"
+                                />
+                                <span className="text-xs font-medium text-slate-500">
+                                    Pode ser diferente do total; a diferença fica registrada na auditoria financeira.
+                                </span>
+                            </label>
+
                             <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                 Forma de pagamento
                                 <select
