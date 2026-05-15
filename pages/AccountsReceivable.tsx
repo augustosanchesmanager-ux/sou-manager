@@ -336,6 +336,45 @@ const AccountsReceivable: React.FC = () => {
         };
     }, [openComandas, clubReceivables, pendingReceipts]);
 
+    const clientAccountGroups = useMemo(() => {
+        const groups = new Map<string, {
+            clientId: string;
+            clientName: string;
+            count: number;
+            total: number;
+            lastDate: string;
+        }>();
+
+        openComandas.forEach((comanda) => {
+            const clients = comanda.clients as { name: string } | { name: string }[];
+            const clientName = Array.isArray(clients) ? clients[0]?.name : clients?.name;
+            const groupKey = comanda.client_id || `sem-cliente-${comanda.id}`;
+            const current = groups.get(groupKey);
+            const createdAt = comanda.created_at || new Date().toISOString();
+
+            if (!current) {
+                groups.set(groupKey, {
+                    clientId: groupKey,
+                    clientName: clientName || 'Cliente sem nome',
+                    count: 1,
+                    total: Number(comanda.total || 0),
+                    lastDate: createdAt,
+                });
+                return;
+            }
+
+            current.count += 1;
+            current.total += Number(comanda.total || 0);
+            if (new Date(createdAt).getTime() > new Date(current.lastDate).getTime()) {
+                current.lastDate = createdAt;
+            }
+        });
+
+        return Array.from(groups.values())
+            .filter((group) => group.count > 1)
+            .sort((first, second) => second.total - first.total);
+    }, [openComandas]);
+
     const tabs: { key: ActiveTab; label: string }[] = [
         { key: 'todos', label: 'Todos' },
         { key: 'comandas', label: 'Comandas' },
@@ -558,6 +597,54 @@ const AccountsReceivable: React.FC = () => {
                     </p>
                 </div>
             </div>
+
+            {clientAccountGroups.length > 0 && (
+                <section className="rounded-2xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/5 p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-amber-600" />
+                                <h3 className="text-base font-black text-slate-950 dark:text-white">Conta do cliente</h3>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                Clientes com mais de uma comanda aberta. Transferir comanda para responsavel fica para fase auditada futura.
+                            </p>
+                        </div>
+                        <Button type="button" variant="secondary" onClick={() => setActiveTab('comandas')}>
+                            Ver comandas
+                        </Button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {clientAccountGroups.map((group) => (
+                            <div key={group.clientId} className="rounded-xl border border-amber-200/70 dark:border-amber-500/20 bg-white/90 dark:bg-card-dark/80 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-black text-slate-900 dark:text-white">{group.clientName}</p>
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                                            {group.count} comandas abertas
+                                        </p>
+                                    </div>
+                                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:text-amber-300">
+                                        Revisar
+                                    </span>
+                                </div>
+                                <div className="mt-4 flex items-end justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Total</p>
+                                        <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                                            {group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs font-semibold text-slate-500">
+                                        Ultima: {new Date(group.lastDate).toLocaleDateString('pt-BR')}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
                 {tabs.map(tab => (
