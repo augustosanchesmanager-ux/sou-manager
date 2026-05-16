@@ -395,13 +395,25 @@ const Cashflow: React.FC = () => {
     }, [entries]);
 
     const handleExport = () => {
-        if (entries.length === 0) {
+        if (filteredEntries.length === 0) {
             setToast({ message: 'Nao ha dados para exportar neste periodo.', type: 'info' });
             return;
         }
 
-        const headers = ['Data', 'Descricao', 'Categoria', 'Forma de pagamento', 'Tipo', 'Valor', 'Saldo acumulado'];
-        const rows = entries.map((entry) => [
+        const headers = [
+            'Data',
+            'Descricao',
+            'Categoria',
+            'Forma de pagamento',
+            'Tipo',
+            'Valor',
+            'Saldo acumulado',
+            'Status de reversao',
+            'Valor revertido',
+            'Saldo reversivel',
+            'Origem',
+        ];
+        const rows = filteredEntries.map((entry) => [
             new Date(entry.date).toLocaleDateString('pt-BR'),
             entry.description,
             entry.category,
@@ -409,6 +421,14 @@ const Cashflow: React.FC = () => {
             entry.type,
             entry.value.toFixed(2).replace('.', ','),
             entry.runningBalance.toFixed(2).replace('.', ','),
+            entry.reversalStatus === 'full'
+                ? 'Estornado total'
+                : entry.reversalStatus === 'partial'
+                    ? 'Estornado parcial'
+                    : 'Sem reversao',
+            entry.reversedAmount.toFixed(2).replace('.', ','),
+            entry.reversibleAmount.toFixed(2).replace('.', ','),
+            entry.sourceType || 'Nao informado',
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
