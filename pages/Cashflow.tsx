@@ -36,8 +36,20 @@ interface TransactionRecord {
 
 interface FinancialReversalRecord {
     original_transaction_id: string | null;
+    reversal_transaction_id?: string | null;
+    reversal_type?: string | null;
     amount: number | string | null;
+    reason_type?: string | null;
+    created_at?: string | null;
 }
+
+type CashflowReversalSummary = {
+    reversalTransactionId: string | null;
+    reversalType: string;
+    amount: number;
+    reasonType: string;
+    createdAt: string | null;
+};
 
 type CashflowEntry = EnrichedCashFlowEntry & {
     transactionType: string;
@@ -48,6 +60,7 @@ type CashflowEntry = EnrichedCashFlowEntry & {
     reversedAmount: number;
     reversibleAmount: number;
     reversalStatus: 'none' | 'partial' | 'full';
+    reversals: CashflowReversalSummary[];
 };
 
 type ReversalReason =
@@ -150,11 +163,12 @@ const Cashflow: React.FC = () => {
             const transactions = (data || []) as TransactionRecord[];
             const transactionIds = transactions.map((transaction) => transaction.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
+            const reversalsByTransactionId = new Map<string, CashflowReversalSummary[]>();
 
             if (transactionIds.length > 0) {
                 const { data: reversals, error: reversalsError } = await supabase
                     .from('financial_reversals')
-                    .select('original_transaction_id, amount')
+                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
                     .eq('tenant_id', tenantId)
                     .in('original_transaction_id', transactionIds);
 
@@ -168,6 +182,15 @@ const Cashflow: React.FC = () => {
                             reversal.original_transaction_id,
                             (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
                         );
+                        const currentReversals = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                        currentReversals.push({
+                            reversalTransactionId: reversal.reversal_transaction_id || null,
+                            reversalType: reversal.reversal_type || 'reversal',
+                            amount,
+                            reasonType: reversal.reason_type || 'Sem motivo informado',
+                            createdAt: reversal.created_at || null,
+                        });
+                        reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
                     });
                 }
             }
@@ -176,6 +199,7 @@ const Cashflow: React.FC = () => {
             const mappedEntries: CashflowEntry[] = transactions.map((transaction) => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
+                const reversals = reversalsByTransactionId.get(transaction.id) || [];
                 const reversedAmount = Math.min(value, reversedByTransactionId.get(transaction.id) || 0);
                 const reversibleAmount = Math.max(value - reversedAmount, 0);
                 const reversalStatus = reversedAmount <= 0
@@ -206,6 +230,7 @@ const Cashflow: React.FC = () => {
                     reversedAmount,
                     reversibleAmount,
                     reversalStatus,
+                    reversals,
                 };
             });
 
@@ -804,6 +829,37 @@ const Cashflow: React.FC = () => {
                                 </p>
                             )}
                         </div>
+
+                        {selectedEntry.reversals.length > 0 && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+                                <p className="text-xs font-bold uppercase text-amber-700 dark:text-amber-200">Historico de reversoes</p>
+                                <div className="mt-3 space-y-3">
+                                    {selectedEntry.reversals.map((reversal, index) => (
+                                        <div
+                                            key={`${reversal.reversalTransactionId || selectedEntry.id}-${index}`}
+                                            className="rounded-lg border border-amber-200 bg-white/70 p-3 text-sm dark:border-amber-500/20 dark:bg-black/10"
+                                        >
+                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="font-bold text-slate-900 dark:text-white">
+                                                    {reversal.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </p>
+                                                <p className="text-xs font-semibold text-slate-500">
+                                                    {reversal.createdAt ? new Date(reversal.createdAt).toLocaleString('pt-BR') : 'Data nao informada'}
+                                                </p>
+                                            </div>
+                                            <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                                                Tipo: {reversal.reversalType} | Motivo: {reversal.reasonType}
+                                            </p>
+                                            {reversal.reversalTransactionId && (
+                                                <p className="mt-1 text-[11px] text-slate-500">
+                                                    Transaction reversa: {reversal.reversalTransactionId}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </Modal>
