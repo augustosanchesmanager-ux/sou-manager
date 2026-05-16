@@ -4,3 +4,7 @@ export { KPIGrid } from './KPIGrid';
 export { AppointmentTimeline } from './AppointmentTimeline';
 export { QuickAppointmentWidget } from './QuickAppointmentWidget';
 export { DashboardWidgets } from './DashboardWidgets';
+export { TodayPendings } from './TodayPendings';
+export { NextAppointmentCard } from './NextAppointmentCard';
+export { TodayCashCard } from './TodayCashCard';
+export { ClientBaseCard } from './ClientBaseCard';

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type KPIType = 'revenue' | 'appointments' | 'clients' | 'ticket';
+export type KPIType = 'revenue' | 'appointments' | 'clients' | 'ticket' | 'comandas' | 'cash';
 
 interface KPICardProps {
   type: KPIType;
@@ -17,6 +17,8 @@ const KPI_CONFIG: Record<KPIType, { icon: string; color: string }> = {
   appointments: { icon: 'calendar_month', color: 'primary' },
   clients: { icon: 'group', color: 'blue' },
   ticket: { icon: 'receipt_long', color: 'amber' },
+  comandas: { icon: 'receipt_long', color: 'amber' },
+  cash: { icon: 'account_balance_wallet', color: 'emerald' },
 };
 
 const COLOR_CLASSES: Record<string, { bg: string; text: string; border: string; progress: string }> = {

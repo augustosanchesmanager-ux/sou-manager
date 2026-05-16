@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   AppointmentDetailModal,
   NewClientModal,
+  QuickScheduleModal,
   useDashboardActions,
   useDashboardData,
   type DashboardAppointment,
@@ -16,8 +17,10 @@ import {
   DashboardHeader,
   KPIGrid,
   AppointmentTimeline,
-  QuickAppointmentWidget,
   DashboardWidgets,
+  TodayPendings,
+  NextAppointmentCard,
+  TodayCashCard,
 } from '../components/dashboard';
 
 type PeriodOption = 'today' | 'yesterday' | 'week' | 'month';
@@ -77,6 +80,7 @@ const Dashboard: React.FC = () => {
   });
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [showQuickScheduleModal, setShowQuickScheduleModal] = useState(false);
   const [newClientForm, setNewClientForm] = useState<NewClientFormState>({ name: '', phone: '', email: '' });
   const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -137,6 +141,7 @@ const Dashboard: React.FC = () => {
         clientSearch: '',
         selectedClientId: '',
       }));
+      setShowQuickScheduleModal(false);
       setToast({ message: 'Agendamento confirmado!', type: 'success' });
       await reload();
     } catch (nextError: any) {
@@ -164,6 +169,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const pendingAppointmentsCount = useMemo(
+    () => data.appointments.filter((apt) => apt.status === 'pending').length,
+    [data.appointments],
+  );
+
   const metricValues = {
     revenue: data.metrics.revenue,
     revenuePrevious: data.metrics.revenuePrevious,
@@ -175,6 +185,7 @@ const Dashboard: React.FC = () => {
     previousAvgTicket: data.metrics.avgTicketPrevious,
     revenueGoal: data.metrics.revenueGoal,
     appointmentsGoal: data.metrics.appointmentsGoal,
+    openComandasCount: data.openComandasCount ?? 0,
   };
 
   const returningClients = data.returningClients;
@@ -195,40 +206,46 @@ const Dashboard: React.FC = () => {
 
       <KPIGrid metrics={metricValues} period={period} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <QuickAppointmentWidget
-            formData={formData}
-            setFormData={setFormData}
-            filteredClients={filteredClients}
-            showClientSuggestions={showClientSuggestions}
-            setShowClientSuggestions={setShowClientSuggestions}
-            servicesList={data.servicesList}
-            staffList={data.staffList}
-            newClientForm={newClientForm}
-            setNewClientForm={setNewClientForm}
-            onOpenNewClientModal={() => setShowNewClientModal(true)}
-            onSubmit={handleConfirmAppointment}
-            isSubmitting={busyState.creatingQuickAppointment}
+      {/* Row 2: Operation */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column */}
+        <div className="space-y-4">
+          <AppointmentTimeline
+            appointments={data.appointments}
+            loading={loading}
+            onSelectAppointment={(apt) => {
+              setSelectedAppointment(apt);
+              setIsDetailModalOpen(true);
+            }}
+            onNewAppointment={() => setShowQuickScheduleModal(true)}
+          />
+          <NextAppointmentCard
+            appointments={data.appointments}
+            loading={loading}
+            onNewAppointment={() => setShowQuickScheduleModal(true)}
           />
         </div>
 
-        <AppointmentTimeline
-          appointments={data.appointments}
-          loading={loading}
-          onSelectAppointment={(apt) => {
-            setSelectedAppointment(apt);
-            setIsDetailModalOpen(true);
-          }}
-        />
+        {/* Right column */}
+        <div className="space-y-4">
+          <TodayPendings
+            openComandasCount={data.openComandasCount ?? 0}
+            pendingAppointmentsCount={pendingAppointmentsCount}
+            returningClientsCount={returningClients.length}
+            loading={loading}
+          />
+          <TodayCashCard loading={loading} />
+        </div>
       </div>
 
+      {/* Row 3: Relationship */}
       <DashboardWidgets
         returningClients={returningClients}
         birthdaysToday={[]}
         birthdaysTomorrow={[]}
         teamStatus={teamStatus}
         loading={loading}
+        totalClients={data.clients.length}
       />
 
       <AppointmentDetailModal
@@ -252,6 +269,25 @@ const Dashboard: React.FC = () => {
         onClose={() => setShowNewClientModal(false)}
         onSubmit={handleCreateNewClient}
         isSubmitting={busyState.creatingClient}
+      />
+
+      <QuickScheduleModal
+        isOpen={showQuickScheduleModal}
+        onClose={() => setShowQuickScheduleModal(false)}
+        formData={formData}
+        setFormData={setFormData}
+        filteredClients={filteredClients}
+        showClientSuggestions={showClientSuggestions}
+        setShowClientSuggestions={setShowClientSuggestions}
+        servicesList={data.servicesList}
+        staffList={data.staffList}
+        newClientForm={newClientForm}
+        setNewClientForm={setNewClientForm}
+        onOpenNewClientModal={() => setShowNewClientModal(true)}
+        onSubmit={handleConfirmAppointment}
+        onCreateClient={handleCreateNewClient}
+        isSubmittingAppointment={busyState.creatingQuickAppointment}
+        isSubmittingClient={busyState.creatingClient}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

@@ -18,6 +18,7 @@ type ComandaStatus = 'open' | 'paid' | 'blocked' | 'cancelled';
 
 interface ComandaRow {
     id: string;
+    appointment_id?: string | null;
     created_at: string;
     closed_at?: string | null;
     status: ComandaStatus;
@@ -50,6 +51,10 @@ interface CommissionBaseChoice {
 }
 
 interface CommissionAuditLine {
+    commission_date: string;
+    appointment_start_time: string;
+    comanda_created_at: string;
+    comanda_closed_at: string;
     comanda_id: string;
     client_name: string;
     comanda_status: string;
@@ -285,11 +290,23 @@ const isSharedCommissionItem = (
 ) => {
     if (participants.length === 0) return false;
     if (participants.length > 1) return true;
+
     const [participant] = participants;
     const mainProfessionalId = item.staff_id || comanda.staff_id || null;
-    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === mainProfessionalId;
-    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizePercentage(participant.payout_value) === 1;
-    return !isPrimaryMainProfessional || !isFullPercentagePayout;
+    const participantStaffId = getParticipantStaffId(participant);
+
+    if (!mainProfessionalId || !participantStaffId) {
+        return true;
+    }
+
+    return participantStaffId !== mainProfessionalId;
+};
+
+const getCommissionDate = (comanda: ComandaRow, appointmentsById: Record<string, { start_time: string }>): string => {
+    if (comanda.appointment_id && appointmentsById[comanda.appointment_id]?.start_time) {
+        return appointmentsById[comanda.appointment_id].start_time;
+    }
+    return comanda.created_at;
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
@@ -331,10 +348,8 @@ const Commissions: React.FC = () => {
                 .from('comandas')
                 .select('*')
                 .eq('tenant_id', tenantId)
-                .in('status', ['open', 'paid', 'blocked', 'cancelled'])
-                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
-                .gte('created_at', startOfRange.toISOString())
-                .lte('created_at', endOfRange.toISOString()),
+                .in('status', ['paid', 'cancelled'])
+                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false'),
         ]);
 
         if (staffRes.error) throw staffRes.error;
@@ -348,6 +363,12 @@ const Commissions: React.FC = () => {
         const comandas = (comandasRes.data || []) as ComandaRow[];
         const comandaIds = comandas.map((comanda) => comanda.id);
         const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+
+        const appointmentIds = Array.from(new Set(
+            comandas
+                .map((c) => c.appointment_id)
+                .filter((id): id is string => Boolean(id))
+        ));
 
         const [itemsRes, clientsRes] = await Promise.all([
             comandaIds.length > 0
@@ -368,6 +389,15 @@ const Commissions: React.FC = () => {
 
         if (itemsRes.error) throw itemsRes.error;
         if (clientsRes.error) throw clientsRes.error;
+
+        const appointmentsResult = appointmentIds.length > 0
+            ? await client.from('appointments').select('id, start_time').in('id', appointmentIds)
+            : { data: [] as { id: string; start_time: string }[], error: null };
+
+        const appointmentsById = ((appointmentsResult.data) || []).reduce((acc, a) => {
+            acc[a.id] = a;
+            return acc;
+        }, {} as Record<string, { start_time: string }>);
 
         const rawServiceItems = ((itemsRes.data || []) as any[]).filter(isServiceItem);
         const serviceItems = Array.from(
@@ -404,6 +434,10 @@ const Commissions: React.FC = () => {
         return serviceItems.flatMap((item): CommissionLine[] => {
             const comanda = comandaById[item.comanda_id];
             if (!comanda) return [];
+
+            const commissionDate = getCommissionDate(comanda, appointmentsById);
+            const commissionDateObj = new Date(commissionDate);
+            if (commissionDateObj < startOfRange || commissionDateObj > endOfRange) return [];
 
             const itemValue = getComandaItemValue(item);
             const baseChoice = getCommissionBaseChoice(item);
@@ -467,7 +501,7 @@ const Commissions: React.FC = () => {
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
                         comandaItemId: item.id,
-                        createdAt: comanda.created_at,
+                        createdAt: getCommissionDate(comanda, appointmentsById),
                         clientName,
                         serviceName: item.product_name || 'Servico',
                         quantity,
@@ -495,6 +529,12 @@ const Commissions: React.FC = () => {
                         commissionStatus: getCommissionStatus(comanda.status),
                         paymentMethod: getPaymentMethodLabel(comanda),
                         audit: {
+                            commission_date: commissionDate,
+                            appointment_start_time: comanda.appointment_id && appointmentsById[comanda.appointment_id]?.start_time
+                                ? appointmentsById[comanda.appointment_id].start_time
+                                : '',
+                            comanda_created_at: comanda.created_at,
+                            comanda_closed_at: comanda.closed_at || '',
                             comanda_id: comanda.id,
                             client_name: clientName,
                             comanda_status: comanda.status,
@@ -653,7 +693,10 @@ const Commissions: React.FC = () => {
         try {
             const lines = commissionLines.length > 0 ? commissionLines : await loadCommissionLines();
             const headers = [
-                'Data',
+                'Data da Comissao',
+                'Data do Atendimento',
+                'Data Criacao Comanda',
+                'Data Baixa Comanda',
                 'Cliente',
                 'ID da comanda',
                 'Servico',
@@ -677,6 +720,9 @@ const Commissions: React.FC = () => {
 
             const rowsForExport = lines.map((line) => [
                 escapeCSV(new Date(line.createdAt).toLocaleDateString('pt-BR')),
+                escapeCSV(line.audit.appointment_start_time ? new Date(line.audit.appointment_start_time).toLocaleDateString('pt-BR') : '-'),
+                escapeCSV(new Date(line.audit.comanda_created_at).toLocaleDateString('pt-BR')),
+                escapeCSV(line.audit.comanda_closed_at ? new Date(line.audit.comanda_closed_at).toLocaleDateString('pt-BR') : '-'),
                 escapeCSV(normalizeClientName(line.clientName)),
                 escapeCSV(line.comandaId),
                 escapeCSV(line.serviceName),
@@ -724,6 +770,10 @@ const Commissions: React.FC = () => {
         try {
             const lines = commissionLines.length > 0 ? commissionLines : await loadCommissionLines();
             const headers: Array<keyof CommissionAuditLine> = [
+                'commission_date',
+                'appointment_start_time',
+                'comanda_created_at',
+                'comanda_closed_at',
                 'comanda_id',
                 'client_name',
                 'comanda_status',
@@ -984,7 +1034,8 @@ const Commissions: React.FC = () => {
                                 <table className="w-full min-w-[1180px]">
                                     <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data Com.</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data Atend.</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Cliente</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Servico</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Qtd</th>
@@ -997,6 +1048,11 @@ const Commissions: React.FC = () => {
                                         {selectedRow.items.map((item) => (
                                             <tr key={item.id}>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{new Date(item.createdAt).toLocaleDateString('pt-BR')}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                    {item.audit.appointment_start_time
+                                                        ? new Date(item.audit.appointment_start_time).toLocaleDateString('pt-BR')
+                                                        : '-'}
+                                                </td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">
                                                     <div>{item.serviceName}</div>
