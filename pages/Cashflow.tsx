@@ -34,12 +34,20 @@ interface TransactionRecord {
     source_id?: string | null;
 }
 
+interface FinancialReversalRecord {
+    original_transaction_id: string | null;
+    amount: number | string | null;
+}
+
 type CashflowEntry = EnrichedCashFlowEntry & {
     transactionType: string;
     transactionStatus: string | null;
     sourceType: string | null;
     sourceId: string | null;
     tenantId: string | null;
+    reversedAmount: number;
+    reversibleAmount: number;
+    reversalStatus: 'none' | 'partial' | 'full';
 };
 
 type ReversalReason =
@@ -139,10 +147,42 @@ const Cashflow: React.FC = () => {
 
             if (error) throw error;
 
+            const transactions = (data || []) as TransactionRecord[];
+            const transactionIds = transactions.map((transaction) => transaction.id).filter(Boolean);
+            const reversedByTransactionId = new Map<string, number>();
+
+            if (transactionIds.length > 0) {
+                const { data: reversals, error: reversalsError } = await supabase
+                    .from('financial_reversals')
+                    .select('original_transaction_id, amount')
+                    .eq('tenant_id', tenantId)
+                    .in('original_transaction_id', transactionIds);
+
+                if (reversalsError) {
+                    console.warn('Nao foi possivel carregar reversoes financeiras:', reversalsError);
+                } else {
+                    ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
+                        if (!reversal.original_transaction_id) return;
+                        const amount = Math.abs(Number(reversal.amount || 0));
+                        reversedByTransactionId.set(
+                            reversal.original_transaction_id,
+                            (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                        );
+                    });
+                }
+            }
+
             let runningBalance = 0;
-            const mappedEntries: CashflowEntry[] = ((data || []) as TransactionRecord[]).map((transaction) => {
+            const mappedEntries: CashflowEntry[] = transactions.map((transaction) => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
+                const reversedAmount = Math.min(value, reversedByTransactionId.get(transaction.id) || 0);
+                const reversibleAmount = Math.max(value - reversedAmount, 0);
+                const reversalStatus = reversedAmount <= 0
+                    ? 'none'
+                    : reversibleAmount <= 0
+                        ? 'full'
+                        : 'partial';
                 runningBalance += type === 'entrada' ? value : -value;
 
                 return {
@@ -163,6 +203,9 @@ const Cashflow: React.FC = () => {
                     sourceType: transaction.source_type || null,
                     sourceId: transaction.source_id || null,
                     tenantId: transaction.tenant_id || tenantId,
+                    reversedAmount,
+                    reversibleAmount,
+                    reversalStatus,
                 };
             });
 
@@ -205,13 +248,13 @@ const Cashflow: React.FC = () => {
         && entry.sourceType === 'comanda'
         && Boolean(entry.tenantId)
         && Boolean(entry.id)
-        && entry.value > 0
+        && entry.reversibleAmount > 0
     );
 
     const openReversalModal = (entry: CashflowEntry) => {
         setReversalEntry(entry);
         setReversalType('full_refund');
-        setReversalAmount(entry.value.toFixed(2));
+        setReversalAmount(entry.reversibleAmount.toFixed(2));
         setRefundMethod(normalizeRefundMethod(entry.paymentMethod));
         setReversalDate(toDateTimeInputValue(new Date()));
         setReasonType('devolucao_ao_cliente');
@@ -238,7 +281,7 @@ const Cashflow: React.FC = () => {
         const requiresRefundMethod = reversalType === 'full_refund' || reversalType === 'partial_refund';
         const parsedReversalDate = new Date(reversalDate);
 
-        if (!Number.isFinite(amount) || amount <= 0 || amount > reversalEntry.value) {
+        if (!Number.isFinite(amount) || amount <= 0 || amount > reversalEntry.reversibleAmount) {
             setToast({ message: 'Informe um valor de reversao valido.', type: 'error' });
             return;
         }
@@ -546,6 +589,11 @@ const Cashflow: React.FC = () => {
                                             </td>
                                             <td className={`px-5 py-4 text-sm font-bold ${entry.type === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                                 {entry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                {entry.reversalStatus !== 'none' && (
+                                                    <span className="mt-1 block text-[11px] font-bold text-amber-600 dark:text-amber-300">
+                                                        {entry.reversalStatus === 'full' ? 'Estornado total' : 'Estornado parcial'}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-5 py-4 text-sm font-semibold text-slate-900 dark:text-white">
                                                 {entry.runningBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -601,6 +649,14 @@ const Cashflow: React.FC = () => {
                                 <p className="mt-2 text-lg font-black text-emerald-600 dark:text-emerald-400">
                                     {reversalEntry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
+                                {reversalEntry.reversedAmount > 0 && (
+                                    <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                                        Ja revertido: {reversalEntry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </p>
+                                )}
+                                <p className="mt-1 text-xs font-semibold text-slate-500">
+                                    Saldo reversivel: {reversalEntry.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
                             </div>
                         </div>
 
@@ -623,7 +679,7 @@ const Cashflow: React.FC = () => {
                                 <input
                                     type="number"
                                     min="0.01"
-                                    max={reversalEntry.value}
+                                    max={reversalEntry.reversibleAmount}
                                     step="0.01"
                                     value={reversalAmount}
                                     onChange={(event) => setReversalAmount(event.target.value)}
@@ -742,6 +798,11 @@ const Cashflow: React.FC = () => {
                             <p className={`mt-2 text-2xl font-black ${selectedEntry.type === 'entrada' ? 'text-emerald-500' : 'text-rose-500'}`}>
                                 {selectedEntry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </p>
+                            {selectedEntry.reversalStatus !== 'none' && (
+                                <p className="mt-2 text-sm font-semibold text-amber-600 dark:text-amber-300">
+                                    Revertido: {selectedEntry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
+                            )}
                         </div>
                     </div>
                 )}
