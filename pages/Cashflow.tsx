@@ -412,6 +412,7 @@ const Cashflow: React.FC = () => {
             'Valor revertido',
             'Saldo reversivel',
             'Origem',
+            'Historico de reversoes',
         ];
         const rows = filteredEntries.map((entry) => [
             new Date(entry.date).toLocaleDateString('pt-BR'),
@@ -429,6 +430,16 @@ const Cashflow: React.FC = () => {
             entry.reversedAmount.toFixed(2).replace('.', ','),
             entry.reversibleAmount.toFixed(2).replace('.', ','),
             entry.sourceType || 'Nao informado',
+            entry.reversals.length > 0
+                ? entry.reversals
+                    .map((reversal) => {
+                        const date = reversal.createdAt
+                            ? new Date(reversal.createdAt).toLocaleDateString('pt-BR')
+                            : 'data nao informada';
+                        return `${reversal.amount.toFixed(2).replace('.', ',')} em ${date} (${reversal.reversalType} / ${reversal.reasonType})`;
+                    })
+                    .join(' | ')
+                : 'Sem reversoes',
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
