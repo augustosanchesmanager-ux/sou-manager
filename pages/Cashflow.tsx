@@ -51,6 +51,10 @@ type CashflowReversalSummary = {
     createdAt: string | null;
 };
 
+type CashflowReversalSource = CashflowReversalSummary & {
+    originalTransactionId: string | null;
+};
+
 type CashflowEntry = EnrichedCashFlowEntry & {
     transactionType: string;
     transactionStatus: string | null;
@@ -61,6 +65,8 @@ type CashflowEntry = EnrichedCashFlowEntry & {
     reversibleAmount: number;
     reversalStatus: 'none' | 'partial' | 'full';
     reversals: CashflowReversalSummary[];
+    isReversalTransaction: boolean;
+    reversalSource: CashflowReversalSource | null;
 };
 
 type ReversalReason =
@@ -164,6 +170,7 @@ const Cashflow: React.FC = () => {
             const transactionIds = transactions.map((transaction) => transaction.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, CashflowReversalSummary[]>();
+            const reversalSourceByTransactionId = new Map<string, CashflowReversalSource>();
 
             if (transactionIds.length > 0) {
                 const { data: reversals, error: reversalsError } = await supabase
@@ -193,6 +200,28 @@ const Cashflow: React.FC = () => {
                         reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
                     });
                 }
+
+                const { data: reversalSources, error: reversalSourcesError } = await supabase
+                    .from('financial_reversals')
+                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+                    .eq('tenant_id', tenantId)
+                    .in('reversal_transaction_id', transactionIds);
+
+                if (reversalSourcesError) {
+                    console.warn('Nao foi possivel carregar vinculos de movimentacoes reversas:', reversalSourcesError);
+                } else {
+                    ((reversalSources || []) as FinancialReversalRecord[]).forEach((reversal) => {
+                        if (!reversal.reversal_transaction_id) return;
+                        reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
+                            originalTransactionId: reversal.original_transaction_id || null,
+                            reversalTransactionId: reversal.reversal_transaction_id,
+                            reversalType: reversal.reversal_type || 'reversal',
+                            amount: Math.abs(Number(reversal.amount || 0)),
+                            reasonType: reversal.reason_type || 'Sem motivo informado',
+                            createdAt: reversal.created_at || null,
+                        });
+                    });
+                }
             }
 
             let runningBalance = 0;
@@ -200,6 +229,7 @@ const Cashflow: React.FC = () => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
                 const reversals = reversalsByTransactionId.get(transaction.id) || [];
+                const reversalSource = reversalSourceByTransactionId.get(transaction.id) || null;
                 const reversedAmount = Math.min(value, reversedByTransactionId.get(transaction.id) || 0);
                 const reversibleAmount = Math.max(value - reversedAmount, 0);
                 const reversalStatus = reversedAmount <= 0
@@ -231,6 +261,8 @@ const Cashflow: React.FC = () => {
                     reversibleAmount,
                     reversalStatus,
                     reversals,
+                    isReversalTransaction: Boolean(reversalSource),
+                    reversalSource,
                 };
             });
 
@@ -413,6 +445,8 @@ const Cashflow: React.FC = () => {
             'Saldo reversivel',
             'Origem',
             'Historico de reversoes',
+            'Movimentacao reversa',
+            'Transaction original',
         ];
         const rows = filteredEntries.map((entry) => [
             new Date(entry.date).toLocaleDateString('pt-BR'),
@@ -440,6 +474,8 @@ const Cashflow: React.FC = () => {
                     })
                     .join(' | ')
                 : 'Sem reversoes',
+            entry.isReversalTransaction ? 'Sim' : 'Nao',
+            entry.reversalSource?.originalTransactionId || '',
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
@@ -648,6 +684,11 @@ const Cashflow: React.FC = () => {
                                                 {entry.reversalStatus !== 'none' && (
                                                     <span className="mt-1 block text-[11px] font-bold text-amber-600 dark:text-amber-300">
                                                         {entry.reversalStatus === 'full' ? 'Estornado total' : 'Estornado parcial'}
+                                                    </span>
+                                                )}
+                                                {entry.isReversalTransaction && (
+                                                    <span className="mt-1 block text-[11px] font-bold text-rose-600 dark:text-rose-300">
+                                                        Movimentacao reversa auditada
                                                     </span>
                                                 )}
                                             </td>
@@ -860,6 +901,21 @@ const Cashflow: React.FC = () => {
                                 </p>
                             )}
                         </div>
+
+                        {selectedEntry.reversalSource && (
+                            <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
+                                <p className="text-xs font-bold uppercase text-rose-700 dark:text-rose-200">Movimentacao reversa auditada</p>
+                                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                                    Esta saida preserva a transaction original e registra a correcao financeira.
+                                </p>
+                                <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+                                    <p>Original: {selectedEntry.reversalSource.originalTransactionId || 'Nao informado'}</p>
+                                    <p>Tipo: {selectedEntry.reversalSource.reversalType}</p>
+                                    <p>Motivo: {selectedEntry.reversalSource.reasonType}</p>
+                                    <p>Data: {selectedEntry.reversalSource.createdAt ? new Date(selectedEntry.reversalSource.createdAt).toLocaleString('pt-BR') : 'Nao informada'}</p>
+                                </div>
+                            </div>
+                        )}
 
                         {selectedEntry.reversals.length > 0 && (
                             <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
