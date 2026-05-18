@@ -30,6 +30,30 @@ interface TransactionRecord {
     payment_method: string | null;
     date: string | null;
     created_at?: string | null;
+    source_type?: string | null;
+    source_id?: string | null;
+}
+
+interface FinancialReversalRecord {
+    original_transaction_id: string | null;
+    reversal_transaction_id?: string | null;
+    reversal_type?: string | null;
+    amount: number | string | null;
+    reason_type?: string | null;
+    created_at?: string | null;
+}
+
+type CashClosingEntry = EnrichedCashFlowEntry & {
+    sourceType: string | null;
+    sourceId: string | null;
+    isReversalTransaction: boolean;
+    reversalSource: {
+        originalTransactionId: string | null;
+        reversalType: string;
+        reasonType: string;
+        amount: number;
+        createdAt: string | null;
+    } | null;
 }
 
 interface AppointmentRecord {
@@ -68,7 +92,7 @@ const CashClosingPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    const [entries, setEntries] = useState<EnrichedCashFlowEntry[]>([]);
+    const [entries, setEntries] = useState<CashClosingEntry[]>([]);
     const [showSummary, setShowSummary] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
@@ -110,7 +134,7 @@ const CashClosingPage: React.FC = () => {
             ] = await Promise.all([
                 supabase
                     .from('transactions')
-                    .select('id, type, category, amount, description, payment_method, date, created_at')
+                    .select('id, type, category, amount, description, payment_method, date, created_at, source_type, source_id')
                     .eq('tenant_id', tenantId)
                     .gte('date', start)
                     .lte('date', end)
@@ -143,9 +167,36 @@ const CashClosingPage: React.FC = () => {
             if (transactionsResult.error) throw transactionsResult.error;
 
             const txData = (transactionsResult.data || []) as TransactionRecord[];
-            const mappedEntries: EnrichedCashFlowEntry[] = txData.map(transaction => {
+            const transactionIds = txData.map((transaction) => transaction.id).filter(Boolean);
+            const reversalSourceByTransactionId = new Map<string, CashClosingEntry['reversalSource']>();
+
+            if (transactionIds.length > 0) {
+                const { data: reversalSources, error: reversalSourcesError } = await supabase
+                    .from('financial_reversals')
+                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+                    .eq('tenant_id', tenantId)
+                    .in('reversal_transaction_id', transactionIds);
+
+                if (reversalSourcesError) {
+                    console.warn('Nao foi possivel carregar reversoes da conferencia de caixa:', reversalSourcesError);
+                } else {
+                    ((reversalSources || []) as FinancialReversalRecord[]).forEach((reversal) => {
+                        if (!reversal.reversal_transaction_id) return;
+                        reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
+                            originalTransactionId: reversal.original_transaction_id || null,
+                            reversalType: reversal.reversal_type || 'reversal',
+                            reasonType: reversal.reason_type || 'Sem motivo informado',
+                            amount: Math.abs(Number(reversal.amount || 0)),
+                            createdAt: reversal.created_at || null,
+                        });
+                    });
+                }
+            }
+
+            const mappedEntries: CashClosingEntry[] = txData.map(transaction => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
+                const reversalSource = reversalSourceByTransactionId.get(transaction.id) || null;
                 return {
                     id: transaction.id,
                     date: transaction.date || transaction.created_at || new Date().toISOString(),
@@ -159,6 +210,10 @@ const CashClosingPage: React.FC = () => {
                     status: 'realizado',
                     value,
                     runningBalance: 0,
+                    sourceType: transaction.source_type || null,
+                    sourceId: transaction.source_id || null,
+                    isReversalTransaction: Boolean(reversalSource),
+                    reversalSource,
                 };
             });
             setEntries(mappedEntries);
@@ -216,6 +271,10 @@ const CashClosingPage: React.FC = () => {
     const totalSaidas = entries
         .filter(e => e.type === 'saida')
         .reduce((sum, e) => sum + e.value, 0);
+    const reversalEntries = entries.filter(e => e.isReversalTransaction);
+    const totalReversals = reversalEntries.reduce((sum, e) => sum + e.value, 0);
+    const reversalCount = reversalEntries.length;
+    const regularSaidas = Math.max(totalSaidas - totalReversals, 0);
     const saldoAtual = totalEntradas - totalSaidas;
     const entradasCount = entries.filter(e => e.type === 'entrada').length;
     const saidasCount = entries.filter(e => e.type === 'saida').length;
@@ -309,6 +368,9 @@ const CashClosingPage: React.FC = () => {
                         entradas_count: entradasCount,
                         saidas: totalSaidas,
                         saidas_count: saidasCount,
+                        saidas_operacionais: regularSaidas,
+                        estornos_devolucoes: totalReversals,
+                        estornos_devolucoes_count: reversalCount,
                         saldo: saldoAtual,
                         payment_methods: paymentMethodBreakdown,
                     }),
@@ -357,6 +419,7 @@ const CashClosingPage: React.FC = () => {
                                 data: filterDate,
                                 entradas: totalEntradas,
                                 saidas: totalSaidas,
+                                estornos_devolucoes: totalReversals,
                                 saldo: saldoAtual,
                                 comandas_abertas: openComandasCount,
                                 total_comandas_abertas: openComandasTotal,
@@ -396,13 +459,13 @@ const CashClosingPage: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 h-32 animate-pulse" />
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FinancialSummaryCard
                         title="Entradas"
                         value={totalEntradas}
@@ -420,6 +483,15 @@ const CashClosingPage: React.FC = () => {
                         tone="negative"
                         helperText="Despesas do dia"
                         icon={<ArrowDownCircle size={18} />}
+                    />
+                    <FinancialSummaryCard
+                        title="Estornos / Devolucoes"
+                        value={totalReversals}
+                        changeText={`${reversalCount} reversao(oes)`}
+                        trend="down"
+                        tone={totalReversals > 0 ? 'negative' : 'neutral'}
+                        helperText="Saidas reversas auditadas"
+                        icon={<RotateCcw size={18} />}
                     />
                     <FinancialSummaryCard
                         title="Saldo Operacional"
@@ -521,7 +593,7 @@ const CashClosingPage: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                     <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 p-4">
                         <p className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400 mb-1">Total Entradas</p>
                         <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
@@ -535,6 +607,13 @@ const CashClosingPage: React.FC = () => {
                             {totalSaidas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </p>
                         <p className="text-xs text-rose-600/70 dark:text-rose-400/70 mt-1">{saidasCount} lancamentos</p>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 p-4">
+                        <p className="text-xs font-black uppercase text-amber-600 dark:text-amber-400 mb-1">Estornos / Devolucoes</p>
+                        <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                            {totalReversals.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                        <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">{reversalCount} movimentacoes reversas</p>
                     </div>
                 </div>
 
@@ -572,7 +651,7 @@ const CashClosingPage: React.FC = () => {
                 maxWidth="lg"
             >
                 <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 p-4 text-center">
                             <p className="text-xs font-black uppercase text-emerald-600 mb-1">Entradas</p>
                             <p className="text-xl font-black text-emerald-600">
@@ -587,6 +666,13 @@ const CashClosingPage: React.FC = () => {
                             </p>
                             <p className="text-[10px] text-rose-600/70 mt-1">{saidasCount} registros</p>
                         </div>
+                        <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 p-4 text-center">
+                            <p className="text-xs font-black uppercase text-amber-600 mb-1">Estornos / Devolucoes</p>
+                            <p className="text-xl font-black text-amber-600">
+                                {totalReversals.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                            <p className="text-[10px] text-amber-600/70 mt-1">{reversalCount} registros</p>
+                        </div>
                     </div>
 
                     <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4 text-center">
@@ -594,7 +680,39 @@ const CashClosingPage: React.FC = () => {
                         <p className={`text-2xl font-black ${saldoAtual >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {saldoAtual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </p>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                            Saidas operacionais: {regularSaidas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
                     </div>
+
+                    {reversalEntries.length > 0 && (
+                        <div className="border-t border-slate-200 dark:border-border-dark pt-4">
+                            <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Estornos e devolucoes auditadas</h4>
+                            <div className="space-y-2">
+                                {reversalEntries.map((entry) => (
+                                    <div
+                                        key={entry.id}
+                                        className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10"
+                                    >
+                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{entry.description}</p>
+                                                <p className="text-xs text-slate-500">
+                                                    {entry.reversalSource?.reversalType || 'reversal'} | {entry.reversalSource?.reasonType || 'Sem motivo informado'}
+                                                </p>
+                                            </div>
+                                            <p className="text-sm font-black text-amber-700 dark:text-amber-300">
+                                                -{entry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </p>
+                                        </div>
+                                        <p className="mt-2 text-[11px] text-slate-500">
+                                            Original: {entry.reversalSource?.originalTransactionId || 'Nao informado'} | Forma: {entry.paymentMethod}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="border-t border-slate-200 dark:border-border-dark pt-4">
                         <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Agenda do Dia</h4>
