@@ -39,10 +39,31 @@ interface ComandaItemType {
 
 interface ComandaSidebarProps {
     comanda: ComandaItemType | null;
+    financialHistory?: ComandaFinancialHistory | null;
     onClose: () => void;
     onCancel: () => void;
     onPrint: () => void;
     onCheckout: () => void;
+}
+
+interface ComandaFinancialReversal {
+    reversalTransactionId: string | null;
+    reversalType: string;
+    amount: number;
+    reasonType: string;
+    createdAt: string | null;
+}
+
+interface ComandaFinancialHistory {
+    transactionId: string;
+    amount: number;
+    paymentMethod: string;
+    date: string | null;
+    status: string | null;
+    reversedAmount: number;
+    reversibleAmount: number;
+    reversalStatus: 'none' | 'partial' | 'full';
+    reversals: ComandaFinancialReversal[];
 }
 
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
@@ -107,6 +128,7 @@ const getConsumptionType = (comanda: ComandaItemType): string => {
 
 const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     comanda,
+    financialHistory,
     onClose,
     onCancel,
     onPrint,
@@ -246,6 +268,72 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                     </div>
                 </div>
 
+                {financialHistory && (
+                    <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Historico financeiro</p>
+                                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                                    {formatCurrency(financialHistory.amount)}
+                                </p>
+                            </div>
+                            <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                                financialHistory.reversalStatus === 'full'
+                                    ? 'border-rose-500/20 bg-rose-500/10 text-rose-500'
+                                    : financialHistory.reversalStatus === 'partial'
+                                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-500'
+                                    : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
+                            }`}>
+                                {financialHistory.reversalStatus === 'full'
+                                    ? 'Estornado total'
+                                    : financialHistory.reversalStatus === 'partial'
+                                    ? 'Estornado parcial'
+                                    : 'Baixa registrada'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                                <p className="font-semibold text-slate-500 dark:text-slate-400">Forma</p>
+                                <p className="mt-1 text-slate-900 dark:text-white">{financialHistory.paymentMethod}</p>
+                            </div>
+                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                                <p className="font-semibold text-slate-500 dark:text-slate-400">Data</p>
+                                <p className="mt-1 text-slate-900 dark:text-white">
+                                    {financialHistory.date ? new Date(financialHistory.date).toLocaleDateString('pt-BR') : 'Nao informada'}
+                                </p>
+                            </div>
+                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                                <p className="font-semibold text-slate-500 dark:text-slate-400">Revertido</p>
+                                <p className="mt-1 text-slate-900 dark:text-white">{formatCurrency(financialHistory.reversedAmount)}</p>
+                            </div>
+                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                                <p className="font-semibold text-slate-500 dark:text-slate-400">Saldo reversivel</p>
+                                <p className="mt-1 text-slate-900 dark:text-white">{formatCurrency(financialHistory.reversibleAmount)}</p>
+                            </div>
+                        </div>
+                        {financialHistory.reversals.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                                {financialHistory.reversals.map((reversal, index) => (
+                                    <div
+                                        key={`${reversal.reversalTransactionId || financialHistory.transactionId}-${index}`}
+                                        className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-xs"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(reversal.amount)}</span>
+                                            <span className="text-slate-500 dark:text-slate-400">
+                                                {reversal.createdAt ? new Date(reversal.createdAt).toLocaleDateString('pt-BR') : 'Sem data'}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1 text-slate-600 dark:text-slate-300">
+                                            {reversal.reversalType} | {reversal.reasonType}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-4 dark:border-white/8 dark:bg-[#0f172a]">
                     <div className="flex items-center justify-between">
                         <div>
@@ -304,3 +392,4 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
 };
 
 export default ComandaSidebar;
+export type { ComandaFinancialHistory };

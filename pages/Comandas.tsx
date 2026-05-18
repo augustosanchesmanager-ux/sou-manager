@@ -14,7 +14,7 @@ import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import ComandaListItem from '../components/ComandaListItem';
-import ComandaSidebar from '../components/ComandaSidebar';
+import ComandaSidebar, { type ComandaFinancialHistory } from '../components/ComandaSidebar';
 import ComandaFiltersModal from '../components/ComandaFiltersModal';
 
 type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
@@ -95,6 +95,26 @@ interface StaffLookup {
 interface AppointmentLookup {
     id: string;
     start_time: string;
+}
+
+interface ComandaTransactionRow {
+    id: string;
+    tenant_id?: string | null;
+    source_id?: string | null;
+    amount: number | string | null;
+    payment_method?: string | null;
+    date?: string | null;
+    created_at?: string | null;
+    status?: string | null;
+}
+
+interface FinancialReversalRow {
+    original_transaction_id: string | null;
+    reversal_transaction_id?: string | null;
+    reversal_type?: string | null;
+    amount: number | string | null;
+    reason_type?: string | null;
+    created_at?: string | null;
 }
 
 interface ComandaItemRow {
@@ -289,6 +309,7 @@ const Comandas: React.FC = () => {
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
+    const [financialHistoryByComandaId, setFinancialHistoryByComandaId] = useState<Record<string, ComandaFinancialHistory>>({});
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | ComandaStatus>(preferences.filterStatus);
     const [searchTerm, setSearchTerm] = useState(preferences.searchTerm);
@@ -318,6 +339,7 @@ const Comandas: React.FC = () => {
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
             setComandas([]);
+            setFinancialHistoryByComandaId({});
             setLoading(false);
             return;
         }
@@ -344,6 +366,7 @@ const Comandas: React.FC = () => {
 
             if (!data || data.length === 0) {
                 setComandas([]);
+                setFinancialHistoryByComandaId({});
                 return;
             }
 
@@ -384,6 +407,97 @@ const Comandas: React.FC = () => {
                 acc[item.comanda_id].push(item);
                 return acc;
             }, {} as Record<string, ComandaItem[]>);
+
+            let transactionsQuery = client
+                .from('transactions')
+                .select('id, tenant_id, source_id, amount, payment_method, date, created_at, status')
+                .eq('source_type', 'comanda')
+                .in('source_id', comandaIds);
+
+            if (resolvedTenantId) {
+                transactionsQuery = transactionsQuery.eq('tenant_id', resolvedTenantId);
+            }
+
+            const { data: transactionRows, error: transactionsError } = await transactionsQuery;
+
+            if (transactionsError) {
+                console.warn('Erro ao carregar historico financeiro das comandas:', transactionsError);
+                setFinancialHistoryByComandaId({});
+            } else {
+                const transactions = ((transactionRows || []) as ComandaTransactionRow[])
+                    .filter((transaction) => Boolean(transaction.id) && Boolean(transaction.source_id));
+                const transactionIds = transactions.map((transaction) => transaction.id);
+                const reversedByTransactionId = new Map<string, number>();
+                const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
+
+                if (transactionIds.length > 0) {
+                    let reversalsQuery = supabase
+                        .from('financial_reversals')
+                        .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+                        .in('original_transaction_id', transactionIds);
+
+                    if (resolvedTenantId) {
+                        reversalsQuery = reversalsQuery.eq('tenant_id', resolvedTenantId);
+                    }
+
+                    const { data: reversals, error: reversalsError } = await reversalsQuery;
+
+                    if (reversalsError) {
+                        console.warn('Erro ao carregar reversoes financeiras das comandas:', reversalsError);
+                    } else {
+                        ((reversals || []) as FinancialReversalRow[]).forEach((reversal) => {
+                            if (!reversal.original_transaction_id) return;
+                            const amount = Math.abs(Number(reversal.amount || 0));
+                            reversedByTransactionId.set(
+                                reversal.original_transaction_id,
+                                (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                            );
+                            const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                            current.push({
+                                reversalTransactionId: reversal.reversal_transaction_id || null,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount,
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                            reversalsByTransactionId.set(reversal.original_transaction_id, current);
+                        });
+                    }
+                }
+
+                const historyByComanda = transactions.reduce<Record<string, ComandaFinancialHistory>>((acc, transaction) => {
+                    if (!transaction.source_id) return acc;
+                    const amount = Number(transaction.amount || 0);
+                    const reversedAmount = Math.min(amount, reversedByTransactionId.get(transaction.id) || 0);
+                    const reversibleAmount = Math.max(amount - reversedAmount, 0);
+                    const reversalStatus: ComandaFinancialHistory['reversalStatus'] = reversedAmount <= 0
+                        ? 'none'
+                        : reversibleAmount <= 0
+                            ? 'full'
+                            : 'partial';
+
+                    const current = acc[transaction.source_id];
+                    const transactionDate = transaction.date || transaction.created_at || null;
+                    if (current && new Date(current.date || 0).getTime() >= new Date(transactionDate || 0).getTime()) {
+                        return acc;
+                    }
+
+                    acc[transaction.source_id] = {
+                        transactionId: transaction.id,
+                        amount,
+                        paymentMethod: transaction.payment_method || 'Nao informado',
+                        date: transactionDate,
+                        status: transaction.status || null,
+                        reversedAmount,
+                        reversibleAmount,
+                        reversalStatus,
+                        reversals: reversalsByTransactionId.get(transaction.id) || [],
+                    };
+                    return acc;
+                }, {});
+
+                setFinancialHistoryByComandaId(historyByComanda);
+            }
 
             const hydratedComandas = comandasRows.map((comanda) => {
                 const mappedItems = itemsByComanda[comanda.id] || [];
@@ -1147,6 +1261,7 @@ const Comandas: React.FC = () => {
                 <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-[#121826] md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
                     <ComandaSidebar
                         comanda={selectedComanda}
+                        financialHistory={financialHistoryByComandaId[selectedComanda.id] || null}
                         onClose={() => setSelectedComandaId(null)}
                         onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
                         onPrint={() => selectedComanda && handlePrint(selectedComanda)}
