@@ -117,6 +117,30 @@ interface ReceiptRecord {
 type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
 type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 type ReversalStatus = 'none' | 'partial' | 'full';
+const CLIENT_FALLBACK_LABEL = 'Cliente não identificado';
+const SOURCE_LABELS: Record<ARSource, string> = {
+    comanda: 'Comanda',
+    clube: 'Clube do Chefe',
+    recibo: 'Recibo',
+};
+const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
+    todos: {
+        title: 'Nenhuma conta a receber no filtro atual',
+        description: 'Nao ha comandas abertas, recebiveis do Clube ou recibos pendentes neste periodo.',
+    },
+    comandas: {
+        title: 'Nenhuma comanda aberta',
+        description: 'As comandas em aberto deste periodo aparecerao aqui para baixa financeira.',
+    },
+    clube: {
+        title: 'Nenhum recebivel do Clube pendente',
+        description: 'Cobrancas pendentes ou atrasadas do Clube do Chefe aparecerao nesta aba.',
+    },
+    recibos: {
+        title: 'Nenhum recibo pendente',
+        description: 'Recibos pendentes de pagamento aparecerao aqui quando existirem.',
+    },
+};
 type ReversalReason =
     | 'baixa_indevida'
     | 'cobranca_duplicada'
@@ -189,9 +213,16 @@ const getShortId = (id?: string | null) => (id ? id.slice(0, 8) : 'sem-id');
 const getClientData = (clients: ComandaRecord['clients']) => {
     const client = Array.isArray(clients) ? clients[0] : clients;
     return {
-        name: client?.name || 'Cliente não identificado',
+        name: client?.name || CLIENT_FALLBACK_LABEL,
         phone: client?.phone || null,
     };
+};
+
+const extractClientNameFromTransactionDescription = (description?: string | null) => {
+    const rawDescription = String(description || '').trim();
+    const clientMatch = rawDescription.match(/Cliente:\s*([^()\n|]+)/i);
+    const clientName = clientMatch?.[1]?.trim();
+    return clientName || CLIENT_FALLBACK_LABEL;
 };
 
 const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -208,6 +239,7 @@ const AccountsReceivable: React.FC = () => {
     });
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const [openComandas, setOpenComandas] = useState<ComandaRecord[]>([]);
     const [openComandaDetails, setOpenComandaDetails] = useState<Record<string, OpenComandaDetail>>({});
@@ -239,6 +271,7 @@ const AccountsReceivable: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterMonth) {
+            setLoadError(null);
             setOpenComandas([]);
             setOpenComandaDetails({});
             setPaidComandaSettlements([]);
@@ -249,6 +282,7 @@ const AccountsReceivable: React.FC = () => {
         }
 
         setLoading(true);
+        setLoadError(null);
 
         const [yearStr, monthStr] = filterMonth.split('-');
         const year = Number(yearStr);
@@ -448,7 +482,7 @@ const AccountsReceivable: React.FC = () => {
                     id: tx.id,
                     tenantId: tx.tenant_id || tenantId,
                     sourceId: tx.source_id || null,
-                    clientName: tx.description || 'Comanda baixada',
+                    clientName: extractClientNameFromTransactionDescription(tx.description),
                     description: tx.category || 'Receita de Comanda',
                     dateValue: tx.date || new Date().toISOString(),
                     amount,
@@ -505,7 +539,9 @@ const AccountsReceivable: React.FC = () => {
 
         } catch (error: any) {
             console.error('Erro ao carregar contas a receber:', error);
-            setToast({ message: error?.message || 'Erro ao carregar contas a receber.', type: 'error' });
+            const message = 'Nao foi possivel carregar as contas a receber. Verifique a conexao e tente atualizar.';
+            setLoadError(message);
+            setToast({ message, type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -570,7 +606,10 @@ const AccountsReceivable: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error('Erro ao dar baixa via RPC:', error);
-            setToast({ message: error?.message || 'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada.', type: 'error' });
+            const message = error?.message?.includes('Nenhuma alteracao foi aplicada')
+                ? error.message
+                : 'Nao foi possivel registrar a baixa financeira. Nenhuma alteracao foi aplicada.';
+            setToast({ message, type: 'error' });
         } finally {
             setMarkingPaid(null);
         }
@@ -694,7 +733,7 @@ const AccountsReceivable: React.FC = () => {
             entries.push({
                 id: r.id,
                 source: 'clube',
-                clientName: clubClients[r.customer_id]?.name || 'Cliente',
+                clientName: clubClients[r.customer_id]?.name || CLIENT_FALLBACK_LABEL,
                 description: `Plano: ${clubPlans[r.plan_id]?.name || 'N/D'}`,
                 dateValue: r.due_date,
                 amount: Number(r.amount || 0),
@@ -707,7 +746,7 @@ const AccountsReceivable: React.FC = () => {
             entries.push({
                 id: r.id,
                 source: 'recibo',
-                clientName: r.name,
+                clientName: r.name || CLIENT_FALLBACK_LABEL,
                 description: r.type || 'Receita',
                 dateValue: r.date,
                 amount: r.amount,
@@ -763,7 +802,7 @@ const AccountsReceivable: React.FC = () => {
             if (!current) {
                 groups.set(groupKey, {
                     clientId: groupKey,
-                    clientName: clientName || 'Cliente não identificado',
+                    clientName: clientName || CLIENT_FALLBACK_LABEL,
                     count: 1,
                     total: Number(comanda.total || 0),
                     lastDate: createdAt,
@@ -811,6 +850,12 @@ const AccountsReceivable: React.FC = () => {
     const settlementDifference = Number.isFinite(parsedSettlementPaidAmount)
         ? parsedSettlementPaidAmount - settlementNet
         : 0;
+    const emptyStateCopy = hasTenantContext
+        ? EMPTY_STATE_COPY[activeTab]
+        : {
+            title: 'Sem contexto de barbearia',
+            description: 'Selecione uma barbearia/tenant valido para carregar contas a receber.',
+        };
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
@@ -897,6 +942,9 @@ const AccountsReceivable: React.FC = () => {
                                     Adicionar serviço/produto
                                 </button>
                             </div>
+                            <p className="border-b border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 dark:border-border-dark">
+                                Para alterar itens, descontos ou profissionais, ajuste a comanda no Checkout antes da baixa financeira.
+                            </p>
 
                             {settlementDetail?.items.length ? (
                                 <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -1258,6 +1306,23 @@ const AccountsReceivable: React.FC = () => {
                 </div>
             </div>
 
+            {loadError && (
+                <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="mt-0.5 size-5 flex-none" />
+                            <div>
+                                <p className="font-black">Falha ao carregar contas a receber</p>
+                                <p className="mt-1">{loadError}</p>
+                            </div>
+                        </div>
+                        <Button type="button" variant="secondary" onClick={fetchData}>
+                            Tentar novamente
+                        </Button>
+                    </div>
+                </section>
+            )}
+
             {clientAccountGroups.length > 0 && (
                 <section className="rounded-2xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/5 p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1268,6 +1333,9 @@ const AccountsReceivable: React.FC = () => {
                             </div>
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                                 Clientes com mais de uma comanda aberta. Transferir comanda para responsavel fica para fase auditada futura.
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                Esta secao e apenas um agrupamento visual: nao altera cliente, status ou valor.
                             </p>
                         </div>
                         <Button type="button" variant="secondary" onClick={() => setActiveTab('comandas')}>
@@ -1335,10 +1403,10 @@ const AccountsReceivable: React.FC = () => {
                                 {paidComandaSettlements.map((entry) => (
                                     <tr key={entry.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
                                         <td className="px-5 py-4">
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName}</p>
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName || CLIENT_FALLBACK_LABEL}</p>
                                             <p className="mt-1 text-xs text-slate-500">{entry.description}</p>
                                             {entry.sourceId && (
-                                                <p className="mt-1 text-[11px] text-slate-400">Comanda: {entry.sourceId}</p>
+                                                <p className="mt-1 text-[11px] text-slate-400">Comanda #{getShortId(entry.sourceId)}</p>
                                             )}
                                         </td>
                                         <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
@@ -1401,17 +1469,25 @@ const AccountsReceivable: React.FC = () => {
             {loading ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
                     <div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                    <p className="mt-3 text-sm text-slate-500">Carregando contas a receber...</p>
+                    <h3 className="mt-4 text-base font-black text-slate-950 dark:text-white">Carregando contas a receber</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                        Buscando comandas abertas, recebiveis do Clube e recibos pendentes do periodo selecionado.
+                    </p>
                 </section>
             ) : filteredEntries.length === 0 ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
                     <div className="mx-auto size-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 mb-4">
                         <AlertCircle className="size-6" />
                     </div>
-                    <h3 className="text-base font-bold text-slate-950 dark:text-white mb-1">Nenhuma conta a receber</h3>
-                    <p className="text-sm text-slate-500">
-                        {hasTenantContext ? 'Nao ha itens pendentes no periodo selecionado.' : 'Sem contexto de tenant.'}
+                    <h3 className="text-base font-bold text-slate-950 dark:text-white mb-1">{emptyStateCopy.title}</h3>
+                    <p className="mx-auto max-w-md text-sm text-slate-500">
+                        {emptyStateCopy.description}
                     </p>
+                    {hasTenantContext && activeTab !== 'todos' && (
+                        <Button type="button" variant="secondary" className="mt-5" onClick={() => setActiveTab('todos')}>
+                            Ver todas as origens
+                        </Button>
+                    )}
                 </section>
             ) : (
                 <section className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark overflow-hidden">
@@ -1443,11 +1519,11 @@ const AccountsReceivable: React.FC = () => {
                                     <tr key={`${entry.source}-${entry.id}`} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
                                         <td className="px-5 py-4">
                                             <span className="text-xs font-bold text-slate-500 uppercase">
-                                                {entry.source === 'comanda' ? 'Comanda' : entry.source === 'clube' ? 'Clube' : 'Recibo'}
+                                                {SOURCE_LABELS[entry.source]}
                                             </span>
                                         </td>
                                         <td className="px-5 py-4">
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName}</p>
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName || CLIENT_FALLBACK_LABEL}</p>
                                             {entry.clientPhone && (
                                                 <p className="mt-1 text-xs text-slate-500">{entry.clientPhone}</p>
                                             )}
@@ -1474,6 +1550,7 @@ const AccountsReceivable: React.FC = () => {
                                                 <button
                                                     onClick={() => openSettlementModal(entry)}
                                                     disabled={markingPaid === entry.id}
+                                                    title="A baixa sera registrada pela RPC financeira central."
                                                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/20 transition disabled:opacity-50"
                                                 >
                                                     {markingPaid === entry.id ? (
