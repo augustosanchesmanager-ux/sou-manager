@@ -22,6 +22,7 @@ interface AREntry {
     id: string;
     source: ARSource;
     clientName: string;
+    clientPhone?: string | null;
     description: string;
     dateValue: string;
     amount: number;
@@ -34,8 +35,62 @@ interface ComandaRecord {
     client_id: string;
     status: string;
     total: number;
+    discount?: number | null;
     created_at: string;
-    clients: { name: string } | { name: string }[];
+    staff_id?: string | null;
+    payment_method?: string | null;
+    clients: { name: string; phone?: string | null } | { name: string; phone?: string | null }[];
+}
+
+interface ComandaItemRecord {
+    id: string;
+    comanda_id: string;
+    service_id?: string | null;
+    product_id?: string | null;
+    product_name?: string | null;
+    quantity?: number | string | null;
+    unit_price?: number | string | null;
+    staff_id?: string | null;
+}
+
+interface ExecutionParticipantRecord {
+    id: string;
+    comanda_item_id: string;
+    staff_id?: string | null;
+    role?: string | null;
+    payout_type?: string | null;
+    payout_value?: number | string | null;
+}
+
+interface ComandaItemDetail {
+    id: string;
+    name: string;
+    typeLabel: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    staffName: string;
+    participants: {
+        id: string;
+        staffName: string;
+        payoutType: string;
+        payoutValue: number;
+        role: string;
+    }[];
+}
+
+interface OpenComandaDetail {
+    id: string;
+    shortId: string;
+    clientName: string;
+    clientPhone: string | null;
+    status: string;
+    createdAt: string;
+    mainStaffName: string;
+    grossSubtotal: number;
+    discount: number;
+    netTotal: number;
+    items: ComandaItemDetail[];
 }
 
 interface ClubReceivableRecord {
@@ -129,6 +184,18 @@ const normalizePaymentMethod = (value?: string | null): PaymentMethod => {
     return 'pix';
 };
 
+const getShortId = (id?: string | null) => (id ? id.slice(0, 8) : 'sem-id');
+
+const getClientData = (clients: ComandaRecord['clients']) => {
+    const client = Array.isArray(clients) ? clients[0] : clients;
+    return {
+        name: client?.name || 'Cliente não identificado',
+        phone: client?.phone || null,
+    };
+};
+
+const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 const AccountsReceivable: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const hasTenantContext = Boolean(tenantId);
@@ -143,6 +210,7 @@ const AccountsReceivable: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const [openComandas, setOpenComandas] = useState<ComandaRecord[]>([]);
+    const [openComandaDetails, setOpenComandaDetails] = useState<Record<string, OpenComandaDetail>>({});
     const [markingPaid, setMarkingPaid] = useState<string | null>(null);
     const [settlementEntry, setSettlementEntry] = useState<AREntry | null>(null);
     const [settlementPaymentMethod, setSettlementPaymentMethod] = useState<PaymentMethod>('pix');
@@ -172,6 +240,7 @@ const AccountsReceivable: React.FC = () => {
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterMonth) {
             setOpenComandas([]);
+            setOpenComandaDetails({});
             setPaidComandaSettlements([]);
             setClubReceivables([]);
             setPendingReceipts([]);
@@ -197,7 +266,7 @@ const AccountsReceivable: React.FC = () => {
             ] = await Promise.all([
                 barberSupabase
                     .from('comandas')
-                    .select('id, client_id, status, total, created_at, clients(name)')
+                    .select('id, client_id, status, total, discount, created_at, staff_id, payment_method, clients(name, phone)')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'open'),
                 barberSupabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
@@ -220,6 +289,103 @@ const AccountsReceivable: React.FC = () => {
             if (comandasResult.error) throw comandasResult.error;
             const comandasData = (comandasResult.data || []) as ComandaRecord[];
             setOpenComandas(comandasData);
+
+            const comandaIds = comandasData.map((comanda) => comanda.id).filter(Boolean);
+            const { data: comandaItemsData, error: comandaItemsError } = comandaIds.length > 0
+                ? await barberSupabase
+                    .from('comanda_items')
+                    .select('id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id')
+                    .eq('tenant_id', tenantId)
+                    .in('comanda_id', comandaIds)
+                : { data: [] as ComandaItemRecord[], error: null };
+
+            if (comandaItemsError) throw comandaItemsError;
+
+            const comandaItems = (comandaItemsData || []) as ComandaItemRecord[];
+            const itemIds = comandaItems.map((item) => item.id).filter(Boolean);
+            const { data: participantRowsData, error: participantRowsError } = itemIds.length > 0
+                ? await barberSupabase
+                    .from('service_execution_participants')
+                    .select('id, comanda_item_id, staff_id, role, payout_type, payout_value')
+                    .eq('tenant_id', tenantId)
+                    .in('comanda_item_id', itemIds)
+                : { data: [] as ExecutionParticipantRecord[], error: null };
+
+            if (participantRowsError) throw participantRowsError;
+
+            const participantRows = (participantRowsData || []) as ExecutionParticipantRecord[];
+            const staffIds = Array.from(new Set([
+                ...comandasData.map((comanda) => comanda.staff_id).filter(Boolean),
+                ...comandaItems.map((item) => item.staff_id).filter(Boolean),
+                ...participantRows.map((participant) => participant.staff_id).filter(Boolean),
+            ])) as string[];
+            const { data: staffRowsData, error: staffRowsError } = staffIds.length > 0
+                ? await barberSupabase
+                    .from('staff')
+                    .select('id, name')
+                    .eq('tenant_id', tenantId)
+                    .in('id', staffIds)
+                : { data: [] as { id: string; name: string }[], error: null };
+
+            if (staffRowsError) throw staffRowsError;
+
+            const staffNameById = ((staffRowsData || []) as { id: string; name: string }[]).reduce((acc, staff) => {
+                acc[staff.id] = staff.name;
+                return acc;
+            }, {} as Record<string, string>);
+            const participantsByItemId = participantRows.reduce((acc, participant) => {
+                if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
+                acc[participant.comanda_item_id].push(participant);
+                return acc;
+            }, {} as Record<string, ExecutionParticipantRecord[]>);
+            const itemsByComandaId = comandaItems.reduce((acc, item) => {
+                if (!acc[item.comanda_id]) acc[item.comanda_id] = [];
+                acc[item.comanda_id].push(item);
+                return acc;
+            }, {} as Record<string, ComandaItemRecord[]>);
+
+            const detailsByComandaId = comandasData.reduce((acc, comanda) => {
+                const client = getClientData(comanda.clients);
+                const items = (itemsByComandaId[comanda.id] || []).map((item) => {
+                    const quantity = Number(item.quantity || 0);
+                    const unitPrice = Number(item.unit_price || 0);
+                    const itemParticipants = (participantsByItemId[item.id] || []).map((participant) => ({
+                        id: participant.id,
+                        staffName: participant.staff_id ? staffNameById[participant.staff_id] || 'Profissional não encontrado' : 'Profissional não informado',
+                        payoutType: participant.payout_type || 'percentage',
+                        payoutValue: Number(participant.payout_value || 0),
+                        role: participant.role || 'participante',
+                    }));
+
+                    return {
+                        id: item.id,
+                        name: item.product_name || (item.service_id ? 'Serviço sem nome' : 'Produto sem nome'),
+                        typeLabel: item.service_id ? 'Serviço' : item.product_id ? 'Produto' : 'Item',
+                        quantity,
+                        unitPrice,
+                        total: quantity * unitPrice,
+                        staffName: item.staff_id ? staffNameById[item.staff_id] || 'Profissional não encontrado' : 'Sem profissional',
+                        participants: itemParticipants,
+                    };
+                });
+                const grossSubtotal = items.reduce((sum, item) => sum + item.total, 0);
+
+                acc[comanda.id] = {
+                    id: comanda.id,
+                    shortId: getShortId(comanda.id),
+                    clientName: client.name,
+                    clientPhone: client.phone,
+                    status: comanda.status,
+                    createdAt: comanda.created_at,
+                    mainStaffName: comanda.staff_id ? staffNameById[comanda.staff_id] || 'Profissional não encontrado' : 'Sem profissional principal',
+                    grossSubtotal,
+                    discount: Number(comanda.discount || 0),
+                    netTotal: Number(comanda.total || 0),
+                    items,
+                };
+                return acc;
+            }, {} as Record<string, OpenComandaDetail>);
+            setOpenComandaDetails(detailsByComandaId);
 
             if (clubResult.error) throw clubResult.error;
             const clubData = (clubResult.data || []) as ClubReceivableRecord[];
@@ -378,6 +544,13 @@ const AccountsReceivable: React.FC = () => {
         setToast({ message: 'Registrando baixa financeira...', type: 'info' });
         try {
             const barberSupabase = getScopedClient('barber');
+            const detail = openComandaDetails[settlementEntry.id];
+            const noteParts = [
+                `Origem: accounts_receivable`,
+                `Comanda: #${getShortId(settlementEntry.id)}`,
+                detail?.discount ? `Desconto atual: ${formatCurrency(detail.discount)}` : null,
+                settlementNotes.trim() ? `Observacao: ${settlementNotes.trim()}` : null,
+            ].filter(Boolean);
             await settleCheckoutComanda({
                 comandaId: settlementEntry.id,
                 tenantId,
@@ -386,7 +559,7 @@ const AccountsReceivable: React.FC = () => {
                 paidAmount,
                 paymentDateReal: new Date(settlementPaymentDate).toISOString(),
                 source: 'accounts_receivable',
-                notes: settlementNotes.trim() || null,
+                notes: noteParts.join('\n') || null,
                 idempotencyKey: settlementIdempotencyKey || createSettlementKey(settlementEntry.id),
             });
             setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
@@ -499,13 +672,14 @@ const AccountsReceivable: React.FC = () => {
         const entries: AREntry[] = [];
 
         openComandas.forEach(c => {
-            const clients = c.clients as { name: string } | { name: string }[];
-            const clientName = Array.isArray(clients) ? clients[0]?.name : clients?.name;
+            const detail = openComandaDetails[c.id];
+            const client = detail ? { name: detail.clientName, phone: detail.clientPhone } : getClientData(c.clients);
             entries.push({
                 id: c.id,
                 source: 'comanda',
-                clientName: clientName || 'Cliente',
-                description: 'Comanda em aberto',
+                clientName: client.name,
+                clientPhone: client.phone,
+                description: `Comanda #${getShortId(c.id)} · em aberto`,
                 dateValue: c.created_at,
                 amount: Number(c.total || 0),
                 status: 'open',
@@ -543,7 +717,7 @@ const AccountsReceivable: React.FC = () => {
         });
 
         return entries;
-    }, [openComandas, clubReceivables, pendingReceipts, clubClients, clubPlans]);
+    }, [openComandas, openComandaDetails, clubReceivables, pendingReceipts, clubClients, clubPlans]);
 
     const filteredEntries = useMemo(() => {
         if (activeTab === 'todos') return allEntries;
@@ -580,8 +754,8 @@ const AccountsReceivable: React.FC = () => {
         }>();
 
         openComandas.forEach((comanda) => {
-            const clients = comanda.clients as { name: string } | { name: string }[];
-            const clientName = Array.isArray(clients) ? clients[0]?.name : clients?.name;
+            const detail = openComandaDetails[comanda.id];
+            const clientName = detail?.clientName || getClientData(comanda.clients).name;
             const groupKey = comanda.client_id || `sem-cliente-${comanda.id}`;
             const current = groups.get(groupKey);
             const createdAt = comanda.created_at || new Date().toISOString();
@@ -589,7 +763,7 @@ const AccountsReceivable: React.FC = () => {
             if (!current) {
                 groups.set(groupKey, {
                     clientId: groupKey,
-                    clientName: clientName || 'Cliente sem nome',
+                    clientName: clientName || 'Cliente não identificado',
                     count: 1,
                     total: Number(comanda.total || 0),
                     lastDate: createdAt,
@@ -607,7 +781,7 @@ const AccountsReceivable: React.FC = () => {
         return Array.from(groups.values())
             .filter((group) => group.count > 1)
             .sort((first, second) => second.total - first.total);
-    }, [openComandas]);
+    }, [openComandas, openComandaDetails]);
 
     const tabs: { key: ActiveTab; label: string }[] = [
         { key: 'todos', label: 'Todos' },
@@ -629,12 +803,21 @@ const AccountsReceivable: React.FC = () => {
         return status;
     };
 
+    const settlementDetail = settlementEntry ? openComandaDetails[settlementEntry.id] : null;
+    const settlementGross = settlementDetail?.grossSubtotal || settlementEntry?.amount || 0;
+    const settlementDiscount = settlementDetail?.discount || 0;
+    const settlementNet = settlementDetail?.netTotal || settlementEntry?.amount || 0;
+    const parsedSettlementPaidAmount = Number(String(settlementPaidAmount || 0).replace(',', '.'));
+    const settlementDifference = Number.isFinite(parsedSettlementPaidAmount)
+        ? parsedSettlementPaidAmount - settlementNet
+        : 0;
+
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {settlementEntry && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
-                    <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-2xl">
+                    <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-2xl">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <h3 className="text-lg font-black text-slate-950 dark:text-white">Dar baixa financeira</h3>
@@ -653,16 +836,118 @@ const AccountsReceivable: React.FC = () => {
                         </div>
 
                         <div className="mt-5 rounded-xl bg-slate-50 dark:bg-white/5 p-4 text-sm">
-                            <div className="flex justify-between gap-4">
-                                <span className="text-slate-500">Cliente</span>
-                                <strong className="text-slate-900 dark:text-white">{settlementEntry.clientName}</strong>
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Cliente</p>
+                                    <strong className="mt-1 block text-base text-slate-900 dark:text-white">{settlementEntry.clientName}</strong>
+                                    {settlementEntry.clientPhone && (
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">{settlementEntry.clientPhone}</p>
+                                    )}
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        Comanda #{getShortId(settlementEntry.id)} · {settlementDetail?.status || settlementEntry.status}
+                                    </p>
+                                </div>
+                                <div className="text-left md:text-right">
+                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Abertura</p>
+                                    <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                                        {new Date(settlementEntry.dateValue).toLocaleString('pt-BR')}
+                                    </p>
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        Profissional principal: {settlementDetail?.mainStaffName || 'Não informado'}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="mt-2 flex justify-between gap-4">
-                                <span className="text-slate-500">Valor da comanda</span>
-                                <strong className="text-slate-900 dark:text-white">
-                                    {settlementEntry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </strong>
+
+                            <div className="mt-4 grid gap-3 md:grid-cols-4">
+                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
+                                    <p className="text-[11px] font-bold uppercase text-slate-400">Subtotal bruto</p>
+                                    <p className="mt-1 font-black text-slate-900 dark:text-white">{formatCurrency(settlementGross)}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
+                                    <p className="text-[11px] font-bold uppercase text-slate-400">Desconto</p>
+                                    <p className={`mt-1 font-black ${settlementDiscount > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
+                                        {formatCurrency(settlementDiscount)}
+                                    </p>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
+                                    <p className="text-[11px] font-bold uppercase text-slate-400">Valor líquido</p>
+                                    <p className="mt-1 font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(settlementNet)}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
+                                    <p className="text-[11px] font-bold uppercase text-slate-400">Diferença do pago</p>
+                                    <p className={`mt-1 font-black ${Math.abs(settlementDifference) > 0.009 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
+                                        {formatCurrency(settlementDifference)}
+                                    </p>
+                                </div>
                             </div>
+                        </div>
+
+                        <div className="mt-5 rounded-xl border border-slate-200 dark:border-border-dark">
+                            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-border-dark">
+                                <div>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">Itens da comanda</p>
+                                    <p className="text-xs text-slate-500">Visualização apenas para conferência antes da baixa.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled
+                                    title="Para alterar itens da comanda, use o Checkout/Comanda antes da baixa."
+                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-400 opacity-70 dark:border-border-dark"
+                                >
+                                    Adicionar serviço/produto
+                                </button>
+                            </div>
+
+                            {settlementDetail?.items.length ? (
+                                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                                    {settlementDetail.items.map((item) => (
+                                        <div key={item.id} className="p-4">
+                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                <div>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:bg-white/5">
+                                                            {item.typeLabel}
+                                                        </span>
+                                                        {item.participants.length > 0 && (
+                                                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
+                                                                Compartilhado
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{item.name}</p>
+                                                    <p className="mt-1 text-xs text-slate-500">Responsável: {item.staffName}</p>
+                                                </div>
+                                                <div className="text-left md:text-right">
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(item.total)}</p>
+                                                    <p className="mt-1 text-xs text-slate-500">
+                                                        {item.quantity} x {formatCurrency(item.unitPrice)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {item.participants.length > 0 && (
+                                                <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-white/5">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Participação lançada</p>
+                                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                                        {item.participants.map((participant) => (
+                                                            <div key={participant.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-border-dark dark:bg-background-dark">
+                                                                <p className="font-bold text-slate-900 dark:text-white">{participant.staffName}</p>
+                                                                <p className="mt-1 text-slate-500">
+                                                                    {participant.payoutType} · {participant.payoutValue}
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-4 text-sm text-slate-500">
+                                    Nenhum item encontrado para esta comanda.
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-5 grid gap-4">
@@ -1161,8 +1446,18 @@ const AccountsReceivable: React.FC = () => {
                                                 {entry.source === 'comanda' ? 'Comanda' : entry.source === 'clube' ? 'Clube' : 'Recibo'}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName}</td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.description}</td>
+                                        <td className="px-5 py-4">
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName}</p>
+                                            {entry.clientPhone && (
+                                                <p className="mt-1 text-xs text-slate-500">{entry.clientPhone}</p>
+                                            )}
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            <p className="text-sm text-slate-700 dark:text-slate-200">{entry.description}</p>
+                                            {entry.source === 'comanda' && (
+                                                <p className="mt-1 text-[11px] text-slate-400">Referência técnica: {getShortId(entry.id)}</p>
+                                            )}
+                                        </td>
                                         <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
                                             {new Date(entry.dateValue).toLocaleDateString('pt-BR')}
                                         </td>
