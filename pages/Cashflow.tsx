@@ -81,6 +81,21 @@ type ReversalReason =
 
 type RefundMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 
+const CASHFLOW_EMPTY_COPY: Record<ActiveTab, { title: string; description: string }> = {
+    all: {
+        title: 'Nenhuma movimentacao encontrada',
+        description: 'Nao ha transacoes registradas para o periodo selecionado.',
+    },
+    income: {
+        title: 'Nenhuma entrada encontrada',
+        description: 'Entradas registradas no periodo aparecerao aqui.',
+    },
+    expense: {
+        title: 'Nenhuma saida encontrada',
+        description: 'Saidas, estornos e devolucoes registradas no periodo aparecerao aqui.',
+    },
+};
+
 const toDateTimeInputValue = (date: Date) => {
     const offsetMs = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
@@ -100,6 +115,13 @@ const normalizeRefundMethod = (value?: string | null): RefundMethod => {
     return 'pix';
 };
 
+const getReversalTypeLabel = (value?: string | null) => {
+    if (value === 'wrong_settlement') return 'Estorno';
+    if (value === 'full_refund') return 'Devolucao total';
+    if (value === 'partial_refund') return 'Devolucao parcial';
+    return 'Reversao';
+};
+
 const Cashflow: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const hasTenantContext = Boolean(tenantId);
@@ -115,6 +137,7 @@ const Cashflow: React.FC = () => {
     });
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [entries, setEntries] = useState<CashflowEntry[]>([]);
     const [selectedEntry, setSelectedEntry] = useState<CashflowEntry | null>(null);
     const [reversalEntry, setReversalEntry] = useState<CashflowEntry | null>(null);
@@ -143,11 +166,13 @@ const Cashflow: React.FC = () => {
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterMonth) {
             setEntries([]);
+            setLoadError(null);
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        setLoadError(null);
 
         const [yearStr, monthStr] = filterMonth.split('-');
         const year = Number(yearStr);
@@ -269,7 +294,9 @@ const Cashflow: React.FC = () => {
             setEntries(mappedEntries);
         } catch (error: any) {
             console.error('Erro ao carregar fluxo de caixa:', error);
-            setToast({ message: error?.message || 'Erro ao carregar fluxo de caixa.', type: 'error' });
+            const message = 'Nao foi possivel carregar o fluxo de caixa. Nenhuma movimentacao foi alterada.';
+            setLoadError(message);
+            setToast({ message, type: 'error' });
             setEntries([]);
         } finally {
             setLoading(false);
@@ -382,7 +409,10 @@ const Cashflow: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error('Erro ao registrar reversao financeira:', error);
-            setToast({ message: error?.message || 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.', type: 'error' });
+            const message = error?.message?.includes('Nenhuma alteracao foi aplicada')
+                ? error.message
+                : 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.';
+            setToast({ message, type: 'error' });
         } finally {
             setReversingId(null);
         }
@@ -393,6 +423,13 @@ const Cashflow: React.FC = () => {
         income: 'Entradas',
         expense: 'Saídas',
     };
+
+    const emptyStateCopy = hasTenantContext
+        ? CASHFLOW_EMPTY_COPY[activeTab]
+        : {
+            title: 'Sem contexto de barbearia',
+            description: 'Selecione uma barbearia/tenant valido para consultar o fluxo de caixa.',
+        };
 
     const chartData = useMemo(() => {
         const grouped = entries.reduce<Record<string, { entradas: number; saidas: number; saldo: number }>>((acc, entry) => {
@@ -612,19 +649,32 @@ const Cashflow: React.FC = () => {
                 />
             </div>
 
+            {loadError && (
+                <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="font-black">Falha ao carregar fluxo de caixa</p>
+                            <p className="mt-1">{loadError}</p>
+                        </div>
+                        <Button type="button" variant="secondary" onClick={fetchData}>
+                            Tentar novamente
+                        </Button>
+                    </div>
+                </section>
+            )}
+
             {loading ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
                     <div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                    <p className="mt-3 text-sm text-slate-500">Carregando transacoes do periodo...</p>
+                    <h3 className="mt-4 text-base font-black text-slate-950 dark:text-white">Carregando fluxo de caixa</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                        Buscando entradas, saidas, estornos e devolucoes do periodo selecionado.
+                    </p>
                 </section>
             ) : filteredEntries.length === 0 ? (
                 <EmptyStateFinance
-                    title="Nenhuma movimentacao encontrada"
-                    description={
-                        hasTenantContext
-                            ? 'Nao ha transacoes registradas para o periodo selecionado.'
-                            : 'Esta conta nao possui contexto de tenant para consultar o financeiro.'
-                    }
+                    title={emptyStateCopy.title}
+                    description={emptyStateCopy.description}
                     actionLabel="Atualizar"
                     onAction={fetchData}
                 />
@@ -675,9 +725,21 @@ const Cashflow: React.FC = () => {
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.category}</td>
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.paymentMethod}</td>
                                             <td className="px-5 py-4">
-                                                <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${entry.type === 'entrada' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
-                                                    {entry.type}
-                                                </span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${entry.type === 'entrada' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                                                        {entry.type}
+                                                    </span>
+                                                    {entry.isReversalTransaction && (
+                                                        <span className="inline-flex rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-bold uppercase text-rose-600 dark:text-rose-300">
+                                                            {getReversalTypeLabel(entry.reversalSource?.reversalType)}
+                                                        </span>
+                                                    )}
+                                                    {entry.reversalStatus !== 'none' && (
+                                                        <span className="inline-flex rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold uppercase text-amber-700 dark:text-amber-300">
+                                                            Original {entry.reversalStatus === 'full' ? 'revertida' : 'parcial'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className={`px-5 py-4 text-sm font-bold ${entry.type === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                                 {entry.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -704,6 +766,7 @@ const Cashflow: React.FC = () => {
                                                             className="rounded-xl text-amber-700 dark:text-amber-300"
                                                             onClick={() => openReversalModal(entry)}
                                                             disabled={Boolean(reversingId)}
+                                                            title="A reversao sera registrada pela RPC financeira; a transaction original sera preservada."
                                                         >
                                                             Estornar
                                                         </Button>
@@ -856,7 +919,7 @@ const Cashflow: React.FC = () => {
                                 Cancelar
                             </Button>
                             <Button onClick={handleConfirmReversal} disabled={reversingId === reversalEntry.id}>
-                                {reversingId === reversalEntry.id ? 'Registrando...' : 'Confirmar estorno'}
+                                {reversingId === reversalEntry.id ? 'Registrando...' : 'Confirmar estorno auditado'}
                             </Button>
                         </div>
                     </div>

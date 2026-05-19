@@ -62,6 +62,14 @@ type ReversalReason =
     | 'outro';
 
 type RefundMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
+type ActionMessage = { type: 'success' | 'error' | 'info'; message: string };
+
+const getReversalTypeLabel = (value?: string | null) => {
+    if (value === 'wrong_settlement') return 'Estorno';
+    if (value === 'full_refund') return 'Devolucao total';
+    if (value === 'partial_refund') return 'Devolucao parcial';
+    return 'Reversao';
+};
 
 const buildShopAddress = (metadata: Record<string, any> | undefined) => {
     if (!metadata) return [];
@@ -110,6 +118,8 @@ const Receipts: React.FC = () => {
     const { user, tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const [receipts, setReceipts] = useState<Receipt[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
+    const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
 
     // Filters State
     const [filterType, setFilterType] = useState('Todos');
@@ -153,16 +163,23 @@ const Receipts: React.FC = () => {
         canAccessSuperAdmin || ['owner', 'admin', 'manager', 'superadmin'].includes(accessRole);
 
     const fetchReceipts = useCallback(async () => {
-        if (!tenantId) return;
+        if (!tenantId) {
+            setReceipts([]);
+            setLoadError('');
+            setLoading(false);
+            return;
+        }
         setLoading(true);
+        setLoadError('');
 
-        const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('date', { ascending: false });
+        try {
+            const { data, error } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('date', { ascending: false });
 
-        if (data) {
+            if (error) throw error;
             const transactionIds = data.map((tx: any) => tx.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, ReceiptReversalSummary[]>();
@@ -265,10 +282,13 @@ const Receipts: React.FC = () => {
                 };
             });
             setReceipts(mappedReceipts);
-        } else {
+        } catch (error: any) {
             console.error('Error fetching receipts:', error);
+            setReceipts([]);
+            setLoadError('Nao foi possivel carregar recibos e transactions. Nenhum dado financeiro foi alterado.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, [tenantId]);
 
     useEffect(() => {
@@ -385,10 +405,17 @@ const Receipts: React.FC = () => {
             setReversalError('');
             setReversalIdempotencyKey(null);
             await fetchReceipts();
-            alert('Reversao financeira registrada com sucesso. O recibo original foi preservado.');
+            setActionMessage({
+                type: 'success',
+                message: 'Reversao financeira registrada com sucesso. O recibo original foi preservado.',
+            });
         } catch (error: any) {
             console.error('Erro ao registrar reversao pelo recibo:', error);
             setReversalError(error?.message || 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.');
+            setActionMessage({
+                type: 'error',
+                message: 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.',
+            });
         } finally {
             setReversingId(null);
         }
@@ -400,7 +427,7 @@ const Receipts: React.FC = () => {
 
     const handleCreateReceipt = async () => {
         if (!tenantId || !newReceipt.name || !newReceipt.amount) {
-            alert('Preencha o nome do recebedor e o valor');
+            setActionMessage({ type: 'error', message: 'Preencha o nome do recebedor e o valor.' });
             return;
         }
 
@@ -417,13 +444,17 @@ const Receipts: React.FC = () => {
 
         if (error) {
             console.error('Error creating receipt:', error);
-            alert(`Erro ao criar recibo financeiro: ${error.message}`);
+            setActionMessage({
+                type: 'error',
+                message: `Erro ao criar recibo financeiro: ${error.message}`,
+            });
             return;
         }
         
         setIsCreateModalOpen(false);
         setNewReceipt({ name: '', type: 'Receita', amount: '', paymentMethod: 'Dinheiro', description: '', signature: '' });
         await fetchReceipts();
+        setActionMessage({ type: 'success', message: 'Recibo financeiro criado com transaction real.' });
     };
 
     return (
@@ -468,6 +499,41 @@ const Receipts: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {actionMessage && (
+                <div className={`rounded-2xl border px-5 py-4 text-sm font-semibold ${
+                    actionMessage.type === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200'
+                        : actionMessage.type === 'error'
+                            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200'
+                            : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-border-dark dark:bg-white/5 dark:text-slate-200'
+                }`}>
+                    <div className="flex items-start justify-between gap-3">
+                        <p>{actionMessage.message}</p>
+                        <button type="button" onClick={() => setActionMessage(null)} className="text-xs font-black uppercase opacity-70 hover:opacity-100">
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {loadError && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="font-black">Falha ao carregar recibos</p>
+                            <p className="mt-1">{loadError}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={fetchReceipts}
+                            className="rounded-lg bg-white px-4 py-2 text-xs font-black uppercase text-red-700 shadow-sm dark:bg-red-500/10 dark:text-red-200"
+                        >
+                            Tentar novamente
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="bg-white dark:bg-card-dark p-6 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm">
@@ -571,12 +637,29 @@ const Receipts: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-slate-900 dark:text-white">
-                            {filteredReceipts.length > 0 ? filteredReceipts.map((receipt) => (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <span className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></span>
+                                            <div>
+                                                <p className="font-black text-slate-900 dark:text-white">Carregando recibos</p>
+                                                <p className="mt-1">Buscando transactions reais, reversoes e vinculos auditados.</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredReceipts.length > 0 ? filteredReceipts.map((receipt) => (
                                 <tr key={receipt.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600">receipt</span>
-                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">{receipt.number}</span>
+                                        <div className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined mt-0.5 text-slate-300 dark:text-slate-600">receipt</span>
+                                            <div>
+                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">{receipt.number}</span>
+                                                <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                                    Transaction real
+                                                </p>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
@@ -614,7 +697,7 @@ const Receipts: React.FC = () => {
                                         )}
                                         {receipt.isReversalTransaction && (
                                             <span className="mt-1 block text-[11px] font-bold text-rose-600 dark:text-rose-300">
-                                                Movimentacao reversa
+                                                {getReversalTypeLabel(receipt.reversalSource?.reversalType)}
                                             </span>
                                         )}
                                     </td>
@@ -644,13 +727,13 @@ const Receipts: React.FC = () => {
                                             <button onClick={() => openViewModal(receipt)} className="p-1.5 sm:p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors" title="Visualizar">
                                                 <span className="material-symbols-outlined text-[20px]">visibility</span>
                                             </button>
-                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors" title="Imprimir">
+                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Abra o recibo para imprimir pela visualizacao.">
                                                 <span className="material-symbols-outlined text-[20px]">print</span>
                                             </button>
-                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 rounded-lg transition-colors" title="Baixar PDF">
+                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Exportacao PDF direta fica para fase futura.">
                                                 <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
                                             </button>
-                                            <button className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 dark:hover:text-amber-400 rounded-lg transition-colors" title="Reemitir">
+                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Reemissao auditada fica para fase futura.">
                                                 <span className="material-symbols-outlined text-[20px]">cached</span>
                                             </button>
                                         </div>
@@ -661,7 +744,10 @@ const Receipts: React.FC = () => {
                                     <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">
                                         <div className="flex flex-col items-center justify-center gap-3">
                                             <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-700">receipt_long</span>
-                                            <p>Nenhum recibo encontrado com os filtros selecionados.</p>
+                                            <div>
+                                                <p className="font-black text-slate-900 dark:text-white">Nenhum recibo encontrado</p>
+                                                <p className="mt-1">Ajuste os filtros ou emita um recibo quando houver uma transaction real.</p>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -872,7 +958,11 @@ const Receipts: React.FC = () => {
                     >
                         Fechar
                     </button>
-                    <button className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center gap-2">
+                    <button
+                        disabled
+                        title="Exportacao PDF estruturada fica para fase futura."
+                        className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-emerald-600/50 transition-colors flex items-center gap-2 cursor-not-allowed"
+                    >
                         <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                         Exportar PDF
                     </button>
