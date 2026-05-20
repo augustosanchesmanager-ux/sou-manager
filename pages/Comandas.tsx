@@ -137,6 +137,7 @@ interface ComandasPreferences {
     sortField: SortField;
     sortDirection: SortDirection;
     staffFilter: string;
+    paymentMethodFilter: string;
     minTotal: string;
     maxTotal: string;
     consumptionType: ConsumptionType;
@@ -187,6 +188,7 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
 
 const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+const getShortComandaRef = (id: string) => `#${getDisplayId(id)}`;
 const formatMonthInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const getDefaultLegacyReferenceMonth = () => {
     const date = new Date();
@@ -208,6 +210,13 @@ const getStatusSortValue = (status: ComandaStatus) => {
         cancelled: 2,
     };
     return orderMap[status] ?? 99;
+};
+
+const getStatusContextLabel = (status: ComandaStatus) => {
+    if (status === 'open') return 'Aberta para consumo ou baixa no checkout.';
+    if (status === 'blocked') return 'Bloqueada para baixa financeira segura.';
+    if (status === 'paid') return 'Baixada/fechada no financeiro.';
+    return 'Anulada/cancelada com motivo operacional.';
 };
 
 const getConsumptionSummary = (comanda: Comanda) => {
@@ -244,6 +253,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
         sortField: 'date',
         sortDirection: 'desc',
         staffFilter: '',
+        paymentMethodFilter: '',
         minTotal: '',
         maxTotal: '',
         consumptionType: 'all',
@@ -272,6 +282,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
                 ? (parsed.sortDirection as SortDirection)
                 : defaultPreferences.sortDirection,
             staffFilter: typeof parsed.staffFilter === 'string' ? parsed.staffFilter : defaultPreferences.staffFilter,
+            paymentMethodFilter: typeof parsed.paymentMethodFilter === 'string' ? parsed.paymentMethodFilter : defaultPreferences.paymentMethodFilter,
             minTotal: typeof parsed.minTotal === 'string' ? parsed.minTotal : defaultPreferences.minTotal,
             maxTotal: typeof parsed.maxTotal === 'string' ? parsed.maxTotal : defaultPreferences.maxTotal,
             consumptionType: ['all', 'service', 'product', 'mixed'].includes(parsed.consumptionType || '')
@@ -319,6 +330,7 @@ const Comandas: React.FC = () => {
     const [sortField, setSortField] = useState<SortField>(preferences.sortField);
     const [sortDirection, setSortDirection] = useState<SortDirection>(preferences.sortDirection);
     const [staffFilter, setStaffFilter] = useState(preferences.staffFilter);
+    const [paymentMethodFilter, setPaymentMethodFilter] = useState(preferences.paymentMethodFilter);
     const [minTotal, setMinTotal] = useState(preferences.minTotal);
     const [maxTotal, setMaxTotal] = useState(preferences.maxTotal);
     const [consumptionType, setConsumptionType] = useState<ConsumptionType>(preferences.consumptionType);
@@ -335,16 +347,19 @@ const Comandas: React.FC = () => {
     const [cancelReason, setCancelReason] = useState('');
     const [cancelReasonOther, setCancelReasonOther] = useState('');
     const [filtersModalOpen, setFiltersModalOpen] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
             setComandas([]);
             setFinancialHistoryByComandaId({});
+            setLoadError(null);
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        setLoadError(null);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const client = getScopedClient('barber');
@@ -509,7 +524,7 @@ const Comandas: React.FC = () => {
                 return {
                     ...comanda,
                     clients: {
-                        name: clientsById[comanda.client_id]?.name || 'Cliente sem nome',
+                        name: clientsById[comanda.client_id]?.name || 'Cliente nao identificado',
                         avatar: clientsById[comanda.client_id]?.avatar || '',
                         phone: clientsById[comanda.client_id]?.phone || null,
                     },
@@ -539,7 +554,11 @@ const Comandas: React.FC = () => {
             setComandas(hydratedComandas);
         } catch (error) {
             console.error(error);
-            setToast({ message: 'Erro ao carregar comandas.', type: 'error' });
+            const message = 'Nao foi possivel carregar as comandas. Nenhuma acao financeira foi aplicada.';
+            setLoadError(message);
+            setComandas([]);
+            setFinancialHistoryByComandaId({});
+            setToast({ message, type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -598,9 +617,9 @@ const Comandas: React.FC = () => {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const nextPrefs = { filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, minTotal, maxTotal, consumptionType };
+        const nextPrefs = { filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType };
         window.localStorage.setItem(COMANDAS_PREFERENCES_KEY, JSON.stringify(nextPrefs));
-    }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, minTotal, maxTotal, consumptionType]);
+    }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
 
     const applyQuickRange = (range: QuickRange) => {
         const today = new Date();
@@ -634,11 +653,12 @@ const Comandas: React.FC = () => {
         Boolean(searchTerm.trim()),
         hasCustomDateFilter,
         Boolean(staffFilter),
+        Boolean(paymentMethodFilter),
         Boolean(minTotal),
         Boolean(maxTotal),
         consumptionType !== 'all',
     ].filter(Boolean).length;
-    const hasAdvancedFilters = Boolean(staffFilter || minTotal || maxTotal || consumptionType !== 'all');
+    const hasAdvancedFilters = Boolean(staffFilter || paymentMethodFilter || minTotal || maxTotal || consumptionType !== 'all');
     const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
 
     const openCountAll = comandas.filter((c) => c.status === 'open').length;
@@ -660,14 +680,17 @@ const Comandas: React.FC = () => {
         const normalizedSearchTerm = searchTerm.trim().toLowerCase();
         const matchesSearch = !normalizedSearchTerm
             || c.clients.name.toLowerCase().includes(normalizedSearchTerm)
+            || (c.clients.phone || '').toLowerCase().includes(normalizedSearchTerm)
             || c.id.toLowerCase().includes(normalizedSearchTerm)
+            || String(getDisplayId(c.id)).includes(normalizedSearchTerm)
             || c.staff_names.some((name) => name.toLowerCase().includes(normalizedSearchTerm));
         const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
+        const matchesPaymentMethod = !paymentMethodFilter || (c.payment_method || 'Nao informado') === paymentMethodFilter;
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
         const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
-        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax && matchesConsumption;
+        return matchesSearch && matchesStatus && matchesStaff && matchesPaymentMethod && matchesMin && matchesMax && matchesConsumption;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -737,6 +760,12 @@ const Comandas: React.FC = () => {
             .values(),
     ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
 
+    const paymentMethodOptions = Array.from(new Set<string>(
+        comandas
+            .map((c) => c.payment_method || '')
+            .filter((method): method is string => Boolean(method.trim())),
+    )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
     const dateFilterDescription = !dateFrom && !dateTo
         ? 'Periodo completo'
         : dateFrom && dateTo
@@ -747,6 +776,7 @@ const Comandas: React.FC = () => {
         setFilterStatus('all');
         setSearchTerm('');
         setStaffFilter('');
+        setPaymentMethodFilter('');
         setMinTotal('');
         setMaxTotal('');
         setConsumptionType('all');
@@ -799,6 +829,10 @@ const Comandas: React.FC = () => {
     };
 
     const generateCSV = async () => {
+        if (sortedComandas.length === 0) {
+            setToast({ message: 'Nao ha comandas filtradas para exportar.', type: 'info' });
+            return;
+        }
         if (!tenantId) {
             setToast({ message: 'Tenant inválido para exportar comandas.', type: 'error' });
             return;
@@ -898,7 +932,7 @@ const Comandas: React.FC = () => {
             const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
             const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
             return [
-                escapeCSV(getDisplayId(c.id)),
+                escapeCSV(getShortComandaRef(c.id)),
                 escapeCSV(new Date(c.created_at).toLocaleString('pt-BR')),
                 escapeCSV(c.closed_at ? new Date(c.closed_at).toLocaleString('pt-BR') : ''),
                 escapeCSV(c.clients.name),
@@ -936,16 +970,21 @@ const Comandas: React.FC = () => {
         link.click();
         window.document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        setToast({ message: `${sortedComandas.length} comanda(s) exportada(s) da lista filtrada.`, type: 'success' });
     };
 
     const copyToClipboard = async () => {
+        if (sortedComandas.length === 0) {
+            setToast({ message: 'Nao ha comandas filtradas para copiar.', type: 'info' });
+            return;
+        }
         const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
-        const rows = sortedComandas.map((c) => [getDisplayId(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
+        const rows = sortedComandas.map((c) => [getShortComandaRef(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
         try {
             await navigator.clipboard.writeText([headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n'));
-            setToast({ message: 'Copiado para Excel/Sheets', type: 'success' });
+            setToast({ message: `${sortedComandas.length} comanda(s) copiadas da lista filtrada.`, type: 'success' });
         } catch {
-            setToast({ message: 'Erro ao copiar', type: 'error' });
+            setToast({ message: 'Nao foi possivel copiar a lista filtrada.', type: 'error' });
         }
     };
 
@@ -1022,7 +1061,7 @@ const Comandas: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Erro ao anular: ${error.message}`, type: 'error' });
+            setToast({ message: `Nao foi possivel anular a comanda. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -1077,7 +1116,7 @@ const Comandas: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Erro ao baixar: ${error.message}`, type: 'error' });
+            setToast({ message: `Nao foi possivel concluir a baixa em massa. Nenhuma baixa local falsa foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setBulkClosing(false);
         }
@@ -1118,9 +1157,30 @@ const Comandas: React.FC = () => {
                         />
                         <Button size="sm" onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir</Button>
                         <Button size="sm" variant="secondary" onClick={() => navigate('/checkout?mode=pdv')} leftIcon="point_of_sale">PDV</Button>
+                        <Button size="sm" variant="secondary" onClick={generateCSV} leftIcon="download" disabled={loading}>
+                            CSV
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={copyToClipboard} leftIcon="content_copy" disabled={loading}>
+                            Copiar
+                        </Button>
                     </div>
                 </div>
             </section>
+
+            {loadError && (
+                <section className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-lg text-rose-600 dark:text-rose-300">error</span>
+                        <div>
+                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Falha ao carregar comandas</p>
+                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
+                        </div>
+                    </div>
+                    <Button variant="secondary" leftIcon="sync" onClick={fetchData} disabled={loading}>
+                        Tentar novamente
+                    </Button>
+                </section>
+            )}
 
             <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 <KpiCard title="Abertas" value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
@@ -1137,6 +1197,7 @@ const Comandas: React.FC = () => {
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setFilterStatus(tab.key)}
+                                title={tab.key === 'all' ? 'Todas as comandas filtradas' : getStatusContextLabel(tab.key)}
                                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                                     filterStatus === tab.key
                                         ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
@@ -1158,7 +1219,7 @@ const Comandas: React.FC = () => {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Buscar cliente..."
+                                placeholder="Buscar cliente, telefone, profissional ou #comanda..."
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
                             />
                         </div>
@@ -1188,6 +1249,17 @@ const Comandas: React.FC = () => {
                             <option value="7d">7 dias</option>
                             <option value="30d">30 dias</option>
                             <option value="all">Todos</option>
+                        </select>
+                        <select
+                            value={paymentMethodFilter}
+                            onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            title="Filtrar por forma de pagamento ja registrada"
+                        >
+                            <option value="">Pagamento</option>
+                            {paymentMethodOptions.map((method) => (
+                                <option key={method} value={method}>{method}</option>
+                            ))}
                         </select>
                         <select
                             value={`${sortField}:${sortDirection}`}
@@ -1221,6 +1293,17 @@ const Comandas: React.FC = () => {
                         )}
                     </div>
 
+                    {hasAnyFilter && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
+                            <span className="font-black uppercase tracking-[0.12em] text-slate-500">Filtros ativos</span>
+                            <span>{STATUS_LABELS[filterStatus]}</span>
+                            <span>{dateFilterDescription}</span>
+                            {staffFilter && <span>Profissional selecionado</span>}
+                            {paymentMethodFilter && <span>Pagamento: {paymentMethodFilter}</span>}
+                            {consumptionType !== 'all' && <span>Consumo: {consumptionType}</span>}
+                        </div>
+                    )}
+
                     {selectedOpenComandaIds.length > 0 && (
                         <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
                             <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} selecionada(s)</span>
@@ -1234,11 +1317,41 @@ const Comandas: React.FC = () => {
 
                 <div className="divide-y divide-slate-200/70 dark:divide-white/8">
                     {loading ? (
-                        <div className="p-8 text-center text-sm text-slate-500">Carregando...</div>
+                        <div className="space-y-3 p-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-10 animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800 dark:text-white">Carregando comandas...</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e historico financeiro.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {[1, 2, 3, 4].map((item) => (
+                                <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-white/[0.04]" />
+                            ))}
+                        </div>
                     ) : sortedComandas.length === 0 ? (
                         <div className="p-8 text-center">
-                            <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma comanda encontrada.</p>
-                            <Button className="mt-3" onClick={() => navigate('/checkout?mode=comanda')}>Abrir comanda</Button>
+                            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/5">
+                                <span className="material-symbols-outlined">receipt_long</span>
+                            </div>
+                            <p className="text-sm font-black text-slate-800 dark:text-white">
+                                {hasAnyFilter ? 'Nenhuma comanda encontrada com os filtros atuais.' : 'Nenhuma comanda encontrada.'}
+                            </p>
+                            <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                                {hasAnyFilter
+                                    ? 'Revise status, periodo, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
+                                    : 'Quando houver comandas abertas ou baixadas, elas aparecerao aqui com referencia curta, cliente e status operacional.'}
+                            </p>
+                            <div className="mt-4 flex flex-wrap justify-center gap-2">
+                                {hasAnyFilter && (
+                                    <Button variant="secondary" onClick={clearAllFilters} leftIcon="filter_alt_off">
+                                        Limpar filtros
+                                    </Button>
+                                )}
+                                <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir comanda</Button>
+                            </div>
                         </div>
                     ) : (
                         sortedComandas.map((comanda) => (
