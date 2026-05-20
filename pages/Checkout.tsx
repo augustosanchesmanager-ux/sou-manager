@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
     ensureAppSupportsModule,
@@ -52,6 +52,15 @@ interface Client {
     name: string;
     avatar: string;
     phone?: string;
+}
+
+interface QuickOpenComanda {
+    id: string;
+    client_id?: string | null;
+    created_at: string;
+    status: string;
+    total?: number | string | null;
+    clients?: { name?: string | null; phone?: string | null } | { name?: string | null; phone?: string | null }[] | null;
 }
 
 interface Promotion {
@@ -163,6 +172,14 @@ const isFutureOrOpenDate = (value?: string | null) => {
 
 const DIRECT_SETTLEMENT_BLOCK_MESSAGE = 'Esta comanda pertence a um atendimento anterior ou foi cadastrada fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.';
 
+const getQuickComandaClient = (comanda: QuickOpenComanda) => {
+    const client = Array.isArray(comanda.clients) ? comanda.clients[0] : comanda.clients;
+    return {
+        name: client?.name || 'Cliente não identificado',
+        phone: client?.phone || null,
+    };
+};
+
 const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const isBeforeTodayLocal = (value?: string | null) => {
@@ -239,7 +256,7 @@ const Checkout: React.FC = () => {
             }
             : {
                 title: 'Checkout / PDV',
-                subtitle: 'Lance produtos e servicos para uma venda imediata no caixa.',
+                subtitle: 'Lance produtos e serviços para uma venda imediata no caixa ou mantenha uma comanda aberta.',
                 orderLabel: 'Operação',
                 clientRequiredError: 'Selecione um cliente para concluir a operação.',
                 clientEmptyTitle: 'Cliente não selecionado',
@@ -247,13 +264,13 @@ const Checkout: React.FC = () => {
                 itemSectionTitle: 'Itens da Operação',
                 actionToggleLabel: 'Ação da operação',
                 primaryPaidLabel: 'Concluir venda',
-                primaryOpenLabel: 'Salvar aberta',
+                primaryOpenLabel: 'Manter aberta',
                 successPaid: 'Venda realizada com sucesso!',
-                successOpen: 'Operação salva em aberto!',
-                emptyCartMessage: 'Nenhum item lancado na operacao',
-                itemRequiredError: 'Adicione pelo menos um item antes de concluir a operacao.',
+                successOpen: 'Operação mantida em aberto!',
+                emptyCartMessage: 'Nenhum item lançado na operação',
+                itemRequiredError: 'Adicione pelo menos um item antes de concluir a operação.',
                 finalButtonPaidLabel: 'Concluir venda',
-                finalButtonOpenLabel: 'Salvar operacao',
+                finalButtonOpenLabel: 'Manter aberta',
                 summaryTitle: 'Resumo financeiro',
                 redirectPath: '/checkout?mode=pdv',
             };
@@ -286,6 +303,11 @@ const Checkout: React.FC = () => {
     const [duplicateComanda, setDuplicateComanda] = useState<{ id: string; created_at: string } | null>(null);
     const [pendingClient, setPendingClient] = useState<Client | null>(null);
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+    const [isOpenComandaModalOpen, setIsOpenComandaModalOpen] = useState(false);
+    const [openComandaSearchTerm, setOpenComandaSearchTerm] = useState('');
+    const [quickOpenComandas, setQuickOpenComandas] = useState<QuickOpenComanda[]>([]);
+    const [loadingQuickOpenComandas, setLoadingQuickOpenComandas] = useState(false);
+    const [quickOpenComandaError, setQuickOpenComandaError] = useState<string | null>(null);
 
     // DB Data
     const [clients, setClients] = useState<Client[]>([]);
@@ -303,7 +325,7 @@ const Checkout: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const finishLockRef = React.useRef(false);
     const comandaRequestKeyRef = React.useRef(generateIdempotencyKey('comanda'));
-    const supportsOpenComandaState = checkoutEntryMode !== 'pdv';
+    const supportsOpenComandaState = true;
     const incomeCategory = checkoutEntryMode === 'pdv'
         ? 'Venda de Balcao'
         : checkoutEntryMode === 'open_comanda'
@@ -741,6 +763,85 @@ const Checkout: React.FC = () => {
         setPendingClient(null);
         if (duplicateComanda) navigate(`/checkout/${duplicateComanda.id}`);
     };
+
+    const fetchQuickOpenComandas = useCallback(async () => {
+        if (!tenantId) {
+            setQuickOpenComandaError('Tenant inválido para buscar comandas abertas.');
+            return;
+        }
+
+        setLoadingQuickOpenComandas(true);
+        setQuickOpenComandaError(null);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
+            const { tenantId: resolvedTenantId } = requireTenantContext({
+                tenantId,
+                appSlug: currentAppSlug,
+                schema,
+                table: 'comandas',
+                operation: 'quick search open comandas',
+            });
+            const clientDb = getScopedClient('barber');
+            const { data, error } = await clientDb
+                .from('comandas')
+                .select('id, client_id, created_at, status, total')
+                .eq('tenant_id', resolvedTenantId)
+                .in('status', ['open', 'blocked'])
+                .order('created_at', { ascending: false })
+                .limit(40);
+
+            if (error) throw error;
+            const comandas = (data || []) as QuickOpenComanda[];
+            const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
+            const { data: clientRows, error: clientError } = clientIds.length > 0
+                ? await clientDb
+                    .from('clients')
+                    .select('id, name, phone')
+                    .eq('tenant_id', resolvedTenantId)
+                    .in('id', clientIds)
+                : { data: [] as { id: string; name?: string | null; phone?: string | null }[], error: null };
+
+            if (clientError) {
+                console.warn('Não foi possível carregar clientes das comandas abertas:', clientError);
+            }
+
+            const clientsById = ((clientRows || []) as { id: string; name?: string | null; phone?: string | null }[]).reduce((acc, client) => {
+                acc[client.id] = { name: client.name || 'Cliente não identificado', phone: client.phone || null };
+                return acc;
+            }, {} as Record<string, { name: string; phone: string | null }>);
+
+            setQuickOpenComandas(comandas.map((comanda) => ({
+                ...comanda,
+                clients: comanda.client_id ? clientsById[comanda.client_id] || null : null,
+            })));
+        } catch (error) {
+            console.error('Erro ao buscar comandas abertas no checkout:', error);
+            setQuickOpenComandaError('Não foi possível carregar as comandas abertas. Tente novamente.');
+        } finally {
+            setLoadingQuickOpenComandas(false);
+        }
+    }, [appSlug, schema, tenantId]);
+
+    const openQuickComandaSearch = () => {
+        setIsOpenComandaModalOpen(true);
+        setOpenComandaSearchTerm('');
+        void fetchQuickOpenComandas();
+    };
+
+    const filteredQuickOpenComandas = useMemo(() => {
+        const query = openComandaSearchTerm.trim().toLowerCase();
+        if (!query) return quickOpenComandas;
+
+        return quickOpenComandas.filter((comanda) => {
+            const client = getQuickComandaClient(comanda);
+            const shortId = comanda.id.slice(0, 8).toLowerCase();
+            return client.name.toLowerCase().includes(query)
+                || (client.phone || '').toLowerCase().includes(query)
+                || comanda.id.toLowerCase().includes(query)
+                || shortId.includes(query)
+                || comanda.status.toLowerCase().includes(query);
+        });
+    }, [openComandaSearchTerm, quickOpenComandas]);
 
     // Handlers
     const calculateItemPrice = (item: any, type: 'service' | 'product') => {
@@ -1398,7 +1499,17 @@ const Checkout: React.FC = () => {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                            {!comandaId && (
+                                <button
+                                    onClick={openQuickComandaSearch}
+                                    className="px-3 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                    title="Buscar uma comanda aberta sem sair do Checkout"
+                                >
+                                    <span className="material-symbols-outlined text-sm">manage_search</span>
+                                    Comandas abertas
+                                </button>
+                            )}
                             {!selectedClient ? (
                                 <button
                                     onClick={() => setIsClientModalOpen(true)}
@@ -1803,6 +1914,95 @@ const Checkout: React.FC = () => {
                             </div>
                         </button>
                     ))}
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={isOpenComandaModalOpen}
+                onClose={() => setIsOpenComandaModalOpen(false)}
+                title="Comandas abertas"
+                maxWidth="lg"
+            >
+                <div className="space-y-4">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                        Selecione uma comanda para continuar o atendimento no Checkout. Esta busca não altera status, pagamento ou financeiro.
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="relative flex-1">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                            <input
+                                autoFocus
+                                type="text"
+                                value={openComandaSearchTerm}
+                                placeholder="Buscar por cliente, telefone ou #comanda..."
+                                onChange={(event) => setOpenComandaSearchTerm(event.target.value)}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <button
+                            onClick={() => void fetchQuickOpenComandas()}
+                            disabled={loadingQuickOpenComandas}
+                            className="rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+                        >
+                            {loadingQuickOpenComandas ? 'Atualizando...' : 'Atualizar'}
+                        </button>
+                    </div>
+
+                    {quickOpenComandaError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                            {quickOpenComandaError}
+                        </div>
+                    )}
+
+                    <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                        {loadingQuickOpenComandas ? (
+                            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-border-dark">
+                                Carregando comandas abertas...
+                            </div>
+                        ) : filteredQuickOpenComandas.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-border-dark">
+                                Nenhuma comanda aberta encontrada para a busca atual.
+                            </div>
+                        ) : (
+                            filteredQuickOpenComandas.map((comanda) => {
+                                const client = getQuickComandaClient(comanda);
+                                const isBlocked = comanda.status === 'blocked';
+                                return (
+                                    <button
+                                        key={comanda.id}
+                                        onClick={() => {
+                                            setIsOpenComandaModalOpen(false);
+                                            navigate(`/checkout/${comanda.id}`);
+                                        }}
+                                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-primary hover:bg-primary/5 dark:border-border-dark dark:bg-card-dark dark:hover:bg-primary/10"
+                                    >
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white">{client.name}</p>
+                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                    Comanda #{comanda.id.slice(0, 8)}
+                                                    {client.phone ? ` · ${client.phone}` : ''}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase ${isBlocked
+                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200'
+                                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200'
+                                                    }`}
+                                                >
+                                                    {isBlocked ? 'Bloqueada' : 'Aberta'}
+                                                </span>
+                                                <span className="text-xs font-bold text-slate-500">
+                                                    {Number(comanda.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </Modal>
 
