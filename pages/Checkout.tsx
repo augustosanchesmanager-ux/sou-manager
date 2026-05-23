@@ -16,6 +16,15 @@ import {
     normalizeCreditBalances,
 } from '../src/utils/chefClubCredits';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import { receivesCommission } from '../src/lib/staff/roles';
+import {
+    DISCOUNT_REASON_LABELS,
+    DISCOUNT_TYPE_LABELS,
+    type DiscountAuditDraft,
+    type DiscountAuditType,
+    type DiscountReasonType,
+    formatDiscountAuditNote,
+} from '../src/lib/finance/discountAudit';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -78,6 +87,7 @@ interface Promotion {
 interface Staff {
     id: string;
     name: string;
+    role?: string | null;
 }
 
 interface QuickProductForm {
@@ -215,22 +225,22 @@ const Checkout: React.FC = () => {
     const checkoutCopy = checkoutEntryMode === 'edit_comanda'
         ? {
             title: 'Fechamento de Comanda',
-            subtitle: 'Revise os itens, ajuste o consumo e conclua a cobranca.',
+            subtitle: 'Revise os itens, ajuste o consumo e conclua a cobrança.',
             orderLabel: 'Comanda',
             clientRequiredError: 'Selecione o cliente vinculado a esta comanda.',
             clientEmptyTitle: 'Cliente da comanda',
-            clientEmptyHelper: 'Selecione o cliente responsavel por esta comanda.',
+            clientEmptyHelper: 'Selecione o cliente responsável por esta comanda.',
             itemSectionTitle: 'Itens da Comanda',
-            actionToggleLabel: 'Acao da comanda',
+            actionToggleLabel: 'Ação da comanda',
             primaryPaidLabel: 'Fechar agora',
             primaryOpenLabel: 'Manter aberta',
             successPaid: 'Comanda fechada com sucesso!',
             successOpen: 'Comanda atualizada e mantida em aberto!',
-            emptyCartMessage: 'Nenhum item lancado na comanda',
+            emptyCartMessage: 'Nenhum item lançado na comanda',
             itemRequiredError: 'Adicione pelo menos um item antes de finalizar a comanda.',
             finalButtonPaidLabel: 'Confirmar e fechar',
             finalButtonOpenLabel: 'Atualizar e manter aberta',
-            summaryTitle: 'Resumo da cobranca',
+            summaryTitle: 'Resumo da cobrança',
             redirectPath: '/comandas',
         }
         : checkoutEntryMode === 'open_comanda'
@@ -240,7 +250,7 @@ const Checkout: React.FC = () => {
                 orderLabel: 'Nova comanda',
                 clientRequiredError: 'Selecione o cliente antes de abrir a comanda.',
                 clientEmptyTitle: 'Cliente da comanda',
-                clientEmptyHelper: 'Obrigatorio para abrir a comanda.',
+                clientEmptyHelper: 'Obrigatório para abrir a comanda.',
                 itemSectionTitle: 'Itens iniciais da Comanda',
                 actionToggleLabel: 'Destino da comanda',
                 primaryPaidLabel: 'Fechar agora',
@@ -286,6 +296,10 @@ const Checkout: React.FC = () => {
     const [closureNote, setClosureNote] = useState('');
     const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
     const [discount, setDiscount] = useState<string>('0');
+    const [discountType, setDiscountType] = useState<DiscountAuditType>('barber_discount');
+    const [discountReasonType, setDiscountReasonType] = useState<DiscountReasonType>('fidelizacao');
+    const [discountReasonNote, setDiscountReasonNote] = useState('');
+    const [discountResponsibleStaffId, setDiscountResponsibleStaffId] = useState('');
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isSharedExecutionModalOpen, setIsSharedExecutionModalOpen] = useState(false);
@@ -334,6 +348,19 @@ const Checkout: React.FC = () => {
     const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const discountValue = parseFloat(discount) || 0;
     const total = Math.max(0, subtotal - discountValue);
+    const assignedStaffIds = useMemo(
+        () => Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[],
+        [cart],
+    );
+    const assignedCommissionStaff = useMemo(
+        () => staff.filter(pro => assignedStaffIds.includes(pro.id) && receivesCommission(pro)),
+        [assignedStaffIds, staff],
+    );
+    const discountStaffOptions = assignedCommissionStaff.length > 0
+        ? assignedCommissionStaff
+        : staff.filter(pro => receivesCommission(pro));
+    const discountResponsibleStaff = staff.find(pro => pro.id === discountResponsibleStaffId) || null;
+    const shouldCollectDiscountAudit = discountValue > 0;
     const isLegacyClubSettlement = paymentStatus === 'paid' && closureMode === 'legacy_membership';
     const shouldShowPaymentMethod = paymentStatus === 'paid';
     const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement;
@@ -349,6 +376,10 @@ const Checkout: React.FC = () => {
         setSelectedClient(null);
         setCart([]);
         setDiscount('0');
+        setDiscountType('barber_discount');
+        setDiscountReasonType('fidelizacao');
+        setDiscountReasonNote('');
+        setDiscountResponsibleStaffId('');
         setPaymentMethod('credit');
         setPaymentDescription('');
         setClosureMode('standard');
@@ -468,7 +499,7 @@ const Checkout: React.FC = () => {
 
             const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
                 client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
-                client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
+                client.from('staff').select('id, name, role').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
                 client.from('services').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('products').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
@@ -552,7 +583,7 @@ const Checkout: React.FC = () => {
                     const { data: participantStaffRows } = participantProfessionalIds.length > 0
                         ? await client
                             .from('staff')
-                            .select('id, name')
+                            .select('id, name, role')
                             .eq('tenant_id', resolvedTenantId)
                             .in('id', participantProfessionalIds)
                         : { data: [] as any[] };
@@ -626,6 +657,14 @@ const Checkout: React.FC = () => {
     }, [chefClubInfo, closureMode, comandaId]);
 
     useEffect(() => {
+        if (!shouldCollectDiscountAudit || discountType !== 'barber_discount') return;
+        if (discountResponsibleStaffId) return;
+        if (assignedCommissionStaff.length === 1) {
+            setDiscountResponsibleStaffId(assignedCommissionStaff[0].id);
+        }
+    }, [assignedCommissionStaff, discountResponsibleStaffId, discountType, shouldCollectDiscountAudit]);
+
+    useEffect(() => {
         if (comandaId || !checkoutState?.fromAppointment || loading) return;
 
         if (checkoutState.appointmentId) {
@@ -681,7 +720,7 @@ const Checkout: React.FC = () => {
     const handleSelectClient = async (client: Client) => {
         setIsClientModalOpen(false);
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para selecionar cliente.', type: 'error' });
+            setToast({ message: 'Tenant inválido para selecionar cliente.', type: 'error' });
             finishLockRef.current = false;
             return;
         }
@@ -927,7 +966,7 @@ const Checkout: React.FC = () => {
         e.preventDefault();
 
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para cadastrar produto.', type: 'error' });
+            setToast({ message: 'Tenant inválido para cadastrar produto.', type: 'error' });
             return;
         }
 
@@ -985,7 +1024,7 @@ const Checkout: React.FC = () => {
         e.preventDefault();
 
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para cadastrar servico.', type: 'error' });
+            setToast({ message: 'Tenant inválido para cadastrar serviço.', type: 'error' });
             return;
         }
 
@@ -1024,13 +1063,13 @@ const Checkout: React.FC = () => {
                 return nextServices;
             });
 
-            setToast({ message: 'Servico criado e adicionado a venda.', type: 'success' });
+            setToast({ message: 'Serviço criado e adicionado à venda.', type: 'success' });
             handleAddItem(createdService, 'service');
             setQuickServiceForm(createInitialQuickServiceForm());
             setIsQuickServiceModalOpen(false);
         } catch (error) {
             console.error('Error creating service during checkout:', error);
-            setToast({ message: 'Erro ao cadastrar servico durante a venda.', type: 'error' });
+            setToast({ message: 'Erro ao cadastrar serviço durante a venda.', type: 'error' });
         } finally {
             setIsSavingQuickService(false);
         }
@@ -1133,8 +1172,32 @@ const Checkout: React.FC = () => {
             finishLockRef.current = false;
             return;
         }
+        let discountAuditDraft: DiscountAuditDraft | null = null;
+        if (shouldCollectDiscountAudit) {
+            if (discountType === 'barber_discount' && !discountResponsibleStaffId) {
+                setToast({ message: 'Selecione o barbeiro responsável pelo desconto.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
+            if (!discountReasonNote.trim()) {
+                setToast({ message: 'Informe uma observação para auditar o desconto.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
+
+            discountAuditDraft = {
+                amount: discountValue,
+                type: discountType,
+                reasonType: discountReasonType,
+                reasonNote: discountReasonNote.trim(),
+                responsibleStaffId: discountType === 'barber_discount' ? discountResponsibleStaffId : null,
+                responsibleStaffName: discountType === 'barber_discount' ? discountResponsibleStaff?.name : null,
+                commissionImpact: 'pending_review',
+            };
+        }
         if (!tenantId) {
             setToast({ message: 'Tenant inválido para finalizar operação.', type: 'error' });
+            finishLockRef.current = false;
             return;
         }
 
@@ -1154,6 +1217,11 @@ const Checkout: React.FC = () => {
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
             const shouldSettleViaRpc = paymentStatus === 'paid' && !isLegacyClubSettlement;
             const paymentDateReal = new Date().toISOString();
+            const discountAuditNote = discountAuditDraft ? formatDiscountAuditNote(discountAuditDraft) : null;
+            const settlementNotes = [
+                paymentMethod === 'other' && paymentDescription ? `Forma de pagamento: ${paymentDescription}` : null,
+                discountAuditNote,
+            ].filter(Boolean).join('\n\n') || null;
 
             if (paymentStatus === 'paid' && relatedAppointmentId) {
                 const [{ data: appointmentForSettlement }, { data: comandaForSettlement }] = await Promise.all([
@@ -1364,7 +1432,7 @@ const Checkout: React.FC = () => {
                     paidAmount: total,
                     paymentDateReal,
                     source: 'checkout',
-                    notes: paymentMethod === 'other' && paymentDescription ? paymentDescription : null,
+                    notes: settlementNotes,
                     idempotencyKey: `finance-settle-${currentComandaId}-${comandaRequestKeyRef.current}`,
                     incomeCategory,
                     description: paymentMethod === 'other' && paymentDescription
@@ -1403,7 +1471,7 @@ const Checkout: React.FC = () => {
 
             setToast({
                 message: isLegacyClubSettlement
-                    ? 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem creditos atuais.'
+                    ? 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem créditos atuais.'
                     : paymentStatus === 'paid'
                         ? checkoutCopy.successPaid
                         : checkoutCopy.successOpen,
@@ -1751,8 +1819,8 @@ const Checkout: React.FC = () => {
                                             : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
                                             }`}
                                     >
-                                        <p className="text-sm font-black">Fechamento padrao</p>
-                                        <p className="mt-1 text-xs">Lanca o financeiro normalmente e consome os creditos aplicados nesta comanda.</p>
+                                        <p className="text-sm font-black">Fechamento padrão</p>
+                                        <p className="mt-1 text-xs">Lança o financeiro normalmente e consome os créditos aplicados nesta comanda.</p>
                                     </button>
                                     <button
                                         onClick={() => setClosureMode('legacy_membership')}
@@ -1762,7 +1830,7 @@ const Checkout: React.FC = () => {
                                             }`}
                                     >
                                         <p className="text-sm font-black">Baixa administrativa do Clube</p>
-                                        <p className="mt-1 text-xs">Fecha a comanda sem gerar nova receita e sem afetar os creditos atuais do assinante.</p>
+                                        <p className="mt-1 text-xs">Fecha a comanda sem gerar nova receita e sem afetar os créditos atuais do assinante.</p>
                                     </button>
                                 </div>
 
@@ -1781,7 +1849,7 @@ const Checkout: React.FC = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observacao interna</label>
+                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observação interna</label>
                                             <textarea
                                                 value={closureNote}
                                                 onChange={(e) => setClosureNote(e.target.value)}
@@ -1809,6 +1877,72 @@ const Checkout: React.FC = () => {
                                     className="w-20 text-right bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded px-2 py-1 text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
                                 />
                             </div>
+                            {shouldCollectDiscountAudit && (
+                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-3 text-xs text-slate-700 dark:text-slate-200">
+                                    <div>
+                                        <p className="font-bold text-amber-700 dark:text-amber-300">Controle do desconto</p>
+                                        <p className="mt-1 text-slate-500 dark:text-slate-400">
+                                            Registra a origem do desconto nas observações da baixa. A comissão ainda não será recalculada automaticamente.
+                                        </p>
+                                    </div>
+
+                                    <label className="block">
+                                        <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Origem</span>
+                                        <select
+                                            value={discountType}
+                                            onChange={(e) => {
+                                                const nextType = e.target.value as DiscountAuditType;
+                                                setDiscountType(nextType);
+                                                if (nextType !== 'barber_discount') setDiscountResponsibleStaffId('');
+                                            }}
+                                            className="mt-1 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                        >
+                                            {Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => (
+                                                <option key={value} value={value}>{label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    {discountType === 'barber_discount' && (
+                                        <label className="block">
+                                            <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Barbeiro responsável</span>
+                                            <select
+                                                value={discountResponsibleStaffId}
+                                                onChange={(e) => setDiscountResponsibleStaffId(e.target.value)}
+                                                className="mt-1 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                            >
+                                                <option value="">Selecione o barbeiro</option>
+                                                {discountStaffOptions.map(pro => (
+                                                    <option key={pro.id} value={pro.id}>{pro.name}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                    )}
+
+                                    <label className="block">
+                                        <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Motivo</span>
+                                        <select
+                                            value={discountReasonType}
+                                            onChange={(e) => setDiscountReasonType(e.target.value as DiscountReasonType)}
+                                            className="mt-1 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                        >
+                                            {Object.entries(DISCOUNT_REASON_LABELS).map(([value, label]) => (
+                                                <option key={value} value={value}>{label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    <label className="block">
+                                        <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Observação obrigatória</span>
+                                        <textarea
+                                            value={discountReasonNote}
+                                            onChange={(e) => setDiscountReasonNote(e.target.value)}
+                                            placeholder="Explique o contexto do desconto..."
+                                            className="mt-1 min-h-20 w-full resize-none bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    </label>
+                                </div>
+                            )}
                             <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
                             <div className="flex justify-between items-end">
                                 <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
@@ -1854,7 +1988,7 @@ const Checkout: React.FC = () => {
 
                         {isLegacyClubSettlement && (
                             <div className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-900 dark:text-amber-100">
-                                O fechamento sera apenas operacional. Nenhum lancamento novo sera enviado ao financeiro e nenhum credito atual sera abatido.
+                                O fechamento será apenas operacional. Nenhum lançamento novo será enviado ao financeiro e nenhum crédito atual será abatido.
                             </div>
                         )}
 
@@ -2054,8 +2188,8 @@ const Checkout: React.FC = () => {
                     {itemModalTab === 'products' && (
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/70 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/5">
                             <div>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">Nao encontrou o produto?</p>
-                                <p className="text-xs text-slate-500">Cadastre agora e ele ja entra na venda.</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Não encontrou o produto?</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra na venda.</p>
                             </div>
                             <button
                                 type="button"
@@ -2070,15 +2204,15 @@ const Checkout: React.FC = () => {
                     {itemModalTab === 'services' && (
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3">
                             <div>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">Nao encontrou o servico?</p>
-                                <p className="text-xs text-slate-500">Cadastre agora e ele ja entra na venda.</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Não encontrou o serviço?</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra na venda.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={handleOpenQuickServiceModal}
                                 className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90"
                             >
-                                + Novo Servico
+                                + Novo Serviço
                             </button>
                         </div>
                     )}
@@ -2103,7 +2237,7 @@ const Checkout: React.FC = () => {
                                         onClick={handleOpenQuickServiceModal}
                                         className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
                                     >
-                                        Cadastrar servico agora
+                                        Cadastrar serviço agora
                                     </button>
                                 )}
                                 {itemModalTab === 'products' && (
@@ -2168,7 +2302,7 @@ const Checkout: React.FC = () => {
                         />
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Descricao</label>
+                        <label className="text-xs font-bold uppercase text-slate-500">Descrição</label>
                         <textarea
                             rows={2}
                             value={quickProductForm.description}
@@ -2255,12 +2389,12 @@ const Checkout: React.FC = () => {
             <Modal
                 isOpen={isQuickServiceModalOpen}
                 onClose={handleCloseQuickServiceModal}
-                title="Cadastrar Servico"
+                title="Cadastrar Serviço"
                 maxWidth="lg"
             >
                 <form onSubmit={handleCreateServiceDuringCheckout} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Servico</label>
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Serviço</label>
                         <input
                             autoFocus
                             required
@@ -2300,7 +2434,7 @@ const Checkout: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold uppercase text-slate-500">Duracao (min)</label>
+                            <label className="text-xs font-bold uppercase text-slate-500">Duração (min)</label>
                             <input
                                 required
                                 type="number"
@@ -2317,7 +2451,7 @@ const Checkout: React.FC = () => {
                                 onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, active: e.target.checked }))}
                                 className="size-4 accent-primary"
                             />
-                            Servico ativo
+                            Serviço ativo
                         </label>
                     </div>
                     <div className="flex gap-3 pt-2">
