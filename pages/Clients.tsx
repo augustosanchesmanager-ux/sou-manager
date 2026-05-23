@@ -6,6 +6,7 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { LoadingBlock } from '../components/ui/Loading';
+import CustomerVouchersSection from '../components/customers/CustomerVouchersSection';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
@@ -58,7 +59,7 @@ const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { showLoading, hideLoading } = useLoading();
-    const { tenantId } = useAuth();
+    const { tenantId, user } = useAuth();
     const barberSupabase = getScopedClient('barber');
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
@@ -239,7 +240,7 @@ const Clients: React.FC = () => {
     const handleCreateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para cadastro de cliente.', type: 'error' });
+            setToast({ message: 'Tenant inválido para cadastro de cliente.', type: 'error' });
             return;
         }
         const clientsClient = getClientForTable('clients', 'barber');
@@ -291,10 +292,11 @@ const Clients: React.FC = () => {
         const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
 
         const cleanupByClientId = async (table: string) => {
-            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions'
+            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions' || table === 'customer_vouchers'
                 ? barberSupabase
                 : supabase;
-            const { error } = await targetClient.from(table).delete().eq('client_id', clientId);
+            const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
+            const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
             if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
                 console.warn(`Falha ao limpar dependencias em ${table}:`, error);
             }
@@ -324,6 +326,7 @@ const Clients: React.FC = () => {
             await cleanupByClientId('kiosk_sessions');
             await cleanupByClientId('customer_credits');
             await cleanupByClientId('customer_subscriptions');
+            await cleanupByClientId('customer_vouchers');
             await cleanupByClientId('comandas');
 
             const clientsClient = getClientForTable('clients', 'barber');
@@ -432,7 +435,7 @@ const Clients: React.FC = () => {
 
     const handleConfirmImport = async () => {
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para importar clientes.', type: 'error' });
+            setToast({ message: 'Tenant inválido para importar clientes.', type: 'error' });
             return;
         }
         setLoading(true);
@@ -618,7 +621,7 @@ const Clients: React.FC = () => {
                 isOpen={!!detailClient}
                 onClose={() => setDetailClient(null)}
                 title="Detalhes do Cliente"
-                maxWidth="md"
+                maxWidth="2xl"
             >
                 {detailClient && (
                     <div className="space-y-4">
@@ -730,6 +733,12 @@ const Clients: React.FC = () => {
                                 <p className="text-[10px] text-slate-500 uppercase font-bold">Último Serviço</p>
                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.last_service || '-'}</p>
                             </div>
+                            <CustomerVouchersSection
+                                tenantId={tenantId}
+                                customerId={detailClient.id}
+                                currentUserId={user?.id || null}
+                                onToast={setToast}
+                            />
                         </div>
                         <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
                             className="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors mt-2">

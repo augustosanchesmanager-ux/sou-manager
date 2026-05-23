@@ -183,6 +183,32 @@ interface LocalDemoReceivableRecord {
   updated_at: string;
 }
 
+interface LocalDemoVoucherRecord {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  promotion_id: string | null;
+  voucher_code: string | null;
+  title: string;
+  description: string | null;
+  benefit_type: 'free_service' | 'discount_fixed' | 'discount_percentage' | 'custom_benefit';
+  service_id: string | null;
+  discount_amount: number | null;
+  discount_percentage: number | null;
+  status: 'available' | 'used' | 'expired' | 'cancelled';
+  issued_at: string;
+  expires_at: string | null;
+  used_at: string | null;
+  used_comanda_id: string | null;
+  issued_by_user_id: string | null;
+  used_by_user_id: string | null;
+  cancelled_by_user_id: string | null;
+  cancellation_reason: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface LocalDemoDatabase {
   clients: LocalDemoClientRecord[];
   suppliers: Array<{
@@ -309,6 +335,7 @@ interface LocalDemoDatabase {
   customer_subscriptions: LocalDemoSubscriptionRecord[];
   customer_credits: LocalDemoCreditRecord[];
   customer_subscription_receivables: LocalDemoReceivableRecord[];
+  customer_vouchers: LocalDemoVoucherRecord[];
   notifications: Array<{
     id: string;
     tenant_id: string;
@@ -657,6 +684,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
     customer_subscriptions: [],
     customer_credits: [],
     customer_subscription_receivables: [],
+    customer_vouchers: [],
     notifications: [],
     notification_preferences: [],
   };
@@ -757,6 +785,7 @@ comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], s
       customer_subscription_receivables: Array.isArray(parsed.customer_subscription_receivables)
         ? parsed.customer_subscription_receivables
         : [],
+      customer_vouchers: Array.isArray(parsed.customer_vouchers) ? parsed.customer_vouchers : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
       notification_preferences: Array.isArray(parsed.notification_preferences) ? parsed.notification_preferences : [],
     };
@@ -838,6 +867,8 @@ case 'comanda_items':
         return cloneRows(db.customer_credits);
       case 'customer_subscription_receivables':
         return cloneRows(db.customer_subscription_receivables);
+      case 'customer_vouchers':
+        return cloneRows(db.customer_vouchers);
       case 'notifications':
         return cloneRows(db.notifications);
       case 'notification_preferences':
@@ -1078,6 +1109,8 @@ case 'comanda_items':
         db.customer_credits.push(...(nextRows as LocalDemoCreditRecord[]));
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables.push(...(nextRows as LocalDemoReceivableRecord[]));
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers.push(...(nextRows as LocalDemoVoucherRecord[]));
       } else if (table === 'customer_plans') {
         db.customer_plans.push(...(nextRows as LocalDemoPlanRecord[]));
       } else if (table === 'appointments') {
@@ -1123,6 +1156,8 @@ case 'comanda_items':
         db.customer_credits = replaceRows(db.customer_credits);
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables = replaceRows(db.customer_subscription_receivables);
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers = replaceRows(db.customer_vouchers);
       } else if (table === 'customer_plans') {
         db.customer_plans = replaceRows(db.customer_plans);
       } else if (table === 'appointments') {
@@ -1161,8 +1196,10 @@ case 'comanda_items':
           ? db.customer_subscriptions
           : table === 'customer_subscription_receivables'
             ? db.customer_subscription_receivables
-            : table === 'customer_plans'
-              ? db.customer_plans
+            : table === 'customer_vouchers'
+              ? db.customer_vouchers
+              : table === 'customer_plans'
+                ? db.customer_plans
               : table === 'appointments'
               ? db.appointments
               : table === 'comandas'
@@ -1212,6 +1249,8 @@ case 'comanda_items':
         db.customer_credits = remainingRows as LocalDemoCreditRecord[];
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables = remainingRows as LocalDemoReceivableRecord[];
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers = remainingRows as LocalDemoVoucherRecord[];
       } else if (table === 'customer_plans') {
         db.customer_plans = remainingRows as LocalDemoPlanRecord[];
       } else if (table === 'appointments') {
