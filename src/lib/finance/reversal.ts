@@ -1,5 +1,5 @@
 const REVERSAL_ERROR_MESSAGE =
-  'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada. Tente novamente ou acione o gestor.';
+  'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
 const REVERSAL_TIMEOUT_MS = 30000;
 
 export type FinancialReversalType =
@@ -40,7 +40,7 @@ export const createReversalKey = (originalTransactionId: string) => {
 const withReversalTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error('Tempo limite excedido ao registrar a reversao financeira.')), REVERSAL_TIMEOUT_MS);
+    timeoutId = setTimeout(() => reject(new Error('Tempo limite excedido ao registrar a reversão financeira.')), REVERSAL_TIMEOUT_MS);
   });
 
   try {
@@ -62,16 +62,26 @@ export const reverseFinancialTransaction = async ({
   reversalDate,
   idempotencyKey,
 }: ReverseFinancialTransactionInput): Promise<ReverseFinancialTransactionResult> => {
-  if (!tenantId) throw new Error('tenant_id obrigatorio para reversao financeira.');
-  if (!originalTransactionId) throw new Error('transaction original obrigatoria para reversao financeira.');
-  if (!reversalType) throw new Error('Tipo de reversao obrigatorio.');
-  if (!reasonType) throw new Error('Motivo obrigatorio para reversao financeira.');
-  if (!reasonNote?.trim()) throw new Error('Observacao obrigatoria para reversao financeira.');
+  if (!tenantId) throw new Error('tenant_id obrigatório para reversão financeira.');
+  if (!originalTransactionId) throw new Error('transaction original obrigatória para reversão financeira.');
+  if (!reversalType) throw new Error('Tipo de reversão obrigatório.');
+  if (!reasonType) throw new Error('Motivo obrigatório para reversão financeira.');
+  if (!reasonNote?.trim()) throw new Error('Observação obrigatória para reversão financeira.');
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('Valor de reversao deve ser maior que zero.');
+    throw new Error('Valor de reversão deve ser maior que zero.');
   }
 
   const key = idempotencyKey || createReversalKey(originalTransactionId);
+  console.info('finance_reverse_transaction request:', {
+    tenantId,
+    originalTransactionId,
+    reversalType,
+    amount,
+    reasonType,
+    refundMethod: refundMethod || null,
+    reversalDate: reversalDate || new Date().toISOString(),
+    idempotencyKey: key,
+  });
   const { data, error } = await withReversalTimeout<any>(
     supabase.rpc('finance_reverse_transaction', {
       p_tenant_id: tenantId,
@@ -88,7 +98,8 @@ export const reverseFinancialTransaction = async ({
 
   if (error) {
     console.error('finance_reverse_transaction failed:', error);
-    throw new Error(REVERSAL_ERROR_MESSAGE);
+    const details = error.message ? ` Detalhe técnico: ${error.message}` : '';
+    throw new Error(`${REVERSAL_ERROR_MESSAGE}${details}`);
   }
 
   const result = data || {};
@@ -103,6 +114,6 @@ export const reverseFinancialTransaction = async ({
     financialReversalId: result.financial_reversal_id,
     originalTransactionId: result.original_transaction_id || originalTransactionId,
     reversalTransactionId: result.reversal_transaction_id,
-    message: result.message || 'Reversao financeira registrada com sucesso.',
+    message: result.message || 'Reversão financeira registrada com sucesso.',
   };
 };

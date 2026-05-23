@@ -32,14 +32,20 @@ interface AREntry {
 
 interface ComandaRecord {
     id: string;
-    client_id: string;
+    client_id?: string | null;
     status: string;
     total: number;
     discount?: number | null;
     created_at: string;
     staff_id?: string | null;
     payment_method?: string | null;
-    clients: { name: string; phone?: string | null } | { name: string; phone?: string | null }[];
+    clients?: { name: string; phone?: string | null } | { name: string; phone?: string | null }[] | null;
+}
+
+interface ClientLookupRecord {
+    id: string;
+    name?: string | null;
+    phone?: string | null;
 }
 
 interface ComandaItemRecord {
@@ -126,11 +132,11 @@ const SOURCE_LABELS: Record<ARSource, string> = {
 const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
     todos: {
         title: 'Nenhuma conta a receber no filtro atual',
-        description: 'Nao ha comandas abertas, recebiveis do Clube ou recibos pendentes neste periodo.',
+        description: 'Não há comandas abertas, recebíveis do Clube ou recibos pendentes neste período.',
     },
     comandas: {
         title: 'Nenhuma comanda aberta',
-        description: 'As comandas em aberto deste periodo aparecerao aqui para baixa financeira.',
+        description: 'As comandas em aberto deste período aparecerão aqui para baixa financeira.',
     },
     clube: {
         title: 'Nenhum recebivel do Clube pendente',
@@ -210,7 +216,7 @@ const normalizePaymentMethod = (value?: string | null): PaymentMethod => {
 
 const getShortId = (id?: string | null) => (id ? id.slice(0, 8) : 'sem-id');
 
-const getClientData = (clients: ComandaRecord['clients']) => {
+const getClientData = (clients?: ComandaRecord['clients']) => {
     const client = Array.isArray(clients) ? clients[0] : clients;
     return {
         name: client?.name || CLIENT_FALLBACK_LABEL,
@@ -325,6 +331,27 @@ const AccountsReceivable: React.FC = () => {
             setOpenComandas(comandasData);
 
             const comandaIds = comandasData.map((comanda) => comanda.id).filter(Boolean);
+            const clientIds = Array.from(new Set(comandasData.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
+            const { data: clientRowsData, error: clientRowsError } = clientIds.length > 0
+                ? await barberSupabase
+                    .from('clients')
+                    .select('id, name, phone')
+                    .eq('tenant_id', tenantId)
+                    .in('id', clientIds)
+                : { data: [] as ClientLookupRecord[], error: null };
+
+            if (clientRowsError) {
+                console.warn('Não foi possível carregar os clientes das comandas em aberto:', clientRowsError);
+            }
+
+            const clientById = ((clientRowsData || []) as ClientLookupRecord[]).reduce((acc, client) => {
+                acc[client.id] = {
+                    name: client.name || CLIENT_FALLBACK_LABEL,
+                    phone: client.phone || null,
+                };
+                return acc;
+            }, {} as Record<string, { name: string; phone: string | null }>);
+
             const { data: comandaItemsData, error: comandaItemsError } = comandaIds.length > 0
                 ? await barberSupabase
                     .from('comanda_items')
@@ -379,7 +406,9 @@ const AccountsReceivable: React.FC = () => {
             }, {} as Record<string, ComandaItemRecord[]>);
 
             const detailsByComandaId = comandasData.reduce((acc, comanda) => {
-                const client = getClientData(comanda.clients);
+                const client = comanda.client_id && clientById[comanda.client_id]
+                    ? clientById[comanda.client_id]
+                    : getClientData(comanda.clients);
                 const items = (itemsByComandaId[comanda.id] || []).map((item) => {
                     const quantity = Number(item.quantity || 0);
                     const unitPrice = Number(item.unit_price || 0);
@@ -435,8 +464,47 @@ const AccountsReceivable: React.FC = () => {
                     && Number(tx.amount || 0) > 0;
             });
             const paidComandaTransactionIds = paidComandaTransactions.map((tx: any) => tx.id).filter(Boolean);
+            const paidComandaSourceIds = Array.from(new Set(paidComandaTransactions.map((tx: any) => tx.source_id).filter(Boolean))) as string[];
+            let paidClientNameBySourceId: Record<string, string> = {};
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, ReversalSummary[]>();
+
+            if (paidComandaSourceIds.length > 0) {
+                const { data: paidComandasData, error: paidComandasError } = await barberSupabase
+                    .from('comandas')
+                    .select('id, client_id, clients(name, phone)')
+                    .eq('tenant_id', tenantId)
+                    .in('id', paidComandaSourceIds);
+
+                if (paidComandasError) {
+                    console.warn('Não foi possível carregar clientes das baixas recentes:', paidComandasError);
+                } else {
+                    const paidComandas = (paidComandasData || []) as ComandaRecord[];
+                    const paidClientIds = Array.from(new Set(paidComandas.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
+                    const { data: paidClientRowsData, error: paidClientRowsError } = paidClientIds.length > 0
+                        ? await barberSupabase
+                            .from('clients')
+                            .select('id, name, phone')
+                            .eq('tenant_id', tenantId)
+                            .in('id', paidClientIds)
+                        : { data: [] as ClientLookupRecord[], error: null };
+
+                    if (paidClientRowsError) {
+                        console.warn('Não foi possível carregar clientes vinculados às baixas recentes:', paidClientRowsError);
+                    }
+
+                    const paidClientById = ((paidClientRowsData || []) as ClientLookupRecord[]).reduce((acc, client) => {
+                        acc[client.id] = client.name || CLIENT_FALLBACK_LABEL;
+                        return acc;
+                    }, {} as Record<string, string>);
+
+                    paidClientNameBySourceId = paidComandas.reduce((acc, comanda) => {
+                        const relatedClientName = comanda.client_id ? paidClientById[comanda.client_id] : null;
+                        acc[comanda.id] = relatedClientName || getClientData(comanda.clients).name;
+                        return acc;
+                    }, {} as Record<string, string>);
+                }
+            }
 
             if (paidComandaTransactionIds.length > 0) {
                 const { data: reversals, error: reversalsError } = await supabase
@@ -446,7 +514,7 @@ const AccountsReceivable: React.FC = () => {
                     .in('original_transaction_id', paidComandaTransactionIds);
 
                 if (reversalsError) {
-                    console.warn('Nao foi possivel carregar reversoes de contas a receber:', reversalsError);
+                    console.warn('Não foi possível carregar reversões de contas a receber:', reversalsError);
                 } else {
                     ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
                         if (!reversal.original_transaction_id) return;
@@ -482,7 +550,7 @@ const AccountsReceivable: React.FC = () => {
                     id: tx.id,
                     tenantId: tx.tenant_id || tenantId,
                     sourceId: tx.source_id || null,
-                    clientName: extractClientNameFromTransactionDescription(tx.description),
+                    clientName: paidClientNameBySourceId[tx.source_id] || extractClientNameFromTransactionDescription(tx.description),
                     description: tx.category || 'Receita de Comanda',
                     dateValue: tx.date || new Date().toISOString(),
                     amount,
@@ -509,7 +577,7 @@ const AccountsReceivable: React.FC = () => {
                     number: `REC-${recYear}-${shortId.toUpperCase()}`,
                     date: tx.date || new Date().toISOString(),
                     type: safeType,
-                    name: tx.description || 'Transacao',
+                    name: tx.description || 'Transação',
                     amount: Number(tx.amount || 0),
                     paymentMethod: tx.payment_method || 'Dinheiro',
                     status,
@@ -539,7 +607,7 @@ const AccountsReceivable: React.FC = () => {
 
         } catch (error: any) {
             console.error('Erro ao carregar contas a receber:', error);
-            const message = 'Nao foi possivel carregar as contas a receber. Verifique a conexao e tente atualizar.';
+            const message = 'Não foi possível carregar as contas a receber. Verifique a conexão e tente atualizar.';
             setLoadError(message);
             setToast({ message, type: 'error' });
         } finally {
@@ -585,7 +653,7 @@ const AccountsReceivable: React.FC = () => {
                 `Origem: accounts_receivable`,
                 `Comanda: #${getShortId(settlementEntry.id)}`,
                 detail?.discount ? `Desconto atual: ${formatCurrency(detail.discount)}` : null,
-                settlementNotes.trim() ? `Observacao: ${settlementNotes.trim()}` : null,
+                settlementNotes.trim() ? `Observação: ${settlementNotes.trim()}` : null,
             ].filter(Boolean);
             await settleCheckoutComanda({
                 comandaId: settlementEntry.id,
@@ -606,9 +674,9 @@ const AccountsReceivable: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error('Erro ao dar baixa via RPC:', error);
-            const message = error?.message?.includes('Nenhuma alteracao foi aplicada')
+            const message = error?.message?.includes('Nenhuma alteração foi aplicada')
                 ? error.message
-                : 'Nao foi possivel registrar a baixa financeira. Nenhuma alteracao foi aplicada.';
+                : 'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada.';
             setToast({ message, type: 'error' });
         } finally {
             setMarkingPaid(null);
@@ -645,7 +713,7 @@ const AccountsReceivable: React.FC = () => {
 
     const handleConfirmReversal = async () => {
         if (!tenantId || !reversalEntry) {
-            setToast({ message: 'Contexto invalido para reversao financeira.', type: 'error' });
+            setToast({ message: 'Contexto inválido para reversão financeira.', type: 'error' });
             return;
         }
 
@@ -654,19 +722,19 @@ const AccountsReceivable: React.FC = () => {
         const parsedReversalDate = new Date(reversalDate);
 
         if (!Number.isFinite(amount) || amount <= 0 || amount > reversalEntry.reversibleAmount) {
-            setToast({ message: 'Informe um valor de reversao valido.', type: 'error' });
+            setToast({ message: 'Informe um valor de reversão válido.', type: 'error' });
             return;
         }
         if (!reversalDate || Number.isNaN(parsedReversalDate.getTime())) {
-            setToast({ message: 'Informe uma data real de reversao valida.', type: 'error' });
+            setToast({ message: 'Informe uma data real de reversão válida.', type: 'error' });
             return;
         }
         if (requiresRefundMethod && !refundMethod) {
-            setToast({ message: 'Informe a forma de devolucao.', type: 'error' });
+            setToast({ message: 'Informe a forma de devolução.', type: 'error' });
             return;
         }
         if (!reasonType || !reasonNote.trim()) {
-            setToast({ message: 'Informe motivo e observacao para continuar.', type: 'error' });
+            setToast({ message: 'Informe motivo e observação para continuar.', type: 'error' });
             return;
         }
         if (!reversalConfirmed) {
@@ -675,7 +743,7 @@ const AccountsReceivable: React.FC = () => {
         }
 
         setReversingId(reversalEntry.id);
-        setToast({ message: 'Registrando reversao financeira...', type: 'info' });
+        setToast({ message: 'Registrando reversão financeira...', type: 'info' });
         try {
             await reverseFinancialTransaction({
                 tenantId,
@@ -689,14 +757,14 @@ const AccountsReceivable: React.FC = () => {
                 reversalDate: parsedReversalDate.toISOString(),
                 idempotencyKey: reversalIdempotencyKey || createReversalKey(reversalEntry.id),
             });
-            setToast({ message: 'Reversao financeira registrada com sucesso.', type: 'success' });
+            setToast({ message: 'Reversão financeira registrada com sucesso.', type: 'success' });
             setReversalEntry(null);
             setReasonNote('');
             setReversalConfirmed(false);
             setReversalIdempotencyKey(null);
             await fetchData();
         } catch (error: any) {
-            console.error('Erro ao registrar reversao em contas a receber:', error);
+            console.error('Erro ao registrar reversão em contas a receber:', error);
             setToast({ message: error?.message || 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.', type: 'error' });
         } finally {
             setReversingId(null);
@@ -1025,8 +1093,8 @@ const AccountsReceivable: React.FC = () => {
                                 >
                                     <option value="pix">Pix</option>
                                     <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartao de credito</option>
-                                    <option value="debit">Cartao de debito</option>
+                                    <option value="credit">Cartão de crédito</option>
+                                    <option value="debit">Cartão de débito</option>
                                     <option value="other">Outro</option>
                                 </select>
                             </label>
@@ -1068,14 +1136,14 @@ const AccountsReceivable: React.FC = () => {
             <Modal
                 isOpen={!!reversalEntry}
                 onClose={closeReversalModal}
-                title="Estorno / devolucao auditada"
+                title="Estorno / devolução auditada"
                 maxWidth="lg"
             >
                 {reversalEntry && (
                     <div className="space-y-5">
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">A transaction original nao sera apagada. O sistema criara uma movimentacao reversa auditada.</p>
-                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolucao ao cliente ou correcao financeira autorizada.</p>
+                            <p className="font-bold">A transaction original não será apagada. O sistema criará uma movimentação reversa auditada.</p>
+                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolução ao cliente ou correção financeira autorizada.</p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1102,15 +1170,15 @@ const AccountsReceivable: React.FC = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversão</span>
                                 <select
                                     value={reversalType}
                                     onChange={(event) => setReversalType(event.target.value as FinancialReversalType)}
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
                                 >
                                     <option value="wrong_settlement">Baixa indevida</option>
-                                    <option value="full_refund">Devolucao total</option>
-                                    <option value="partial_refund">Devolucao parcial</option>
+                                    <option value="full_refund">Devolução total</option>
+                                    <option value="partial_refund">Devolução parcial</option>
                                 </select>
                             </label>
 
@@ -1128,7 +1196,7 @@ const AccountsReceivable: React.FC = () => {
                             </label>
 
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolucao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolução</span>
                                 <select
                                     value={refundMethod}
                                     onChange={(event) => setRefundMethod(event.target.value as PaymentMethod)}
@@ -1136,14 +1204,14 @@ const AccountsReceivable: React.FC = () => {
                                 >
                                     <option value="pix">Pix</option>
                                     <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartao de credito</option>
-                                    <option value="debit">Cartao de debito</option>
+                                    <option value="credit">Cartão de crédito</option>
+                                    <option value="debit">Cartão de débito</option>
                                     <option value="other">Outro</option>
                                 </select>
                             </label>
 
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversão</span>
                                 <input
                                     type="datetime-local"
                                     value={reversalDate}
@@ -1160,8 +1228,8 @@ const AccountsReceivable: React.FC = () => {
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
                                 >
                                     <option value="baixa_indevida">Baixa indevida</option>
-                                    <option value="cobranca_duplicada">Cobranca duplicada</option>
-                                    <option value="devolucao_ao_cliente">Devolucao ao cliente</option>
+                                    <option value="cobranca_duplicada">Cobrança duplicada</option>
+                                    <option value="devolucao_ao_cliente">Devolução ao cliente</option>
                                     <option value="erro_forma_pagamento">Erro de forma de pagamento</option>
                                     <option value="erro_operacional">Erro operacional</option>
                                     <option value="cancelamento_administrativo">Cancelamento administrativo</option>
@@ -1171,13 +1239,13 @@ const AccountsReceivable: React.FC = () => {
                             </label>
 
                             <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Observacao obrigatoria</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Observação obrigatória</span>
                                 <textarea
                                     value={reasonNote}
                                     onChange={(event) => setReasonNote(event.target.value)}
                                     rows={3}
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                    placeholder="Descreva o contexto do estorno/devolucao para auditoria."
+                                    placeholder="Descreva o contexto do estorno/devolução para auditoria."
                                 />
                             </label>
                         </div>
@@ -1190,7 +1258,7 @@ const AccountsReceivable: React.FC = () => {
                                 className="mt-1 size-4 rounded border-slate-300 text-primary focus:ring-primary"
                             />
                             <span>
-                                Confirmo que esta acao criara uma movimentacao reversa auditada e preservara a transaction original.
+                                Confirmo que esta ação criará uma movimentação reversa auditada e preservará a transaction original.
                             </span>
                         </label>
 
@@ -1224,7 +1292,7 @@ const AccountsReceivable: React.FC = () => {
                                 clube_pendente_ou_atrasado: totals.clube.count,
                                 mes: filterMonth,
                             },
-                            financialImpactLabel: 'Impacto potencial em baixa, recebiveis e fluxo de caixa',
+                            financialImpactLabel: 'Impacto potencial em baixa, recebíveis e fluxo de caixa',
                             allowedAdjustmentTypes: [
                                 'payment_date_correction',
                                 'payment_method_correction',
@@ -1332,10 +1400,10 @@ const AccountsReceivable: React.FC = () => {
                                 <h3 className="text-base font-black text-slate-950 dark:text-white">Conta do cliente</h3>
                             </div>
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                Clientes com mais de uma comanda aberta. Transferir comanda para responsavel fica para fase auditada futura.
+                                Clientes com mais de uma comanda aberta. Transferir comanda para responsável fica para fase auditada futura.
                             </p>
                             <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                Esta secao e apenas um agrupamento visual: nao altera cliente, status ou valor.
+                                Esta seção é apenas um agrupamento visual: não altera cliente, status ou valor.
                             </p>
                         </div>
                         <Button type="button" variant="secondary" onClick={() => setActiveTab('comandas')}>
@@ -1380,7 +1448,7 @@ const AccountsReceivable: React.FC = () => {
                         <div>
                             <h3 className="text-base font-bold text-slate-950 dark:text-white">Baixas recentes de comandas</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Entradas de comanda no periodo. Estornos preservam a transaction original e criam movimentacao reversa.
+                                Entradas de comanda no período. Estornos preservam a transaction original e criam movimentação reversa.
                             </p>
                         </div>
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
@@ -1392,7 +1460,7 @@ const AccountsReceivable: React.FC = () => {
                         <table className="min-w-full text-left">
                             <thead className="bg-slate-50/90 dark:bg-white/5">
                                 <tr>
-                                    {['Cliente / Origem', 'Data da baixa', 'Valor', 'Reversao', ''].map(col => (
+                                    {['Cliente / Origem', 'Data da baixa', 'Valor', 'Reversão', ''].map(col => (
                                         <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                                             {col}
                                         </th>
@@ -1471,7 +1539,7 @@ const AccountsReceivable: React.FC = () => {
                     <div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                     <h3 className="mt-4 text-base font-black text-slate-950 dark:text-white">Carregando contas a receber</h3>
                     <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                        Buscando comandas abertas, recebiveis do Clube e recibos pendentes do periodo selecionado.
+                        Buscando comandas abertas, recebíveis do Clube e recibos pendentes do período selecionado.
                     </p>
                 </section>
             ) : filteredEntries.length === 0 ? (
@@ -1496,7 +1564,7 @@ const AccountsReceivable: React.FC = () => {
                             <h3 className="text-base font-bold text-slate-950 dark:text-white">
                                 {tabs.find(t => t.key === activeTab)?.label}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Itens pendentes no periodo selecionado.</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Itens pendentes no período selecionado.</p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
                             {filteredEntries.length} registros
@@ -1507,7 +1575,7 @@ const AccountsReceivable: React.FC = () => {
                         <table className="min-w-full text-left">
                             <thead className="bg-slate-50/90 dark:bg-white/5">
                                 <tr>
-                                    {['Origem', 'Cliente', 'Descricao', 'Data / Vencimento', 'Valor', 'Status', ''].map(col => (
+                                    {['Origem', 'Cliente', 'Descrição', 'Data / Vencimento', 'Valor', 'Status', ''].map(col => (
                                         <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                                             {col}
                                         </th>

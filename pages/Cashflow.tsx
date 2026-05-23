@@ -83,16 +83,16 @@ type RefundMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 
 const CASHFLOW_EMPTY_COPY: Record<ActiveTab, { title: string; description: string }> = {
     all: {
-        title: 'Nenhuma movimentacao encontrada',
-        description: 'Nao ha transacoes registradas para o periodo selecionado.',
+        title: 'Nenhuma movimentação encontrada',
+        description: 'Não há transações registradas para o período selecionado.',
     },
     income: {
         title: 'Nenhuma entrada encontrada',
-        description: 'Entradas registradas no periodo aparecerao aqui.',
+        description: 'Entradas registradas no período aparecerão aqui.',
     },
     expense: {
-        title: 'Nenhuma saida encontrada',
-        description: 'Saidas, estornos e devolucoes registradas no periodo aparecerao aqui.',
+        title: 'Nenhuma saída encontrada',
+        description: 'Saídas, estornos e devoluções registradas no período aparecerão aqui.',
     },
 };
 
@@ -205,7 +205,7 @@ const Cashflow: React.FC = () => {
                     .in('original_transaction_id', transactionIds);
 
                 if (reversalsError) {
-                    console.warn('Nao foi possivel carregar reversoes financeiras:', reversalsError);
+                    console.warn('Não foi possível carregar reversões financeiras:', reversalsError);
                 } else {
                     ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
                         if (!reversal.original_transaction_id) return;
@@ -233,7 +233,7 @@ const Cashflow: React.FC = () => {
                     .in('reversal_transaction_id', transactionIds);
 
                 if (reversalSourcesError) {
-                    console.warn('Nao foi possivel carregar vinculos de movimentacoes reversas:', reversalSourcesError);
+                    console.warn('Não foi possível carregar vínculos de movimentações reversas:', reversalSourcesError);
                 } else {
                     ((reversalSources || []) as FinancialReversalRecord[]).forEach((reversal) => {
                         if (!reversal.reversal_transaction_id) return;
@@ -270,10 +270,10 @@ const Cashflow: React.FC = () => {
                     description: transaction.description || transaction.category || 'Lancamento sem descricao',
                     category: transaction.category || 'Sem categoria',
                     accountId: transaction.payment_method || 'nao-informado',
-                    accountName: transaction.payment_method || 'Nao informado',
+                    accountName: transaction.payment_method || 'Não informado',
                     costCenter: transaction.category || 'Sem centro',
                     type,
-                    paymentMethod: transaction.payment_method || 'Nao informado',
+                    paymentMethod: transaction.payment_method || 'Não informado',
                     status: 'realizado',
                     value,
                     runningBalance,
@@ -294,7 +294,7 @@ const Cashflow: React.FC = () => {
             setEntries(mappedEntries);
         } catch (error: any) {
             console.error('Erro ao carregar fluxo de caixa:', error);
-            const message = 'Nao foi possivel carregar o fluxo de caixa. Nenhuma movimentacao foi alterada.';
+            const message = 'Não foi possível carregar o fluxo de caixa. Nenhuma movimentação foi alterada.';
             setLoadError(message);
             setToast({ message, type: 'error' });
             setEntries([]);
@@ -357,7 +357,7 @@ const Cashflow: React.FC = () => {
 
     const handleConfirmReversal = async () => {
         if (!tenantId || !reversalEntry) {
-            setToast({ message: 'Contexto invalido para reversao financeira.', type: 'error' });
+            setToast({ message: 'Contexto inválido para reversão financeira.', type: 'error' });
             return;
         }
 
@@ -366,19 +366,19 @@ const Cashflow: React.FC = () => {
         const parsedReversalDate = new Date(reversalDate);
 
         if (!Number.isFinite(amount) || amount <= 0 || amount > reversalEntry.reversibleAmount) {
-            setToast({ message: 'Informe um valor de reversao valido.', type: 'error' });
+            setToast({ message: 'Informe um valor de reversão válido.', type: 'error' });
             return;
         }
         if (!reversalDate || Number.isNaN(parsedReversalDate.getTime())) {
-            setToast({ message: 'Informe uma data real de reversao valida.', type: 'error' });
+            setToast({ message: 'Informe uma data real de reversão válida.', type: 'error' });
             return;
         }
         if (requiresRefundMethod && !refundMethod) {
-            setToast({ message: 'Informe a forma de devolucao.', type: 'error' });
+            setToast({ message: 'Informe a forma de devolução.', type: 'error' });
             return;
         }
         if (!reasonType || !reasonNote.trim()) {
-            setToast({ message: 'Informe motivo e observacao para continuar.', type: 'error' });
+            setToast({ message: 'Informe motivo e observação para continuar.', type: 'error' });
             return;
         }
         if (!reversalConfirmed) {
@@ -387,7 +387,7 @@ const Cashflow: React.FC = () => {
         }
 
         setReversingId(reversalEntry.id);
-        setToast({ message: 'Registrando reversao financeira...', type: 'info' });
+        setToast({ message: 'Registrando reversão financeira...', type: 'info' });
         try {
             await reverseFinancialTransaction({
                 tenantId,
@@ -401,17 +401,17 @@ const Cashflow: React.FC = () => {
                 reversalDate: parsedReversalDate.toISOString(),
                 idempotencyKey: reversalIdempotencyKey || createReversalKey(reversalEntry.id),
             });
-            setToast({ message: 'Reversao financeira registrada com sucesso.', type: 'success' });
+            setToast({ message: 'Reversão financeira registrada com sucesso.', type: 'success' });
             setReversalEntry(null);
             setReasonNote('');
             setReversalConfirmed(false);
             setReversalIdempotencyKey(null);
             await fetchData();
         } catch (error: any) {
-            console.error('Erro ao registrar reversao financeira:', error);
-            const message = error?.message?.includes('Nenhuma alteracao foi aplicada')
+            console.error('Erro ao registrar reversão financeira:', error);
+            const message = error?.message?.includes('Nenhuma alteração foi aplicada')
                 ? error.message
-                : 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.';
+                : 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.';
             setToast({ message, type: 'error' });
         } finally {
             setReversingId(null);
@@ -465,24 +465,24 @@ const Cashflow: React.FC = () => {
 
     const handleExport = () => {
         if (filteredEntries.length === 0) {
-            setToast({ message: 'Nao ha dados para exportar neste periodo.', type: 'info' });
+            setToast({ message: 'Não há dados para exportar neste período.', type: 'info' });
             return;
         }
 
         const headers = [
             'Data',
-            'Descricao',
+            'Descrição',
             'Categoria',
             'Forma de pagamento',
             'Tipo',
             'Valor',
             'Saldo acumulado',
-            'Status de reversao',
+            'Status de reversão',
             'Valor revertido',
-            'Saldo reversivel',
+            'Saldo reversível',
             'Origem',
-            'Historico de reversoes',
-            'Movimentacao reversa',
+            'Histórico de reversões',
+            'Movimentação reversa',
             'Transaction original',
         ];
         const rows = filteredEntries.map((entry) => [
@@ -497,21 +497,21 @@ const Cashflow: React.FC = () => {
                 ? 'Estornado total'
                 : entry.reversalStatus === 'partial'
                     ? 'Estornado parcial'
-                    : 'Sem reversao',
+                    : 'Sem reversão',
             entry.reversedAmount.toFixed(2).replace('.', ','),
             entry.reversibleAmount.toFixed(2).replace('.', ','),
-            entry.sourceType || 'Nao informado',
+            entry.sourceType || 'Não informado',
             entry.reversals.length > 0
                 ? entry.reversals
                     .map((reversal) => {
                         const date = reversal.createdAt
                             ? new Date(reversal.createdAt).toLocaleDateString('pt-BR')
-                            : 'data nao informada';
+                            : 'data não informada';
                         return `${reversal.amount.toFixed(2).replace('.', ',')} em ${date} (${reversal.reversalType} / ${reversal.reasonType})`;
                     })
                     .join(' | ')
-                : 'Sem reversoes',
-            entry.isReversalTransaction ? 'Sim' : 'Nao',
+                : 'Sem reversões',
+            entry.isReversalTransaction ? 'Sim' : 'Não',
             entry.reversalSource?.originalTransactionId || '',
         ]);
 
@@ -532,7 +532,7 @@ const Cashflow: React.FC = () => {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{tabTitles[activeTab]}</h2>
-                    <p className="text-slate-500 mt-1">Leitura real das transacoes financeiras registradas no periodo.</p>
+                    <p className="text-slate-500 mt-1">Leitura real das transações financeiras registradas no período.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -548,7 +548,7 @@ const Cashflow: React.FC = () => {
                                 mes: filterMonth,
                                 aba: activeTab,
                             },
-                            financialImpactLabel: 'Impacto potencial em classificacao, caixa e relatorios',
+                            financialImpactLabel: 'Impacto potencial em classificação, caixa e relatórios',
                             allowedAdjustmentTypes: [
                                 'transaction_reclassification',
                                 'payment_date_correction',
@@ -617,7 +617,7 @@ const Cashflow: React.FC = () => {
                     changeText={`${entries.filter((entry) => entry.type === 'entrada').length} registros`}
                     trend="up"
                     tone="positive"
-                    helperText="Total de receitas do periodo"
+                    helperText="Total de receitas do período"
                     icon={<ArrowUpCircle size={18} />}
                 />
                 <FinancialSummaryCard
@@ -626,7 +626,7 @@ const Cashflow: React.FC = () => {
                     changeText={`${entries.filter((entry) => entry.type === 'saida').length} registros`}
                     trend="down"
                     tone="negative"
-                    helperText="Total de despesas do periodo"
+                    helperText="Total de despesas do período"
                     icon={<ArrowDownCircle size={18} />}
                 />
                 <FinancialSummaryCard
@@ -635,7 +635,7 @@ const Cashflow: React.FC = () => {
                     changeText={saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo'}
                     trend={saldoAtual >= 0 ? 'up' : 'down'}
                     tone={saldoAtual >= 0 ? 'positive' : 'negative'}
-                    helperText="Entradas menos saidas no periodo"
+                    helperText="Entradas menos saídas no período"
                     icon={<Wallet size={18} />}
                 />
                 <FinancialSummaryCard
@@ -668,7 +668,7 @@ const Cashflow: React.FC = () => {
                     <div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                     <h3 className="mt-4 text-base font-black text-slate-950 dark:text-white">Carregando fluxo de caixa</h3>
                     <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                        Buscando entradas, saidas, estornos e devolucoes do periodo selecionado.
+                        Buscando entradas, saídas, estornos e devoluções do período selecionado.
                     </p>
                 </section>
             ) : filteredEntries.length === 0 ? (
@@ -682,14 +682,14 @@ const Cashflow: React.FC = () => {
                 <>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         <CashFlowChart
-                            title="Entradas x saidas"
-                            subtitle="Comparativo diario das transacoes registradas"
+                            title="Entradas x saídas"
+                            subtitle="Comparativo diário das transações registradas"
                             variant="bar"
                             data={chartData}
                         />
                         <CashFlowChart
                             title="Saldo acumulado"
-                            subtitle="Evolucao real do saldo ao longo do periodo"
+                            subtitle="Evolução real do saldo ao longo do período"
                             variant="area"
                             data={chartData}
                         />
@@ -698,7 +698,7 @@ const Cashflow: React.FC = () => {
                     <section className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark overflow-hidden">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-border-dark px-5 py-4">
                             <div>
-                                <h3 className="text-base font-bold text-slate-950 dark:text-white">Lancamentos do periodo</h3>
+                                <h3 className="text-base font-bold text-slate-950 dark:text-white">Lançamentos do período</h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Tabela somente leitura com dados reais do financeiro.</p>
                             </div>
                             <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
@@ -710,7 +710,7 @@ const Cashflow: React.FC = () => {
                             <table className="min-w-full text-left">
                                 <thead className="bg-slate-50/90 dark:bg-white/5">
                                     <tr>
-                                        {['Data', 'Descricao', 'Categoria', 'Forma de pagamento', 'Tipo', 'Valor', 'Saldo', 'Acao'].map((column) => (
+                                        {['Data', 'Descrição', 'Categoria', 'Forma de pagamento', 'Tipo', 'Valor', 'Saldo', 'Ação'].map((column) => (
                                             <th key={column} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                                                 {column}
                                             </th>
@@ -750,7 +750,7 @@ const Cashflow: React.FC = () => {
                                                 )}
                                                 {entry.isReversalTransaction && (
                                                     <span className="mt-1 block text-[11px] font-bold text-rose-600 dark:text-rose-300">
-                                                        Movimentacao reversa auditada
+                                                        Movimentação reversa auditada
                                                     </span>
                                                 )}
                                             </td>
@@ -766,7 +766,7 @@ const Cashflow: React.FC = () => {
                                                             className="rounded-xl text-amber-700 dark:text-amber-300"
                                                             onClick={() => openReversalModal(entry)}
                                                             disabled={Boolean(reversingId)}
-                                                            title="A reversao sera registrada pela RPC financeira; a transaction original sera preservada."
+                                                            title="A reversão será registrada pela RPC financeira; a transaction original será preservada."
                                                         >
                                                             Estornar
                                                         </Button>
@@ -788,14 +788,14 @@ const Cashflow: React.FC = () => {
             <Modal
                 isOpen={!!reversalEntry}
                 onClose={closeReversalModal}
-                title="Estorno / devolucao auditada"
+                title="Estorno / devolução auditada"
                 maxWidth="lg"
             >
                 {reversalEntry && (
                     <div className="space-y-5">
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">A transaction original nao sera apagada. O sistema criara uma movimentacao reversa auditada.</p>
-                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolucao ao cliente ou correcao financeira autorizada.</p>
+                            <p className="font-bold">A transaction original não será apagada. O sistema criará uma movimentação reversa auditada.</p>
+                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolução ao cliente ou correção financeira autorizada.</p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -811,26 +811,26 @@ const Cashflow: React.FC = () => {
                                 </p>
                                 {reversalEntry.reversedAmount > 0 && (
                                     <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">
-                                        Ja revertido: {reversalEntry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        Já revertido: {reversalEntry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     </p>
                                 )}
                                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                                    Saldo reversivel: {reversalEntry.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    Saldo reversível: {reversalEntry.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversão</span>
                                 <select
                                     value={reversalType}
                                     onChange={(event) => setReversalType(event.target.value as FinancialReversalType)}
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
                                 >
                                     <option value="wrong_settlement">Baixa indevida</option>
-                                    <option value="full_refund">Devolucao total</option>
-                                    <option value="partial_refund">Devolucao parcial</option>
+                                    <option value="full_refund">Devolução total</option>
+                                    <option value="partial_refund">Devolução parcial</option>
                                 </select>
                             </label>
 
@@ -848,7 +848,7 @@ const Cashflow: React.FC = () => {
                             </label>
 
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolucao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolução</span>
                                 <select
                                     value={refundMethod}
                                     onChange={(event) => setRefundMethod(event.target.value as RefundMethod)}
@@ -856,14 +856,14 @@ const Cashflow: React.FC = () => {
                                 >
                                     <option value="pix">Pix</option>
                                     <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartao de credito</option>
-                                    <option value="debit">Cartao de debito</option>
+                                    <option value="credit">Cartão de crédito</option>
+                                    <option value="debit">Cartão de débito</option>
                                     <option value="other">Outro</option>
                                 </select>
                             </label>
 
                             <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversao</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversão</span>
                                 <input
                                     type="datetime-local"
                                     value={reversalDate}
@@ -880,8 +880,8 @@ const Cashflow: React.FC = () => {
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
                                 >
                                     <option value="baixa_indevida">Baixa indevida</option>
-                                    <option value="cobranca_duplicada">Cobranca duplicada</option>
-                                    <option value="devolucao_ao_cliente">Devolucao ao cliente</option>
+                                    <option value="cobranca_duplicada">Cobrança duplicada</option>
+                                    <option value="devolucao_ao_cliente">Devolução ao cliente</option>
                                     <option value="erro_forma_pagamento">Erro de forma de pagamento</option>
                                     <option value="erro_operacional">Erro operacional</option>
                                     <option value="cancelamento_administrativo">Cancelamento administrativo</option>
@@ -891,13 +891,13 @@ const Cashflow: React.FC = () => {
                             </label>
 
                             <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Observacao obrigatoria</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Observação obrigatória</span>
                                 <textarea
                                     value={reasonNote}
                                     onChange={(event) => setReasonNote(event.target.value)}
                                     rows={3}
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                    placeholder="Descreva o contexto do estorno/devolucao para auditoria."
+                                    placeholder="Descreva o contexto do estorno/devolução para auditoria."
                                 />
                             </label>
                         </div>
@@ -910,7 +910,7 @@ const Cashflow: React.FC = () => {
                                 className="mt-1 size-4 rounded border-slate-300 text-primary focus:ring-primary"
                             />
                             <span>
-                                Confirmo que esta acao criara uma movimentacao reversa auditada e preservara a transaction original.
+                                Confirmo que esta ação criará uma movimentação reversa auditada e preservará a transaction original.
                             </span>
                         </label>
 
@@ -936,7 +936,7 @@ const Cashflow: React.FC = () => {
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Descricao</p>
+                                <p className="text-xs font-bold uppercase text-slate-500">Descrição</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{selectedEntry.description}</p>
                             </div>
                             <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
@@ -967,22 +967,22 @@ const Cashflow: React.FC = () => {
 
                         {selectedEntry.reversalSource && (
                             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
-                                <p className="text-xs font-bold uppercase text-rose-700 dark:text-rose-200">Movimentacao reversa auditada</p>
+                                <p className="text-xs font-bold uppercase text-rose-700 dark:text-rose-200">Movimentação reversa auditada</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                                    Esta saida preserva a transaction original e registra a correcao financeira.
+                                    Esta saída preserva a transaction original e registra a correção financeira.
                                 </p>
                                 <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                                    <p>Original: {selectedEntry.reversalSource.originalTransactionId || 'Nao informado'}</p>
+                                    <p>Original: {selectedEntry.reversalSource.originalTransactionId || 'Não informado'}</p>
                                     <p>Tipo: {selectedEntry.reversalSource.reversalType}</p>
                                     <p>Motivo: {selectedEntry.reversalSource.reasonType}</p>
-                                    <p>Data: {selectedEntry.reversalSource.createdAt ? new Date(selectedEntry.reversalSource.createdAt).toLocaleString('pt-BR') : 'Nao informada'}</p>
+                                    <p>Data: {selectedEntry.reversalSource.createdAt ? new Date(selectedEntry.reversalSource.createdAt).toLocaleString('pt-BR') : 'Não informada'}</p>
                                 </div>
                             </div>
                         )}
 
                         {selectedEntry.reversals.length > 0 && (
                             <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-                                <p className="text-xs font-bold uppercase text-amber-700 dark:text-amber-200">Historico de reversoes</p>
+                                <p className="text-xs font-bold uppercase text-amber-700 dark:text-amber-200">Histórico de reversões</p>
                                 <div className="mt-3 space-y-3">
                                     {selectedEntry.reversals.map((reversal, index) => (
                                         <div
@@ -994,7 +994,7 @@ const Cashflow: React.FC = () => {
                                                     {reversal.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </p>
                                                 <p className="text-xs font-semibold text-slate-500">
-                                                    {reversal.createdAt ? new Date(reversal.createdAt).toLocaleString('pt-BR') : 'Data nao informada'}
+                                                    {reversal.createdAt ? new Date(reversal.createdAt).toLocaleString('pt-BR') : 'Data não informada'}
                                                 </p>
                                             </div>
                                             <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
