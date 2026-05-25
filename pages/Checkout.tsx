@@ -56,6 +56,12 @@ interface CartItem {
     execution_participants?: CartParticipant[];
 }
 
+interface PendingCreditItem {
+    item: any;
+    type: 'service' | 'product';
+    finalPrice: number;
+}
+
 interface Client {
     id: string;
     name: string;
@@ -308,6 +314,7 @@ const Checkout: React.FC = () => {
     const [isQuickServiceModalOpen, setIsQuickServiceModalOpen] = useState(false);
     const [itemModalTab, setItemModalTab] = useState<'services' | 'products'>('services');
     const [searchTerm, setSearchTerm] = useState('');
+    const [pendingCreditItem, setPendingCreditItem] = useState<PendingCreditItem | null>(null);
     const [quickProductForm, setQuickProductForm] = useState<QuickProductForm>(createInitialQuickProductForm);
     const [quickServiceForm, setQuickServiceForm] = useState<QuickServiceForm>(createInitialQuickServiceForm);
     const [isSavingQuickProduct, setIsSavingQuickProduct] = useState(false);
@@ -905,16 +912,7 @@ const Checkout: React.FC = () => {
         return basePrice;
     };
 
-    const handleAddItem = (item: any, type: 'service' | 'product') => {
-        const finalPrice = calculateItemPrice(item, type);
-        const canSuggestCredit = type === 'service' && !!chefClubInfo;
-        const creditsForService = canSuggestCredit
-            ? getAvailableCreditsForService(chefClubInfo?.serviceBalances || [], item.id)
-            : 0;
-        const usedCreditsForService = cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length;
-        const hasCreditsAvailable = canSuggestCredit && usedCreditsForService < creditsForService;
-        const shouldUseCredit = !!(hasCreditsAvailable && window.confirm('Cliente assinante detectado. Aplicar 1 crédito neste serviço agora?'));
-
+    const addCartItem = (item: any, type: 'service' | 'product', finalPrice: number, shouldUseCredit: boolean) => {
         const newItem: CartItem = {
             id: Math.random().toString(36).substr(2, 9),
             type,
@@ -931,9 +929,33 @@ const Checkout: React.FC = () => {
             setToast({ message: 'Crédito aplicado automaticamente neste item. Você pode ajustar manualmente se quiser.', type: 'info' });
         }
 
-        setCart([...cart, newItem]);
+        setCart((currentCart) => [...currentCart, newItem]);
         setSearchTerm('');
         setIsItemModalOpen(false);
+    };
+
+    const handleAddItem = (item: any, type: 'service' | 'product') => {
+        const finalPrice = calculateItemPrice(item, type);
+        const canSuggestCredit = type === 'service' && !!chefClubInfo;
+        const creditsForService = canSuggestCredit
+            ? getAvailableCreditsForService(chefClubInfo?.serviceBalances || [], item.id)
+            : 0;
+        const usedCreditsForService = cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length;
+        const hasCreditsAvailable = canSuggestCredit && usedCreditsForService < creditsForService;
+
+        if (hasCreditsAvailable) {
+            setPendingCreditItem({ item, type, finalPrice });
+            return;
+        }
+
+        addCartItem(item, type, finalPrice, false);
+    };
+
+    const handleResolveCreditSuggestion = (shouldUseCredit: boolean) => {
+        if (!pendingCreditItem) return;
+        const { item, type, finalPrice } = pendingCreditItem;
+        setPendingCreditItem(null);
+        addCartItem(item, type, finalPrice, shouldUseCredit);
     };
 
     const handleRemoveItem = (id: string) => {
@@ -1518,26 +1540,34 @@ const Checkout: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto w-full animate-fade-in pb-20">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                        <span className="material-symbols-outlined text-4xl text-primary">point_of_sale</span>
-                        {checkoutCopy.title}
-                    </h1>
-                    <p className="text-slate-500 mt-1">{checkoutCopy.subtitle}</p>
+            <div className="mb-6 rounded-3xl border border-[#D9EAF5] bg-[#EAF7FF]/70 p-5 shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-4">
+                        <div className="size-12 rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white shadow-[0_0_28px_rgba(0,210,255,0.22)] flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-3xl">point_of_sale</span>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black uppercase text-[#007BFF] dark:text-[#00D2FF]">
+                                {checkoutEntryMode === 'edit_comanda' ? 'Fechamento da cadeira' : checkoutEntryMode === 'open_comanda' ? 'Comanda em atendimento' : 'Balcao da barbearia'}
+                            </p>
+                            <h1 className="mt-1 text-3xl font-black text-[#003366] dark:text-white flex items-center gap-2">
+                                {checkoutCopy.title}
+                            </h1>
+                            <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{checkoutCopy.subtitle}</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                        <span className="rounded-xl border border-[#00D2FF]/30 bg-white/80 px-3 py-2 text-xs font-bold text-[#003366] dark:bg-[#0B1828] dark:text-[#EAF7FF]">
+                            {checkoutCopy.orderLabel}: #{comandaId ? comandaId.slice(0, 8) : 'NOVO'}
+                        </span>
+                        <span className={`rounded-xl px-3 py-2 text-xs font-bold ${selectedClient ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>
+                            {selectedClient ? 'Cliente selecionado' : 'Cliente pendente'}
+                        </span>
+                        <span className={`rounded-xl px-3 py-2 text-xs font-bold ${cart.length > 0 ? 'bg-[#007BFF]/10 text-[#007BFF] dark:text-[#00D2FF]' : 'bg-slate-500/10 text-slate-500 dark:text-slate-300'}`}>
+                            {cart.length} {cart.length === 1 ? 'item' : 'itens'}
+                        </span>
+                    </div>
                 </div>
-                <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{checkoutCopy.orderLabel}</p>
-                    <p className="text-xl font-mono font-bold text-slate-900 dark:text-white">#{comandaId ? comandaId.slice(0, 8) : 'NOVO'}</p>
-                </div>
-            </div>
-
-            <div className="mb-6 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-border-dark dark:bg-card-dark dark:text-slate-300">
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
-                    {checkoutEntryMode === 'edit_comanda' ? 'Fluxo de fechamento' : checkoutEntryMode === 'open_comanda' ? 'Fluxo de abertura de comanda' : 'Fluxo de caixa / pdv'}
-                </p>
-                <p className="mt-1 font-semibold text-slate-900 dark:text-white">{checkoutCopy.title}</p>
-                <p className="mt-1">{checkoutCopy.subtitle}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
@@ -1546,10 +1576,10 @@ const Checkout: React.FC = () => {
                 <div className="md:col-span-2 space-y-4 lg:space-y-6">
 
                     {/* 1. Client Selection */}
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 shadow-sm flex items-center justify-between">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-4 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4 flex-1">
-                            <div className="size-10 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-slate-400">person</span>
+                            <div className="size-10 bg-[#EAF7FF] dark:bg-[#0D2238] rounded-xl flex items-center justify-center shrink-0 border border-[#00D2FF]/25">
+                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">person</span>
                             </div>
                             {selectedClient ? (
                                 <div className="flex-1 flex items-center gap-3">
@@ -1571,7 +1601,7 @@ const Checkout: React.FC = () => {
                             {!comandaId && (
                                 <button
                                     onClick={openQuickComandaSearch}
-                                    className="px-3 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                    className="px-3 py-2 bg-[#F7FBFE] text-[#003366] hover:bg-[#EAF7FF] border border-[#D9EAF5] dark:bg-[#0B1828] dark:border-[#14304A] dark:text-slate-300 dark:hover:bg-[#102033] rounded-lg text-xs font-bold transition-all flex items-center gap-1"
                                     title="Buscar uma comanda aberta sem sair do Checkout"
                                 >
                                     <span className="material-symbols-outlined text-sm">manage_search</span>
@@ -1581,7 +1611,7 @@ const Checkout: React.FC = () => {
                             {!selectedClient ? (
                                 <button
                                     onClick={() => setIsClientModalOpen(true)}
-                                    className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                    className="px-4 py-2 bg-[#007BFF] text-white hover:bg-[#003366] rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-[0_8px_22px_rgba(0,123,255,0.20)]"
                                 >
                                     <span className="material-symbols-outlined text-sm">search</span>
                                     Buscar
@@ -1601,16 +1631,16 @@ const Checkout: React.FC = () => {
                     </div>
 
                     {/* 2. Cart Items */}
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-sm min-h-[400px] flex flex-col">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-6 shadow-sm min-h-[400px] flex flex-col">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-400">shopping_cart</span>
+                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">shopping_cart</span>
                                 {checkoutCopy.itemSectionTitle}
                             </h3>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => { setItemModalTab('services'); setIsItemModalOpen(true); }}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-bold transition-all"
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-[#EAF7FF] text-[#007BFF] hover:bg-[#007BFF] hover:text-white rounded-lg text-xs font-bold transition-all"
                                 >
                                     <span className="material-symbols-outlined text-sm">content_cut</span>
                                     + Serviço
@@ -1629,9 +1659,9 @@ const Checkout: React.FC = () => {
                             {cart.length > 0 ? (
                                 <div className="space-y-3">
                                     {cart.map((item) => (
-                                        <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg border border-slate-100 dark:border-border-dark bg-white dark:bg-background-dark group hover:border-primary/30 transition-all">
+                                        <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-100 dark:border-border-dark bg-white dark:bg-background-dark group hover:border-[#00D2FF]/35 transition-all">
                                             {/* Icon */}
-                                            <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'service' ? 'bg-blue-500/10 text-primary' : 'bg-amber-500/10 text-amber-500'}`}>
+                                            <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'service' ? 'bg-[#EAF7FF] text-[#007BFF] dark:bg-[#0D2238] dark:text-[#00D2FF]' : 'bg-amber-500/10 text-amber-500'}`}>
                                                 <span className="material-symbols-outlined">{item.type === 'service' ? 'content_cut' : 'package_2'}</span>
                                             </div>
 
@@ -1645,7 +1675,7 @@ const Checkout: React.FC = () => {
                                                     <select
                                                         value={item.staff_id || ''}
                                                         onChange={(e) => handleStaffChange(item.id, e.target.value)}
-                                                        className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-primary [color-scheme:light] dark:[color-scheme:dark]"
+                                                        className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-[#007BFF] [color-scheme:light] dark:[color-scheme:dark]"
                                                     >
                                                         <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-400">Nenhum</option>
                                                         {staff.map(pro => (
@@ -1655,7 +1685,7 @@ const Checkout: React.FC = () => {
                                                     {item.type === 'service' && (
                                                         <button
                                                             onClick={() => { setSharedExecutionItemId(item.id); setIsSharedExecutionModalOpen(true); }}
-                                                            className={`ml-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition-all ${isSharedExecution(item) ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-primary hover:bg-primary/10'}`}
+                                                            className={`ml-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition-all ${isSharedExecution(item) ? 'bg-[#EAF7FF] text-[#007BFF] dark:bg-[#0D2238] dark:text-[#00D2FF]' : 'text-slate-400 hover:text-[#007BFF] hover:bg-[#EAF7FF]'}`}
                                                             title="Execução compartilhada"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">group_add</span>
@@ -1716,7 +1746,7 @@ const Checkout: React.FC = () => {
                                                             }
                                                             setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
                                                         }}
-                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
+                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
                                                     >
                                                         <span className="material-symbols-outlined text-xs">workspace_premium</span>
                                                         {(item as any).usedCredit ? 'Usando Crédito' : 'Usar Crédito'}
@@ -1735,9 +1765,10 @@ const Checkout: React.FC = () => {
                                     ))}
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                                    <span className="material-symbols-outlined text-6xl mb-4">remove_shopping_cart</span>
-                                    <p className="text-sm font-medium">{checkoutCopy.emptyCartMessage}</p>
+                                <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#D9EAF5] bg-[#F7FBFE] text-slate-500 dark:border-[#14304A] dark:bg-[#0B1828] p-8 text-center">
+                                    <span className="material-symbols-outlined text-5xl mb-4 text-[#007BFF] dark:text-[#00D2FF]">content_cut</span>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{checkoutCopy.emptyCartMessage}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Adicione serviços ou produtos para montar a comanda com dados reais da barbearia.</p>
                                     <p className="hidden text-sm font-medium">O carrinho está vazio</p>
                                 </div>
                             )}
@@ -1766,17 +1797,17 @@ const Checkout: React.FC = () => {
 
                 {/* RIGHT COLUMN: Payment */}
                 <div className="space-y-6 md:col-span-1">
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-6 shadow-xl sticky top-24">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-6 shadow-[0_18px_45px_rgba(0,51,102,0.10)] sticky top-24">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-slate-400">receipt_long</span>
+                            <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">receipt_long</span>
                             {checkoutCopy.summaryTitle}
                         </h3>
 
                         {/* Payment Status Toggle */}
                         <div className="mb-6">
-                            <label className="hidden text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Ação do Pedido</label>
-                            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{checkoutCopy.actionToggleLabel}</p>
-                            <div className="flex bg-slate-100 dark:bg-background-dark p-1 rounded-xl">
+                            <label className="hidden text-xs font-bold text-slate-500 uppercase mb-3 block">Ação do Pedido</label>
+                            <p className="mb-3 text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">{checkoutCopy.actionToggleLabel}</p>
+                            <div className="flex bg-[#F7FBFE] dark:bg-background-dark p-1 rounded-xl border border-[#D9EAF5] dark:border-[#14304A]">
                                 <button
                                     onClick={() => setPaymentStatus('paid')}
                                     className={`${supportsOpenComandaState ? 'flex-1' : 'w-full'} py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
@@ -1805,7 +1836,7 @@ const Checkout: React.FC = () => {
                         {paymentStatus === 'paid' && (chefClubInfo || closureMode === 'legacy_membership') && (
                             <div className="mb-6 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
                                 <div>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Modo de fechamento</p>
+                                    <p className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-300">Modo de fechamento</p>
                                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                                         Use a baixa administrativa para comandas antigas de clientes do Clube que ja pagaram em outro ciclo.
                                     </p>
@@ -1840,7 +1871,7 @@ const Checkout: React.FC = () => {
                                             Esse modo e indicado para regularizar comandas abertas de clientes que ja estavam no Clube em um ciclo anterior.
                                         </div>
                                         <div>
-                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Mes de referencia</label>
+                                            <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Mes de referencia</label>
                                             <input
                                                 type="month"
                                                 value={legacyReferenceMonth}
@@ -1849,7 +1880,7 @@ const Checkout: React.FC = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Observação interna</label>
+                                            <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Observação interna</label>
                                             <textarea
                                                 value={closureNote}
                                                 onChange={(e) => setClosureNote(e.target.value)}
@@ -1946,13 +1977,13 @@ const Checkout: React.FC = () => {
                             <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
                             <div className="flex justify-between items-end">
                                 <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
-                                <span className="font-black text-3xl text-primary tracking-tighter">R$ {total.toFixed(2)}</span>
+                                <span className="font-black text-3xl text-[#003366] dark:text-[#00D2FF]">R$ {total.toFixed(2)}</span>
                             </div>
                         </div>
 
                         {shouldShowPaymentMethod && (
                             <div className="mb-8 animate-fade-in">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Forma de Pagamento</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Forma de Pagamento</label>
                                 <div className="grid grid-cols-2 gap-3">
                                     {[
                                         { id: 'credit', icon: 'credit_card', label: 'Crédito' },
@@ -1964,7 +1995,7 @@ const Checkout: React.FC = () => {
                                         <button
                                             key={method.id}
                                             onClick={() => setPaymentMethod(method.id as any)}
-                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
+                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-[#007BFF] text-white border-[#007BFF] shadow-[0_10px_24px_rgba(0,123,255,0.22)]' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-[#00D2FF]/50'}`}
                                         >
                                             <span className="material-symbols-outlined">{method.icon}</span>
                                             <span className="text-xs font-bold">{method.label}</span>
@@ -2282,6 +2313,53 @@ const Checkout: React.FC = () => {
                     </div>
                 </div>
             </Modal>
+
+            {pendingCreditItem && (
+                <Modal
+                    isOpen={!!pendingCreditItem}
+                    onClose={() => handleResolveCreditSuggestion(false)}
+                    title="Aplicar crédito do Clube?"
+                    maxWidth="sm"
+                    footer={
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => handleResolveCreditSuggestion(false)}
+                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+                            >
+                                Adicionar sem crédito
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleResolveCreditSuggestion(true)}
+                                className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600"
+                            >
+                                Aplicar crédito
+                            </button>
+                        </>
+                    }
+                >
+                    <div className="space-y-4">
+                        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                            <span className="material-symbols-outlined mt-0.5 text-2xl">workspace_premium</span>
+                            <div className="min-w-0">
+                                <p className="text-sm font-black">Cliente assinante com crédito disponível.</p>
+                                <p className="mt-1 text-xs font-semibold opacity-80">
+                                    Use 1 crédito do Clube do Chefe para zerar este serviço na comanda.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Serviço</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{pendingCreditItem.item.name || 'Serviço selecionado'}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                Valor original: R$ {pendingCreditItem.finalPrice.toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
+                </Modal>
+            )}
 
             <Modal
                 isOpen={isQuickProductModalOpen}

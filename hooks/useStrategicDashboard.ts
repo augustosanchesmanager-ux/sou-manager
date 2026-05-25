@@ -25,7 +25,7 @@ export interface StrategicDashboardData {
   revenueByDay: { day: string; value: number }[];
   
   // Rankings
-  topProfessionals: { id: string; name: string; revenue: number; appointments: number; avatar?: string }[];
+  topProfessionals: { id: string; name: string; appointments: number; avatar?: string }[];
   topServices: { id: string; name: string; revenue: number; count: number }[];
   
   // Club
@@ -209,7 +209,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       
       // Calculate appointments
       const allAppointments = currentAppointments.data || [];
-      const appointmentCount = allAppointments.filter(a => a.status !== 'canceled').length;
+      const appointmentCount = allAppointments.filter(a => !['canceled', 'cancelled'].includes(a.status)).length;
       const staffCount = (staffRes.data || []).length;
       const appointmentSlots = staffCount > 0 ? staffCount * 12 * 30 : 0;
       const occupationRate = appointmentSlots > 0 ? (appointmentCount / appointmentSlots) * 100 : 0;
@@ -224,24 +224,22 @@ export const useStrategicDashboard = (period: Period = 'month') => {
         .map(([date, value]) => ({ date, value }))
         .sort((a, b) => a.date.localeCompare(b.date));
       
-      // Top professionals (estimate based on appointments)
-      const staffStats: Record<string, { name: string; revenue: number; appointments: number; avatar?: string }> = {};
+      // Top professionals by completed appointments from the real agenda.
+      const staffStats: Record<string, { name: string; appointments: number; avatar?: string }> = {};
       allAppointments.filter(a => a.status === 'completed').forEach(a => {
         if (!staffStats[a.staff_id]) {
           const staff = (staffRes.data || []).find(s => s.id === a.staff_id);
           staffStats[a.staff_id] = { 
             name: a.staff_name || 'Sem profissional', 
-            revenue: 0, 
             appointments: 0,
             avatar: staff?.avatar,
           };
         }
         staffStats[a.staff_id].appointments++;
-        staffStats[a.staff_id].revenue += 0;
       });
       const topProfessionals = Object.entries(staffStats)
         .map(([id, stats]) => ({ id, ...stats }))
-        .sort((a, b) => b.revenue - a.revenue)
+        .sort((a, b) => b.appointments - a.appointments || a.name.localeCompare(b.name))
         .slice(0, 5);
       
       // Club metrics

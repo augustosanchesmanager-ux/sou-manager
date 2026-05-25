@@ -1,19 +1,24 @@
-/* SOU MANA.GER — Global Styles (Neo-Premium Boutique Edition) */
+/* SOU MANA.GER - Global Styles (SMG Rebrand Foundation) */
 @import url('https://fonts.googleapis.com/css?family=Outfit:300,400,500,600,700,800|Plus+Jakarta+Sans:400,500,600,700&display=swap');
 @import "tailwindcss";
 
 /* ===== Custom Theme Config ===== */
 @theme {
-  /* Cores de Fundo (Light Mode = Pérola/Limpo, Dark = Oled/Carvão) */
-  --color-background-light: #FAFAF9;
-  /* Pedra quente / Bege claríssimo, foge do branco cru */
+  /* SMG Brand System */
+  --color-smg-electric: #00D2FF;
+  --color-smg-blue: #007BFF;
+  --color-smg-deep: #003366;
+  --color-smg-ink: #06111F;
+  --color-smg-mist: #EAF7FF;
+  --color-smg-line: #D9EAF5;
+
+  /* Cores de Fundo (Light Mode = limpo tech, Dark = azul profundo) */
+  --color-background-light: #F4F8FB;
   --color-surface-light: #FFFFFF;
-  --color-background-dark: #0A0A0A;
-  /* Black Absoluto, hiper-contraste */
-  --color-surface-dark: #121212;
-  --color-card-dark: #1A1A1A;
-  /* Cards levemente mais claros, mas ainda muito escuros */
-  --color-border-dark: #262626;
+  --color-background-dark: #06111F;
+  --color-surface-dark: #0B1828;
+  --color-card-dark: #102033;
+  --color-border-dark: #1C3550;
 
   /* Cores Primárias — O "Acento Boutique" Elite */
   --color-primary: #E5A158;
@@ -48,6 +53,8 @@
   --shadow-elite: 0 4px 30px rgba(0, 0, 0, 0.04);
   --shadow-elite-md: 0 10px 40px rgba(0, 0, 0, 0.08);
   --shadow-elite-dark: 0 8px 30px rgba(0, 0, 0, 0.4);
+  --shadow-smg-shell: 0 24px 60px rgba(0, 51, 102, 0.16);
+  --shadow-smg-glow: 0 0 28px rgba(0, 210, 255, 0.22);
 
   /* Raios de Borda mais macios porém controlados */
   --radius-xl: 1rem;
@@ -73,7 +80,7 @@ body {
   /* Branco quebrado, evita fadiga visual */
 }
 
-/* Tipografia Elite (Títulos e Números) */
+/* Tipografia Premium (Títulos e Números) */
 h1,
 h2,
 h3,
@@ -82,8 +89,7 @@ h5,
 h6,
 .display-font {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
-  /* Um toque mais unito e premium */
+  letter-spacing: 0;
 }
 
 /* Fix dropdowns em dark mode */
@@ -117,7 +123,7 @@ option {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary);
+  background: var(--color-smg-blue);
 }
 
 .modal-open,

@@ -3,7 +3,6 @@ import React from 'react';
 interface Professional {
   id: string;
   name: string;
-  revenue: number;
   appointments: number;
   avatar?: string;
 }
@@ -14,16 +13,13 @@ interface TopProfessionalsRankingProps {
   maxItems?: number;
 }
 
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
-
 export const TopProfessionalsRanking: React.FC<TopProfessionalsRankingProps> = ({
   professionals,
   onProfessionalClick,
   maxItems = 5,
 }) => {
   const displayProfessionals = professionals.slice(0, maxItems);
-  const maxRevenue = Math.max(...professionals.map(p => p.revenue), 1);
+  const maxAppointments = Math.max(...professionals.map(p => p.appointments), 1);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -31,10 +27,10 @@ export const TopProfessionalsRanking: React.FC<TopProfessionalsRankingProps> = (
 
   const getColorClass = (index: number) => {
     const colors = [
+      'bg-[#007BFF]',
+      'bg-emerald-500',
       'bg-amber-500',
-      'bg-slate-400',
-      'bg-amber-700',
-      'bg-slate-300',
+      'bg-sky-500',
       'bg-slate-500',
     ];
     return colors[index] || 'bg-slate-400';
@@ -42,84 +38,97 @@ export const TopProfessionalsRanking: React.FC<TopProfessionalsRankingProps> = (
 
   if (!professionals || professionals.length === 0) {
     return (
-      <div className="card-boutique p-6">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">groups</span>
-          Top Profissionais
-        </h3>
-        <div className="py-8 text-center text-slate-400 text-sm">
-          Nenhum dado de profissionais
+      <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-[#BDEFFF] bg-[#EAF7FF] text-[#007BFF] dark:border-[#14304A] dark:bg-[#0D2238] dark:text-[#00D2FF]">
+            <span className="material-symbols-outlined">content_cut</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Equipe</p>
+            <h3 className="text-base font-black text-[#003366] dark:text-white">Atendimentos por profissional</h3>
+          </div>
         </div>
-      </div>
+        <div className="flex h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-[#D9EAF5] bg-[#F7FBFE] p-6 text-center dark:border-[#14304A] dark:bg-[#0B1828]">
+          <span className="material-symbols-outlined mb-2 text-3xl text-slate-300">groups</span>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Sem atendimentos finalizados no período</p>
+          <p className="mt-1 text-xs text-slate-500">O ranking aparece quando a equipe conclui serviços na agenda.</p>
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="card-boutique p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">groups</span>
-          Top Profissionais
-        </h3>
-        <button 
+    <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-[#BDEFFF] bg-[#EAF7FF] text-[#007BFF] dark:border-[#14304A] dark:bg-[#0D2238] dark:text-[#00D2FF]">
+            <span className="material-symbols-outlined">content_cut</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Equipe</p>
+            <h3 className="text-base font-black text-[#003366] dark:text-white">Atendimentos por profissional</h3>
+          </div>
+        </div>
+        <button
+          type="button"
           onClick={() => onProfessionalClick?.('all')}
-          className="text-xs text-primary hover:text-primary/80 font-bold"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#007BFF] transition hover:bg-[#EAF7FF] dark:text-[#00D2FF] dark:hover:bg-[#0D2238]"
         >
-          Ver todos →
+          Ver equipe
+          <span className="material-symbols-outlined text-sm">chevron_right</span>
         </button>
       </div>
 
       <div className="space-y-3">
         {displayProfessionals.map((professional, index) => (
-          <div
+          <button
             key={professional.id}
+            type="button"
             onClick={() => onProfessionalClick?.(professional.id)}
-            className={`flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer ${
-              index === 0 ? 'bg-amber-50 dark:bg-amber-900/10' : ''
-            }`}
+            className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-slate-100 bg-[#F7FBFE] p-3 text-left transition hover:border-[#00D2FF]/50 hover:bg-[#EAF7FF] focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/30 dark:border-border-dark dark:bg-[#0B1828] dark:hover:border-[#00D2FF]/40"
           >
             <div className="relative">
               {professional.avatar ? (
-                <img 
-                  src={professional.avatar} 
+                <img
+                  src={professional.avatar}
                   alt={professional.name}
                   className="size-9 rounded-full object-cover"
                 />
               ) : (
-                <div className={`size-9 rounded-full flex items-center justify-center text-white text-xs font-bold ${getColorClass(index)}`}>
+                <div className={`flex size-9 items-center justify-center rounded-full text-xs font-bold text-white ${getColorClass(index)}`}>
                   {getInitials(professional.name)}
                 </div>
               )}
               {index < 3 && (
-                <div className={`absolute -top-1 -left-1 size-4 rounded-full flex items-center justify-center text-[8px] font-black text-white ${getColorClass(index)}`}>
+                <div className={`absolute -left-1 -top-1 flex size-4 items-center justify-center rounded-full text-[8px] font-black text-white ${getColorClass(index)}`}>
                   {index + 1}
                 </div>
               )}
             </div>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
                 {professional.name}
               </p>
-              <p className="text-[10px] text-slate-500">
-                {professional.appointments} atendimentos
+              <p className="text-[10px] font-semibold text-slate-500">
+                {professional.appointments} atendimento(s) finalizado(s)
               </p>
             </div>
 
-            <div className="text-right">
-              <p className="text-sm font-black text-slate-900 dark:text-white">
-                {formatCurrency(professional.revenue)}
+            <div className="w-20 text-right">
+              <p className="text-sm font-black text-[#003366] dark:text-white">
+                {professional.appointments}
               </p>
-              <div className="w-16 h-1.5 bg-slate-100 dark:bg-white/10 rounded-full mt-1">
-                <div 
-                  className="h-full bg-primary rounded-full"
-                  style={{ width: `${(professional.revenue / maxRevenue) * 100}%` }}
+              <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100 dark:bg-white/10">
+                <div
+                  className="h-full rounded-full bg-[#007BFF]"
+                  style={{ width: `${Math.max(8, (professional.appointments / maxAppointments) * 100)}%` }}
                 />
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 };
