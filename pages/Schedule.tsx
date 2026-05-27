@@ -70,7 +70,7 @@ type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
-const SCHEDULE_START_HOUR = 0;
+const SCHEDULE_START_HOUR = 7;
 const SCHEDULE_END_HOUR = 24;
 const SCHEDULE_SLOT_DURATION = 0.5;
 const SCHEDULE_TOTAL_HOURS = SCHEDULE_END_HOUR - SCHEDULE_START_HOUR;
@@ -1608,6 +1608,33 @@ const Schedule: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
+  const visibleAppointments = React.useMemo(() => {
+    if (viewMode === 'week') {
+      const weekKeys = new Set(weekDays.map((day) => toDateKey(day)));
+      return appointments.filter((appointment) => weekKeys.has(toDateKey(appointment.date || appointment.startTime)));
+    }
+
+    return appointments.filter((appointment) => toDateKey(appointment.date || appointment.startTime) === selectedDateKey);
+  }, [appointments, selectedDateKey, viewMode, weekDays]);
+
+  const visibleOpenComandasCount = visibleAppointments.filter((appointment) => openComandasByAppointment[appointment.id]).length;
+  const visibleExpectedRevenue = visibleAppointments
+    .filter((appointment) => !['cancelled', 'no_show'].includes(normalizeAppointmentStatus(appointment.status)))
+    .reduce((sum, appointment) => sum + Number(appointment.price || 0), 0);
+  const visiblePendingCount = visibleAppointments
+    .filter((appointment) => ['pending', 'scheduled'].includes(normalizeAppointmentStatus(appointment.status)))
+    .length;
+  const visibleConfirmedCount = visibleAppointments
+    .filter((appointment) => normalizeAppointmentStatus(appointment.status) === 'confirmed')
+    .length;
+  const visibleRangeLabel = viewMode === 'week'
+    ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    : formatDateDisplay(selectedDate);
+  const visibleBlockCount = viewMode === 'week'
+    ? scheduleBlocks.filter((block) => weekDays.some((day) => blockAppliesToDate(block, toDateKey(day)))).length
+    : scheduleBlocks.filter((block) => blockAppliesToDate(block, selectedDateKey)).length;
+  const formatScheduleCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+
   const escapeCSV = (value: string | number | null | undefined) => {
     const normalized = value == null ? '' : String(value);
     return `"${normalized.replace(/"/g, '""')}"`;
@@ -2000,35 +2027,37 @@ Podemos confirmar? 😄`;
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-4 shrink-0 rounded-3xl border border-[#D9EAF5] bg-white/85 p-4 shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
+    <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
+      <div className="relative mb-4 shrink-0 overflow-hidden rounded-3xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(0,210,255,0.22),transparent_34%),linear-gradient(135deg,rgba(0,51,102,0.96),rgba(15,23,42,0.98)_58%,rgba(146,104,45,0.62))]" />
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="flex items-start gap-3 min-w-0">
           <div className="size-11 rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white flex items-center justify-center shadow-[0_0_24px_rgba(0,210,255,0.20)] shrink-0">
             <span className="material-symbols-outlined text-2xl">calendar_month</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase text-[#007BFF] dark:text-[#00D2FF]">Agenda operacional</p>
-            <h1 className="text-2xl font-black text-[#003366] dark:text-white">Cadeiras e atendimentos</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-300">Controle do dia por profissional, serviço, comanda e origem.</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">Agenda das cadeiras</p>
+            <h1 className="text-2xl font-black text-white sm:text-3xl">Ritmo da barbearia</h1>
+            <p className="text-sm text-slate-200">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela operacional a partir das 07:00.</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#F7FBFE] dark:bg-[#0B1828] p-1 rounded-xl border border-[#D9EAF5] dark:border-[#14304A] shadow-sm">
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-1 shadow-sm">
           <button
             onClick={() => {
               const newDate = new Date(selectedDate);
               newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-1.5 hover:bg-[#EAF7FF] dark:hover:bg-[#102033] rounded text-slate-500 dark:text-slate-400"
+            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
             aria-label="Data anterior"
           >
             <span className="material-symbols-outlined text-lg">chevron_left</span>
           </button>
-          <div className="flex items-center gap-1 px-1.5 text-slate-900 dark:text-white font-bold min-w-0 justify-center">
+          <div className="flex min-w-0 items-center justify-center gap-1 px-1.5 font-bold text-white">
             <span className="text-xs">
               {viewMode === 'week'
-                ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                ? visibleRangeLabel
                 : formatDateDisplay(selectedDate)
               }
             </span>
@@ -2039,7 +2068,7 @@ Podemos confirmar? 😄`;
               newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-1.5 hover:bg-[#EAF7FF] dark:hover:bg-[#102033] rounded text-slate-500 dark:text-slate-400"
+            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
             aria-label="Próxima data"
           >
             <span className="material-symbols-outlined text-lg">chevron_right</span>
@@ -2051,49 +2080,49 @@ Podemos confirmar? 😄`;
                 const newDate = parseDateInputValue(e.target.value);
                 if (newDate) setSelectedDate(newDate);
               }}
-              className="text-xs bg-transparent border-0 p-0 w-auto"
+              className="w-auto border-0 bg-transparent p-0 text-xs text-white"
             />
           </span>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-start xl:justify-end">
-          <div className="flex bg-[#F7FBFE] dark:bg-[#0B1828] p-0.5 rounded-lg border border-[#D9EAF5] dark:border-[#14304A]">
+          <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
             <button
               onClick={() => setDisplayMode('calendar')}
               className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'calendar'
-                ? 'bg-[#007BFF] text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-200 hover:text-white'
                 }`}
             >Calendário</button>
             <button
               onClick={() => setDisplayMode('list')}
               className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'list'
-                ? 'bg-[#007BFF] text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-200 hover:text-white'
                 }`}
             >Lista</button>
           </div>
           {displayMode === 'calendar' && (
-            <div className="flex bg-[#F7FBFE] dark:bg-[#0B1828] p-0.5 rounded-lg border border-[#D9EAF5] dark:border-[#14304A]">
+            <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
               <button
                 onClick={() => setViewMode('day')}
                 className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'day'
-                  ? 'bg-[#007BFF] text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-200 hover:text-white'
                   }`}
               >Dia</button>
               <button
                 onClick={() => setViewMode('week')}
                 className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'week'
-                  ? 'bg-[#007BFF] text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-200 hover:text-white'
                   }`}
               >Semana</button>
             </div>
           )}
           <button
             onClick={exportToCSV}
-            className="bg-white dark:bg-[#0B1828] border border-[#D9EAF5] dark:border-[#14304A] hover:bg-[#F7FBFE] dark:hover:bg-[#102033] text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
             title="Exportar agenda em CSV"
           >
             <span className="material-symbols-outlined text-base">download</span>
@@ -2105,8 +2134,8 @@ Podemos confirmar? 😄`;
               <button
                 onClick={() => setShowOnlyBlocks(prev => !prev)}
                 className={`border px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all ${showOnlyBlocks
-                  ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
-                  : 'bg-white dark:bg-[#0B1828] border-[#D9EAF5] dark:border-[#14304A] text-slate-700 dark:text-slate-300'
+                  ? 'border-red-300 bg-red-500/20 text-red-100'
+                  : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'
                   }`}
                 title="Exibir apenas bloqueios na grade"
               >
@@ -2116,7 +2145,7 @@ Podemos confirmar? 😄`;
 
               <button
                 onClick={handleOpenCreateBlockModal}
-                className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition-all"
+                className="flex items-center gap-1.5 rounded-lg border border-red-300/30 bg-red-500/20 px-3 py-2 text-xs font-bold text-red-100 shadow transition-all hover:bg-red-500/30"
               >
                 <span className="material-symbols-outlined text-base">event_busy</span>
                 <span className="hidden sm:inline">Fechar agenda</span>
@@ -2126,7 +2155,7 @@ Podemos confirmar? 😄`;
 
           <button
             onClick={() => navigate('/operations')}
-            className="bg-white dark:bg-[#0B1828] border border-[#D9EAF5] dark:border-[#14304A] hover:bg-[#F7FBFE] dark:hover:bg-[#102033] text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
             title="Operações do dia"
           >
             <span className="material-symbols-outlined text-base">insights</span>
@@ -2140,16 +2169,39 @@ Podemos confirmar? 😄`;
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
-            className="bg-[#007BFF] hover:bg-[#003366] text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-[0_8px_22px_rgba(0,123,255,0.20)] transition-all"
+            className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-[0_8px_22px_rgba(251,191,36,0.20)] transition-all hover:bg-amber-300"
           >
             <span className="material-symbols-outlined text-base">add</span>
             <span className="hidden sm:inline">Novo Agendamento</span>
           </button>
         </div>
+        </div>
+        <div className="relative mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-4">
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Atendimentos</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleConfirmedCount} confirmados</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Pendentes</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">Aguardam confirmação</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Comandas</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">Abertas na agenda</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Previsto</p>
+            <p className="mt-0.5 truncate text-lg font-black leading-none sm:text-xl">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleBlockCount} bloqueio(s)</p>
+          </div>
+        </div>
       </div>
 
       {displayMode === 'calendar' ? (
-      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 flex-1 min-h-0">
+      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6">
         {/* DASHBOARD INDICATORS - Ocultos para simplificar */}
         <div className="hidden" />
 
@@ -2198,7 +2250,7 @@ Podemos confirmar? 😄`;
                 })}
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <div className="relative">
                 {loading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -2322,7 +2374,7 @@ Podemos confirmar? 😄`;
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+              <div className="relative">
                 {loading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -2436,7 +2488,7 @@ Podemos confirmar? 😄`;
         <div className="hidden" />
       </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
+        <div className="space-y-4 pr-1 pb-20">
           <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[200px] flex-1 max-w-xs">
