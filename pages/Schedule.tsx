@@ -75,6 +75,14 @@ const SCHEDULE_END_HOUR = 24;
 const SCHEDULE_SLOT_DURATION = 0.5;
 const SCHEDULE_TOTAL_HOURS = SCHEDULE_END_HOUR - SCHEDULE_START_HOUR;
 
+const isMissingColumnError = (error: any, columnName: string) => (
+  error?.code === '42703' && String(error?.message || '').includes(columnName)
+);
+
+const isHiddenFromScheduleMissingError = (error: any) => (
+  isMissingColumnError(error, 'hidden_from_schedule')
+);
+
 interface AppointmentFiltersState {
   date: string;
   period: ListPeriod;
@@ -585,24 +593,48 @@ const Schedule: React.FC = () => {
     const appointmentsClient = getClientForTable('appointments', scheduleAppSlug);
     const comandasClient = getClientForTable('comandas', scheduleAppSlug);
 
-    const { data, error } = await appointmentsClient
-      .from('appointments')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .gte('start_time', rangeStart)
-      .lte('start_time', rangeEnd);
+    const fetchAppointmentRows = async (options: { includeHiddenFilter: boolean; includeServerRange: boolean }) => {
+      let query = appointmentsClient
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (options.includeHiddenFilter) {
+        query = query.eq('hidden_from_schedule', false);
+      }
+
+      if (options.includeServerRange) {
+        query = query.gte('start_time', rangeStart).lte('start_time', rangeEnd);
+      }
+
+      return query;
+    };
+
+    let includeHiddenFilter = true;
+    let { data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true });
+
+    if (isHiddenFromScheduleMissingError(error)) {
+      includeHiddenFilter = false;
+      ({ data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true }));
+    }
 
     let appointmentRows = data || [];
 
     if (error) {
       console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
 
-      const { data: fallbackData, error: fallbackError } = await appointmentsClient
-        .from('appointments')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false);
+      let { data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
+        includeHiddenFilter,
+        includeServerRange: false,
+      });
+
+      if (isHiddenFromScheduleMissingError(fallbackError)) {
+        includeHiddenFilter = false;
+        ({ data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
+          includeHiddenFilter,
+          includeServerRange: false,
+        }));
+      }
 
       if (fallbackError) {
         throw fallbackError;
@@ -610,7 +642,9 @@ const Schedule: React.FC = () => {
 
       appointmentRows = (fallbackData || []).filter((apt: any) => {
         const startTime = new Date(apt.start_time).getTime();
-        return !Number.isNaN(startTime)
+        const isVisible = apt.hidden_from_schedule === undefined || apt.hidden_from_schedule === false;
+        return isVisible
+          && !Number.isNaN(startTime)
           && startTime >= new Date(rangeStart).getTime()
           && startTime <= new Date(rangeEnd).getTime();
       });
