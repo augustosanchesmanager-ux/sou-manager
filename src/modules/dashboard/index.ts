@@ -15,6 +15,7 @@ export type {
   DashboardClient,
   DashboardData,
   DashboardMetrics,
+  DashboardPeriod,
   DashboardProfile,
   DashboardService,
   DashboardStaff,
@@ -31,4 +32,3 @@ export type {
   DashboardService as Service,
   DashboardStaff as Staff,
 } from './types';
-

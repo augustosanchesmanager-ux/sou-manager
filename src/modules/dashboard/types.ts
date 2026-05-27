@@ -1,3 +1,5 @@
+export type DashboardPeriod = 'today' | 'yesterday' | 'week' | 'month';
+
 export interface DashboardClient {
   id: string;
   name: string;
@@ -39,6 +41,10 @@ export interface DashboardMetrics {
   revenue: number;
   revenuePrevious: number;
   revenueGrowth: number;
+  expenses: number;
+  expensesPrevious: number;
+  netRevenue: number;
+  netRevenuePrevious: number;
   revenueGoal: number;
   activeStaffPercent: number;
   todayAppointments: number;
@@ -144,4 +150,3 @@ export interface BusyState {
   creatingQuickAppointment: boolean;
   appointmentUpdateId: string | null;
 }
-

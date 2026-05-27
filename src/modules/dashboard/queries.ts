@@ -11,6 +11,7 @@ import { shouldAppearOnSchedule } from '../../lib/staff/roles';
 import type {
   DashboardClient,
   DashboardData,
+  DashboardPeriod,
   DashboardProfile,
   DashboardService,
   DashboardStaff,
@@ -22,6 +23,74 @@ const logSupabaseError = (label: string, error: unknown) => {
   if (error) {
     console.error(`Dashboard query failed: ${label}`, error);
   }
+};
+
+const toDateInput = (date: Date): string => date.toISOString().split('T')[0];
+
+const parseTransactionDate = (value: unknown): Date => {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(String(value || ''));
+};
+
+const startOfDay = (date: Date): Date => {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
+const addDays = (date: Date, days: number): Date => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const getDashboardPeriodRange = (period: DashboardPeriod) => {
+  const today = startOfDay(new Date());
+
+  if (period === 'yesterday') {
+    const currentStart = addDays(today, -1);
+    const currentEnd = today;
+    return {
+      currentStart,
+      currentEnd,
+      previousStart: addDays(currentStart, -1),
+      previousEnd: currentStart,
+    };
+  }
+
+  if (period === 'week') {
+    const day = today.getDay();
+    const daysSinceMonday = day === 0 ? 6 : day - 1;
+    const currentStart = addDays(today, -daysSinceMonday);
+    const currentEnd = addDays(currentStart, 7);
+    return {
+      currentStart,
+      currentEnd,
+      previousStart: addDays(currentStart, -7),
+      previousEnd: currentStart,
+    };
+  }
+
+  if (period === 'month') {
+    const currentStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const currentEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return {
+      currentStart,
+      currentEnd,
+      previousStart: new Date(today.getFullYear(), today.getMonth() - 1, 1),
+      previousEnd: currentStart,
+    };
+  }
+
+  return {
+    currentStart: today,
+    currentEnd: addDays(today, 1),
+    previousStart: addDays(today, -1),
+    previousEnd: today,
+  };
 };
 
 const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardService[]> => {
@@ -77,13 +146,16 @@ const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardSer
 export const fetchDashboardData = async ({
   tenantId,
   userId,
+  period = 'today',
 }: {
   tenantId: string;
   userId?: string | null;
+  period?: DashboardPeriod;
 }): Promise<DashboardData> => {
   const clientsClient = getClientForTable('clients', APP_SLUG_FOR_DASHBOARD);
   const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_DASHBOARD);
   const transactionsClient = getClientForTable('transactions', APP_SLUG_FOR_DASHBOARD);
+  const periodRange = getDashboardPeriodRange(period);
 
   const profilePromise = userId
     ? supabase.from('profiles').select('onboarding_completed').eq('id', userId).single()
@@ -96,14 +168,13 @@ export const fetchDashboardData = async ({
     appointmentsRes,
     profileRes,
     transactionsRes,
-    yesterdayTransactionsRes,
-    yesterdayAppointmentsCountRes,
+    previousAppointmentsCountRes,
     last90daysAppointmentsRes,
     upcomingAppointmentsRes,
     last30to60daysAppointmentsRes,
     last60to90daysAppointmentsRes,
     todayAppointmentsByStaffRes,
-    todayAppointmentsCountRes,
+    currentAppointmentsCountRes,
     openComandasRes,
   ] = await Promise.all([
     clientsClient
@@ -123,39 +194,22 @@ export const fetchDashboardData = async ({
       .order('start_time', { ascending: true })
       .limit(10),
     profilePromise,
-    transactionsClient.from('transactions').select('*').eq('tenant_id', tenantId).eq('type', 'income').order('date', { ascending: true }),
     transactionsClient
       .from('transactions')
       .select('*')
       .eq('tenant_id', tenantId)
-      .eq('type', 'income')
-      .gte('date', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0];
-      })())
-      .lt('date', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        d.setHours(23, 59, 59, 999);
-        return d.toISOString().split('T')[0];
-      })()),
+      .in('type', ['income', 'expense'])
+      .gte('date', toDateInput(periodRange.previousStart))
+      .lt('date', toDateInput(periodRange.currentEnd))
+      .order('date', { ascending: true }),
     appointmentsClient
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
       .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0] + 'T00:00:00';
-      })())
-      .lt('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0] + 'T23:59:59';
-      })()),
+      .gte('start_time', periodRange.previousStart.toISOString())
+      .lt('start_time', periodRange.previousEnd.toISOString()),
     appointmentsClient
       .from('appointments')
       .select('id, client_id, client_name, start_time, status')
@@ -223,8 +277,8 @@ export const fetchDashboardData = async ({
       .eq('tenant_id', tenantId)
       .eq('hidden_from_schedule', false)
       .neq('status', 'cancelled')
-      .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
-      .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
+      .gte('start_time', periodRange.currentStart.toISOString())
+      .lt('start_time', periodRange.currentEnd.toISOString()),
     appointmentsClient
       .from('appointments')
       .select('id, client_id')
@@ -248,14 +302,13 @@ export const fetchDashboardData = async ({
   logSupabaseError('appointments', appointmentsRes.error);
   logSupabaseError('profile', profileRes.error);
   logSupabaseError('transactions', transactionsRes.error);
-  logSupabaseError('transactions.yesterday', yesterdayTransactionsRes.error);
-  logSupabaseError('appointments.yesterday-count', yesterdayAppointmentsCountRes.error);
+  logSupabaseError('appointments.previous-period-count', previousAppointmentsCountRes.error);
   logSupabaseError('appointments.last-90-days', last90daysAppointmentsRes.error);
   logSupabaseError('appointments.upcoming', upcomingAppointmentsRes.error);
   logSupabaseError('appointments.last-30-to-60-days', last30to60daysAppointmentsRes.error);
   logSupabaseError('appointments.last-60-to-90-days', last60to90daysAppointmentsRes.error);
   logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
-  logSupabaseError('appointments.today-count', todayAppointmentsCountRes.error);
+  logSupabaseError('appointments.current-period-count', currentAppointmentsCountRes.error);
   logSupabaseError('comandas.open', openComandasRes.error);
 
   const goalsRes = await supabase
@@ -295,6 +348,16 @@ export const fetchDashboardData = async ({
     return { ...normalizeAppointmentRecord(apt), client_phone: phone };
   });
 
+  const allPeriodTransactions = transactionsRes.data || [];
+  const currentTransactions = allPeriodTransactions.filter((transaction: any) => {
+    const transactionDate = parseTransactionDate(transaction.date);
+    return transactionDate >= periodRange.currentStart && transactionDate < periodRange.currentEnd;
+  });
+  const previousTransactions = allPeriodTransactions.filter((transaction: any) => {
+    const transactionDate = parseTransactionDate(transaction.date);
+    return transactionDate >= periodRange.previousStart && transactionDate < periodRange.previousEnd;
+  });
+
   const returningClients = buildReturningClients({
     clients,
     appointments: last90daysAppointmentsRes.data || [],
@@ -308,14 +371,14 @@ export const fetchDashboardData = async ({
     appointments,
     upcomingBirthdays: buildUpcomingBirthdays(clientsRes.data || []),
     returningClients,
-    chartData: buildRevenueChartData(transactionsRes.data || []),
+    chartData: buildRevenueChartData(currentTransactions),
     metrics: buildDashboardMetrics(
-      transactionsRes.data || [],
+      currentTransactions,
+      previousTransactions,
       staffList,
       todayAppointmentsByStaffRes.data || [],
-      todayAppointmentsCountRes.count || 0,
-      yesterdayTransactionsRes.data || [],
-      yesterdayAppointmentsCountRes.count || 0,
+      currentAppointmentsCountRes.count || 0,
+      previousAppointmentsCountRes.count || 0,
       last90daysAppointmentsRes.data || [],
       last60to90daysAppointmentsRes.data || [],
       goals.revenue_goal || 0,

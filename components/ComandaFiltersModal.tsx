@@ -79,7 +79,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
             <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#121826]">
                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/8">
                     <div>
-                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros</h2>
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros da comanda</h2>
                         {activeFiltersCount > 0 && (
                             <p className="mt-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
                                 {activeFiltersCount} filtro(s) aplicado(s)
@@ -98,7 +98,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                 <div className="max-h-[70vh] space-y-5 overflow-y-auto p-5">
                     <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Periodo rapido
+                            Período rápido
                         </label>
                         <div className="flex flex-wrap gap-2">
                             {quickRanges.map((range) => (
@@ -108,7 +108,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                     onClick={() => onApplyQuickRange(range.key)}
                                     className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                                         quickRange === range.key
-                                            ? 'border-sky-400/50 bg-sky-500/15 text-sky-100'
+                                            ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
                                             : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white'
                                     }`}
                                 >
@@ -121,7 +121,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     {(quickRange === 'custom' || quickRange === 'all') && (
                         <div>
                             <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                Periodo personalizado
+                                Período personalizado
                             </label>
                             <div className="grid grid-cols-2 gap-2">
                                 <DatePickerInput
@@ -182,7 +182,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                 step="0.01"
                                 value={minTotal}
                                 onChange={(e) => onMinTotalChange(e.target.value)}
-                                placeholder="Minimo"
+                                placeholder="Mínimo"
                                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                             />
                             <input
@@ -191,7 +191,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                 step="0.01"
                                 value={maxTotal}
                                 onChange={(e) => onMaxTotalChange(e.target.value)}
-                                placeholder="Maximo"
+                                placeholder="Máximo"
                                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                             />
                         </div>
@@ -207,7 +207,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                         >
                             <option value="all">Todos</option>
-                            <option value="service">Servico</option>
+                            <option value="service">Serviço</option>
                             <option value="product">Produto</option>
                             <option value="mixed">Misto</option>
                         </select>
@@ -215,7 +215,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
 
                     <div>
                         <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Ordenacao
+                            Ordenação
                         </label>
                         <select
                             value={`${sortField}:${sortDirection}`}
@@ -251,7 +251,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                         onClick={onClose}
                         className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90"
                     >
-                        Aplicar
+                        Aplicar filtros
                     </button>
                 </div>
             </div>

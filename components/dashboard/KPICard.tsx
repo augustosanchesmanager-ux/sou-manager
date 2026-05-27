@@ -61,7 +61,7 @@ export const KPICard: React.FC<KPICardProps> = ({
   const colors = COLOR_CLASSES[config.color];
   
   const formatValue = (val: number) => {
-    if (type === 'revenue' || type === 'ticket') {
+    if (type === 'revenue' || type === 'ticket' || type === 'cash') {
       return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',

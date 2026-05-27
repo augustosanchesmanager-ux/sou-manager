@@ -9,6 +9,7 @@ import {
   useDashboardActions,
   useDashboardData,
   type DashboardAppointment,
+  type DashboardPeriod,
   type NewClientFormState,
   type QuickAppointmentFormState,
   type Client,
@@ -21,9 +22,6 @@ import {
   TodayPendings,
   TodayCashCard,
 } from '../components/dashboard';
-
-type PeriodOption = 'today' | 'yesterday' | 'week' | 'month';
-type CompareOption = 'yesterday' | 'week_ago' | 'month_ago';
 
 const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
   const now = new Date();
@@ -61,13 +59,11 @@ const DEFAULT_QUICK_APPOINTMENT_DATETIME = getDefaultQuickAppointmentDateTime();
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data, loading, error, reload } = useDashboardData();
+  const [period, setPeriod] = useState<DashboardPeriod>('today');
+  const { data, loading, error, reload } = useDashboardData(period);
   const { createClient, createQuickAppointment, completeAppointment, cancelAppointment, busyState } = useDashboardActions();
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-  const [period, setPeriod] = useState<PeriodOption>('today');
-  const [compare, setCompare] = useState<CompareOption>('yesterday');
 
   const [formData, setFormData] = useState<QuickAppointmentFormState>({
     date: DEFAULT_QUICK_APPOINTMENT_DATETIME.date,
@@ -176,14 +172,18 @@ const Dashboard: React.FC = () => {
   const metricValues = {
     revenue: data.metrics.revenue,
     revenuePrevious: data.metrics.revenuePrevious,
+    expenses: data.metrics.expenses,
+    expensesPrevious: data.metrics.expensesPrevious,
+    netRevenue: data.metrics.netRevenue,
+    netRevenuePrevious: data.metrics.netRevenuePrevious,
     todayAppointments: data.metrics.todayAppointments,
     previousAppointments: data.metrics.previousAppointments,
     totalClients: data.clients.length,
     previousClients: data.clients.length,
     avgTicket: data.metrics.avgTicket,
     previousAvgTicket: data.metrics.avgTicketPrevious,
-    revenueGoal: data.metrics.revenueGoal,
-    appointmentsGoal: data.metrics.appointmentsGoal,
+    revenueGoal: period === 'month' ? data.metrics.revenueGoal : undefined,
+    appointmentsGoal: period === 'month' ? data.metrics.appointmentsGoal : undefined,
     openComandasCount: data.openComandasCount ?? 0,
   };
 
@@ -193,14 +193,20 @@ const Dashboard: React.FC = () => {
     name: s.name,
     active: true,
   }));
+  const tenantName = user?.user_metadata?.tenant_name || 'sua barbearia';
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
       <DashboardHeader
         period={period}
         onPeriodChange={setPeriod}
-        compare={compare}
-        onCompareChange={setCompare}
+        openComandasCount={data.openComandasCount ?? 0}
+        pendingAppointmentsCount={pendingAppointmentsCount}
+        returningClientsCount={returningClients.length}
+        onNewAppointment={() => setShowQuickScheduleModal(true)}
+        onOpenCheckout={() => navigate('/checkout?mode=pdv')}
+        onOpenComandas={() => navigate('/comandas')}
+        onOpenSmartReturn={() => navigate('/smart-return')}
       />
 
       <KPIGrid metrics={metricValues} period={period} />
@@ -228,7 +234,13 @@ const Dashboard: React.FC = () => {
             returningClientsCount={returningClients.length}
             loading={loading}
           />
-          <TodayCashCard loading={loading} />
+          <TodayCashCard
+            loading={loading}
+            income={data.metrics.revenue}
+            expenses={data.metrics.expenses}
+            net={data.metrics.netRevenue}
+            period={period}
+          />
         </div>
       </div>
 
@@ -240,6 +252,7 @@ const Dashboard: React.FC = () => {
         teamStatus={teamStatus}
         loading={loading}
         totalClients={data.clients.length}
+        businessName={tenantName}
       />
 
       <AppointmentDetailModal

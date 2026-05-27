@@ -32,6 +32,7 @@ export const APP_SCHEMA_MAP: Record<AppSlug, AppSchemaName> = {
 export const CORE_PUBLIC_TABLES = new Set<string>([
   'apps',
   'audit_logs',
+  'financial_reversals',
   'notifications',
   'otp_requests',
   'portal_sessions',
@@ -80,6 +81,7 @@ export const TENANT_GUARDED_TABLES = new Set<string>([
   'customer_vouchers',
   'feedback_barber',
   'feedback_shop',
+  'financial_reversals',
   'kiosk_sessions',
   'notifications',
   'otp_requests',

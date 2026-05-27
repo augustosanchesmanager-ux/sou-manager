@@ -162,6 +162,48 @@ const STATUS_LABELS: Record<'all' | ComandaStatus, string> = {
 };
 
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
+const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price, product_id, service_id';
+const CLIENT_NAME_FALLBACK = 'Cliente não informado';
+const NOT_INFORMED_FALLBACK = 'Não informado';
+
+type SupabaseErrorLike = {
+    message?: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+    status?: number;
+    name?: string;
+};
+
+const getSupabaseErrorPayload = (error: unknown) => {
+    if (error && typeof error === 'object') {
+        const supabaseError = error as SupabaseErrorLike;
+        return {
+            message: supabaseError.message || 'Erro sem mensagem',
+            code: supabaseError.code || null,
+            details: supabaseError.details || null,
+            hint: supabaseError.hint || null,
+            status: supabaseError.status || null,
+            name: supabaseError.name || null,
+        };
+    }
+
+    return {
+        message: String(error || 'Erro desconhecido'),
+        code: null,
+        details: null,
+        hint: null,
+        status: null,
+        name: null,
+    };
+};
+
+const logSupabaseError = (context: string, error: unknown, extra?: Record<string, unknown>) => {
+    console.error(context, {
+        ...getSupabaseErrorPayload(error),
+        ...(extra || {}),
+    });
+};
 
 const formatDateInputValue = (date: Date) => {
     const year = date.getFullYear();
@@ -377,7 +419,10 @@ const Comandas: React.FC = () => {
             if (resolvedTenantId) query = query.eq('tenant_id', resolvedTenantId);
 
             const { data, error } = await query;
-            if (error) throw error;
+            if (error) {
+                logSupabaseError('[Comandas] Erro ao buscar comandas', error, { tenantId: resolvedTenantId });
+                throw error;
+            }
 
             if (!data || data.length === 0) {
                 setComandas([]);
@@ -396,11 +441,16 @@ const Comandas: React.FC = () => {
 
             const { data: itemsData, error: itemsError } = await client
                 .from('comanda_items')
-                .select('id, comanda_id, staff_id, product_name, quantity, unit_price, product_id, service_id')
+                .select(COMANDA_ITEMS_SELECT)
                 .in('comanda_id', comandaIds);
 
-            if (itemsError) throw itemsError;
             const itemRows = (itemsData || []) as ComandaItemRow[];
+            if (itemsError) {
+                logSupabaseError('[Comandas] Erro ao buscar itens das comandas', itemsError, {
+                    select: COMANDA_ITEMS_SELECT,
+                    comandaCount: comandaIds.length,
+                });
+            }
 
             const staffIds = Array.from(new Set([
                 ...comandasRows.map((c) => c.staff_id ?? null),
@@ -413,8 +463,18 @@ const Comandas: React.FC = () => {
                 appointmentIds.length > 0 ? client.from('appointments').select('id, start_time').in('id', appointmentIds) : Promise.resolve({ data: [] as AppointmentLookup[], error: null }),
             ]);
 
-            const clientsById = ((clientsResult.data || []) as ClientLookup[]).reduce((acc, c) => { acc[c.id] = c; return acc; }, {} as Record<string, ClientLookup>);
-            const staffById = ((staffResult.data || []) as StaffLookup[]).reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<string, StaffLookup>);
+            if (clientsResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar clientes das comandas', clientsResult.error, { clientCount: clientIds.length });
+            }
+            if (staffResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar profissionais das comandas', staffResult.error, { staffCount: staffIds.length });
+            }
+            if (appointmentsResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar agendamentos das comandas', appointmentsResult.error, { appointmentCount: appointmentIds.length });
+            }
+
+            const clientsById = ((clientsResult.error ? [] : clientsResult.data) || [] as ClientLookup[]).reduce((acc, c) => { acc[c.id] = c; return acc; }, {} as Record<string, ClientLookup>);
+            const staffById = ((staffResult.error ? [] : staffResult.data) || [] as StaffLookup[]).reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<string, StaffLookup>);
             const appointmentsById = ((appointmentsResult.error ? [] : appointmentsResult.data) || [] as AppointmentLookup[]).reduce((acc, a) => { acc[a.id] = a; return acc; }, {} as Record<string, AppointmentLookup>);
 
             const itemsByComanda = itemRows.reduce((acc, item) => {
@@ -436,7 +496,10 @@ const Comandas: React.FC = () => {
             const { data: transactionRows, error: transactionsError } = await transactionsQuery;
 
             if (transactionsError) {
-                console.warn('Erro ao carregar historico financeiro das comandas:', transactionsError);
+                logSupabaseError('[Comandas] Erro ao buscar histórico financeiro das comandas', transactionsError, {
+                    comandaCount: comandaIds.length,
+                    tenantId: resolvedTenantId,
+                });
                 setFinancialHistoryByComandaId({});
             } else {
                 const transactions = ((transactionRows || []) as ComandaTransactionRow[])
@@ -458,7 +521,10 @@ const Comandas: React.FC = () => {
                     const { data: reversals, error: reversalsError } = await reversalsQuery;
 
                     if (reversalsError) {
-                        console.warn('Erro ao carregar reversoes financeiras das comandas:', reversalsError);
+                        logSupabaseError('[Comandas] Erro ao buscar reversoes financeiras das comandas', reversalsError, {
+                            transactionCount: transactionIds.length,
+                            tenantId: resolvedTenantId,
+                        });
                     } else {
                         ((reversals || []) as FinancialReversalRow[]).forEach((reversal) => {
                             if (!reversal.original_transaction_id) return;
@@ -500,7 +566,7 @@ const Comandas: React.FC = () => {
                     acc[transaction.source_id] = {
                         transactionId: transaction.id,
                         amount,
-                        paymentMethod: transaction.payment_method || 'Nao informado',
+                        paymentMethod: transaction.payment_method || NOT_INFORMED_FALLBACK,
                         date: transactionDate,
                         status: transaction.status || null,
                         reversedAmount,
@@ -519,16 +585,18 @@ const Comandas: React.FC = () => {
                 const mappedStaffIds = Array.from(new Set([
                     comanda.staff_id, ...mappedItems.map((i) => i.staff_id)
                 ].filter((id): id is string => Boolean(id))));
-                const mappedStaffNames = mappedStaffIds.map((id) => staffById[id]?.name).filter((name): name is string => Boolean(name));
+                const mappedStaffNames = mappedStaffIds
+                    .map((id) => staffById[id]?.name || NOT_INFORMED_FALLBACK)
+                    .filter((name): name is string => Boolean(name));
 
                 return {
                     ...comanda,
                     clients: {
-                        name: clientsById[comanda.client_id]?.name || 'Cliente nao identificado',
+                        name: clientsById[comanda.client_id]?.name || CLIENT_NAME_FALLBACK,
                         avatar: clientsById[comanda.client_id]?.avatar || '',
                         phone: clientsById[comanda.client_id]?.phone || null,
                     },
-                    staff: comanda.staff_id ? staffById[comanda.staff_id] : undefined,
+                    staff: { name: comanda.staff_id ? staffById[comanda.staff_id]?.name || NOT_INFORMED_FALLBACK : NOT_INFORMED_FALLBACK },
                     appointment: comanda.appointment_id ? { start_time: appointmentsById[comanda.appointment_id]?.start_time || null } : undefined,
                     comanda_items: mappedItems,
                     staff_ids: mappedStaffIds,
@@ -546,15 +614,22 @@ const Comandas: React.FC = () => {
                     }));
                     setComandas(enrichedComandas);
                     return;
-                } catch {
-                    console.warn('Erro ao carregar info do Clube');
+                } catch (chefClubError) {
+                    logSupabaseError('[Comandas] Erro ao buscar info do Clube', chefClubError, {
+                        clientCount: clientIds.length,
+                        tenantId: resolvedTenantId,
+                    });
                 }
             }
 
             setComandas(hydratedComandas);
         } catch (error) {
-            console.error(error);
-            const message = 'Nao foi possivel carregar as comandas. Nenhuma acao financeira foi aplicada.';
+            logSupabaseError('[Comandas] Falha critica ao carregar pagina', error, {
+                tenantId,
+                appSlug,
+                canAccessSuperAdmin,
+            });
+            const message = 'Não foi possível carregar as comandas. Nenhuma ação financeira foi aplicada.';
             setLoadError(message);
             setComandas([]);
             setFinancialHistoryByComandaId({});
@@ -661,11 +736,6 @@ const Comandas: React.FC = () => {
     const hasAdvancedFilters = Boolean(staffFilter || paymentMethodFilter || minTotal || maxTotal || consumptionType !== 'all');
     const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
 
-    const openCountAll = comandas.filter((c) => c.status === 'open').length;
-    const paidCountAll = comandas.filter((c) => c.status === 'paid').length;
-    const cancelledCountAll = comandas.filter((c) => c.status === 'cancelled').length;
-    const blockedCountAll = comandas.filter((c) => c.status === 'blocked').length;
-
     const dateFilteredComandas = comandas.filter((c) => {
         const createdAt = new Date(c.created_at);
         if (Number.isNaN(createdAt.getTime())) return false;
@@ -676,21 +746,24 @@ const Comandas: React.FC = () => {
         return true;
     });
 
-    const filteredComandas = dateFilteredComandas.filter((c) => {
-        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const statusScopeComandas = dateFilteredComandas.filter((c) => {
         const matchesSearch = !normalizedSearchTerm
             || c.clients.name.toLowerCase().includes(normalizedSearchTerm)
             || (c.clients.phone || '').toLowerCase().includes(normalizedSearchTerm)
             || c.id.toLowerCase().includes(normalizedSearchTerm)
             || String(getDisplayId(c.id)).includes(normalizedSearchTerm)
             || c.staff_names.some((name) => name.toLowerCase().includes(normalizedSearchTerm));
-        const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
-        const matchesPaymentMethod = !paymentMethodFilter || (c.payment_method || 'Nao informado') === paymentMethodFilter;
+        const matchesPaymentMethod = !paymentMethodFilter || (c.payment_method || NOT_INFORMED_FALLBACK) === paymentMethodFilter;
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
         const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
-        return matchesSearch && matchesStatus && matchesStaff && matchesPaymentMethod && matchesMin && matchesMax && matchesConsumption;
+        return matchesSearch && matchesStaff && matchesPaymentMethod && matchesMin && matchesMax && matchesConsumption;
+    });
+
+    const filteredComandas = statusScopeComandas.filter((c) => {
+        return filterStatus === 'all' || c.status === filterStatus;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -722,14 +795,14 @@ const Comandas: React.FC = () => {
     const allOpenInViewSelected = openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id));
 
     const tabs = [
-        { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
-        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: blockedCountAll },
-        { key: 'open' as const, label: STATUS_LABELS.open, count: openCountAll },
-        { key: 'paid' as const, label: STATUS_LABELS.paid, count: paidCountAll },
-        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: cancelledCountAll },
+        { key: 'all' as const, label: STATUS_LABELS.all, count: statusScopeComandas.length },
+        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: statusScopeComandas.filter((c) => c.status === 'blocked').length },
+        { key: 'open' as const, label: STATUS_LABELS.open, count: statusScopeComandas.filter((c) => c.status === 'open').length },
+        { key: 'paid' as const, label: STATUS_LABELS.paid, count: statusScopeComandas.filter((c) => c.status === 'paid').length },
+        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
     ];
 
-    const openCount = dateFilteredComandas.filter((c) => c.status === 'open').length;
+    const openCount = statusScopeComandas.filter((c) => c.status === 'open').length;
     const finalizedToday = comandas.filter((c) => {
         if (c.status !== 'paid') return false;
         const createdAt = new Date(c.created_at);
@@ -751,7 +824,7 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => Array.from(new Set([...current, ...openComandasInView.map((c) => c.id)])));
     };
 
-    const totalOpen = comandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0);
+    const totalOpen = statusScopeComandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0);
     const avgTicket = filteredComandas.length > 0 ? filteredComandas.reduce((sum, c) => sum + c.total, 0) / filteredComandas.length : 0;
 
     const staffOptions = Array.from(new Map<string, { id: string; name: string }>(
@@ -830,7 +903,7 @@ const Comandas: React.FC = () => {
 
     const generateCSV = async () => {
         if (sortedComandas.length === 0) {
-            setToast({ message: 'Nao ha comandas filtradas para exportar.', type: 'info' });
+            setToast({ message: 'Não há comandas filtradas para exportar.', type: 'info' });
             return;
         }
         if (!tenantId) {
@@ -857,7 +930,7 @@ const Comandas: React.FC = () => {
             : { data: [] as ServiceExecutionParticipantRow[], error: null };
 
         if (participantsError) {
-            console.warn('Erro ao carregar compartilhamentos para exportacao de comandas:', participantsError);
+            console.warn('Erro ao carregar compartilhamentos para exportação de comandas:', participantsError);
             setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
             return;
         }
@@ -975,7 +1048,7 @@ const Comandas: React.FC = () => {
 
     const copyToClipboard = async () => {
         if (sortedComandas.length === 0) {
-            setToast({ message: 'Nao ha comandas filtradas para copiar.', type: 'info' });
+            setToast({ message: 'Não há comandas filtradas para copiar.', type: 'info' });
             return;
         }
         const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
@@ -984,7 +1057,7 @@ const Comandas: React.FC = () => {
             await navigator.clipboard.writeText([headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n'));
             setToast({ message: `${sortedComandas.length} comanda(s) copiadas da lista filtrada.`, type: 'success' });
         } catch {
-            setToast({ message: 'Nao foi possivel copiar a lista filtrada.', type: 'error' });
+            setToast({ message: 'Não foi possível copiar a lista filtrada.', type: 'error' });
         }
     };
 
@@ -1049,7 +1122,7 @@ const Comandas: React.FC = () => {
                     if (resolvedTenantId) fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
                     const fallbackResult = await fallbackQuery;
                     error = fallbackResult.error;
-                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria nao foram salvos.', type: 'info' });
+                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria não foram salvos.', type: 'info' });
                 }
                 if (error) throw error;
             }
@@ -1061,7 +1134,7 @@ const Comandas: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Nao foi possivel anular a comanda. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
+            setToast({ message: `Não foi possível anular a comanda. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -1073,7 +1146,7 @@ const Comandas: React.FC = () => {
             return;
         }
         if (bulkCloseType === 'admin' && !bulkLegacyReferenceMonth) {
-            setToast({ message: 'Informe o mes de referencia.', type: 'info' });
+            setToast({ message: 'Informe o mês de referência.', type: 'info' });
             return;
         }
         setBulkClosing(true);
@@ -1116,7 +1189,7 @@ const Comandas: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Nao foi possivel concluir a baixa em massa. Nenhuma baixa local falsa foi criada. ${error.message || ''}`.trim(), type: 'error' });
+            setToast({ message: `Não foi possível concluir a baixa em massa. Nenhuma baixa local falsa foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setBulkClosing(false);
         }
@@ -1126,24 +1199,64 @@ const Comandas: React.FC = () => {
         <div className="space-y-4 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <section className="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-white/8 dark:bg-[#121826]">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-900 dark:text-white">Gestao de Comandas</h1>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sortedComandas.length} comanda(s) • {dateFilterDescription}</p>
+            <section className="relative overflow-hidden rounded-2xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(0,210,255,0.22),transparent_32%),linear-gradient(135deg,rgba(0,51,102,0.97),rgba(15,23,42,0.98)_56%,rgba(146,104,45,0.68))]" />
+                <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="max-w-3xl">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                            <span className="material-symbols-outlined text-[14px]">content_cut</span>
+                            Balcão de atendimento
+                        </span>
+                        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Comandas do balcão</h1>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
+                            {sortedComandas.length} comanda(s) no recorte atual, com foco em cliente, profissional, consumo e baixa real. {dateFilterDescription}.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/checkout?mode=comanda')}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">add</span>
+                                Nova comanda
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/checkout?mode=pdv')}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
+                                Abrir PDV
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="grid overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] sm:min-w-[420px] sm:grid-cols-3">
+                        <div className="border-white/10 p-3 sm:border-r">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Abertas</p>
+                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(openCount).padStart(2, '0')}</p>
+                        </div>
+                        <div className="border-white/10 p-3 sm:border-r">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Finalizadas hoje</p>
+                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(finalizedToday).padStart(2, '0')}</p>
+                        </div>
+                        <div className="p-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Total em aberto</p>
+                            <p className="mt-1 text-xl font-black">{loading ? '...' : formatCurrency(totalOpen)}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="relative mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
                         <AuditAdjustmentButton
                             context={{
                                 sourceType: 'comanda',
-                                sourceLabel: 'Gestao de Comandas',
+                                sourceLabel: 'Comandas do balcão',
                                 beforeSnapshot: {
                                     total_filtrado: sortedComandas.length,
                                     abertas: openCount,
                                     total_aberto: totalOpen,
                                     periodo: dateFilterDescription,
                                 },
-                                financialImpactLabel: 'Possivel impacto em baixa, comissao e contas a receber',
+                                financialImpactLabel: 'Possível impacto em baixa, comissão e contas a receber',
                                 allowedAdjustmentTypes: [
                                     'service_participation_correction',
                                     'settlement_reversal',
@@ -1155,15 +1268,12 @@ const Comandas: React.FC = () => {
                             }}
                             defaultAdjustmentType="mark_for_review"
                         />
-                        <Button size="sm" onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir</Button>
-                        <Button size="sm" variant="secondary" onClick={() => navigate('/checkout?mode=pdv')} leftIcon="point_of_sale">PDV</Button>
                         <Button size="sm" variant="secondary" onClick={generateCSV} leftIcon="download" disabled={loading}>
                             CSV
                         </Button>
                         <Button size="sm" variant="secondary" onClick={copyToClipboard} leftIcon="content_copy" disabled={loading}>
                             Copiar
                         </Button>
-                    </div>
                 </div>
             </section>
 
@@ -1186,7 +1296,7 @@ const Comandas: React.FC = () => {
                 <KpiCard title="Abertas" value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
                 <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper="Finalizadas" icon="task_alt" accentClassName="bg-emerald-400" />
                 <KpiCard title="Total" value={loading ? '...' : formatCurrency(totalOpen)} helper="Pendente" icon="payments" accentClassName="bg-sky-400" />
-                <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Media" icon="monitoring" accentClassName="bg-fuchsia-400" />
+                <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Média" icon="monitoring" accentClassName="bg-fuchsia-400" />
             </section>
 
             <section className="rounded-2xl border border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]">
@@ -1200,12 +1310,12 @@ const Comandas: React.FC = () => {
                                 title={tab.key === 'all' ? 'Todas as comandas filtradas' : getStatusContextLabel(tab.key)}
                                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                                     filterStatus === tab.key
-                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
+                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
                                         : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-400'
                                 }`}
                             >
                                 {tab.label}
-                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-white/10 text-white' : 'bg-slate-100 dark:bg-white/5'}`}>
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-amber-500 text-white dark:bg-white/10' : 'bg-slate-100 dark:bg-white/5'}`}>
                                     {tab.count}
                                 </span>
                             </button>
@@ -1254,7 +1364,7 @@ const Comandas: React.FC = () => {
                             value={paymentMethodFilter}
                             onChange={(e) => setPaymentMethodFilter(e.target.value)}
                             className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
-                            title="Filtrar por forma de pagamento ja registrada"
+                            title="Filtrar por forma de pagamento já registrada"
                         >
                             <option value="">Pagamento</option>
                             {paymentMethodOptions.map((method) => (
@@ -1279,7 +1389,12 @@ const Comandas: React.FC = () => {
                             <option value="status:asc">Status</option>
                             <option value="status:desc">Status invertido</option>
                         </select>
-                        <button type="button" onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
+                        <button
+                            type="button"
+                            onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
+                            className="flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400 hover:text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            title={sortDirection === 'asc' ? 'Ordenar descendente' : 'Ordenar ascendente'}
+                        >
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
                         </button>
                         {hasAnyFilter && (
@@ -1323,7 +1438,7 @@ const Comandas: React.FC = () => {
                                     <div className="size-10 animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
                                     <div>
                                         <p className="text-sm font-black text-slate-800 dark:text-white">Carregando comandas...</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e historico financeiro.</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e histórico financeiro.</p>
                                     </div>
                                 </div>
                             </div>
@@ -1341,8 +1456,8 @@ const Comandas: React.FC = () => {
                             </p>
                             <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
                                 {hasAnyFilter
-                                    ? 'Revise status, periodo, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
-                                    : 'Quando houver comandas abertas ou baixadas, elas aparecerao aqui com referencia curta, cliente e status operacional.'}
+                                    ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
+                                    : 'Quando houver comandas abertas ou baixadas, elas aparecerão aqui com referência curta, cliente e status operacional.'}
                             </p>
                             <div className="mt-4 flex flex-wrap justify-center gap-2">
                                 {hasAnyFilter && (
@@ -1441,7 +1556,7 @@ const Comandas: React.FC = () => {
                     </p>
                     {bulkCloseType === 'admin' && (
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-500">Mes de referencia</label>
+                            <label className="mb-1 block text-xs font-semibold text-slate-500">Mês de referência</label>
                             <input
                                 type="month"
                                 value={bulkLegacyReferenceMonth}
@@ -1454,7 +1569,7 @@ const Comandas: React.FC = () => {
                         value={bulkClosureNote}
                         onChange={(e) => setBulkClosureNote(e.target.value)}
                         rows={2}
-                        placeholder="Observacao"
+                        placeholder="Observação"
                         className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
                     />
                     <div className="flex gap-2">

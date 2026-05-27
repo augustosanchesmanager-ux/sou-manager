@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { ReturningClient } from '../../src/modules/dashboard/types';
 
 interface TodayPendingsProps {
   openComandasCount: number;
@@ -30,8 +29,8 @@ const PENDING_ITEMS = [
     key: 'returns',
     label: 'Retornos sugeridos',
     icon: 'person_search',
-    iconBg: 'bg-purple-500/10',
-    iconColor: 'text-purple-600 dark:text-purple-400',
+    iconBg: 'bg-emerald-500/10',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
     link: '/smart-return',
   },
 ];
@@ -50,16 +49,16 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+        <div className="mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-amber-500">warning</span>
           <h3 className="font-bold text-slate-900 dark:text-white">Pendências de hoje</h3>
         </div>
         <div className="animate-pulse space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-              <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
-              <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-8" />
+            <div key={i} className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+              <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-4 w-8 rounded bg-slate-200 dark:bg-slate-700" />
             </div>
           ))}
         </div>
@@ -68,8 +67,8 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
   }
 
   return (
-    <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
-      <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="flex items-center gap-2 border-b border-slate-100 p-5 dark:border-slate-700">
         <span className="material-symbols-outlined text-amber-500">warning</span>
         <h3 className="font-bold text-slate-900 dark:text-white">Pendências de hoje</h3>
       </div>
@@ -80,10 +79,10 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
           return (
             <div
               key={item.key}
-              className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="flex items-center justify-between p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.iconBg}`}>
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.iconBg}`}>
                   <span className={`material-symbols-outlined text-base ${item.iconColor}`}>
                     {item.icon}
                   </span>
@@ -98,9 +97,10 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
                 </span>
                 <Link
                   to={item.link}
-                  className="text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary/80"
                 >
-                  Ver →
+                  Ver
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 </Link>
               </div>
             </div>
