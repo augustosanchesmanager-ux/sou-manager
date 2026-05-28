@@ -16,7 +16,7 @@ import {
 } from '../src/lib/finance/reversal';
 
 type ARSource = 'comanda' | 'clube' | 'recibo';
-type ARStatus = 'pending' | 'overdue' | 'open' | 'Pendente';
+type ARStatus = 'pending' | 'overdue' | 'open';
 
 interface AREntry {
     id: string;
@@ -123,6 +123,66 @@ interface ReceiptRecord {
 type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
 type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 type ReversalStatus = 'none' | 'partial' | 'full';
+type SortKey = 'client_az' | 'client_za' | 'amount_asc' | 'amount_desc' | 'date_asc' | 'date_desc';
+type SourceFilter = 'todos' | ARSource;
+type StatusFilter = 'todos' | 'open' | 'pending' | 'overdue' | 'settled' | 'reversed';
+type ViewMode = 'list' | 'grouped';
+
+interface ARFilters {
+    source: SourceFilter;
+    status: StatusFilter;
+    dateFrom: string;
+    dateTo: string;
+    amountMin: string;
+    amountMax: string;
+    search: string;
+    viewMode: ViewMode;
+}
+
+interface ARListEntry extends AREntry {
+    listId: string;
+    reference: string;
+    receivable?: AREntry;
+    settlement?: PaidComandaSettlement;
+    actionKind: 'settle' | 'reverse' | 'none';
+    reversalStatus?: ReversalStatus;
+}
+
+const DEFAULT_AR_FILTERS: ARFilters = {
+    source: 'todos',
+    status: 'todos',
+    dateFrom: '',
+    dateTo: '',
+    amountMin: '',
+    amountMax: '',
+    search: '',
+    viewMode: 'list',
+};
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+    { key: 'client_az', label: 'Cliente A-Z' },
+    { key: 'client_za', label: 'Cliente Z-A' },
+    { key: 'amount_asc', label: 'Menor valor' },
+    { key: 'amount_desc', label: 'Maior valor' },
+    { key: 'date_asc', label: 'Data antiga' },
+    { key: 'date_desc', label: 'Data recente' },
+];
+
+const SOURCE_FILTER_OPTIONS: { value: SourceFilter; label: string }[] = [
+    { value: 'todos', label: 'Todos' },
+    { value: 'comanda', label: 'Comandas' },
+    { value: 'clube', label: 'Clube do Chefe' },
+    { value: 'recibo', label: 'Recibos' },
+];
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+    { value: 'todos', label: 'Todos' },
+    { value: 'open', label: 'Em aberto' },
+    { value: 'pending', label: 'Pendente' },
+    { value: 'overdue', label: 'Atrasado' },
+    { value: 'settled', label: 'Baixada' },
+    { value: 'reversed', label: 'Estornada' },
+];
 const CLIENT_FALLBACK_LABEL = 'Cliente não identificado';
 const SOURCE_LABELS: Record<ARSource, string> = {
     comanda: 'Comanda',
@@ -179,6 +239,7 @@ interface PaidComandaSettlement {
     tenantId: string | null;
     sourceId: string | null;
     clientName: string;
+    clientPhone?: string | null;
     description: string;
     dateValue: string;
     amount: number;
@@ -243,6 +304,9 @@ const AccountsReceivable: React.FC = () => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
+    const [sortKey, setSortKey] = useState<SortKey>('date_desc');
+    const [showFilters, setShowFilters] = useState(false);
+    const [listFilters, setListFilters] = useState<ARFilters>(DEFAULT_AR_FILTERS);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -270,7 +334,7 @@ const AccountsReceivable: React.FC = () => {
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
 
-    const [clubClients, setClubClients] = useState<Record<string, { name: string }>>({});
+    const [clubClients, setClubClients] = useState<Record<string, { name: string; phone?: string | null }>>({});
     const [clubPlans, setClubPlans] = useState<Record<string, { name: string }>>({});
     const canRequestFinancialReversal =
         canAccessSuperAdmin || ['owner', 'admin', 'manager', 'superadmin'].includes(accessRole);
@@ -465,7 +529,7 @@ const AccountsReceivable: React.FC = () => {
             });
             const paidComandaTransactionIds = paidComandaTransactions.map((tx: any) => tx.id).filter(Boolean);
             const paidComandaSourceIds = Array.from(new Set(paidComandaTransactions.map((tx: any) => tx.source_id).filter(Boolean))) as string[];
-            let paidClientNameBySourceId: Record<string, string> = {};
+            let paidClientBySourceId: Record<string, { name: string; phone?: string | null }> = {};
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, ReversalSummary[]>();
 
@@ -494,15 +558,19 @@ const AccountsReceivable: React.FC = () => {
                     }
 
                     const paidClientById = ((paidClientRowsData || []) as ClientLookupRecord[]).reduce((acc, client) => {
-                        acc[client.id] = client.name || CLIENT_FALLBACK_LABEL;
+                        acc[client.id] = {
+                            name: client.name || CLIENT_FALLBACK_LABEL,
+                            phone: client.phone || null,
+                        };
                         return acc;
-                    }, {} as Record<string, string>);
+                    }, {} as Record<string, { name: string; phone?: string | null }>);
 
-                    paidClientNameBySourceId = paidComandas.reduce((acc, comanda) => {
-                        const relatedClientName = comanda.client_id ? paidClientById[comanda.client_id] : null;
-                        acc[comanda.id] = relatedClientName || getClientData(comanda.clients).name;
+                    paidClientBySourceId = paidComandas.reduce((acc, comanda) => {
+                        const relatedClient = comanda.client_id ? paidClientById[comanda.client_id] : null;
+                        const fallbackClient = getClientData(comanda.clients);
+                        acc[comanda.id] = relatedClient || fallbackClient;
                         return acc;
-                    }, {} as Record<string, string>);
+                    }, {} as Record<string, { name: string; phone?: string | null }>);
                 }
             }
 
@@ -550,7 +618,8 @@ const AccountsReceivable: React.FC = () => {
                     id: tx.id,
                     tenantId: tx.tenant_id || tenantId,
                     sourceId: tx.source_id || null,
-                    clientName: paidClientNameBySourceId[tx.source_id] || extractClientNameFromTransactionDescription(tx.description),
+                    clientName: paidClientBySourceId[tx.source_id]?.name || extractClientNameFromTransactionDescription(tx.description),
+                    clientPhone: paidClientBySourceId[tx.source_id]?.phone || null,
                     description: tx.category || 'Receita de Comanda',
                     dateValue: tx.date || new Date().toISOString(),
                     amount,
@@ -590,7 +659,7 @@ const AccountsReceivable: React.FC = () => {
             const planIds = Array.from(new Set(clubData.map(r => r.plan_id).filter(Boolean)));
             const [clientsRes, plansRes] = await Promise.all([
                 customerIds.length > 0
-                    ? barberSupabase.from('clients').select('id, name').eq('tenant_id', tenantId).in('id', customerIds)
+                    ? barberSupabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).in('id', customerIds)
                     : Promise.resolve({ data: [], error: null }),
                 planIds.length > 0
                     ? barberSupabase.from('customer_plans').select('id, name').eq('tenant_id', tenantId).in('id', planIds)
@@ -598,7 +667,7 @@ const AccountsReceivable: React.FC = () => {
             ]);
             if (clientsRes.error) console.error('Error loading club clients:', clientsRes.error);
             if (plansRes.error) console.error('Error loading club plans:', plansRes.error);
-            const clientsMap: Record<string, { name: string }> = {};
+            const clientsMap: Record<string, { name: string; phone?: string | null }> = {};
             const plansMap: Record<string, { name: string }> = {};
             (clientsRes.data || []).forEach((c: any) => { clientsMap[c.id] = c; });
             (plansRes.data || []).forEach((p: any) => { plansMap[p.id] = p; });
@@ -802,6 +871,7 @@ const AccountsReceivable: React.FC = () => {
                 id: r.id,
                 source: 'clube',
                 clientName: clubClients[r.customer_id]?.name || CLIENT_FALLBACK_LABEL,
+                clientPhone: clubClients[r.customer_id]?.phone || null,
                 description: `Plano: ${clubPlans[r.plan_id]?.name || 'N/D'}`,
                 dateValue: r.due_date,
                 amount: Number(r.amount || 0),
@@ -818,7 +888,7 @@ const AccountsReceivable: React.FC = () => {
                 description: r.type || 'Receita',
                 dateValue: r.date,
                 amount: r.amount,
-                status: 'Pendente',
+                status: 'pending',
                 originPath: '/receipts',
             });
         });
@@ -826,15 +896,92 @@ const AccountsReceivable: React.FC = () => {
         return entries;
     }, [openComandas, openComandaDetails, clubReceivables, pendingReceipts, clubClients, clubPlans]);
 
-    const filteredEntries = useMemo(() => {
-        if (activeTab === 'todos') return allEntries;
-        return allEntries.filter(e => {
+    const combinedEntries = useMemo<ARListEntry[]>(() => {
+        const receivables = allEntries.map((entry): ARListEntry => ({
+            ...entry,
+            listId: `receivable-${entry.source}-${entry.id}`,
+            reference: `${SOURCE_LABELS[entry.source]} ${getShortId(entry.id)} ${entry.description}`,
+            receivable: entry,
+            actionKind: entry.source === 'comanda' && entry.status === 'open' ? 'settle' : 'none',
+        }));
+
+        const settledComandas = paidComandaSettlements.map((entry): ARListEntry => {
+            const referenceId = entry.sourceId || entry.id;
+            const hasReversal = entry.reversalStatus !== 'none';
+            return {
+                id: entry.id,
+                source: 'comanda',
+                clientName: entry.clientName || CLIENT_FALLBACK_LABEL,
+                clientPhone: entry.clientPhone || null,
+                description: `Baixa de comanda #${getShortId(referenceId)}`,
+                dateValue: entry.dateValue,
+                amount: entry.amount,
+                status: hasReversal ? 'reversed' : 'settled',
+                originPath: '/comandas',
+                listId: `settlement-comanda-${entry.id}`,
+                reference: `Comanda ${getShortId(referenceId)} baixa ${getShortId(entry.id)} ${entry.description}`,
+                settlement: entry,
+                actionKind: 'reverse',
+                reversalStatus: entry.reversalStatus,
+            };
+        });
+
+        return [...receivables, ...settledComandas];
+    }, [allEntries, paidComandaSettlements]);
+
+    const tabbedEntries = useMemo(() => {
+        if (activeTab === 'todos') return combinedEntries;
+        return combinedEntries.filter(e => {
             if (activeTab === 'comandas') return e.source === 'comanda';
             if (activeTab === 'clube') return e.source === 'clube';
             if (activeTab === 'recibos') return e.source === 'recibo';
             return true;
         });
-    }, [allEntries, activeTab]);
+    }, [combinedEntries, activeTab]);
+
+    const filteredEntries = useMemo(() => {
+        const amountMin = Number(String(listFilters.amountMin || '').replace(',', '.'));
+        const amountMax = Number(String(listFilters.amountMax || '').replace(',', '.'));
+        const hasMin = listFilters.amountMin.trim() !== '' && Number.isFinite(amountMin);
+        const hasMax = listFilters.amountMax.trim() !== '' && Number.isFinite(amountMax);
+        const searchTerm = listFilters.search.trim().toLowerCase();
+
+        const filtered = tabbedEntries.filter((entry) => {
+            if (listFilters.source !== 'todos' && entry.source !== listFilters.source) return false;
+            if (listFilters.status !== 'todos' && entry.status !== listFilters.status) return false;
+
+            const entryDate = String(entry.dateValue || '').slice(0, 10);
+            if (listFilters.dateFrom && entryDate < listFilters.dateFrom) return false;
+            if (listFilters.dateTo && entryDate > listFilters.dateTo) return false;
+            if (hasMin && entry.amount < amountMin) return false;
+            if (hasMax && entry.amount > amountMax) return false;
+
+            if (searchTerm) {
+                const haystack = [
+                    entry.clientName,
+                    entry.clientPhone,
+                    entry.description,
+                    entry.reference,
+                    entry.id,
+                    entry.settlement?.sourceId,
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (!haystack.includes(searchTerm)) return false;
+            }
+
+            return true;
+        });
+
+        return [...filtered].sort((first, second) => {
+            if (sortKey === 'client_az') return first.clientName.localeCompare(second.clientName, 'pt-BR');
+            if (sortKey === 'client_za') return second.clientName.localeCompare(first.clientName, 'pt-BR');
+            if (sortKey === 'amount_asc') return first.amount - second.amount;
+            if (sortKey === 'amount_desc') return second.amount - first.amount;
+            const firstDate = new Date(first.dateValue).getTime() || 0;
+            const secondDate = new Date(second.dateValue).getTime() || 0;
+            if (sortKey === 'date_asc') return firstDate - secondDate;
+            return secondDate - firstDate;
+        });
+    }, [tabbedEntries, listFilters, sortKey]);
 
     const totals = useMemo(() => {
         const openComandaTotal = openComandas.reduce((sum, c) => sum + Number(c.total || 0), 0);
@@ -851,44 +998,53 @@ const AccountsReceivable: React.FC = () => {
         };
     }, [openComandas, clubReceivables, pendingReceipts]);
 
-    const clientAccountGroups = useMemo(() => {
+    const groupedEntries = useMemo(() => {
         const groups = new Map<string, {
-            clientId: string;
+            groupId: string;
             clientName: string;
+            clientPhone: string | null;
             count: number;
             total: number;
             lastDate: string;
+            entries: ARListEntry[];
         }>();
 
-        openComandas.forEach((comanda) => {
-            const detail = openComandaDetails[comanda.id];
-            const clientName = detail?.clientName || getClientData(comanda.clients).name;
-            const groupKey = comanda.client_id || `sem-cliente-${comanda.id}`;
+        filteredEntries.forEach((entry) => {
+            const groupKey = `${entry.clientName || CLIENT_FALLBACK_LABEL}|${entry.clientPhone || ''}`;
             const current = groups.get(groupKey);
-            const createdAt = comanda.created_at || new Date().toISOString();
+            const createdAt = entry.dateValue || new Date().toISOString();
 
             if (!current) {
                 groups.set(groupKey, {
-                    clientId: groupKey,
-                    clientName: clientName || CLIENT_FALLBACK_LABEL,
+                    groupId: groupKey,
+                    clientName: entry.clientName || CLIENT_FALLBACK_LABEL,
+                    clientPhone: entry.clientPhone || null,
                     count: 1,
-                    total: Number(comanda.total || 0),
+                    total: Number(entry.amount || 0),
                     lastDate: createdAt,
+                    entries: [entry],
                 });
                 return;
             }
 
             current.count += 1;
-            current.total += Number(comanda.total || 0);
+            current.total += Number(entry.amount || 0);
+            current.entries.push(entry);
             if (new Date(createdAt).getTime() > new Date(current.lastDate).getTime()) {
                 current.lastDate = createdAt;
             }
         });
 
         return Array.from(groups.values())
-            .filter((group) => group.count > 1)
-            .sort((first, second) => second.total - first.total);
-    }, [openComandas, openComandaDetails]);
+            .sort((first, second) => {
+                if (sortKey === 'client_za') return second.clientName.localeCompare(first.clientName, 'pt-BR');
+                if (sortKey === 'amount_asc') return first.total - second.total;
+                if (sortKey === 'amount_desc') return second.total - first.total;
+                if (sortKey === 'date_asc') return new Date(first.lastDate).getTime() - new Date(second.lastDate).getTime();
+                if (sortKey === 'date_desc') return new Date(second.lastDate).getTime() - new Date(first.lastDate).getTime();
+                return first.clientName.localeCompare(second.clientName, 'pt-BR');
+            });
+    }, [filteredEntries, sortKey]);
 
     const tabs: { key: ActiveTab; label: string }[] = [
         { key: 'todos', label: 'Todos' },
@@ -899,16 +1055,35 @@ const AccountsReceivable: React.FC = () => {
 
     const getStatusBadge = (status: string) => {
         if (status === 'overdue') return 'bg-red-500/10 text-red-600 border-red-500/20';
-        if (status === 'open' || status === 'Pendente') return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+        if (status === 'open') return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+        if (status === 'pending') return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+        if (status === 'settled') return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+        if (status === 'reversed') return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
         return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
     };
 
     const getStatusLabel = (status: string) => {
         if (status === 'overdue') return 'Atrasado';
-        if (status === 'open') return 'Pendente';
-        if (status === 'Pendente') return 'Pendente';
+        if (status === 'open') return 'Em aberto';
+        if (status === 'pending') return 'Pendente';
+        if (status === 'settled') return 'Baixada';
+        if (status === 'reversed') return 'Estornada';
         return status;
     };
+
+    const selectedSortLabel = SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Data recente';
+    const activeFilterCount = [
+        listFilters.source !== 'todos',
+        listFilters.status !== 'todos',
+        Boolean(listFilters.dateFrom),
+        Boolean(listFilters.dateTo),
+        Boolean(listFilters.amountMin),
+        Boolean(listFilters.amountMax),
+        Boolean(listFilters.search.trim()),
+        listFilters.viewMode !== 'list',
+    ].filter(Boolean).length;
+
+    const resetListFilters = () => setListFilters({ ...DEFAULT_AR_FILTERS });
 
     const settlementDetail = settlementEntry ? openComandaDetails[settlementEntry.id] : null;
     const settlementGross = settlementDetail?.grossSubtotal || settlementEntry?.amount || 0;
@@ -1391,133 +1566,6 @@ const AccountsReceivable: React.FC = () => {
                 </section>
             )}
 
-            {clientAccountGroups.length > 0 && (
-                <section className="rounded-2xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/5 p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <Users className="h-5 w-5 text-amber-600" />
-                                <h3 className="text-base font-black text-slate-950 dark:text-white">Conta do cliente</h3>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                Clientes com mais de uma comanda aberta. Transferir comanda para responsável fica para fase auditada futura.
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                Esta seção é apenas um agrupamento visual: não altera cliente, status ou valor.
-                            </p>
-                        </div>
-                        <Button type="button" variant="secondary" onClick={() => setActiveTab('comandas')}>
-                            Ver comandas
-                        </Button>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {clientAccountGroups.map((group) => (
-                            <div key={group.clientId} className="rounded-xl border border-amber-200/70 dark:border-amber-500/20 bg-white/90 dark:bg-card-dark/80 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-black text-slate-900 dark:text-white">{group.clientName}</p>
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">
-                                            {group.count} comandas abertas
-                                        </p>
-                                    </div>
-                                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:text-amber-300">
-                                        Revisar
-                                    </span>
-                                </div>
-                                <div className="mt-4 flex items-end justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Total</p>
-                                        <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                                            {group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                        </p>
-                                    </div>
-                                    <p className="text-xs font-semibold text-slate-500">
-                                        Ultima: {new Date(group.lastDate).toLocaleDateString('pt-BR')}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {paidComandaSettlements.length > 0 && (
-                <section className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark overflow-hidden">
-                    <div className="flex flex-col gap-2 border-b border-slate-200 dark:border-border-dark px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <h3 className="text-base font-bold text-slate-950 dark:text-white">Baixas recentes de comandas</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Entradas de comanda no período. Estornos preservam a transaction original e criam movimentação reversa.
-                            </p>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
-                            {paidComandaSettlements.length} baixas
-                        </span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-left">
-                            <thead className="bg-slate-50/90 dark:bg-white/5">
-                                <tr>
-                                    {['Cliente / Origem', 'Data da baixa', 'Valor', 'Reversão', ''].map(col => (
-                                        <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                                            {col}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {paidComandaSettlements.map((entry) => (
-                                    <tr key={entry.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
-                                        <td className="px-5 py-4">
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName || CLIENT_FALLBACK_LABEL}</p>
-                                            <p className="mt-1 text-xs text-slate-500">{entry.description}</p>
-                                            {entry.sourceId && (
-                                                <p className="mt-1 text-[11px] text-slate-400">Comanda #{getShortId(entry.sourceId)}</p>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
-                                            {new Date(entry.dateValue).toLocaleString('pt-BR')}
-                                        </td>
-                                        <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">
-                                            {entry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                            {entry.reversalStatus !== 'none' && (
-                                                <span className="mt-1 block text-[11px] font-bold text-amber-600 dark:text-amber-300">
-                                                    {entry.reversalStatus === 'full' ? 'Estornado total' : 'Estornado parcial'}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
-                                            <p>
-                                                {entry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} revertido
-                                            </p>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                Saldo: {entry.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                            </p>
-                                        </td>
-                                        <td className="px-5 py-4 text-right">
-                                            {isReversalEligible(entry) && (
-                                                <Button
-                                                    type="button"
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    className="rounded-xl text-amber-700 dark:text-amber-300"
-                                                    onClick={() => openReversalModal(entry)}
-                                                    disabled={Boolean(reversingId)}
-                                                >
-                                                    Estornar
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
-
             <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
                 {tabs.map(tab => (
                     <button
@@ -1533,6 +1581,160 @@ const AccountsReceivable: React.FC = () => {
                     </button>
                 ))}
             </div>
+
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-border-dark dark:bg-card-dark">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Lista operacional</p>
+                        <h3 className="text-base font-black text-slate-950 dark:text-white">
+                            {filteredEntries.length} registro(s), ordenado por {selectedSortLabel.toLowerCase()}
+                        </h3>
+                    </div>
+
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                        <div className="flex flex-wrap gap-2">
+                            {SORT_OPTIONS.map((option) => (
+                                <button
+                                    key={option.key}
+                                    type="button"
+                                    onClick={() => setSortKey(option.key)}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                                        sortKey === option.key
+                                            ? 'border-[#00D2FF]/30 bg-[#00D2FF]/10 text-[#006CA3] dark:text-[#80E8FF]'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
+                                    }`}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowFilters((current) => !current)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                        >
+                            <span className="material-symbols-outlined text-base">tune</span>
+                            Filtros
+                            {activeFilterCount > 0 && (
+                                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
+                                    {activeFilterCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {showFilters && (
+                    <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 dark:border-white/10 md:grid-cols-2 xl:grid-cols-4">
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Origem</span>
+                            <select
+                                value={listFilters.source}
+                                onChange={(event) => setListFilters((current) => ({ ...current, source: event.target.value as SourceFilter }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            >
+                                {SOURCE_FILTER_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Status</span>
+                            <select
+                                value={listFilters.status}
+                                onChange={(event) => setListFilters((current) => ({ ...current, status: event.target.value as StatusFilter }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            >
+                                {STATUS_FILTER_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Data inicial</span>
+                            <input
+                                type="date"
+                                value={listFilters.dateFrom}
+                                onChange={(event) => setListFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Data final</span>
+                            <input
+                                type="date"
+                                value={listFilters.dateTo}
+                                onChange={(event) => setListFilters((current) => ({ ...current, dateTo: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Valor mínimo</span>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={listFilters.amountMin}
+                                onChange={(event) => setListFilters((current) => ({ ...current, amountMin: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Valor máximo</span>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={listFilters.amountMax}
+                                onChange={(event) => setListFilters((current) => ({ ...current, amountMax: event.target.value }))}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            />
+                        </label>
+                        <label className="space-y-1.5 md:col-span-2">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Cliente, telefone ou referência</span>
+                            <input
+                                type="search"
+                                value={listFilters.search}
+                                onChange={(event) => setListFilters((current) => ({ ...current, search: event.target.value }))}
+                                placeholder="Buscar cliente, telefone ou comanda"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
+                            />
+                        </label>
+                        <div className="space-y-1.5">
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Visualização</span>
+                            <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
+                                {[
+                                    { value: 'list' as ViewMode, label: 'Lista' },
+                                    { value: 'grouped' as ViewMode, label: 'Por cliente' },
+                                ].map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => setListFilters((current) => ({ ...current, viewMode: option.value }))}
+                                        className={`rounded-lg px-3 py-2 text-xs font-black transition ${
+                                            listFilters.viewMode === option.value
+                                                ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                                                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-end">
+                            <button
+                                type="button"
+                                onClick={resetListFilters}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                            >
+                                Limpar filtros
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </section>
 
             {loading ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
@@ -1564,77 +1766,137 @@ const AccountsReceivable: React.FC = () => {
                             <h3 className="text-base font-bold text-slate-950 dark:text-white">
                                 {tabs.find(t => t.key === activeTab)?.label}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Itens pendentes no período selecionado.</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Comandas abertas e baixadas, Clube do Chefe e recibos no período.</p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
                             {filteredEntries.length} registros
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-left">
-                            <thead className="bg-slate-50/90 dark:bg-white/5">
-                                <tr>
-                                    {['Origem', 'Cliente', 'Descrição', 'Data / Vencimento', 'Valor', 'Status', ''].map(col => (
-                                        <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                                            {col}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {filteredEntries.map(entry => (
-                                    <tr key={`${entry.source}-${entry.id}`} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
-                                        <td className="px-5 py-4">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">
-                                                {SOURCE_LABELS[entry.source]}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-4">
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName || CLIENT_FALLBACK_LABEL}</p>
-                                            {entry.clientPhone && (
-                                                <p className="mt-1 text-xs text-slate-500">{entry.clientPhone}</p>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-4">
-                                            <p className="text-sm text-slate-700 dark:text-slate-200">{entry.description}</p>
-                                            {entry.source === 'comanda' && (
-                                                <p className="mt-1 text-[11px] text-slate-400">Referência técnica: {getShortId(entry.id)}</p>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
-                                            {new Date(entry.dateValue).toLocaleDateString('pt-BR')}
-                                        </td>
-                                        <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">
-                                            {entry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                        </td>
-                                        <td className="px-5 py-4">
-                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase border ${getStatusBadge(entry.status)}`}>
-                                                {getStatusLabel(entry.status)}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-4">
-                                            {entry.source === 'comanda' && entry.status === 'open' && (
-                                                <button
-                                                    onClick={() => openSettlementModal(entry)}
-                                                    disabled={markingPaid === entry.id}
-                                                    title="A baixa sera registrada pela RPC financeira central."
-                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/20 transition disabled:opacity-50"
-                                                >
-                                                    {markingPaid === entry.id ? (
-                                                        <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
-                                                    ) : (
-                                                        <span className="material-symbols-outlined text-sm">check_circle</span>
-                                                    )}
-                                                    Dar baixa
-                                                </button>
-                                            )}
-                                        </td>
+                    {listFilters.viewMode === 'grouped' ? (
+                        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+                            {groupedEntries.map((group) => (
+                                <div key={group.groupId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-black text-slate-900 dark:text-white">{group.clientName}</p>
+                                            {group.clientPhone && <p className="mt-1 text-xs text-slate-500">{group.clientPhone}</p>}
+                                        </div>
+                                        <span className="rounded-full bg-slate-200/70 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                            {group.count} itens
+                                        </span>
+                                    </div>
+                                    <div className="mt-4 flex items-end justify-between gap-3">
+                                        <div>
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Total filtrado</p>
+                                            <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                                                {formatCurrency(group.total)}
+                                            </p>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-500">
+                                            Última: {new Date(group.lastDate).toLocaleDateString('pt-BR')}
+                                        </p>
+                                    </div>
+                                    <div className="mt-4 space-y-2">
+                                        {group.entries.slice(0, 4).map((entry) => (
+                                            <div key={entry.listId} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs dark:bg-card-dark">
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-bold text-slate-800 dark:text-slate-100">{entry.description}</p>
+                                                    <p className="mt-0.5 text-slate-500">{SOURCE_LABELS[entry.source]} · {getStatusLabel(entry.status)}</p>
+                                                </div>
+                                                <p className="shrink-0 font-black text-slate-900 dark:text-white">{formatCurrency(entry.amount)}</p>
+                                            </div>
+                                        ))}
+                                        {group.entries.length > 4 && (
+                                            <p className="text-xs font-semibold text-slate-500">+ {group.entries.length - 4} item(ns) no mesmo cliente</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left">
+                                <thead className="bg-slate-50/90 dark:bg-white/5">
+                                    <tr>
+                                        {['Origem', 'Cliente', 'Descrição', 'Data / Vencimento', 'Valor', 'Status', ''].map(col => (
+                                            <th key={col} className="px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                                                {col}
+                                            </th>
+                                        ))}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                    {filteredEntries.map(entry => (
+                                        <tr key={entry.listId} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
+                                            <td className="px-5 py-4">
+                                                <span className="text-xs font-bold text-slate-500 uppercase">
+                                                    {SOURCE_LABELS[entry.source]}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-white">{entry.clientName || CLIENT_FALLBACK_LABEL}</p>
+                                                {entry.clientPhone && (
+                                                    <p className="mt-1 text-xs text-slate-500">{entry.clientPhone}</p>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <p className="text-sm text-slate-700 dark:text-slate-200">{entry.description}</p>
+                                                {entry.source === 'comanda' && (
+                                                    <p className="mt-1 text-[11px] text-slate-400">Referência: {entry.settlement?.sourceId ? getShortId(entry.settlement.sourceId) : getShortId(entry.id)}</p>
+                                                )}
+                                                {entry.reversalStatus && entry.reversalStatus !== 'none' && (
+                                                    <p className="mt-1 text-[11px] font-bold text-amber-600 dark:text-amber-300">
+                                                        {entry.reversalStatus === 'full' ? 'Estorno total registrado' : 'Estorno parcial registrado'}
+                                                    </p>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
+                                                {new Date(entry.dateValue).toLocaleDateString('pt-BR')}
+                                            </td>
+                                            <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">
+                                                {formatCurrency(entry.amount)}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase border ${getStatusBadge(entry.status)}`}>
+                                                    {getStatusLabel(entry.status)}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4 text-right">
+                                                {entry.actionKind === 'settle' && entry.receivable && (
+                                                    <button
+                                                        onClick={() => openSettlementModal(entry.receivable!)}
+                                                        disabled={markingPaid === entry.id}
+                                                        title="A baixa sera registrada pela RPC financeira central."
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                                                    >
+                                                        {markingPaid === entry.id ? (
+                                                            <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
+                                                        ) : (
+                                                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                        )}
+                                                        Dar baixa
+                                                    </button>
+                                                )}
+                                                {entry.actionKind === 'reverse' && entry.settlement && isReversalEligible(entry.settlement) && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="rounded-xl text-amber-700 dark:text-amber-300"
+                                                        onClick={() => openReversalModal(entry.settlement!)}
+                                                        disabled={Boolean(reversingId)}
+                                                    >
+                                                        Estornar
+                                                    </Button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </section>
             )}
         </div>
