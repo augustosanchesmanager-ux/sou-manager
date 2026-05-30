@@ -1072,6 +1072,14 @@ const AccountsReceivable: React.FC = () => {
     };
 
     const selectedSortLabel = SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Data recente';
+    const selectedPeriodLabel = useMemo(() => {
+        const [year, month] = filterMonth.split('-').map(Number);
+        if (!year || !month) return filterMonth;
+        return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
+            month: 'long',
+            year: 'numeric',
+        });
+    }, [filterMonth]);
     const activeFilterCount = [
         listFilters.source !== 'todos',
         listFilters.status !== 'todos',
@@ -1082,6 +1090,12 @@ const AccountsReceivable: React.FC = () => {
         Boolean(listFilters.search.trim()),
         listFilters.viewMode !== 'list',
     ].filter(Boolean).length;
+    const listScopeLabel = activeFilterCount > 0
+        ? `${filteredEntries.length} de ${tabbedEntries.length} registro(s) na visão atual`
+        : `${filteredEntries.length} registro(s) no período carregado`;
+    const dateScopeLabel = listFilters.dateFrom || listFilters.dateTo
+        ? `Datas filtradas dentro de ${selectedPeriodLabel}`
+        : `Período carregado: ${selectedPeriodLabel}`;
 
     const resetListFilters = () => setListFilters({ ...DEFAULT_AR_FILTERS });
 
@@ -1493,6 +1507,15 @@ const AccountsReceivable: React.FC = () => {
                 </div>
             </div>
 
+            <section className="rounded-2xl border border-slate-200/80 bg-white/90 px-5 py-3 text-sm text-slate-600 shadow-sm dark:border-border-dark dark:bg-card-dark/80 dark:text-slate-300">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-black text-slate-800 dark:text-white">Totais do período</span>
+                    <span>
+                        Os cards abaixo mostram {selectedPeriodLabel}; os filtros da listagem refinam apenas a tabela operacional.
+                    </span>
+                </div>
+            </section>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
                     <div className="flex items-center justify-between">
@@ -1587,27 +1610,27 @@ const AccountsReceivable: React.FC = () => {
                     <div className="min-w-0">
                         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Lista operacional</p>
                         <h3 className="text-base font-black text-slate-950 dark:text-white">
-                            {filteredEntries.length} registro(s), ordenado por {selectedSortLabel.toLowerCase()}
+                            {listScopeLabel}
                         </h3>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            {dateScopeLabel} · Ordenado por {selectedSortLabel.toLowerCase()}
+                        </p>
                     </div>
 
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                        <div className="flex flex-wrap gap-2">
-                            {SORT_OPTIONS.map((option) => (
-                                <button
-                                    key={option.key}
-                                    type="button"
-                                    onClick={() => setSortKey(option.key)}
-                                    className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
-                                        sortKey === option.key
-                                            ? 'border-[#00D2FF]/30 bg-[#00D2FF]/10 text-[#006CA3] dark:text-[#80E8FF]'
-                                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10'
-                                    }`}
-                                >
-                                    {option.label}
-                                </button>
-                            ))}
-                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                            <span className="material-symbols-outlined text-base text-slate-400">sort</span>
+                            Ordenar
+                            <select
+                                value={sortKey}
+                                onChange={(event) => setSortKey(event.target.value as SortKey)}
+                                className="min-w-[9.5rem] bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                            >
+                                {SORT_OPTIONS.map((option) => (
+                                    <option key={option.key} value={option.key}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
 
                         <button
                             type="button"
@@ -1766,7 +1789,9 @@ const AccountsReceivable: React.FC = () => {
                             <h3 className="text-base font-bold text-slate-950 dark:text-white">
                                 {tabs.find(t => t.key === activeTab)?.label}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Comandas abertas e baixadas, Clube do Chefe e recibos no período.</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Comandas abertas e baixadas, Clube do Chefe e recibos em {selectedPeriodLabel}.
+                            </p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
                             {filteredEntries.length} registros
