@@ -1118,9 +1118,9 @@ const AccountsReceivable: React.FC = () => {
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {settlementEntry && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
-                    <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-6 shadow-2xl">
-                        <div className="flex items-start justify-between gap-4">
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 px-4 py-4 sm:items-center sm:py-6">
+                    <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-border-dark dark:bg-card-dark sm:max-h-[calc(100vh-3rem)]">
+                        <div className="flex flex-none items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-border-dark">
                             <div>
                                 <h3 className="text-lg font-black text-slate-950 dark:text-white">Dar baixa financeira</h3>
                                 <p className="mt-1 text-sm text-slate-500">
@@ -1137,7 +1137,8 @@ const AccountsReceivable: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="mt-5 rounded-xl bg-slate-50 dark:bg-white/5 p-4 text-sm">
+                        <div className="flex-1 overflow-y-auto px-5 py-5">
+                        <div className="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                 <div>
                                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Cliente</p>
@@ -1310,13 +1311,17 @@ const AccountsReceivable: React.FC = () => {
                             </label>
                         </div>
 
-                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        </div>
+
+                        <div className="flex-none border-t border-slate-200 bg-white p-4 dark:border-border-dark dark:bg-card-dark">
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                             <Button type="button" variant="secondary" onClick={closeSettlementModal} disabled={Boolean(markingPaid)}>
                                 Cancelar
                             </Button>
                             <Button type="button" onClick={handleConfirmSettlement} isLoading={markingPaid === settlementEntry.id}>
                                 {markingPaid === settlementEntry.id ? 'Registrando...' : 'Confirmar baixa'}
                             </Button>
+                        </div>
                         </div>
                     </div>
                 </div>

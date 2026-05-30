@@ -3484,6 +3484,20 @@ Podemos confirmar? 😄`;
               </button>
             </div>
 
+            <div className="flex-none border-b border-slate-200 bg-white/95 p-4 dark:border-border-dark dark:bg-[#111318]/95">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ações rápidas</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sky-50 text-sky-600 text-sm font-bold">Iniciar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Cliente</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Comanda</button>
+                <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${selectedAppointmentDetails.statusBadgeClassName}`}>
@@ -3531,18 +3545,6 @@ Podemos confirmar? 😄`;
                 <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
               </div>
             </div>
-
-             <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
-               <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sky-50 text-sky-600 text-sm font-bold">Iniciar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-               <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
-               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
-             </div>
           </div>
         </div>
       )}
