@@ -2097,19 +2097,21 @@ const Checkout: React.FC = () => {
                                     </p>
                                 </div>
                                 <div className="grid gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setZeroCloseOrigin('club_credit')}
-                                        disabled={!canCloseWithClubCredit}
-                                        className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                            zeroCloseOrigin === 'club_credit'
-                                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                                : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
-                                        }`}
-                                    >
-                                        <span className="block font-black">Pagamento via Clube do Chefe</span>
-                                        <span>Crédito será consumido e não gera nova entrada no caixa.</span>
-                                    </button>
+                                    {selectedClient && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setZeroCloseOrigin('club_credit')}
+                                            disabled={!canCloseWithClubCredit}
+                                            className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                                zeroCloseOrigin === 'club_credit'
+                                                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                                    : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                            }`}
+                                        >
+                                            <span className="block font-black">Pagamento via Clube do Chefe</span>
+                                            <span>Crédito será consumido e não gera nova entrada no caixa.</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setZeroCloseOrigin('house_courtesy')}

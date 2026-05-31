@@ -36,6 +36,32 @@ const ZERO_CLOSE_ORIGIN_LABELS: Record<ZeroCloseOrigin, string> = {
 const requiresReason = (origin: ZeroCloseOrigin) =>
   origin === 'house_courtesy' || origin === 'administrative_adjustment';
 
+const assertComandaOpenForZeroClose = async ({
+  supabase,
+  tenantId,
+  comandaId,
+}: Pick<ZeroCloseInput, 'supabase' | 'tenantId' | 'comandaId'>) => {
+  const { data, error } = await supabase
+    .from('comandas')
+    .select('id, status, tenant_id')
+    .eq('id', comandaId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('zero close status check failed:', error);
+    throw new Error(error.message || 'Nao foi possivel validar o status da comanda antes do fechamento zero.');
+  }
+
+  if (!data) {
+    throw new Error('Comanda nao encontrada para este tenant. Nenhuma baixa zero foi aplicada.');
+  }
+
+  if (data.status !== 'open') {
+    throw new Error(`Comanda com status "${data.status || 'desconhecido'}" nao pode ser fechada por baixa zero. Nenhuma alteracao foi aplicada.`);
+  }
+};
+
 export const isManagerLikeRole = (role?: string | null, canAccessSuperAdmin = false) => {
   if (canAccessSuperAdmin) return true;
   const normalized = String(role || '').trim().toLowerCase();
@@ -75,6 +101,8 @@ export const closeZeroAmountComanda = async ({
   if (requiresReason(origin) && !String(reason || '').trim()) {
     throw new Error('Informe o motivo obrigatório para fechamento zero auditado.');
   }
+
+  await assertComandaOpenForZeroClose({ supabase, tenantId, comandaId });
 
   const auditNote = buildZeroCloseAuditNote({
     origin,

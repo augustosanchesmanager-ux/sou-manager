@@ -335,6 +335,7 @@ const AccountsReceivable: React.FC = () => {
     const [settlementZeroReason, setSettlementZeroReason] = useState('');
     const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
     const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
+    const settlementLockRef = React.useRef(false);
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
     const [reversalEntry, setReversalEntry] = useState<PaidComandaSettlement | null>(null);
     const [reversalType, setReversalType] = useState<FinancialReversalType>('full_refund');
@@ -742,6 +743,7 @@ const AccountsReceivable: React.FC = () => {
     };
 
     const handleConfirmSettlement = async () => {
+        if (settlementLockRef.current) return;
         if (!tenantId || !settlementEntry) {
             setToast({ message: 'Contexto invalido para baixa financeira. Atualize a pagina e tente novamente.', type: 'error' });
             return;
@@ -765,6 +767,7 @@ const AccountsReceivable: React.FC = () => {
             return;
         }
 
+        settlementLockRef.current = true;
         setMarkingPaid(settlementEntry.id);
         setToast({ message: settlementMode === 'payment' ? 'Registrando baixa financeira...' : 'Registrando fechamento zero auditado...', type: 'info' });
         try {
@@ -818,6 +821,7 @@ const AccountsReceivable: React.FC = () => {
                 : 'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada.';
             setToast({ message, type: 'error' });
         } finally {
+            settlementLockRef.current = false;
             setMarkingPaid(null);
         }
     };
@@ -1351,7 +1355,9 @@ const AccountsReceivable: React.FC = () => {
                                 <div className="grid gap-2 md:grid-cols-2">
                                     {[
                                         { value: 'payment' as SettlementMode, label: 'Baixar com pagamento', helper: 'Cria receita real na RPC financeira.' },
-                                        { value: 'club_credit' as SettlementMode, label: 'Consumir crédito do Clube', helper: settlementClubCreditsLoading ? 'Carregando créditos...' : `${settlementClubCredits?.availableCredits || 0} crédito(s) disponível(is).` },
+                                        ...(settlementEntry?.clientId
+                                            ? [{ value: 'club_credit' as SettlementMode, label: 'Consumir crédito do Clube', helper: settlementClubCreditsLoading ? 'Carregando créditos...' : `${settlementClubCredits?.availableCredits || 0} crédito(s) disponível(is).` }]
+                                            : []),
                                         { value: 'house_courtesy' as SettlementMode, label: 'Cortesia da casa', helper: 'Sem entrada financeira, com motivo obrigatório.' },
                                         { value: 'administrative_adjustment' as SettlementMode, label: 'Baixa administrativa', helper: 'Restrita a gerente/admin/superadmin.' },
                                     ].map((option) => (
@@ -1360,7 +1366,7 @@ const AccountsReceivable: React.FC = () => {
                                             type="button"
                                             onClick={() => setSettlementMode(option.value)}
                                             disabled={
-                                                (option.value === 'club_credit' && (!settlementEntry?.clientId || !settlementClubCanCover)) ||
+                                                (option.value === 'club_credit' && !settlementClubCanCover) ||
                                                 (option.value === 'administrative_adjustment' && !canUseAdministrativeZeroClose)
                                             }
                                             className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
