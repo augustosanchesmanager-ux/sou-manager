@@ -16,6 +16,12 @@ import {
     normalizeCreditBalances,
 } from '../src/utils/chefClubCredits';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import {
+    buildZeroCloseAuditNote,
+    closeZeroAmountComanda,
+    isManagerLikeRole,
+    type ZeroCloseOrigin,
+} from '../src/lib/finance/zeroClose';
 import { receivesCommission } from '../src/lib/staff/roles';
 import {
     DISCOUNT_REASON_LABELS,
@@ -25,6 +31,12 @@ import {
     type DiscountReasonType,
     formatDiscountAuditNote,
 } from '../src/lib/finance/discountAudit';
+import {
+    getCatalogDisplayName,
+    getCatalogInternalName,
+    getCatalogSearchText,
+    usesCommercialName,
+} from '../src/lib/catalog/display';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -47,6 +59,9 @@ interface CartItem {
     dbId?: string; // from database if editing
     type: 'service' | 'product';
     name: string;
+    internal_name?: string;
+    display_name?: string;
+    description?: string;
     price: number;
     quantity: number;
     service_id?: string;
@@ -98,6 +113,7 @@ interface Staff {
 
 interface QuickProductForm {
     name: string;
+    commercial_name: string;
     description: string;
     cost_price: string;
     sale_price: string;
@@ -108,6 +124,8 @@ interface QuickProductForm {
 
 interface QuickServiceForm {
     name: string;
+    commercial_name: string;
+    description: string;
     category: string;
     price: string;
     duration: string;
@@ -133,6 +151,7 @@ const generateIdempotencyKey = (prefix = 'req') => {
 
 const createInitialQuickProductForm = (): QuickProductForm => ({
     name: '',
+    commercial_name: '',
     description: '',
     cost_price: '0',
     sale_price: '0',
@@ -143,6 +162,8 @@ const createInitialQuickProductForm = (): QuickProductForm => ({
 
 const createInitialQuickServiceForm = (serviceName = ''): QuickServiceForm => ({
     name: serviceName,
+    commercial_name: '',
+    description: '',
     category: 'Cabelo',
     price: '0',
     duration: '30',
@@ -219,7 +240,7 @@ const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
     const location = useLocation();
     const navigate = useNavigate();
-    const { appSlug, schema, tenantId } = useAuth();
+    const { appSlug, schema, tenantId, user, accessRole, canAccessSuperAdmin } = useAuth();
     const checkoutState = (location.state as CheckoutLocationState | null) || null;
     const searchParams = new URLSearchParams(location.search);
     const requestedMode = searchParams.get('mode');
@@ -301,6 +322,8 @@ const Checkout: React.FC = () => {
     const [closureMode, setClosureMode] = useState<ClosureMode>('standard');
     const [closureNote, setClosureNote] = useState('');
     const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
+    const [zeroCloseOrigin, setZeroCloseOrigin] = useState<ZeroCloseOrigin>('club_credit');
+    const [zeroCloseReason, setZeroCloseReason] = useState('');
     const [discount, setDiscount] = useState<string>('0');
     const [discountType, setDiscountType] = useState<DiscountAuditType>('barber_discount');
     const [discountReasonType, setDiscountReasonType] = useState<DiscountReasonType>('fidelizacao');
@@ -368,10 +391,20 @@ const Checkout: React.FC = () => {
         : staff.filter(pro => receivesCommission(pro));
     const discountResponsibleStaff = staff.find(pro => pro.id === discountResponsibleStaffId) || null;
     const shouldCollectDiscountAudit = discountValue > 0;
+    const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
+    const isZeroPaidCheckout = paymentStatus === 'paid' && total <= 0;
+    const canCloseWithClubCredit = isZeroPaidCheckout && creditItems.length > 0 && Boolean(chefClubInfo);
+    const canCloseWithAdministrativeOrigin = isManagerLikeRole(accessRole, canAccessSuperAdmin);
     const isLegacyClubSettlement = paymentStatus === 'paid' && closureMode === 'legacy_membership';
-    const shouldShowPaymentMethod = paymentStatus === 'paid';
-    const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement;
-    const shouldDeductMembershipCredits = paymentStatus === 'paid' && !isLegacyClubSettlement;
+    const shouldShowPaymentMethod = paymentStatus === 'paid' && !isZeroPaidCheckout;
+    const isZeroAuditSettlement = isZeroPaidCheckout && (
+        zeroCloseOrigin === 'club_credit'
+            ? canCloseWithClubCredit
+            : zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment'
+    );
+    const shouldSettleZeroWithAudit = isZeroAuditSettlement && !isLegacyClubSettlement;
+    const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
+    const shouldDeductMembershipCredits = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
 
     const resetComandaRequestKey = () => {
         comandaRequestKeyRef.current = generateIdempotencyKey('comanda');
@@ -392,6 +425,8 @@ const Checkout: React.FC = () => {
         setClosureMode('standard');
         setClosureNote('');
         setLegacyReferenceMonth('');
+        setZeroCloseOrigin('club_credit');
+        setZeroCloseReason('');
         setChefClubInfo(null);
         setDuplicateComanda(null);
         setPendingClient(null);
@@ -692,7 +727,10 @@ const Checkout: React.FC = () => {
         }
 
         if (cart.length === 0 && checkoutState.serviceName) {
-            const matchedService = services.find((service) => service.name === checkoutState.serviceName);
+            const matchedService = services.find((service) =>
+                service.name === checkoutState.serviceName ||
+                getCatalogDisplayName(service) === checkoutState.serviceName
+            );
 
             if (matchedService) {
                 const finalPrice = typeof checkoutState.price === 'number' && checkoutState.price > 0
@@ -702,7 +740,10 @@ const Checkout: React.FC = () => {
                 setCart([{
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'service',
-                    name: matchedService.name || checkoutState.serviceName,
+                    name: getCatalogDisplayName(matchedService, checkoutState.serviceName),
+                    internal_name: getCatalogInternalName(matchedService, checkoutState.serviceName),
+                    display_name: getCatalogDisplayName(matchedService, checkoutState.serviceName),
+                    description: matchedService.description || '',
                     price: finalPrice,
                     quantity: 1,
                     service_id: matchedService.id,
@@ -913,10 +954,15 @@ const Checkout: React.FC = () => {
     };
 
     const addCartItem = (item: any, type: 'service' | 'product', finalPrice: number, shouldUseCredit: boolean) => {
+        const internalName = getCatalogInternalName(item);
+        const displayName = getCatalogDisplayName(item);
         const newItem: CartItem = {
             id: Math.random().toString(36).substr(2, 9),
             type,
-            name: item.name || 'Item sem nome',
+            name: displayName,
+            internal_name: internalName,
+            display_name: displayName,
+            description: item.description || '',
             price: shouldUseCredit ? 0 : finalPrice,
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
@@ -1007,6 +1053,7 @@ const Checkout: React.FC = () => {
             const payload = {
                 tenant_id: resolvedTenantId,
                 name: quickProductForm.name.trim(),
+                commercial_name: quickProductForm.commercial_name.trim() || null,
                 description: quickProductForm.description.trim(),
                 cost_price: Number(quickProductForm.cost_price) || 0,
                 sale_price: Number(quickProductForm.sale_price) || 0,
@@ -1026,7 +1073,7 @@ const Checkout: React.FC = () => {
 
             setProducts(prev => {
                 const nextProducts = [...prev, createdProduct];
-                nextProducts.sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+                nextProducts.sort((a, b) => getCatalogDisplayName(a).localeCompare(getCatalogDisplayName(b), 'pt-BR'));
                 return nextProducts;
             });
 
@@ -1065,6 +1112,8 @@ const Checkout: React.FC = () => {
             const payload = {
                 tenant_id: resolvedTenantId,
                 name: quickServiceForm.name.trim(),
+                commercial_name: quickServiceForm.commercial_name.trim() || null,
+                description: quickServiceForm.description.trim() || null,
                 category: quickServiceForm.category,
                 price: Number(quickServiceForm.price) || 0,
                 duration: parseInt(quickServiceForm.duration, 10) || 30,
@@ -1081,7 +1130,7 @@ const Checkout: React.FC = () => {
 
             setServices(prev => {
                 const nextServices = [...prev, createdService];
-                nextServices.sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+                nextServices.sort((a, b) => getCatalogDisplayName(a).localeCompare(getCatalogDisplayName(b), 'pt-BR'));
                 return nextServices;
             });
 
@@ -1189,10 +1238,37 @@ const Checkout: React.FC = () => {
             finishLockRef.current = false;
             return;
         }
+        if (isLegacyClubSettlement && !canCloseWithAdministrativeOrigin) {
+            setToast({ message: 'Baixa administrativa exige permissão de gerente, admin ou superadmin.', type: 'error' });
+            finishLockRef.current = false;
+            return;
+        }
         if (isLegacyClubSettlement && !legacyReferenceMonth) {
             setToast({ message: 'Informe o mes de referencia para a baixa administrativa do Clube.', type: 'info' });
             finishLockRef.current = false;
             return;
+        }
+        if (isLegacyClubSettlement && !closureNote.trim()) {
+            setToast({ message: 'Informe o motivo obrigatório para a baixa administrativa.', type: 'error' });
+            finishLockRef.current = false;
+            return;
+        }
+        if (isZeroPaidCheckout) {
+            if (zeroCloseOrigin === 'club_credit' && !canCloseWithClubCredit) {
+                setToast({ message: 'Comanda zero só pode fechar por crédito quando há crédito do Clube aplicado e disponível.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
+            if (zeroCloseOrigin === 'administrative_adjustment' && !canCloseWithAdministrativeOrigin) {
+                setToast({ message: 'Baixa administrativa zero exige permissão de gerente, admin ou superadmin.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
+            if ((zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment') && !zeroCloseReason.trim()) {
+                setToast({ message: 'Informe o motivo obrigatório para fechar comanda zero.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
         }
         let discountAuditDraft: DiscountAuditDraft | null = null;
         if (shouldCollectDiscountAudit) {
@@ -1237,9 +1313,19 @@ const Checkout: React.FC = () => {
             let currentComandaId = comandaId;
             const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
             const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
-            const shouldSettleViaRpc = paymentStatus === 'paid' && !isLegacyClubSettlement;
+            const shouldSettleViaRpc = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
+            const shouldCloseAfterComandaSync = shouldSettleViaRpc || shouldSettleZeroWithAudit;
             const paymentDateReal = new Date().toISOString();
             const discountAuditNote = discountAuditDraft ? formatDiscountAuditNote(discountAuditDraft) : null;
+            const legacyClosureAuditNote = isLegacyClubSettlement
+                ? buildZeroCloseAuditNote({
+                    origin: 'administrative_adjustment',
+                    source: 'checkout',
+                    authorizedBy: user?.id || null,
+                    userId: user?.id || null,
+                    reason: closureNote.trim(),
+                })
+                : null;
             const settlementNotes = [
                 paymentMethod === 'other' && paymentDescription ? `Forma de pagamento: ${paymentDescription}` : null,
                 discountAuditNote,
@@ -1282,18 +1368,18 @@ const Checkout: React.FC = () => {
                 client_id: selectedClient.id,
                 staff_id: comandaStaffId,
                 appointment_id: relatedAppointmentId,
-                status: shouldSettleViaRpc ? 'open' : (paymentStatus === 'paid' ? 'paid' : 'open'),
+                status: shouldCloseAfterComandaSync ? 'open' : (paymentStatus === 'paid' ? 'paid' : 'open'),
                 total: total,
                 discount: discountValue,
-                payment_method: shouldSettleViaRpc ? null : (paymentStatus === 'paid' ? paymentMethod : null),
+                payment_method: shouldCloseAfterComandaSync ? null : (paymentStatus === 'paid' ? paymentMethod : null),
                 closure_mode: paymentStatus === 'paid' ? closureMode : 'standard',
-                closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? (closureNote.trim() || null) : null,
+                closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? legacyClosureAuditNote : null,
                 financial_effect: paymentStatus === 'paid' ? shouldApplyFinancialEffects : true,
                 membership_credit_effect: paymentStatus === 'paid' ? shouldDeductMembershipCredits : true,
                 legacy_reference_month: paymentStatus === 'paid' && isLegacyClubSettlement
                     ? `${legacyReferenceMonth}-01`
                     : null,
-                closed_at: shouldSettleViaRpc ? null : (paymentStatus === 'paid' ? paymentDateReal : null),
+                closed_at: shouldCloseAfterComandaSync ? null : (paymentStatus === 'paid' ? paymentDateReal : null),
                 tenant_id: resolvedTenantId
             };
 
@@ -1475,7 +1561,24 @@ const Checkout: React.FC = () => {
             }
 
             // 5. Deduct Chef Club Credits if used
-            const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
+            if (shouldSettleZeroWithAudit) {
+                await closeZeroAmountComanda({
+                    comandaId: currentComandaId,
+                    tenantId: resolvedTenantId,
+                    supabase: client,
+                    origin: zeroCloseOrigin,
+                    source: 'checkout',
+                    authorizedBy: user?.id || null,
+                    userId: user?.id || null,
+                    reason: zeroCloseOrigin === 'club_credit'
+                        ? `Crédito do Clube consumido no checkout: ${creditItems.length} serviço(s).`
+                        : zeroCloseReason.trim(),
+                    legacyReferenceMonth: zeroCloseOrigin === 'administrative_adjustment' && legacyReferenceMonth
+                        ? `${legacyReferenceMonth}-01`
+                        : null,
+                });
+            }
+
             if (shouldDeductMembershipCredits && creditItems.length > 0 && chefClubInfo) {
                 for (const creditItem of creditItems) {
                     const { error: creditErr } = await client.rpc('deduct_chef_club_credits', {
@@ -1533,9 +1636,10 @@ const Checkout: React.FC = () => {
         }
     };
 
+    const normalizedItemSearch = searchTerm.trim().toLowerCase();
     const filteredItems = itemModalTab === 'services'
-        ? services.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        : products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        ? services.filter(s => getCatalogSearchText(s).includes(normalizedItemSearch))
+        : products.filter(p => getCatalogSearchText(p).includes(normalizedItemSearch));
 
     return (
         <div className="max-w-7xl mx-auto w-full animate-fade-in pb-20">
@@ -1667,7 +1771,10 @@ const Checkout: React.FC = () => {
 
                                             {/* Details */}
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.name}</p>
+                                                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.display_name || item.name}</p>
+                                                {item.internal_name && item.internal_name !== item.name && (
+                                                    <p className="text-[10px] font-semibold text-slate-400 truncate">Interno: {item.internal_name}</p>
+                                                )}
 
                                                 {/* Professional Selector (Commission logic) */}
                                                 <div className="flex items-center gap-1 mt-1">
@@ -1880,7 +1987,7 @@ const Checkout: React.FC = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Observação interna</label>
+                                            <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Motivo obrigatório</label>
                                             <textarea
                                                 value={closureNote}
                                                 onChange={(e) => setClosureNote(e.target.value)}
@@ -1980,6 +2087,69 @@ const Checkout: React.FC = () => {
                                 <span className="font-black text-3xl text-[#003366] dark:text-[#00D2FF]">R$ {total.toFixed(2)}</span>
                             </div>
                         </div>
+
+                        {isZeroPaidCheckout && !isLegacyClubSettlement && (
+                            <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm">
+                                <div className="mb-3">
+                                    <p className="text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">Fechamento zero auditado</p>
+                                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                        Comanda com valor financeiro zero precisa de origem válida. Não será criada entrada de caixa.
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setZeroCloseOrigin('club_credit')}
+                                        disabled={!canCloseWithClubCredit}
+                                        className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                            zeroCloseOrigin === 'club_credit'
+                                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                                : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                        }`}
+                                    >
+                                        <span className="block font-black">Pagamento via Clube do Chefe</span>
+                                        <span>Crédito será consumido e não gera nova entrada no caixa.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setZeroCloseOrigin('house_courtesy')}
+                                        className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                                            zeroCloseOrigin === 'house_courtesy'
+                                                ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                                                : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                        }`}
+                                    >
+                                        <span className="block font-black">Cortesia da casa</span>
+                                        <span>Exige motivo e fica registrada como fechamento sem pagamento real.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setZeroCloseOrigin('administrative_adjustment')}
+                                        disabled={!canCloseWithAdministrativeOrigin}
+                                        className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                            zeroCloseOrigin === 'administrative_adjustment'
+                                                ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                                : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
+                                        }`}
+                                    >
+                                        <span className="block font-black">Baixa administrativa auditada</span>
+                                        <span>Restrita a gerente, admin ou superadmin, com motivo obrigatório.</span>
+                                    </button>
+                                </div>
+                                {(zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment') && (
+                                    <label className="mt-3 block">
+                                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Motivo obrigatório</span>
+                                        <textarea
+                                            value={zeroCloseReason}
+                                            onChange={(event) => setZeroCloseReason(event.target.value)}
+                                            rows={3}
+                                            placeholder="Explique quem autorizou e por que a comanda será fechada sem pagamento."
+                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                        )}
 
                         {shouldShowPaymentMethod && (
                             <div className="mb-8 animate-fade-in">
@@ -2283,31 +2453,37 @@ const Checkout: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-1">
-                                {filteredItems.map((item: any) => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
-                                        className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`size-9 rounded-lg flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'
-                                                }`}>
-                                                <span className="material-symbols-outlined text-lg">
-                                                    {itemModalTab === 'services' ? 'content_cut' : 'package_2'}
+                                {filteredItems.map((item: any) => {
+                                    const displayName = getCatalogDisplayName(item);
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => handleAddItem(item, itemModalTab === 'services' ? 'service' : 'product')}
+                                            className="w-full flex items-center justify-between p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors group"
+                                        >
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <div className={`size-9 rounded-lg flex items-center justify-center ${itemModalTab === 'services' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-500'
+                                                    }`}>
+                                                    <span className="material-symbols-outlined text-lg">
+                                                        {itemModalTab === 'services' ? 'content_cut' : 'package_2'}
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0 text-left">
+                                                    <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{displayName}</p>
+                                                    {usesCommercialName(item) && (
+                                                        <p className="truncate text-[10px] font-semibold text-slate-400">Interno: {item.name}</p>
+                                                    )}
+                                                    {item.description && <p className="text-xs text-slate-500 truncate max-w-[220px]">{item.description}</p>}
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className="font-bold text-slate-900 dark:text-white">
+                                                    R$ {Number(item.price ?? item.sale_price ?? 0).toFixed(2)}
                                                 </span>
                                             </div>
-                                            <div className="text-left">
-                                                <p className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</p>
-                                                {item.description && <p className="text-xs text-slate-500 truncate max-w-[220px]">{item.description}</p>}
-                                            </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <span className="font-bold text-slate-900 dark:text-white">
-                                                R$ {Number(item.price ?? item.sale_price ?? 0).toFixed(2)}
-                                            </span>
-                                        </div>
-                                    </button>
-                                ))}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -2352,7 +2528,7 @@ const Checkout: React.FC = () => {
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Serviço</p>
-                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{pendingCreditItem.item.name || 'Serviço selecionado'}</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{getCatalogDisplayName(pendingCreditItem.item, 'Serviço selecionado')}</p>
                             <p className="mt-1 text-xs text-slate-500">
                                 Valor original: R$ {pendingCreditItem.finalPrice.toFixed(2)}
                             </p>
@@ -2369,13 +2545,22 @@ const Checkout: React.FC = () => {
             >
                 <form onSubmit={handleCreateProductDuringCheckout} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Produto</label>
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome interno</label>
                         <input
                             autoFocus
                             required
                             type="text"
                             value={quickProductForm.name}
                             onChange={(e) => setQuickProductForm((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome comercial</label>
+                        <input
+                            type="text"
+                            value={quickProductForm.commercial_name}
+                            onChange={(e) => setQuickProductForm((prev) => ({ ...prev, commercial_name: e.target.value }))}
                             className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
                         />
                     </div>
@@ -2472,7 +2657,7 @@ const Checkout: React.FC = () => {
             >
                 <form onSubmit={handleCreateServiceDuringCheckout} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase text-slate-500">Nome do Serviço</label>
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome interno</label>
                         <input
                             autoFocus
                             required
@@ -2480,6 +2665,24 @@ const Checkout: React.FC = () => {
                             value={quickServiceForm.name}
                             onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, name: e.target.value }))}
                             className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Nome comercial</label>
+                        <input
+                            type="text"
+                            value={quickServiceForm.commercial_name}
+                            onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, commercial_name: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase text-slate-500">Descrição comercial</label>
+                        <textarea
+                            rows={2}
+                            value={quickServiceForm.description}
+                            onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                            className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark"
                         />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -2621,7 +2824,7 @@ const Checkout: React.FC = () => {
                     return (
                         <div className="space-y-4">
                             <div className="bg-slate-50 dark:bg-white/5 rounded-lg p-3">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{item.name}</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">{item.display_name || item.name}</p>
                                 <p className="text-xs text-slate-500">Valor: R$ {item.price.toFixed(2)}</p>
                             </div>
 

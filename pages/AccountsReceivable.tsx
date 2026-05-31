@@ -10,6 +10,13 @@ import { useAuth } from '../context/AuthContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 import {
+    closeZeroAmountComanda,
+    isManagerLikeRole,
+    type ZeroCloseOrigin,
+} from '../src/lib/finance/zeroClose';
+import { fetchChefClubCreditsByClient, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
+import { getAvailableCreditsForService } from '../src/utils/chefClubCredits';
+import {
     createReversalKey,
     reverseFinancialTransaction,
     type FinancialReversalType,
@@ -21,6 +28,7 @@ type ARStatus = 'pending' | 'overdue' | 'open';
 interface AREntry {
     id: string;
     source: ARSource;
+    clientId?: string | null;
     clientName: string;
     clientPhone?: string | null;
     description: string;
@@ -70,6 +78,8 @@ interface ExecutionParticipantRecord {
 
 interface ComandaItemDetail {
     id: string;
+    serviceId?: string | null;
+    productId?: string | null;
     name: string;
     typeLabel: string;
     quantity: number;
@@ -127,6 +137,7 @@ type SortKey = 'client_az' | 'client_za' | 'amount_asc' | 'amount_desc' | 'date_
 type SourceFilter = 'todos' | ARSource;
 type StatusFilter = 'todos' | 'open' | 'pending' | 'overdue' | 'settled' | 'reversed';
 type ViewMode = 'list' | 'grouped';
+type SettlementMode = 'payment' | ZeroCloseOrigin;
 
 interface ARFilters {
     source: SourceFilter;
@@ -295,7 +306,7 @@ const extractClientNameFromTransactionDescription = (description?: string | null
 const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const AccountsReceivable: React.FC = () => {
-    const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
+    const { tenantId, accessRole, canAccessSuperAdmin, user } = useAuth();
     const hasTenantContext = Boolean(tenantId);
     const navigate = useNavigate();
 
@@ -320,6 +331,10 @@ const AccountsReceivable: React.FC = () => {
     const [settlementPaidAmount, setSettlementPaidAmount] = useState('');
     const [settlementNotes, setSettlementNotes] = useState('');
     const [settlementIdempotencyKey, setSettlementIdempotencyKey] = useState<string | null>(null);
+    const [settlementMode, setSettlementMode] = useState<SettlementMode>('payment');
+    const [settlementZeroReason, setSettlementZeroReason] = useState('');
+    const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
+    const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
     const [reversalEntry, setReversalEntry] = useState<PaidComandaSettlement | null>(null);
     const [reversalType, setReversalType] = useState<FinancialReversalType>('full_refund');
@@ -338,6 +353,7 @@ const AccountsReceivable: React.FC = () => {
     const [clubPlans, setClubPlans] = useState<Record<string, { name: string }>>({});
     const canRequestFinancialReversal =
         canAccessSuperAdmin || ['owner', 'admin', 'manager', 'superadmin'].includes(accessRole);
+    const canUseAdministrativeZeroClose = isManagerLikeRole(accessRole, canAccessSuperAdmin);
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterMonth) {
@@ -486,6 +502,8 @@ const AccountsReceivable: React.FC = () => {
 
                     return {
                         id: item.id,
+                        serviceId: item.service_id || null,
+                        productId: item.product_id || null,
                         name: item.product_name || (item.service_id ? 'Serviço sem nome' : 'Produto sem nome'),
                         typeLabel: item.service_id ? 'Serviço' : item.product_id ? 'Produto' : 'Item',
                         quantity,
@@ -684,13 +702,31 @@ const AccountsReceivable: React.FC = () => {
         }
     }, [tenantId, filterMonth]);
 
-    const openSettlementModal = (entry: AREntry) => {
+    const openSettlementModal = async (entry: AREntry) => {
         setSettlementEntry(entry);
         setSettlementPaymentMethod('pix');
         setSettlementPaymentDate(toDateTimeInputValue(new Date()));
         setSettlementPaidAmount(Number(entry.amount || 0).toFixed(2));
         setSettlementNotes('');
         setSettlementIdempotencyKey(createSettlementKey(entry.id));
+        setSettlementMode('payment');
+        setSettlementZeroReason('');
+        setSettlementClubCredits(null);
+
+        if (entry.clientId && tenantId) {
+            setSettlementClubCreditsLoading(true);
+            try {
+                const credits = await fetchChefClubCreditsByClient(entry.clientId, tenantId);
+                setSettlementClubCredits(credits);
+                if (Number(entry.amount || 0) <= 0 && credits?.availableCredits) {
+                    setSettlementMode('club_credit');
+                }
+            } catch (error) {
+                console.warn('Não foi possível carregar créditos do Clube para baixa:', error);
+            } finally {
+                setSettlementClubCreditsLoading(false);
+            }
+        }
     };
 
     const closeSettlementModal = () => {
@@ -699,6 +735,10 @@ const AccountsReceivable: React.FC = () => {
         setSettlementPaidAmount('');
         setSettlementNotes('');
         setSettlementIdempotencyKey(null);
+        setSettlementMode('payment');
+        setSettlementZeroReason('');
+        setSettlementClubCredits(null);
+        setSettlementClubCreditsLoading(false);
     };
 
     const handleConfirmSettlement = async () => {
@@ -708,13 +748,25 @@ const AccountsReceivable: React.FC = () => {
         }
 
         const paidAmount = Number(String(settlementPaidAmount).replace(',', '.'));
-        if (!settlementPaymentMethod || !settlementPaymentDate || !Number.isFinite(paidAmount) || paidAmount <= 0) {
+        if (settlementMode === 'payment' && (!settlementPaymentMethod || !settlementPaymentDate || !Number.isFinite(paidAmount) || paidAmount <= 0)) {
             setToast({ message: 'Informe forma de pagamento, data real e valor valido para dar baixa.', type: 'error' });
+            return;
+        }
+        if (settlementMode === 'club_credit' && !settlementClubCanCover) {
+            setToast({ message: 'Crédito do Clube indisponível ou insuficiente para esta comanda.', type: 'error' });
+            return;
+        }
+        if (settlementMode === 'administrative_adjustment' && !canUseAdministrativeZeroClose) {
+            setToast({ message: 'Baixa administrativa zero exige gerente, admin ou superadmin.', type: 'error' });
+            return;
+        }
+        if ((settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && !settlementZeroReason.trim()) {
+            setToast({ message: 'Informe o motivo obrigatório para fechamento zero.', type: 'error' });
             return;
         }
 
         setMarkingPaid(settlementEntry.id);
-        setToast({ message: 'Registrando baixa financeira...', type: 'info' });
+        setToast({ message: settlementMode === 'payment' ? 'Registrando baixa financeira...' : 'Registrando fechamento zero auditado...', type: 'info' });
         try {
             const barberSupabase = getScopedClient('barber');
             const detail = openComandaDetails[settlementEntry.id];
@@ -724,22 +776,40 @@ const AccountsReceivable: React.FC = () => {
                 detail?.discount ? `Desconto atual: ${formatCurrency(detail.discount)}` : null,
                 settlementNotes.trim() ? `Observação: ${settlementNotes.trim()}` : null,
             ].filter(Boolean);
-            await settleCheckoutComanda({
-                comandaId: settlementEntry.id,
-                tenantId,
-                supabase: barberSupabase,
-                paymentMethod: settlementPaymentMethod,
-                paidAmount,
-                paymentDateReal: new Date(settlementPaymentDate).toISOString(),
-                source: 'accounts_receivable',
-                notes: noteParts.join('\n') || null,
-                idempotencyKey: settlementIdempotencyKey || createSettlementKey(settlementEntry.id),
-            });
-            setToast({ message: 'Baixa realizada com sucesso.', type: 'success' });
+            if (settlementMode === 'payment') {
+                await settleCheckoutComanda({
+                    comandaId: settlementEntry.id,
+                    tenantId,
+                    supabase: barberSupabase,
+                    paymentMethod: settlementPaymentMethod,
+                    paidAmount,
+                    paymentDateReal: new Date(settlementPaymentDate).toISOString(),
+                    source: 'accounts_receivable',
+                    notes: noteParts.join('\n') || null,
+                    idempotencyKey: settlementIdempotencyKey || createSettlementKey(settlementEntry.id),
+                });
+            } else {
+                await closeZeroAmountComanda({
+                    comandaId: settlementEntry.id,
+                    tenantId,
+                    supabase: barberSupabase,
+                    origin: settlementMode,
+                    source: 'financial_admin',
+                    authorizedBy: user?.id || (canAccessSuperAdmin ? 'superadmin' : accessRole),
+                    userId: user?.id || null,
+                    reason: settlementMode === 'club_credit'
+                        ? `Crédito do Clube consumido pela baixa financeira: ${settlementRequiredClubCredits} crédito(s).`
+                        : settlementZeroReason.trim(),
+                });
+            }
+            setToast({ message: settlementMode === 'payment' ? 'Baixa realizada com sucesso.' : 'Comanda fechada sem lançamento financeiro duplicado.', type: 'success' });
             setSettlementEntry(null);
             setSettlementPaidAmount('');
             setSettlementNotes('');
             setSettlementIdempotencyKey(null);
+            setSettlementMode('payment');
+            setSettlementZeroReason('');
+            setSettlementClubCredits(null);
             await fetchData();
         } catch (error: any) {
             console.error('Erro ao dar baixa via RPC:', error);
@@ -853,6 +923,7 @@ const AccountsReceivable: React.FC = () => {
             entries.push({
                 id: c.id,
                 source: 'comanda',
+                clientId: c.client_id || null,
                 clientName: client.name,
                 clientPhone: client.phone,
                 description: `Comanda #${getShortId(c.id)} · em aberto`,
@@ -1103,6 +1174,24 @@ const AccountsReceivable: React.FC = () => {
     const settlementGross = settlementDetail?.grossSubtotal || settlementEntry?.amount || 0;
     const settlementDiscount = settlementDetail?.discount || 0;
     const settlementNet = settlementDetail?.netTotal || settlementEntry?.amount || 0;
+    const settlementRequiredClubCredits = useMemo(() => {
+        if (!settlementDetail) return 0;
+        return settlementDetail.items.reduce((total, item) => (
+            item.serviceId ? total + Math.max(0, Number(item.quantity || 0)) : total
+        ), 0);
+    }, [settlementDetail]);
+    const settlementClubCanCover = useMemo(() => {
+        if (!settlementDetail || !settlementClubCredits || settlementRequiredClubCredits <= 0) return false;
+        const requiredByService = settlementDetail.items.reduce((acc, item) => {
+            if (!item.serviceId) return acc;
+            acc[item.serviceId] = (acc[item.serviceId] || 0) + Math.max(0, Number(item.quantity || 0));
+            return acc;
+        }, {} as Record<string, number>);
+
+        return Object.entries(requiredByService).every(([serviceId, required]) =>
+            getAvailableCreditsForService(settlementClubCredits.serviceBalances, serviceId) >= Number(required || 0),
+        );
+    }, [settlementClubCredits, settlementDetail, settlementRequiredClubCredits]);
     const parsedSettlementPaidAmount = Number(String(settlementPaidAmount || 0).replace(',', '.'));
     const settlementDifference = Number.isFinite(parsedSettlementPaidAmount)
         ? parsedSettlementPaidAmount - settlementNet
@@ -1257,37 +1346,89 @@ const AccountsReceivable: React.FC = () => {
                         </div>
 
                         <div className="mt-5 grid gap-4">
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                Valor pago
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    inputMode="decimal"
-                                    value={settlementPaidAmount}
-                                    onChange={(event) => setSettlementPaidAmount(event.target.value)}
-                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                    placeholder="0,00"
-                                />
-                                <span className="text-xs font-medium text-slate-500">
-                                    Pode ser diferente do total; a diferença fica registrada na auditoria financeira.
-                                </span>
-                            </label>
+                            <div className="grid gap-2">
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Tipo de baixa</span>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    {[
+                                        { value: 'payment' as SettlementMode, label: 'Baixar com pagamento', helper: 'Cria receita real na RPC financeira.' },
+                                        { value: 'club_credit' as SettlementMode, label: 'Consumir crédito do Clube', helper: settlementClubCreditsLoading ? 'Carregando créditos...' : `${settlementClubCredits?.availableCredits || 0} crédito(s) disponível(is).` },
+                                        { value: 'house_courtesy' as SettlementMode, label: 'Cortesia da casa', helper: 'Sem entrada financeira, com motivo obrigatório.' },
+                                        { value: 'administrative_adjustment' as SettlementMode, label: 'Baixa administrativa', helper: 'Restrita a gerente/admin/superadmin.' },
+                                    ].map((option) => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => setSettlementMode(option.value)}
+                                            disabled={
+                                                (option.value === 'club_credit' && (!settlementEntry?.clientId || !settlementClubCanCover)) ||
+                                                (option.value === 'administrative_adjustment' && !canUseAdministrativeZeroClose)
+                                            }
+                                            className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                                settlementMode === option.value
+                                                    ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                                    : 'border-slate-200 bg-white text-slate-600 dark:border-border-dark dark:bg-background-dark dark:text-slate-300'
+                                            }`}
+                                        >
+                                            <span className="block font-black">{option.label}</span>
+                                            <span>{option.helper}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {settlementMode !== 'payment' && (
+                                    <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                                        Fechamento sem pagamento real. Não será criada transaction de receita no caixa.
+                                    </p>
+                                )}
+                            </div>
 
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                Forma de pagamento
-                                <select
-                                    value={settlementPaymentMethod}
-                                    onChange={(event) => setSettlementPaymentMethod(event.target.value as PaymentMethod)}
-                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                >
-                                    <option value="pix">Pix</option>
-                                    <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartão de crédito</option>
-                                    <option value="debit">Cartão de débito</option>
-                                    <option value="other">Outro</option>
-                                </select>
-                            </label>
+                            {settlementMode === 'payment' && (
+                                <>
+                                    <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                        Valor pago
+                                        <input
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                            inputMode="decimal"
+                                            value={settlementPaidAmount}
+                                            onChange={(event) => setSettlementPaidAmount(event.target.value)}
+                                            className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                            placeholder="0,00"
+                                        />
+                                        <span className="text-xs font-medium text-slate-500">
+                                            Pode ser diferente do total; a diferença fica registrada na auditoria financeira.
+                                        </span>
+                                    </label>
+
+                                    <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                        Forma de pagamento
+                                        <select
+                                            value={settlementPaymentMethod}
+                                            onChange={(event) => setSettlementPaymentMethod(event.target.value as PaymentMethod)}
+                                            className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                        >
+                                            <option value="pix">Pix</option>
+                                            <option value="cash">Dinheiro</option>
+                                            <option value="credit">Cartão de crédito</option>
+                                            <option value="debit">Cartão de débito</option>
+                                            <option value="other">Outro</option>
+                                        </select>
+                                    </label>
+                                </>
+                            )}
+
+                            {(settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && (
+                                <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                    Motivo obrigatório
+                                    <textarea
+                                        value={settlementZeroReason}
+                                        onChange={(event) => setSettlementZeroReason(event.target.value)}
+                                        rows={3}
+                                        className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                        placeholder="Explique a autorização e o motivo da baixa sem pagamento."
+                                    />
+                                </label>
+                            )}
 
                             <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                 Data real do pagamento
