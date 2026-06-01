@@ -30,6 +30,13 @@ DROP POLICY IF EXISTS "public_insert_appointments" ON appointments;
 CREATE POLICY "public_insert_appointments" ON appointments FOR INSERT WITH CHECK (true);
 
 -- 6. Garantir que tenant_addons seja visível anonimamente
-DROP POLICY IF EXISTS "Public can view active addons to access public routes" ON tenant_addons;
-DROP POLICY IF EXISTS "public_select_tenant_addons" ON tenant_addons;
-CREATE POLICY "public_select_tenant_addons" ON tenant_addons FOR SELECT USING (true);
+DO $$
+BEGIN
+  IF to_regclass('public.tenant_addons') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view active addons to access public routes" ON public.tenant_addons;
+    DROP POLICY IF EXISTS "public_select_tenant_addons" ON public.tenant_addons;
+    CREATE POLICY "public_select_tenant_addons" ON public.tenant_addons
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
