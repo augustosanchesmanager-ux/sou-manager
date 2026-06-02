@@ -740,9 +740,9 @@ const Checkout: React.FC = () => {
                 setCart([{
                     id: Math.random().toString(36).substr(2, 9),
                     type: 'service',
-                    name: getCatalogDisplayName(matchedService, checkoutState.serviceName),
-                    internal_name: getCatalogInternalName(matchedService, checkoutState.serviceName),
-                    display_name: getCatalogDisplayName(matchedService, checkoutState.serviceName),
+                    name: getCatalogDisplayName(matchedService),
+                    internal_name: getCatalogInternalName(matchedService),
+                    display_name: getCatalogDisplayName(matchedService),
                     description: matchedService.description || '',
                     price: finalPrice,
                     quantity: 1,
@@ -2530,7 +2530,7 @@ const Checkout: React.FC = () => {
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Serviço</p>
-                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{getCatalogDisplayName(pendingCreditItem.item, 'Serviço selecionado')}</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{getCatalogDisplayName(pendingCreditItem.item)}</p>
                             <p className="mt-1 text-xs text-slate-500">
                                 Valor original: R$ {pendingCreditItem.finalPrice.toFixed(2)}
                             </p>
