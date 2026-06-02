@@ -133,6 +133,7 @@ interface ReceiptRecord {
 type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
 type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 type ReversalStatus = 'none' | 'partial' | 'full';
+type CancelReasonType = 'duplicate' | 'test' | 'operational_error' | 'client_gave_up' | 'other';
 type SortKey = 'client_az' | 'client_za' | 'amount_asc' | 'amount_desc' | 'date_asc' | 'date_desc';
 type SourceFilter = 'todos' | ARSource;
 type StatusFilter = 'todos' | 'open' | 'pending' | 'overdue' | 'settled' | 'reversed';
@@ -184,6 +185,14 @@ const SOURCE_FILTER_OPTIONS: { value: SourceFilter; label: string }[] = [
     { value: 'comanda', label: 'Comandas' },
     { value: 'clube', label: 'Clube do Chefe' },
     { value: 'recibo', label: 'Recibos' },
+];
+
+const CANCEL_REASON_OPTIONS: { value: CancelReasonType; label: string; requiresNote?: boolean }[] = [
+    { value: 'duplicate', label: 'Comanda duplicada' },
+    { value: 'test', label: 'Lançamento de teste' },
+    { value: 'operational_error', label: 'Erro operacional' },
+    { value: 'client_gave_up', label: 'Cliente desistiu' },
+    { value: 'other', label: 'Outro', requiresNote: true },
 ];
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -336,6 +345,11 @@ const AccountsReceivable: React.FC = () => {
     const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
     const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
     const settlementLockRef = React.useRef(false);
+    const [cancelEntry, setCancelEntry] = useState<AREntry | null>(null);
+    const [cancelReasonType, setCancelReasonType] = useState<CancelReasonType | ''>('');
+    const [cancelReasonNote, setCancelReasonNote] = useState('');
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const cancelLockRef = React.useRef(false);
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
     const [reversalEntry, setReversalEntry] = useState<PaidComandaSettlement | null>(null);
     const [reversalType, setReversalType] = useState<FinancialReversalType>('full_refund');
@@ -826,6 +840,98 @@ const AccountsReceivable: React.FC = () => {
         }
     };
 
+    const openCancelModal = (entry: AREntry) => {
+        if (entry.source !== 'comanda' || entry.status !== 'open') {
+            setToast({ message: 'Somente comandas abertas podem ser canceladas por esta visão.', type: 'error' });
+            return;
+        }
+        setCancelEntry(entry);
+        setCancelReasonType('');
+        setCancelReasonNote('');
+    };
+
+    const closeCancelModal = () => {
+        if (cancellingId) return;
+        setCancelEntry(null);
+        setCancelReasonType('');
+        setCancelReasonNote('');
+    };
+
+    const handleConfirmCancel = async () => {
+        if (cancelLockRef.current) return;
+        if (!tenantId || !cancelEntry) {
+            setToast({ message: 'Contexto inválido para cancelar a comanda. Atualize a página e tente novamente.', type: 'error' });
+            return;
+        }
+        if (cancelEntry.source !== 'comanda' || cancelEntry.status !== 'open') {
+            setToast({ message: 'Não é permitido cancelar comanda já baixada ou já cancelada.', type: 'error' });
+            return;
+        }
+        if (!cancelReasonType) {
+            setToast({ message: 'Selecione o motivo do cancelamento.', type: 'error' });
+            return;
+        }
+
+        const selectedReason = CANCEL_REASON_OPTIONS.find((option) => option.value === cancelReasonType);
+        const note = cancelReasonNote.trim();
+        if (selectedReason?.requiresNote && !note) {
+            setToast({ message: 'Descreva o motivo quando selecionar Outro.', type: 'error' });
+            return;
+        }
+
+        cancelLockRef.current = true;
+        setCancellingId(cancelEntry.id);
+        setToast({ message: 'Cancelando comanda aberta...', type: 'info' });
+
+        try {
+            const barberSupabase = getScopedClient('barber');
+            const hiddenFromFinancial = ['duplicate', 'test', 'operational_error'].includes(cancelReasonType);
+            const reasonText = selectedReason
+                ? `${selectedReason.label}${note ? `: ${note}` : ''}`
+                : note;
+
+            const { data, error } = await barberSupabase
+                .from('comandas')
+                .update({
+                    status: 'cancelled',
+                    cancellation_type: cancelReasonType,
+                    cancellation_reason: reasonText,
+                    cancelled_at: new Date().toISOString(),
+                    cancelled_by_user_id: user?.id || null,
+                    hidden_from_financial: hiddenFromFinancial,
+                })
+                .eq('id', cancelEntry.id)
+                .eq('tenant_id', tenantId)
+                .eq('status', 'open')
+                .select('id');
+
+            if (error) throw error;
+            if (!data?.length) {
+                setToast({
+                    message: 'A comanda ja foi alterada ou nao esta mais em aberto. A lista sera atualizada.',
+                    type: 'error',
+                });
+                await fetchData();
+                return;
+            }
+
+            setToast({ message: 'Comanda cancelada com auditoria. Nenhuma baixa financeira foi criada.', type: 'success' });
+            setCancelEntry(null);
+            setCancelReasonType('');
+            setCancelReasonNote('');
+            await fetchData();
+        } catch (error: any) {
+            console.error('Erro ao cancelar comanda em contas a receber:', error);
+            setToast({
+                message: `Não foi possível cancelar a comanda. Nenhuma baixa ou transaction foi criada. ${error?.message || ''}`.trim(),
+                type: 'error',
+            });
+        } finally {
+            cancelLockRef.current = false;
+            setCancellingId(null);
+        }
+    };
+
     const isReversalEligible = (entry: PaidComandaSettlement) => (
         canRequestFinancialReversal
         && Boolean(entry.tenantId)
@@ -1200,6 +1306,9 @@ const AccountsReceivable: React.FC = () => {
     const settlementDifference = Number.isFinite(parsedSettlementPaidAmount)
         ? parsedSettlementPaidAmount - settlementNet
         : 0;
+    const selectedCancelReason = CANCEL_REASON_OPTIONS.find((option) => option.value === cancelReasonType);
+    const cancelRequiresNote = Boolean(selectedCancelReason?.requiresNote);
+    const canConfirmCancel = Boolean(cancelEntry && cancelReasonType && (!cancelRequiresNote || cancelReasonNote.trim()));
     const emptyStateCopy = hasTenantContext
         ? EMPTY_STATE_COPY[activeTab]
         : {
@@ -1473,6 +1582,84 @@ const AccountsReceivable: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <Modal
+                isOpen={Boolean(cancelEntry)}
+                onClose={closeCancelModal}
+                title="Cancelar comanda aberta"
+                maxWidth="sm"
+            >
+                {cancelEntry && (
+                    <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                            <p className="font-bold">Cancelamento operacional auditado</p>
+                            <p className="mt-1 text-xs">
+                                A comanda será marcada como cancelada com motivo, usuário e data. Nenhuma baixa financeira ou transaction será criada.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-white/5">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Comanda</p>
+                            <p className="mt-1 font-black text-slate-900 dark:text-white">
+                                #{getShortId(cancelEntry.id)} · {cancelEntry.clientName}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                {formatCurrency(cancelEntry.amount)} em aberto desde {new Date(cancelEntry.dateValue).toLocaleDateString('pt-BR')}
+                            </p>
+                        </div>
+
+                        <label className="block space-y-1.5">
+                            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Motivo obrigatório</span>
+                            <select
+                                value={cancelReasonType}
+                                onChange={(event) => setCancelReasonType(event.target.value as CancelReasonType | '')}
+                                disabled={Boolean(cancellingId)}
+                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200"
+                            >
+                                <option value="">Selecione...</option>
+                                {CANCEL_REASON_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label className="block space-y-1.5">
+                            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                                Observação {cancelRequiresNote ? 'obrigatória' : 'opcional'}
+                            </span>
+                            <textarea
+                                value={cancelReasonNote}
+                                onChange={(event) => setCancelReasonNote(event.target.value)}
+                                disabled={Boolean(cancellingId)}
+                                rows={3}
+                                placeholder={cancelRequiresNote ? 'Descreva o motivo do cancelamento.' : 'Detalhe o contexto operacional, se necessário.'}
+                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 outline-none dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200"
+                            />
+                        </label>
+
+                        {cancelReasonType && ['duplicate', 'test', 'operational_error'].includes(cancelReasonType) && (
+                            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                                Este motivo segue o padrão existente da tela de comandas e marca a comanda como oculta do financeiro operacional.
+                            </p>
+                        )}
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <Button type="button" variant="secondary" onClick={closeCancelModal} disabled={Boolean(cancellingId)}>
+                                Voltar
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="danger"
+                                onClick={handleConfirmCancel}
+                                disabled={!canConfirmCancel || Boolean(cancellingId)}
+                                isLoading={cancellingId === cancelEntry.id}
+                            >
+                                {cancellingId === cancelEntry.id ? 'Cancelando...' : 'Confirmar cancelamento'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
 
             <Modal
                 isOpen={!!reversalEntry}
@@ -1976,12 +2163,46 @@ const AccountsReceivable: React.FC = () => {
                                     </div>
                                     <div className="mt-4 space-y-2">
                                         {group.entries.slice(0, 4).map((entry) => (
-                                            <div key={entry.listId} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs dark:bg-card-dark">
-                                                <div className="min-w-0">
-                                                    <p className="truncate font-bold text-slate-800 dark:text-slate-100">{entry.description}</p>
-                                                    <p className="mt-0.5 text-slate-500">{SOURCE_LABELS[entry.source]} · {getStatusLabel(entry.status)}</p>
+                                            <div key={entry.listId} className="rounded-xl bg-white px-3 py-2 text-xs dark:bg-card-dark">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-bold text-slate-800 dark:text-slate-100">{entry.description}</p>
+                                                        <p className="mt-0.5 text-slate-500">{SOURCE_LABELS[entry.source]} · {getStatusLabel(entry.status)}</p>
+                                                    </div>
+                                                    <p className="shrink-0 font-black text-slate-900 dark:text-white">{formatCurrency(entry.amount)}</p>
                                                 </div>
-                                                <p className="shrink-0 font-black text-slate-900 dark:text-white">{formatCurrency(entry.amount)}</p>
+                                                {entry.actionKind === 'settle' && entry.receivable && (
+                                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openSettlementModal(entry.receivable!)}
+                                                            disabled={Boolean(markingPaid || cancellingId)}
+                                                            title="A baixa sera registrada pela RPC financeira central."
+                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-300"
+                                                        >
+                                                            {markingPaid === entry.id ? (
+                                                                <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                            )}
+                                                            Dar baixa
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCancelModal(entry.receivable!)}
+                                                            disabled={Boolean(markingPaid || cancellingId)}
+                                                            title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
+                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-black text-rose-700 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300"
+                                                        >
+                                                            {cancellingId === entry.id ? (
+                                                                <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-sm">cancel</span>
+                                                            )}
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                         {group.entries.length > 4 && (
