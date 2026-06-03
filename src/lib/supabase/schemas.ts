@@ -1,10 +1,17 @@
-export const APP_SLUGS = ['barber', 'auto', 'club'] as const;
+import {
+  APP_ENABLED_MODULES,
+  getAppSlugsEnabledForModule,
+  isKnownAppModule,
+} from '../apps/moduleRegistry';
+
+export const APP_SLUGS = ['barber', 'auto', 'club', 'estetica'] as const;
 
 export type AppSlug = (typeof APP_SLUGS)[number];
 export type SharedSchemaName = 'public';
 export type AppSchemaName = AppSlug;
 export type SupabaseSchemaName = SharedSchemaName | AppSchemaName;
 export type AppModuleSlug =
+  | 'dashboard'
   | 'checkout'
   | 'orders'
   | 'products'
@@ -14,8 +21,15 @@ export type AppModuleSlug =
   | 'services'
   | 'comandas'
   | 'cashflow'
+  | 'financial'
+  | 'reports'
+  | 'settings'
   | 'suppliers'
+  | 'team'
+  | 'commissions'
   | 'chef_club'
+  | 'feedback'
+  | 'portal'
   | 'notifications'
   | 'kiosk';
 
@@ -27,6 +41,7 @@ export const APP_SCHEMA_MAP: Record<AppSlug, AppSchemaName> = {
   barber: 'barber',
   auto: 'auto',
   club: 'club',
+  estetica: 'estetica',
 };
 
 export const CORE_PUBLIC_TABLES = new Set<string>([
@@ -138,7 +153,7 @@ export const assertSupabaseSchemaName = (
 };
 
 export const resolveSchemaForApp = (appSlug: AppSlug): SupabaseSchemaName => {
-  if (appSlug === 'barber' && !isMultiSchemaEnabled()) {
+  if (!isMultiSchemaEnabled()) {
     return SHARED_SCHEMA;
   }
 
@@ -172,6 +187,20 @@ export const ensureAppSupportsModule = (
     appSlug,
     `Cannot access module "${moduleName}" because the app slug is invalid.`,
   );
+
+  if (isKnownAppModule(moduleName)) {
+    const enabledModules = APP_ENABLED_MODULES[resolvedAppSlug];
+
+    if (!enabledModules.includes(moduleName)) {
+      const allowedByRegistry = getAppSlugsEnabledForModule(moduleName);
+
+      throw new Error(
+        `Module "${moduleName}" is not available for app "${resolvedAppSlug}". Allowed apps: ${allowedByRegistry.join(', ')}.`,
+      );
+    }
+
+    return resolvedAppSlug;
+  }
 
   if (!allowedApps.includes(resolvedAppSlug)) {
     throw new Error(

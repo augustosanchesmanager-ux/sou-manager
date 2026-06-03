@@ -1,4 +1,5 @@
 import React from 'react';
+import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
 import { KPICard, type KPIType } from './KPICard';
 
@@ -23,22 +24,62 @@ interface DashboardMetrics {
 interface KPIGridProps {
   metrics: DashboardMetrics;
   period: DashboardPeriod;
+  appSlug?: string | null;
   onKpiClick?: (type: KPIType) => void;
 }
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
-  today: 'hoje',
-  yesterday: 'ontem',
-  week: 'esta semana',
-  month: 'este mês',
+  today: 'de hoje',
+  yesterday: 'de ontem',
+  week: 'da semana',
+  month: 'do mês',
 };
 
 export const KPIGrid: React.FC<KPIGridProps> = ({
   metrics,
   period,
+  appSlug,
   onKpiClick,
 }) => {
   const periodLabel = PERIOD_LABELS[period];
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+
+  if (isEsteticaApp) {
+    return (
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KPICard
+          type="revenue"
+          value={metrics.revenue}
+          previousValue={metrics.revenuePrevious}
+          label={`Faturamento ${periodLabel}`}
+          onClick={() => onKpiClick?.('revenue')}
+        />
+
+        <KPICard
+          type="appointments"
+          value={metrics.todayAppointments}
+          previousValue={metrics.previousAppointments}
+          label={`${labels.orderPlural} ${periodLabel}`}
+          onClick={() => onKpiClick?.('appointments')}
+        />
+
+        <KPICard
+          type="comandas"
+          value={metrics.openComandasCount ?? 0}
+          label={`${labels.orderPlural} abertos`}
+          onClick={() => onKpiClick?.('comandas')}
+        />
+
+        <KPICard
+          type="clients"
+          value={metrics.totalClients}
+          label="Clientes cadastrados"
+          onClick={() => onKpiClick?.('clients')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -47,7 +88,7 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
         value={metrics.revenue}
         previousValue={metrics.revenuePrevious}
         goal={metrics.revenueGoal}
-        label={`Faturamento de ${periodLabel}`}
+        label={`Faturamento ${periodLabel}`}
         onClick={() => onKpiClick?.('revenue')}
       />
 
@@ -56,7 +97,7 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
         value={metrics.todayAppointments}
         previousValue={metrics.previousAppointments}
         goal={metrics.appointmentsGoal}
-        label={`Agendamentos de ${periodLabel}`}
+        label={`Agendamentos ${periodLabel}`}
         onClick={() => onKpiClick?.('appointments')}
       />
 
@@ -71,7 +112,7 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
         type="ticket"
         value={metrics.avgTicket}
         previousValue={metrics.previousAvgTicket}
-        label={`Ticket médio de ${periodLabel}`}
+        label={`Ticket médio ${periodLabel}`}
         onClick={() => onKpiClick?.('ticket')}
       />
 
@@ -79,7 +120,7 @@ export const KPIGrid: React.FC<KPIGridProps> = ({
         type="cash"
         value={metrics.netRevenue}
         previousValue={metrics.netRevenuePrevious}
-        label={`Saldo financeiro de ${periodLabel}`}
+        label={`Saldo financeiro ${periodLabel}`}
         onClick={() => onKpiClick?.('cash')}
       />
     </div>

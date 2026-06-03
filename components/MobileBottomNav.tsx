@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { isAppModuleEnabled } from '../src/lib/apps/modules';
+import type { AppModuleSlug } from '../src/lib/supabase/schemas';
 
 type QuickActionRole = 'all' | 'manager' | 'operational';
 
@@ -10,10 +13,33 @@ interface QuickActionItem {
   path: string;
   state?: Record<string, unknown>;
   role: QuickActionRole;
+  module?: AppModuleSlug;
+  hideFromEsteticaNav?: boolean;
 }
 
-export const isMobileBottomNavRoute = (pathname: string): boolean => {
+interface NavItem {
+  key: string;
+  label: string;
+  icon: string;
+  path: string;
+  module?: AppModuleSlug;
+}
+
+export const isMobileBottomNavRoute = (pathname: string, appSlug?: string | null): boolean => {
   const normalized = pathname.toLowerCase();
+
+  if (appSlug === 'estetica') {
+    return (
+      normalized === '/dashboard' ||
+      normalized === '/schedule' ||
+      normalized === '/clients' ||
+      normalized === '/comandas' ||
+      normalized === '/services' ||
+      normalized === '/financial-overview' ||
+      normalized === '/settings'
+    );
+  }
+
   return (
     normalized === '/dashboard' ||
     normalized === '/schedule' ||
@@ -26,34 +52,51 @@ export const isMobileBottomNavRoute = (pathname: string): boolean => {
 const MobileBottomNav: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { accessRole, canAccessSuperAdmin } = useAuth();
+  const { accessRole, canAccessSuperAdmin, appSlug } = useAuth();
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
-  const shouldRender = isMobileBottomNavRoute(location.pathname);
+  const shouldRender = isMobileBottomNavRoute(location.pathname, appSlug);
 
   const isManager = canAccessSuperAdmin || accessRole === 'manager';
   const isOperational = accessRole === 'barber' || accessRole === 'receptionist';
 
   const quickActions = useMemo<QuickActionItem[]>(() => {
     const allActions: QuickActionItem[] = [
-      { label: 'Novo Agendamento', icon: 'calendar_add_on', path: '/schedule', state: { openNewAppointment: true }, role: 'all' },
-      { label: 'Novo Cliente', icon: 'person_add', path: '/clients', state: { openNewClient: true }, role: 'manager' },
-      { label: 'Novo Serviço', icon: 'content_cut', path: '/services', state: { openNewService: true }, role: 'manager' },
-      { label: 'Novo Produto', icon: 'inventory_2', path: '/products', state: { openNewProduct: true }, role: 'manager' },
-      { label: 'Novo Profissional', icon: 'badge', path: '/team', state: { openNewTeamMember: true }, role: 'manager' },
-      { label: 'Nova Comanda', icon: 'point_of_sale', path: '/checkout?mode=comanda', role: 'all' },
+      { label: isEsteticaApp ? 'Novo agendamento' : 'Novo Agendamento', icon: 'calendar_add_on', path: '/schedule', state: { openNewAppointment: true }, role: 'all', module: 'schedule' },
+      { label: isEsteticaApp ? `Novo ${labels.client.toLowerCase()}` : 'Novo Cliente', icon: 'person_add', path: '/clients', state: { openNewClient: true }, role: 'manager', module: 'clients' },
+      { label: isEsteticaApp ? `Novo ${labels.service.toLowerCase()}` : 'Novo Serviço', icon: 'content_cut', path: '/services', state: { openNewService: true }, role: 'manager', module: 'services' },
+      { label: isEsteticaApp ? 'Novo produto' : 'Novo Produto', icon: 'inventory_2', path: '/products', state: { openNewProduct: true }, role: 'manager', module: 'products' },
+      { label: isEsteticaApp ? `Novo ${labels.professional.toLowerCase()}` : 'Novo Profissional', icon: 'badge', path: '/team', state: { openNewTeamMember: true }, role: 'manager', module: 'team' },
+      { label: isEsteticaApp ? `Novo ${labels.order.toLowerCase()}` : 'Nova Comanda', icon: 'point_of_sale', path: '/checkout?mode=comanda', role: 'all', module: 'checkout', hideFromEsteticaNav: true },
     ];
+    const moduleActions = allActions.filter((item) =>
+      !(isEsteticaApp && item.hideFromEsteticaNav) &&
+      (!item.module || isAppModuleEnabled(appSlug, item.module))
+    );
 
-    if (isManager) return allActions;
-    if (isOperational) return allActions.filter((item) => item.role === 'all');
-    return allActions.filter((item) => item.role !== 'manager');
-  }, [isManager, isOperational]);
+    if (isManager) return moduleActions;
+    if (isOperational) return moduleActions.filter((item) => item.role === 'all');
+    return moduleActions.filter((item) => item.role !== 'manager');
+  }, [appSlug, isEsteticaApp, isManager, isOperational, labels.client, labels.order, labels.professional, labels.service]);
 
-  const navItems = [
-    { key: 'home', label: 'Início', icon: 'home', path: '/dashboard' },
-    { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule' },
-    { key: 'checkout', label: 'Checkout', icon: 'point_of_sale', path: '/checkout?mode=pdv' },
-    { key: 'profile', label: 'Perfil', icon: 'person', path: '/settings' },
-  ];
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = isEsteticaApp
+      ? [
+          { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
+          { key: 'clients', label: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
+          { key: 'orders', label: labels.orderPlural, icon: 'receipt', path: '/comandas', module: 'comandas' },
+          { key: 'services', label: labels.servicePlural, icon: 'content_cut', path: '/services', module: 'services' },
+        ]
+      : [
+          { key: 'home', label: 'Início', icon: 'home', path: '/dashboard', module: 'dashboard' },
+          { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
+          { key: 'checkout', label: labels.checkout, icon: 'point_of_sale', path: '/checkout?mode=pdv', module: 'checkout' },
+          { key: 'profile', label: 'Perfil', icon: 'person', path: '/settings', module: 'settings' },
+        ];
+
+    return items.filter((item) => !item.module || isAppModuleEnabled(appSlug, item.module));
+  }, [appSlug, isEsteticaApp, labels.checkout, labels.clientPlural, labels.orderPlural, labels.servicePlural]);
 
   const isActive = (path: string): boolean => {
     if (path.startsWith('/checkout')) return location.pathname.startsWith('/checkout');

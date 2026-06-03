@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
 
 interface DashboardHeaderProps {
+  appSlug?: string | null;
   period: DashboardPeriod;
   onPeriodChange: (period: DashboardPeriod) => void;
   openComandasCount: number;
@@ -29,6 +31,7 @@ const PERIOD_HINTS: Record<DashboardPeriod, string> = {
 };
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
+  appSlug,
   period,
   onPeriodChange,
   openComandasCount,
@@ -41,6 +44,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { user } = useAuth();
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -51,25 +56,25 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'gestor';
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-  const tenantName = user?.user_metadata?.tenant_name || 'sua barbearia';
+  const tenantName = user?.user_metadata?.tenant_name || (isEsteticaApp ? 'sua clínica' : 'sua barbearia');
 
   const focusItems = [
     {
-      label: 'Comandas abertas',
+      label: isEsteticaApp ? `${labels.orderPlural} abertos` : 'Comandas abertas',
       value: openComandasCount,
       icon: 'receipt_long',
       tone: 'text-amber-200',
       onClick: onOpenComandas,
     },
     {
-      label: 'Agendamentos pendentes',
+      label: isEsteticaApp ? 'Atendimentos pendentes' : 'Agendamentos pendentes',
       value: pendingAppointmentsCount,
       icon: 'pending_actions',
       tone: 'text-sky-200',
       onClick: onNewAppointment,
     },
     {
-      label: 'Retornos sugeridos',
+      label: isEsteticaApp ? 'Clientes para retorno' : 'Retornos sugeridos',
       value: returningClientsCount,
       icon: 'person_search',
       tone: 'text-emerald-200',
@@ -86,7 +91,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <div className="max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#F6D6A7]">
             <span className="h-2 w-2 rounded-full bg-[#E5A158]" />
-            Central da barbearia
+            {isEsteticaApp ? 'Central da estética' : 'Central da barbearia'}
           </div>
 
           <div className="space-y-2">
@@ -95,10 +100,12 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               {greeting.text}, {displayName}
             </div>
             <h1 className="max-w-2xl text-3xl font-black leading-tight text-[#F8FAFC] sm:text-4xl">
-              Sua barbearia em tempo real.
+              {isEsteticaApp ? 'Resumo da operação de hoje.' : 'Sua barbearia em tempo real.'}
             </h1>
             <p className="max-w-2xl text-sm font-medium leading-6 text-slate-300">
-              Veja agenda, comandas, retorno de clientes e movimento financeiro da {tenantName} com base no que já foi registrado.
+              {isEsteticaApp
+                ? `Acompanhe agenda, atendimentos e retornos da ${tenantName} com base no que já foi registrado.`
+                : `Veja agenda, comandas, retorno de clientes e movimento financeiro da ${tenantName} com base no que já foi registrado.`}
             </p>
           </div>
 
@@ -108,14 +115,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E5A158] px-4 py-3 text-sm font-black text-slate-950 shadow-[0_14px_32px_rgba(229,161,88,0.24)] transition hover:bg-[#F0B86A] focus:outline-none focus:ring-2 focus:ring-[#E5A158]/50"
             >
               <span className="material-symbols-outlined text-[18px]">calendar_add_on</span>
-              Novo agendamento
+              {isEsteticaApp ? 'Novo atendimento' : 'Novo agendamento'}
             </button>
             <button
               onClick={onOpenCheckout}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/40"
             >
               <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
-              Abrir PDV
+              {isEsteticaApp ? labels.checkout : 'Abrir PDV'}
             </button>
           </div>
         </div>

@@ -15,13 +15,14 @@ const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, appSlug } = useAuth();
   const notificationsController = useNotifications('unread');
   const { unreadCount } = notificationsController;
 
-  const displayName = user?.user_metadata?.shop_name || user?.user_metadata?.first_name || 'Minha Barbearia';
+  const fallbackDisplayName = appSlug === 'estetica' ? 'Minha Estética' : 'Minha Barbearia';
+  const displayName = user?.user_metadata?.shop_name || user?.user_metadata?.first_name || fallbackDisplayName;
   const displayPlan = user?.user_metadata?.plan ? `Plano ${user.user_metadata.plan.charAt(0).toUpperCase() + user.user_metadata.plan.slice(1)}` : 'Plano Free';
-  const showMobileBottomNav = isMobileBottomNavRoute(location.pathname);
+  const showMobileBottomNav = isMobileBottomNavRoute(location.pathname, appSlug);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F4F8FB] dark:bg-[#06111F] text-slate-900 dark:text-white font-sans transition-colors duration-300">

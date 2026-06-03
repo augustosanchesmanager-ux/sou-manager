@@ -7,6 +7,8 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { getCatalogDisplayName, getEsteticaDemoServiceName } from '../src/lib/catalog/display';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import {
   ExistingAppointmentsAction,
@@ -193,23 +195,25 @@ const normalizeAppointmentStatus = (status: string | null | undefined) => {
   return appointmentStatusMeta[normalized] ? normalized : 'pending';
 };
 
-const getAppointmentStatusMeta = (status: string | null | undefined) => {
+const getAppointmentStatusMeta = (status: string | null | undefined, isEsteticaApp = false) => {
   const normalized = normalizeAppointmentStatus(status);
+  const meta = appointmentStatusMeta[normalized];
   return {
     normalized,
-    ...appointmentStatusMeta[normalized],
+    ...meta,
+    label: isEsteticaApp && normalized === 'completed' ? 'Concluído' : meta.label,
   };
 };
 
-const getOriginLabel = (source?: string | null, channel?: string | null) => {
+const getOriginLabel = (source?: string | null, channel?: string | null, isEsteticaApp = false) => {
   const normalizedSource = `${source || ''}`.toLowerCase();
   const normalizedChannel = `${channel || ''}`.toLowerCase();
 
   if (normalizedChannel === 'whatsapp') return 'WhatsApp';
   if (normalizedChannel === 'admin') return 'Admin';
-  if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return 'Totem';
+  if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return isEsteticaApp ? 'Autoatendimento' : 'Totem';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'qr') return 'QR';
-  if (normalizedSource === 'kiosk') return 'Totem';
+  if (normalizedSource === 'kiosk') return isEsteticaApp ? 'Autoatendimento' : 'Totem';
   return 'App';
 };
 
@@ -256,6 +260,22 @@ const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { appSlug, tenantId, user } = useAuth();
+  const businessLabels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+  const serviceLabel = businessLabels.service;
+  const servicePluralLabel = businessLabels.servicePlural;
+  const serviceLabelLower = serviceLabel.toLowerCase();
+  const orderLabel = businessLabels.order;
+  const orderLabelLower = orderLabel.toLowerCase();
+  const orderPluralLabel = businessLabels.orderPlural;
+  const professionalLabel = businessLabels.professional;
+  const getVisibleRoleLabel = useCallback((role: string) => {
+    if (!isEsteticaApp) return roleLabels[role] || role;
+    if (role === 'Manager') return 'Gestor';
+    if (role === 'Barber') return professionalLabel;
+    if (role === 'Receptionist') return 'Recepção';
+    return roleLabels[role] || role;
+  }, [isEsteticaApp, professionalLabel]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -413,7 +433,9 @@ const Schedule: React.FC = () => {
   const filteredServicesForModal = React.useMemo(() => {
     const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
     if (!normalizedSearch) return servicesList;
-    return servicesList.filter((service) => service.name.toLowerCase().includes(normalizedSearch));
+    return servicesList.filter((service) =>
+      `${service.name} ${getCatalogDisplayName(service, appSlug)}`.toLowerCase().includes(normalizedSearch),
+    );
   }, [serviceSearchTerm, servicesList]);
   const selectedServicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
 
@@ -665,7 +687,7 @@ const Schedule: React.FC = () => {
           start: startHour,
           duration: Number(apt.duration) || 1,
           client: apt.client_name || 'Cliente',
-          service: apt.service_name || 'Serviço',
+        service: getEsteticaDemoServiceName(apt.service_name, appSlug) || serviceLabel,
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
           staffName: apt.staff_name || '',
@@ -705,7 +727,7 @@ const Schedule: React.FC = () => {
       setOpenComandasByAppointment({});
     }
     setLoading(false);
-  }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
+  }, [appSlug, displayMode, getListRange, selectedDate, serviceLabel, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
@@ -1344,7 +1366,7 @@ const Schedule: React.FC = () => {
     }
 
     if (!formData.client || selectedServices.length === 0) {
-      setError("Por favor, preencha o nome do cliente e selecione ao menos um serviço.");
+      setError(`Por favor, preencha o nome do cliente e selecione ao menos um ${serviceLabelLower}.`);
       return;
     }
 
@@ -1710,7 +1732,7 @@ const Schedule: React.FC = () => {
 
   const exportToCSV = async () => {
     if (appointments.length === 0) {
-      setToast({ message: 'Não há agendamentos para exportar no período selecionado.', type: 'error' });
+      setToast({ message: `Não há ${isEsteticaApp ? 'atendimentos' : 'agendamentos'} para exportar no período selecionado.`, type: 'error' });
       return;
     }
     if (!tenantId) {
@@ -1791,16 +1813,16 @@ const Schedule: React.FC = () => {
       'Fim',
       'Cliente',
       'Telefone',
-      'Serviço',
+      serviceLabel,
       'Profissional',
       'Duração',
       'Valor',
       'Status',
-      'Valor do serviço',
+      `Valor do ${serviceLabelLower}`,
       'Valor compartilhado',
       'Valor pago',
       'Status de pagamento',
-      'Serviço compartilhado',
+      `${serviceLabel} compartilhado`,
       'Profissionais participantes',
       'Divisão lançada',
       'Base por participante',
@@ -1886,8 +1908,8 @@ const Schedule: React.FC = () => {
 
   const enrichedAppointments = React.useMemo<EnrichedAppointment[]>(() => {
     return appointments.map((apt) => {
-      const statusMeta = getAppointmentStatusMeta(apt.status);
-      const originLabel = getOriginLabel(apt.source, apt.channel);
+      const statusMeta = getAppointmentStatusMeta(apt.status, isEsteticaApp);
+      const originLabel = getOriginLabel(apt.source, apt.channel, isEsteticaApp);
       const shortNotes = getShortNotes(apt.notes || '');
       const isOverdue = isAppointmentOverdue(apt);
       return {
@@ -1903,7 +1925,7 @@ const Schedule: React.FC = () => {
         hasOpenComanda: Boolean(openComandasByAppointment[apt.id]),
       };
     });
-  }, [appointments, openComandasByAppointment]);
+  }, [appointments, openComandasByAppointment, isEsteticaApp]);
 
   const appointmentsForSummary = React.useMemo(() => {
     return enrichedAppointments.filter((apt) => {
@@ -2048,12 +2070,12 @@ const Schedule: React.FC = () => {
 
     const cleanPhone = appointment.clientPhone.replace(/\D/g, '');
     const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+    const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(appointment.startTime).toLocaleDateString('pt-BR')}
 ⏰ *Hora:* ${new Date(appointment.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 *Serviço:* ${appointment.service}
-🧔 *Profissional:* ${appointment.staffName}
+${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${appointment.service}
+👤 *${professionalLabel}:* ${appointment.staffName}
 
 Podemos confirmar? 😄`;
 
@@ -2070,8 +2092,8 @@ Podemos confirmar? 😄`;
             <span className="material-symbols-outlined text-2xl">calendar_month</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">Agenda das cadeiras</p>
-            <h1 className="text-2xl font-black text-white sm:text-3xl">Ritmo da barbearia</h1>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das cadeiras'}</p>
+            <h1 className="text-2xl font-black text-white sm:text-3xl">{isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}</h1>
             <p className="text-sm text-slate-200">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela operacional a partir das 07:00.</p>
           </div>
         </div>
@@ -2206,7 +2228,7 @@ Podemos confirmar? 😄`;
             className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-[0_8px_22px_rgba(251,191,36,0.20)] transition-all hover:bg-amber-300"
           >
             <span className="material-symbols-outlined text-base">add</span>
-            <span className="hidden sm:inline">Novo Agendamento</span>
+            <span className="hidden sm:inline">{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
           </button>
         </div>
         </div>
@@ -2222,9 +2244,9 @@ Podemos confirmar? 😄`;
             <p className="mt-1 truncate text-[10px] text-slate-300">Aguardam confirmação</p>
           </div>
           <div className="min-w-0 bg-white/[0.04] p-2.5">
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Comandas</p>
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">{orderPluralLabel}</p>
             <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</p>
-            <p className="mt-1 truncate text-[10px] text-slate-300">Abertas na agenda</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
           </div>
           <div className="min-w-0 bg-white/[0.04] p-2.5">
             <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Previsto</p>
@@ -2530,7 +2552,7 @@ Podemos confirmar? 😄`;
                   type="text"
                   value={listFilters.search}
                   onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  placeholder="Buscar cliente ou telefone..."
+                  placeholder={isEsteticaApp ? `Buscar cliente, telefone ou ${serviceLabelLower}...` : 'Buscar cliente ou telefone...'}
                   className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-9 pr-3 py-2.5 text-sm"
                 />
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
@@ -2606,14 +2628,14 @@ Podemos confirmar? 😄`;
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{serviceLabel}</label>
                     <select
                       value={listFilters.service}
                       onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
                       className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
                     >
                       <option value="all">Todos</option>
-                      {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                      {servicesList.map((service) => <option key={service.id} value={service.name}>{getCatalogDisplayName(service, appSlug)}</option>)}
                     </select>
                   </div>
                   <div>
@@ -2635,7 +2657,7 @@ Podemos confirmar? 😄`;
                       className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
                     >
                       <option value="all">Todos</option>
-                      {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                      {Object.keys(appointmentStatusMeta).map((status) => <option key={status} value={status}>{getAppointmentStatusMeta(status, isEsteticaApp).label}</option>)}
                     </select>
                   </div>
                 </div>
@@ -2647,7 +2669,7 @@ Podemos confirmar? 😄`;
                     { key: 'confirmed', label: 'Confirmados' },
                     { key: 'in_progress', label: 'Em atendimento' },
                     { key: 'overdue', label: 'Atrasados' },
-                    { key: 'without_comanda', label: 'Sem comanda' },
+                    { key: 'without_comanda', label: isEsteticaApp ? `Sem ${orderLabelLower}` : 'Sem comanda' },
                   ].map((chip) => (
                     <button
                       key={chip.key}
@@ -2679,7 +2701,7 @@ Podemos confirmar? 😄`;
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-white/[0.03] border-b border-slate-200 dark:border-border-dark">
                   <tr className="text-left">
-                    {['Horário', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Status', 'Observação', 'Origem', 'Ações'].map((label) => (
+                    {['Horário', 'Cliente', 'Telefone', serviceLabel, professionalLabel, 'Status', 'Observação', 'Origem', 'Ações'].map((label) => (
                       <th key={label} className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</th>
                     ))}
                   </tr>
@@ -2720,14 +2742,14 @@ Podemos confirmar? 😄`;
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
                           <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
                           <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
-                          <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
+                          <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title={`Abrir ${orderLabelLower}`}><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {!loading && filteredListAppointments.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">Nenhum agendamento encontrado com os filtros atuais.</td>
+                      <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">{isEsteticaApp ? 'Nenhum atendimento encontrado com os filtros atuais.' : 'Nenhum agendamento encontrado com os filtros atuais.'}</td>
                     </tr>
                   )}
                 </tbody>
@@ -2750,8 +2772,8 @@ Podemos confirmar? 😄`;
                   </span>
                 </div>
                 <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                  <p><strong>Serviço:</strong> {apt.service}</p>
-                  <p><strong>Profissional:</strong> {apt.staffName || '-'}</p>
+                  <p><strong>{serviceLabel}:</strong> {apt.service}</p>
+                  <p><strong>{professionalLabel}:</strong> {apt.staffName || '-'}</p>
                   <p><strong>Origem:</strong> {apt.originLabel}</p>
                   <p title={apt.notes || ''}><strong>Obs.:</strong> {apt.shortNotes || '-'}</p>
                 </div>
@@ -2763,13 +2785,13 @@ Podemos confirmar? 😄`;
                   <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
                   <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
                   <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
-                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
+                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">{orderLabel}</button>
                 </div>
               </div>
             ))}
             {!loading && filteredListAppointments.length === 0 && (
               <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-8 text-center text-sm text-slate-500">
-                Nenhum agendamento encontrado com os filtros atuais.
+                {isEsteticaApp ? 'Nenhum atendimento encontrado com os filtros atuais.' : 'Nenhum agendamento encontrado com os filtros atuais.'}
               </div>
             )}
           </div>
@@ -2779,7 +2801,7 @@ Podemos confirmar? 😄`;
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
-        title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
+        title={editingAppointmentId ? (isEsteticaApp ? 'Editar atendimento' : 'Editar Agendamento') : (isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento')}
         maxWidth="md"
       >
         <div className="space-y-4">
@@ -2846,7 +2868,7 @@ Podemos confirmar? 😄`;
                 )}
               </div>
             )}
-            {chefClubInfo && (
+            {!isEsteticaApp && chefClubInfo && (
               <div className="mt-2 animate-bounce-in bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 flex items-center justify-between">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
@@ -2868,7 +2890,7 @@ Podemos confirmar? 😄`;
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-xs font-bold uppercase text-slate-500">Serviços</label>
+              <label className="block text-xs font-bold uppercase text-slate-500">{servicePluralLabel}</label>
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
                 {selectedServices.length} selecionado(s)
               </span>
@@ -2893,14 +2915,14 @@ Podemos confirmar? 😄`;
                 type="text"
                 value={serviceSearchTerm}
                 onChange={(e) => setServiceSearchTerm(e.target.value)}
-                placeholder="Buscar serviço..."
+                placeholder={`Buscar ${serviceLabelLower}...`}
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white"
               />
             </div>
             <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
               {servicesList.length === 0 ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  Nenhum serviço disponível
+                  {isEsteticaApp ? 'Ainda não há procedimentos ativos para agendamento.' : 'Nenhum serviço disponível'}
                 </div>
               ) : filteredServicesForModal.length > 0 ? (
                 filteredServicesForModal.map((service) => {
@@ -2924,7 +2946,7 @@ Podemos confirmar? 😄`;
                         {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-bold">{service.name}</span>
+                        <span className="block truncate font-bold">{getCatalogDisplayName(service, appSlug)}</span>
                         <span className="block text-[10px] text-slate-500">
                           {service.duration} min • R$ {Number(service.price || 0).toFixed(2)}
                         </span>
@@ -2934,7 +2956,7 @@ Podemos confirmar? 😄`;
                 })
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  Nenhum serviço encontrado
+                  {isEsteticaApp ? 'Nenhum procedimento encontrado' : 'Nenhum serviço encontrado'}
                 </div>
               )}
             </div>
@@ -2949,7 +2971,7 @@ Podemos confirmar? 😄`;
                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
               >
                 {staffList.map(r => (
-                  <option key={r.id} value={r.id}>{r.name} - {roleLabels[r.role] || r.role}</option>
+                  <option key={r.id} value={r.id}>{r.name} - {getVisibleRoleLabel(r.role)}</option>
                 ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
@@ -3361,7 +3383,7 @@ Podemos confirmar? 😄`;
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Serviço</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">{serviceLabel}</p>
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary text-lg">content_cut</span>
                     <p className="text-sm font-bold text-slate-900 dark:text-white">{apt.service}</p>
@@ -3417,12 +3439,12 @@ Podemos confirmar? 😄`;
                     }
                     const cleanPhone = apt.clientPhone.replace(/\D/g, '');
                     const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
 ⏰ *Hora:* ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 *Serviço:* ${apt.service}
-🧔 *Profissional:* ${staff?.name || apt.staffName}
+${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${apt.service}
+👤 *${professionalLabel}:* ${staff?.name || apt.staffName}
 
 Podemos confirmar? 😄`;
                     const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
@@ -3447,7 +3469,7 @@ Podemos confirmar? 😄`;
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">point_of_sale</span>
-                  Checkout
+                  {isEsteticaApp ? businessLabels.checkout : 'Checkout'}
                 </button>
 
                 <button
@@ -3493,7 +3515,7 @@ Podemos confirmar? 😄`;
                 <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Cliente</button>
-                <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Comanda</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">{orderLabel}</button>
                 <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
               </div>
             </div>
@@ -3519,11 +3541,11 @@ Podemos confirmar? 😄`;
                   <p className="text-sm text-slate-500">{selectedAppointmentDetails.clientPhone || 'Sem telefone'}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Profissional</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{professionalLabel}</p>
                   <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.staffName || '-'}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Serviço</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{serviceLabel}</p>
                   <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.service}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">

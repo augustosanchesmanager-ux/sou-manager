@@ -37,6 +37,7 @@ import {
     getCatalogSearchText,
     usesCommercialName,
 } from '../src/lib/catalog/display';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -207,7 +208,8 @@ const isFutureOrOpenDate = (value?: string | null) => {
     return Number.isNaN(parsed.getTime()) || parsed.getTime() >= Date.now();
 };
 
-const DIRECT_SETTLEMENT_BLOCK_MESSAGE = 'Esta comanda pertence a um atendimento anterior ou foi cadastrada fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.';
+const getDirectSettlementBlockMessage = (orderLabelLower: string, isMasculineOrder: boolean) =>
+    `${isMasculineOrder ? 'Este' : 'Esta'} ${orderLabelLower} pertence a um atendimento anterior ou foi ${isMasculineOrder ? 'cadastrado' : 'cadastrada'} fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.`;
 
 const getQuickComandaClient = (comanda: QuickOpenComanda) => {
     const client = Array.isArray(comanda.clients) ? comanda.clients[0] : comanda.clients;
@@ -241,6 +243,17 @@ const Checkout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { appSlug, schema, tenantId, user, accessRole, canAccessSuperAdmin } = useAuth();
+    const businessLabels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
+    const serviceLabel = businessLabels.service;
+    const servicePluralLabel = businessLabels.servicePlural;
+    const serviceLabelLower = serviceLabel.toLowerCase();
+    const servicePluralLabelLower = servicePluralLabel.toLowerCase();
+    const orderLabel = businessLabels.order;
+    const orderLabelLower = orderLabel.toLowerCase();
+    const orderPluralLabel = businessLabels.orderPlural;
+    const professionalLabel = businessLabels.professional;
+    const professionalLabelLower = professionalLabel.toLowerCase();
     const checkoutState = (location.state as CheckoutLocationState | null) || null;
     const searchParams = new URLSearchParams(location.search);
     const requestedMode = searchParams.get('mode');
@@ -249,66 +262,71 @@ const Checkout: React.FC = () => {
         : checkoutState?.fromAppointment || requestedMode === 'comanda'
             ? 'open_comanda'
             : 'pdv';
+    const internalSettlementTitle = checkoutEntryMode === 'edit_comanda'
+        ? 'Fechamento de Comanda'
+        : checkoutEntryMode === 'open_comanda'
+            ? 'Abrir Comanda'
+            : 'Checkout / PDV';
     const checkoutCopy = checkoutEntryMode === 'edit_comanda'
         ? {
-            title: 'Fechamento de Comanda',
-            subtitle: 'Revise os itens, ajuste o consumo e conclua a cobrança.',
-            orderLabel: 'Comanda',
-            clientRequiredError: 'Selecione o cliente vinculado a esta comanda.',
-            clientEmptyTitle: 'Cliente da comanda',
-            clientEmptyHelper: 'Selecione o cliente responsável por esta comanda.',
-            itemSectionTitle: 'Itens da Comanda',
-            actionToggleLabel: 'Ação da comanda',
-            primaryPaidLabel: 'Fechar agora',
-            primaryOpenLabel: 'Manter aberta',
-            successPaid: 'Comanda fechada com sucesso!',
-            successOpen: 'Comanda atualizada e mantida em aberto!',
-            emptyCartMessage: 'Nenhum item lançado na comanda',
-            itemRequiredError: 'Adicione pelo menos um item antes de finalizar a comanda.',
-            finalButtonPaidLabel: 'Confirmar e fechar',
-            finalButtonOpenLabel: 'Atualizar e manter aberta',
-            summaryTitle: 'Resumo da cobrança',
+            title: isEsteticaApp ? businessLabels.checkout : 'Fechamento de Comanda',
+            subtitle: isEsteticaApp ? 'Revise os itens do atendimento, confira valores e conclua a finalização.' : 'Revise os itens, ajuste o consumo e conclua a cobrança.',
+            orderLabel: isEsteticaApp ? orderLabel : 'Comanda',
+            clientRequiredError: `Selecione o cliente vinculado ${isEsteticaApp ? 'a este atendimento' : 'a esta comanda'}.`,
+            clientEmptyTitle: isEsteticaApp ? 'Cliente do atendimento' : 'Cliente da comanda',
+            clientEmptyHelper: `Selecione o cliente responsável ${isEsteticaApp ? 'por este atendimento' : 'por esta comanda'}.`,
+            itemSectionTitle: isEsteticaApp ? `Itens do ${orderLabelLower}` : 'Itens da Comanda',
+            actionToggleLabel: isEsteticaApp ? `Ação do ${orderLabelLower}` : 'Ação da comanda',
+            primaryPaidLabel: isEsteticaApp ? 'Finalizar agora' : 'Fechar agora',
+            primaryOpenLabel: isEsteticaApp ? 'Manter aberto' : 'Manter aberta',
+            successPaid: isEsteticaApp ? 'Atendimento finalizado com sucesso!' : 'Comanda fechada com sucesso!',
+            successOpen: isEsteticaApp ? 'Atendimento atualizado e mantido em aberto!' : 'Comanda atualizada e mantida em aberto!',
+            emptyCartMessage: isEsteticaApp ? `Nenhum item lançado no ${orderLabelLower}` : 'Nenhum item lançado na comanda',
+            itemRequiredError: `Adicione pelo menos um item antes de finalizar ${isEsteticaApp ? `o ${orderLabelLower}` : 'a comanda'}.`,
+            finalButtonPaidLabel: isEsteticaApp ? 'Finalizar atendimento' : 'Confirmar e fechar',
+            finalButtonOpenLabel: isEsteticaApp ? 'Atualizar e manter aberto' : 'Atualizar e manter aberta',
+            summaryTitle: isEsteticaApp ? `Resumo do ${orderLabelLower}` : 'Resumo da cobrança',
             redirectPath: '/comandas',
         }
         : checkoutEntryMode === 'open_comanda'
             ? {
-                title: 'Abrir Comanda',
-                subtitle: 'Inicie uma comanda operacional para acompanhar consumo e fechar depois.',
-                orderLabel: 'Nova comanda',
-                clientRequiredError: 'Selecione o cliente antes de abrir a comanda.',
-                clientEmptyTitle: 'Cliente da comanda',
-                clientEmptyHelper: 'Obrigatório para abrir a comanda.',
-                itemSectionTitle: 'Itens iniciais da Comanda',
-                actionToggleLabel: 'Destino da comanda',
-                primaryPaidLabel: 'Fechar agora',
-                primaryOpenLabel: 'Salvar aberta',
-                successPaid: 'Comanda fechada com sucesso!',
-                successOpen: 'Comanda aberta com sucesso!',
-                emptyCartMessage: 'Adicione os primeiros itens para abrir a comanda',
-                itemRequiredError: 'Adicione pelo menos um item antes de salvar a comanda.',
-                finalButtonPaidLabel: 'Abrir e fechar agora',
-                finalButtonOpenLabel: 'Abrir comanda',
-                summaryTitle: 'Resumo da comanda',
+                title: isEsteticaApp ? 'Abrir atendimento' : 'Abrir Comanda',
+                subtitle: isEsteticaApp ? 'Inicie o atendimento operacional para acompanhar procedimentos, produtos e pagamento.' : 'Inicie uma comanda operacional para acompanhar consumo e fechar depois.',
+                orderLabel: isEsteticaApp ? `Novo ${orderLabelLower}` : 'Nova comanda',
+                clientRequiredError: `Selecione o cliente antes de abrir ${isEsteticaApp ? `o ${orderLabelLower}` : 'a comanda'}.`,
+                clientEmptyTitle: isEsteticaApp ? 'Cliente do atendimento' : 'Cliente da comanda',
+                clientEmptyHelper: `Obrigatório para abrir ${isEsteticaApp ? `o ${orderLabelLower}` : 'a comanda'}.`,
+                itemSectionTitle: isEsteticaApp ? `Itens iniciais do ${orderLabelLower}` : 'Itens iniciais da Comanda',
+                actionToggleLabel: isEsteticaApp ? `Destino do ${orderLabelLower}` : 'Destino da comanda',
+                primaryPaidLabel: isEsteticaApp ? 'Finalizar agora' : 'Fechar agora',
+                primaryOpenLabel: isEsteticaApp ? 'Salvar aberto' : 'Salvar aberta',
+                successPaid: isEsteticaApp ? 'Atendimento finalizado com sucesso!' : 'Comanda fechada com sucesso!',
+                successOpen: isEsteticaApp ? 'Atendimento aberto com sucesso!' : 'Comanda aberta com sucesso!',
+                emptyCartMessage: isEsteticaApp ? `Adicione os primeiros itens para abrir o ${orderLabelLower}` : 'Adicione os primeiros itens para abrir a comanda',
+                itemRequiredError: `Adicione pelo menos um item antes de salvar ${isEsteticaApp ? `o ${orderLabelLower}` : 'a comanda'}.`,
+                finalButtonPaidLabel: isEsteticaApp ? 'Abrir e finalizar agora' : 'Abrir e fechar agora',
+                finalButtonOpenLabel: isEsteticaApp ? 'Abrir atendimento' : 'Abrir comanda',
+                summaryTitle: isEsteticaApp ? `Resumo do ${orderLabelLower}` : 'Resumo da comanda',
                 redirectPath: '/comandas',
             }
             : {
-                title: 'Checkout / PDV',
-                subtitle: 'Lance produtos e serviços para uma venda imediata no caixa ou mantenha uma comanda aberta.',
-                orderLabel: 'Operação',
-                clientRequiredError: 'Selecione um cliente para concluir a operação.',
+                title: isEsteticaApp ? businessLabels.checkout : 'Checkout / PDV',
+                subtitle: isEsteticaApp ? `Lance ${servicePluralLabelLower} e produtos para finalizar o atendimento ou mantê-lo em aberto.` : 'Lance produtos e serviços para uma venda imediata no caixa ou mantenha uma comanda aberta.',
+                orderLabel: isEsteticaApp ? orderLabel : 'Operação',
+                clientRequiredError: `Selecione um cliente para concluir ${isEsteticaApp ? `o ${orderLabelLower}` : 'a operação'}.`,
                 clientEmptyTitle: 'Cliente não selecionado',
-                clientEmptyHelper: 'Obrigatório para concluir a operação no fluxo atual.',
-                itemSectionTitle: 'Itens da Operação',
-                actionToggleLabel: 'Ação da operação',
-                primaryPaidLabel: 'Concluir venda',
-                primaryOpenLabel: 'Manter aberta',
-                successPaid: 'Venda realizada com sucesso!',
-                successOpen: 'Operação mantida em aberto!',
-                emptyCartMessage: 'Nenhum item lançado na operação',
-                itemRequiredError: 'Adicione pelo menos um item antes de concluir a operação.',
-                finalButtonPaidLabel: 'Concluir venda',
-                finalButtonOpenLabel: 'Manter aberta',
-                summaryTitle: 'Resumo financeiro',
+                clientEmptyHelper: `Obrigatório para concluir ${isEsteticaApp ? `o ${orderLabelLower}` : 'a operação'} no fluxo atual.`,
+                itemSectionTitle: isEsteticaApp ? `Itens do ${orderLabelLower}` : 'Itens da Operação',
+                actionToggleLabel: isEsteticaApp ? `Ação do ${orderLabelLower}` : 'Ação da operação',
+                primaryPaidLabel: isEsteticaApp ? 'Finalizar atendimento' : 'Concluir venda',
+                primaryOpenLabel: isEsteticaApp ? 'Manter atendimento aberto' : 'Manter aberta',
+                successPaid: isEsteticaApp ? 'Atendimento finalizado com sucesso!' : 'Venda realizada com sucesso!',
+                successOpen: isEsteticaApp ? 'Atendimento mantido em aberto!' : 'Operação mantida em aberto!',
+                emptyCartMessage: isEsteticaApp ? `Nenhum item lançado no ${orderLabelLower}` : 'Nenhum item lançado na operação',
+                itemRequiredError: `Adicione pelo menos um item antes de concluir ${isEsteticaApp ? `o ${orderLabelLower}` : 'a operação'}.`,
+                finalButtonPaidLabel: isEsteticaApp ? 'Finalizar atendimento' : 'Concluir venda',
+                finalButtonOpenLabel: isEsteticaApp ? 'Manter atendimento aberto' : 'Manter aberta',
+                summaryTitle: isEsteticaApp ? `Resumo do ${orderLabelLower}` : 'Resumo financeiro',
                 redirectPath: '/checkout?mode=pdv',
             };
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -390,6 +408,13 @@ const Checkout: React.FC = () => {
         ? assignedCommissionStaff
         : staff.filter(pro => receivesCommission(pro));
     const discountResponsibleStaff = staff.find(pro => pro.id === discountResponsibleStaffId) || null;
+    const visibleDiscountTypeLabels: Record<DiscountAuditType, string> = isEsteticaApp
+        ? {
+            ...DISCOUNT_TYPE_LABELS,
+            barber_discount: `Desconto do ${professionalLabelLower}`,
+            barbershop_discount: 'Desconto da unidade',
+        }
+        : DISCOUNT_TYPE_LABELS;
     const shouldCollectDiscountAudit = discountValue > 0;
     const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
     const isZeroPaidCheckout = paymentStatus === 'paid' && total <= 0;
@@ -672,7 +697,7 @@ const Checkout: React.FC = () => {
             }
         } catch (error) {
             console.error('Error loading checkout data:', error);
-            setToast({ message: 'Erro ao carregar dados do checkout.', type: 'error' });
+            setToast({ message: isEsteticaApp ? 'Erro ao carregar dados da finalização.' : 'Erro ao carregar dados do checkout.', type: 'error' });
             setClients([]);
             setStaff([]);
             setServices([]);
@@ -798,7 +823,7 @@ const Checkout: React.FC = () => {
                 if (openComandas && openComandas.length > 0) {
                     const existingComanda = openComandas[0];
                     if (existingComanda.status === 'blocked') {
-                        setToast({ message: `Este cliente já tem uma comanda bloqueada para este dia.`, type: 'error' });
+                        setToast({ message: `Este cliente já tem ${isEsteticaApp ? 'um atendimento bloqueado' : 'uma comanda bloqueada'} para este dia.`, type: 'error' });
                         setPendingClient(null);
                         return;
                     }
@@ -835,7 +860,7 @@ const Checkout: React.FC = () => {
                     await loadChefClubForClient(pendingClient.id, resolvedTenantId);
                 } catch (error) {
                     console.error('Error loading duplicate client club info:', error);
-                    setToast({ message: 'Cliente selecionado, mas não foi possível carregar créditos do Clube.', type: 'info' });
+                    setToast({ message: isEsteticaApp ? 'Cliente selecionado, mas não foi possível carregar créditos disponíveis.' : 'Cliente selecionado, mas não foi possível carregar créditos do Clube.', type: 'info' });
                 }
             }
         }
@@ -853,7 +878,7 @@ const Checkout: React.FC = () => {
 
     const fetchQuickOpenComandas = useCallback(async () => {
         if (!tenantId) {
-            setQuickOpenComandaError('Tenant inválido para buscar comandas abertas.');
+            setQuickOpenComandaError(`Tenant inválido para buscar ${isEsteticaApp ? orderPluralLabel.toLowerCase() : 'comandas'} abertas.`);
             return;
         }
 
@@ -889,7 +914,7 @@ const Checkout: React.FC = () => {
                 : { data: [] as { id: string; name?: string | null; phone?: string | null }[], error: null };
 
             if (clientError) {
-                console.warn('Não foi possível carregar clientes das comandas abertas:', clientError);
+                console.warn(`Não foi possível carregar clientes ${isEsteticaApp ? 'dos atendimentos abertos' : 'das comandas abertas'}:`, clientError);
             }
 
             const clientsById = ((clientRows || []) as { id: string; name?: string | null; phone?: string | null }[]).reduce((acc, client) => {
@@ -903,11 +928,11 @@ const Checkout: React.FC = () => {
             })));
         } catch (error) {
             console.error('Erro ao buscar comandas abertas no checkout:', error);
-            setQuickOpenComandaError('Não foi possível carregar as comandas abertas. Tente novamente.');
+            setQuickOpenComandaError(`Não foi possível carregar ${isEsteticaApp ? 'os atendimentos abertos' : 'as comandas abertas'}. Tente novamente.`);
         } finally {
             setLoadingQuickOpenComandas(false);
         }
-    }, [appSlug, schema, tenantId]);
+    }, [appSlug, isEsteticaApp, orderPluralLabel, schema, tenantId]);
 
     const openQuickComandaSearch = () => {
         setIsOpenComandaModalOpen(true);
@@ -1077,13 +1102,13 @@ const Checkout: React.FC = () => {
                 return nextProducts;
             });
 
-            setToast({ message: 'Produto criado e adicionado a venda.', type: 'success' });
+            setToast({ message: `Produto criado e adicionado ${isEsteticaApp ? 'ao atendimento' : 'a venda'}.`, type: 'success' });
             handleAddItem(createdProduct, 'product');
             setQuickProductForm(createInitialQuickProductForm());
             setIsQuickProductModalOpen(false);
         } catch (error) {
             console.error('Error creating product during checkout:', error);
-            setToast({ message: 'Erro ao cadastrar produto durante a venda.', type: 'error' });
+            setToast({ message: `Erro ao cadastrar produto durante ${isEsteticaApp ? 'o atendimento' : 'a venda'}.`, type: 'error' });
         } finally {
             setIsSavingQuickProduct(false);
         }
@@ -1093,7 +1118,7 @@ const Checkout: React.FC = () => {
         e.preventDefault();
 
         if (!tenantId) {
-            setToast({ message: 'Tenant inválido para cadastrar serviço.', type: 'error' });
+            setToast({ message: `Tenant inválido para cadastrar ${serviceLabelLower}.`, type: 'error' });
             return;
         }
 
@@ -1134,13 +1159,13 @@ const Checkout: React.FC = () => {
                 return nextServices;
             });
 
-            setToast({ message: 'Serviço criado e adicionado à venda.', type: 'success' });
+            setToast({ message: `${serviceLabel} criado e adicionado ${isEsteticaApp ? 'ao atendimento' : 'à venda'}.`, type: 'success' });
             handleAddItem(createdService, 'service');
             setQuickServiceForm(createInitialQuickServiceForm());
             setIsQuickServiceModalOpen(false);
         } catch (error) {
             console.error('Error creating service during checkout:', error);
-            setToast({ message: 'Erro ao cadastrar serviço durante a venda.', type: 'error' });
+            setToast({ message: `Erro ao cadastrar ${serviceLabelLower} durante ${isEsteticaApp ? 'o atendimento' : 'a venda'}.`, type: 'error' });
         } finally {
             setIsSavingQuickService(false);
         }
@@ -1174,7 +1199,7 @@ const Checkout: React.FC = () => {
             
             const existingParticipants = item.execution_participants || [];
             if (existingParticipants.some((participant) => participant.professional_id === professionalId)) {
-                setToast({ message: 'Este profissional já participa deste serviço.', type: 'info' });
+                setToast({ message: `Este profissional já participa deste ${serviceLabelLower}.`, type: 'info' });
                 return item;
             }
             const isPrimary = role === 'primary';
@@ -1244,7 +1269,7 @@ const Checkout: React.FC = () => {
             return;
         }
         if (isLegacyClubSettlement && !legacyReferenceMonth) {
-            setToast({ message: 'Informe o mes de referencia para a baixa administrativa do Clube.', type: 'info' });
+            setToast({ message: isEsteticaApp ? 'Informe o mes de referencia para a baixa administrativa.' : 'Informe o mes de referencia para a baixa administrativa do Clube.', type: 'info' });
             finishLockRef.current = false;
             return;
         }
@@ -1255,7 +1280,7 @@ const Checkout: React.FC = () => {
         }
         if (isZeroPaidCheckout) {
             if (zeroCloseOrigin === 'club_credit' && !canCloseWithClubCredit) {
-                setToast({ message: 'Comanda zero só pode fechar por crédito quando há crédito do Clube aplicado e disponível.', type: 'error' });
+                setToast({ message: `${orderLabel} zero só pode finalizar por crédito quando há crédito aplicado e disponível.`, type: 'error' });
                 finishLockRef.current = false;
                 return;
             }
@@ -1265,7 +1290,7 @@ const Checkout: React.FC = () => {
                 return;
             }
             if ((zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment') && !zeroCloseReason.trim()) {
-                setToast({ message: 'Informe o motivo obrigatório para fechar comanda zero.', type: 'error' });
+                setToast({ message: `Informe o motivo obrigatório para finalizar ${orderLabelLower} zero.`, type: 'error' });
                 finishLockRef.current = false;
                 return;
             }
@@ -1273,7 +1298,7 @@ const Checkout: React.FC = () => {
         let discountAuditDraft: DiscountAuditDraft | null = null;
         if (shouldCollectDiscountAudit) {
             if (discountType === 'barber_discount' && !discountResponsibleStaffId) {
-                setToast({ message: 'Selecione o barbeiro responsável pelo desconto.', type: 'error' });
+                setToast({ message: `Selecione o ${professionalLabelLower} responsável pelo desconto.`, type: 'error' });
                 finishLockRef.current = false;
                 return;
             }
@@ -1358,7 +1383,7 @@ const Checkout: React.FC = () => {
                     isBeforeTodayLocal(appointmentForSettlement?.start_time) ||
                     isCreatedAfterAppointmentDay(comandaForSettlement?.created_at, appointmentForSettlement?.start_time)
                 ) {
-                    setToast({ message: DIRECT_SETTLEMENT_BLOCK_MESSAGE, type: 'error' });
+                    setToast({ message: getDirectSettlementBlockMessage(isEsteticaApp ? orderLabelLower : 'comanda', isEsteticaApp), type: 'error' });
                     return;
                 }
             }
@@ -1544,8 +1569,8 @@ const Checkout: React.FC = () => {
                     idempotencyKey: `finance-settle-${currentComandaId}-${comandaRequestKeyRef.current}`,
                     incomeCategory,
                     description: paymentMethod === 'other' && paymentDescription
-                        ? `${checkoutCopy.title} - Cliente: ${selectedClient.name} (${paymentDescription})`
-                        : `${checkoutCopy.title} - Cliente: ${selectedClient.name}`,
+                        ? `${internalSettlementTitle} - Cliente: ${selectedClient.name} (${paymentDescription})`
+                        : `${internalSettlementTitle} - Cliente: ${selectedClient.name}`,
                     shouldApplyFinancialEffects,
                     closure: {
                         mode: closureMode,
@@ -1596,7 +1621,7 @@ const Checkout: React.FC = () => {
 
             setToast({
                 message: isLegacyClubSettlement
-                    ? 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem créditos atuais.'
+                    ? (isEsteticaApp ? 'Atendimento baixado no modo administrativo sem impactar financeiro nem créditos atuais.' : 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem créditos atuais.')
                     : paymentStatus === 'paid'
                         ? checkoutCopy.successPaid
                         : checkoutCopy.successOpen,
@@ -1652,7 +1677,9 @@ const Checkout: React.FC = () => {
                         </div>
                         <div>
                             <p className="text-[11px] font-black uppercase text-[#007BFF] dark:text-[#00D2FF]">
-                                {checkoutEntryMode === 'edit_comanda' ? 'Fechamento da cadeira' : checkoutEntryMode === 'open_comanda' ? 'Comanda em atendimento' : 'Balcao da barbearia'}
+                                {isEsteticaApp
+                                    ? (checkoutEntryMode === 'edit_comanda' ? 'Finalização do atendimento' : checkoutEntryMode === 'open_comanda' ? 'Atendimento em andamento' : 'Finalização do atendimento')
+                                    : (checkoutEntryMode === 'edit_comanda' ? 'Fechamento da cadeira' : checkoutEntryMode === 'open_comanda' ? 'Comanda em atendimento' : 'Balcao da barbearia')}
                             </p>
                             <h1 className="mt-1 text-3xl font-black text-[#003366] dark:text-white flex items-center gap-2">
                                 {checkoutCopy.title}
@@ -1706,10 +1733,10 @@ const Checkout: React.FC = () => {
                                 <button
                                     onClick={openQuickComandaSearch}
                                     className="px-3 py-2 bg-[#F7FBFE] text-[#003366] hover:bg-[#EAF7FF] border border-[#D9EAF5] dark:bg-[#0B1828] dark:border-[#14304A] dark:text-slate-300 dark:hover:bg-[#102033] rounded-lg text-xs font-bold transition-all flex items-center gap-1"
-                                    title="Buscar uma comanda aberta sem sair do Checkout"
+                                    title={isEsteticaApp ? 'Buscar um atendimento aberto sem sair da finalização' : 'Buscar uma comanda aberta sem sair do Checkout'}
                                 >
                                     <span className="material-symbols-outlined text-sm">manage_search</span>
-                                    Comandas abertas
+                                    {isEsteticaApp ? 'Atendimentos abertos' : 'Comandas abertas'}
                                 </button>
                             )}
                             {!selectedClient ? (
@@ -1747,7 +1774,7 @@ const Checkout: React.FC = () => {
                                     className="flex items-center gap-1 px-3 py-1.5 bg-[#EAF7FF] text-[#007BFF] hover:bg-[#007BFF] hover:text-white rounded-lg text-xs font-bold transition-all"
                                 >
                                     <span className="material-symbols-outlined text-sm">content_cut</span>
-                                    + Serviço
+                                    + {serviceLabel}
                                 </button>
                                 <button
                                     onClick={() => { setItemModalTab('products'); setIsItemModalOpen(true); }}
@@ -1848,7 +1875,7 @@ const Checkout: React.FC = () => {
                                                             const currentUsedForService = cart.filter(c => c.usedCredit && c.service_id === item.service_id && c.id !== item.id).length;
                                                             const availableForService = getAvailableCreditsForService(chefClubInfo.serviceBalances, item.service_id);
                                                             if (isUsed && currentUsedForService >= availableForService) {
-                                                                setToast({ message: 'Sem créditos suficientes para aplicar em mais serviços.', type: 'error' });
+                                                                setToast({ message: `Sem créditos suficientes para aplicar em mais ${servicePluralLabelLower}.`, type: 'error' });
                                                                 return;
                                                             }
                                                             setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
@@ -1875,14 +1902,14 @@ const Checkout: React.FC = () => {
                                 <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#D9EAF5] bg-[#F7FBFE] text-slate-500 dark:border-[#14304A] dark:bg-[#0B1828] p-8 text-center">
                                     <span className="material-symbols-outlined text-5xl mb-4 text-[#007BFF] dark:text-[#00D2FF]">content_cut</span>
                                     <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{checkoutCopy.emptyCartMessage}</p>
-                                    <p className="mt-1 text-xs text-slate-500">Adicione serviços ou produtos para montar a comanda com dados reais da barbearia.</p>
+                                    <p className="mt-1 text-xs text-slate-500">{isEsteticaApp ? `Adicione ${servicePluralLabelLower} ou produtos para montar o atendimento.` : 'Adicione serviços ou produtos para montar a comanda com dados reais da barbearia.'}</p>
                                     <p className="hidden text-sm font-medium">O carrinho está vazio</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {chefClubInfo && (
+                    {!isEsteticaApp && chefClubInfo && (
                         <div className="mt-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center justify-between animate-fade-in">
                             <div className="flex items-center gap-3">
                                 <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -1940,12 +1967,12 @@ const Checkout: React.FC = () => {
                             </div>
                         </div>
 
-                        {paymentStatus === 'paid' && (chefClubInfo || closureMode === 'legacy_membership') && (
+                        {paymentStatus === 'paid' && ((!isEsteticaApp && chefClubInfo) || closureMode === 'legacy_membership') && (
                             <div className="mb-6 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
                                 <div>
                                     <p className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-300">Modo de fechamento</p>
                                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                                        Use a baixa administrativa para comandas antigas de clientes do Clube que ja pagaram em outro ciclo.
+                                        {isEsteticaApp ? 'Use a baixa administrativa apenas para regularizações autorizadas deste atendimento.' : 'Use a baixa administrativa para comandas antigas de clientes do Clube que ja pagaram em outro ciclo.'}
                                     </p>
                                 </div>
 
@@ -1958,7 +1985,7 @@ const Checkout: React.FC = () => {
                                             }`}
                                     >
                                         <p className="text-sm font-black">Fechamento padrão</p>
-                                        <p className="mt-1 text-xs">Lança o financeiro normalmente e consome os créditos aplicados nesta comanda.</p>
+                                        <p className="mt-1 text-xs">Lança o financeiro normalmente e consome os créditos aplicados {isEsteticaApp ? `neste ${orderLabelLower}` : 'nesta comanda'}.</p>
                                     </button>
                                     <button
                                         onClick={() => setClosureMode('legacy_membership')}
@@ -1967,15 +1994,15 @@ const Checkout: React.FC = () => {
                                             : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
                                             }`}
                                     >
-                                        <p className="text-sm font-black">Baixa administrativa do Clube</p>
-                                        <p className="mt-1 text-xs">Fecha a comanda sem gerar nova receita e sem afetar os créditos atuais do assinante.</p>
+                                        <p className="text-sm font-black">{isEsteticaApp ? 'Baixa administrativa' : 'Baixa administrativa do Clube'}</p>
+                                        <p className="mt-1 text-xs">Fecha {isEsteticaApp ? `o ${orderLabelLower}` : 'a comanda'} sem gerar nova receita e sem afetar os créditos atuais.</p>
                                     </button>
                                 </div>
 
                                 {closureMode === 'legacy_membership' && (
                                     <div className="space-y-3 rounded-xl border border-amber-500/20 bg-white/80 p-3 dark:bg-white/5">
                                         <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-                                            Esse modo e indicado para regularizar comandas abertas de clientes que ja estavam no Clube em um ciclo anterior.
+                                            {isEsteticaApp ? 'Esse modo é indicado apenas para regularizações administrativas autorizadas.' : 'Esse modo e indicado para regularizar comandas abertas de clientes que ja estavam no Clube em um ciclo anterior.'}
                                         </div>
                                         <div>
                                             <label className="mb-1 block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Mes de referencia</label>
@@ -2020,7 +2047,7 @@ const Checkout: React.FC = () => {
                                     <div>
                                         <p className="font-bold text-amber-700 dark:text-amber-300">Controle do desconto</p>
                                         <p className="mt-1 text-slate-500 dark:text-slate-400">
-                                            Registra a origem do desconto nas observações da baixa. A comissão ainda não será recalculada automaticamente.
+                                            {isEsteticaApp ? 'Registra a origem do desconto nas observações da baixa. A revisão financeira ainda não será recalculada automaticamente.' : 'Registra a origem do desconto nas observações da baixa. A comissão ainda não será recalculada automaticamente.'}
                                         </p>
                                     </div>
 
@@ -2035,7 +2062,7 @@ const Checkout: React.FC = () => {
                                             }}
                                             className="mt-1 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                                         >
-                                            {Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => (
+                                            {Object.entries(visibleDiscountTypeLabels).map(([value, label]) => (
                                                 <option key={value} value={value}>{label}</option>
                                             ))}
                                         </select>
@@ -2043,13 +2070,13 @@ const Checkout: React.FC = () => {
 
                                     {discountType === 'barber_discount' && (
                                         <label className="block">
-                                            <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Barbeiro responsável</span>
+                                            <span className="font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{professionalLabel} responsável</span>
                                             <select
                                                 value={discountResponsibleStaffId}
                                                 onChange={(e) => setDiscountResponsibleStaffId(e.target.value)}
                                                 className="mt-1 w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
                                             >
-                                                <option value="">Selecione o barbeiro</option>
+                                                <option value="">Selecione o {professionalLabelLower}</option>
                                                 {discountStaffOptions.map(pro => (
                                                     <option key={pro.id} value={pro.id}>{pro.name}</option>
                                                 ))}
@@ -2093,7 +2120,7 @@ const Checkout: React.FC = () => {
                                 <div className="mb-3">
                                     <p className="text-[11px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">Fechamento zero auditado</p>
                                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                                        Comanda com valor financeiro zero precisa de origem válida. Não será criada entrada de caixa.
+                                        {orderLabel} com valor financeiro zero precisa de origem válida. Não será criada entrada de caixa.
                                     </p>
                                 </div>
                                 <div className="grid gap-2">
@@ -2108,7 +2135,7 @@ const Checkout: React.FC = () => {
                                                     : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
                                             }`}
                                         >
-                                            <span className="block font-black">Pagamento via Clube do Chefe</span>
+                                            <span className="block font-black">{isEsteticaApp ? 'Pagamento por crédito disponível' : 'Pagamento via Clube do Chefe'}</span>
                                             <span>Crédito será consumido e não gera nova entrada no caixa.</span>
                                         </button>
                                     )}
@@ -2145,7 +2172,7 @@ const Checkout: React.FC = () => {
                                             value={zeroCloseReason}
                                             onChange={(event) => setZeroCloseReason(event.target.value)}
                                             rows={3}
-                                            placeholder="Explique quem autorizou e por que a comanda será fechada sem pagamento."
+                                            placeholder={`Explique quem autorizou e por que ${isEsteticaApp ? `o ${orderLabelLower} será finalizado` : 'a comanda será fechada'} sem pagamento.`}
                                             className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                                         />
                                     </label>
@@ -2257,12 +2284,12 @@ const Checkout: React.FC = () => {
             <Modal
                 isOpen={isOpenComandaModalOpen}
                 onClose={() => setIsOpenComandaModalOpen(false)}
-                title="Comandas abertas"
+                title={isEsteticaApp ? 'Atendimentos abertos' : 'Comandas abertas'}
                 maxWidth="lg"
             >
                 <div className="space-y-4">
                     <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                        Selecione uma comanda para continuar o atendimento no Checkout. Esta busca não altera status, pagamento ou financeiro.
+                        {isEsteticaApp ? 'Selecione um atendimento para continuar a finalização. Esta busca não altera status, pagamento ou financeiro.' : 'Selecione uma comanda para continuar o atendimento no Checkout. Esta busca não altera status, pagamento ou financeiro.'}
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -2272,7 +2299,7 @@ const Checkout: React.FC = () => {
                                 autoFocus
                                 type="text"
                                 value={openComandaSearchTerm}
-                                placeholder="Buscar por cliente, telefone ou #comanda..."
+                                placeholder={isEsteticaApp ? 'Buscar por cliente, telefone ou #atendimento...' : 'Buscar por cliente, telefone ou #comanda...'}
                                 onChange={(event) => setOpenComandaSearchTerm(event.target.value)}
                                 className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
                             />
@@ -2295,11 +2322,11 @@ const Checkout: React.FC = () => {
                     <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                         {loadingQuickOpenComandas ? (
                             <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-border-dark">
-                                Carregando comandas abertas...
+                                {isEsteticaApp ? 'Carregando atendimentos abertos...' : 'Carregando comandas abertas...'}
                             </div>
                         ) : filteredQuickOpenComandas.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-border-dark">
-                                Nenhuma comanda aberta encontrada para a busca atual.
+                                {isEsteticaApp ? 'Nenhum atendimento aberto encontrado para a busca atual.' : 'Nenhuma comanda aberta encontrada para a busca atual.'}
                             </div>
                         ) : (
                             filteredQuickOpenComandas.map((comanda) => {
@@ -2318,7 +2345,7 @@ const Checkout: React.FC = () => {
                                             <div>
                                                 <p className="text-sm font-black text-slate-900 dark:text-white">{client.name}</p>
                                                 <p className="mt-0.5 text-xs text-slate-500">
-                                                    Comanda #{comanda.id.slice(0, 8)}
+                                                    {orderLabel} #{comanda.id.slice(0, 8)}
                                                     {client.phone ? ` · ${client.phone}` : ''}
                                                 </p>
                                             </div>
@@ -2361,7 +2388,7 @@ const Checkout: React.FC = () => {
                                 }`}
                         >
                             <span className="material-symbols-outlined text-sm">content_cut</span>
-                            Serviços
+                            {servicePluralLabel}
                         </button>
                         <button
                             onClick={() => { setItemModalTab('products'); setSearchTerm(''); }}
@@ -2383,7 +2410,7 @@ const Checkout: React.FC = () => {
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder={`Buscar ${itemModalTab === 'services' ? 'serviço' : 'produto'}...`}
+                            placeholder={`Buscar ${itemModalTab === 'services' ? serviceLabelLower : 'produto'}...`}
                             className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
                         />
                     </div>
@@ -2392,7 +2419,7 @@ const Checkout: React.FC = () => {
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/70 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/5">
                             <div>
                                 <p className="text-sm font-bold text-slate-900 dark:text-white">Não encontrou o produto?</p>
-                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra na venda.</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra {isEsteticaApp ? 'no atendimento' : 'na venda'}.</p>
                             </div>
                             <button
                                 type="button"
@@ -2407,15 +2434,15 @@ const Checkout: React.FC = () => {
                     {itemModalTab === 'services' && (
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3">
                             <div>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">Não encontrou o serviço?</p>
-                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra na venda.</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">Não encontrou o {serviceLabelLower}?</p>
+                                <p className="text-xs text-slate-500">Cadastre agora e ele já entra {isEsteticaApp ? 'no atendimento' : 'na venda'}.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={handleOpenQuickServiceModal}
                                 className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90"
                             >
-                                + Novo Serviço
+                                + Novo {serviceLabel}
                             </button>
                         </div>
                     )}
@@ -2431,7 +2458,7 @@ const Checkout: React.FC = () => {
                                     {searchTerm
                                         ? 'Nenhum resultado encontrado.'
                                         : itemModalTab === 'services'
-                                            ? 'Nenhum serviço ativo cadastrado.'
+                                            ? `Nenhum ${serviceLabelLower} ativo cadastrado.`
                                             : 'Nenhum produto ativo cadastrado.'}
                                 </p>
                                 {itemModalTab === 'services' && (
@@ -2440,7 +2467,7 @@ const Checkout: React.FC = () => {
                                         onClick={handleOpenQuickServiceModal}
                                         className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
                                     >
-                                        Cadastrar serviço agora
+                                        Cadastrar {serviceLabelLower} agora
                                     </button>
                                 )}
                                 {itemModalTab === 'products' && (
@@ -2496,7 +2523,7 @@ const Checkout: React.FC = () => {
                 <Modal
                     isOpen={!!pendingCreditItem}
                     onClose={() => handleResolveCreditSuggestion(false)}
-                    title="Aplicar crédito do Clube?"
+                    title={isEsteticaApp ? 'Aplicar crédito disponível?' : 'Aplicar crédito do Clube?'}
                     maxWidth="sm"
                     footer={
                         <>
@@ -2523,13 +2550,13 @@ const Checkout: React.FC = () => {
                             <div className="min-w-0">
                                 <p className="text-sm font-black">Cliente assinante com crédito disponível.</p>
                                 <p className="mt-1 text-xs font-semibold opacity-80">
-                                    Use 1 crédito do Clube do Chefe para zerar este serviço na comanda.
+                                    {isEsteticaApp ? `Use 1 crédito disponível para zerar este ${serviceLabelLower} no atendimento.` : 'Use 1 crédito do Clube do Chefe para zerar este serviço na comanda.'}
                                 </p>
                             </div>
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Serviço</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{serviceLabel}</p>
                             <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{getCatalogDisplayName(pendingCreditItem.item)}</p>
                             <p className="mt-1 text-xs text-slate-500">
                                 Valor original: R$ {pendingCreditItem.finalPrice.toFixed(2)}
@@ -2588,7 +2615,7 @@ const Checkout: React.FC = () => {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold uppercase text-slate-500">Venda (R$)</label>
+                            <label className="text-xs font-bold uppercase text-slate-500">{isEsteticaApp ? 'Preço (R$)' : 'Venda (R$)'}</label>
                             <input
                                 required
                                 type="number"
@@ -2654,7 +2681,7 @@ const Checkout: React.FC = () => {
             <Modal
                 isOpen={isQuickServiceModalOpen}
                 onClose={handleCloseQuickServiceModal}
-                title="Cadastrar Serviço"
+                title={`Cadastrar ${serviceLabel}`}
                 maxWidth="lg"
             >
                 <form onSubmit={handleCreateServiceDuringCheckout} className="space-y-4">
@@ -2734,7 +2761,7 @@ const Checkout: React.FC = () => {
                                 onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, active: e.target.checked }))}
                                 className="size-4 accent-primary"
                             />
-                            Serviço ativo
+                            {serviceLabel} ativo
                         </label>
                     </div>
                     <div className="flex gap-3 pt-2">
@@ -2763,7 +2790,7 @@ const Checkout: React.FC = () => {
             <Modal
                 isOpen={showDuplicateModal}
                 onClose={() => { setShowDuplicateModal(false); setPendingClient(null); setDuplicateComanda(null); }}
-                title="Comanda em Aberto Detectada"
+                title={isEsteticaApp ? 'Atendimento em aberto detectado' : 'Comanda em Aberto Detectada'}
                 maxWidth="sm"
             >
                 <div className="space-y-5">
@@ -2773,7 +2800,7 @@ const Checkout: React.FC = () => {
                         <div>
                             <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Atenção!</p>
                             <p className="text-xs text-amber-600 dark:text-amber-300 mt-0.5">
-                                O cliente <strong>{pendingClient?.name}</strong> já possui uma comanda em aberto.
+                                O cliente <strong>{pendingClient?.name}</strong> já possui {isEsteticaApp ? 'um atendimento em aberto' : 'uma comanda em aberto'}.
                                 Revise antes de criar uma nova.
                             </p>
                         </div>
@@ -2782,7 +2809,7 @@ const Checkout: React.FC = () => {
                     {/* Existing Comanda Info */}
                     {duplicateComanda && (
                         <div className="bg-slate-50 dark:bg-background-dark rounded-xl p-4 border border-slate-200 dark:border-border-dark">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Comanda Existente</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{isEsteticaApp ? 'Atendimento existente' : 'Comanda Existente'}</p>
                             <div className="flex items-center justify-between">
                                 <span className="font-mono font-bold text-primary">#{duplicateComanda.id.slice(0, 8)}</span>
                                 <span className="text-xs text-slate-500">
@@ -2800,14 +2827,14 @@ const Checkout: React.FC = () => {
                             className="w-full py-3 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-sm">open_in_new</span>
-                            Ir para Comanda Existente
+                            Ir para {isEsteticaApp ? 'atendimento existente' : 'Comanda Existente'}
                         </button>
                         <button
                             onClick={handleConfirmDuplicate}
                             className="w-full py-3 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-sm">add_circle</span>
-                            Criar Nova Mesmo Assim
+                            Criar {isEsteticaApp ? 'novo mesmo assim' : 'Nova Mesmo Assim'}
                         </button>
                     </div>
                 </div>
@@ -2907,7 +2934,7 @@ const Checkout: React.FC = () => {
                                 <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase mb-1">Resumo Financeiro</p>
                                 <div className="space-y-1">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-600 dark:text-slate-300">Valor total do serviço</span>
+                                        <span className="text-slate-600 dark:text-slate-300">Valor total do {serviceLabelLower}</span>
                                         <span className="font-bold text-slate-900 dark:text-white">R$ {item.price.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">

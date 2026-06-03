@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
+import { getEsteticaDemoServiceName } from '../../src/lib/catalog/display';
 import type { DashboardAppointment } from '../../src/modules/dashboard/types';
 
 interface AppointmentTimelineProps {
+  appSlug?: string | null;
   appointments: DashboardAppointment[];
   loading?: boolean;
   onSelectAppointment?: (appointment: DashboardAppointment) => void;
@@ -32,12 +35,15 @@ const formatTime = (isoString: string) => {
 };
 
 export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
+  appSlug,
   appointments,
   loading,
   onSelectAppointment,
   maxItems = 5,
   onNewAppointment,
 }) => {
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
   const visibleAppointments = appointments.slice(0, maxItems);
   const remainingCount = appointments.length - maxItems;
 
@@ -64,10 +70,12 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center dark:border-slate-700 dark:bg-[#1A1A1A]">
         <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">event_busy</span>
         <p className="mt-2 text-sm font-bold text-slate-600 dark:text-slate-300">
-          Nenhum atendimento na fila.
+          {isEsteticaApp ? 'Nenhum atendimento agendado para hoje.' : 'Nenhum atendimento na fila.'}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Aproveite para cadastrar um encaixe ou confirmar retornos.
+          {isEsteticaApp
+            ? `Cadastre ${labels.servicePlural.toLowerCase()} e ${labels.professionalPlural.toLowerCase()} para começar a usar a agenda.`
+            : 'Aproveite para cadastrar um encaixe ou confirmar retornos.'}
         </p>
         <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
           {onNewAppointment && (
@@ -76,7 +84,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
               className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <span className="material-symbols-outlined text-sm">add</span>
-              Novo agendamento
+              {isEsteticaApp ? 'Novo atendimento' : 'Novo agendamento'}
             </button>
           )}
           <Link
@@ -95,8 +103,8 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-[#1A1A1A]">
       <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-700">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Fila da cadeira</p>
-          <h3 className="mt-1 font-bold text-slate-900 dark:text-white">Próximos agendamentos</h3>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{isEsteticaApp ? 'Agenda da unidade' : 'Fila da cadeira'}</p>
+          <h3 className="mt-1 font-bold text-slate-900 dark:text-white">{isEsteticaApp ? 'Próximos atendimentos' : 'Próximos agendamentos'}</h3>
         </div>
         <Link to="/schedule" className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-blue-600">
           Ver todos
@@ -127,7 +135,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
                     {apt.client_name || 'Cliente não informado'}
                   </p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {apt.service_name || 'Serviço não informado'}
+                    {getEsteticaDemoServiceName(apt.service_name, appSlug) || `${labels.service} não informado`}
                     {apt.staff_name && (
                       <>
                         <span className="mx-1">·</span>
@@ -151,7 +159,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
           {remainingCount > 0 && (
             <div className="text-center">
               <Link to="/schedule" className="text-xs font-medium text-slate-500 transition hover:text-primary">
-                +{remainingCount} agendamentos na agenda
+                +{remainingCount} {isEsteticaApp ? 'atendimentos' : 'agendamentos'} na agenda
               </Link>
             </div>
           )}
@@ -161,7 +169,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 py-2.5 font-bold text-primary transition hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/25"
             >
               <span className="material-symbols-outlined text-sm">add</span>
-              Novo agendamento
+              {isEsteticaApp ? 'Novo atendimento' : 'Novo agendamento'}
             </button>
           )}
         </div>

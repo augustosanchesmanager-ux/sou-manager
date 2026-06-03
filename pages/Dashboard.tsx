@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import {
   AppointmentDetailModal,
   NewClientModal,
@@ -58,7 +59,9 @@ const DEFAULT_QUICK_APPOINTMENT_DATETIME = getDefaultQuickAppointmentDateTime();
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, appSlug } = useAuth();
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
   const [period, setPeriod] = useState<DashboardPeriod>('today');
   const { data, loading, error, reload } = useDashboardData(period);
   const { createClient, createQuickAppointment, completeAppointment, cancelAppointment, busyState } = useDashboardActions();
@@ -193,11 +196,12 @@ const Dashboard: React.FC = () => {
     name: s.name,
     active: true,
   }));
-  const tenantName = user?.user_metadata?.tenant_name || 'sua barbearia';
+  const tenantName = user?.user_metadata?.tenant_name || (isEsteticaApp ? 'sua clínica' : 'sua barbearia');
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
       <DashboardHeader
+        appSlug={appSlug}
         period={period}
         onPeriodChange={setPeriod}
         openComandasCount={data.openComandasCount ?? 0}
@@ -209,13 +213,14 @@ const Dashboard: React.FC = () => {
         onOpenSmartReturn={() => navigate('/smart-return')}
       />
 
-      <KPIGrid metrics={metricValues} period={period} />
+      <KPIGrid metrics={metricValues} period={period} appSlug={appSlug} />
 
       {/* Row 2: Operation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column */}
         <div className="space-y-4">
           <AppointmentTimeline
+            appSlug={appSlug}
             appointments={data.appointments}
             loading={loading}
             onSelectAppointment={(apt) => {
@@ -229,6 +234,7 @@ const Dashboard: React.FC = () => {
         {/* Right column */}
         <div className="space-y-4">
           <TodayPendings
+            appSlug={appSlug}
             openComandasCount={data.openComandasCount ?? 0}
             pendingAppointmentsCount={pendingAppointmentsCount}
             returningClientsCount={returningClients.length}
@@ -246,6 +252,7 @@ const Dashboard: React.FC = () => {
 
       {/* Row 3: Relationship */}
       <DashboardWidgets
+        appSlug={appSlug}
         returningClients={returningClients}
         birthdaysToday={[]}
         birthdaysTomorrow={[]}
@@ -253,6 +260,9 @@ const Dashboard: React.FC = () => {
         loading={loading}
         totalClients={data.clients.length}
         businessName={tenantName}
+        clientLabel={labels.client}
+        clientPluralLabel={labels.clientPlural}
+        professionalPluralLabel={isEsteticaApp ? labels.professionalPlural : undefined}
       />
 
       <AppointmentDetailModal

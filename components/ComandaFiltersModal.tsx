@@ -1,5 +1,7 @@
 import React from 'react';
 import DatePickerInput from './ui/DatePickerInput';
+import { useAuth } from '../context/AuthContext';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -62,6 +64,10 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
     activeFiltersCount,
     onClearAll,
 }) => {
+    const { appSlug } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const orderLabelLower = labels.order.toLowerCase();
+    const serviceLabel = labels.service;
     const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 
     const quickRanges: { key: QuickRange; label: string }[] = [
@@ -79,7 +85,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
             <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#121826]">
                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/8">
                     <div>
-                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros da comanda</h2>
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros do {orderLabelLower}</h2>
                         {activeFiltersCount > 0 && (
                             <p className="mt-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
                                 {activeFiltersCount} filtro(s) aplicado(s)
@@ -207,7 +213,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
                         >
                             <option value="all">Todos</option>
-                            <option value="service">Serviço</option>
+                            <option value="service">{serviceLabel}</option>
                             <option value="product">Produto</option>
                             <option value="mixed">Misto</option>
                         </select>

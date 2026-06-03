@@ -11,7 +11,10 @@ interface LogoProps {
 
 const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'md', clickable = true }) => {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, appSlug } = useAuth();
+  const isEsteticaApp = appSlug === 'estetica';
+  const productLine = isEsteticaApp ? 'SMG Estética' : 'Barber Intelligence';
+  const brandTitle = isEsteticaApp ? 'SMG | Sou.Manager | Estética' : 'SMG | Sou.Manager | Barber';
 
   const iconSizes = {
     sm: 'text-xl',
@@ -52,7 +55,7 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
               SOU.MANAGER
             </span>
           </div>
-          <p className="text-[#007BFF] dark:text-[#00D2FF] text-[10px] font-bold uppercase mt-0.5">Barber Intelligence</p>
+          <p className="text-[#007BFF] dark:text-[#00D2FF] text-[10px] font-bold uppercase mt-0.5">{productLine}</p>
         </div>
       )}
     </>
@@ -73,7 +76,7 @@ const Logo: React.FC<LogoProps> = ({ className = "", iconOnly = false, size = 'm
   }
 
   return (
-    <div className={`flex items-center gap-3 ${className}`} title="SMG | Sou.Manager | Barber">
+    <div className={`flex items-center gap-3 ${className}`} title={brandTitle}>
       {innerContent}
     </div>
   );

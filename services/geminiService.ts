@@ -106,55 +106,59 @@ export const generateBusinessInsights = async (metrics: any): Promise<string> =>
   return "Não foi possível encontrar um modelo de IA ativo. Verifique se a 'Generative Language API' está ativada.";
 };
 
-export const generateSupportResponse = async (userQuestion: string): Promise<string> => {
+export const generateSupportResponse = async (userQuestion: string, appSlug?: string | null): Promise<string> => {
   if (!genAI) {
     return "Desculpe, o sistema de IA do assistente não está disponível ou configurado corretamente. Verifique sua chave API.";
   }
 
+  const isEsteticaApp = appSlug === 'estetica';
+  const productName = isEsteticaApp ? 'SMG | Sou.Manager | Estética' : 'SMG | Sou.Manager | Barber';
+  const operationName = isEsteticaApp ? 'clínicas, studios e profissionais de estética' : 'barbearias e centros de estética';
+  const professionalName = isEsteticaApp ? 'Profissional' : 'Barbeiro/Profissional';
+  const scheduleName = isEsteticaApp ? 'Agenda de atendimentos' : 'Agendamentos e Agenda';
+  const checkoutName = isEsteticaApp ? 'Finalização de atendimento' : 'Checkout, PDV e Pagamentos';
+
   const knowledgeBase = `
-    SMG | Sou.Manager | Barber - Sistema de Gestão para Barbearias e Centros de Estética:
+    ${productName} - Sistema de Gestão para ${operationName}:
 
     1. Cadastro de Clientes:
-    - Vá em Operacional -> Cadastros -> Clientes.
+    - Vá em Clientes.
     - Clique em + Novo Cliente para adicionar nome, telefone e e-mail.
 
-    2. Agendamentos e Agenda:
-    - Vá em Operacional -> Vendas -> Agendamentos.
-    - Clique em qualquer horário vazio na grade para agendar.
-    - Barbeiros só visualizam sua própria agenda para privacidade.
+    2. ${scheduleName}:
+    - Vá em Agenda.
+    - Clique em qualquer horário vazio na grade para agendar um atendimento.
+    - ${professionalName}s visualizam a própria agenda conforme o nível de acesso.
 
-    3. Equipe, Profissionais e Comissões:
-    - Vá em Operacional -> Cadastros -> Equipe / Profissionais.
-    - Configure comissões manuais para cada profissional aqui.
+    3. Equipe e Profissionais:
+    - Vá em Profissionais.
+    - Cadastre equipe, especialidades e dados de atendimento.
 
-    4. Checkout, PDV e Pagamentos:
-    - O Checkout (venda rápida) está em Operacional -> Vendas -> Checkout.
-    - Aceita Dinheiro, Cartão e PIX. O lucro e comissões são calculados na hora.
-    - O fechamento de caixa fica em Gestão -> Operações do Dia.
+    4. ${checkoutName}:
+    - ${isEsteticaApp ? 'Use Finalizar atendimento para registrar pagamento de um atendimento.' : 'O Checkout / PDV registra venda rápida e pagamento.'}
+    - Aceita Dinheiro, Cartão e PIX conforme configuração da operação.
 
-    5. Folha de Pagamento e Recibos:
-    - Vá em Gestão -> Folha de Pagamento para calcular salários e vales.
-    - Após o pagamento, o sistema gera recibos digitais assináveis automaticamente.
+    5. Procedimentos e Produtos:
+    - Vá em Procedimentos para cadastrar serviços.
+    - Vá em Produtos / Estoque para acompanhar itens e reposição.
 
-    6. Relatórios e Business Intelligence (IA):
-    - Relatórios financeiros detalhados em Gestão -> Relatórios.
-    - Insights estratégicos feitos por mim (Gemini) em Gestão -> Visão de Negócio (BI).
+    6. Financeiro:
+    - Acompanhe o movimento financeiro pela área Financeiro.
+    - Use os indicadores para entender recebimentos e rotina da unidade.
 
-    7. Inventário e Produtos:
-    - Controle de estoque e avisos de reposição em Operacional -> Cadastros -> Produtos / Estoque.
-
-    8. Níveis de Acesso:
+    7. Níveis de Acesso:
     - Super Admin: Tudo liberado.
     - Gerente: Quase tudo, exceto logs de sistema críticos.
-    - Barbeiro/Profissional: Apenas Agenda, Checkout e seus próprios resultados.
-    - Recepcionista: Agenda, Cadastros e Checkout.
+    - ${professionalName}: Agenda, atendimento e seus próprios resultados.
+    - Recepcionista: Agenda, clientes e finalização de atendimento.
   `;
 
   const modelNames = ["gemini-1.5-flash", "gemini-2.0-flash-exp"];
   const prompt = `
-    Atue como o Assistente Virtual SMG | Sou.Manager | Barber.
+    Atue como o Assistente Virtual ${productName}.
     Use estritamente a base de conhecimento abaixo para responder à dúvida do usuário.
     Se a resposta não estiver na base, diga educadamente que não possuo essa informação e sugira entrar em contato com o suporte humano no menu lateral.
+    ${isEsteticaApp ? 'Não sugira Clube dos Chefes, Recibos, Totem, Kiosk, Comissões ou Fechar Comandas para usuários da Estética.' : ''}
 
     Base de Conhecimento:
     ${knowledgeBase}

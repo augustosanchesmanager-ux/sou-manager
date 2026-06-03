@@ -5,6 +5,9 @@ import { supabase } from '../services/supabaseClient';
 import Logo from './Logo';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { isAppModuleEnabled } from '../src/lib/apps/modules';
+import type { AppModuleSlug } from '../src/lib/supabase/schemas';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -16,6 +19,8 @@ interface SidebarProps {
 interface ChildItem {
   name: string;
   path: string;
+  module?: AppModuleSlug;
+  hideFromEsteticaMenu?: boolean;
 }
 
 interface SubGroup {
@@ -31,6 +36,8 @@ interface MenuItem {
   name: string;
   path?: string;
   icon: string;
+  module?: AppModuleSlug;
+  hideFromEsteticaMenu?: boolean;
   children?: ChildOrSubGroup[];
 }
 
@@ -44,7 +51,9 @@ interface MenuCategory {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, user, accessRole, canAccessSuperAdmin } = useAuth();
+  const { signOut, user, accessRole, canAccessSuperAdmin, appSlug } = useAuth();
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
@@ -58,23 +67,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       icon: 'dashboard',
       compact: true,
       items: [
-        { name: 'Início', icon: 'dashboard', path: '/dashboard' }
+        { name: isEsteticaApp ? 'Dashboard' : 'Início', icon: 'dashboard', path: '/dashboard', module: 'dashboard' }
       ]
     },
     {
       title: 'NEGÓCIOS',
       icon: 'business_center',
       items: [
-        { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard' },
-        { name: 'Visão do Negócio', icon: 'query_stats', path: '/bi' },
-        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return' },
+        { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard', module: 'dashboard', hideFromEsteticaMenu: true },
+        { name: 'Visão do Negócio', icon: 'query_stats', path: '/bi', module: 'dashboard', hideFromEsteticaMenu: true },
+        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
         {
-          name: 'Clube do Chefe',
+          name: labels.package,
           icon: 'workspace_premium',
+          module: 'chef_club',
           children: [
-            { name: 'Planos', path: '/chef-club-plans' },
-            { name: 'Assinaturas', path: '/chef-club-subscriptions' },
-            { name: 'Créditos', path: '/chef-club-subscriptions' },
+            { name: 'Planos', path: '/chef-club-plans', module: 'chef_club' },
+            { name: 'Assinaturas', path: '/chef-club-subscriptions', module: 'chef_club' },
+            { name: labels.credits, path: '/chef-club-subscriptions', module: 'chef_club' },
           ]
         }
       ]
@@ -83,47 +93,47 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       title: 'OPERAÇÃO',
       icon: 'sync_alt',
       items: [
-        { name: 'Agendamentos', icon: 'calendar_month', path: '/schedule' },
-        { name: 'Clientes', icon: 'group', path: '/clients' },
-        { name: 'Comandas', icon: 'receipt', path: '/comandas' },
-        { name: 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv' },
-        { name: 'Operações Diárias', icon: 'assignment', path: '/operations' },
+        { name: isEsteticaApp ? 'Agenda' : 'Agendamentos', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
+        { name: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
+        { name: labels.orderPlural, icon: 'receipt', path: '/comandas', module: 'comandas' },
+        { name: isEsteticaApp ? labels.checkout : 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv', module: 'checkout', hideFromEsteticaMenu: true },
+        { name: 'Operações Diárias', icon: 'assignment', path: '/operations', module: 'dashboard', hideFromEsteticaMenu: true },
       ]
     },
     {
       title: 'ADMINISTRAÇÃO',
       icon: 'admin_panel_settings',
       items: [
-        { name: 'Serviços', icon: 'content_cut', path: '/services' },
-        { name: 'Produtos', icon: 'inventory_2', path: '/products' },
-        { name: 'Profissionais', icon: 'groups', path: '/team' },
-        { name: 'Categorias', icon: 'category', path: '/categories' },
-        { name: 'Kiosk', icon: 'tablet_android', path: '/kiosk-admin' },
-        { name: 'Portal', icon: 'public', path: '/portal-admin' },
-        { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers' },
+        { name: labels.servicePlural, icon: 'content_cut', path: '/services', module: 'services' },
+        { name: isEsteticaApp ? 'Produtos / Estoque' : 'Produtos', icon: 'inventory_2', path: '/products', module: 'products' },
+        { name: labels.professionalPlural, icon: 'groups', path: '/team', module: 'team' },
+        { name: 'Categorias', icon: 'category', path: '/categories', module: 'products', hideFromEsteticaMenu: true },
+        { name: 'Kiosk', icon: 'tablet_android', path: '/kiosk-admin', module: 'kiosk' },
+        { name: 'Portal', icon: 'public', path: '/portal-admin', module: 'portal' },
+        { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
       ]
     },
     {
       title: 'FINANCEIRO',
       icon: 'payments',
       items: [
-        { name: 'Visao Geral',            icon: 'account_balance_wallet', path: '/financial-overview' },
-        { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow' },
-        { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable' },
-        { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts' },
-        { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses' },
-        { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables' },
-        { name: 'Conferencia de Caixa',   icon: 'lock',                   path: '/cash-closing' },
-        { name: 'Comissoes',               icon: 'percent',                path: '/commissions' },
-        { name: 'Relatorios',              icon: 'summarize',              path: '/reports' },
+        { name: isEsteticaApp ? 'Financeiro' : 'Visao Geral', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
+        { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables', module: 'chef_club' },
+        { name: 'Conferencia de Caixa',   icon: 'lock',                   path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
+        { name: isEsteticaApp ? 'Repasses' : 'Comissoes', icon: 'percent', path: '/commissions', module: 'commissions' },
+        { name: isEsteticaApp ? 'Relatórios' : 'Relatorios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
       ]
     }
   ];
 
   // System items go at the bottom
   const systemItems: MenuItem[] = [
-    { name: 'Configurações', icon: 'settings', path: '/settings' },
-    { name: 'Suporte', icon: 'support_agent', path: '/support' },
+    { name: 'Configurações', icon: 'settings', path: '/settings', module: 'settings' },
+    { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },
   ];
 
   // Auto-expand group if current path is inside it
@@ -218,6 +228,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   const navIconActiveClass = 'text-[#007BFF] dark:text-[#00D2FF]';
   const navSectionActiveClass = 'text-[#007BFF] dark:text-[#00D2FF]';
   const navSectionIdleClass = 'text-slate-400 dark:text-[#A7B8C8]/60 group-hover:text-[#003366] dark:group-hover:text-[#A7B8C8]';
+  const planOptions = isEsteticaApp
+    ? [
+        { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agenda e Clientes', icon: 'bolt', color: 'slate' },
+        { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Procedimentos, equipe e finalização', icon: 'auto_awesome', color: 'primary' },
+        { id: 'elite', name: 'Elite', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, retornos e gestão avançada', icon: 'workspace_premium', color: 'amber' },
+      ]
+    : [
+        { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agendamentos e Clientes', icon: 'bolt', color: 'slate' },
+        { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
+        { id: 'elite', name: 'Elite', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
+      ];
+  const isModuleAllowed = (moduleName?: AppModuleSlug) =>
+    !moduleName || isAppModuleEnabled(appSlug, moduleName);
+  const isMenuItemVisible = (item: MenuItem | ChildItem) =>
+    !(isEsteticaApp && item.hideFromEsteticaMenu);
+  const isChildAllowed = (child: ChildOrSubGroup): boolean => {
+    if ('type' in child && child.type === 'subgroup') {
+      return child.items.some((item) => isMenuItemVisible(item) && isModuleAllowed(item.module));
+    }
+
+    const item = child as ChildItem;
+    return isMenuItemVisible(item) && isModuleAllowed(item.module);
+  };
 
   // Filter based on role
   const filteredCategories = menuCategories.map(category => {
@@ -229,10 +262,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     }
     // Deep clone and filter items
     const filteredItems = category.items.map(item => {
+      if (!isMenuItemVisible(item)) {
+        return null;
+      }
+
+      if (!isModuleAllowed(item.module)) {
+        return null;
+      }
+
       if (userRole === 'Barber' && item.children) {
         // remove specific children logic here if needed
-        return item;
+        return { ...item, children: item.children.filter(isChildAllowed) };
       }
+
+      if (item.children) {
+        const filteredChildren = item.children.filter(isChildAllowed);
+        if (filteredChildren.length === 0) return null;
+        return { ...item, children: filteredChildren };
+      }
+
       return item;
     }).filter(Boolean) as MenuItem[];
 
@@ -265,7 +313,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         flex flex-col h-screen shrink-0 transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
         shadow-[0_24px_70px_rgba(0,51,102,0.18)] lg:shadow-[0_18px_50px_rgba(0,51,102,0.10)] overflow-visible
         lg:my-4 lg:ml-4 lg:h-[calc(100vh-2rem)] lg:rounded-[2rem]
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
         ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[280px] w-[280px]'}
       `}>
@@ -460,7 +508,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
         {/* System Settings (Sticky Bottom) */}
         <div className={`mt-auto shrink-0 flex flex-col gap-1 p-3 border-t border-[#D9EAF5] dark:border-[#14304A] transition-all bg-white dark:bg-[#071426] ${isCollapsed ? 'items-center' : ''}`}>
-          {systemItems.map(item => {
+          {systemItems.filter((item) => isMenuItemVisible(item) && isModuleAllowed(item.module)).map(item => {
             const isSystemActive = isActive(item.path!);
             if (item.name === 'Configurações' && isOperationalOnly) return null;
 
@@ -610,11 +658,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Modals code kept practically identical to preserve component logic */}
-              {[
-                { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agendamentos e Clientes', icon: 'bolt', color: 'slate' },
-                { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
-                { id: 'elite', name: 'Elite', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
-              ].map((p) => (
+              {planOptions.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => handleChangePlan(`${p.id}${billingCycle === 'annual' ? '_annual' : ''}`)}

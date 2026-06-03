@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { ReturningClient } from '../../src/modules/dashboard/types';
 
 interface DashboardWidgetsProps {
+  appSlug?: string | null;
   returningClients: ReturningClient[];
   birthdaysToday: string[];
   birthdaysTomorrow: string[];
@@ -10,6 +11,9 @@ interface DashboardWidgetsProps {
   loading?: boolean;
   totalClients?: number;
   businessName?: string;
+  clientLabel?: string;
+  clientPluralLabel?: string;
+  professionalPluralLabel?: string;
 }
 
 const buildWhatsAppUrl = (client: ReturningClient, businessName: string): string | null => {
@@ -34,21 +38,29 @@ const WidgetLink = ({ to, children }: { to: string; children: React.ReactNode })
 );
 
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
+  appSlug,
   returningClients,
   birthdaysToday,
   birthdaysTomorrow,
   teamStatus,
   loading,
   totalClients = 0,
-  businessName = 'sua barbearia',
+  businessName = 'sua unidade',
+  clientLabel = 'Cliente',
+  clientPluralLabel = 'Clientes',
+  professionalPluralLabel = 'profissionais',
 }) => {
+  const isEsteticaApp = appSlug === 'estetica';
   const activeTeam = teamStatus.filter((t) => t.active).length;
   const totalTeam = teamStatus.length;
+  const gridClassName = isEsteticaApp
+    ? 'grid grid-cols-1 gap-4 md:grid-cols-3'
+    : 'grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4';
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className={gridClassName}>
+        {(isEsteticaApp ? [1, 2, 3] : [1, 2, 3, 4]).map((i) => (
           <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
             <div className="animate-pulse space-y-3">
               <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
@@ -61,16 +73,16 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className={gridClassName}>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-[#007BFF]">psychology</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Retorno inteligente</h4>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}</h4>
         </div>
 
         <p className="text-2xl font-black text-slate-900 dark:text-white">{returningClients.length}</p>
         <p className="text-xs text-slate-500">
-          {returningClients.length === 1 ? 'cliente para reativar' : 'clientes para reativar'}
+          {returningClients.length === 1 ? 'cliente para retorno' : 'clientes para retorno'}
         </p>
 
         <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
@@ -107,13 +119,14 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
               })}
             </div>
           ) : (
-            <p className="text-xs italic text-slate-400">Nenhum cliente para retorno agora.</p>
+            <p className="text-xs italic text-slate-400">{isEsteticaApp ? 'Nenhum cliente para retorno agora.' : 'Nenhum cliente para retorno agora.'}</p>
           )}
         </div>
 
         <WidgetLink to="/smart-return">Ver lista completa</WidgetLink>
       </div>
 
+      {!isEsteticaApp && (
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-rose-500">cake</span>
@@ -141,17 +154,18 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
 
         <WidgetLink to="/clients">Ver clientes</WidgetLink>
       </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-[#00D2FF]">groups</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Equipe na casa</h4>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}</h4>
         </div>
 
         <p className="text-2xl font-black text-slate-900 dark:text-white">
           {activeTeam}<span className="text-slate-400">/{totalTeam}</span>
         </p>
-        <p className="text-xs text-slate-500">profissionais ativos</p>
+        <p className="text-xs text-slate-500">{professionalPluralLabel.toLowerCase()} ativos</p>
 
         <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -165,25 +179,27 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           </div>
         </div>
 
-        <WidgetLink to="/team">Ver equipe</WidgetLink>
+        <WidgetLink to="/team">{isEsteticaApp ? 'Ver profissionais' : 'Ver equipe'}</WidgetLink>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-[#E5A158]">group</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Base de clientes</h4>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Base de {clientPluralLabel.toLowerCase()}</h4>
         </div>
 
         <p className="text-2xl font-black text-slate-900 dark:text-white">{totalClients}</p>
         <p className="text-xs text-slate-500">
-          {totalClients === 1 ? 'cliente cadastrado' : 'clientes cadastrados'}
+          {totalClients === 1 ? `${clientLabel.toLowerCase()} cadastrado` : `${clientPluralLabel.toLowerCase()} cadastrados`}
         </p>
 
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-medium leading-5 text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
-          Cadastros alimentam agenda, comanda, retorno inteligente e Clube do Chefe.
+          {isEsteticaApp
+            ? 'Cadastros alimentam agenda, atendimentos e retornos.'
+            : 'Cadastros alimentam agenda, comanda, retorno inteligente e Clube do Chefe.'}
         </div>
 
-        <WidgetLink to="/clients">Ver clientes</WidgetLink>
+        <WidgetLink to="/clients">Ver {clientPluralLabel.toLowerCase()}</WidgetLink>
       </div>
     </div>
   );

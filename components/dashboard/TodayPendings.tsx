@@ -1,17 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 
 interface TodayPendingsProps {
+  appSlug?: string | null;
   openComandasCount: number;
   pendingAppointmentsCount: number;
   returningClientsCount: number;
   loading?: boolean;
 }
 
-const PENDING_ITEMS = [
+const buildPendingItems = (appSlug?: string | null) => {
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+
+  return [
   {
     key: 'comandas',
-    label: 'Comandas abertas',
+    label: isEsteticaApp ? `${labels.orderPlural} abertos` : 'Comandas abertas',
     icon: 'receipt_long',
     iconBg: 'bg-amber-500/10',
     iconColor: 'text-amber-600 dark:text-amber-400',
@@ -19,7 +25,7 @@ const PENDING_ITEMS = [
   },
   {
     key: 'pending',
-    label: 'Agendamentos pendentes',
+    label: isEsteticaApp ? 'Atendimentos pendentes' : 'Agendamentos pendentes',
     icon: 'pending_actions',
     iconBg: 'bg-blue-500/10',
     iconColor: 'text-blue-600 dark:text-blue-400',
@@ -27,20 +33,23 @@ const PENDING_ITEMS = [
   },
   {
     key: 'returns',
-    label: 'Retornos sugeridos',
+    label: isEsteticaApp ? 'Clientes para retorno' : 'Retornos sugeridos',
     icon: 'person_search',
     iconBg: 'bg-emerald-500/10',
     iconColor: 'text-emerald-600 dark:text-emerald-400',
     link: '/smart-return',
   },
-];
+  ];
+};
 
 export const TodayPendings: React.FC<TodayPendingsProps> = ({
+  appSlug,
   openComandasCount,
   pendingAppointmentsCount,
   returningClientsCount,
   loading,
 }) => {
+  const pendingItems = buildPendingItems(appSlug);
   const counts: Record<string, number> = {
     comandas: openComandasCount,
     pending: pendingAppointmentsCount,
@@ -74,7 +83,7 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-700">
-        {PENDING_ITEMS.map((item) => {
+        {pendingItems.map((item) => {
           const count = counts[item.key] || 0;
           return (
             <div

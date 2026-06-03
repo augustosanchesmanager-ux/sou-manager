@@ -13,6 +13,7 @@ import Button from '../components/ui/Button';
 import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar, { type ComandaFinancialHistory } from '../components/ComandaSidebar';
 import ComandaFiltersModal from '../components/ComandaFiltersModal';
@@ -254,8 +255,8 @@ const getStatusSortValue = (status: ComandaStatus) => {
     return orderMap[status] ?? 99;
 };
 
-const getStatusContextLabel = (status: ComandaStatus) => {
-    if (status === 'open') return 'Aberta para consumo ou baixa no checkout.';
+const getStatusContextLabel = (status: ComandaStatus, isEsteticaApp = false) => {
+    if (status === 'open') return isEsteticaApp ? 'Aberto para procedimento, produto ou finalização.' : 'Aberta para consumo ou baixa no checkout.';
     if (status === 'blocked') return 'Bloqueada para baixa financeira segura.';
     if (status === 'paid') return 'Baixada/fechada no financeiro.';
     return 'Anulada/cancelada com motivo operacional.';
@@ -359,6 +360,18 @@ const KpiCard: React.FC<{
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { appSlug, schema, tenantId, user, canAccessSuperAdmin } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
+    const orderLabel = labels.order;
+    const orderLabelLower = orderLabel.toLowerCase();
+    const orderPluralLabel = labels.orderPlural;
+    const orderPluralLower = orderPluralLabel.toLowerCase();
+    const servicePluralLabel = labels.servicePlural;
+    const servicePluralLower = servicePluralLabel.toLowerCase();
+    const financialImpactCopy = isEsteticaApp ? 'o financeiro e repasses' : 'o financeiro e comissões';
+    const statusLabels: Record<'all' | ComandaStatus, string> = isEsteticaApp
+        ? { all: 'Todos', blocked: 'Bloqueados', open: 'Abertos', paid: 'Finalizados', cancelled: 'Cancelados' }
+        : STATUS_LABELS;
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
@@ -629,7 +642,7 @@ const Comandas: React.FC = () => {
                 appSlug,
                 canAccessSuperAdmin,
             });
-            const message = 'Não foi possível carregar as comandas. Nenhuma ação financeira foi aplicada.';
+            const message = `Não foi possível carregar ${orderPluralLower}. Nenhuma ação financeira foi aplicada.`;
             setLoadError(message);
             setComandas([]);
             setFinancialHistoryByComandaId({});
@@ -795,11 +808,11 @@ const Comandas: React.FC = () => {
     const allOpenInViewSelected = openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id));
 
     const tabs = [
-        { key: 'all' as const, label: STATUS_LABELS.all, count: statusScopeComandas.length },
-        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: statusScopeComandas.filter((c) => c.status === 'blocked').length },
-        { key: 'open' as const, label: STATUS_LABELS.open, count: statusScopeComandas.filter((c) => c.status === 'open').length },
-        { key: 'paid' as const, label: STATUS_LABELS.paid, count: statusScopeComandas.filter((c) => c.status === 'paid').length },
-        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
+        { key: 'all' as const, label: statusLabels.all, count: statusScopeComandas.length },
+        { key: 'blocked' as const, label: statusLabels.blocked, count: statusScopeComandas.filter((c) => c.status === 'blocked').length },
+        { key: 'open' as const, label: statusLabels.open, count: statusScopeComandas.filter((c) => c.status === 'open').length },
+        { key: 'paid' as const, label: statusLabels.paid, count: statusScopeComandas.filter((c) => c.status === 'paid').length },
+        { key: 'cancelled' as const, label: statusLabels.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
     ];
 
     const openCount = statusScopeComandas.filter((c) => c.status === 'open').length;
@@ -903,11 +916,11 @@ const Comandas: React.FC = () => {
 
     const generateCSV = async () => {
         if (sortedComandas.length === 0) {
-            setToast({ message: 'Não há comandas filtradas para exportar.', type: 'info' });
+            setToast({ message: `Não há ${orderPluralLower} filtrados para exportar.`, type: 'info' });
             return;
         }
         if (!tenantId) {
-            setToast({ message: 'Tenant inválido para exportar comandas.', type: 'error' });
+            setToast({ message: `Tenant inválido para exportar ${orderPluralLower}.`, type: 'error' });
             return;
         }
 
@@ -951,26 +964,26 @@ const Comandas: React.FC = () => {
         }, {} as Record<string, ServiceExecutionParticipantRow[]>);
 
         const headers = [
-            'ID da comanda',
+            `ID do ${orderLabelLower}`,
             'Data de abertura',
             'Data de fechamento',
             'Cliente',
             'Telefone',
-            'Status da comanda',
+            `Status do ${orderLabelLower}`,
             'Profissional principal',
-            'Serviços',
+            servicePluralLabel,
             'Produtos',
-            'Subtotal serviços',
+            `Subtotal ${servicePluralLower}`,
             'Subtotal produtos',
             'Desconto',
-            'Créditos Clube do Chefe utilizados',
+            isEsteticaApp ? 'Créditos utilizados' : 'Créditos Clube do Chefe utilizados',
             'Valor total',
             'Valor pago',
             'Saldo pendente',
             'Forma de pagamento',
             'Status de pagamento',
-            'Serviço compartilhado',
-            'Valor do serviço',
+            `${labels.service} compartilhado`,
+            `Valor do ${labels.service.toLowerCase()}`,
             'Valor compartilhado',
             'Profissionais participantes',
             'Divisão lançada',
@@ -1010,7 +1023,7 @@ const Comandas: React.FC = () => {
                 escapeCSV(c.closed_at ? new Date(c.closed_at).toLocaleString('pt-BR') : ''),
                 escapeCSV(c.clients.name),
                 escapeCSV(c.clients.phone || ''),
-                escapeCSV(STATUS_LABELS[c.status]),
+                escapeCSV(statusLabels[c.status]),
                 escapeCSV(c.staff?.name || c.staff_names[0] || 'Sem profissional'),
                 escapeCSV(services.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
                 escapeCSV(products.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
@@ -1038,24 +1051,24 @@ const Comandas: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `comandas_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute('download', `${orderPluralLower.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
         window.document.body.appendChild(link);
         link.click();
         window.document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        setToast({ message: `${sortedComandas.length} comanda(s) exportada(s) da lista filtrada.`, type: 'success' });
+        setToast({ message: `${sortedComandas.length} ${orderPluralLower} exportado(s) da lista filtrada.`, type: 'success' });
     };
 
     const copyToClipboard = async () => {
         if (sortedComandas.length === 0) {
-            setToast({ message: 'Não há comandas filtradas para copiar.', type: 'info' });
+            setToast({ message: `Não há ${orderPluralLower} filtrados para copiar.`, type: 'info' });
             return;
         }
         const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
-        const rows = sortedComandas.map((c) => [getShortComandaRef(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
+        const rows = sortedComandas.map((c) => [getShortComandaRef(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), statusLabels[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
         try {
             await navigator.clipboard.writeText([headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n'));
-            setToast({ message: `${sortedComandas.length} comanda(s) copiadas da lista filtrada.`, type: 'success' });
+            setToast({ message: `${sortedComandas.length} ${orderPluralLower} copiado(s) da lista filtrada.`, type: 'success' });
         } catch {
             setToast({ message: 'Não foi possível copiar a lista filtrada.', type: 'error' });
         }
@@ -1066,8 +1079,8 @@ const Comandas: React.FC = () => {
         if (!printWindow) return;
         const itemsHtml = comanda.comanda_items.map((item) => `<li>${item.product_name} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
         printWindow.document.write(`
-            <html><head><title>Comanda #${getDisplayId(comanda.id)}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
-            <body><h1>Comanda #${getDisplayId(comanda.id)}</h1><div class="line"><strong>Cliente:</strong> ${comanda.clients.name}</div><div class="line"><strong>Status:</strong> ${STATUS_LABELS[comanda.status]}</div><div class="line"><strong>Abertura:</strong> ${new Date(comanda.created_at).toLocaleString('pt-BR')}</div><div class="line"><strong>Profissionais:</strong> ${comanda.staff_names.join(' / ') || 'Sem profissional'}</div><ul>${itemsHtml}</ul><div class="total">Total: ${formatCurrency(comanda.total)}</div></body></html>
+            <html><head><title>${orderLabel} #${getDisplayId(comanda.id)}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
+            <body><h1>${orderLabel} #${getDisplayId(comanda.id)}</h1><div class="line"><strong>Cliente:</strong> ${comanda.clients.name}</div><div class="line"><strong>Status:</strong> ${statusLabels[comanda.status]}</div><div class="line"><strong>Abertura:</strong> ${new Date(comanda.created_at).toLocaleString('pt-BR')}</div><div class="line"><strong>Profissionais:</strong> ${comanda.staff_names.join(' / ') || 'Sem profissional'}</div><ul>${itemsHtml}</ul><div class="total">Total: ${formatCurrency(comanda.total)}</div></body></html>
         `);
         printWindow.document.close();
         printWindow.print();
@@ -1084,7 +1097,7 @@ const Comandas: React.FC = () => {
 
         if (comanda.status === 'paid') {
             const confirmed = window.confirm(
-                'Esta comanda foi fechada (status: paga). Anulá-la pode afetar o financeiro e comissões.\n\nTem certeza que deseja anular?'
+                `Este ${orderLabelLower} foi finalizado. Anulá-lo pode afetar ${financialImpactCopy}.\n\nTem certeza que deseja anular?`
             );
             if (!confirmed) return;
         }
@@ -1127,14 +1140,14 @@ const Comandas: React.FC = () => {
                 if (error) throw error;
             }
 
-            setToast({ message: 'Comanda anulada com sucesso.', type: 'success' });
+            setToast({ message: `${orderLabel} anulado com sucesso.`, type: 'success' });
             setDeleteComanda(null);
             setCancelReason('');
             setCancelReasonOther('');
             await fetchData();
         } catch (error: any) {
             console.error(error);
-            setToast({ message: `Não foi possível anular a comanda. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
+            setToast({ message: `Não foi possível anular o ${orderLabelLower}. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -1142,7 +1155,7 @@ const Comandas: React.FC = () => {
 
     const handleBulkClose = async () => {
         if (selectedOpenComandaIds.length === 0) {
-            setToast({ message: 'Selecione pelo menos uma comanda aberta.', type: 'info' });
+            setToast({ message: `Selecione pelo menos um ${orderLabelLower} aberto.`, type: 'info' });
             return;
         }
         if (bulkCloseType === 'admin' && !bulkLegacyReferenceMonth) {
@@ -1178,8 +1191,8 @@ const Comandas: React.FC = () => {
             const updatedCount = Number((data as { updated_count?: number } | null)?.updated_count || selectedOpenComandaIds.length);
             setToast({
                 message: bulkCloseType === 'normal'
-                    ? `${updatedCount} comanda(s) baixada(s) com impacto financeiro`
-                    : `${updatedCount} comanda(s) baixada(s) em modo administrativo`,
+                    ? `${updatedCount} ${orderPluralLower} finalizado(s) com impacto financeiro`
+                    : `${updatedCount} ${orderPluralLower} finalizado(s) em modo administrativo`,
                 type: 'success',
             });
             setSelectedOpenComandaIds([]);
@@ -1205,11 +1218,11 @@ const Comandas: React.FC = () => {
                     <div className="max-w-3xl">
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
                             <span className="material-symbols-outlined text-[14px]">content_cut</span>
-                            Balcão de atendimento
+                            {isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de atendimento'}
                         </span>
-                        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Comandas do balcão</h1>
+                        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}</h1>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
-                            {sortedComandas.length} comanda(s) no recorte atual, com foco em cliente, profissional, consumo e baixa real. {dateFilterDescription}.
+                            {sortedComandas.length} {orderPluralLower} no recorte atual, com foco em cliente, profissional, {isEsteticaApp ? 'procedimentos, produtos e finalização real' : 'consumo e baixa real'}. {dateFilterDescription}.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                             <button
@@ -1218,7 +1231,7 @@ const Comandas: React.FC = () => {
                                 className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300"
                             >
                                 <span className="material-symbols-outlined text-[18px]">add</span>
-                                Nova comanda
+                                Novo {orderLabelLower}
                             </button>
                             <button
                                 type="button"
@@ -1226,17 +1239,17 @@ const Comandas: React.FC = () => {
                                 className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
                             >
                                 <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
-                                Abrir PDV
+                                {isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}
                             </button>
                         </div>
                     </div>
                     <div className="grid overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] sm:min-w-[420px] sm:grid-cols-3">
                         <div className="border-white/10 p-3 sm:border-r">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Abertas</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Abertos' : 'Abertas'}</p>
                             <p className="mt-1 text-2xl font-black">{loading ? '...' : String(openCount).padStart(2, '0')}</p>
                         </div>
                         <div className="border-white/10 p-3 sm:border-r">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Finalizadas hoje</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Finalizados hoje' : 'Finalizadas hoje'}</p>
                             <p className="mt-1 text-2xl font-black">{loading ? '...' : String(finalizedToday).padStart(2, '0')}</p>
                         </div>
                         <div className="p-3">
@@ -1249,14 +1262,16 @@ const Comandas: React.FC = () => {
                         <AuditAdjustmentButton
                             context={{
                                 sourceType: 'comanda',
-                                sourceLabel: 'Comandas do balcão',
+                                sourceLabel: isEsteticaApp ? orderPluralLabel : 'Comandas do balcão',
                                 beforeSnapshot: {
                                     total_filtrado: sortedComandas.length,
                                     abertas: openCount,
                                     total_aberto: totalOpen,
                                     periodo: dateFilterDescription,
                                 },
-                                financialImpactLabel: 'Possível impacto em baixa, comissão e contas a receber',
+                                financialImpactLabel: isEsteticaApp
+                                    ? 'Possível impacto em baixa, repasses e contas a receber'
+                                    : 'Possível impacto em baixa, comissão e contas a receber',
                                 allowedAdjustmentTypes: [
                                     'service_participation_correction',
                                     'settlement_reversal',
@@ -1282,7 +1297,7 @@ const Comandas: React.FC = () => {
                     <div className="flex items-start gap-3">
                         <span className="material-symbols-outlined text-lg text-rose-600 dark:text-rose-300">error</span>
                         <div>
-                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Falha ao carregar comandas</p>
+                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Falha ao carregar {orderPluralLower}</p>
                             <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
                         </div>
                     </div>
@@ -1293,8 +1308,8 @@ const Comandas: React.FC = () => {
             )}
 
             <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <KpiCard title="Abertas" value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
-                <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper="Finalizadas" icon="task_alt" accentClassName="bg-emerald-400" />
+                <KpiCard title={isEsteticaApp ? 'Abertos' : 'Abertas'} value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
+                <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper={isEsteticaApp ? 'Finalizados' : 'Finalizadas'} icon="task_alt" accentClassName="bg-emerald-400" />
                 <KpiCard title="Total" value={loading ? '...' : formatCurrency(totalOpen)} helper="Pendente" icon="payments" accentClassName="bg-sky-400" />
                 <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Média" icon="monitoring" accentClassName="bg-fuchsia-400" />
             </section>
@@ -1307,7 +1322,7 @@ const Comandas: React.FC = () => {
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setFilterStatus(tab.key)}
-                                title={tab.key === 'all' ? 'Todas as comandas filtradas' : getStatusContextLabel(tab.key)}
+                                title={tab.key === 'all' ? `Todos os ${orderPluralLower} filtrados` : getStatusContextLabel(tab.key, isEsteticaApp)}
                                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                                     filterStatus === tab.key
                                         ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
@@ -1329,7 +1344,7 @@ const Comandas: React.FC = () => {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Buscar cliente, telefone, profissional ou #comanda..."
+                                placeholder={`Buscar cliente, telefone, profissional ou #${orderLabelLower}...`}
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
                             />
                         </div>
@@ -1411,7 +1426,7 @@ const Comandas: React.FC = () => {
                     {hasAnyFilter && (
                         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
                             <span className="font-black uppercase tracking-[0.12em] text-slate-500">Filtros ativos</span>
-                            <span>{STATUS_LABELS[filterStatus]}</span>
+                            <span>{statusLabels[filterStatus]}</span>
                             <span>{dateFilterDescription}</span>
                             {staffFilter && <span>Profissional selecionado</span>}
                             {paymentMethodFilter && <span>Pagamento: {paymentMethodFilter}</span>}
@@ -1421,11 +1436,11 @@ const Comandas: React.FC = () => {
 
                     {selectedOpenComandaIds.length > 0 && (
                         <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
-                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} selecionada(s)</span>
+                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} {isEsteticaApp ? 'selecionado(s)' : 'selecionada(s)'}</span>
                             <button onClick={toggleSelectAllOpenInView} className="ml-auto text-xs text-amber-700 hover:underline dark:text-amber-300">
                                 {allOpenInViewSelected ? 'Desmarcar todas' : 'Selecionar todas'}
                             </button>
-                            <Button size="sm" variant="warning" onClick={() => setBulkCloseModalOpen(true)}>Baixar em massa</Button>
+                            <Button size="sm" variant="warning" onClick={() => setBulkCloseModalOpen(true)}>{isEsteticaApp ? 'Finalizar em massa' : 'Baixar em massa'}</Button>
                         </div>
                     )}
                 </div>
@@ -1437,7 +1452,7 @@ const Comandas: React.FC = () => {
                                 <div className="flex items-center gap-3">
                                     <div className="size-10 animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
                                     <div>
-                                        <p className="text-sm font-black text-slate-800 dark:text-white">Carregando comandas...</p>
+                                        <p className="text-sm font-black text-slate-800 dark:text-white">Carregando {orderPluralLower}...</p>
                                         <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e histórico financeiro.</p>
                                     </div>
                                 </div>
@@ -1452,12 +1467,12 @@ const Comandas: React.FC = () => {
                                 <span className="material-symbols-outlined">receipt_long</span>
                             </div>
                             <p className="text-sm font-black text-slate-800 dark:text-white">
-                                {hasAnyFilter ? 'Nenhuma comanda encontrada com os filtros atuais.' : 'Nenhuma comanda encontrada.'}
+                                {hasAnyFilter ? `Nenhum ${orderLabelLower} encontrado com os filtros atuais.` : `Nenhum ${orderLabelLower} encontrado.`}
                             </p>
                             <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
                                 {hasAnyFilter
                                     ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
-                                    : 'Quando houver comandas abertas ou baixadas, elas aparecerão aqui com referência curta, cliente e status operacional.'}
+                                    : `Quando houver ${orderPluralLower} abertos ou finalizados, eles aparecerão aqui com referência curta, cliente e status operacional.`}
                             </p>
                             <div className="mt-4 flex flex-wrap justify-center gap-2">
                                 {hasAnyFilter && (
@@ -1465,7 +1480,7 @@ const Comandas: React.FC = () => {
                                         Limpar filtros
                                     </Button>
                                 )}
-                                <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir comanda</Button>
+                                <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir {orderLabelLower}</Button>
                             </div>
                         </div>
                     ) : (
@@ -1539,7 +1554,7 @@ const Comandas: React.FC = () => {
                                 bulkCloseType === 'normal' ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
                             }`}
                         >
-                            Venda Normal
+                            {isEsteticaApp ? 'Finalização normal' : 'Venda Normal'}
                         </button>
                         <button
                             type="button"
@@ -1552,7 +1567,7 @@ const Comandas: React.FC = () => {
                         </button>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {selectedOpenComandaIds.length} comanda(s) selecionada(s)
+                        {selectedOpenComandaIds.length} {orderPluralLower} selecionado(s)
                     </p>
                     {bulkCloseType === 'admin' && (
                         <div>
@@ -1582,7 +1597,7 @@ const Comandas: React.FC = () => {
             <Modal
                 isOpen={!!deleteComanda}
                 onClose={() => { setDeleteComanda(null); setCancelReason(''); setCancelReasonOther(''); }}
-                title="Anular Comanda"
+                title={`Anular ${orderLabel}`}
                 maxWidth="sm"
             >
                 {deleteComanda && (
@@ -1590,12 +1605,12 @@ const Comandas: React.FC = () => {
                         {deleteComanda.status === 'paid' && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="text-xs font-medium text-amber-800">
-                                    ⚠️ Esta comanda está <strong>PAGA</strong>. Anulá-la pode afetar o financeiro e comissões.
+                                    ⚠️ Este {orderLabelLower} está <strong>{isEsteticaApp ? 'FINALIZADO' : 'PAGO'}</strong>. Anulá-lo pode afetar {financialImpactCopy}.
                                 </p>
                             </div>
                         )}
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Anular comanda <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
+                            Anular {orderLabelLower} <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
                         </p>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-500">Motivo</label>
@@ -1621,7 +1636,7 @@ const Comandas: React.FC = () => {
                         {['operational_error', 'test', 'duplicate'].includes(cancelReason) && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="text-xs font-medium text-amber-800">
-                                    ⚠️ Esta comanda <strong>não será considerada no financeiro</strong>.
+                                    ⚠️ Este {orderLabelLower} <strong>não será considerado no financeiro</strong>.
                                 </p>
                             </div>
                         )}

@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase, getClientForTable } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { getCatalogDisplayName } from '../src/lib/catalog/display';
 
 interface Service {
   id: string;
@@ -14,11 +16,26 @@ interface Service {
 }
 
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
+const esteticaCategoryLabels: Record<string, string> = {
+  Cabelo: 'Facial',
+  Barba: 'Corporal',
+  Combo: 'Pacotes',
+  Química: 'Cílios',
+  Acabamento: 'Sobrancelhas',
+  Outros: 'Outros',
+};
 
 const Services: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenantId } = useAuth();
+  const { tenantId, appSlug } = useAuth();
+  const labels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+  const serviceLabel = labels.service;
+  const serviceLabelLower = serviceLabel.toLowerCase();
+  const servicePluralLabel = labels.servicePlural;
+  const servicePluralLower = servicePluralLabel.toLowerCase();
+  const getCategoryLabel = (category: string) => isEsteticaApp ? (esteticaCategoryLabels[category] || category) : category;
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -49,9 +66,9 @@ const Services: React.FC = () => {
       .order('name');
 
     if (data) setServices(data);
-    if (error) setToast({ message: 'Erro ao carregar serviços.', type: 'error' });
+    if (error) setToast({ message: `Erro ao carregar ${servicePluralLower}.`, type: 'error' });
     setLoading(false);
-  }, [tenantId]);
+  }, [servicePluralLower, tenantId]);
 
   useEffect(() => { fetchServices(); }, [fetchServices]);
 
@@ -63,7 +80,8 @@ const Services: React.FC = () => {
   }, [location.pathname, location.state, navigate]);
 
   const filtered = services.filter(s => {
-    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());
+    const displayName = getCatalogDisplayName(s, appSlug);
+    const matchSearch = `${s.name} ${displayName}`.toLowerCase().includes(search.toLowerCase());
     const matchCategory = categoryFilter === 'all' || s.category === categoryFilter;
     const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? s.active : !s.active);
     return matchSearch && matchCategory && matchStatus;
@@ -106,12 +124,12 @@ const Services: React.FC = () => {
         .eq('id', editingService.id)
         .eq('tenant_id', tenantId);
       if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
-      setToast({ message: 'Serviço atualizado!', type: 'success' });
+      setToast({ message: `${serviceLabel} atualizado!`, type: 'success' });
     } else {
       const servicesClient = getClientForTable('services', 'barber');
       const { error } = await servicesClient.from('services').insert(payload);
       if (error) { setToast({ message: 'Erro ao salvar.', type: 'error' }); return; }
-      setToast({ message: 'Serviço criado!', type: 'success' });
+      setToast({ message: `${serviceLabel} criado!`, type: 'success' });
     }
 
     setView('list');
@@ -130,7 +148,7 @@ const Services: React.FC = () => {
       .eq('tenant_id', tenantId);
     if (!error) {
       setServices(prev => prev.map(s => s.id === service.id ? { ...s, active: !s.active } : s));
-      setToast({ message: service.active ? 'Serviço desativado.' : 'Serviço ativado!', type: 'info' });
+      setToast({ message: service.active ? `${serviceLabel} desativado.` : `${serviceLabel} ativado!`, type: 'info' });
     }
   };
 
@@ -144,7 +162,7 @@ const Services: React.FC = () => {
       .eq('id', id)
       .eq('tenant_id', tenantId);
     if (!error) {
-      setToast({ message: 'Serviço excluído.', type: 'info' });
+      setToast({ message: `${serviceLabel} excluído.`, type: 'info' });
       fetchServices();
     }
   };
@@ -158,16 +176,16 @@ const Services: React.FC = () => {
           <button onClick={() => { setView('list'); setEditingService(null); }} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{editingService ? 'Editar Serviço' : 'Novo Serviço'}</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{editingService ? `Editar ${serviceLabel}` : `Novo ${serviceLabelLower}`}</h2>
         </div>
 
         <form onSubmit={handleSave} className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden">
           <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 min-h-0">
             <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome do Serviço</label>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome do {serviceLabel}</label>
               <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Ex: Corte Degradê" />
+                placeholder={isEsteticaApp ? 'Ex: Limpeza de pele' : 'Ex: Corte Degradê'} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -175,7 +193,7 @@ const Services: React.FC = () => {
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Categoria</label>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                  {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{c}</option>)}
+                  {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{getCategoryLabel(c)}</option>)}
                 </select>
               </div>
               <div>
@@ -209,7 +227,7 @@ const Services: React.FC = () => {
                 className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
               <button type="submit"
                 className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
-                {editingService ? 'Salvar Alterações' : 'Criar Serviço'}
+                {editingService ? 'Salvar Alterações' : `Criar ${serviceLabel}`}
               </button>
             </div>
           </div>
@@ -223,13 +241,13 @@ const Services: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Serviços</h2>
-          <p className="text-slate-500 text-sm">{services.filter(s => s.active).length} serviço(s) ativo(s)</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{servicePluralLabel}</h2>
+          <p className="text-slate-500 text-sm">{services.filter(s => s.active).length} {servicePluralLower} ativo(s)</p>
         </div>
         <button onClick={openNewForm}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all">
           <span className="material-symbols-outlined text-lg">add_circle</span>
-          Novo Serviço
+          Novo {serviceLabelLower}
         </button>
       </div>
 
@@ -237,13 +255,13 @@ const Services: React.FC = () => {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-          <input type="text" placeholder="Buscar serviço..." value={search} onChange={(e) => setSearch(e.target.value)}
+          <input type="text" placeholder={`Buscar ${serviceLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white" />
         </div>
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
           className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 outline-none [color-scheme:light] dark:[color-scheme:dark]">
           <option value="all" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Todas Categorias</option>
-          {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{c}</option>)}
+          {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{getCategoryLabel(c)}</option>)}
         </select>
         <div className="flex gap-2">
           {(['all', 'active', 'inactive'] as const).map(s => (
@@ -261,15 +279,17 @@ const Services: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-500">Nenhum serviço encontrado.</div>
+        <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre seu primeiro procedimento.' : 'Nenhum serviço encontrado.'}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(service => (
+          {filtered.map(service => {
+            const displayName = getCatalogDisplayName(service, appSlug);
+            return (
             <div key={service.id} className={`bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-5 hover:shadow-md transition-all group ${!service.active ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{service.name}</h4>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{service.category}</span>
+                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{displayName}</h4>
+                  <span className="text-[10px] font-bold uppercase text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{getCategoryLabel(service.category)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEditForm(service)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">
@@ -301,7 +321,7 @@ const Services: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 
