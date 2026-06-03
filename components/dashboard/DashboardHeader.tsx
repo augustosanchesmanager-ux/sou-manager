@@ -82,27 +82,55 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     },
   ];
 
+  const heroClassName = isEsteticaApp
+    ? 'relative overflow-hidden rounded-[28px] border border-[#DDD2B6] bg-[linear-gradient(135deg,#FFFFFF_0%,#F8F5ED_54%,#EFE8D8_100%)] p-5 text-[#2E2B24] shadow-[0_24px_80px_rgba(111,104,69,0.12)] sm:p-6'
+    : 'relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-[linear-gradient(135deg,#0A0A0A_0%,#111827_52%,#003366_100%)] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:p-6';
+  const badgeClassName = isEsteticaApp
+    ? 'inline-flex items-center gap-2 rounded-full border border-[#D8C994] bg-[#EFE8D8] px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#6F6845]'
+    : 'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#F6D6A7]';
+  const greetingClassName = isEsteticaApp
+    ? 'flex items-center gap-2 text-sm font-bold text-[#6F6758]'
+    : 'flex items-center gap-2 text-sm font-bold text-slate-200';
+  const titleClassName = isEsteticaApp
+    ? 'max-w-2xl text-3xl font-black leading-tight text-[#2E2B24] sm:text-4xl'
+    : 'max-w-2xl text-3xl font-black leading-tight text-[#F8FAFC] sm:text-4xl';
+  const bodyClassName = isEsteticaApp
+    ? 'max-w-2xl text-sm font-medium leading-6 text-[#6F6758]'
+    : 'max-w-2xl text-sm font-medium leading-6 text-slate-300';
+  const primaryActionClassName = isEsteticaApp
+    ? 'inline-flex items-center justify-center gap-2 rounded-xl bg-[#9B9368] px-4 py-3 text-sm font-black text-white shadow-[0_14px_32px_rgba(111,104,69,0.22)] transition hover:bg-[#6F6845] focus:outline-none focus:ring-2 focus:ring-[#D8C994]/60'
+    : 'inline-flex items-center justify-center gap-2 rounded-xl bg-[#E5A158] px-4 py-3 text-sm font-black text-slate-950 shadow-[0_14px_32px_rgba(229,161,88,0.24)] transition hover:bg-[#F0B86A] focus:outline-none focus:ring-2 focus:ring-[#E5A158]/50';
+  const secondaryActionClassName = isEsteticaApp
+    ? 'inline-flex items-center justify-center gap-2 rounded-xl border border-[#DDD2B6] bg-white px-4 py-3 text-sm font-black text-[#6F6845] transition hover:bg-[#EFE8D8] focus:outline-none focus:ring-2 focus:ring-[#D8C994]/50'
+    : 'inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/40';
+  const periodButtonClassName = isEsteticaApp
+    ? 'flex w-full items-center justify-between gap-3 rounded-2xl border border-[#DDD2B6] bg-white px-4 py-3 text-left transition hover:bg-[#EFE8D8] focus:outline-none focus:ring-2 focus:ring-[#D8C994]/50'
+    : 'flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/35';
+  const focusButtonClassName = isEsteticaApp
+    ? 'rounded-2xl border border-[#DDD2B6] bg-white p-2.5 text-left transition hover:border-[#D8C994] hover:bg-[#F8F5ED] focus:outline-none focus:ring-2 focus:ring-[#D8C994]/50 sm:p-3'
+    : 'rounded-2xl border border-white/10 bg-white/10 p-2.5 text-left transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/30 sm:p-3';
+
   return (
-    <section className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-[linear-gradient(135deg,#0A0A0A_0%,#111827_52%,#003366_100%)] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:p-6">
-      <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#00D2FF]/15 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-1/2 h-24 w-96 -translate-x-1/2 bg-[#E5A158]/10 blur-3xl" />
+    <section className={heroClassName}>
+      <div className={`pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full blur-3xl ${isEsteticaApp ? 'bg-[#D8C994]/30' : 'bg-[#00D2FF]/15'}`} />
+      <div className={`pointer-events-none absolute bottom-0 left-1/2 h-24 w-96 -translate-x-1/2 blur-3xl ${isEsteticaApp ? 'bg-[#9B9368]/12' : 'bg-[#E5A158]/10'}`} />
 
       <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#F6D6A7]">
-            <span className="h-2 w-2 rounded-full bg-[#E5A158]" />
+          <div className={badgeClassName}>
+            <span className={`h-2 w-2 rounded-full ${isEsteticaApp ? 'bg-[#9B9368]' : 'bg-[#E5A158]'}`} />
             {isEsteticaApp ? 'Central da estética' : 'Central da barbearia'}
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
-              <span className="material-symbols-outlined text-[18px] text-[#E5A158]">{greeting.icon}</span>
+            <div className={greetingClassName}>
+              <span className={`material-symbols-outlined text-[18px] ${isEsteticaApp ? 'text-[#9B9368]' : 'text-[#E5A158]'}`}>{greeting.icon}</span>
               {greeting.text}, {displayName}
             </div>
-            <h1 className="max-w-2xl text-3xl font-black leading-tight text-[#F8FAFC] sm:text-4xl">
+            <h1 className={titleClassName}>
               {isEsteticaApp ? 'Resumo da operação de hoje.' : 'Sua barbearia em tempo real.'}
             </h1>
-            <p className="max-w-2xl text-sm font-medium leading-6 text-slate-300">
+            <p className={bodyClassName}>
               {isEsteticaApp
                 ? `Acompanhe agenda, atendimentos e retornos da ${tenantName} com base no que já foi registrado.`
                 : `Veja agenda, comandas, retorno de clientes e movimento financeiro da ${tenantName} com base no que já foi registrado.`}
@@ -112,14 +140,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               onClick={onNewAppointment}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E5A158] px-4 py-3 text-sm font-black text-slate-950 shadow-[0_14px_32px_rgba(229,161,88,0.24)] transition hover:bg-[#F0B86A] focus:outline-none focus:ring-2 focus:ring-[#E5A158]/50"
+              className={primaryActionClassName}
             >
               <span className="material-symbols-outlined text-[18px]">calendar_add_on</span>
               {isEsteticaApp ? 'Novo atendimento' : 'Novo agendamento'}
             </button>
             <button
               onClick={onOpenCheckout}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/40"
+              className={secondaryActionClassName}
             >
               <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
               {isEsteticaApp ? labels.checkout : 'Abrir PDV'}
@@ -131,13 +159,13 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsPeriodOpen((current) => !current)}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-left transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/35"
+              className={periodButtonClassName}
             >
               <span>
-                <span className="block text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Período</span>
-                <span className="mt-1 block text-sm font-black text-white">{PERIOD_LABELS[period]}</span>
+                <span className={`block text-[11px] font-black uppercase tracking-[0.16em] ${isEsteticaApp ? 'text-[#6F6758]' : 'text-slate-400'}`}>Período</span>
+                <span className={`mt-1 block text-sm font-black ${isEsteticaApp ? 'text-[#2E2B24]' : 'text-white'}`}>{PERIOD_LABELS[period]}</span>
               </span>
-              <span className="flex items-center gap-2 text-xs font-bold text-slate-300">
+              <span className={`flex items-center gap-2 text-xs font-bold ${isEsteticaApp ? 'text-[#6F6758]' : 'text-slate-300'}`}>
                 {PERIOD_HINTS[period]}
                 <span className="material-symbols-outlined text-base">expand_more</span>
               </span>
@@ -154,8 +182,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     }}
                     className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm font-bold transition ${
                       period === key
-                        ? 'bg-[#E5A158]/14 text-[#F6D6A7]'
-                        : 'text-slate-200 hover:bg-white/5'
+                        ? isEsteticaApp ? 'bg-[#EFE8D8] text-[#6F6845]' : 'bg-[#E5A158]/14 text-[#F6D6A7]'
+                        : isEsteticaApp ? 'text-[#6F6758] hover:bg-[#F8F5ED]' : 'text-slate-200 hover:bg-white/5'
                     }`}
                   >
                     {label}
@@ -171,11 +199,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className="rounded-2xl border border-white/10 bg-white/10 p-2.5 text-left transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/30 sm:p-3"
+                className={focusButtonClassName}
               >
                 <span className={`material-symbols-outlined text-[20px] ${item.tone}`}>{item.icon}</span>
-                <span className="mt-2 block text-xl font-black text-white sm:text-2xl">{item.value}</span>
-                <span className="mt-1 block text-[10px] font-bold leading-3 text-slate-300 sm:text-[11px] sm:leading-4">{item.label}</span>
+                <span className={`mt-2 block text-xl font-black sm:text-2xl ${isEsteticaApp ? 'text-[#2E2B24]' : 'text-white'}`}>{item.value}</span>
+                <span className={`mt-1 block text-[10px] font-bold leading-3 sm:text-[11px] sm:leading-4 ${isEsteticaApp ? 'text-[#6F6758]' : 'text-slate-300'}`}>{item.label}</span>
               </button>
             ))}
           </div>
