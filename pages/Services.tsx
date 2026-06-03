@@ -17,6 +17,7 @@ interface Service {
 
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
 const esteticaCategoryLabels: Record<string, string> = {
+  Corte: 'Facial',
   Cabelo: 'Facial',
   Barba: 'Corporal',
   Combo: 'Pacotes',

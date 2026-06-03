@@ -30,6 +30,16 @@ const ESTETICA_DEMO_SERVICE_NAMES: Record<string, string> = {
   'Ritual de Barba Prime': 'Design de sobrancelhas',
 };
 
+const ESTETICA_DEMO_SERVICE_DESCRIPTIONS: Record<string, string> = {
+  'demo-service-1': 'Protocolo facial com higienização, extração e finalização premium.',
+  'demo-service-2': 'Design personalizado para harmonização facial e acabamento delicado.',
+  'Corte masculino': 'Protocolo facial com higienização, extração e finalização premium.',
+  'Corte Masculino': 'Protocolo facial com higienização, extração e finalização premium.',
+  'Sanchez Signature Cut': 'Protocolo facial com higienização, extração e finalização premium.',
+  Barba: 'Design personalizado para harmonização facial e acabamento delicado.',
+  'Ritual de Barba Prime': 'Design personalizado para harmonização facial e acabamento delicado.',
+};
+
 const resolveDisplayAppSlug = (appSlug?: string | null): AppSlug => {
   if (appSlug === 'estetica' || appSlug === 'barber' || appSlug === 'auto' || appSlug === 'club') {
     return appSlug;
@@ -82,6 +92,23 @@ export function getCatalogDisplayName(item?: CatalogLike | null, appSlug?: strin
 
   const demoNameById = item.id ? ESTETICA_DEMO_SERVICE_NAMES[item.id] : '';
   return demoNameById || getEsteticaDemoServiceName(displayName, appSlug);
+}
+
+export function getCatalogDisplayDescription(item?: CatalogLike | null, appSlug?: string | null): string {
+  if (!item) return '';
+
+  const description = cleanText(item.description);
+  if (resolveDisplayAppSlug(appSlug) !== 'estetica') {
+    return description;
+  }
+
+  const demoDescriptionById = item.id ? ESTETICA_DEMO_SERVICE_DESCRIPTIONS[item.id] : '';
+  const internalName =
+    cleanText(item.internal_name) ||
+    cleanText(item.internalName) ||
+    cleanText(item.name);
+
+  return demoDescriptionById || ESTETICA_DEMO_SERVICE_DESCRIPTIONS[internalName] || description;
 }
 
 export function usesCommercialName(item?: CatalogLike | null): boolean {

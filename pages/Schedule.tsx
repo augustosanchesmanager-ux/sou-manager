@@ -2422,7 +2422,7 @@ Podemos confirmar? 😄`;
                         </div>
                         <div className="text-center">
                           <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{getVisibleRoleLabel(resource.role)}</p>
                         </div>
                       </div>
                     ))

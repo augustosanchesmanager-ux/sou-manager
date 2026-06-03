@@ -33,6 +33,7 @@ import {
 } from '../src/lib/finance/discountAudit';
 import {
     getCatalogDisplayName,
+    getCatalogDisplayDescription,
     getCatalogInternalName,
     getCatalogSearchText,
     usesCommercialName,
@@ -237,6 +238,17 @@ const isCreatedAfterAppointmentDay = (createdAt?: string | null, appointmentStar
 };
 
 const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
+const esteticaServiceCategoryDisplay: Record<string, string> = {
+    Cabelo: 'Facial',
+    Barba: 'Sobrancelhas',
+    Combo: 'Protocolos',
+    Quimica: 'Peelings',
+    Acabamento: 'Finalização',
+    Outros: 'Outros',
+};
+
+const getServiceCategoryDisplay = (category: string, isEsteticaApp: boolean) =>
+    isEsteticaApp ? esteticaServiceCategoryDisplay[category] || category : category;
 
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
@@ -1799,7 +1811,7 @@ const Checkout: React.FC = () => {
                                             {/* Details */}
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{item.display_name || item.name}</p>
-                                                {item.internal_name && item.internal_name !== item.name && (
+                                                {!isEsteticaApp && item.internal_name && item.internal_name !== item.name && (
                                                     <p className="text-[10px] font-semibold text-slate-400 truncate">Interno: {item.internal_name}</p>
                                                 )}
 
@@ -2499,10 +2511,10 @@ const Checkout: React.FC = () => {
                                                 </div>
                                                 <div className="min-w-0 text-left">
                                                     <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{displayName}</p>
-                                                    {usesCommercialName(item) && (
+                                                    {!isEsteticaApp && usesCommercialName(item) && (
                                                         <p className="truncate text-[10px] font-semibold text-slate-400">Interno: {item.name}</p>
                                                     )}
-                                                    {item.description && <p className="text-xs text-slate-500 truncate max-w-[220px]">{item.description}</p>}
+                                                    {getCatalogDisplayDescription(item) && <p className="text-xs text-slate-500 truncate max-w-[220px]">{getCatalogDisplayDescription(item)}</p>}
                                                 </div>
                                             </div>
                                             <div className="text-right shrink-0">
@@ -2724,7 +2736,7 @@ const Checkout: React.FC = () => {
                             >
                                 {serviceCategories.map((category) => (
                                     <option key={category} value={category}>
-                                        {category}
+                                        {getServiceCategoryDisplay(category, isEsteticaApp)}
                                     </option>
                                 ))}
                             </select>
