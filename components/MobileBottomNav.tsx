@@ -36,6 +36,7 @@ export const isMobileBottomNavRoute = (pathname: string, appSlug?: string | null
       normalized === '/comandas' ||
       normalized === '/services' ||
       normalized === '/financial-overview' ||
+      normalized === '/expenses' ||
       normalized === '/settings'
     );
   }

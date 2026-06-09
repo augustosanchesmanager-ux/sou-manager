@@ -5,6 +5,7 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import RecurringBillsWidget from '../components/RecurringBillsWidget';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 interface Expense {
     id: string;
@@ -29,7 +30,9 @@ const normalizeDateForDb = (value: string) => {
 };
 
 const Expenses: React.FC = () => {
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, appSlug } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -198,7 +201,11 @@ const Expenses: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Gestão de Saídas</h2>
-                    <p className="text-slate-500 mt-1">Controle detalhado de todas as despesas da barbearia.</p>
+                    <p className="text-slate-500 mt-1">
+                        {isEsteticaApp
+                            ? 'Controle as saídas da operação e despesas da unidade.'
+                            : 'Controle detalhado de todas as despesas da barbearia.'}
+                    </p>
                 </div>
                 <button
                     onClick={openNewModal}
@@ -347,7 +354,7 @@ const Expenses: React.FC = () => {
                         <input
                             type="text"
                             required
-                            placeholder="Ex: Compra de Toalhas"
+                            placeholder={isEsteticaApp ? 'Ex: Reposição de dermocosméticos' : 'Ex: Compra de Toalhas'}
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
@@ -390,7 +397,7 @@ const Expenses: React.FC = () => {
                             <option value="Estoque">Estoque / Produtos</option>
                             <option value="Manutenção">Manutenção</option>
                             <option value="Marketing">Marketing</option>
-                            <option value="Pessoal">Pessoal / Salários</option>
+                            <option value="Pessoal">{isEsteticaApp ? labels.professionalPlural : 'Pessoal'} / Salários</option>
                             <option value="Impostos">Impostos</option>
                             <option value="Outros">Outros</option>
                         </select>

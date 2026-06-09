@@ -8,6 +8,7 @@ import {
   normalizeServiceRecord,
 } from './selectors';
 import { shouldAppearOnSchedule } from '../../lib/staff/roles';
+import { DEFAULT_APP_SLUG, normalizeAppSlug, type AppSlug } from '../../lib/supabase/schemas';
 import type {
   DashboardClient,
   DashboardData,
@@ -16,8 +17,6 @@ import type {
   DashboardService,
   DashboardStaff,
 } from './types';
-
-const APP_SLUG_FOR_DASHBOARD = 'barber' as const;
 
 const logSupabaseError = (label: string, error: unknown) => {
   if (error) {
@@ -93,8 +92,8 @@ const getDashboardPeriodRange = (period: DashboardPeriod) => {
   };
 };
 
-const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardService[]> => {
-  const servicesClient = getClientForTable('services', APP_SLUG_FOR_DASHBOARD);
+const fetchServicesWithFallback = async (tenantId: string, appSlug: AppSlug): Promise<DashboardService[]> => {
+  const servicesClient = getClientForTable('services', appSlug);
 
   const primaryRes = await servicesClient
     .from('services')
@@ -147,14 +146,17 @@ export const fetchDashboardData = async ({
   tenantId,
   userId,
   period = 'today',
+  appSlug,
 }: {
   tenantId: string;
   userId?: string | null;
   period?: DashboardPeriod;
+  appSlug?: string | null;
 }): Promise<DashboardData> => {
-  const clientsClient = getClientForTable('clients', APP_SLUG_FOR_DASHBOARD);
-  const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_DASHBOARD);
-  const transactionsClient = getClientForTable('transactions', APP_SLUG_FOR_DASHBOARD);
+  const resolvedAppSlug = normalizeAppSlug(appSlug || DEFAULT_APP_SLUG);
+  const clientsClient = getClientForTable('clients', resolvedAppSlug);
+  const appointmentsClient = getClientForTable('appointments', resolvedAppSlug);
+  const transactionsClient = getClientForTable('transactions', resolvedAppSlug);
   const periodRange = getDashboardPeriodRange(period);
 
   const profilePromise = userId
@@ -183,7 +185,7 @@ export const fetchDashboardData = async ({
       .eq('tenant_id', tenantId)
       .order('name'),
     supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active'),
-    fetchServicesWithFallback(tenantId),
+    fetchServicesWithFallback(tenantId, resolvedAppSlug),
     appointmentsClient
       .from('appointments')
       .select('*')
@@ -290,7 +292,7 @@ export const fetchDashboardData = async ({
         return d.toISOString();
       })()),
     // Open comandas count
-    getClientForTable('comandas', APP_SLUG_FOR_DASHBOARD)
+    getClientForTable('comandas', resolvedAppSlug)
       .from('comandas')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)

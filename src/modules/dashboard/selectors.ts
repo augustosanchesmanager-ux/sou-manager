@@ -13,6 +13,7 @@ import type {
   UpcomingBirthday,
   UpcomingBirthdayStatus,
 } from './types';
+import { isRealizedTransactionStatus } from '../../lib/finance/transactionStatus';
 
 export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   revenue: 0,
@@ -109,7 +110,9 @@ export const buildRevenueChartData = (transactions: any[]): DashboardChartPoint[
   const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const grouped: Record<string, number> = {};
 
-  transactions.forEach((transaction) => {
+  transactions
+    .filter((transaction) => transaction.type === 'income' && isRealizedTransactionStatus(transaction.status))
+    .forEach((transaction) => {
     const transactionDate = new Date(transaction.date);
     if (transactionDate >= startOfThisMonth && transactionDate < startOfNextMonth) {
       const label = transactionDate.getDate().toString();
@@ -144,7 +147,7 @@ export const buildDashboardMetrics = (
   let currentIncomeCount = 0;
   let previousIncomeCount = 0;
 
-  currentTransactions.forEach((transaction) => {
+  currentTransactions.filter((transaction) => isRealizedTransactionStatus(transaction.status)).forEach((transaction) => {
     const amount = toNumber(transaction.amount || transaction.val);
     if (transaction.type === 'income') {
       currentIncome += amount;
@@ -156,7 +159,7 @@ export const buildDashboardMetrics = (
     }
   });
 
-  previousTransactions.forEach((transaction) => {
+  previousTransactions.filter((transaction) => isRealizedTransactionStatus(transaction.status)).forEach((transaction) => {
     const amount = toNumber(transaction.amount || transaction.val);
     if (transaction.type === 'income') {
       previousIncome += amount;
