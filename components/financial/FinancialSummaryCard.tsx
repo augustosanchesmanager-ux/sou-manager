@@ -8,19 +8,19 @@ interface FinancialSummaryCardProps extends SummaryCardData {
 
 const toneMap = {
   positive: {
-    value: 'text-emerald-600 dark:text-emerald-400',
-    badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20',
-    iconWrap: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    value: 'text-emerald-300',
+    badge: 'bg-emerald-400/15 text-emerald-100 border-emerald-300/25',
+    iconWrap: 'bg-emerald-400/15 text-emerald-200 border-emerald-300/20',
   },
   negative: {
-    value: 'text-rose-600 dark:text-rose-400',
-    badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20',
-    iconWrap: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    value: 'text-rose-300',
+    badge: 'bg-rose-400/15 text-rose-100 border-rose-300/25',
+    iconWrap: 'bg-rose-400/15 text-rose-200 border-rose-300/20',
   },
   neutral: {
-    value: 'text-slate-900 dark:text-white',
-    badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20',
-    iconWrap: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
+    value: 'text-slate-50',
+    badge: 'bg-white/10 text-slate-100 border-white/15',
+    iconWrap: 'bg-white/10 text-slate-200 border-white/15',
   },
 };
 
@@ -36,10 +36,10 @@ const FinancialSummaryCard: React.FC<FinancialSummaryCardProps> = ({
   const palette = toneMap[tone];
 
   return (
-    <article className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)] dark:shadow-[0_14px_30px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+    <article className="rounded-2xl border border-white/10 bg-[#243241] p-5 text-slate-100 shadow-[0_18px_36px_rgba(15,23,42,0.18)] backdrop-blur-sm">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-500 dark:text-slate-400">{title}</span>
-        <div className={`size-9 rounded-xl border border-current/10 grid place-items-center ${palette.iconWrap}`}>{icon}</div>
+        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-300">{title}</span>
+        <div className={`size-9 rounded-xl border grid place-items-center ${palette.iconWrap}`}>{icon}</div>
       </div>
 
       <p className={`mt-4 text-[1.7rem] leading-none font-black ${palette.value}`}>
@@ -51,7 +51,7 @@ const FinancialSummaryCard: React.FC<FinancialSummaryCardProps> = ({
           {trend === 'up' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
           {changeText}
         </span>
-        <span className="text-xs text-slate-500 dark:text-slate-400">{helperText}</span>
+        <span className="text-xs text-slate-300">{helperText}</span>
       </div>
     </article>
   );

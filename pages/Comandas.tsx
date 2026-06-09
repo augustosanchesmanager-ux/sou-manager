@@ -344,16 +344,16 @@ const KpiCard: React.FC<{
     icon: string;
     accentClassName: string;
 }> = ({ title, value, helper, icon, accentClassName }) => (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-sm shadow-slate-900/5 dark:border-white/8 dark:bg-[#121826]">
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#121826] p-4 text-slate-100 shadow-[0_12px_28px_rgba(15,23,42,0.12)]">
         <div className={`absolute inset-x-0 top-0 h-1 ${accentClassName}`} />
         <div className="flex items-center justify-between">
             <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-300">{title}</p>
+                <p className="mt-1 text-sm font-bold text-slate-50">{value}</p>
             </div>
-            <span className="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">{icon}</span>
+            <span className="material-symbols-outlined text-lg text-slate-300">{icon}</span>
         </div>
-        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{helper}</p>
+        <p className="mt-1 text-[10px] text-slate-300">{helper}</p>
     </div>
 );
 
@@ -1314,7 +1314,11 @@ const Comandas: React.FC = () => {
                 <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Média" icon="monitoring" accentClassName="bg-fuchsia-400" />
             </section>
 
-            <section className="rounded-2xl border border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]">
+            <section className={`rounded-2xl border ${
+                isEsteticaApp
+                    ? 'border-white/10 bg-[#111827] text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.12)]'
+                    : 'border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]'
+            }`}>
                 <div className="flex flex-col gap-3 p-3">
                     <div className="flex items-center gap-2 overflow-x-auto pb-2">
                         {tabs.map((tab) => (
@@ -1325,12 +1329,20 @@ const Comandas: React.FC = () => {
                                 title={tab.key === 'all' ? `Todos os ${orderPluralLower} filtrados` : getStatusContextLabel(tab.key, isEsteticaApp)}
                                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                                     filterStatus === tab.key
-                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
-                                        : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-400'
+                                        ? isEsteticaApp
+                                            ? 'border-amber-300/70 bg-amber-400/15 text-amber-100'
+                                            : 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
+                                        : isEsteticaApp
+                                            ? 'border-white/15 text-slate-300 hover:border-white/30 hover:text-white'
+                                            : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-400'
                                 }`}
                             >
                                 {tab.label}
-                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-amber-500 text-white dark:bg-white/10' : 'bg-slate-100 dark:bg-white/5'}`}>
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                                    filterStatus === tab.key
+                                        ? isEsteticaApp ? 'bg-amber-300 text-slate-950' : 'bg-amber-500 text-white dark:bg-white/10'
+                                        : isEsteticaApp ? 'bg-white/10 text-slate-100' : 'bg-slate-100 dark:bg-white/5'
+                                }`}>
                                     {tab.count}
                                 </span>
                             </button>
@@ -1345,7 +1357,11 @@ const Comandas: React.FC = () => {
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder={`Buscar cliente, telefone, profissional ou #${orderLabelLower}...`}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                className={`w-full rounded-xl border py-2 pl-9 pr-3 text-sm outline-none transition ${
+                                    isEsteticaApp
+                                        ? 'border-white/15 bg-[#0b1220] text-slate-100 placeholder:text-slate-400 focus:border-amber-300/60'
+                                        : 'border-slate-200 bg-white dark:border-white/10 dark:bg-[#0f172a] dark:text-white'
+                                }`}
                             />
                         </div>
                         <button
@@ -1353,8 +1369,12 @@ const Comandas: React.FC = () => {
                             onClick={() => setFiltersModalOpen((open) => !open)}
                             className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                                 activeFiltersCount > 0
-                                    ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-transparent dark:text-slate-400'
+                                    ? isEsteticaApp
+                                        ? 'border-amber-300/70 bg-amber-400/15 text-amber-100'
+                                        : 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
+                                    : isEsteticaApp
+                                        ? 'border-white/15 bg-white/5 text-slate-200 hover:border-white/30 hover:text-white'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-transparent dark:text-slate-400'
                             }`}
                         >
                             <span className="material-symbols-outlined text-sm">tune</span>
@@ -1368,7 +1388,11 @@ const Comandas: React.FC = () => {
                         <select
                             value={quickRange}
                             onChange={(e) => applyQuickRange(e.target.value as QuickRange)}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className={`rounded-xl border px-2 py-2 text-xs outline-none ${
+                                isEsteticaApp
+                                    ? 'border-white/15 bg-[#0b1220] text-slate-100'
+                                    : 'border-slate-200 bg-white dark:border-white/10 dark:bg-[#0f172a]'
+                            }`}
                         >
                             <option value="today">Hoje</option>
                             <option value="7d">7 dias</option>
@@ -1378,7 +1402,11 @@ const Comandas: React.FC = () => {
                         <select
                             value={paymentMethodFilter}
                             onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className={`rounded-xl border px-2 py-2 text-xs outline-none ${
+                                isEsteticaApp
+                                    ? 'border-white/15 bg-[#0b1220] text-slate-100'
+                                    : 'border-slate-200 bg-white dark:border-white/10 dark:bg-[#0f172a]'
+                            }`}
                             title="Filtrar por forma de pagamento já registrada"
                         >
                             <option value="">Pagamento</option>
@@ -1393,7 +1421,11 @@ const Comandas: React.FC = () => {
                                 setSortField(nextField);
                                 setSortDirection(nextDirection);
                             }}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className={`rounded-xl border px-2 py-2 text-xs outline-none ${
+                                isEsteticaApp
+                                    ? 'border-white/15 bg-[#0b1220] text-slate-100'
+                                    : 'border-slate-200 bg-white dark:border-white/10 dark:bg-[#0f172a]'
+                            }`}
                         >
                             <option value="date:desc">Mais recentes</option>
                             <option value="date:asc">Mais antigas</option>
@@ -1407,7 +1439,11 @@ const Comandas: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
-                            className="flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400 hover:text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            className={`flex size-10 items-center justify-center rounded-xl border transition ${
+                                isEsteticaApp
+                                    ? 'border-white/15 bg-white/5 text-slate-100 hover:border-amber-300 hover:text-amber-100'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-amber-400 hover:text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white'
+                            }`}
                             title={sortDirection === 'asc' ? 'Ordenar descendente' : 'Ordenar ascendente'}
                         >
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
@@ -1424,8 +1460,12 @@ const Comandas: React.FC = () => {
                     </div>
 
                     {hasAnyFilter && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
-                            <span className="font-black uppercase tracking-[0.12em] text-slate-500">Filtros ativos</span>
+                        <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${
+                            isEsteticaApp
+                                ? 'border-white/10 bg-white/[0.04] text-slate-200'
+                                : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300'
+                        }`}>
+                            <span className={`font-black uppercase tracking-[0.12em] ${isEsteticaApp ? 'text-slate-300' : 'text-slate-500'}`}>Filtros ativos</span>
                             <span>{statusLabels[filterStatus]}</span>
                             <span>{dateFilterDescription}</span>
                             {staffFilter && <span>Profissional selecionado</span>}
@@ -1445,7 +1485,7 @@ const Comandas: React.FC = () => {
                     )}
                 </div>
 
-                <div className="divide-y divide-slate-200/70 dark:divide-white/8">
+                <div className={`${isEsteticaApp ? 'divide-y divide-white/8' : 'divide-y divide-slate-200/70 dark:divide-white/8'}`}>
                     {loading ? (
                         <div className="space-y-3 p-4">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
@@ -1462,14 +1502,18 @@ const Comandas: React.FC = () => {
                             ))}
                         </div>
                     ) : sortedComandas.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/5">
+                        <div className={`p-8 text-center ${isEsteticaApp ? 'text-slate-100' : ''}`}>
+                            <div className={`mx-auto mb-3 grid size-12 place-items-center rounded-xl ${
+                                isEsteticaApp
+                                    ? 'bg-white/10 text-slate-100'
+                                    : 'bg-slate-100 text-slate-500 dark:bg-white/5'
+                            }`}>
                                 <span className="material-symbols-outlined">receipt_long</span>
                             </div>
-                            <p className="text-sm font-black text-slate-800 dark:text-white">
+                            <p className={`text-sm font-black ${isEsteticaApp ? 'text-slate-50' : 'text-slate-800 dark:text-white'}`}>
                                 {hasAnyFilter ? `Nenhum ${orderLabelLower} encontrado com os filtros atuais.` : `Nenhum ${orderLabelLower} encontrado.`}
                             </p>
-                            <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                            <p className={`mx-auto mt-2 max-w-xl text-xs ${isEsteticaApp ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
                                 {hasAnyFilter
                                     ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
                                     : `Quando houver ${orderPluralLower} abertos ou finalizados, eles aparecerão aqui com referência curta, cliente e status operacional.`}
@@ -1490,6 +1534,7 @@ const Comandas: React.FC = () => {
                                 comanda={comanda}
                                 isSelected={selectedComandaId === comanda.id}
                                 isBulkSelected={selectedOpenComandaIds.includes(comanda.id)}
+                                surface={isEsteticaApp ? 'dark' : 'light'}
                                 onSelect={() => setSelectedComandaId(comanda.id)}
                                 onToggleBulk={() => toggleOpenComandaSelection(comanda.id)}
                                 onSelectForSidebar={() => setSelectedComandaId(comanda.id)}
