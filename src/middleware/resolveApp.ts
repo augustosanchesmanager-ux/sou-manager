@@ -59,6 +59,17 @@ const inferAppSlugFromLabels = (hostname: string): AppSlug | null => {
     return directLabelMatch as AppSlug;
   }
 
+  const hyphenSegmentMatch = labels.find((label) => {
+    const segments = label.split('-').filter(Boolean);
+    return APP_SLUGS.some((appSlug) => segments.includes(appSlug));
+  });
+
+  if (hyphenSegmentMatch) {
+    const segments = hyphenSegmentMatch.split('-').filter(Boolean);
+    const matchedSlug = APP_SLUGS.find((appSlug) => segments.includes(appSlug));
+    return matchedSlug || null;
+  }
+
   const prefixMatch = labels.find((label) =>
     APP_SLUGS.some((appSlug) => label.startsWith(`${appSlug}-`)),
   );
