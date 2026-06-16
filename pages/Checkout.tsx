@@ -1391,7 +1391,7 @@ const Checkout: React.FC = () => {
                             .maybeSingle(),
                 ]);
 
-            // Validação de data do agendamento removida para permitir fechamento fora da data
+                // Validação de data do agendamento removida para permitir fechamento fora da data
             }
 
             // 1. Create or Update Comanda
