@@ -1391,13 +1391,7 @@ const Checkout: React.FC = () => {
                             .maybeSingle(),
                 ]);
 
-                if (
-                    isBeforeTodayLocal(appointmentForSettlement?.start_time) ||
-                    isCreatedAfterAppointmentDay(comandaForSettlement?.created_at, appointmentForSettlement?.start_time)
-                ) {
-                    setToast({ message: getDirectSettlementBlockMessage(isEsteticaApp ? orderLabelLower : 'comanda', isEsteticaApp), type: 'error' });
-                    return;
-                }
+                // Validação de data do agendamento removida para permitir fechamento fora da data
             }
 
             // 1. Create or Update Comanda
