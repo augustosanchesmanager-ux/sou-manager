@@ -7,6 +7,9 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { getCatalogDisplayName, getEsteticaDemoServiceName } from '../src/lib/catalog/display';
+import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -69,10 +72,18 @@ type DisplayMode = 'calendar' | 'list';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
-const SCHEDULE_START_HOUR = 0;
+const SCHEDULE_START_HOUR = 7;
 const SCHEDULE_END_HOUR = 24;
 const SCHEDULE_SLOT_DURATION = 0.5;
 const SCHEDULE_TOTAL_HOURS = SCHEDULE_END_HOUR - SCHEDULE_START_HOUR;
+
+const isMissingColumnError = (error: any, columnName: string) => (
+  error?.code === '42703' && String(error?.message || '').includes(columnName)
+);
+
+const isHiddenFromScheduleMissingError = (error: any) => (
+  isMissingColumnError(error, 'hidden_from_schedule')
+);
 
 interface AppointmentFiltersState {
   date: string;
@@ -124,11 +135,16 @@ interface ScheduleBlockForm {
   actionForExisting: ExistingAppointmentsAction;
 }
 
+type ScheduleConfirmIntent =
+  | { type: 'deleteBlock'; block: ScheduleBlock }
+  | { type: 'saveImpactedBlock'; payload: ScheduleBlockInput; impacted: CalendarAppointment[] }
+  | { type: 'statusChange'; appointment: CalendarAppointment; nextStatus: string; confirmationLabel: string };
+
 const statusColors: Record<string, string> = {
   scheduled: 'bg-slate-500',
   confirmed: 'bg-blue-500',
   pending: 'bg-amber-500',
-  in_progress: 'bg-violet-500',
+  in_progress: 'bg-sky-500',
   completed: 'bg-emerald-500',
   cancelled: 'bg-rose-500',
   no_show: 'bg-slate-600',
@@ -155,7 +171,7 @@ const appointmentStatusMeta: Record<string, { label: string; icon: string; badge
   in_progress: {
     label: 'Em atendimento',
     icon: 'content_cut',
-    badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+    badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
   },
   completed: {
     label: 'Finalizado',
@@ -179,23 +195,25 @@ const normalizeAppointmentStatus = (status: string | null | undefined) => {
   return appointmentStatusMeta[normalized] ? normalized : 'pending';
 };
 
-const getAppointmentStatusMeta = (status: string | null | undefined) => {
+const getAppointmentStatusMeta = (status: string | null | undefined, isEsteticaApp = false) => {
   const normalized = normalizeAppointmentStatus(status);
+  const meta = appointmentStatusMeta[normalized];
   return {
     normalized,
-    ...appointmentStatusMeta[normalized],
+    ...meta,
+    label: isEsteticaApp && normalized === 'completed' ? 'Concluído' : meta.label,
   };
 };
 
-const getOriginLabel = (source?: string | null, channel?: string | null) => {
+const getOriginLabel = (source?: string | null, channel?: string | null, isEsteticaApp = false) => {
   const normalizedSource = `${source || ''}`.toLowerCase();
   const normalizedChannel = `${channel || ''}`.toLowerCase();
 
   if (normalizedChannel === 'whatsapp') return 'WhatsApp';
   if (normalizedChannel === 'admin') return 'Admin';
-  if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return 'Totem';
+  if (normalizedSource === 'kiosk' && normalizedChannel === 'totem') return isEsteticaApp ? 'Autoatendimento' : 'Totem';
   if (normalizedSource === 'kiosk' && normalizedChannel === 'qr') return 'QR';
-  if (normalizedSource === 'kiosk') return 'Totem';
+  if (normalizedSource === 'kiosk') return isEsteticaApp ? 'Autoatendimento' : 'Totem';
   return 'App';
 };
 
@@ -242,6 +260,22 @@ const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { appSlug, tenantId, user } = useAuth();
+  const businessLabels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+  const serviceLabel = businessLabels.service;
+  const servicePluralLabel = businessLabels.servicePlural;
+  const serviceLabelLower = serviceLabel.toLowerCase();
+  const orderLabel = businessLabels.order;
+  const orderLabelLower = orderLabel.toLowerCase();
+  const orderPluralLabel = businessLabels.orderPlural;
+  const professionalLabel = businessLabels.professional;
+  const getVisibleRoleLabel = useCallback((role: string) => {
+    if (!isEsteticaApp) return roleLabels[role] || role;
+    if (role === 'Manager') return 'Gestor';
+    if (role === 'Barber') return professionalLabel;
+    if (role === 'Receptionist') return 'Recepção';
+    return roleLabels[role] || role;
+  }, [isEsteticaApp, professionalLabel]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -340,6 +374,8 @@ const Schedule: React.FC = () => {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [impactPreview, setImpactPreview] = useState<CalendarAppointment[]>([]);
+  const [confirmIntent, setConfirmIntent] = useState<ScheduleConfirmIntent | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
   const [blockForm, setBlockForm] = useState<ScheduleBlockForm>({
     type: 'full_day',
     professionalScope: 'all',
@@ -397,7 +433,9 @@ const Schedule: React.FC = () => {
   const filteredServicesForModal = React.useMemo(() => {
     const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
     if (!normalizedSearch) return servicesList;
-    return servicesList.filter((service) => service.name.toLowerCase().includes(normalizedSearch));
+    return servicesList.filter((service) =>
+      `${service.name} ${getCatalogDisplayName(service, appSlug)}`.toLowerCase().includes(normalizedSearch),
+    );
   }, [serviceSearchTerm, servicesList]);
   const selectedServicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
 
@@ -454,13 +492,15 @@ const Schedule: React.FC = () => {
     const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active').in('role', ['Barber', 'Manager']),
+      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active'),
       servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       clientsClient.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
-    if (staffRes.data) setStaffList(staffRes.data);
+    if (staffRes.data) {
+      setStaffList((staffRes.data as DBStaff[]).filter(shouldAppearOnSchedule));
+    }
 
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
@@ -577,24 +617,48 @@ const Schedule: React.FC = () => {
     const appointmentsClient = getClientForTable('appointments', scheduleAppSlug);
     const comandasClient = getClientForTable('comandas', scheduleAppSlug);
 
-    const { data, error } = await appointmentsClient
-      .from('appointments')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .gte('start_time', rangeStart)
-      .lte('start_time', rangeEnd);
+    const fetchAppointmentRows = async (options: { includeHiddenFilter: boolean; includeServerRange: boolean }) => {
+      let query = appointmentsClient
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (options.includeHiddenFilter) {
+        query = query.eq('hidden_from_schedule', false);
+      }
+
+      if (options.includeServerRange) {
+        query = query.gte('start_time', rangeStart).lte('start_time', rangeEnd);
+      }
+
+      return query;
+    };
+
+    let includeHiddenFilter = true;
+    let { data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true });
+
+    if (isHiddenFromScheduleMissingError(error)) {
+      includeHiddenFilter = false;
+      ({ data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true }));
+    }
 
     let appointmentRows = data || [];
 
     if (error) {
       console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
 
-      const { data: fallbackData, error: fallbackError } = await appointmentsClient
-        .from('appointments')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false);
+      let { data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
+        includeHiddenFilter,
+        includeServerRange: false,
+      });
+
+      if (isHiddenFromScheduleMissingError(fallbackError)) {
+        includeHiddenFilter = false;
+        ({ data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
+          includeHiddenFilter,
+          includeServerRange: false,
+        }));
+      }
 
       if (fallbackError) {
         throw fallbackError;
@@ -602,7 +666,9 @@ const Schedule: React.FC = () => {
 
       appointmentRows = (fallbackData || []).filter((apt: any) => {
         const startTime = new Date(apt.start_time).getTime();
-        return !Number.isNaN(startTime)
+        const isVisible = apt.hidden_from_schedule === undefined || apt.hidden_from_schedule === false;
+        return isVisible
+          && !Number.isNaN(startTime)
           && startTime >= new Date(rangeStart).getTime()
           && startTime <= new Date(rangeEnd).getTime();
       });
@@ -623,7 +689,7 @@ const Schedule: React.FC = () => {
           start: startHour,
           duration: Number(apt.duration) || 1,
           client: apt.client_name || 'Cliente',
-          service: apt.service_name || 'Serviço',
+        service: getEsteticaDemoServiceName(apt.service_name, appSlug) || serviceLabel,
           status: apt.status,
           color: statusColors[apt.status] || 'bg-blue-500',
           staffName: apt.staff_name || '',
@@ -663,7 +729,7 @@ const Schedule: React.FC = () => {
       setOpenComandasByAppointment({});
     }
     setLoading(false);
-  }, [displayMode, getListRange, selectedDate, tenantId, viewMode]);
+  }, [appSlug, displayMode, getListRange, selectedDate, serviceLabel, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
@@ -1211,8 +1277,7 @@ const Schedule: React.FC = () => {
     setIsBlockModalOpen(true);
   };
 
-  const handleDeleteBlock = async (block: ScheduleBlock) => {
-    if (!window.confirm('Deseja realmente remover este bloqueio?')) return;
+  const executeDeleteBlock = async (block: ScheduleBlock) => {
     try {
       await scheduleBlocksApi.remove(block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
@@ -1223,38 +1288,11 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleSaveBlock = async () => {
-    if (!tenantId) {
-      setBlockError('Tenant inválido para salvar bloqueio.');
-      return;
-    }
+  const handleDeleteBlock = (block: ScheduleBlock) => {
+    setConfirmIntent({ type: 'deleteBlock', block });
+  };
 
-    const payload = buildBlockPayloadFromForm();
-    if (!payload) return;
-
-    if (payload.professional_id && !payload.professional_id.trim()) {
-      setBlockError('Selecione um profissional.');
-      return;
-    }
-
-    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active' && block.id !== editingBlockId);
-    const conflicts = detectBlockConflicts(activeBlocks, payload);
-    if (conflicts.length > 0) {
-      setBlockError(`Já existe bloqueio sobreposto (${conflicts.length}). Edite o bloqueio existente ou ajuste o período.`);
-      return;
-    }
-
-    const impacted = appointments.filter((apt) => apt.status !== 'cancelled' && isAppointmentInsideBlock(apt, payload));
-    setImpactPreview(impacted);
-
-    if (impacted.length > 0) {
-      const confirmed = window.confirm(`Existem ${impacted.length} agendamentos impactados. Deseja confirmar o bloqueio mesmo assim?`);
-      if (!confirmed) {
-        setBlockError('Operação cancelada para revisar agendamentos impactados.');
-        return;
-      }
-    }
-
+  const executeSaveBlock = async (payload: ScheduleBlockInput, impacted: CalendarAppointment[]) => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
@@ -1291,6 +1329,38 @@ const Schedule: React.FC = () => {
     }
   };
 
+  const handleSaveBlock = async () => {
+    if (!tenantId) {
+      setBlockError('Tenant inválido para salvar bloqueio.');
+      return;
+    }
+
+    const payload = buildBlockPayloadFromForm();
+    if (!payload) return;
+
+    if (payload.professional_id && !payload.professional_id.trim()) {
+      setBlockError('Selecione um profissional.');
+      return;
+    }
+
+    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active' && block.id !== editingBlockId);
+    const conflicts = detectBlockConflicts(activeBlocks, payload);
+    if (conflicts.length > 0) {
+      setBlockError(`Já existe bloqueio sobreposto (${conflicts.length}). Edite o bloqueio existente ou ajuste o período.`);
+      return;
+    }
+
+    const impacted = appointments.filter((apt) => apt.status !== 'cancelled' && isAppointmentInsideBlock(apt, payload));
+    setImpactPreview(impacted);
+
+    if (impacted.length > 0) {
+      setConfirmIntent({ type: 'saveImpactedBlock', payload, impacted });
+      return;
+    }
+
+    await executeSaveBlock(payload, impacted);
+  };
+
   const handleSave = async (options?: { preventLock?: boolean }) => {
     if (!tenantId) {
       setError('Tenant inválido para salvar agendamento.');
@@ -1298,7 +1368,7 @@ const Schedule: React.FC = () => {
     }
 
     if (!formData.client || selectedServices.length === 0) {
-      setError("Por favor, preencha o nome do cliente e selecione ao menos um serviço.");
+      setError(`Por favor, preencha o nome do cliente e selecione ao menos um ${serviceLabelLower}.`);
       return;
     }
 
@@ -1596,6 +1666,33 @@ const Schedule: React.FC = () => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
+  const visibleAppointments = React.useMemo(() => {
+    if (viewMode === 'week') {
+      const weekKeys = new Set(weekDays.map((day) => toDateKey(day)));
+      return appointments.filter((appointment) => weekKeys.has(toDateKey(appointment.date || appointment.startTime)));
+    }
+
+    return appointments.filter((appointment) => toDateKey(appointment.date || appointment.startTime) === selectedDateKey);
+  }, [appointments, selectedDateKey, viewMode, weekDays]);
+
+  const visibleOpenComandasCount = visibleAppointments.filter((appointment) => openComandasByAppointment[appointment.id]).length;
+  const visibleExpectedRevenue = visibleAppointments
+    .filter((appointment) => !['cancelled', 'no_show'].includes(normalizeAppointmentStatus(appointment.status)))
+    .reduce((sum, appointment) => sum + Number(appointment.price || 0), 0);
+  const visiblePendingCount = visibleAppointments
+    .filter((appointment) => ['pending', 'scheduled'].includes(normalizeAppointmentStatus(appointment.status)))
+    .length;
+  const visibleConfirmedCount = visibleAppointments
+    .filter((appointment) => normalizeAppointmentStatus(appointment.status) === 'confirmed')
+    .length;
+  const visibleRangeLabel = viewMode === 'week'
+    ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    : formatDateDisplay(selectedDate);
+  const visibleBlockCount = viewMode === 'week'
+    ? scheduleBlocks.filter((block) => weekDays.some((day) => blockAppliesToDate(block, toDateKey(day)))).length
+    : scheduleBlocks.filter((block) => blockAppliesToDate(block, selectedDateKey)).length;
+  const formatScheduleCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
+
   const escapeCSV = (value: string | number | null | undefined) => {
     const normalized = value == null ? '' : String(value);
     return `"${normalized.replace(/"/g, '""')}"`;
@@ -1637,7 +1734,7 @@ const Schedule: React.FC = () => {
 
   const exportToCSV = async () => {
     if (appointments.length === 0) {
-      setToast({ message: 'Não há agendamentos para exportar no período selecionado.', type: 'error' });
+      setToast({ message: `Não há ${isEsteticaApp ? 'atendimentos' : 'agendamentos'} para exportar no período selecionado.`, type: 'error' });
       return;
     }
     if (!tenantId) {
@@ -1718,16 +1815,16 @@ const Schedule: React.FC = () => {
       'Fim',
       'Cliente',
       'Telefone',
-      'Serviço',
+      serviceLabel,
       'Profissional',
       'Duração',
       'Valor',
       'Status',
-      'Valor do serviço',
+      `Valor do ${serviceLabelLower}`,
       'Valor compartilhado',
       'Valor pago',
       'Status de pagamento',
-      'Serviço compartilhado',
+      `${serviceLabel} compartilhado`,
       'Profissionais participantes',
       'Divisão lançada',
       'Base por participante',
@@ -1813,8 +1910,8 @@ const Schedule: React.FC = () => {
 
   const enrichedAppointments = React.useMemo<EnrichedAppointment[]>(() => {
     return appointments.map((apt) => {
-      const statusMeta = getAppointmentStatusMeta(apt.status);
-      const originLabel = getOriginLabel(apt.source, apt.channel);
+      const statusMeta = getAppointmentStatusMeta(apt.status, isEsteticaApp);
+      const originLabel = getOriginLabel(apt.source, apt.channel, isEsteticaApp);
       const shortNotes = getShortNotes(apt.notes || '');
       const isOverdue = isAppointmentOverdue(apt);
       return {
@@ -1830,7 +1927,7 @@ const Schedule: React.FC = () => {
         hasOpenComanda: Boolean(openComandasByAppointment[apt.id]),
       };
     });
-  }, [appointments, openComandasByAppointment]);
+  }, [appointments, openComandasByAppointment, isEsteticaApp]);
 
   const appointmentsForSummary = React.useMemo(() => {
     return enrichedAppointments.filter((apt) => {
@@ -1863,7 +1960,7 @@ const Schedule: React.FC = () => {
     { key: 'total', label: 'Total', value: appointmentsForSummary.length, tone: 'text-slate-700 dark:text-slate-100' },
     { key: 'confirmed', label: 'Confirmados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'confirmed').length, tone: 'text-blue-600 dark:text-blue-300' },
     { key: 'pending', label: 'Pendentes', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'pending').length, tone: 'text-amber-600 dark:text-amber-300' },
-    { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-violet-600 dark:text-violet-300' },
+    { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-sky-600 dark:text-sky-300' },
     { key: 'completed', label: 'Finalizados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'completed').length, tone: 'text-emerald-600 dark:text-emerald-300' },
     { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled').length, tone: 'text-rose-600 dark:text-rose-300' },
     { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
@@ -1886,9 +1983,8 @@ const Schedule: React.FC = () => {
     setSelectedAppointment(null);
   };
 
-  const handleAppointmentStatusChange = async (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
+  const executeAppointmentStatusChange = async (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
     if (!tenantId) return;
-    if (!window.confirm(`Deseja ${confirmationLabel.toLowerCase()} este agendamento?`)) return;
 
     try {
       const { error: updateError } = await supabase
@@ -1905,6 +2001,47 @@ const Schedule: React.FC = () => {
     } catch (err) {
       console.error('Erro ao atualizar status do agendamento:', err);
       setToast({ message: 'Erro ao atualizar status do agendamento.', type: 'error' });
+    }
+  };
+
+  const handleAppointmentStatusChange = (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
+    if (!tenantId) return;
+    setConfirmIntent({ type: 'statusChange', appointment, nextStatus, confirmationLabel });
+  };
+
+  const handleCloseConfirmDialog = () => {
+    if (confirmBusy) return;
+    setConfirmIntent(null);
+  };
+
+  const handleCancelConfirmDialog = () => {
+    if (confirmBusy) return;
+    if (confirmIntent?.type === 'saveImpactedBlock') {
+      setBlockError('Operação cancelada para revisar agendamentos impactados.');
+    }
+    setConfirmIntent(null);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmIntent) return;
+    setConfirmBusy(true);
+
+    try {
+      if (confirmIntent.type === 'deleteBlock') {
+        await executeDeleteBlock(confirmIntent.block);
+      }
+
+      if (confirmIntent.type === 'saveImpactedBlock') {
+        await executeSaveBlock(confirmIntent.payload, confirmIntent.impacted);
+      }
+
+      if (confirmIntent.type === 'statusChange') {
+        await executeAppointmentStatusChange(confirmIntent.appointment, confirmIntent.nextStatus, confirmIntent.confirmationLabel);
+      }
+
+      setConfirmIntent(null);
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
@@ -1935,12 +2072,12 @@ const Schedule: React.FC = () => {
 
     const cleanPhone = appointment.clientPhone.replace(/\D/g, '');
     const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+    const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(appointment.startTime).toLocaleDateString('pt-BR')}
 ⏰ *Hora:* ${new Date(appointment.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 *Serviço:* ${appointment.service}
-🧔 *Profissional:* ${appointment.staffName}
+${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${appointment.service}
+👤 *${professionalLabel}:* ${appointment.staffName}
 
 Podemos confirmar? 😄`;
 
@@ -1948,23 +2085,37 @@ Podemos confirmar? 😄`;
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in relative">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 shrink-0">
-        <div className="flex items-center gap-2 bg-white dark:bg-surface-dark p-1 rounded-lg border border-slate-200 dark:border-border-dark shadow-sm">
+    <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
+      <div className="relative mb-4 shrink-0 overflow-hidden rounded-3xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(0,210,255,0.22),transparent_34%),linear-gradient(135deg,rgba(0,51,102,0.96),rgba(15,23,42,0.98)_58%,rgba(146,104,45,0.62))]" />
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="size-11 rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white flex items-center justify-center shadow-[0_0_24px_rgba(0,210,255,0.20)] shrink-0">
+            <span className="material-symbols-outlined text-2xl">calendar_month</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das cadeiras'}</p>
+            <h1 className="text-2xl font-black text-white sm:text-3xl">{isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}</h1>
+            <p className="text-sm text-slate-200">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela operacional a partir das 07:00.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-1 shadow-sm">
           <button
             onClick={() => {
               const newDate = new Date(selectedDate);
               newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded text-slate-500 dark:text-slate-400"
+            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
+            aria-label="Data anterior"
           >
             <span className="material-symbols-outlined text-lg">chevron_left</span>
           </button>
-          <div className="flex items-center gap-1 px-1.5 text-slate-900 dark:text-white font-bold min-w-0 justify-center">
+          <div className="flex min-w-0 items-center justify-center gap-1 px-1.5 font-bold text-white">
             <span className="text-xs">
               {viewMode === 'week'
-                ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                ? visibleRangeLabel
                 : formatDateDisplay(selectedDate)
               }
             </span>
@@ -1975,7 +2126,8 @@ Podemos confirmar? 😄`;
               newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
               setSelectedDate(newDate);
             }}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded text-slate-500 dark:text-slate-400"
+            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
+            aria-label="Próxima data"
           >
             <span className="material-symbols-outlined text-lg">chevron_right</span>
           </button>
@@ -1986,49 +2138,49 @@ Podemos confirmar? 😄`;
                 const newDate = parseDateInputValue(e.target.value);
                 if (newDate) setSelectedDate(newDate);
               }}
-              className="text-xs bg-transparent border-0 p-0 w-auto"
+              className="w-auto border-0 bg-transparent p-0 text-xs text-white"
             />
           </span>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <div className="flex bg-slate-100 dark:bg-surface-dark p-0.5 rounded border border-slate-200 dark:border-border-dark">
+        <div className="flex items-center gap-2 flex-wrap justify-start xl:justify-end">
+          <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
             <button
               onClick={() => setDisplayMode('calendar')}
               className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'calendar'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-200 hover:text-white'
                 }`}
             >Calendário</button>
             <button
               onClick={() => setDisplayMode('list')}
               className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'list'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-200 hover:text-white'
                 }`}
             >Lista</button>
           </div>
           {displayMode === 'calendar' && (
-            <div className="flex bg-slate-100 dark:bg-surface-dark p-0.5 rounded border border-slate-200 dark:border-border-dark">
+            <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
               <button
                 onClick={() => setViewMode('day')}
                 className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'day'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-200 hover:text-white'
                   }`}
               >Dia</button>
               <button
                 onClick={() => setViewMode('week')}
                 className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'week'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-200 hover:text-white'
                   }`}
               >Semana</button>
             </div>
           )}
           <button
             onClick={exportToCSV}
-            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
             title="Exportar agenda em CSV"
           >
             <span className="material-symbols-outlined text-base">download</span>
@@ -2040,8 +2192,8 @@ Podemos confirmar? 😄`;
               <button
                 onClick={() => setShowOnlyBlocks(prev => !prev)}
                 className={`border px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all ${showOnlyBlocks
-                  ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
-                  : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300'
+                  ? 'border-red-300 bg-red-500/20 text-red-100'
+                  : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'
                   }`}
                 title="Exibir apenas bloqueios na grade"
               >
@@ -2051,7 +2203,7 @@ Podemos confirmar? 😄`;
 
               <button
                 onClick={handleOpenCreateBlockModal}
-                className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition-all"
+                className="flex items-center gap-1.5 rounded-lg border border-red-300/30 bg-red-500/20 px-3 py-2 text-xs font-bold text-red-100 shadow transition-all hover:bg-red-500/30"
               >
                 <span className="material-symbols-outlined text-base">event_busy</span>
                 <span className="hidden sm:inline">Fechar agenda</span>
@@ -2061,7 +2213,7 @@ Podemos confirmar? 😄`;
 
           <button
             onClick={() => navigate('/operations')}
-            className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
             title="Operações do dia"
           >
             <span className="material-symbols-outlined text-base">insights</span>
@@ -2075,16 +2227,39 @@ Podemos confirmar? 😄`;
               setChefClubInfo(null);
               setIsModalOpen(true);
             }}
-            className="bg-primary hover:bg-primary/90 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition-all"
+            className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-[0_8px_22px_rgba(251,191,36,0.20)] transition-all hover:bg-amber-300"
           >
             <span className="material-symbols-outlined text-base">add</span>
-            <span className="hidden sm:inline">Novo Agendamento</span>
+            <span className="hidden sm:inline">{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
           </button>
+        </div>
+        </div>
+        <div className="relative mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-4">
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Atendimentos</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleConfirmedCount} confirmados</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Pendentes</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">Aguardam confirmação</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">{orderPluralLabel}</p>
+            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
+          </div>
+          <div className="min-w-0 bg-white/[0.04] p-2.5">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Previsto</p>
+            <p className="mt-0.5 truncate text-lg font-black leading-none sm:text-xl">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</p>
+            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleBlockCount} bloqueio(s)</p>
+          </div>
         </div>
       </div>
 
       {displayMode === 'calendar' ? (
-      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 flex-1 min-h-0">
+      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6">
         {/* DASHBOARD INDICATORS - Ocultos para simplificar */}
         <div className="hidden" />
 
@@ -2106,20 +2281,20 @@ Podemos confirmar? 😄`;
                     <div
                       key={i}
                       onClick={() => { setSelectedDate(day); setViewMode('day'); }}
-                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5 ${isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-[#F7FBFE] dark:hover:bg-[#102033] ${isSelected ? 'bg-[#EAF7FF] dark:bg-[#0D2238]' : ''
                         } ${hasDayBlock ? 'bg-red-50/70 dark:bg-red-900/10' : ''
                         }`}
                     >
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-slate-400'
+                      <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-[#007BFF] dark:text-[#00D2FF]' : 'text-slate-400'
                         }`}>
                         {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
                       </p>
-                      <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-primary text-white' : 'text-slate-700 dark:text-white'
+                      <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-[#007BFF] text-white' : 'text-slate-700 dark:text-white'
                         }`}>
                         {day.getDate()}
                       </div>
                       {dayApts.length > 0 && !showOnlyBlocks && (
-                        <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                        <span className="text-[9px] font-bold bg-[#007BFF]/10 text-[#007BFF] dark:text-[#00D2FF] px-1.5 py-0.5 rounded-full">
                           {dayApts.length} aptos
                         </span>
                       )}
@@ -2133,7 +2308,7 @@ Podemos confirmar? 😄`;
                 })}
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <div className="relative">
                 {loading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -2160,7 +2335,7 @@ Podemos confirmar? 😄`;
                         return (
                           <div
                             key={di}
-                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-primary/[0.02]' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
+                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-[#EAF7FF]/35 dark:bg-[#0D2238]/45' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const aptId = e.dataTransfer.getData('aptId');
@@ -2205,7 +2380,7 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border-l-4 ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
@@ -2249,7 +2424,7 @@ Podemos confirmar? 😄`;
                         </div>
                         <div className="text-center">
                           <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{roleLabels[resource.role] || resource.role}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{getVisibleRoleLabel(resource.role)}</p>
                         </div>
                       </div>
                     ))
@@ -2257,7 +2432,7 @@ Podemos confirmar? 😄`;
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+              <div className="relative">
                 {loading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -2304,12 +2479,12 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1 border-l-4 ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1 border ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
                                   <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
-                                    <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase tracking-tighter leading-none">
+                                    <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase leading-none">
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
                                     {apt.isOverbooked && (
@@ -2371,7 +2546,7 @@ Podemos confirmar? 😄`;
         <div className="hidden" />
       </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-1">
+        <div className="space-y-4 pr-1 pb-20">
           <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[200px] flex-1 max-w-xs">
@@ -2379,7 +2554,7 @@ Podemos confirmar? 😄`;
                   type="text"
                   value={listFilters.search}
                   onChange={(e) => setListFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  placeholder="Buscar cliente ou telefone..."
+                  placeholder={isEsteticaApp ? `Buscar cliente, telefone ou ${serviceLabelLower}...` : 'Buscar cliente ou telefone...'}
                   className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl pl-9 pr-3 py-2.5 text-sm"
                 />
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
@@ -2397,7 +2572,7 @@ Podemos confirmar? 😄`;
                     key={chip.key}
                     onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
-                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      ? 'bg-[#007BFF] text-white shadow-[0_8px_22px_rgba(0,123,255,0.20)]'
                       : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
                     }`}
                   >
@@ -2455,14 +2630,14 @@ Podemos confirmar? 😄`;
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Serviço</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{serviceLabel}</label>
                     <select
                       value={listFilters.service}
                       onChange={(e) => setListFilters((prev) => ({ ...prev, service: e.target.value }))}
                       className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
                     >
                       <option value="all">Todos</option>
-                      {servicesList.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
+                      {servicesList.map((service) => <option key={service.id} value={service.name}>{getCatalogDisplayName(service, appSlug)}</option>)}
                     </select>
                   </div>
                   <div>
@@ -2484,7 +2659,7 @@ Podemos confirmar? 😄`;
                       className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2.5 text-sm"
                     >
                       <option value="all">Todos</option>
-                      {Object.entries(appointmentStatusMeta).map(([status, meta]) => <option key={status} value={status}>{meta.label}</option>)}
+                      {Object.keys(appointmentStatusMeta).map((status) => <option key={status} value={status}>{getAppointmentStatusMeta(status, isEsteticaApp).label}</option>)}
                     </select>
                   </div>
                 </div>
@@ -2496,13 +2671,13 @@ Podemos confirmar? 😄`;
                     { key: 'confirmed', label: 'Confirmados' },
                     { key: 'in_progress', label: 'Em atendimento' },
                     { key: 'overdue', label: 'Atrasados' },
-                    { key: 'without_comanda', label: 'Sem comanda' },
+                    { key: 'without_comanda', label: isEsteticaApp ? `Sem ${orderLabelLower}` : 'Sem comanda' },
                   ].map((chip) => (
                     <button
                       key={chip.key}
                       onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
-                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                        ? 'bg-[#007BFF] text-white shadow-[0_8px_22px_rgba(0,123,255,0.20)]'
                         : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
                       }`}
                     >
@@ -2528,7 +2703,7 @@ Podemos confirmar? 😄`;
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-white/[0.03] border-b border-slate-200 dark:border-border-dark">
                   <tr className="text-left">
-                    {['Horário', 'Cliente', 'Telefone', 'Serviço', 'Profissional', 'Status', 'Observação', 'Origem', 'Ações'].map((label) => (
+                    {['Horário', 'Cliente', 'Telefone', serviceLabel, professionalLabel, 'Status', 'Observação', 'Origem', 'Ações'].map((label) => (
                       <th key={label} className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</th>
                     ))}
                   </tr>
@@ -2561,22 +2736,22 @@ Podemos confirmar? 😄`;
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.originLabel}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <button onClick={() => handleOpenAppointmentDetails(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Ver detalhes"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
+                          <button onClick={() => handleOpenAppointmentDetails(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Ver detalhes"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-amber-500 hover:bg-amber-500/10" title="Editar"><span className="material-symbols-outlined text-[18px]">edit</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="p-2 rounded-lg text-slate-500 hover:text-blue-500 hover:bg-blue-500/10" title="Confirmar"><span className="material-symbols-outlined text-[18px]">check_circle</span></button>
-                          <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-violet-500 hover:bg-violet-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-sky-500 hover:bg-sky-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
-                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
+                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
                           <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
-                          <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
-                          <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Abrir comanda"><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
+                          <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
+                          <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title={`Abrir ${orderLabelLower}`}><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {!loading && filteredListAppointments.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">Nenhum agendamento encontrado com os filtros atuais.</td>
+                      <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">{isEsteticaApp ? 'Nenhum atendimento encontrado com os filtros atuais.' : 'Nenhum agendamento encontrado com os filtros atuais.'}</td>
                     </tr>
                   )}
                 </tbody>
@@ -2599,8 +2774,8 @@ Podemos confirmar? 😄`;
                   </span>
                 </div>
                 <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                  <p><strong>Serviço:</strong> {apt.service}</p>
-                  <p><strong>Profissional:</strong> {apt.staffName || '-'}</p>
+                  <p><strong>{serviceLabel}:</strong> {apt.service}</p>
+                  <p><strong>{professionalLabel}:</strong> {apt.staffName || '-'}</p>
                   <p><strong>Origem:</strong> {apt.originLabel}</p>
                   <p title={apt.notes || ''}><strong>Obs.:</strong> {apt.shortNotes || '-'}</p>
                 </div>
@@ -2608,17 +2783,17 @@ Podemos confirmar? 😄`;
                   <button onClick={() => handleOpenAppointmentDetails(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Detalhes</button>
                   <button onClick={() => handleEditAppointment(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Editar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
-                  <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-violet-50 text-violet-600 text-xs font-bold">Iniciar</button>
+                  <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-sky-50 text-sky-600 text-xs font-bold">Iniciar</button>
                   <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
                   <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
                   <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
-                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Comanda</button>
+                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">{orderLabel}</button>
                 </div>
               </div>
             ))}
             {!loading && filteredListAppointments.length === 0 && (
               <div className="bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark p-8 text-center text-sm text-slate-500">
-                Nenhum agendamento encontrado com os filtros atuais.
+                {isEsteticaApp ? 'Nenhum atendimento encontrado com os filtros atuais.' : 'Nenhum agendamento encontrado com os filtros atuais.'}
               </div>
             )}
           </div>
@@ -2628,7 +2803,7 @@ Podemos confirmar? 😄`;
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
-        title={editingAppointmentId ? "Editar Agendamento" : "Novo Agendamento"}
+        title={editingAppointmentId ? (isEsteticaApp ? 'Editar atendimento' : 'Editar Agendamento') : (isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento')}
         maxWidth="md"
       >
         <div className="space-y-4">
@@ -2695,7 +2870,7 @@ Podemos confirmar? 😄`;
                 )}
               </div>
             )}
-            {chefClubInfo && (
+            {!isEsteticaApp && chefClubInfo && (
               <div className="mt-2 animate-bounce-in bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 flex items-center justify-between">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
@@ -2717,7 +2892,7 @@ Podemos confirmar? 😄`;
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-xs font-bold uppercase text-slate-500">Serviços</label>
+              <label className="block text-xs font-bold uppercase text-slate-500">{servicePluralLabel}</label>
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
                 {selectedServices.length} selecionado(s)
               </span>
@@ -2742,14 +2917,14 @@ Podemos confirmar? 😄`;
                 type="text"
                 value={serviceSearchTerm}
                 onChange={(e) => setServiceSearchTerm(e.target.value)}
-                placeholder="Buscar serviço..."
+                placeholder={`Buscar ${serviceLabelLower}...`}
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white"
               />
             </div>
             <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
               {servicesList.length === 0 ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  Nenhum serviço disponível
+                  {isEsteticaApp ? 'Ainda não há procedimentos ativos para agendamento.' : 'Nenhum serviço disponível'}
                 </div>
               ) : filteredServicesForModal.length > 0 ? (
                 filteredServicesForModal.map((service) => {
@@ -2773,7 +2948,7 @@ Podemos confirmar? 😄`;
                         {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-bold">{service.name}</span>
+                        <span className="block truncate font-bold">{getCatalogDisplayName(service, appSlug)}</span>
                         <span className="block text-[10px] text-slate-500">
                           {service.duration} min • R$ {Number(service.price || 0).toFixed(2)}
                         </span>
@@ -2783,7 +2958,7 @@ Podemos confirmar? 😄`;
                 })
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  Nenhum serviço encontrado
+                  {isEsteticaApp ? 'Nenhum procedimento encontrado' : 'Nenhum serviço encontrado'}
                 </div>
               )}
             </div>
@@ -2798,7 +2973,7 @@ Podemos confirmar? 😄`;
                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
               >
                 {staffList.map(r => (
-                  <option key={r.id} value={r.id}>{r.name} - {roleLabels[r.role] || r.role}</option>
+                  <option key={r.id} value={r.id}>{r.name} - {getVisibleRoleLabel(r.role)}</option>
                 ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
@@ -3210,7 +3385,7 @@ Podemos confirmar? 😄`;
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Serviço</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">{serviceLabel}</p>
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary text-lg">content_cut</span>
                     <p className="text-sm font-bold text-slate-900 dark:text-white">{apt.service}</p>
@@ -3266,12 +3441,12 @@ Podemos confirmar? 😄`;
                     }
                     const cleanPhone = apt.clientPhone.replace(/\D/g, '');
                     const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da barbearia. Passando para confirmar seu agendamento:
+                    const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
 ⏰ *Hora:* ${new Date(apt.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-💈 *Serviço:* ${apt.service}
-🧔 *Profissional:* ${staff?.name || apt.staffName}
+${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${apt.service}
+👤 *${professionalLabel}:* ${staff?.name || apt.staffName}
 
 Podemos confirmar? 😄`;
                     const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
@@ -3296,7 +3471,7 @@ Podemos confirmar? 😄`;
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">point_of_sale</span>
-                  Checkout
+                  {isEsteticaApp ? businessLabels.checkout : 'Checkout'}
                 </button>
 
                 <button
@@ -3333,6 +3508,20 @@ Podemos confirmar? 😄`;
               </button>
             </div>
 
+            <div className="flex-none border-b border-slate-200 bg-white/95 p-4 dark:border-border-dark dark:bg-[#111318]/95">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ações rápidas</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sky-50 text-sky-600 text-sm font-bold">Iniciar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Cliente</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">{orderLabel}</button>
+                <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${selectedAppointmentDetails.statusBadgeClassName}`}>
@@ -3354,11 +3543,11 @@ Podemos confirmar? 😄`;
                   <p className="text-sm text-slate-500">{selectedAppointmentDetails.clientPhone || 'Sem telefone'}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Profissional</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{professionalLabel}</p>
                   <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.staffName || '-'}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Serviço</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{serviceLabel}</p>
                   <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.service}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
@@ -3380,18 +3569,6 @@ Podemos confirmar? 😄`;
                 <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
               </div>
             </div>
-
-             <div className="p-5 border-t border-slate-200 dark:border-border-dark grid grid-cols-2 gap-2">
-               <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-violet-50 text-violet-600 text-sm font-bold">Iniciar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleSendWhatsApp(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors">WhatsApp</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir cliente</button>
-               <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Abrir comanda</button>
-               <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
-               <button onClick={closeDetailDrawer} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Fechar</button>
-             </div>
           </div>
         </div>
       )}
@@ -3471,6 +3648,121 @@ Podemos confirmar? 😄`;
             </div>
           </div>
         </div>
+      )}
+
+      {confirmIntent && (
+        <Modal
+          isOpen={!!confirmIntent}
+          onClose={handleCloseConfirmDialog}
+          title={
+            confirmIntent.type === 'deleteBlock'
+              ? 'Remover bloqueio'
+              : confirmIntent.type === 'saveImpactedBlock'
+                ? 'Confirmar bloqueio'
+                : `${confirmIntent.confirmationLabel} atendimento`
+          }
+          maxWidth="sm"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={handleCancelConfirmDialog}
+                disabled={confirmBusy}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-border-dark dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmAction()}
+                disabled={confirmBusy}
+                className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  confirmIntent.type === 'deleteBlock'
+                    ? 'bg-red-500 shadow-red-500/20 hover:bg-red-600'
+                    : confirmIntent.type === 'saveImpactedBlock'
+                      ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600'
+                      : 'bg-[#007BFF] shadow-[0_10px_24px_rgba(0,123,255,0.22)] hover:bg-[#0067D6]'
+                }`}
+              >
+                {confirmBusy
+                  ? 'Processando...'
+                  : confirmIntent.type === 'deleteBlock'
+                    ? 'Remover bloqueio'
+                    : confirmIntent.type === 'saveImpactedBlock'
+                      ? 'Confirmar bloqueio'
+                      : 'Atualizar status'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className={`flex items-start gap-3 rounded-2xl border p-4 ${
+              confirmIntent.type === 'deleteBlock'
+                ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
+                : confirmIntent.type === 'saveImpactedBlock'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'
+                  : 'border-[#BDEFFF] bg-[#F0FAFF] text-[#003366] dark:border-[#14304A] dark:bg-[#0B1828] dark:text-[#D9F6FF]'
+            }`}>
+              <span className="material-symbols-outlined mt-0.5 text-2xl">
+                {confirmIntent.type === 'deleteBlock'
+                  ? 'event_busy'
+                  : confirmIntent.type === 'saveImpactedBlock'
+                    ? 'event_repeat'
+                    : 'task_alt'}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-black">
+                  {confirmIntent.type === 'deleteBlock'
+                    ? 'Este bloqueio sairá da agenda operacional.'
+                    : confirmIntent.type === 'saveImpactedBlock'
+                      ? `${confirmIntent.impacted.length} agendamento(s) serão impactados.`
+                      : 'O status deste agendamento será atualizado.'}
+                </p>
+                <p className="mt-1 text-xs font-semibold opacity-80">
+                  {confirmIntent.type === 'deleteBlock'
+                    ? 'Agendamentos já criados não serão alterados por esta ação.'
+                    : confirmIntent.type === 'saveImpactedBlock'
+                      ? 'Revise a lista exibida no formulário antes de confirmar o bloqueio.'
+                      : 'Use esta ação quando a equipe já confirmou a etapa no atendimento.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-border-dark dark:bg-white/5">
+              {confirmIntent.type === 'deleteBlock' && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Bloqueio</p>
+                  <p className="mt-1 font-bold text-slate-900 dark:text-white">{confirmIntent.block.reason || 'Agenda fechada'}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {confirmIntent.block.start_date} até {confirmIntent.block.end_date}
+                  </p>
+                </div>
+              )}
+
+              {confirmIntent.type === 'saveImpactedBlock' && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Impacto</p>
+                  <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                    {confirmIntent.impacted.length} atendimento(s) dentro do período selecionado
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    A ação para agendamentos existentes continuará seguindo a opção escolhida no formulário.
+                  </p>
+                </div>
+              )}
+
+              {confirmIntent.type === 'statusChange' && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Atendimento</p>
+                  <p className="mt-1 font-bold text-slate-900 dark:text-white">{confirmIntent.appointment.client}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {confirmIntent.appointment.service} com {confirmIntent.appointment.staffName || 'profissional não informado'} às {getDecimalTimeLabel(confirmIntent.appointment.start)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

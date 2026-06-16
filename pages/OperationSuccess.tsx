@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 type OperationType = 'appointment' | 'comanda';
 
@@ -47,7 +49,14 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 const OperationSuccess: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { appSlug } = useAuth();
   const state = location.state as OperationSuccessLocationState | null;
+  const businessLabels = getBusinessLabels(appSlug);
+  const isEsteticaApp = appSlug === 'estetica';
+  const serviceLabel = businessLabels.service;
+  const orderLabel = businessLabels.order;
+  const orderPluralLabel = businessLabels.orderPlural;
+  const orderLabelLower = orderLabel.toLowerCase();
 
   const operationType = state?.operationType;
   const appointment = state?.appointment;
@@ -75,12 +84,13 @@ const OperationSuccess: React.FC = () => {
     return `R$ ${Number(value || 0).toFixed(2)}`;
   };
 
-  const getStatusLabel = (status: string) => {
-    return APPOINTMENT_STATUS_LABELS[status] || status;
-  };
-
   const getPaymentMethodLabel = (method: string) => {
     return PAYMENT_METHOD_LABELS[method] || method;
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (isEsteticaApp && status === 'completed') return 'Concluído';
+    return APPOINTMENT_STATUS_LABELS[status] || status;
   };
 
   if (!hasValidData) {
@@ -92,10 +102,10 @@ const OperationSuccess: React.FC = () => {
               <span className="material-symbols-outlined text-5xl text-white">check</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Operação Concluída
+              {isEsteticaApp ? 'Atendimento finalizado' : 'Operação Concluída'}
             </h1>
             <p className="text-slate-500 mt-2">
-              Sua operação foi finalizada com sucesso.
+              {isEsteticaApp ? 'O atendimento foi finalizado com sucesso.' : 'Sua operação foi finalizada com sucesso.'}
             </p>
           </div>
 
@@ -121,7 +131,7 @@ const OperationSuccess: React.FC = () => {
               className="w-full py-4 px-6 bg-white dark:bg-card-dark border-2 border-slate-200 dark:border-border-dark hover:border-primary/50 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">receipt_long</span>
-              Voltar para Comandas
+              Voltar para {orderPluralLabel}
             </button>
           </div>
         </div>
@@ -138,10 +148,10 @@ const OperationSuccess: React.FC = () => {
               <span className="material-symbols-outlined text-5xl text-white">event_available</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Agendamento Confirmado
+              {isEsteticaApp ? 'Atendimento agendado' : 'Agendamento Confirmado'}
             </h1>
             <p className="text-slate-500 mt-2">
-              O agendamento foi criado com sucesso!
+              {isEsteticaApp ? 'O atendimento foi agendado com sucesso!' : 'O agendamento foi criado com sucesso!'}
             </p>
           </div>
 
@@ -159,7 +169,7 @@ const OperationSuccess: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Serviço</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{serviceLabel}</p>
                   <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{appointment.service}</p>
                 </div>
                 <div>
@@ -181,7 +191,7 @@ const OperationSuccess: React.FC = () => {
 
               {appointment.id && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">ID do Agendamento</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{isEsteticaApp ? 'ID do atendimento' : 'ID do Agendamento'}</p>
                   <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">#{appointment.id.slice(0, 8).toUpperCase()}</p>
                 </div>
               )}
@@ -202,7 +212,7 @@ const OperationSuccess: React.FC = () => {
               className="w-full py-4 px-6 bg-white dark:bg-card-dark border-2 border-slate-200 dark:border-border-dark hover:border-primary/50 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">receipt_long</span>
-              Ver Comandas
+              Ver {orderPluralLabel}
             </button>
 
             <button
@@ -210,7 +220,7 @@ const OperationSuccess: React.FC = () => {
               className="w-full py-3 px-6 bg-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-bold text-sm transition-colors flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">add</span>
-              Criar novo agendamento
+              {isEsteticaApp ? 'Criar novo atendimento' : 'Criar novo agendamento'}
             </button>
 
             <button
@@ -235,10 +245,10 @@ const OperationSuccess: React.FC = () => {
               <span className="material-symbols-outlined text-5xl text-white">check</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Comanda Finalizada
+              {isEsteticaApp ? 'Atendimento finalizado' : 'Comanda Finalizada'}
             </h1>
             <p className="text-slate-500 mt-2">
-              A comanda foi fechada com sucesso!
+              {isEsteticaApp ? 'O atendimento foi finalizado e o pagamento foi registrado.' : 'A comanda foi fechada com sucesso!'}
             </p>
           </div>
 
@@ -280,7 +290,7 @@ const OperationSuccess: React.FC = () => {
 
             {comanda.id && (
               <div className="pt-4 border-t border-slate-100 dark:border-border-dark mt-4">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">ID da Comanda</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">ID {isEsteticaApp ? `do ${orderLabelLower}` : 'da Comanda'}</p>
                 <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">#{comanda.id.slice(0, 8).toUpperCase()}</p>
               </div>
             )}
@@ -292,7 +302,7 @@ const OperationSuccess: React.FC = () => {
               className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">add_shopping_cart</span>
-              Nova Comanda / Checkout
+              {isEsteticaApp ? 'Novo atendimento' : 'Nova Comanda / Checkout'}
             </button>
 
             <button
@@ -300,7 +310,7 @@ const OperationSuccess: React.FC = () => {
               className="w-full py-4 px-6 bg-white dark:bg-card-dark border-2 border-slate-200 dark:border-border-dark hover:border-primary/50 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">receipt_long</span>
-              Voltar para Comandas
+              Voltar para {orderPluralLabel}
             </button>
 
             <button
@@ -332,10 +342,10 @@ const OperationSuccess: React.FC = () => {
             <span className="material-symbols-outlined text-5xl text-white">check</span>
           </div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Operação Concluída
+            {isEsteticaApp ? 'Atendimento finalizado' : 'Operação Concluída'}
           </h1>
           <p className="text-slate-500 mt-2">
-            Sua operação foi finalizada com sucesso.
+            {isEsteticaApp ? 'O atendimento foi finalizado com sucesso.' : 'Sua operação foi finalizada com sucesso.'}
           </p>
         </div>
 
@@ -361,7 +371,7 @@ const OperationSuccess: React.FC = () => {
             className="w-full py-4 px-6 bg-white dark:bg-card-dark border-2 border-slate-200 dark:border-border-dark hover:border-primary/50 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined">receipt_long</span>
-            Voltar para Comandas
+            Voltar para {orderPluralLabel}
           </button>
         </div>
       </div>

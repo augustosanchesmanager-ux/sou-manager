@@ -1,9 +1,10 @@
-import { type AppSlug } from '../supabase/schemas';
+import { isAppSlug, type AppSlug } from '../supabase/schemas';
 
 const DEFAULT_PUBLIC_APP_HOSTS: Record<AppSlug, string> = {
   barber: 'barber.soumanager.com',
   club: 'club.soumanager.com',
   auto: 'autocontrol.soumanager.com',
+  estetica: 'estetica.soumanager.com',
 };
 
 const INSTITUTIONAL_HOSTS = new Set(['soumanager.com', 'www.soumanager.com']);
@@ -25,7 +26,7 @@ const parsePublicHostnameMap = (): Partial<Record<AppSlug, string>> => {
   try {
     const parsed = JSON.parse(raw) as Record<string, string>;
     return Object.entries(parsed).reduce<Partial<Record<AppSlug, string>>>((acc, [appSlug, hostname]) => {
-      if (appSlug === 'barber' || appSlug === 'club' || appSlug === 'auto') {
+      if (isAppSlug(appSlug)) {
         acc[appSlug] = normalizeHostname(hostname);
       }
 

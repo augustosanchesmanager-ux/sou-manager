@@ -6,6 +6,10 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const getDefaultCommissionRateForRole = (role: string) => {
+    return String(role || '').trim().toLowerCase() === 'barber' ? 50 : 0;
+};
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -169,6 +173,7 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log('Auth user created:', newUser.user?.id);
+        const defaultCommissionRate = getDefaultCommissionRateForRole(normalizedRequestedRole);
 
         // 2. Insert or Update staff record
         const { error: staffError } = await supabaseAdmin.from('staff').upsert({
@@ -178,7 +183,7 @@ Deno.serve(async (req: Request) => {
             role: normalizedRequestedRole || 'Barber',
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
             status: 'active',
-            commission_rate: 40,
+            commission_rate: defaultCommissionRate,
             tenant_id: resolvedTenantId,
         });
 

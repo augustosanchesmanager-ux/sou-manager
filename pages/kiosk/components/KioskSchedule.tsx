@@ -6,10 +6,11 @@ import {
     getBlocksForDate,
     scheduleBlocksApi,
 } from '../../../services/scheduleBlocksApi';
+import { shouldAppearOnSchedule } from '../../../src/lib/staff/roles';
 
 interface Client { id: string; name: string; phone: string; }
 interface Service { id: string; name: string; price: number; duration_minutes: number; }
-interface Barber { id: string; name: string; specialty?: string; }
+interface Barber { id: string; name: string; role?: string; specialty?: string; }
 interface Slot { time: string; datetime: string; }
 
 interface KioskScheduleProps {
@@ -59,8 +60,8 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
 
     const loadBarbers = async () => {
         setLoading(true);
-        const { data } = await supabase.from('staff').select('id, name').eq('tenant_id', tenantId).eq('status', 'active');
-        setBarbers(data || []);
+        const { data } = await supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active');
+        setBarbers(((data || []) as Barber[]).filter(shouldAppearOnSchedule));
         setLoading(false);
     };
 

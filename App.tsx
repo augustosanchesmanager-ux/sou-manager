@@ -4,9 +4,11 @@ import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { isAppModuleEnabled } from './src/lib/apps/modules';
 import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
+import type { AppModuleSlug } from './src/lib/supabase/schemas';
 
 const Layout = lazy(() => import('./components/Layout'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -158,6 +160,41 @@ const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return <>{children}</>;
 };
 
+const ModuleRoute: React.FC<{ moduleName: AppModuleSlug; children: React.ReactNode }> = ({
+  moduleName,
+  children,
+}) => {
+  const { appSlug } = useAuth();
+
+  if (!isAppModuleEnabled(appSlug, moduleName)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const EsteticaBlockedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { appSlug } = useAuth();
+
+  if (appSlug === 'estetica') {
+    return <Navigate to="/financial" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const AppDocumentTitle: React.FC = () => {
+  const { appSlug } = useAuth();
+
+  React.useEffect(() => {
+    document.title = appSlug === 'estetica'
+      ? 'SMG | Sou.Manager | Estética'
+      : 'SMG | Sou.Manager | Barber';
+  }, [appSlug]);
+
+  return null;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<RouteFallback />}>
@@ -169,13 +206,13 @@ const AppRoutes: React.FC = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
 
-        <Route path="/kiosk/:tenantSlug" element={<KioskPage />} />
-        <Route path="/kiosk/:tenantSlug/client" element={<KioskClientPage />} />
+        <Route path="/kiosk/:tenantSlug" element={<ModuleRoute moduleName="kiosk"><KioskPage /></ModuleRoute>} />
+        <Route path="/kiosk/:tenantSlug/client" element={<ModuleRoute moduleName="kiosk"><KioskClientPage /></ModuleRoute>} />
 
-        <Route path="/c/:tenantSlug" element={<PortalLanding />} />
-        <Route path="/c/:tenantSlug/login" element={<PortalAuthProvider><PortalLogin /></PortalAuthProvider>} />
-        <Route path="/c/:tenantSlug/app" element={<PortalAuthProvider><PortalApp /></PortalAuthProvider>} />
-        <Route path="/c/:tenantSlug/app/schedule" element={<PortalAuthProvider><PortalSchedule /></PortalAuthProvider>} />
+        <Route path="/c/:tenantSlug" element={<ModuleRoute moduleName="portal"><PortalLanding /></ModuleRoute>} />
+        <Route path="/c/:tenantSlug/login" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalLogin /></PortalAuthProvider></ModuleRoute>} />
+        <Route path="/c/:tenantSlug/app" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalApp /></PortalAuthProvider></ModuleRoute>} />
+        <Route path="/c/:tenantSlug/app/schedule" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalSchedule /></PortalAuthProvider></ModuleRoute>} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/role" element={<RoleSelection />} />
@@ -194,27 +231,27 @@ const AppRoutes: React.FC = () => {
             <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
             <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} />
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
-            <Route path="/kiosk-admin" element={<ManagerRoute><KioskAdmin /></ManagerRoute>} />
-            <Route path="/portal-admin" element={<ManagerRoute><PortalAdmin /></ManagerRoute>} />
+            <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
+            <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
-            <Route path="/chef-club-plans" element={<ManagerRoute><ChefClubPlans /></ManagerRoute>} />
-            <Route path="/chef-club-receivables" element={<ManagerRoute><ChefClubReceivables /></ManagerRoute>} />
-            <Route path="/chef-club-subscriptions" element={<ManagerRoute><ChefClubSubscriptions /></ManagerRoute>} />
-            <Route path="/chef-club-subscriptions/new" element={<ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute>} />
-            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute>} />
+            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></ModuleRoute>} />
 
             <Route path="/financial" element={<Navigate to="/financial-overview" replace />} />
             <Route path="/financial-overview" element={<ManagerRoute><FinancialOverview /></ManagerRoute>} />
             <Route path="/cashflow" element={<ManagerRoute><Cashflow /></ManagerRoute>} />
             <Route path="/cash-closing" element={<ManagerRoute><CashClosingPage /></ManagerRoute>} />
             <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
-            <Route path="/receipts" element={<ManagerRoute><Receipts /></ManagerRoute>} />
+            <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><Receipts /></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><AccountsReceivable /></ManagerRoute>} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
-            <Route path="/commissions" element={<ManagerRoute><Commissions /></ManagerRoute>} />
+            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><ManagerRoute><Commissions /></ManagerRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
@@ -241,6 +278,7 @@ const App: React.FC = () => {
       <LoadingProvider>
         <AppProvider>
           <AuthProvider>
+            <AppDocumentTitle />
             <TenantProvider>
               <HashRouter>
                 <AppRoutes />

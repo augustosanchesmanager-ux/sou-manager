@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+    BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
 import { useSearchParams } from 'react-router-dom';
 import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
-import { RevenueAreaChart, SparkLineChart, TrendBadge, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline, RevenueModal } from '../components/charts';
+import { RevenueAreaChart, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
 import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
 
-const COLORS = ['#3c83f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#a78bfa'];
+const COLORS = ['#007BFF', '#00D2FF', '#10B981', '#B88A44', '#EF4444', '#14B8A6', '#64748B', '#003366'];
 
 const periodLabels = {
     today: 'Hoje',
@@ -23,39 +23,6 @@ const periodLabels = {
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
 
-const formatPercent = (value: number) => (value >= 0 ? '+' : '') + value.toFixed(1) + '%';
-
-const KpiCard = ({ icon, label, value, subLabel, delta, color = 'blue', onClick }: {
-    icon: string;
-    label: string;
-    value: string;
-    subLabel?: string;
-    delta?: number;
-    color?: string;
-    onClick?: () => void;
-}) => (
-    <div 
-        onClick={onClick}
-        className={`bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm hover:shadow-md transition-all ${onClick ? 'cursor-pointer hover:border-primary/30' : ''}`}
-    >
-        <div className="flex items-center gap-3 mb-2">
-            <div className={`p-2 bg-${color}-500/10 text-${color}-500 rounded-lg`}>
-                <span className="material-symbols-outlined text-sm">{icon}</span>
-            </div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</span>
-        </div>
-        <h3 className="text-2xl font-black text-slate-900 dark:text-white">{value}</h3>
-        <div className="flex items-center gap-2 mt-1">
-            {delta !== undefined && (
-                <span className={`text-[11px] font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {formatPercent(delta)}
-                </span>
-            )}
-            {subLabel && <span className="text-[10px] text-slate-400">{subLabel}</span>}
-        </div>
-    </div>
-);
-
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
     const { tenantId } = useAuth();
@@ -64,11 +31,9 @@ const BusinessIntelligence: React.FC = () => {
     
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState(initialPeriod);
-    const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
     const [expenseData, setExpenseData] = useState<any[]>([]);
     const [productSales, setProductSales] = useState<any[]>([]);
     const [appointmentTimeline, setAppointmentTimeline] = useState<any[]>([]);
-    const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
     const [cancellationData, setCancellationData] = useState<{
         byReason: { reason: string; count: number; label: string; percentage: number }[];
         total: number;
@@ -88,7 +53,7 @@ const BusinessIntelligence: React.FC = () => {
     const { data, reload } = useBusinessInsights({ period });
 
     // Fetch additional data for new charts
-    const fetchChartData = useEffect(() => {
+    useEffect(() => {
         if (!tenantId) return;
 
         const fetchAll = async () => {
@@ -113,17 +78,17 @@ const BusinessIntelligence: React.FC = () => {
                         const expenseColors: Record<string, string> = {
                             'Aluguel': '#EF4444',
                             'Cartão de Crédito': '#F97316',
-                            'Software': '#8B5CF6',
+                            'Software': '#007BFF',
                             'Produtos Cabelo': '#10B981',
                             'Produtos Barba': '#14B8A6',
-                            'Funcionário': '#3B82F6',
-                            'Veículo': '#06B6D4',
-                            'Contas Particulares': '#EC4899',
+                            'Funcionário': '#007BFF',
+                            'Veículo': '#00D2FF',
+                            'Contas Particulares': '#64748B',
                             'Luz': '#F59E0B',
                             'Água': '#84CC16',
-                            'Internet': '#6366F1',
-                            'Marketing': '#F43F5E',
-                            'Fornecedor': '#A78BFA',
+                            'Internet': '#00D2FF',
+                            'Marketing': '#B88A44',
+                            'Fornecedor': '#475569',
                             'Outros': '#64748B'
                         };
                         setExpenseData(Object.entries(categoryTotals).map(([category, amount]) => ({
@@ -199,11 +164,10 @@ const BusinessIntelligence: React.FC = () => {
                         setAppointmentTimeline(allAppointments.map((a: any) => ({
                             id: a.id,
                             date: a.start_time,
-                            professional: a.staff_name || '—',
-                            service: a.service_name || '—',
-                            client: a.client_name || '—',
-                            status: a.status,
-                            value: 0
+                            professional: a.staff_name || 'Profissional não informado',
+                            service: a.service_name || 'Serviço não informado',
+                            client: a.client_name || 'Cliente não informado',
+                            status: a.status === 'no-show' ? 'no_show' : a.status,
                         })));
                     } else {
                         setAppointmentTimeline([]);
@@ -212,39 +176,6 @@ const BusinessIntelligence: React.FC = () => {
                     console.warn('Erro ao carregar appointments:', err);
                     setAppointmentTimeline([]);
                 }
-                
-                // Staff performance
-                try {
-                    const { data: staffData } = await supabase
-                        .from('staff')
-                        .select('id, name, avatar')
-                        .eq('tenant_id', tenantId)
-                        .eq('status', 'active');
-                    
-                    if (staffData) {
-                        const staffRevenues = staffData.map((s: any) => {
-                            const staffAppts = allAppointments.filter((a: any) => a.staff_id === s.id && a.status === 'completed');
-                            const revenue = 0;
-                            const appointments = staffAppts.length;
-                            return {
-                                id: s.id,
-                                name: s.name,
-                                avatar: s.avatar,
-                                revenue,
-                                appointments,
-                                avgTicket: appointments > 0 ? revenue / appointments : 0,
-                                trendData: []
-                            };
-                        });
-                        setStaffPerformance(staffRevenues.sort((a: any, b: any) => b.revenue - a.revenue));
-                    } else {
-                        setStaffPerformance([]);
-                    }
-                } catch (err) {
-                    console.warn('Erro ao carregar staff:', err);
-                    setStaffPerformance([]);
-                }
-                
                 // Cancellation Analysis - with error handling
                 try {
                     const { data: cancelledAppts } = await supabase
@@ -363,24 +294,32 @@ const BusinessIntelligence: React.FC = () => {
     return (
         <div className="space-y-6 animate-fade-in pb-10">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                        <span className="material-symbols-outlined text-primary text-3xl">monitoring</span>
-                        Visão de Negócio
-                    </h2>
-                    <p className="text-slate-500 mt-1 text-sm">Análise estratégica e inteligência de dados para tomada de decisão.</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_54%,#f7f2ea_100%)] p-5 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182f_0%,#08284d_58%,#14100a_100%)]">
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="max-w-3xl">
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#007BFF]/20 bg-white/75 px-3 py-1 text-[11px] font-bold text-[#003366] shadow-sm dark:border-[#00D2FF]/25 dark:bg-white/10 dark:text-[#9DEBFF]">
+                            <span className="material-symbols-outlined text-sm">monitoring</span>
+                            SMG BI OPERACIONAL
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-950 dark:text-white md:text-3xl">
+                            Visão do Negócio
+                        </h2>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                            Receita, custos, equipe, produtos e agenda em uma leitura real da barbearia para dono e gerente decidirem sem ruído.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap rounded-xl border border-white/70 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-white/10">
                     {(['today', '7d', '30d', '90d'] as const).map(p => (
                         <button 
                             key={p} 
                             onClick={() => setPeriod(p)} 
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-[#007BFF] text-white shadow-md shadow-[#007BFF]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
                         >
                             {periodLabels[p]}
                         </button>
                     ))}
+                    </div>
                 </div>
             </div>
 
@@ -394,7 +333,6 @@ const BusinessIntelligence: React.FC = () => {
                     sparklineData={revenueTrendData.slice(-10)}
                     icon="payments"
                     color="blue"
-                    onClick={() => setIsRevenueModalOpen(true)}
                     variant="featured"
                 />
                 <MetricCard 
@@ -403,21 +341,21 @@ const BusinessIntelligence: React.FC = () => {
                     trend={data.financial.avgTicketGrowth}
                     trendLabel="por atendimento"
                     icon="receipt_long"
-                    color="purple"
+                    color="cyan"
                 />
                 <MetricCard 
-                    title="Lucro Estimado"
+                    title="Resultado"
                     value={formatCurrency(data.financial.profit)}
                     subtitle={`Margem ${data.financial.profitMargin.toFixed(1)}%`}
                     icon="savings"
-                    color="emerald"
+                    color={data.financial.profit >= 0 ? 'emerald' : 'rose'}
                 />
                 <MetricCard 
                     title="Despesas"
                     value={formatCurrency(data.financial.expenses)}
                     subtitle="custos totais"
                     icon="trending_down"
-                    color="rose"
+                    color="amber"
                 />
             </div>
 
@@ -449,7 +387,7 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Distribution Pie */}
                 <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-6">
-                        <span className="material-symbols-outlined text-purple-500 text-lg">pie_chart</span>
+                        <span className="material-symbols-outlined text-[#007BFF] text-lg">pie_chart</span>
                         Formas de Pagamento
                     </h3>
                     <div className="h-[240px] w-full">
@@ -474,8 +412,8 @@ const BusinessIntelligence: React.FC = () => {
             {/* Client + Operational KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <MetricCard title="Novos Clientes" value={String(data.clients.newClients)} trend={data.clients.newClientsGrowth} trendLabel="no período" icon="person_add" color="blue" />
-                <MetricCard title="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} subtitle={`${data.clients.inactiveClients60Days} inativos`} icon="sync" color="purple" />
-                <MetricCard title="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : '—'} subtitle="entre visitas" icon="calendar_month" color="emerald" />
+                <MetricCard title="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} subtitle={`${data.clients.inactiveClients60Days} inativos`} icon="sync" color="cyan" />
+                <MetricCard title="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : 'Sem histórico'} subtitle="entre visitas" icon="calendar_month" color="emerald" />
                 <MetricCard title="Agendamentos" value={String(data.operations.totalAppointments)} subtitle={`${data.operations.completedAppointments} concluídos`} icon="event_available" color="cyan" />
             </div>
 
@@ -530,7 +468,7 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Top Services */}
                 <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-pink-500 text-lg">content_cut</span>
+                        <span className="material-symbols-outlined text-[#B88A44] text-lg">content_cut</span>
                         Serviços Mais Vendidos
                     </h3>
                     {data.analytics.topServices.length > 0 ? (
@@ -541,7 +479,7 @@ const BusinessIntelligence: React.FC = () => {
                                     <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 11 }} />
                                     <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 11 }} width={120} />
                                     <Tooltip contentStyle={tooltipStyle} />
-                                    <Bar dataKey="count" name="Atendimentos" fill="#ec4899" radius={[0, 4, 4, 0]} barSize={16} />
+                                    <Bar dataKey="count" name="Atendimentos" fill="#B88A44" radius={[0, 4, 4, 0]} barSize={16} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -572,17 +510,17 @@ const BusinessIntelligence: React.FC = () => {
             </div>
 
             {/* NEW SECTION: Performance da Equipe com mini gráficos */}
-            {staffPerformance.length > 0 && (
+            {data.analytics.topProfessionals.length > 0 && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-amber-500">groups</span>
+                            <span className="material-symbols-outlined text-[#B88A44]">groups</span>
                             Performance da Equipe
                         </h3>
-                        <span className="text-xs text-slate-400">Classificação por faturamento</span>
+                        <span className="text-xs text-slate-400">Comandas pagas e atendimentos concluídos</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {staffPerformance.slice(0, 6).map((staff: any, index: number) => (
+                        {data.analytics.topProfessionals.slice(0, 6).map((staff: any, index: number) => (
                             <StaffPerformanceCard 
                                 key={staff.id}
                                 staff={staff}
@@ -629,9 +567,9 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Insights Section */}
             {data.insights.length > 0 && (
-                <div className="bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 border border-indigo-500/20 rounded-xl p-6">
+                <div className="rounded-xl border border-[#007BFF]/20 bg-[linear-gradient(135deg,rgba(0,123,255,0.08),rgba(0,210,255,0.06),rgba(184,138,68,0.08))] p-6">
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="size-10 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                        <div className="size-10 rounded-xl bg-[linear-gradient(135deg,#007BFF,#00D2FF)] flex items-center justify-center shadow-lg shadow-[#007BFF]/25">
                             <span className="material-symbols-outlined text-white">psychology</span>
                         </div>
                         <div>
@@ -744,12 +682,12 @@ const BusinessIntelligence: React.FC = () => {
                                     <p className="text-sm text-slate-600 dark:text-slate-400">
                                         {cancellationData.byReason[0]?.reason === 'no_show' && (
                                             <>
-                                                <span className="font-bold text-rose-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% das ausências</span> — Considere enviar lembretes 1 dia antes via WhatsApp para reduzir faltas.
+                                                <span className="font-bold text-rose-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% das ausências</span>. Considere enviar lembretes 1 dia antes via WhatsApp para reduzir faltas.
                                             </>
                                         )}
                                         {cancellationData.byReason[0]?.reason === 'client_request' && (
                                             <>
-                                                <span className="font-bold text-amber-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% por solicitação</span> — Pergunte o motivo para entender padrões e melhorar o serviço.
+                                                <span className="font-bold text-amber-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% por solicitação</span>. Pergunte o motivo para entender padrões e melhorar o serviço.
                                             </>
                                         )}
                                         {!['no_show', 'client_request'].includes(cancellationData.byReason[0]?.reason || '') && (
@@ -762,28 +700,6 @@ const BusinessIntelligence: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* Revenue Modal */}
-            <RevenueModal
-                isOpen={isRevenueModalOpen}
-                onClose={() => setIsRevenueModalOpen(false)}
-                revenue={{
-                    today: 0,
-                    todayPrevious: 0,
-                    week: 0,
-                    weekPrevious: 0,
-                    month: data.financial.revenue,
-                    monthPrevious: data.financial.revenue,
-                    target: data.financial.revenue,
-                    trendData: revenueTrendData
-                }}
-                services={data.analytics.topServices.slice(0, 6).map((s: any, i: number) => ({
-                    name: s.name,
-                    value: 0,
-                    color: ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4'][i % 6]
-                }))}
-                appointments={appointmentTimeline.slice(0, 10)}
-            />
 
             {data.loading && (
                 <div className="fixed inset-0 bg-black/20 dark:bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">

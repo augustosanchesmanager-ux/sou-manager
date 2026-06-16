@@ -183,6 +183,32 @@ interface LocalDemoReceivableRecord {
   updated_at: string;
 }
 
+interface LocalDemoVoucherRecord {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  promotion_id: string | null;
+  voucher_code: string | null;
+  title: string;
+  description: string | null;
+  benefit_type: 'free_service' | 'discount_fixed' | 'discount_percentage' | 'custom_benefit';
+  service_id: string | null;
+  discount_amount: number | null;
+  discount_percentage: number | null;
+  status: 'available' | 'used' | 'expired' | 'cancelled';
+  issued_at: string;
+  expires_at: string | null;
+  used_at: string | null;
+  used_comanda_id: string | null;
+  issued_by_user_id: string | null;
+  used_by_user_id: string | null;
+  cancelled_by_user_id: string | null;
+  cancellation_reason: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface LocalDemoDatabase {
   clients: LocalDemoClientRecord[];
   suppliers: Array<{
@@ -208,6 +234,8 @@ interface LocalDemoDatabase {
     id: string;
     tenant_id: string;
     name: string;
+    commercial_name?: string | null;
+    description?: string | null;
     category: string;
     duration: number;
     price: number;
@@ -238,6 +266,7 @@ interface LocalDemoDatabase {
     id: string;
     tenant_id: string;
     name: string;
+    commercial_name?: string | null;
     description?: string;
     cost_price: number;
     sale_price: number;
@@ -266,6 +295,10 @@ interface LocalDemoDatabase {
     payment_method?: string;
     due_day?: number;
     notes?: string;
+    source_type?: string;
+    source_id?: string;
+    idempotency_key?: string | null;
+    metadata?: Record<string, unknown>;
   }>;
   comandas: Array<{
     id: string;
@@ -275,6 +308,16 @@ interface LocalDemoDatabase {
     staff_id: string | null;
     status: string;
     total: number;
+    payment_method?: string | null;
+    closure_mode?: string | null;
+    closure_note?: string | null;
+    financial_effect?: boolean;
+    membership_credit_effect?: boolean;
+    legacy_reference_month?: string | null;
+    closed_at?: string | null;
+    payment_date_real?: string | null;
+    settled_at?: string | null;
+    settled_by_user_id?: string | null;
     idempotency_key?: string | null;
     created_at: string;
     updated_at: string;
@@ -309,6 +352,7 @@ interface LocalDemoDatabase {
   customer_subscriptions: LocalDemoSubscriptionRecord[];
   customer_credits: LocalDemoCreditRecord[];
   customer_subscription_receivables: LocalDemoReceivableRecord[];
+  customer_vouchers: LocalDemoVoucherRecord[];
   notifications: Array<{
     id: string;
     tenant_id: string;
@@ -400,19 +444,23 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
       {
         id: 'demo-service-1',
         tenant_id: LOCAL_DEMO_TENANT_ID,
-        name: 'Corte Tradicional',
-        category: 'Cabelo',
-        duration: 30,
-        price: 45,
+        name: 'Corte masculino',
+        commercial_name: 'Sanchez Signature Cut',
+        description: 'Corte de assinatura com consultoria de estilo, acabamento e finalização premium.',
+        category: 'Corte',
+        duration: 45,
+        price: 65,
         active: true,
       },
       {
         id: 'demo-service-2',
         tenant_id: LOCAL_DEMO_TENANT_ID,
-        name: 'Barba Premium',
+        name: 'Barba',
+        commercial_name: 'Ritual de Barba Prime',
+        description: 'Toalha quente, desenho de barba e finalização com acabamento de alto padrão.',
         category: 'Barba',
-        duration: 30,
-        price: 35,
+        duration: 35,
+        price: 55,
         active: true,
       },
     ],
@@ -425,7 +473,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         staff_id: 'demo-staff-1',
         client_name: 'Fernanda Demo',
         client_phone: '(11) 99999-0002',
-        service_name: 'Corte Tradicional',
+        service_name: 'Sanchez Signature Cut',
         staff_name: 'Marcos Demo',
         start_time: new Date('2026-04-18T15:00:00-03:00').toISOString(),
         duration: 0.5,
@@ -441,6 +489,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         id: 'demo-product-1',
         tenant_id: LOCAL_DEMO_TENANT_ID,
         name: 'Pomada Modeladora',
+        commercial_name: 'Pomada Sanchez Finish',
         description: 'Fixação média para acabamento e finalização.',
         cost_price: 18,
         sale_price: 35,
@@ -454,7 +503,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
       {
         id: 'demo-promo-1',
         tenant_id: LOCAL_DEMO_TENANT_ID,
-        title: 'Combo Corte + Barba',
+        title: 'Experiencia Sanchez Completa',
         end_date: '2026-04-30',
         active: true,
       },
@@ -513,7 +562,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         client_id: 'demo-client-2',
         staff_id: 'demo-staff-1',
         status: 'open',
-        total: 45,
+        total: 65,
         created_at: '2026-04-17T14:00:00-03:00',
         updated_at: now,
       },
@@ -524,7 +573,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         client_id: 'demo-client-2',
         staff_id: 'demo-staff-1',
         status: 'paid',
-        total: 80,
+        total: 120,
         created_at: '2026-04-15T15:00:00-03:00',
         updated_at: now,
       },
@@ -536,9 +585,9 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         comanda_id: 'demo-comanda-1',
         staff_id: 'demo-staff-1',
         service_id: 'demo-service-1',
-        product_name: 'Corte Tradicional',
+        product_name: 'Sanchez Signature Cut',
         quantity: 1,
-        unit_price: 45,
+        unit_price: 65,
         created_at: now,
         updated_at: now,
         'comandas.status': 'open',
@@ -550,9 +599,9 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         comanda_id: 'demo-comanda-2',
         staff_id: 'demo-staff-1',
         service_id: 'demo-service-1',
-        product_name: 'Corte Tradicional',
+        product_name: 'Sanchez Signature Cut',
         quantity: 1,
-        unit_price: 45,
+        unit_price: 65,
         created_at: '2026-04-15T15:00:00-03:00',
         updated_at: now,
         'comandas.status': 'paid',
@@ -564,9 +613,9 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         comanda_id: 'demo-comanda-2',
         staff_id: 'demo-staff-1',
         service_id: 'demo-service-2',
-        product_name: 'Barba Premium',
+        product_name: 'Ritual de Barba Prime',
         quantity: 1,
-        unit_price: 35,
+        unit_price: 55,
         created_at: '2026-04-15T15:00:00-03:00',
         updated_at: now,
 'comandas.status': 'paid',
@@ -621,7 +670,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         service_credit_map: [
           {
             service_id: 'demo-service-1',
-            service_name: 'Corte Tradicional',
+            service_name: 'Sanchez Signature Cut',
             credits: 2,
           },
         ],
@@ -639,12 +688,12 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
         service_credit_map: [
           {
             service_id: 'demo-service-1',
-            service_name: 'Corte Tradicional',
+            service_name: 'Sanchez Signature Cut',
             credits: 2,
           },
           {
             service_id: 'demo-service-2',
-            service_name: 'Barba Premium',
+            service_name: 'Ritual de Barba Prime',
             credits: 2,
           },
         ],
@@ -657,6 +706,7 @@ const createSeedDemoDatabase = (): LocalDemoDatabase => {
     customer_subscriptions: [],
     customer_credits: [],
     customer_subscription_receivables: [],
+    customer_vouchers: [],
     notifications: [],
     notification_preferences: [],
   };
@@ -670,6 +720,25 @@ const mergeSeedRows = <T extends { id: string }>(current: T[], seed: T[]): T[] =
     }
   });
   return merged;
+};
+
+const demoServiceBranding: Record<string, { name: string; commercial_name: string; description: string; category: string; duration: number; price: number }> = {
+  'demo-service-1': {
+    name: 'Corte masculino',
+    commercial_name: 'Sanchez Signature Cut',
+    description: 'Corte de assinatura com consultoria de estilo, acabamento e finalização premium.',
+    category: 'Corte',
+    duration: 45,
+    price: 65,
+  },
+  'demo-service-2': {
+    name: 'Barba',
+    commercial_name: 'Ritual de Barba Prime',
+    description: 'Toalha quente, desenho de barba e finalização com acabamento de alto padrão.',
+    category: 'Barba',
+    duration: 35,
+    price: 55,
+  },
 };
 
 const readDemoDatabase = (): LocalDemoDatabase => {
@@ -690,17 +759,33 @@ const readDemoDatabase = (): LocalDemoDatabase => {
     const normalizedServices = Array.isArray(parsed.services)
       ? parsed.services.map((service) => ({
           ...service,
+          ...(typeof service?.id === 'string' ? demoServiceBranding[service.id] || {} : {}),
+          commercial_name:
+            typeof service?.id === 'string' && demoServiceBranding[service.id]
+              ? demoServiceBranding[service.id].commercial_name
+              : typeof service?.commercial_name === 'string'
+                ? service.commercial_name
+                : null,
+          description:
+            typeof service?.id === 'string' && demoServiceBranding[service.id]
+              ? demoServiceBranding[service.id].description
+              : typeof service?.description === 'string'
+                ? service.description
+                : null,
           category:
-            typeof service?.category === 'string' && service.category.trim()
-              ? service.category
-              : typeof service?.name === 'string' && service.name.toLowerCase().includes('barba')
-                ? 'Barba'
-                : 'Cabelo',
+            typeof service?.id === 'string' && demoServiceBranding[service.id]
+              ? demoServiceBranding[service.id].category
+              : typeof service?.category === 'string' && service.category.trim()
+                ? service.category
+                : typeof service?.name === 'string' && service.name.toLowerCase().includes('barba')
+                  ? 'Barba'
+                  : 'Corte',
         }))
       : [];
     const normalizedProducts = Array.isArray(parsed.products)
       ? parsed.products.map((product) => ({
           ...product,
+          commercial_name: typeof product?.commercial_name === 'string' ? product.commercial_name : null,
           description: typeof product?.description === 'string' ? product.description : '',
           cost_price: Number(product?.cost_price ?? 0),
           sale_price: Number(product?.sale_price ?? 0),
@@ -757,6 +842,7 @@ comandas: mergeSeedRows(Array.isArray(parsed.comandas) ? parsed.comandas : [], s
       customer_subscription_receivables: Array.isArray(parsed.customer_subscription_receivables)
         ? parsed.customer_subscription_receivables
         : [],
+      customer_vouchers: Array.isArray(parsed.customer_vouchers) ? parsed.customer_vouchers : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
       notification_preferences: Array.isArray(parsed.notification_preferences) ? parsed.notification_preferences : [],
     };
@@ -838,6 +924,8 @@ case 'comanda_items':
         return cloneRows(db.customer_credits);
       case 'customer_subscription_receivables':
         return cloneRows(db.customer_subscription_receivables);
+      case 'customer_vouchers':
+        return cloneRows(db.customer_vouchers);
       case 'notifications':
         return cloneRows(db.notifications);
       case 'notification_preferences':
@@ -1078,6 +1166,8 @@ case 'comanda_items':
         db.customer_credits.push(...(nextRows as LocalDemoCreditRecord[]));
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables.push(...(nextRows as LocalDemoReceivableRecord[]));
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers.push(...(nextRows as LocalDemoVoucherRecord[]));
       } else if (table === 'customer_plans') {
         db.customer_plans.push(...(nextRows as LocalDemoPlanRecord[]));
       } else if (table === 'appointments') {
@@ -1123,6 +1213,8 @@ case 'comanda_items':
         db.customer_credits = replaceRows(db.customer_credits);
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables = replaceRows(db.customer_subscription_receivables);
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers = replaceRows(db.customer_vouchers);
       } else if (table === 'customer_plans') {
         db.customer_plans = replaceRows(db.customer_plans);
       } else if (table === 'appointments') {
@@ -1161,8 +1253,10 @@ case 'comanda_items':
           ? db.customer_subscriptions
           : table === 'customer_subscription_receivables'
             ? db.customer_subscription_receivables
-            : table === 'customer_plans'
-              ? db.customer_plans
+            : table === 'customer_vouchers'
+              ? db.customer_vouchers
+              : table === 'customer_plans'
+                ? db.customer_plans
               : table === 'appointments'
               ? db.appointments
               : table === 'comandas'
@@ -1212,6 +1306,8 @@ case 'comanda_items':
         db.customer_credits = remainingRows as LocalDemoCreditRecord[];
       } else if (table === 'customer_subscription_receivables') {
         db.customer_subscription_receivables = remainingRows as LocalDemoReceivableRecord[];
+      } else if (table === 'customer_vouchers') {
+        db.customer_vouchers = remainingRows as LocalDemoVoucherRecord[];
       } else if (table === 'customer_plans') {
         db.customer_plans = remainingRows as LocalDemoPlanRecord[];
       } else if (table === 'appointments') {
@@ -2168,6 +2264,117 @@ const client = {
         writeDemoDatabase(db);
 
         return createRpcResult({ subscription, receivable_id: receivable.id, credits: creditRecord }, null);
+      }
+
+      if (fn === 'deduct_chef_club_credits' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_subscription_id?: string;
+          p_service_id?: string | null;
+          p_amount?: number;
+        };
+        const db = readDemoDatabase();
+        const amount = Math.max(1, Number(p.p_amount || 1));
+        const subscription = db.customer_subscriptions.find((item) => item.id === p.p_subscription_id);
+        const credit = db.customer_credits.find((item) => item.subscription_id === p.p_subscription_id);
+
+        if (!subscription || !credit) {
+          return createRpcResult(null, new Error('Assinatura ou crédito não encontrado'));
+        }
+
+        if (p.p_service_id) {
+          const balances = Array.isArray(credit.service_balance_map) ? credit.service_balance_map : [];
+          const index = balances.findIndex((entry) => entry.service_id === p.p_service_id);
+          if (index < 0) return createRpcResult(null, new Error('No credits configured for this service'));
+          const available = Math.max(0, Number(balances[index].available || 0));
+          if (available < amount) return createRpcResult(null, new Error('Insufficient credits for this service'));
+          balances[index] = {
+            ...balances[index],
+            available: available - amount,
+            used: Math.max(0, Number(balances[index].used || 0)) + amount,
+          };
+          credit.service_balance_map = balances;
+        } else if (Number(credit.available_credits || 0) < amount) {
+          return createRpcResult(null, new Error('Insufficient credits or subscription not found'));
+        }
+
+        credit.available_credits = Math.max(0, Number(credit.available_credits || 0) - amount);
+        credit.used_credits = Math.max(0, Number(credit.used_credits || 0)) + amount;
+        credit.updated_at = new Date().toISOString();
+        writeDemoDatabase(db);
+        return createRpcResult(null, null);
+      }
+
+      if ((fn === 'bulk_close_comandas_with_credits' || fn === 'bulk_close_comandas_admin') && isLocalDemoEnabled()) {
+        const p = params as {
+          p_comanda_ids?: string[];
+          p_tenant_id?: string | null;
+          p_closure_note?: string | null;
+          p_payment_method?: string | null;
+          p_apply_credits?: boolean;
+          p_legacy_reference_month?: string | null;
+        };
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        const ids = Array.from(new Set(p.p_comanda_ids || []));
+        const tenantId = p.p_tenant_id || LOCAL_DEMO_TENANT_ID;
+        let updatedCount = 0;
+
+        for (const comanda of db.comandas.filter((item) =>
+          ids.includes(item.id) && item.tenant_id === tenantId && item.status === 'open'
+        )) {
+          if (fn === 'bulk_close_comandas_with_credits' && p.p_apply_credits !== false) {
+            const serviceItems = db.comanda_items.filter((item) =>
+              item.comanda_id === comanda.id && item.tenant_id === tenantId && item.service_id
+            );
+            const subscription = db.customer_subscriptions.find((item) =>
+              item.client_id === comanda.client_id && item.tenant_id === tenantId && item.status === 'active'
+            );
+            const credit = subscription
+              ? db.customer_credits.find((item) => item.subscription_id === subscription.id && item.tenant_id === tenantId)
+              : null;
+
+            if (!subscription || !credit) return createRpcResult(null, new Error('Cliente sem crédito do Clube ativo'));
+
+            for (const item of serviceItems) {
+              const amount = Math.max(1, Number(item.quantity || 1));
+              const balances = Array.isArray(credit.service_balance_map) ? credit.service_balance_map : [];
+              const index = balances.findIndex((entry) => entry.service_id === item.service_id);
+              const available = index >= 0 ? Math.max(0, Number(balances[index].available || 0)) : 0;
+              if (available < amount) return createRpcResult(null, new Error('Créditos insuficientes para a comanda'));
+              balances[index] = {
+                ...balances[index],
+                available: available - amount,
+                used: Math.max(0, Number(balances[index].used || 0)) + amount,
+              };
+              credit.service_balance_map = balances;
+              credit.available_credits = Math.max(0, Number(credit.available_credits || 0) - amount);
+              credit.used_credits = Math.max(0, Number(credit.used_credits || 0)) + amount;
+              credit.updated_at = now;
+            }
+          }
+
+          comanda.status = 'paid';
+          comanda.payment_method = fn === 'bulk_close_comandas_with_credits' ? (p.p_payment_method || 'Clube do Chefe') : null;
+          comanda.closure_mode = fn === 'bulk_close_comandas_admin' ? 'legacy_membership' : 'standard';
+          comanda.closure_note = p.p_closure_note || null;
+          comanda.financial_effect = fn === 'bulk_close_comandas_with_credits';
+          comanda.membership_credit_effect = fn === 'bulk_close_comandas_with_credits' && p.p_apply_credits !== false;
+          comanda.legacy_reference_month = fn === 'bulk_close_comandas_admin' ? (p.p_legacy_reference_month || null) : null;
+          comanda.closed_at = now;
+          comanda.payment_date_real = null;
+          comanda.settled_at = now;
+          comanda.settled_by_user_id = LOCAL_DEMO_USER_ID;
+          comanda.updated_at = now;
+          updatedCount += 1;
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({
+          updated_count: updatedCount,
+          closure_mode: fn === 'bulk_close_comandas_admin' ? 'legacy_membership' : 'standard',
+          financial_effect: fn === 'bulk_close_comandas_with_credits',
+          membership_credit_effect: fn === 'bulk_close_comandas_with_credits' && p.p_apply_credits !== false,
+        }, null);
       }
 
       return createRpcResult(null, new Error('RPC indisponivel no modo local.'));
