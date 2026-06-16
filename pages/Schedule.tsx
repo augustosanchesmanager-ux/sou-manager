@@ -498,7 +498,9 @@ const Schedule: React.FC = () => {
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
-    if (staffRes.data) setStaffList((staffRes.data as DBStaff[]).filter(shouldAppearOnSchedule));
+    if (staffRes.data) {
+      setStaffList((staffRes.data as DBStaff[]).filter(shouldAppearOnSchedule));
+    }
 
     if (servicesRes.error) {
       console.error('Erro ao buscar serviços com buffer:', servicesRes.error);

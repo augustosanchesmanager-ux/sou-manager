@@ -15,11 +15,12 @@ const normalizeSavedRate = (value?: number | string | null) => {
 
 export const shouldAppearOnSchedule = (staff?: StaffRoleLike | null) => {
   const role = normalizeRole(staff?.role);
-  return role === 'barber' || role === 'manager';
+  return role === 'barber' || role === 'manager' || role === 'seller';
 };
 
 export const receivesCommission = (staff?: StaffRoleLike | null) => {
-  return normalizeRole(staff?.role) === 'barber';
+  const role = normalizeRole(staff?.role);
+  return role === 'barber' || role === 'seller';
 };
 
 export const getEffectiveCommissionRate = (staff?: StaffRoleLike | null) => {
@@ -28,5 +29,6 @@ export const getEffectiveCommissionRate = (staff?: StaffRoleLike | null) => {
 };
 
 export const getDefaultCommissionRateForRole = (role?: LegacyStaffRole | null) => {
-  return normalizeRole(role) === 'barber' ? 50 : 0;
+  const r = normalizeRole(role);
+  return r === 'barber' || r === 'seller' ? 50 : 0;
 };

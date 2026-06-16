@@ -132,6 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
   // System items go at the bottom
   const systemItems: MenuItem[] = [
+    { name: 'Offline seguro', icon: 'sync_problem', path: '/offline-sync' },
     { name: 'Configurações', icon: 'settings', path: '/settings', module: 'settings' },
     { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },
   ];
