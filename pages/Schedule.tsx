@@ -402,6 +402,15 @@ const Schedule: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
+  const cancelModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showCancelModal && cancelModalRef.current) {
+      requestAnimationFrame(() => {
+        cancelModalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+  }, [showCancelModal]);
 
   const dynamicTimeSlots = React.useMemo(() => {
     return Array.from(
@@ -475,6 +484,15 @@ const Schedule: React.FC = () => {
   const [overbookConflicts, setOverbookConflicts] = useState<CalendarAppointment[]>([]);
   const [forceOverbook, setForceOverbook] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
+  const overbookModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showOverbookModal && overbookModalRef.current) {
+      requestAnimationFrame(() => {
+        overbookModalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+  }, [showOverbookModal]);
 
   // Fetch base data
   const fetchBaseData = useCallback(async () => {
@@ -3576,7 +3594,7 @@ Podemos confirmar? 😄`;
       {showCancelModal && appointmentToCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelModal(false)} />
-          <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+          <div ref={cancelModalRef} className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cancelar Agendamento</h3>
               <p className="text-sm text-slate-500 mt-1">Cliente: <span className="font-semibold">{appointmentToCancel.client}</span></p>
@@ -3770,7 +3788,7 @@ Podemos confirmar? 😄`;
       {showOverbookModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => { setShowOverbookModal(false); setOverbookConflicts([]); setForceOverbook(false); }} />
-          <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+          <div ref={overbookModalRef} className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Conflito de Horário</h3>
               <p className="text-sm text-slate-500 mt-1">Horários já ocupados pelo profissional:</p>

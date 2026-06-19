@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, CalendarRange, FileText, Package, Users, Wallet } from 'lucide-react';
 import Toast from '../components/Toast';
@@ -345,6 +345,15 @@ const AccountsReceivable: React.FC = () => {
     const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
     const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
     const settlementLockRef = React.useRef(false);
+    const settlementModalRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (settlementEntry && settlementModalRef.current) {
+            requestAnimationFrame(() => {
+                settlementModalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
+    }, [settlementEntry]);
     const [cancelEntry, setCancelEntry] = useState<AREntry | null>(null);
     const [cancelReasonType, setCancelReasonType] = useState<CancelReasonType | ''>('');
     const [cancelReasonNote, setCancelReasonNote] = useState('');
@@ -1321,7 +1330,7 @@ const AccountsReceivable: React.FC = () => {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {settlementEntry && (
                 <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 px-4 py-4 sm:items-center sm:py-6">
-                    <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-border-dark dark:bg-card-dark sm:max-h-[calc(100vh-3rem)]">
+                    <div ref={settlementModalRef} className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-border-dark dark:bg-card-dark sm:max-h-[calc(100vh-3rem)]">
                         <div className="flex flex-none items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-border-dark">
                             <div>
                                 <h3 className="text-lg font-black text-slate-950 dark:text-white">Dar baixa financeira</h3>
