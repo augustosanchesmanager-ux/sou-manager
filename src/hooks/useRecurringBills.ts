@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 
-const DEBUG_RECURRING_BILLS = true;
+const DEBUG_RECURRING_BILLS = import.meta.env.DEV;
 
 const debugRecurringBills = (label: string, details?: unknown) => {
   if (!DEBUG_RECURRING_BILLS) return;
@@ -38,7 +38,7 @@ export interface GeneratedExpense {
   status: 'pending' | 'paid' | 'overdue';
 }
 
-export const BILL_CATEGORIES = [
+export const BARBER_BILL_CATEGORIES = [
   { id: 'aluguel', label: 'Aluguel', icon: 'home' },
   { id: 'credit_card', label: 'Cartão de Crédito', icon: 'credit_card' },
   { id: 'software', label: 'Software/Assinatura', icon: 'computer' },
@@ -56,14 +56,37 @@ export const BILL_CATEGORIES = [
   { id: 'outros', label: 'Outros', icon: 'more_horiz' },
 ];
 
+export const ESTETICA_BILL_CATEGORIES = [
+  { id: 'aluguel', label: 'Aluguel', icon: 'home' },
+  { id: 'credit_card', label: 'Cartão de Crédito', icon: 'credit_card' },
+  { id: 'software', label: 'Software/Assinatura', icon: 'computer' },
+  { id: 'produtos_faciais', label: 'Produtos Faciais', icon: 'spa' },
+  { id: 'dermocosmeticos', label: 'Dermocosméticos', icon: 'local_pharmacy' },
+  { id: 'descartaveis', label: 'Descartáveis e EPIs', icon: 'health_and_safety' },
+  { id: 'funcionario', label: 'Profissionais', icon: 'person' },
+  { id: 'particular', label: 'Contas Particulares', icon: 'account_balance_wallet' },
+  { id: 'luz', label: 'Luz/Energia', icon: 'bolt' },
+  { id: 'agua', label: 'Água', icon: 'water_drop' },
+  { id: 'internet', label: 'Internet', icon: 'wifi' },
+  { id: 'marketing', label: 'Marketing/Ads', icon: 'campaign' },
+  { id: 'fornecedor', label: 'Fornecedor', icon: 'local_shipping' },
+  { id: 'manutencao', label: 'Manutenção', icon: 'build' },
+  { id: 'outros', label: 'Outros', icon: 'more_horiz' },
+];
+
+export const BILL_CATEGORIES = BARBER_BILL_CATEGORIES;
+
 export const useRecurringBills = () => {
-  const { tenantId, user } = useAuth();
+  const { tenantId, user, appSlug } = useAuth();
   const [bills, setBills] = useState<RecurringBill[]>([]);
   const [generatedExpenses, setGeneratedExpenses] = useState<GeneratedExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = BILL_CATEGORIES;
+  const categories = useMemo(
+    () => (appSlug === 'estetica' ? ESTETICA_BILL_CATEGORIES : BARBER_BILL_CATEGORIES),
+    [appSlug],
+  );
 
   const fetchBills = useCallback(async () => {
     if (!tenantId) {

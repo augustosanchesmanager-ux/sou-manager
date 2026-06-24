@@ -16,6 +16,11 @@ import {
     reverseFinancialTransaction,
     type FinancialReversalType,
 } from '../src/lib/finance/reversal';
+import {
+    getTransactionStatusBucket,
+    isCancelledTransactionStatus,
+} from '../src/lib/finance/transactionStatus';
+import { downloadCsv } from '../src/lib/export/csv';
 
 type ActiveTab = 'all' | 'income' | 'expense';
 
@@ -250,9 +255,13 @@ const Cashflow: React.FC = () => {
             }
 
             let runningBalance = 0;
-            const mappedEntries: CashflowEntry[] = transactions.map((transaction) => {
+            const mappedEntries: CashflowEntry[] = transactions
+                .filter((transaction) => !isCancelledTransactionStatus(transaction.status))
+                .map((transaction) => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
+                const statusBucket = getTransactionStatusBucket(transaction.status);
+                const entryStatus = statusBucket === 'realized' ? 'realizado' : 'previsto';
                 const reversals = reversalsByTransactionId.get(transaction.id) || [];
                 const reversalSource = reversalSourceByTransactionId.get(transaction.id) || null;
                 const reversedAmount = Math.min(value, reversedByTransactionId.get(transaction.id) || 0);
@@ -262,7 +271,9 @@ const Cashflow: React.FC = () => {
                     : reversibleAmount <= 0
                         ? 'full'
                         : 'partial';
-                runningBalance += type === 'entrada' ? value : -value;
+                if (entryStatus === 'realizado') {
+                    runningBalance += type === 'entrada' ? value : -value;
+                }
 
                 return {
                     id: transaction.id,
@@ -274,7 +285,7 @@ const Cashflow: React.FC = () => {
                     costCenter: transaction.category || 'Sem centro',
                     type,
                     paymentMethod: transaction.payment_method || 'Não informado',
-                    status: 'realizado',
+                    status: entryStatus,
                     value,
                     runningBalance,
                     transactionType: transaction.type,
@@ -307,15 +318,17 @@ const Cashflow: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    const totalEntradas = entries
+    const realizedEntries = entries.filter((entry) => entry.status === 'realizado');
+    const totalEntradas = realizedEntries
         .filter((entry) => entry.type === 'entrada')
         .reduce((sum, entry) => sum + entry.value, 0);
-    const totalSaidas = entries
+    const totalSaidas = realizedEntries
         .filter((entry) => entry.type === 'saida')
         .reduce((sum, entry) => sum + entry.value, 0);
     const saldoAtual = totalEntradas - totalSaidas;
-    const ticketMedioEntrada = entries.filter((entry) => entry.type === 'entrada').length > 0
-        ? totalEntradas / entries.filter((entry) => entry.type === 'entrada').length
+    const realizedIncomeEntries = realizedEntries.filter((entry) => entry.type === 'entrada');
+    const ticketMedioEntrada = realizedIncomeEntries.length > 0
+        ? totalEntradas / realizedIncomeEntries.length
         : 0;
 
     const filteredEntries = entries.filter((entry) => {
@@ -328,7 +341,7 @@ const Cashflow: React.FC = () => {
     const isReversalEligible = (entry: CashflowEntry) => (
         canRequestFinancialReversal
         && entry.transactionType === 'income'
-        && (entry.transactionStatus === 'paid' || entry.transactionStatus === 'Pago' || !entry.transactionStatus)
+        && entry.status === 'realizado'
         && entry.sourceType === 'comanda'
         && Boolean(entry.tenantId)
         && Boolean(entry.id)
@@ -427,12 +440,12 @@ const Cashflow: React.FC = () => {
     const emptyStateCopy = hasTenantContext
         ? CASHFLOW_EMPTY_COPY[activeTab]
         : {
-            title: 'Sem contexto de barbearia',
-            description: 'Selecione uma barbearia/tenant valido para consultar o fluxo de caixa.',
+            title: 'Sem contexto da unidade',
+            description: 'Selecione uma unidade valida para consultar o fluxo de caixa.',
         };
 
     const chartData = useMemo(() => {
-        const grouped = entries.reduce<Record<string, { entradas: number; saidas: number; saldo: number }>>((acc, entry) => {
+        const grouped = realizedEntries.reduce<Record<string, { entradas: number; saidas: number; saldo: number }>>((acc, entry) => {
             const label = new Date(`${entry.date}`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
             if (!acc[label]) {
@@ -461,7 +474,7 @@ const Cashflow: React.FC = () => {
                 saldo: runningBalance,
             };
         });
-    }, [entries]);
+    }, [realizedEntries]);
 
     const handleExport = () => {
         if (filteredEntries.length === 0) {
@@ -515,13 +528,11 @@ const Cashflow: React.FC = () => {
             entry.reversalSource?.originalTransactionId || '',
         ]);
 
-        const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
-        const link = document.createElement('a');
-        link.setAttribute('href', encodeURI(csvContent));
-        link.setAttribute('download', `fluxo-caixa-${filterMonth}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        downloadCsv({
+            filenameBase: `fluxo-caixa-${filterMonth}`,
+            headers,
+            rows,
+        });
         setToast({ message: 'Fluxo exportado com sucesso.', type: 'success' });
     };
 

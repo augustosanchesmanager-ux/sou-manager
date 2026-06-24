@@ -162,11 +162,20 @@ const createInitialQuickProductForm = (): QuickProductForm => ({
     auto_generate_purchase_order: false,
 });
 
-const createInitialQuickServiceForm = (serviceName = ''): QuickServiceForm => ({
+const BARBER_QUICK_SERVICE_CATEGORIES = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
+const ESTETICA_QUICK_SERVICE_CATEGORIES = ['Facial', 'Sobrancelhas', 'Protocolos', 'Peelings', 'Finalizacao', 'Outros'];
+
+const getQuickServiceCategories = (isEsteticaApp: boolean) =>
+    isEsteticaApp ? ESTETICA_QUICK_SERVICE_CATEGORIES : BARBER_QUICK_SERVICE_CATEGORIES;
+
+const getDefaultQuickServiceCategory = (isEsteticaApp: boolean) =>
+    getQuickServiceCategories(isEsteticaApp)[0];
+
+const createInitialQuickServiceForm = (serviceName = '', category = getDefaultQuickServiceCategory(false)): QuickServiceForm => ({
     name: serviceName,
     commercial_name: '',
     description: '',
-    category: 'Cabelo',
+    category,
     price: '0',
     duration: '30',
     active: true,
@@ -237,8 +246,12 @@ const isCreatedAfterAppointmentDay = (createdAt?: string | null, appointmentStar
     return startOfLocalDay(created).getTime() > startOfLocalDay(appointment).getTime();
 };
 
-const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
 const esteticaServiceCategoryDisplay: Record<string, string> = {
+    Facial: 'Facial',
+    Sobrancelhas: 'Sobrancelhas',
+    Protocolos: 'Protocolos',
+    Peelings: 'Peelings',
+    Finalizacao: 'Finalização',
     Cabelo: 'Facial',
     Barba: 'Sobrancelhas',
     Combo: 'Protocolos',
@@ -1051,7 +1064,7 @@ const Checkout: React.FC = () => {
     };
 
     const handleOpenQuickServiceModal = () => {
-        setQuickServiceForm(createInitialQuickServiceForm(searchTerm.trim()));
+        setQuickServiceForm(createInitialQuickServiceForm(searchTerm.trim(), getDefaultQuickServiceCategory(isEsteticaApp)));
         setIsQuickServiceModalOpen(true);
     };
 
@@ -1064,7 +1077,7 @@ const Checkout: React.FC = () => {
     const handleCloseQuickServiceModal = () => {
         if (isSavingQuickService) return;
         setIsQuickServiceModalOpen(false);
-        setQuickServiceForm(createInitialQuickServiceForm());
+        setQuickServiceForm(createInitialQuickServiceForm('', getDefaultQuickServiceCategory(isEsteticaApp)));
     };
 
     const handleCreateProductDuringCheckout = async (e: React.FormEvent) => {
@@ -1173,7 +1186,7 @@ const Checkout: React.FC = () => {
 
             setToast({ message: `${serviceLabel} criado e adicionado ${isEsteticaApp ? 'ao atendimento' : 'à venda'}.`, type: 'success' });
             handleAddItem(createdService, 'service');
-            setQuickServiceForm(createInitialQuickServiceForm());
+            setQuickServiceForm(createInitialQuickServiceForm('', getDefaultQuickServiceCategory(isEsteticaApp)));
             setIsQuickServiceModalOpen(false);
         } catch (error) {
             console.error('Error creating service during checkout:', error);
@@ -2728,7 +2741,7 @@ const Checkout: React.FC = () => {
                                 onChange={(e) => setQuickServiceForm((prev) => ({ ...prev, category: e.target.value }))}
                                 className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-border-dark dark:bg-background-dark dark:[color-scheme:dark]"
                             >
-                                {serviceCategories.map((category) => (
+                                {getQuickServiceCategories(isEsteticaApp).map((category) => (
                                     <option key={category} value={category}>
                                         {getServiceCategoryDisplay(category, isEsteticaApp)}
                                     </option>

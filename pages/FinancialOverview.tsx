@@ -6,6 +6,10 @@ import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import {
+    getTransactionStatusBucket,
+    isCancelledTransactionStatus,
+} from '../src/lib/finance/transactionStatus';
 
 interface TransactionRecord {
     id: string;
@@ -16,6 +20,7 @@ interface TransactionRecord {
     payment_method: string | null;
     date: string | null;
     created_at?: string | null;
+    status?: string | null;
 }
 
 const FinancialOverview: React.FC = () => {
@@ -47,7 +52,7 @@ const FinancialOverview: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('transactions')
-                .select('id, type, category, amount, description, payment_method, date, created_at')
+                .select('id, type, category, amount, description, payment_method, date, created_at, status')
                 .eq('tenant_id', tenantId)
                 .gte('date', startOfMonth)
                 .lte('date', endOfMonth)
@@ -55,9 +60,12 @@ const FinancialOverview: React.FC = () => {
 
             if (error) throw error;
 
-            const mappedEntries: EnrichedCashFlowEntry[] = ((data || []) as TransactionRecord[]).map((transaction) => {
+            const mappedEntries: EnrichedCashFlowEntry[] = ((data || []) as TransactionRecord[])
+                .filter((transaction) => !isCancelledTransactionStatus(transaction.status))
+                .map((transaction) => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
+                const statusBucket = getTransactionStatusBucket(transaction.status);
 
                 return {
                     id: transaction.id,
@@ -69,7 +77,7 @@ const FinancialOverview: React.FC = () => {
                     costCenter: transaction.category || 'Sem centro',
                     type,
                     paymentMethod: transaction.payment_method || 'Nao informado',
-                    status: 'realizado',
+                    status: statusBucket === 'realized' ? 'realizado' : 'previsto',
                     value,
                     runningBalance: 0,
                 };
@@ -89,15 +97,16 @@ const FinancialOverview: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    const totalEntradas = entries
+    const realizedEntries = entries.filter((entry) => entry.status === 'realizado');
+    const entradasRealizadas = realizedEntries.filter((entry) => entry.type === 'entrada');
+    const saidasRealizadas = realizedEntries.filter((entry) => entry.type === 'saida');
+    const totalEntradas = entradasRealizadas
         .filter((entry) => entry.type === 'entrada')
         .reduce((sum, entry) => sum + entry.value, 0);
-    const totalSaidas = entries
-        .filter((entry) => entry.type === 'saida')
-        .reduce((sum, entry) => sum + entry.value, 0);
+    const totalSaidas = saidasRealizadas.reduce((sum, entry) => sum + entry.value, 0);
     const saldoAtual = totalEntradas - totalSaidas;
-    const ticketMedioEntrada = entries.filter((entry) => entry.type === 'entrada').length > 0
-        ? totalEntradas / entries.filter((entry) => entry.type === 'entrada').length
+    const ticketMedioEntrada = entradasRealizadas.length > 0
+        ? totalEntradas / entradasRealizadas.length
         : 0;
 
     return (
@@ -137,19 +146,19 @@ const FinancialOverview: React.FC = () => {
                     <FinancialSummaryCard
                         title="Entradas"
                         value={totalEntradas}
-                        changeText={`${entries.filter((entry) => entry.type === 'entrada').length} registros`}
+                        changeText={`${entradasRealizadas.length} registros`}
                         trend="up"
                         tone="positive"
-                        helperText="Total de receitas do periodo"
+                        helperText="Receitas realizadas no periodo"
                         icon={<ArrowUpCircle size={18} />}
                     />
                     <FinancialSummaryCard
                         title="Saidas"
                         value={totalSaidas}
-                        changeText={`${entries.filter((entry) => entry.type === 'saida').length} registros`}
+                        changeText={`${saidasRealizadas.length} registros`}
                         trend="down"
                         tone="negative"
-                        helperText="Total de despesas do periodo"
+                        helperText="Despesas realizadas no periodo"
                         icon={<ArrowDownCircle size={18} />}
                     />
                     <FinancialSummaryCard
@@ -158,7 +167,7 @@ const FinancialOverview: React.FC = () => {
                         changeText={saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo'}
                         trend={saldoAtual >= 0 ? 'up' : 'down'}
                         tone={saldoAtual >= 0 ? 'positive' : 'negative'}
-                        helperText="Entradas menos saidas no periodo"
+                        helperText="Entradas menos saidas realizadas"
                         icon={<Wallet size={18} />}
                     />
                     <FinancialSummaryCard
@@ -167,7 +176,7 @@ const FinancialOverview: React.FC = () => {
                         changeText="Receitas por lancamento"
                         trend="up"
                         tone="neutral"
-                        helperText="Media das entradas registradas"
+                        helperText="Media das entradas realizadas"
                         icon={<Wallet size={18} />}
                     />
                 </div>

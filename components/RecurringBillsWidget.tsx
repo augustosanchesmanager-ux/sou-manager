@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useRecurringBills, BILL_CATEGORIES } from '../src/hooks/useRecurringBills';
+import { useRecurringBills } from '../src/hooks/useRecurringBills';
 import type { RecurringBill } from '../src/hooks/useRecurringBills';
 import Modal from './ui/Modal';
 import Toast from './Toast';

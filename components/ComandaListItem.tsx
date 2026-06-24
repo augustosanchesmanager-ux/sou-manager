@@ -40,6 +40,7 @@ interface ComandaListItemProps {
     comanda: ComandaItemData;
     isSelected: boolean;
     isBulkSelected: boolean;
+    surface?: 'light' | 'dark';
     onSelect: () => void;
     onToggleBulk: () => void;
     onSelectForSidebar: () => void;
@@ -124,6 +125,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
     comanda,
     isSelected,
     isBulkSelected,
+    surface = 'light',
     onSelect,
     onToggleBulk,
     onSelectForSidebar,
@@ -139,6 +141,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
     const openingInfo = formatOpeningDate(comanda.created_at);
     const clientName = comanda.clients.name?.trim() || CLIENT_NAME_FALLBACK;
     const clientInitial = clientName === CLIENT_NAME_FALLBACK ? '?' : clientName.slice(0, 1).toUpperCase();
+    const isDarkSurface = surface === 'dark';
 
     const handleAction = (e: React.MouseEvent, action: () => void) => {
         e.stopPropagation();
@@ -149,8 +152,12 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
         <div
             className={`cursor-pointer px-4 py-3 transition ${
                 isSelected
-                    ? 'bg-amber-500/[0.07] dark:bg-amber-500/[0.08]'
-                    : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'
+                    ? isDarkSurface
+                        ? 'bg-amber-400/[0.12]'
+                        : 'bg-amber-500/[0.07] dark:bg-amber-500/[0.08]'
+                    : isDarkSurface
+                        ? 'hover:bg-white/[0.04]'
+                        : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'
             } ${isBulkSelected ? 'ring-1 ring-amber-500/30 ring-inset' : ''}`}
             onClick={onSelect}
         >
@@ -159,7 +166,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                     <button
                         type="button"
                         onClick={(e) => handleAction(e, onToggleBulk)}
-                        className="flex size-7 items-center justify-center rounded-lg border border-amber-500/20 bg-white text-amber-600 transition hover:bg-amber-500/10 dark:bg-white/5"
+                        className={`flex size-7 items-center justify-center rounded-lg border border-amber-500/20 text-amber-500 transition hover:bg-amber-500/10 ${isDarkSurface ? 'bg-white/8 text-amber-200' : 'bg-white dark:bg-white/5'}`}
                         title={isBulkSelected ? 'Desmarcar' : 'Selecionar'}
                     >
                         <span className="material-symbols-outlined text-[16px]">
@@ -168,13 +175,13 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                     </button>
                 )}
 
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm font-black text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                <div className={`flex size-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${isDarkSurface ? 'border-white/15 bg-white/10 text-slate-100' : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'}`}>
                     {clientInitial}
                 </div>
 
                 <div className="min-w-[180px] flex-1">
                     <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                        <span className={`truncate text-sm font-semibold ${isDarkSurface ? 'text-slate-50' : 'text-slate-900 dark:text-white'}`}>
                             {clientName}
                         </span>
                         {!isEsteticaApp && comanda.chefClubInfo && (
@@ -183,17 +190,17 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                                 {comanda.chefClubInfo.planName}
                             </span>
                         )}
-                        <span className="rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                        <span className={`rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-bold ${isDarkSurface ? 'border-white/15 bg-white/10 text-slate-100' : 'border-slate-200 bg-slate-100 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'}`}>
                             #{getDisplayId(comanda.id)}
                         </span>
                     </div>
 
-                    <div className="mt-1 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                    <div className={`mt-1 flex items-center gap-3 text-xs ${isDarkSurface ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
                         <span className={`flex items-center gap-1 ${
                             openingInfo.isToday
-                                ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                                ? isDarkSurface ? 'text-emerald-300 font-semibold' : 'text-emerald-600 dark:text-emerald-400 font-medium'
                                 : openingInfo.isYesterday
-                                ? 'text-amber-600 dark:text-amber-400 font-medium'
+                                ? isDarkSurface ? 'text-amber-200 font-semibold' : 'text-amber-600 dark:text-amber-400 font-medium'
                                 : ''
                         }`}>
                             <span className="material-symbols-outlined text-[12px]">calendar_today</span>
@@ -213,10 +220,10 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                 </div>
 
                 <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    <p className={`text-sm font-bold ${isDarkSurface ? 'text-amber-200' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(comanda.total)}
                     </p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    <p className={`text-[10px] ${isDarkSurface ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
                         {summary.title}
                         {summary.detail !== '0 itens' && ` (${summary.detail})`}
                     </p>
@@ -243,7 +250,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, () => navigate(`/checkout/${comanda.id}`))}
-                            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-400 hover:text-amber-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                            className={`flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold transition hover:border-amber-400 hover:text-amber-600 ${isDarkSurface ? 'border-white/15 bg-white/8 text-slate-100' : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'}`}
                             title={isEsteticaApp ? `Finalizar ${orderLabelLower}` : 'Fechar comanda'}
                         >
                             <span className="material-symbols-outlined text-[14px]">point_of_sale</span>
@@ -255,7 +262,7 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, onSelectForSidebar)}
-                            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                            className={`flex size-8 items-center justify-center rounded-lg border transition ${isDarkSurface ? 'border-white/20 text-slate-100 hover:border-amber-300 hover:text-amber-100' : 'border-slate-200 text-slate-500 hover:text-slate-900 dark:border-white/10 dark:text-slate-300 dark:hover:text-white'}`}
                             title="Ver detalhes"
                         >
                             <span className="material-symbols-outlined text-[16px]">visibility</span>
