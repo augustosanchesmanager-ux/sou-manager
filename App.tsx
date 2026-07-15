@@ -37,6 +37,7 @@ const Operations = lazy(() => import('./pages/Operations'));
 const OperationSuccess = lazy(() => import('./pages/OperationSuccess'));
 const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Orders = lazy(() => import('./pages/Orders'));
+const OfflineSync = lazy(() => import('./pages/OfflineSync'));
 const Payroll = lazy(() => import('./pages/Payroll'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const Performance = lazy(() => import('./pages/Performance'));
@@ -226,6 +227,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/comandas" element={<Comandas />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/operation-success" element={<OperationSuccess />} />
+            <Route path="/offline-sync" element={<OfflineSync />} />
             <Route path="/support" element={<Support />} />
 
             <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />

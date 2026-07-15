@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import { logSupabaseError } from '../lib/supabase/errors';
 
 const DEBUG_RECURRING_BILLS = true;
 
@@ -95,7 +96,7 @@ export const useRecurringBills = () => {
         .limit(50);
 
       if (fetchError) {
-        console.error('[RecurringBills] Erro completo ao carregar contas fixas:', fetchError);
+        logSupabaseError('[RecurringBills] Erro ao carregar contas fixas', fetchError, { tenantId });
         setError(fetchError.message);
         setBills([]);
       } else {
@@ -117,7 +118,7 @@ export const useRecurringBills = () => {
         setBills(mappedBills);
       }
     } catch (err: any) {
-      console.error('[RecurringBills] Erro inesperado ao carregar contas fixas:', err);
+      logSupabaseError('[RecurringBills] Erro inesperado ao carregar contas fixas', err, { tenantId });
       setError(err.message);
       setBills([]);
     } finally {
@@ -205,7 +206,7 @@ export const useRecurringBills = () => {
     debugRecurringBills('createBill Supabase response', response);
 
     if (response.error) {
-      console.error('[RecurringBills] Erro completo ao criar conta fixa:', response.error, { payload });
+      logSupabaseError('[RecurringBills] Erro ao criar conta fixa', response.error, { tenantId, payload });
       throw response.error;
     }
     await fetchBills();
@@ -234,7 +235,7 @@ export const useRecurringBills = () => {
     debugRecurringBills('updateBill Supabase response', response);
 
     if (response.error) {
-      console.error('[RecurringBills] Erro completo ao atualizar conta fixa:', response.error, { id, tenantId, payload });
+      logSupabaseError('[RecurringBills] Erro ao atualizar conta fixa', response.error, { id, tenantId, payload });
       throw response.error;
     }
     await fetchBills();
@@ -254,7 +255,7 @@ export const useRecurringBills = () => {
     debugRecurringBills('deleteBill Supabase response', response);
 
     if (response.error) {
-      console.error('[RecurringBills] Erro completo ao excluir conta fixa:', response.error, { id, tenantId });
+      logSupabaseError('[RecurringBills] Erro ao excluir conta fixa', response.error, { id, tenantId });
       throw response.error;
     }
     await fetchBills();
@@ -277,7 +278,7 @@ export const useRecurringBills = () => {
     debugRecurringBills('markAsPaid Supabase response', response);
 
     if (response.error) {
-      console.error('[RecurringBills] Erro completo ao marcar conta fixa como paga:', response.error, { billId, tenantId, payload });
+      logSupabaseError('[RecurringBills] Erro ao marcar conta fixa como paga', response.error, { billId, tenantId, payload });
       throw response.error;
     }
     await fetchBills();

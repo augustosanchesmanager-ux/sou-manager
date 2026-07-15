@@ -1,3 +1,5 @@
+import { logSupabaseError } from '../supabase/errors';
+
 const SETTLEMENT_ERROR_MESSAGE =
   'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
 const SETTLEMENT_TIMEOUT_MS = 30000;
@@ -90,13 +92,22 @@ export const settleCheckoutComanda = async ({
   );
 
   if (error) {
-    console.error('finance_settle_comanda failed:', error);
+    logSupabaseError('[settlement] finance_settle_comanda failed', error, {
+      comandaId,
+      tenantId,
+      paymentMethod,
+      paidAmount,
+    });
     throw new Error(SETTLEMENT_ERROR_MESSAGE);
   }
 
   const result = data || {};
   if (result.success !== true) {
-    console.error('finance_settle_comanda returned an invalid result:', result);
+    console.error('[settlement] finance_settle_comanda returned an invalid result:', {
+      result,
+      comandaId,
+      tenantId,
+    });
     throw new Error(SETTLEMENT_ERROR_MESSAGE);
   }
 

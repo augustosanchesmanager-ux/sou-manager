@@ -165,8 +165,14 @@ Deno.serve(async (req: Request) => {
         }
 
         if (createError) {
-            console.error('Create user error:', createError);
-            return new Response(JSON.stringify({ error: createError.message }), {
+            console.error('Create user error:', JSON.stringify(createError, null, 2));
+            return new Response(JSON.stringify({
+                error: createError.message || 'Erro ao criar usuário',
+                code: createError.code || null,
+                details: createError.details || null,
+                hint: createError.hint || null,
+                status: createError.status || null,
+            }), {
                 status: 400,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -188,11 +194,17 @@ Deno.serve(async (req: Request) => {
         });
 
         if (staffError) {
-            console.error('Staff insert error:', staffError);
-            // Don't fail — the auth user was created. Return a warning.
+            console.error('Staff insert error:', JSON.stringify(staffError, null, 2));
+            // Don't fail — the auth user was created. Return a warning with full context.
             return new Response(JSON.stringify({
                 user: newUser.user,
-                warning: `User created but staff record failed: ${staffError.message}`
+                warning: `User created but staff record failed: ${staffError.message}`,
+                staff_error: {
+                    message: staffError.message || null,
+                    code: staffError.code || null,
+                    details: staffError.details || null,
+                    hint: staffError.hint || null,
+                },
             }), {
                 status: 200,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -205,8 +217,13 @@ Deno.serve(async (req: Request) => {
         });
 
     } catch (err: any) {
-        console.error('Unexpected error:', err);
-        return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
+        console.error('Unexpected error:', JSON.stringify(err, null, 2));
+        return new Response(JSON.stringify({
+            error: err.message || 'Internal server error',
+            code: err.code || null,
+            details: err.details || null,
+            hint: err.hint || null,
+        }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

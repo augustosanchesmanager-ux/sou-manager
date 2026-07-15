@@ -14,6 +14,7 @@ import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { logSupabaseError } from '../src/lib/supabase/errors';
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar, { type ComandaFinancialHistory } from '../components/ComandaSidebar';
 import ComandaFiltersModal from '../components/ComandaFiltersModal';
@@ -167,44 +168,7 @@ const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price
 const CLIENT_NAME_FALLBACK = 'Cliente não informado';
 const NOT_INFORMED_FALLBACK = 'Não informado';
 
-type SupabaseErrorLike = {
-    message?: string;
-    code?: string;
-    details?: string;
-    hint?: string;
-    status?: number;
-    name?: string;
-};
-
-const getSupabaseErrorPayload = (error: unknown) => {
-    if (error && typeof error === 'object') {
-        const supabaseError = error as SupabaseErrorLike;
-        return {
-            message: supabaseError.message || 'Erro sem mensagem',
-            code: supabaseError.code || null,
-            details: supabaseError.details || null,
-            hint: supabaseError.hint || null,
-            status: supabaseError.status || null,
-            name: supabaseError.name || null,
-        };
-    }
-
-    return {
-        message: String(error || 'Erro desconhecido'),
-        code: null,
-        details: null,
-        hint: null,
-        status: null,
-        name: null,
-    };
-};
-
-const logSupabaseError = (context: string, error: unknown, extra?: Record<string, unknown>) => {
-    console.error(context, {
-        ...getSupabaseErrorPayload(error),
-        ...(extra || {}),
-    });
-};
+// logSupabaseError is imported from src/lib/supabase/errors.ts
 
 const formatDateInputValue = (date: Date) => {
     const year = date.getFullYear();
@@ -470,11 +434,39 @@ const Comandas: React.FC = () => {
                 ...itemRows.map((i) => i.staff_id ?? null),
             ].filter((id): id is string => Boolean(id))));
 
-            const [clientsResult, staffResult, appointmentsResult] = await Promise.all([
-                clientIds.length > 0 ? client.from('clients').select('id, name, avatar, phone').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
-                staffIds.length > 0 ? client.from('staff').select('id, name').in('id', staffIds) : Promise.resolve({ data: [] as StaffLookup[], error: null }),
-                appointmentIds.length > 0 ? client.from('appointments').select('id, start_time').in('id', appointmentIds) : Promise.resolve({ data: [] as AppointmentLookup[], error: null }),
-            ]);
+            let clientsResult: { data: ClientLookup[] | null; error: unknown } = { data: null, error: null };
+            let staffResult: { data: StaffLookup[] | null; error: unknown } = { data: null, error: null };
+            let appointmentsResult: { data: AppointmentLookup[] | null; error: unknown } = { data: null, error: null };
+
+            if (clientIds.length > 0) {
+                try {
+                    clientsResult = await client.from('clients').select('id, name, avatar, phone').in('id', clientIds);
+                } catch (err) {
+                    clientsResult = { data: null, error: err };
+                }
+            } else {
+                clientsResult = { data: [], error: null };
+            }
+
+            if (staffIds.length > 0) {
+                try {
+                    staffResult = await client.from('staff').select('id, name').in('id', staffIds);
+                } catch (err) {
+                    staffResult = { data: null, error: err };
+                }
+            } else {
+                staffResult = { data: [], error: null };
+            }
+
+            if (appointmentIds.length > 0) {
+                try {
+                    appointmentsResult = await client.from('appointments').select('id, start_time').in('id', appointmentIds);
+                } catch (err) {
+                    appointmentsResult = { data: null, error: err };
+                }
+            } else {
+                appointmentsResult = { data: [], error: null };
+            }
 
             if (clientsResult.error) {
                 logSupabaseError('[Comandas] Erro ao buscar clientes das comandas', clientsResult.error, { clientCount: clientIds.length });
@@ -686,7 +678,7 @@ const Comandas: React.FC = () => {
                     .in('id', commandsToUnblock);
 
                 if (error) {
-                    console.warn('Erro ao desbloquear comandas:', error);
+                    logSupabaseError('[Comandas] Erro ao desbloquear comandas', error, { comandaIds: commandsToUnblock });
                     return;
                 }
 
@@ -696,7 +688,7 @@ const Comandas: React.FC = () => {
                     )
                 );
             } catch (err) {
-                console.warn('Erro ao desbloquear comandas:', err);
+                logSupabaseError('[Comandas] Erro ao desbloquear comandas (catch)', err, { comandaIds: commandsToUnblock });
             }
         };
 
@@ -943,7 +935,7 @@ const Comandas: React.FC = () => {
             : { data: [] as ServiceExecutionParticipantRow[], error: null };
 
         if (participantsError) {
-            console.warn('Erro ao carregar compartilhamentos para exportação de comandas:', participantsError);
+            logSupabaseError('[Comandas] Erro ao carregar compartilhamentos para exportação', participantsError);
             setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
             return;
         }
@@ -1146,7 +1138,7 @@ const Comandas: React.FC = () => {
             setCancelReasonOther('');
             await fetchData();
         } catch (error: any) {
-            console.error(error);
+            logSupabaseError('[Comandas] Erro ao anular comanda', error, { comandaId: comanda?.id });
             setToast({ message: `Não foi possível anular o ${orderLabelLower}. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
@@ -1201,7 +1193,10 @@ const Comandas: React.FC = () => {
             setBulkLegacyReferenceMonth(getDefaultLegacyReferenceMonth());
             await fetchData();
         } catch (error: any) {
-            console.error(error);
+            logSupabaseError('[Comandas] Erro ao fechar comandas em massa', error, {
+                comandaCount: selectedOpenComandaIds.length,
+                bulkCloseType,
+            });
             setToast({ message: `Não foi possível concluir a baixa em massa. Nenhuma baixa local falsa foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setBulkClosing(false);

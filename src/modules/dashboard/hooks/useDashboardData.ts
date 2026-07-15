@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { fetchDashboardData } from '../queries';
 import { EMPTY_DASHBOARD_DATA } from '../selectors';
+import { logSupabaseError } from '../../../../src/lib/supabase/errors';
 import type { DashboardData, DashboardPeriod } from '../types';
 
 export const useDashboardData = (period: DashboardPeriod = 'today') => {
@@ -24,7 +25,7 @@ export const useDashboardData = (period: DashboardPeriod = 'today') => {
       setData(nextData);
       setError(null);
     } catch (nextError: any) {
-      console.error('Failed to load dashboard data', nextError);
+      logSupabaseError('[useDashboardData] Failed to load dashboard data', nextError, { tenantId, period });
       setData(EMPTY_DASHBOARD_DATA);
       setError(nextError?.message || 'Erro ao carregar dashboard.');
     } finally {

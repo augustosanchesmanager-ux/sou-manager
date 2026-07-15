@@ -172,6 +172,16 @@ const Team: React.FC = () => {
             if (edgeError || edgeData?.error) {
                 // Try to extract the real message from the Edge Function response body
                 let msg = edgeData?.error || edgeData?.message || edgeError?.message || 'Erro desconhecido';
+                let code = edgeData?.code || null;
+                let details = edgeData?.details || null;
+                let hint = edgeData?.hint || null;
+
+                // Also check staff_error for additional context
+                const staffError = edgeData?.staff_error;
+                if (staffError?.message) {
+                    details = details || `Staff error: ${staffError.message}`;
+                    code = code || staffError.code || null;
+                }
 
                 // FunctionsHttpError wraps the response; try to parse the body
                 if (edgeError && typeof (edgeError as any).context?.json === 'function') {
@@ -179,10 +189,16 @@ const Team: React.FC = () => {
                         const body = await (edgeError as any).context.json();
                         if (body?.error) msg = body.error;
                         else if (body?.message) msg = body.message;
+                        if (body?.code) code = body.code;
+                        if (body?.details) details = body.details;
+                        if (body?.hint) hint = body.hint;
+                        if (body?.staff_error?.message) {
+                            details = details || `Staff error: ${body.staff_error.message}`;
+                        }
                     } catch (_) { }
                 }
 
-                console.error('Edge function error:', { edgeError, edgeData, msg });
+                console.error('Edge function error:', { edgeError, edgeData, msg, code, details, hint });
 
                 // Translate common errors to pt-br
                 let friendlyMsg = msg;

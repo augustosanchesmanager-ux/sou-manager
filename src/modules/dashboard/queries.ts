@@ -1,4 +1,5 @@
 import { getClientForTable, supabase } from '../../../services/supabaseClient';
+import { logSupabaseError as logSupabaseErrorBase } from '../../lib/supabase/errors';
 import {
   buildDashboardMetrics,
   buildReturningClients,
@@ -21,7 +22,7 @@ const APP_SLUG_FOR_DASHBOARD = 'barber' as const;
 
 const logSupabaseError = (label: string, error: unknown) => {
   if (error) {
-    console.error(`Dashboard query failed: ${label}`, error);
+    logSupabaseErrorBase(label, error);
   }
 };
 

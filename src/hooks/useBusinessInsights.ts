@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, getScopedClient, getClientForTable } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import { logSupabaseError } from '../lib/supabase/errors';
 import type {
   BusinessPeriod,
   BusinessInsightsFilters,
@@ -452,7 +453,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         insights,
       });
     } catch (error: any) {
-      console.error('Erro ao buscar dados do BI:', error);
+      logSupabaseError('[useBusinessInsights] Erro ao buscar dados do BI', error, { tenantId, period: filters.period });
       setData(prev => ({ ...prev, loading: false, error: error.message }));
     }
   }, [tenantId, filters.period]);

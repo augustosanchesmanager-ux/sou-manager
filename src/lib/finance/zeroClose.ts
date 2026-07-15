@@ -1,3 +1,5 @@
+import { logSupabaseError } from '../supabase/errors';
+
 export type ZeroCloseOrigin = 'club_credit' | 'house_courtesy' | 'administrative_adjustment';
 export type ZeroCloseSource = 'checkout' | 'financial_admin';
 
@@ -49,7 +51,7 @@ const assertComandaOpenForZeroClose = async ({
     .maybeSingle();
 
   if (error) {
-    console.error('zero close status check failed:', error);
+    logSupabaseError('[zeroClose] status check failed', error, { comandaId, tenantId });
     throw new Error(error.message || 'Nao foi possivel validar o status da comanda antes do fechamento zero.');
   }
 
@@ -132,7 +134,11 @@ export const closeZeroAmountComanda = async ({
 
   const { data, error } = await supabase.rpc(rpcName, rpcParams);
   if (error) {
-    console.error(`${rpcName} failed:`, error);
+    logSupabaseError(`[zeroClose] ${rpcName} failed`, error, {
+      comandaId,
+      tenantId,
+      origin,
+    });
     throw new Error(error.message || ZERO_CLOSE_ERROR_MESSAGE);
   }
 

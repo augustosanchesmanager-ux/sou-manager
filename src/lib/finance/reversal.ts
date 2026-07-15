@@ -1,3 +1,5 @@
+import { logSupabaseError } from '../supabase/errors';
+
 const REVERSAL_ERROR_MESSAGE =
   'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
 const REVERSAL_TIMEOUT_MS = 30000;
@@ -97,14 +99,24 @@ export const reverseFinancialTransaction = async ({
   );
 
   if (error) {
-    console.error('finance_reverse_transaction failed:', error);
+    logSupabaseError('[reversal] finance_reverse_transaction failed', error, {
+      originalTransactionId,
+      tenantId,
+      amount,
+      reasonType,
+    });
     const details = error.message ? ` Detalhe técnico: ${error.message}` : '';
     throw new Error(`${REVERSAL_ERROR_MESSAGE}${details}`);
   }
 
   const result = data || {};
   if (result.success !== true) {
-    console.error('finance_reverse_transaction returned an invalid result:', result);
+    console.error('[reversal] finance_reverse_transaction returned an invalid result:', {
+      result,
+      originalTransactionId,
+      tenantId,
+      amount,
+    });
     throw new Error(REVERSAL_ERROR_MESSAGE);
   }
 

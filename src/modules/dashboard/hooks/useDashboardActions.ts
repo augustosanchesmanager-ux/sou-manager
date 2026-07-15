@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { getClientForTable, requireTenantContext, supabase } from '../../../../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
+import { logSupabaseError } from '../../../../src/lib/supabase/errors';
 import type {
   BusyState,
   DashboardClient,
@@ -231,7 +232,11 @@ export const useDashboardActions = () => {
         console.log('[createQuickAppointment] rpcResult:', rpcResult, 'rpcError:', rpcError);
 
         if (rpcError || !rpcResult) {
-          console.error('Erro createQuickAppointment RPC:', rpcError || new Error('Erro ao criar agendamento.'));
+          logSupabaseError('[useDashboardActions] Erro createQuickAppointment RPC', rpcError || new Error('Erro ao criar agendamento.'), {
+            serviceId: payload.serviceId,
+            staffId: payload.staffId,
+            clientId: payload.clientId,
+          });
           throw rpcError || new Error('Erro ao criar agendamento.');
         }
 

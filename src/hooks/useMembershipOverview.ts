@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, getScopedClient } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import { logSupabaseError } from '../lib/supabase/errors';
 import type {
   SubscriptionStatus,
   MembershipFilters,
@@ -262,7 +263,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
         plans: planDistribution,
       });
     } catch (error: any) {
-      console.error('Erro ao buscar dados do Clube:', error);
+      logSupabaseError('[useMembershipOverview] Erro ao buscar dados do Clube', error, { tenantId });
       setData(prev => ({ ...prev, loading: false, error: error.message }));
     }
   }, [tenantId, filters.status, filters.search]);
