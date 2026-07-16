@@ -135,7 +135,13 @@ const Team: React.FC = () => {
                 .update(editableFields)
                 .eq('id', editingMember.id)
                 .eq('tenant_id', tenantId);
-            if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message}`, type: 'error' }); return; }
+            if (error) {
+                console.error('UPDATE ERROR:', JSON.stringify(error));
+                let friendlyMsg = error.message;
+                if (error.code === '23514') friendlyMsg = 'Valor de cargo inválido. Use: Gerente, Barbeiro ou Recepcionista.';
+                setToast({ message: `Erro ao atualizar: ${friendlyMsg}`, type: 'error' });
+                return;
+            }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
             if (!tenantId) {
@@ -219,8 +225,12 @@ const Team: React.FC = () => {
             }
 
             // After creation, optionally update the extra operational details on the staff table that the function didn't set
-            if (edgeData?.user?.id) {
-                await supabase
+            if (edgeData?.warning || edgeData?.staff_error) {
+                const staffErrMsg = edgeData.staff_error?.message || edgeData.warning || 'Registro de equipe não criado.';
+                console.warn('Staff record warning:', edgeData.staff_error || edgeData.warning);
+                setToast({ message: `${memberLabel} criado no sistema, mas houve erro ao criar registro de equipe: ${staffErrMsg}`, type: 'error' });
+            } else if (edgeData?.user?.id) {
+                const { error: phoneUpdateErr } = await supabase
                     .from('staff')
                     .update({
                         phone: form.phone,
@@ -228,9 +238,13 @@ const Team: React.FC = () => {
                     })
                     .eq('id', edgeData.user.id)
                     .eq('tenant_id', tenantId);
+                if (phoneUpdateErr) {
+                    console.warn('Supplementary staff update failed:', JSON.stringify(phoneUpdateErr));
+                }
+                setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
+            } else {
+                setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
             }
-
-            setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
         }
 
         setShowModal(false);

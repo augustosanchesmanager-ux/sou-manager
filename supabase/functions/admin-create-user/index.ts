@@ -10,6 +10,23 @@ const getDefaultCommissionRateForRole = (role: string) => {
     return String(role || '').trim().toLowerCase() === 'barber' ? 50 : 0;
 };
 
+const STAFF_ROLE_MAP: Record<string, string> = {
+    'manager': 'Manager',
+    'gerente': 'Manager',
+    'owner': 'Manager',
+    'admin': 'Manager',
+    'barber': 'Barber',
+    'barbeiro': 'Barber',
+    'receptionist': 'Receptionist',
+    'recepcionista': 'Receptionist',
+};
+
+const normalizeStaffRole = (role: string): string => {
+    const trimmed = String(role || '').trim();
+    if (['Manager', 'Barber', 'Receptionist'].includes(trimmed)) return trimmed;
+    return STAFF_ROLE_MAP[trimmed.toLowerCase()] || 'Barber';
+};
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -98,7 +115,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { email, password, name, role, tenant_id } = await req.json();
-        const normalizedRequestedRole = String(role || 'Barber').trim();
+        const normalizedRequestedRole = normalizeStaffRole(role);
         const normalizedRequestedRoleLower = normalizedRequestedRole.toLowerCase();
         if (!isSuperAdmin && (normalizedRequestedRoleLower === 'super admin' || normalizedRequestedRoleLower === 'superadmin')) {
             return new Response(JSON.stringify({ error: 'Forbidden: only super admin can assign super admin role' }), {
@@ -182,16 +199,19 @@ Deno.serve(async (req: Request) => {
         const defaultCommissionRate = getDefaultCommissionRateForRole(normalizedRequestedRole);
 
         // 2. Insert or Update staff record
-        const { error: staffError } = await supabaseAdmin.from('staff').upsert({
+        const staffPayload = {
             id: newUser.user!.id,
             name,
             email,
-            role: normalizedRequestedRole || 'Barber',
+            role: normalizedRequestedRole,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
             status: 'active',
             commission_rate: defaultCommissionRate,
             tenant_id: resolvedTenantId,
-        });
+        };
+        console.log('Staff upsert payload:', JSON.stringify({ ...staffPayload, avatar: '(omitted)' }));
+
+        const { error: staffError } = await supabaseAdmin.from('staff').upsert(staffPayload);
 
         if (staffError) {
             console.error('Staff insert error:', JSON.stringify(staffError, null, 2));
