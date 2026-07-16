@@ -167,6 +167,7 @@ const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
 const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price, product_id, service_id';
 const CLIENT_NAME_FALLBACK = 'Cliente não informado';
 const NOT_INFORMED_FALLBACK = 'Não informado';
+const BATCH_SIZE = 80;
 
 // logSupabaseError is imported from src/lib/supabase/errors.ts
 
@@ -191,6 +192,33 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
         endOfDay ? 999 : 0,
     );
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+type SupabaseQueryBuilder = ReturnType<ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>['from']>;
+
+const batchedIn = async <T extends Record<string, unknown>>(
+    client: ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>,
+    table: string,
+    select: string,
+    column: string,
+    ids: string[],
+    extraFilters?: (q: SupabaseQueryBuilder) => SupabaseQueryBuilder,
+): Promise<{ data: T[] | null; error: unknown }> => {
+    if (ids.length === 0) return { data: [], error: null };
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
+    }
+    const allData: T[] = [];
+    let lastError: unknown = null;
+    for (const batch of batches) {
+        let q = client.from(table).select(select).in(column, batch);
+        if (extraFilters) q = extraFilters(q);
+        const { data, error } = await q as { data: T[] | null; error: unknown };
+        if (error) { lastError = error; break; }
+        if (data) allData.push(...data);
+    }
+    return { data: lastError ? null : allData, error: lastError };
 };
 
 const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
@@ -416,10 +444,9 @@ const Comandas: React.FC = () => {
                 comandasRows.map((c) => c.client_id).filter((id): id is string => Boolean(id)),
             ));
 
-            const { data: itemsData, error: itemsError } = await client
-                .from('comanda_items')
-                .select(COMANDA_ITEMS_SELECT)
-                .in('comanda_id', comandaIds);
+            const { data: itemsData, error: itemsError } = await batchedIn(
+                client, 'comanda_items', COMANDA_ITEMS_SELECT, 'comanda_id', comandaIds,
+            );
 
             const itemRows = (itemsData || []) as ComandaItemRow[];
             if (itemsError) {
@@ -440,7 +467,7 @@ const Comandas: React.FC = () => {
 
             if (clientIds.length > 0) {
                 try {
-                    clientsResult = await client.from('clients').select('id, name, avatar, phone').in('id', clientIds);
+                    clientsResult = await batchedIn(client, 'clients', 'id, name, avatar, phone', 'id', clientIds);
                 } catch (err) {
                     clientsResult = { data: null, error: err };
                 }
@@ -450,7 +477,7 @@ const Comandas: React.FC = () => {
 
             if (staffIds.length > 0) {
                 try {
-                    staffResult = await client.from('staff').select('id, name').in('id', staffIds);
+                    staffResult = await batchedIn(client, 'staff', 'id, name', 'id', staffIds);
                 } catch (err) {
                     staffResult = { data: null, error: err };
                 }
@@ -460,7 +487,7 @@ const Comandas: React.FC = () => {
 
             if (appointmentIds.length > 0) {
                 try {
-                    appointmentsResult = await client.from('appointments').select('id, start_time').in('id', appointmentIds);
+                    appointmentsResult = await batchedIn(client, 'appointments', 'id, start_time', 'id', appointmentIds);
                 } catch (err) {
                     appointmentsResult = { data: null, error: err };
                 }
@@ -488,17 +515,15 @@ const Comandas: React.FC = () => {
                 return acc;
             }, {} as Record<string, ComandaItem[]>);
 
-            let transactionsQuery = client
-                .from('transactions')
-                .select('id, tenant_id, source_id, amount, payment_method, date, created_at, status')
-                .eq('source_type', 'comanda')
-                .in('source_id', comandaIds);
-
-            if (resolvedTenantId) {
-                transactionsQuery = transactionsQuery.eq('tenant_id', resolvedTenantId);
-            }
-
-            const { data: transactionRows, error: transactionsError } = await transactionsQuery;
+            const transactionsSelect = 'id, tenant_id, source_id, amount, payment_method, date, created_at, status';
+            const { data: transactionRows, error: transactionsError } = await batchedIn(
+                client, 'transactions', transactionsSelect, 'source_id', comandaIds,
+                (q) => {
+                    let filtered = q.eq('source_type', 'comanda');
+                    if (resolvedTenantId) filtered = filtered.eq('tenant_id', resolvedTenantId);
+                    return filtered;
+                },
+            );
 
             if (transactionsError) {
                 logSupabaseError('[Comandas] Erro ao buscar histórico financeiro das comandas', transactionsError, {
