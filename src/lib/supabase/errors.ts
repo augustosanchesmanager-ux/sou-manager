@@ -44,8 +44,16 @@ export const logSupabaseError = (
   error: unknown,
   extra?: Record<string, unknown>,
 ): void => {
-  console.error(context, {
-    ...extractSupabaseError(error),
+  const payload = extractSupabaseError(error);
+  const parts = [`[${context}]`];
+  if (payload.code) parts.push(`code=${payload.code}`);
+  if (payload.status) parts.push(`status=${payload.status}`);
+  parts.push(payload.message);
+  if (payload.details) parts.push(`details=${payload.details}`);
+  if (payload.hint) parts.push(`hint=${payload.hint}`);
+  if (extra) parts.push(JSON.stringify(extra));
+  console.error(parts.join(' | '), {
+    ...payload,
     ...(extra || {}),
     ...(error instanceof Error ? { stack: error.stack } : {}),
   });

@@ -371,7 +371,7 @@ const Team: React.FC = () => {
                     {!editingMember && (
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial)</label>
-                            <input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                            <input type="password" required autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="Mínimo 6 caracteres" />
                             <p className="text-[10px] text-slate-400 mt-1">Essa será a senha que {isEsteticaApp ? 'o profissional' : 'o colaborador'} usará para logar no sistema.</p>
                         </div>
