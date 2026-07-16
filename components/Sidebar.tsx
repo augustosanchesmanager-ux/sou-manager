@@ -220,9 +220,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       ? 'Barber'
       : accessRole === 'receptionist'
         ? 'Receptionist'
-        : accessRole === 'manager'
-          ? 'Manager'
-          : '';
+        : accessRole === 'adminmanager'
+          ? 'Admin Manager'
+          : accessRole === 'manager'
+            ? 'Manager'
+            : '';
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
   const navActiveClass = isEsteticaApp
     ? 'bg-[#EFE8D8] text-[#2E2B24] ring-1 ring-[#D8C994]/70 shadow-[0_10px_24px_rgba(111,104,69,0.13)]'

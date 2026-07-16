@@ -13,8 +13,11 @@ const getDefaultCommissionRateForRole = (role: string) => {
 const STAFF_ROLE_MAP: Record<string, string> = {
     'manager': 'Manager',
     'gerente': 'Manager',
+    'gerente operacional': 'Manager',
     'owner': 'Manager',
-    'admin': 'Manager',
+    'admin': 'AdminManager',
+    'adminmanager': 'AdminManager',
+    'gerente administrativo': 'AdminManager',
     'barber': 'Barber',
     'barbeiro': 'Barber',
     'receptionist': 'Receptionist',
@@ -23,7 +26,7 @@ const STAFF_ROLE_MAP: Record<string, string> = {
 
 const normalizeStaffRole = (role: string): string => {
     const trimmed = String(role || '').trim();
-    if (['Manager', 'Barber', 'Receptionist'].includes(trimmed)) return trimmed;
+    if (['Manager', 'AdminManager', 'Barber', 'Receptionist'].includes(trimmed)) return trimmed;
     return STAFF_ROLE_MAP[trimmed.toLowerCase()] || 'Barber';
 };
 
@@ -105,7 +108,9 @@ Deno.serve(async (req: Request) => {
             callerRole === 'manager' ||
             callerRole === 'gerente' ||
             callerRole === 'owner' ||
-            callerRole === 'admin';
+            callerRole === 'admin' ||
+            callerRole === 'adminmanager' ||
+            callerRole === 'gerente administrativo';
 
         if (!isSuperAdmin && !isManagerLike) {
             return new Response(JSON.stringify({ error: 'Forbidden: insufficient privileges' }), {

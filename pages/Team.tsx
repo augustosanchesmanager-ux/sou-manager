@@ -18,8 +18,8 @@ interface TeamMember {
     status: string;
 }
 
-const roles = ['Manager', 'Barber', 'Receptionist'];
-const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', Barber: 'content_cut', Receptionist: 'support_agent' };
+const roles = ['Manager', 'AdminManager', 'Barber', 'Receptionist'];
+const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', AdminManager: 'shield', Barber: 'content_cut', Receptionist: 'support_agent' };
 
 const Team: React.FC = () => {
     const navigate = useNavigate();
@@ -33,8 +33,8 @@ const Team: React.FC = () => {
     const memberPluralLower = isEsteticaApp ? labels.professionalPlural.toLowerCase() : 'membros';
     const commissionLabel = isEsteticaApp ? 'Repasse' : 'Comissão';
     const roleLabels: Record<string, string> = isEsteticaApp
-        ? { Manager: 'Gestor', Barber: labels.professional, Receptionist: 'Recepção' }
-        : { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
+        ? { Manager: 'Gestor Operacional', AdminManager: 'Gestor Administrativo', Barber: labels.professional, Receptionist: 'Recepção' }
+        : { Manager: 'Gerente Operacional', AdminManager: 'Gerente Administrativo', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
     const [team, setTeam] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);

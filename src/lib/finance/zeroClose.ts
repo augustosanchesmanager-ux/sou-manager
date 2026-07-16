@@ -67,7 +67,7 @@ const assertComandaOpenForZeroClose = async ({
 export const isManagerLikeRole = (role?: string | null, canAccessSuperAdmin = false) => {
   if (canAccessSuperAdmin) return true;
   const normalized = String(role || '').trim().toLowerCase();
-  return ['owner', 'admin', 'manager', 'gerente', 'superadmin', 'super admin'].includes(normalized);
+  return ['owner', 'admin', 'adminmanager', 'gerente administrativo', 'manager', 'gerente', 'superadmin', 'super admin'].includes(normalized);
 };
 
 export const buildZeroCloseAuditNote = ({

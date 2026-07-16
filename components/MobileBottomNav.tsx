@@ -58,7 +58,7 @@ const MobileBottomNav: React.FC = () => {
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const shouldRender = isMobileBottomNavRoute(location.pathname, appSlug);
 
-  const isManager = canAccessSuperAdmin || accessRole === 'manager';
+  const isManager = canAccessSuperAdmin || accessRole === 'manager' || accessRole === 'adminmanager';
   const isOperational = accessRole === 'barber' || accessRole === 'receptionist';
 
   const quickActions = useMemo<QuickActionItem[]>(() => {
