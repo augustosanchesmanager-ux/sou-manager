@@ -5,16 +5,9 @@ import {
     CalendarRange,
     CheckCircle,
     AlertTriangle,
-    FileText,
-    Package,
-    Users,
-    Save,
     RotateCcw,
     Wallet,
-    Plus,
     Trash2,
-    Download,
-    Eye,
 } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
@@ -22,17 +15,18 @@ import Modal from '../components/ui/Modal';
 import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import CashCloseFiltersBar from '../components/financial/CashCloseFilters';
 import { AuditAdjustmentButton } from '../components/audit';
-import { EnrichedCashFlowEntry } from '../components/financial/types';
 import {
     CashCloseFilters,
     SangriaSuprimento,
-    PaymentMethodRow,
-    CashCloseValidation,
     CashClosingEntryExtended,
+    ComandaDetail,
+    ComandaItemDetail,
+    BarberSummary,
     formatCurrency,
     generateId,
     validateCashClose,
     buildPaymentMethodRows,
+    buildBarberSummaries,
     filterEntries,
     generateCSVContent,
     downloadCSV,
@@ -52,7 +46,6 @@ interface TransactionRecord {
     created_at?: string | null;
     source_type?: string | null;
     source_id?: string | null;
-    user_id?: string | null;
 }
 
 interface FinancialReversalRecord {
@@ -69,19 +62,45 @@ interface AppointmentRecord {
     status: string;
     price: number;
     start_time: string;
+    staff_id?: string | null;
 }
 
 interface ComandaRecord {
     id: string;
     appointment_id: string | null;
+    client_id: string | null;
+    client_name?: string | null;
+    staff_id: string | null;
     status: string;
     total: number;
+    payment_method?: string | null;
+}
+
+interface ComandaItemRecord {
+    id: string;
+    comanda_id: string;
+    service_id?: string | null;
+    product_name?: string | null;
+    quantity: number;
+    unit_price: number;
+    staff_id?: string | null;
 }
 
 interface StaffRecord {
     id: string;
     name: string;
     role: string | null;
+}
+
+interface ClientRecord {
+    id: string;
+    name: string;
+}
+
+interface ServiceRecord {
+    id: string;
+    name: string;
+    price?: number;
 }
 
 interface AgendaSummary {
@@ -115,6 +134,7 @@ const CashClosingPage: React.FC = () => {
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
     const [entries, setEntries] = useState<CashClosingEntryExtended[]>([]);
+    const [comandaDetails, setComandaDetails] = useState<ComandaDetail[]>([]);
     const [showSummary, setShowSummary] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -142,8 +162,6 @@ const CashClosingPage: React.FC = () => {
     const [newExtraValue, setNewExtraValue] = useState('');
     const [newExtraDesc, setNewExtraDesc] = useState('');
 
-    const [paymentMethodAdjustments, setPaymentMethodAdjustments] = useState<Record<string, number>>({});
-
     const getDayRange = (dateStr: string) => {
         const d = new Date(dateStr + 'T00:00:00');
         const start = d.toISOString();
@@ -154,6 +172,7 @@ const CashClosingPage: React.FC = () => {
     const fetchData = useCallback(async () => {
         if (!tenantId || !filterDate) {
             setEntries([]);
+            setComandaDetails([]);
             setAppointments([]);
             setComandas([]);
             setStaffList([]);
@@ -177,26 +196,35 @@ const CashClosingPage: React.FC = () => {
                 transactionsResult,
                 appointmentsResult,
                 comandasResult,
+                comandaItemsResult,
                 clubResult,
                 receiptsResult,
                 staffResult,
+                clientsResult,
+                servicesResult,
             ] = await Promise.all([
                 supabase
                     .from('transactions')
-                    .select('id, type, category, amount, description, payment_method, date, created_at, source_type, source_id, user_id')
+                    .select('id, type, category, amount, description, payment_method, date, created_at, source_type, source_id')
                     .eq('tenant_id', tenantId)
                     .gte('date', start)
                     .lte('date', end)
                     .order('date', { ascending: true }),
                 supabase
                     .from('appointments')
-                    .select('id, status, price, start_time')
+                    .select('id, status, price, start_time, staff_id')
                     .eq('tenant_id', tenantId)
                     .gte('start_time', start)
                     .lte('start_time', end),
                 supabase
                     .from('comandas')
-                    .select('id, appointment_id, status, total')
+                    .select('id, appointment_id, client_id, client_name, staff_id, status, total, payment_method')
+                    .eq('tenant_id', tenantId)
+                    .gte('created_at', start)
+                    .lte('created_at', end),
+                supabase
+                    .from('comanda_items')
+                    .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
                     .eq('tenant_id', tenantId),
                 supabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
                     supabase
@@ -216,11 +244,84 @@ const CashClosingPage: React.FC = () => {
                     .select('id, name, role')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'active'),
+                supabase
+                    .from('clients')
+                    .select('id, name')
+                    .eq('tenant_id', tenantId),
+                supabase
+                    .from('services')
+                    .select('id, name')
+                    .eq('tenant_id', tenantId),
             ]);
 
             if (transactionsResult.error) throw transactionsResult.error;
 
             const txData = (transactionsResult.data || []) as TransactionRecord[];
+            const allComandas = (comandasResult.data || []) as ComandaRecord[];
+            const allComandaItems = (comandaItemsResult.data || []) as ComandaItemRecord[];
+            const allStaff = (staffResult.data || []) as StaffRecord[];
+            const allClients = (clientsResult.data || []) as ClientRecord[];
+            const allServices = (servicesResult.data || []) as ServiceRecord[];
+
+            setStaffList(allStaff);
+
+            const staffMap: Record<string, { name: string; role: string }> = {};
+            allStaff.forEach(s => { staffMap[s.id] = { name: s.name, role: s.role || '' }; });
+
+            const clientMap: Record<string, string> = {};
+            allClients.forEach(c => { clientMap[c.id] = c.name; });
+
+            const serviceMap: Record<string, string> = {};
+            allServices.forEach(s => { serviceMap[s.id] = s.name; });
+
+            const comandaMap = new Map<string, ComandaRecord>();
+            allComandas.forEach(c => { comandaMap.set(c.id, c); });
+
+            const itemsByComanda = new Map<string, ComandaItemRecord[]>();
+            allComandaItems.forEach(item => {
+                const list = itemsByComanda.get(item.comanda_id) || [];
+                list.push(item);
+                itemsByComanda.set(item.comanda_id, list);
+            });
+
+            const comandaIdToDetail = new Map<string, ComandaDetail>();
+            allComandas.forEach(cmd => {
+                const items = itemsByComanda.get(cmd.id) || [];
+                const detailItems: ComandaItemDetail[] = items.map(item => {
+                    const itemStaffId = item.staff_id || cmd.staff_id;
+                    return {
+                        id: item.id,
+                        serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
+                        quantity: item.quantity,
+                        unitPrice: Number(item.unit_price || 0),
+                        staffId: itemStaffId,
+                        staffName: staffMap[itemStaffId || '']?.name || '-',
+                    };
+                });
+
+                const resolvedStaffId = cmd.staff_id
+                    || items.find(i => i.staff_id)?.staff_id
+                    || null;
+
+                const clientName = cmd.client_name
+                    || clientMap[cmd.client_id || '']
+                    || 'Cliente nao identificado';
+
+                comandaIdToDetail.set(cmd.id, {
+                    comandaId: cmd.id,
+                    clientId: cmd.client_id,
+                    clientName,
+                    staffId: resolvedStaffId,
+                    staffName: staffMap[resolvedStaffId || '']?.name || 'Sem profissional',
+                    paymentMethod: cmd.payment_method,
+                    total: Number(cmd.total || 0),
+                    status: cmd.status,
+                    items: detailItems,
+                });
+            });
+
+            setComandaDetails(Array.from(comandaIdToDetail.values()));
+
             const transactionIds = txData.map((t) => t.id).filter(Boolean);
             const reversalSourceByTransactionId = new Map<string, CashClosingEntryExtended['reversalSource']>();
 
@@ -245,9 +346,7 @@ const CashClosingPage: React.FC = () => {
                 }
             }
 
-            const openComandaIds = new Set(
-                (comandasResult.data || []).filter((c: any) => c.status === 'open').map((c: any) => c.id)
-            );
+            const openComandaIdSet = new Set(allComandas.filter(c => c.status === 'open').map(c => c.id));
 
             const clubSourceIds = new Set(
                 (clubResult.data || [])
@@ -257,6 +356,15 @@ const CashClosingPage: React.FC = () => {
 
             const mappedEntries: CashClosingEntryExtended[] = txData.map(transaction => {
                 const reversalSource = reversalSourceByTransactionId.get(transaction.id) || null;
+                const comandaDetail = transaction.source_type === 'comanda' && transaction.source_id
+                    ? comandaIdToDetail.get(transaction.source_id)
+                    : undefined;
+
+                const barberStaffId = comandaDetail?.staffId || null;
+                const barberName = comandaDetail?.staffName || null;
+                const clientName = comandaDetail?.clientName || '';
+                const comandaItemsStr = comandaDetail?.items.map(i => i.serviceName).join(', ') || '';
+
                 return {
                     id: transaction.id,
                     date: transaction.date || transaction.created_at || new Date().toISOString(),
@@ -274,11 +382,14 @@ const CashClosingPage: React.FC = () => {
                     sourceId: transaction.source_id || null,
                     isReversalTransaction: Boolean(reversalSource),
                     reversalSource,
-                    operatorId: transaction.user_id || null,
+                    barberStaffId,
+                    barberName,
                     comandaStatus: transaction.source_id
-                        ? (openComandaIds.has(transaction.source_id) ? 'open' : 'closed')
+                        ? (openComandaIdSet.has(transaction.source_id) ? 'Aberta' : 'Fechada')
                         : null,
                     isClubMember: clubSourceIds.has(transaction.source_id || ''),
+                    clientName,
+                    comandaItems: comandaItemsStr,
                 };
             });
             setEntries(mappedEntries);
@@ -286,11 +397,11 @@ const CashClosingPage: React.FC = () => {
             if (appointmentsResult.data) setAppointments(appointmentsResult.data as AppointmentRecord[]);
 
             if (comandasResult.data) {
-                const allComandas = comandasResult.data as ComandaRecord[];
-                const openCmds = allComandas.filter(c => c.status === 'open');
+                const cmds = comandasResult.data as ComandaRecord[];
+                const openCmds = cmds.filter(c => c.status === 'open');
                 setOpenComandasCount(openCmds.length);
                 setOpenComandasTotal(openCmds.reduce((sum, c) => sum + Number(c.total || 0), 0));
-                setComandas(allComandas);
+                setComandas(cmds);
             }
 
             if (clubResult.data) {
@@ -313,16 +424,12 @@ const CashClosingPage: React.FC = () => {
                 setPendingReceiptsTotal(pendentes.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0));
             }
 
-            if (staffResult.data) {
-                setStaffList(staffResult.data as StaffRecord[]);
-            }
-
         } catch (error: any) {
-            console.error('Erro ao carregar conferencia de caixa:', error);
-            const message = error?.message || 'Nao foi possivel carregar a conferencia de caixa.';
-            setLoadError(message);
-            setToast({ message, type: 'error' });
+            console.error('Erro ao carregar dados:', error);
+            setLoadError(error?.message || 'Nao foi possivel carregar os dados.');
+            setToast({ message: error?.message || 'Erro ao carregar dados.', type: 'error' });
             setEntries([]);
+            setComandaDetails([]);
             setAppointments([]);
             setComandas([]);
             setStaffList([]);
@@ -342,6 +449,31 @@ const CashClosingPage: React.FC = () => {
         () => filterEntries(entries, filters, openComandaIds),
         [entries, filters, openComandaIds]
     );
+
+    const filteredComandaDetails = useMemo(() => {
+        let filtered = comandaDetails;
+        if (filters.operatorId) {
+            filtered = filtered.filter(c => c.staffId === filters.operatorId);
+        }
+        if (filters.onlyClubMembers) {
+            filtered = filtered.filter(c => {
+                const txEntry = entries.find(e => e.sourceId === c.comandaId);
+                return txEntry?.isClubMember;
+            });
+        }
+        return filtered;
+    }, [comandaDetails, filters, entries]);
+
+    const barberSummaries = useMemo(
+        () => buildBarberSummaries(filteredComandaDetails, staffMap),
+        [filteredComandaDetails]
+    );
+
+    const staffMap = useMemo(() => {
+        const map: Record<string, { name: string; role: string }> = {};
+        staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '' }; });
+        return map;
+    }, [staffList]);
 
     const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
     const totalSaidas = filteredEntries.filter(e => e.type === 'saida').reduce((sum, e) => sum + e.value, 0);
@@ -396,7 +528,7 @@ const CashClosingPage: React.FC = () => {
     const hasPendingAlerts = openComandasCount > 0 || clubOverdueCount > 0 || pendingReceiptsCount > 0;
     const hasDailyFinancialData = entries.length > 0;
     const formattedFilterDate = filterDate ? new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR') : 'Data nao informada';
-    const lastSavedLabel = lastSavedAt ? new Date(lastSavedAt).toLocaleString('pt-BR') : 'Ainda nao salvo nesta sessao';
+    const lastSavedLabel = lastSavedAt ? new Date(lastSavedAt).toLocaleString('pt-BR') : 'Ainda nao salvo';
     const closingStatus = loading ? 'Carregando' : saving ? 'Salvando' : loadError ? 'Erro' : hasPendingAlerts ? 'Pendencias' : hasDailyFinancialData ? 'Conferido' : 'Vazio';
     const closingStatusClasses = loadError
         ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20'
@@ -408,7 +540,7 @@ const CashClosingPage: React.FC = () => {
 
     const getOperatorName = (operatorId?: string | null) => {
         if (!operatorId) return 'Todos';
-        return staffList.find(s => s.id === operatorId)?.name || 'Desconhecido';
+        return staffMap[operatorId]?.name || 'Desconhecido';
     };
 
     const handleAddExtra = () => {
@@ -462,31 +594,23 @@ const CashClosingPage: React.FC = () => {
                     appointments_no_show_count: agendaSummary.no_show.count,
                     appointments_summary: JSON.stringify(agendaSummary),
                     financial_summary: JSON.stringify({
-                        entradas: totalEntradas,
-                        entradas_count: entradasCount,
-                        saidas: totalSaidas,
-                        saidas_count: saidasCount,
-                        saidas_operacionais: regularSaidas,
-                        estornos_devolucoes: totalReversals,
-                        estornos_devolucoes_count: reversalCount,
-                        saldo: saldoAtual,
-                        payment_methods: paymentMethodBreakdown,
-                        extras: extras,
-                        observations: observations,
-                        total_expected: totalExpected,
-                        total_received: totalReceived,
-                        difference: validation.difference,
-                        filters: filters,
+                        entradas: totalEntradas, entradas_count: entradasCount,
+                        saidas: totalSaidas, saidas_count: saidasCount,
+                        saldo: saldoAtual, payment_methods: paymentMethodBreakdown,
+                        extras, observations, total_expected: totalExpected,
+                        total_received: totalReceived, difference: validation.difference,
+                        filters, barber_summaries: barberSummaries.map(b => ({
+                            name: b.staffName, role: b.role, total: b.totalReceived, count: b.comandaCount,
+                        })),
                     }),
                 }, { onConflict: 'tenant_id,business_date' });
 
             if (error) throw error;
             setLastSavedAt(new Date().toISOString());
-            setToast({ message: 'Conferencia do dia salva com sucesso.', type: 'success' });
+            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
             setShowSaveConfirm(false);
         } catch (error: any) {
-            console.error('Erro ao salvar conferencia:', error);
-            setToast({ message: error?.message || 'Nao foi possivel salvar a conferencia.', type: 'error' });
+            setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
         } finally {
             setSaving(false);
         }
@@ -499,14 +623,12 @@ const CashClosingPage: React.FC = () => {
 
         try {
             for (const extra of extras) {
-                const txType = extra.type === 'sangria' ? 'expense' : 'income';
-                const txCategory = extra.type === 'sangria' ? 'Sangria - Fechamento' : 'Suprimento - Fechamento';
                 await supabase.from('transactions').insert({
                     tenant_id: tenantId,
-                    type: txType,
-                    category: txCategory,
+                    type: extra.type === 'sangria' ? 'expense' : 'income',
+                    category: extra.type === 'sangria' ? 'Sangria - Fechamento' : 'Suprimento - Fechamento',
                     amount: extra.value,
-                    description: extra.description || `${txCategory} - ${formattedFilterDate}`,
+                    description: extra.description || `${extra.type === 'sangria' ? 'Sangria' : 'Suprimento'} - ${formattedFilterDate}`,
                     payment_method: 'Dinheiro',
                     date: new Date().toISOString(),
                     status: 'completed',
@@ -531,18 +653,14 @@ const CashClosingPage: React.FC = () => {
                     total_difference: validation.difference,
                     appointments_summary: JSON.stringify(agendaSummary),
                     financial_summary: JSON.stringify({
-                        entradas: totalEntradas,
-                        saidas: totalSaidas,
-                        saldo: saldoAtual,
-                        payment_methods: paymentMethodBreakdown,
-                        extras: extras,
-                        observations: observations,
-                        total_expected: totalExpected,
-                        total_received: totalReceived,
-                        difference: validation.difference,
-                        filters: filters,
-                        closed_at: new Date().toISOString(),
-                        closed_by: user?.id,
+                        entradas: totalEntradas, saidas: totalSaidas, saldo: saldoAtual,
+                        payment_methods: paymentMethodBreakdown, extras, observations,
+                        total_expected: totalExpected, total_received: totalReceived,
+                        difference: validation.difference, filters,
+                        closed_at: new Date().toISOString(), closed_by: user?.id,
+                        barber_summaries: barberSummaries.map(b => ({
+                            name: b.staffName, role: b.role, total: b.totalReceived, count: b.comandaCount,
+                        })),
                     }),
                 }, { onConflict: 'tenant_id,business_date' });
 
@@ -551,8 +669,7 @@ const CashClosingPage: React.FC = () => {
             setToast({ message: 'Caixa fechado com sucesso!', type: 'success' });
             setShowCloseConfirm(false);
         } catch (error: any) {
-            console.error('Erro ao fechar caixa:', error);
-            setToast({ message: error?.message || 'Nao foi possivel fechar o caixa.', type: 'error' });
+            setToast({ message: error?.message || 'Erro ao fechar caixa.', type: 'error' });
         } finally {
             setClosing(false);
         }
@@ -560,43 +677,25 @@ const CashClosingPage: React.FC = () => {
 
     const handleExportCSV = () => {
         const csv = generateCSVContent(
-            formattedFilterDate,
-            filters,
-            validation,
-            extras,
-            paymentRows,
-            observations,
-            getOperatorName(filters.operatorId),
-            agendaSummary,
+            formattedFilterDate, filters, validation, extras, paymentRows,
+            observations, getOperatorName(filters.operatorId), filteredEntries, barberSummaries,
         );
-        const dateStr = filterDate.replace(/-/g, '');
-        downloadCSV(csv, `fechamento-caixa-${dateStr}.csv`);
+        downloadCSV(csv, `fechamento-caixa-${filterDate.replace(/-/g, '')}.csv`);
         setToast({ message: 'CSV exportado com sucesso.', type: 'success' });
     };
 
-    const handlePreview = () => {
-        setShowPreview(true);
-    };
-
     const previewText = useMemo(() => generatePreviewText(
-        formattedFilterDate,
-        validation,
-        extras,
-        paymentRows,
-        observations,
-        user?.email || 'Nao informado',
-        agendaSummary,
-    ), [formattedFilterDate, validation, extras, paymentRows, observations, user, agendaSummary]);
+        formattedFilterDate, validation, extras, paymentRows,
+        observations, user?.email || 'Nao informado', barberSummaries, filteredEntries,
+    ), [formattedFilterDate, validation, extras, paymentRows, observations, user, barberSummaries, filteredEntries]);
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         printWindow.document.write(`
             <html><head><title>Fechamento Caixa - ${formattedFilterDate}</title>
-            <style>
-                body { font-family: monospace; padding: 20px; white-space: pre-wrap; font-size: 13px; }
-                @media print { body { padding: 10px; } }
-            </style></head><body>${previewText.replace(/\n/g, '<br>')}</body></html>
+            <style>body{font-family:monospace;padding:20px;white-space:pre-wrap;font-size:12px;}</style>
+            </head><body>${previewText.replace(/\n/g, '<br>')}</body></html>
         `);
         printWindow.document.close();
         printWindow.print();
@@ -611,15 +710,9 @@ const CashClosingPage: React.FC = () => {
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Fechamento de Caixa</h2>
                     <p className="text-slate-500 mt-1">Conferencia, ajustes e fechamento do caixa diario.</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.12em] ${closingStatusClasses}`}>
-                            {closingStatus}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {formattedFilterDate}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            Salvo: {lastSavedLabel}
-                        </span>
+                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.12em] ${closingStatusClasses}`}>{closingStatus}</span>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{formattedFilterDate}</span>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Salvo: {lastSavedLabel}</span>
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -627,13 +720,7 @@ const CashClosingPage: React.FC = () => {
                         context={{
                             sourceType: 'cash_closing',
                             sourceLabel: 'Fechamento de Caixa',
-                            beforeSnapshot: {
-                                data: filterDate,
-                                entradas: totalEntradas,
-                                saidas: totalSaidas,
-                                estornos_devolucoes: totalReversals,
-                                saldo: saldoAtual,
-                            },
+                            beforeSnapshot: { data: filterDate, entradas: totalEntradas, saidas: totalSaidas, saldo: saldoAtual },
                             financialImpactLabel: 'Impacto em fechamento de caixa',
                             allowedAdjustmentTypes: ['cash_difference_correction', 'mark_for_review'],
                         }}
@@ -641,16 +728,10 @@ const CashClosingPage: React.FC = () => {
                     />
                     <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
                         <CalendarRange className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="date"
-                            value={filterDate}
-                            onChange={e => setFilterDate(e.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                        />
+                        <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
+                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]" />
                     </label>
-                    <Button leftIcon="sync" onClick={fetchData} disabled={loading}>
-                        {loading ? 'Atualizando...' : 'Atualizar'}
-                    </Button>
+                    <Button leftIcon="sync" onClick={fetchData} disabled={loading}>{loading ? 'Atualizando...' : 'Atualizar'}</Button>
                 </div>
             </div>
 
@@ -667,7 +748,7 @@ const CashClosingPage: React.FC = () => {
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="size-5 text-rose-600 dark:text-rose-300 shrink-0" />
                         <div>
-                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Erro ao carregar dados.</p>
+                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Erro ao carregar.</p>
                             <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
                         </div>
                     </div>
@@ -677,9 +758,7 @@ const CashClosingPage: React.FC = () => {
 
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 h-32 animate-pulse" />
-                    ))}
+                    {[1, 2, 3, 4].map(i => <div key={i} className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 h-32 animate-pulse" />)}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -690,54 +769,75 @@ const CashClosingPage: React.FC = () => {
                 </div>
             )}
 
-            {!loading && !loadError && (
+            {!loading && (
                 <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Validacao do Fechamento</h3>
+                        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Validacao</h3>
                         {validation.isValid ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300">
-                                <CheckCircle size={12} /> Conferido
-                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle size={12} /> Conferido</span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-800 px-3 py-1 text-xs font-black text-rose-700 dark:text-rose-300">
-                                <AlertTriangle size={12} /> Divergencia
-                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-800 px-3 py-1 text-xs font-black text-rose-700 dark:text-rose-300"><AlertTriangle size={12} /> Divergencia</span>
                         )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4">
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total Esperado</p>
                             <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{formatCurrency(totalExpected)}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">Saldo operacional</p>
                         </div>
                         <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4">
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total Recebido</p>
                             <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{formatCurrency(totalReceived)}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">Entradas + Suprimentos - Sangrias</p>
                         </div>
                         <div className={`rounded-xl border p-4 ${validation.isValid ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-800'}`}>
                             <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${validation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>Diferenca</p>
                             <p className={`mt-1 text-xl font-black ${validation.isValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatCurrency(validation.difference)}</p>
-                            <p className={`text-[10px] mt-1 ${validation.isValid ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>{validation.isValid ? 'Dentro da tolerancia' : 'Ajuste necessario'}</p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {!loading && barberSummaries.length > 0 && (
+                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Recebimento por Barbeiro/Profissional</h3>
+                    <div className="space-y-3">
+                        {barberSummaries.map(b => (
+                            <div key={b.staffId} className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white">{b.staffName}</span>
+                                        {b.role && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400 bg-slate-100 dark:bg-white/5 rounded-full px-2 py-0.5">{b.role}</span>}
+                                    </div>
+                                    <span className="text-lg font-black text-primary">{formatCurrency(b.totalReceived)}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-2">{b.comandaCount} comanda{b.comandaCount !== 1 ? 's' : ''}</p>
+                                <div className="space-y-1">
+                                    {b.comandas.slice(0, 5).map(cmd => (
+                                        <div key={cmd.comandaId} className="flex items-center justify-between text-xs py-1 border-t border-slate-100 dark:border-white/5">
+                                            <span className="text-slate-600 dark:text-slate-300">{cmd.clientName}</span>
+                                            <span className="text-slate-400">{cmd.items.map(i => i.serviceName).join(', ')}</span>
+                                            <span className="font-bold text-slate-700 dark:text-white">{formatCurrency(cmd.total)}</span>
+                                        </div>
+                                    ))}
+                                    {b.comandas.length > 5 && <p className="text-[10px] text-slate-400">+{b.comandas.length - 5} mais...</p>}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
 
             {!loading && paymentMethodBreakdown.length > 0 && (
                 <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Recebimentos por Forma de Pagamento</h3>
+                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Por Forma de Pagamento</h3>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-slate-200 dark:border-white/5">
-                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Forma</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Lancado</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Saidas</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Liquido</th>
-                                    <th className="text-center py-2 text-xs font-bold text-slate-500">Registros</th>
-                                </tr>
-                            </thead>
+                            <thead><tr className="border-b border-slate-200 dark:border-white/5">
+                                <th className="text-left py-2 text-xs font-bold text-slate-500">Forma</th>
+                                <th className="text-right py-2 text-xs font-bold text-slate-500">Entradas</th>
+                                <th className="text-right py-2 text-xs font-bold text-slate-500">Saidas</th>
+                                <th className="text-right py-2 text-xs font-bold text-slate-500">Liquido</th>
+                                <th className="text-center py-2 text-xs font-bold text-slate-500">Registros</th>
+                            </tr></thead>
                             <tbody>
                                 {paymentMethodBreakdown.map(([method, data]) => {
                                     const net = data.entradas - data.saidas;
@@ -763,99 +863,56 @@ const CashClosingPage: React.FC = () => {
                         <Wallet size={16} className="text-slate-400" />
                         <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Sangria e Suprimento</h3>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <select value={newExtraType} onChange={e => setNewExtraType(e.target.value as 'sangria' | 'suprimento')}
+                            className="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none">
+                            <option value="sangria">Sangria</option>
+                            <option value="suprimento">Suprimento</option>
+                        </select>
+                        <input type="number" step="0.01" min="0" placeholder="Valor (R$)" value={newExtraValue} onChange={e => setNewExtraValue(e.target.value)}
+                            className="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30" />
                         <div className="flex gap-2">
-                            <select
-                                value={newExtraType}
-                                onChange={e => setNewExtraType(e.target.value as 'sangria' | 'suprimento')}
-                                className="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none"
-                            >
-                                <option value="sangria">Sangria</option>
-                                <option value="suprimento">Suprimento</option>
-                            </select>
-                        </div>
-                        <div>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Valor (R$)"
-                                value={newExtraValue}
-                                onChange={e => setNewExtraValue(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30"
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Descricao (opcional)"
-                                value={newExtraDesc}
-                                onChange={e => setNewExtraDesc(e.target.value)}
-                                maxLength={200}
-                                className="flex-1 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30"
-                            />
-                            <Button leftIcon="add" onClick={handleAddExtra} disabled={!newExtraValue || parseFloat(newExtraValue) <= 0}>
-                                Adicionar
-                            </Button>
+                            <input type="text" placeholder="Descricao" value={newExtraDesc} onChange={e => setNewExtraDesc(e.target.value)} maxLength={200}
+                                className="flex-1 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30" />
+                            <Button leftIcon="add" onClick={handleAddExtra} disabled={!newExtraValue || parseFloat(newExtraValue) <= 0}>Add</Button>
                         </div>
                     </div>
-
                     {extras.length > 0 && (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-white/5">
-                                        <th className="text-left py-2 text-xs font-bold text-slate-500">Tipo</th>
-                                        <th className="text-right py-2 text-xs font-bold text-slate-500">Valor</th>
-                                        <th className="text-left py-2 text-xs font-bold text-slate-500">Descricao</th>
-                                        <th className="text-left py-2 text-xs font-bold text-slate-500">Data/Hora</th>
-                                        <th className="text-center py-2 text-xs font-bold text-slate-500">Remover</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr className="border-b border-slate-200 dark:border-white/5">
+                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Tipo</th>
+                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Valor</th>
+                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Descricao</th>
+                                    <th className="text-center py-2 text-xs font-bold text-slate-500">Remover</th>
+                                </tr></thead>
                                 <tbody>
                                     {extras.map(ext => (
                                         <tr key={ext.id} className="border-b border-slate-100 dark:border-white/5 last:border-0">
                                             <td className="py-2">
-                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${ext.type === 'sangria' ? 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300' : 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300'}`}>
+                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${ext.type === 'sangria' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
                                                     {ext.type === 'sangria' ? 'Sangria' : 'Suprimento'}
                                                 </span>
                                             </td>
                                             <td className={`text-right py-2 font-bold ${ext.type === 'sangria' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(ext.value)}</td>
                                             <td className="py-2 text-slate-600 dark:text-slate-300">{ext.description || '-'}</td>
-                                            <td className="py-2 text-xs text-slate-400">{new Date(ext.createdAt).toLocaleString('pt-BR')}</td>
-                                            <td className="text-center py-2">
-                                                <button onClick={() => handleRemoveExtra(ext.id)} className="p-1 text-slate-400 hover:text-rose-500 transition-colors">
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </td>
+                                            <td className="text-center py-2"><button onClick={() => handleRemoveExtra(ext.id)} className="p-1 text-slate-400 hover:text-rose-500"><Trash2 size={14} /></button></td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     )}
-
-                    {extras.length === 0 && (
-                        <p className="text-xs text-slate-400 text-center py-4">Nenhuma sangria ou suprimento registrado.</p>
-                    )}
+                    {extras.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Nenhum registro.</p>}
                 </div>
             )}
 
             {!loading && (
                 <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <label htmlFor="cash-close-observations" className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2 block">
-                        Observacoes do Fechamento
-                    </label>
-                    <textarea
-                        id="cash-close-observations"
-                        rows={3}
-                        maxLength={200}
-                        placeholder="Anotar divergencias, notas ou justificativas..."
-                        value={observations}
-                        onChange={e => setObservations(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                    />
+                    <label htmlFor="cash-close-obs" className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2 block">Observacoes</label>
+                    <textarea id="cash-close-obs" rows={3} maxLength={200} placeholder="Divergencias, notas ou justificativas..."
+                        value={observations} onChange={e => setObservations(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                     <p className="text-[10px] text-slate-400 mt-1 text-right">{observations.length}/200</p>
                 </div>
             )}
@@ -865,23 +922,8 @@ const CashClosingPage: React.FC = () => {
                     <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <div>
                         <p className="text-sm font-black text-amber-700 dark:text-amber-300">Divergencia detectada</p>
-                        <p className="text-xs text-amber-700/80 dark:text-amber-300/80">
-                            O total recebido ({formatCurrency(totalReceived)}) difere do esperado ({formatCurrency(totalExpected)}).
-                            Ajuste os valores ou justifique no campo de observacoes para permitir o fechamento.
-                        </p>
+                        <p className="text-xs text-amber-700/80 dark:text-amber-300/80">Ajuste os valores ou justifique nas observacoes para fechar o caixa.</p>
                     </div>
-                </div>
-            )}
-
-            {!loading && !loadError && !hasDailyFinancialData && extras.length === 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center dark:border-border-dark dark:bg-card-dark">
-                    <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/5">
-                        <Wallet size={20} />
-                    </div>
-                    <h3 className="text-base font-black text-slate-900 dark:text-white">Nenhuma movimentacao registrada</h3>
-                    <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-                        Nao encontramos lancamentos para {formattedFilterDate}. Adicione sangrias/suprimentos ou selecione outra data.
-                    </p>
                 </div>
             )}
 
@@ -892,94 +934,29 @@ const CashClosingPage: React.FC = () => {
                             <span className="material-symbols-outlined text-2xl">fact_check</span>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="text-base font-bold text-slate-950 dark:text-white">Resumo do Fechamento</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Revise os valores antes de confirmar.</p>
+                            <h3 className="text-base font-bold text-slate-950 dark:text-white">Acoes do Fechamento</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Revise, salve, feche ou exporte o caixa do dia.</p>
                         </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 p-4">
-                            <p className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400 mb-1">Entradas</p>
-                            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(totalEntradas)}</p>
-                        </div>
-                        <div className="rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-800 p-4">
-                            <p className="text-xs font-black uppercase text-rose-600 dark:text-rose-400 mb-1">Saidas</p>
-                            <p className="text-2xl font-black text-rose-600 dark:text-rose-400">{formatCurrency(totalSaidas)}</p>
-                        </div>
-                        <div className={`rounded-xl border p-4 ${validation.isValid ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-800'}`}>
-                            <p className={`text-xs font-black uppercase mb-1 ${validation.isValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>Diferenca</p>
-                            <p className={`text-2xl font-black ${validation.isValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatCurrency(validation.difference)}</p>
-                        </div>
-                    </div>
-
                     <div className="border-t border-slate-200 dark:border-border-dark pt-6 flex flex-wrap gap-3">
-                        <Button leftIcon="visibility" onClick={handlePreview} className="flex-1 min-w-[140px]">Pre-visualizar</Button>
-                        <Button leftIcon="save" variant="secondary" onClick={() => setShowSaveConfirm(true)} disabled={loading || saving || !hasTenantContext} className="flex-1 min-w-[140px]">
-                            {saving ? 'Salvando...' : 'Salvar Conferencia'}
+                        <Button leftIcon="visibility" onClick={() => setShowPreview(true)} className="flex-1 min-w-[130px]">Pre-visualizar</Button>
+                        <Button leftIcon="save" variant="secondary" onClick={() => setShowSaveConfirm(true)} disabled={loading || saving || !hasTenantContext} className="flex-1 min-w-[130px]">
+                            {saving ? 'Salvando...' : 'Salvar'}
                         </Button>
-                        <Button
-                            leftIcon="lock"
-                            variant="success"
-                            onClick={() => setShowCloseConfirm(true)}
+                        <Button leftIcon="lock" variant="success" onClick={() => setShowCloseConfirm(true)}
                             disabled={loading || closing || !hasTenantContext || (!validation.isValid && observations.trim() === '')}
-                            className="flex-1 min-w-[140px]"
-                        >
+                            className="flex-1 min-w-[130px]">
                             {closing ? 'Fechando...' : 'Fechar Caixa'}
                         </Button>
-                        <Button leftIcon="download" variant="secondary" onClick={handleExportCSV} className="flex-1 min-w-[140px]">Exportar CSV</Button>
-                        <Button leftIcon="print" variant="secondary" onClick={handlePrint} className="flex-1 min-w-[140px]">Imprimir</Button>
+                        <Button leftIcon="download" variant="secondary" onClick={handleExportCSV} className="flex-1 min-w-[130px]">CSV</Button>
+                        <Button leftIcon="print" variant="secondary" onClick={handlePrint} className="flex-1 min-w-[130px]">Imprimir</Button>
                     </div>
                 </div>
             )}
 
-            <Modal isOpen={showSummary} onClose={() => setShowSummary(false)} title="Resumo Detalhado" maxWidth="lg">
-                <div className="space-y-6">
-                    {reversalEntries.length > 0 && (
-                        <div>
-                            <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Estornos e devolucoes</h4>
-                            <div className="space-y-2">
-                                {reversalEntries.map((entry) => (
-                                    <div key={entry.id} className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10">
-                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{entry.description}</p>
-                                                <p className="text-xs text-slate-500">{getReversalTypeLabel(entry.reversalSource?.reversalType)}</p>
-                                            </div>
-                                            <p className="text-sm font-black text-amber-700 dark:text-amber-300">-{formatCurrency(entry.value)}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <div>
-                        <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Agenda do Dia</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {Object.entries(agendaSummary).map(([key, val]) => (
-                                <div key={key} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark">
-                                    <div>
-                                        <p className="text-xs font-bold text-slate-600">{key}: {val.count}</p>
-                                        <p className="text-[10px] text-slate-400">{formatCurrency(val.total)}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-500">
-                        <span>Status: <strong className="text-slate-700 dark:text-slate-200">{closingStatus}</strong></span>
-                        <span>Data: <strong className="text-slate-700 dark:text-slate-200">{formattedFilterDate}</strong></span>
-                        <span>Operador: <strong className="text-slate-700 dark:text-slate-200">{getOperatorName(filters.operatorId)}</strong></span>
-                    </div>
-                </div>
-            </Modal>
-
             <Modal isOpen={showPreview} onClose={() => setShowPreview(false)} title="Comprovante de Fechamento" maxWidth="lg">
                 <div className="space-y-4">
-                    <pre className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-xl p-4 text-xs font-mono whitespace-pre-wrap text-slate-700 dark:text-slate-200 max-h-[60vh] overflow-y-auto">
-                        {previewText}
-                    </pre>
+                    <pre className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-xl p-4 text-xs font-mono whitespace-pre-wrap text-slate-700 dark:text-slate-200 max-h-[60vh] overflow-y-auto">{previewText}</pre>
                     <div className="flex gap-3">
                         <Button variant="secondary" leftIcon="print" onClick={handlePrint} className="flex-1">Imprimir</Button>
                         <Button leftIcon="download" onClick={handleExportCSV} className="flex-1">Exportar CSV</Button>
@@ -989,12 +966,9 @@ const CashClosingPage: React.FC = () => {
 
             <Modal isOpen={showSaveConfirm} onClose={() => setShowSaveConfirm(false)} title="Salvar Conferencia" maxWidth="sm">
                 <div className="space-y-4">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Confirma o salvamento da conferencia do dia <strong>{formattedFilterDate}</strong>?
-                    </p>
-                    <p className="text-xs text-slate-500">Este registro salva apenas um resumo. Nenhum lancamento e alterado.</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">Salvar conferencia do dia <strong>{formattedFilterDate}</strong>? Nenhum lancamento e alterado.</p>
                     <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" leftIcon="rotate-ccw" onClick={() => setShowSaveConfirm(false)} className="flex-1">Cancelar</Button>
+                        <Button variant="secondary" onClick={() => setShowSaveConfirm(false)} className="flex-1">Cancelar</Button>
                         <Button leftIcon="save" onClick={handleSaveConference} disabled={saving} className="flex-1">{saving ? 'Salvando...' : 'Confirmar'}</Button>
                     </div>
                 </div>
@@ -1003,22 +977,20 @@ const CashClosingPage: React.FC = () => {
             <Modal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} title="Fechar Caixa" maxWidth="sm">
                 <div className="space-y-4">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
-                        <p className="text-xs font-black uppercase text-slate-500 mb-2">Resumo do Fechamento</p>
+                        <p className="text-xs font-black uppercase text-slate-500 mb-2">Resumo</p>
                         <div className="space-y-1 text-xs">
-                            <p>Data: <strong className="text-slate-700 dark:text-slate-200">{formattedFilterDate}</strong></p>
-                            <p>Total Esperado: <strong className="text-slate-700 dark:text-slate-200">{formatCurrency(totalExpected)}</strong></p>
-                            <p>Total Recebido: <strong className="text-slate-700 dark:text-slate-200">{formatCurrency(totalReceived)}</strong></p>
+                            <p>Data: <strong>{formattedFilterDate}</strong></p>
+                            <p>Esperado: <strong>{formatCurrency(totalExpected)}</strong></p>
+                            <p>Recebido: <strong>{formatCurrency(totalReceived)}</strong></p>
                             <p>Diferenca: <strong className={validation.isValid ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(validation.difference)}</strong></p>
                             <p>Sangrias: <strong className="text-rose-600">{extras.filter(e => e.type === 'sangria').length} ({formatCurrency(totalExtrasSangria)})</strong></p>
                             <p>Suprimentos: <strong className="text-emerald-600">{extras.filter(e => e.type === 'suprimento').length} ({formatCurrency(totalExtrasSuprimento)})</strong></p>
                         </div>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Ao fechar, as sangrias e suprimentos serao registrados como transacoes no sistema.
-                    </p>
+                    <p className="text-xs text-slate-500">Sangrias e suprimentos serao registrados como transacoes.</p>
                     <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" leftIcon="rotate-ccw" onClick={() => setShowCloseConfirm(false)} className="flex-1">Cancelar</Button>
-                        <Button leftIcon="lock" variant="success" onClick={handleCloseCash} disabled={closing} className="flex-1">{closing ? 'Fechando...' : 'Confirmar Fechamento'}</Button>
+                        <Button variant="secondary" onClick={() => setShowCloseConfirm(false)} className="flex-1">Cancelar</Button>
+                        <Button leftIcon="lock" variant="success" onClick={handleCloseCash} disabled={closing} className="flex-1">{closing ? 'Fechando...' : 'Confirmar'}</Button>
                     </div>
                 </div>
             </Modal>
