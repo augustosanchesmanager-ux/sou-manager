@@ -18,6 +18,8 @@ import type {
   DashboardStaff,
 } from './types';
 
+export type DashboardUserRole = 'barber' | 'receptionist' | 'manager' | 'superadmin' | 'unknown';
+
 const APP_SLUG_FOR_DASHBOARD = 'barber' as const;
 
 const logSupabaseError = (label: string, error: unknown) => {
@@ -147,16 +149,20 @@ const fetchServicesWithFallback = async (tenantId: string): Promise<DashboardSer
 export const fetchDashboardData = async ({
   tenantId,
   userId,
+  role,
   period = 'today',
 }: {
   tenantId: string;
   userId?: string | null;
+  role?: DashboardUserRole;
   period?: DashboardPeriod;
 }): Promise<DashboardData> => {
   const clientsClient = getClientForTable('clients', APP_SLUG_FOR_DASHBOARD);
   const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_DASHBOARD);
   const transactionsClient = getClientForTable('transactions', APP_SLUG_FOR_DASHBOARD);
+  const comandasClient = getClientForTable('comandas', APP_SLUG_FOR_DASHBOARD);
   const periodRange = getDashboardPeriodRange(period);
+  const isBarber = role === 'barber' && userId;
 
   const profilePromise = userId
     ? supabase.from('profiles').select('onboarding_completed').eq('id', userId).single()
@@ -185,117 +191,160 @@ export const fetchDashboardData = async ({
       .order('name'),
     supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active'),
     fetchServicesWithFallback(tenantId),
-    appointmentsClient
-      .from('appointments')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', new Date().toISOString())
-      .order('start_time', { ascending: true })
-      .limit(10),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', new Date().toISOString())
+        .order('start_time', { ascending: true })
+        .limit(10);
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
     profilePromise,
-    transactionsClient
-      .from('transactions')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .in('type', ['income', 'expense'])
-      .gte('date', toDateInput(periodRange.previousStart))
-      .lt('date', toDateInput(periodRange.currentEnd))
-      .order('date', { ascending: true }),
-    appointmentsClient
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', periodRange.previousStart.toISOString())
-      .lt('start_time', periodRange.previousEnd.toISOString()),
-    appointmentsClient
-      .from('appointments')
-      .select('id, client_id, client_name, start_time, status')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 90);
-        return d.toISOString();
-      })()),
-    appointmentsClient
-      .from('appointments')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        return d.toISOString();
-      })()),
-    appointmentsClient
-      .from('appointments')
-      .select('id, client_id, client_name, start_time, status')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 60);
-        return d.toISOString();
-      })())
-      .lt('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString();
-      })()),
-    appointmentsClient
-      .from('appointments')
-      .select('id, client_id, client_name, start_time, status')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 90);
-        return d.toISOString();
-      })())
-      .lt('start_time', (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 60);
-        return d.toISOString();
-      })()),
-    appointmentsClient
-      .from('appointments')
-      .select('staff_id')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .eq('status', 'confirmed')
-      .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
-      .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`),
-    appointmentsClient
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', periodRange.currentStart.toISOString())
-      .lt('start_time', periodRange.currentEnd.toISOString()),
-    appointmentsClient
-      .from('appointments')
-      .select('id, client_id')
-      .eq('tenant_id', tenantId)
-      .eq('hidden_from_schedule', false)
-      .neq('status', 'cancelled')
-      .gte('start_time', (() => {
-        const d = new Date();
-        return d.toISOString();
-      })()),
-    // Open comandas count
-    getClientForTable('comandas', APP_SLUG_FOR_DASHBOARD)
-      .from('comandas')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('status', 'open'),
+    (() => {
+      let q = transactionsClient
+        .from('transactions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .in('type', ['income', 'expense'])
+        .gte('date', toDateInput(periodRange.previousStart))
+        .lt('date', toDateInput(periodRange.currentEnd))
+        .order('date', { ascending: true });
+      if (isBarber) q = q.eq('user_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', periodRange.previousStart.toISOString())
+        .lt('start_time', periodRange.previousEnd.toISOString());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id, client_id, client_name, start_time, status')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 90);
+          return d.toISOString();
+        })());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', (() => {
+          const d = new Date();
+          return d.toISOString();
+        })());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id, client_id, client_name, start_time, status')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 60);
+          return d.toISOString();
+        })())
+        .lt('start_time', (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 30);
+          return d.toISOString();
+        })());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id, client_id, client_name, start_time, status')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 90);
+          return d.toISOString();
+        })())
+        .lt('start_time', (() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 60);
+          return d.toISOString();
+        })());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('staff_id')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .eq('status', 'confirmed')
+        .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
+        .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`);
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', periodRange.currentStart.toISOString())
+        .lt('start_time', periodRange.currentEnd.toISOString());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = appointmentsClient
+        .from('appointments')
+        .select('id, client_id')
+        .eq('tenant_id', tenantId)
+        .eq('hidden_from_schedule', false)
+        .neq('status', 'cancelled')
+        .gte('start_time', (() => {
+          const d = new Date();
+          return d.toISOString();
+        })());
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
+    (() => {
+      let q = comandasClient
+        .from('comandas')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open');
+      if (isBarber) q = q.eq('staff_id', userId);
+      return q;
+    })(),
   ]);
 
   logSupabaseError('clients', clientsRes.error);

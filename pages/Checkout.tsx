@@ -605,12 +605,17 @@ const Checkout: React.FC = () => {
             setActivePromotions(validPromos);
 
             if (comandaId) {
-                const { data: comanda, error: comError } = await client
+                let comandaQuery = client
                     .from('comandas')
                     .select('*')
                     .eq('id', comandaId)
-                    .eq('tenant_id', resolvedTenantId)
-                    .single();
+                    .eq('tenant_id', resolvedTenantId);
+
+                if (accessRole === 'barber' && user?.id) {
+                    comandaQuery = comandaQuery.eq('staff_id', user.id);
+                }
+
+                const { data: comanda, error: comError } = await comandaQuery.single();
 
                 if (comError) throw comError;
 
@@ -906,13 +911,19 @@ const Checkout: React.FC = () => {
                 operation: 'quick search open comandas',
             });
             const clientDb = getScopedClient('barber');
-            const { data, error } = await clientDb
+            let query = clientDb
                 .from('comandas')
                 .select('id, client_id, created_at, status, total')
                 .eq('tenant_id', resolvedTenantId)
                 .in('status', ['open', 'blocked'])
                 .order('created_at', { ascending: false })
                 .limit(40);
+
+            if (accessRole === 'barber' && user?.id) {
+                query = query.eq('staff_id', user.id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             const comandas = (data || []) as QuickOpenComanda[];
@@ -944,7 +955,7 @@ const Checkout: React.FC = () => {
         } finally {
             setLoadingQuickOpenComandas(false);
         }
-    }, [appSlug, isEsteticaApp, orderPluralLabel, schema, tenantId]);
+    }, [accessRole, appSlug, isEsteticaApp, orderPluralLabel, schema, tenantId, user?.id]);
 
     const openQuickComandaSearch = () => {
         setIsOpenComandaModalOpen(true);

@@ -259,7 +259,7 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { appSlug, tenantId, user } = useAuth();
+  const { appSlug, tenantId, user, accessRole } = useAuth();
   const businessLabels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
   const serviceLabel = businessLabels.service;
@@ -640,6 +640,10 @@ const Schedule: React.FC = () => {
         .from('appointments')
         .select('*')
         .eq('tenant_id', tenantId);
+
+      if (accessRole === 'barber' && user?.id) {
+        query = query.eq('staff_id', user.id);
+      }
 
       if (options.includeHiddenFilter) {
         query = query.eq('hidden_from_schedule', false);

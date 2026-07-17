@@ -223,7 +223,7 @@ const AppRoutes: React.FC = () => {
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/strategic-dashboard" element={<StrategicDashboard />} />
+            <Route path="/strategic-dashboard" element={<ManagerRoute><StrategicDashboard /></ManagerRoute>} />
             <Route path="/checkout/:id?" element={<Checkout />} />
             <Route path="/comandas" element={<Comandas />} />
             <Route path="/schedule" element={<Schedule />} />

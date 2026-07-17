@@ -24,7 +24,7 @@ interface TicketMessage {
 }
 
 const Support: React.FC = () => {
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, accessRole } = useAuth();
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [messages, setMessages] = useState<TicketMessage[]>([]);
@@ -54,10 +54,16 @@ const Support: React.FC = () => {
     const fetchTickets = async () => {
         if (!user) return;
         setIsLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
             .from('support_tickets')
             .select('*')
             .order('created_at', { ascending: false });
+
+        if (accessRole === 'barber') {
+            query = query.eq('user_id', user.id);
+        }
+
+        const { data, error } = await query;
 
         if (!error) setTickets(data || []);
         setIsLoading(false);
@@ -77,8 +83,12 @@ const Support: React.FC = () => {
         fetchTickets();
 
         // Add Realtime for tickets status updates
+        const channelOptions: any = { event: 'UPDATE', schema: 'public', table: 'support_tickets' };
+        if (accessRole === 'barber' && user?.id) {
+            channelOptions.filter = `user_id=eq.${user.id}`;
+        }
         const channel = supabase.channel('support_updates')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets' }, (payload) => {
+            .on('postgres_changes', channelOptions, (payload) => {
                 setTickets(prev => prev.map(t => t.id === payload.new.id ? payload.new as Ticket : t));
                 if (selectedTicket?.id === payload.new.id) {
                     setSelectedTicket(payload.new as Ticket);
@@ -89,7 +99,7 @@ const Support: React.FC = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user, accessRole]);
 
     // Realtime for messages
     useEffect(() => {

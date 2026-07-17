@@ -6,7 +6,7 @@ import { logSupabaseError } from '../../../../src/lib/supabase/errors';
 import type { DashboardData, DashboardPeriod } from '../types';
 
 export const useDashboardData = (period: DashboardPeriod = 'today') => {
-  const { tenantId, user } = useAuth();
+  const { tenantId, user, accessRole } = useAuth();
   const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export const useDashboardData = (period: DashboardPeriod = 'today') => {
 
     setLoading(true);
     try {
-      const nextData = await fetchDashboardData({ tenantId, userId: user?.id, period });
+      const nextData = await fetchDashboardData({ tenantId, userId: user?.id, role: accessRole, period });
       setData(nextData);
       setError(null);
     } catch (nextError: any) {
@@ -31,7 +31,7 @@ export const useDashboardData = (period: DashboardPeriod = 'today') => {
     } finally {
       setLoading(false);
     }
-  }, [tenantId, user?.id, period]);
+  }, [tenantId, user?.id, accessRole, period]);
 
   useEffect(() => {
     void reload();

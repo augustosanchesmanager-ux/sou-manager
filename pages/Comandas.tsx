@@ -351,7 +351,7 @@ const KpiCard: React.FC<{
 
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
-    const { appSlug, schema, tenantId, user, canAccessSuperAdmin } = useAuth();
+    const { appSlug, schema, tenantId, user, accessRole, canAccessSuperAdmin } = useAuth();
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
     const orderLabel = labels.order;
@@ -422,6 +422,7 @@ const Comandas: React.FC = () => {
 
             let query = client.from('comandas').select('*').order('created_at', { ascending: false });
             if (resolvedTenantId) query = query.eq('tenant_id', resolvedTenantId);
+            if (accessRole === 'barber' && user?.id) query = query.eq('staff_id', user.id);
 
             const { data, error } = await query;
             if (error) {
