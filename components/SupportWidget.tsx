@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generateSupportResponse } from '../services/geminiService';
+import { useAuth } from '../context/AuthContext';
 
 interface Message {
     id: string;
@@ -9,8 +10,7 @@ interface Message {
     timestamp: Date;
 }
 
-// O assistente agora utiliza a função generateSupportResponse via IA Gemini para respostas dinâmicas.
-const QUICK_REPLIES = [
+const BARBER_QUICK_REPLIES = [
     'Como cadastrar um cliente?',
     'Como fechar o caixa?',
     'Como agendar um horário?',
@@ -18,21 +18,40 @@ const QUICK_REPLIES = [
     'Como gerar relatórios?',
 ];
 
-// Atalhos diretos para páginas rápidas
-const FAST_ACTIONS = [
+const ESTETICA_QUICK_REPLIES = [
+    'Agenda de hoje',
+    'Atendimentos abertos',
+    'Procedimentos',
+    'Clientes para retorno',
+    'Movimento financeiro',
+];
+
+const BARBER_FAST_ACTIONS = [
     { label: '📋 Fechar Comandas', path: '/comandas', icon: 'receipt_long' },
     { label: '👑 Clube dos Chefes', path: '/chef-club-plans', icon: 'workspace_premium' },
 ];
 
+const ESTETICA_FAST_ACTIONS = [
+    { label: 'Agenda de hoje', path: '/schedule', icon: 'calendar_month' },
+    { label: 'Atendimentos abertos', path: '/comandas', icon: 'receipt' },
+    { label: 'Procedimentos', path: '/services', icon: 'spa' },
+];
 
 const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav = false }) => {
     const navigate = useNavigate();
+    const { appSlug } = useAuth();
+    const isEsteticaApp = appSlug === 'estetica';
+    const assistantProductName = isEsteticaApp ? 'Sou.Manager | Estética' : 'Sou.Manager | Barber';
+    const assistantTitle = `Assistente SMG | ${assistantProductName}`;
+    const quickReplies = isEsteticaApp ? ESTETICA_QUICK_REPLIES : BARBER_QUICK_REPLIES;
+    const fastActions = isEsteticaApp ? ESTETICA_FAST_ACTIONS : BARBER_FAST_ACTIONS;
+    const initialMessage = `👋 Olá! Sou o assistente do **SMG | ${assistantProductName}**. Como posso te ajudar hoje?\n\nEscolha uma das opções rápidas abaixo ou digite sua dúvida.`;
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
             role: 'assistant',
-            content: '👋 Olá! Sou o assistente do **SMG | Sou.Manager | Barber**. Como posso te ajudar hoje?\n\nEscolha uma das opções rápidas abaixo ou digite sua dúvida.',
+            content: initialMessage,
             timestamp: new Date(),
         },
     ]);
@@ -48,6 +67,16 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
         scrollToBottom();
     }, [messages, isTyping]);
 
+    useEffect(() => {
+        setMessages((current) => {
+            if (current.length !== 1 || current[0]?.id !== '1') {
+                return current;
+            }
+
+            return [{ ...current[0], content: initialMessage }];
+        });
+    }, [initialMessage]);
+
     const sendMessage = async (text: string) => {
         if (!text.trim()) return;
 
@@ -62,7 +91,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
         setInput('');
         setIsTyping(true);
 
-        const aiResponse = await generateSupportResponse(text);
+        const aiResponse = await generateSupportResponse(text, appSlug);
 
         const botReply: Message = {
             id: (Date.now() + 1).toString(),
@@ -124,7 +153,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                         <span className="material-symbols-outlined text-primary text-xl">smart_toy</span>
                     </div>
                     <div className="flex-1">
-                        <p className="text-white text-sm font-bold">Assistente SMG | Sou.Manager | Barber</p>
+                        <p className="text-white text-sm font-bold">{assistantTitle}</p>
                         <p className="text-green-400 text-[10px] font-medium flex items-center gap-1">
                             <span className="size-1.5 rounded-full bg-green-400 inline-block" />
                             Online agora
@@ -165,7 +194,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                 <div className="bg-[#12100E] px-4 pt-3 pb-1">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2 font-bold">Acesso Rápido</p>
                     <div className="flex gap-2">
-                        {FAST_ACTIONS.map(action => (
+                        {fastActions.map(action => (
                             <button
                                 key={action.path}
                                 onClick={() => {
@@ -184,7 +213,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                 {/* Quick Replies */}
                 {messages.length <= 2 && (
                     <div className="bg-[#12100E] px-4 pb-2 flex flex-wrap gap-1.5">
-                        {QUICK_REPLIES.map(q => (
+                        {quickReplies.map(q => (
                             <button
                                 key={q}
                                 onClick={() => sendMessage(q)}

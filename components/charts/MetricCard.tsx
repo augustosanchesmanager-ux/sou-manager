@@ -15,15 +15,15 @@ interface MetricCardProps {
   variant?: 'default' | 'compact' | 'featured';
 }
 
-const colorMap: Record<string, { bg: string; text: string; glow: string }> = {
-  blue: { bg: 'bg-blue-500/10', text: 'text-blue-500', glow: 'blue' },
-  purple: { bg: 'bg-purple-500/10', text: 'text-purple-500', glow: 'purple' },
-  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', glow: 'emerald' },
-  amber: { bg: 'bg-amber-500/10', text: 'text-amber-500', glow: 'amber' },
-  rose: { bg: 'bg-rose-500/10', text: 'text-rose-500', glow: 'rose' },
-  cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', glow: 'cyan' },
-  violet: { bg: 'bg-violet-500/10', text: 'text-violet-500', glow: 'violet' },
-  pink: { bg: 'bg-pink-500/10', text: 'text-pink-500', glow: 'pink' },
+const colorMap: Record<string, { bg: string; text: string; hex: string }> = {
+  blue: { bg: 'bg-[#007BFF]/10', text: 'text-[#007BFF]', hex: '#007BFF' },
+  purple: { bg: 'bg-[#007BFF]/10', text: 'text-[#007BFF]', hex: '#007BFF' },
+  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', hex: '#10B981' },
+  amber: { bg: 'bg-[#B88A44]/15', text: 'text-[#9A6F2D] dark:text-[#E3C382]', hex: '#B88A44' },
+  rose: { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', hex: '#EF4444' },
+  cyan: { bg: 'bg-[#00D2FF]/10', text: 'text-[#008FC2] dark:text-[#72E7FF]', hex: '#00D2FF' },
+  violet: { bg: 'bg-[#003366]/10', text: 'text-[#003366] dark:text-[#9DEBFF]', hex: '#003366' },
+  pink: { bg: 'bg-[#B88A44]/15', text: 'text-[#9A6F2D] dark:text-[#E3C382]', hex: '#B88A44' },
 };
 
 const getColorStyles = (color: string) => colorMap[color] || colorMap.blue;
@@ -43,21 +43,21 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const colorStyles = getColorStyles(color);
   
   const baseClasses = variant === 'featured'
-    ? 'bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50'
+    ? 'bg-[linear-gradient(135deg,#06182f,#08284d)] border-[#00D2FF]/20'
     : 'bg-white dark:bg-[#1A1A1D] border-slate-200 dark:border-[#262A33]';
   
   return (
     <div 
       onClick={onClick}
       className={`
-        relative overflow-hidden rounded-2xl border shadow-lg transition-all duration-300
+        relative overflow-hidden rounded-xl border shadow-sm transition-all duration-200
         ${baseClasses}
-        ${onClick ? 'cursor-pointer hover:shadow-xl hover:scale-[1.02] hover:border-primary/30' : 'shadow-slate-200/50 dark:shadow-none'}
+        ${onClick ? 'cursor-pointer hover:shadow-md hover:border-[#007BFF]/40' : 'shadow-slate-200/50 dark:shadow-none'}
       `}
     >
       {/* Background gradient effect */}
       {variant === 'featured' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-50" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(0,210,255,0.18),transparent_30%)]" />
       )}
       
       <div className="p-5">
@@ -76,14 +76,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         
         {/* Content */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
             {title}
           </p>
           
           <div className="flex items-end justify-between">
             <div>
               <h3 className={`
-                font-black text-slate-900 dark:text-white tracking-tight
+                font-black text-slate-900 dark:text-white
                 ${variant === 'compact' ? 'text-xl' : variant === 'featured' ? 'text-3xl' : 'text-2xl'}
               `}>
                 {value}
@@ -107,7 +107,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
               <div className="flex-shrink-0">
                 <SparkLineChart 
                   data={sparklineData} 
-                  color={color === 'blue' ? '#3B82F6' : color === 'purple' ? '#8B5CF6' : color === 'emerald' ? '#10B981' : color === 'amber' ? '#F59E0B' : color === 'rose' ? '#F43F5E' : '#3B82F6'}
+                  color={colorStyles.hex}
                   width={80}
                   height={32}
                 />
@@ -117,7 +117,10 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
         
         {/* Bottom accent line */}
-        <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-${color}-500 to-transparent opacity-50`} />
+        <div
+          className="absolute bottom-0 left-0 right-0 h-0.5 opacity-60"
+          style={{ background: `linear-gradient(90deg, transparent, ${colorStyles.hex}, transparent)` }}
+        />
       </div>
     </div>
   );

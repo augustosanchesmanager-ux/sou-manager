@@ -20,15 +20,9 @@ interface StaffPerformanceCardProps {
 }
 
 const RANK_COLORS = [
-  'bg-gradient-to-br from-amber-400 to-amber-600',
-  'bg-gradient-to-br from-slate-300 to-slate-500',
-  'bg-gradient-to-br from-amber-700 to-amber-900',
-];
-
-const RANK_ICON_COLORS = [
-  'text-amber-500',
-  'text-slate-400',
-  'text-amber-700',
+  'bg-[#B88A44]',
+  'bg-slate-400',
+  'bg-[#7A5528]',
 ];
 
 export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
@@ -56,16 +50,16 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
     <div 
       onClick={onClick}
       className={`
-        group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-[#262A33]
+        group relative overflow-hidden rounded-xl border border-slate-200 dark:border-[#262A33]
         bg-white dark:bg-[#1A1A1D] p-4 
-        transition-all duration-300 hover:shadow-xl hover:scale-[1.01]
+        transition-all duration-200 hover:border-[#007BFF]/35 hover:shadow-md
         ${onClick ? 'cursor-pointer' : ''}
       `}
     >
       {/* Rank Badge */}
       <div className="absolute -top-2 -right-2 z-10">
         <div className={`
-          size-7 rounded-full flex items-center justify-center shadow-lg
+          size-7 rounded-full flex items-center justify-center shadow-sm
           ${rank <= 3 ? RANK_COLORS[rank - 1] : 'bg-slate-200 dark:bg-slate-700'}
         `}>
           {rank <= 3 ? (
@@ -90,15 +84,12 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
               className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-100 dark:ring-slate-800"
             />
           ) : (
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center ring-2 ring-slate-100 dark:ring-slate-800">
-              <span className="text-primary font-bold text-sm">
+            <div className="w-12 h-12 rounded-xl bg-[#007BFF]/10 flex items-center justify-center ring-2 ring-slate-100 dark:ring-slate-800">
+              <span className="text-[#007BFF] font-bold text-sm">
                 {getInitials(staff.name)}
               </span>
             </div>
           )}
-          
-          {/* Online indicator */}
-          <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-white dark:border-[#1A1A1D]" />
         </div>
 
         {/* Info */}
@@ -124,7 +115,7 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
       <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <p className="text-[11px] font-bold text-slate-500">
               Faturamento
             </p>
             <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
@@ -132,7 +123,7 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <p className="text-[11px] font-bold text-slate-500">
               Ticket Médio
             </p>
             <p className="text-base font-bold text-slate-700 dark:text-slate-300">
@@ -144,7 +135,7 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
         {/* Sparkline */}
         {staff.trendData && staff.trendData.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            <p className="text-[11px] font-bold text-slate-500 mb-2">
               Tendência
             </p>
             <SparkLineChart 

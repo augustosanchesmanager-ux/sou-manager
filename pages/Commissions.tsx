@@ -3,8 +3,10 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
+import { getEffectiveCommissionRate, receivesCommission } from '../src/lib/staff/roles';
 
 interface StaffMember {
     id: string;
@@ -21,6 +23,7 @@ interface ComandaRow {
     created_at: string;
     closed_at?: string | null;
     status: ComandaStatus;
+    appointment_id?: string | null;
     staff_id?: string | null;
     client_id?: string | null;
     payment_method?: string | null;
@@ -33,10 +36,14 @@ interface ComandaRow {
     membership_credit_effect?: boolean | null;
 }
 
+interface AppointmentRow {
+    id: string;
+    start_time?: string | null;
+}
+
 interface ParticipantRow {
     comanda_item_id: string;
     staff_id?: string | null;
-    professional_id?: string | null;
     role: string | null;
     payout_type: 'percentage' | 'fixed' | string | null;
     payout_value: number | null;
@@ -93,6 +100,10 @@ interface CommissionAuditLine {
     commission_value: number;
 }
 
+type ProductionDateSource = 'appointment_start' | 'comanda_closed_at' | 'comanda_created_at';
+type CommissionTypeFilter = 'all' | 'solo' | 'shared';
+type CommissionStatusFilter = 'all' | 'confirmed' | 'pending' | 'cancelled';
+
 interface CommissionLine {
     id: string;
     comandaId: string;
@@ -125,6 +136,8 @@ interface CommissionLine {
     commissionStatus: string;
     paymentMethod: string;
     audit: CommissionAuditLine;
+    dateSource: ProductionDateSource;
+    discountAmount: number;
 }
 
 interface CommissionRow {
@@ -210,14 +223,14 @@ const getCommissionBaseChoice = (item: any): CommissionBaseChoice => {
         return {
             value: toNumber(item.unit_price),
             field: 'unit_price',
-            reason: 'Checkout salva comanda_items.unit_price = item.price, que e o preco final do servico no carrinho; servicos entram com quantity 1 nesse fluxo.',
+            reason: 'Checkout salva comanda_items.unit_price = item.price, que é o preço final do serviço no carrinho; serviços entram com quantity 1 nesse fluxo.',
         };
     }
     if (item.price !== null && item.price !== undefined && item.price !== '') {
         return {
             value: toNumber(item.price),
             field: 'price',
-            reason: 'Fallback: campo unit_price ausente; usando price por representar preco salvo do item quando existir.',
+            reason: 'Fallback: campo unit_price ausente; usando price por representar preço salvo do item quando existir.',
         };
     }
     if (item.amount !== null && item.amount !== undefined && item.amount !== '') {
@@ -231,13 +244,40 @@ const getCommissionBaseChoice = (item: any): CommissionBaseChoice => {
     return {
         value: toNumber(item.unit_price) * quantity,
         field: 'unit_price * quantity',
-        reason: 'Fallback final: nenhum campo de preco final do item estava disponivel.',
+        reason: 'Fallback final: nenhum campo de preço final do item estava disponível.',
     };
 };
 
 const getComandaItemValue = (item: any) => {
     return getCommissionBaseChoice(item).value;
 };
+
+const getProductionDate = (comanda: ComandaRow, appointmentById: Record<string, AppointmentRow>) => {
+    const appointmentStartTime = comanda.appointment_id ? appointmentById[comanda.appointment_id]?.start_time : null;
+    return appointmentStartTime || comanda.closed_at || comanda.created_at;
+};
+
+const getProductionDateSource = (comanda: ComandaRow, appointmentById: Record<string, AppointmentRow>): ProductionDateSource => {
+    const appointmentStartTime = comanda.appointment_id ? appointmentById[comanda.appointment_id]?.start_time : null;
+    if (appointmentStartTime) return 'appointment_start';
+    if (comanda.closed_at) return 'comanda_closed_at';
+    return 'comanda_created_at';
+};
+
+const getProductionDateSourceLabel = (source: ProductionDateSource) => {
+    if (source === 'appointment_start') return 'Data do atendimento';
+    if (source === 'comanda_closed_at') return 'Dados legados: fechamento';
+    return 'Dados legados: abertura';
+};
+
+const normalizeSearchText = (value: string) =>
+    value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+const getShortComandaRef = (id: string) => `#${String(id || '').slice(0, 8) || 'sem-id'}`;
 
 const isServiceItem = (item: any) => {
     const type = String(item.type || item.item_type || '').toLowerCase();
@@ -261,12 +301,12 @@ const getPaymentMethodLabel = (comanda: ComandaRow) => {
         return 'Clube do Chefe';
     }
     const method = String(comanda.payment_method || '').toLowerCase();
-    if (method === 'credit') return 'Credito';
-    if (method === 'debit') return 'Debito';
+    if (method === 'credit') return 'Crédito';
+    if (method === 'debit') return 'Débito';
     if (method === 'cash') return 'Dinheiro';
     if (method === 'pix') return 'Pix';
     if (method === 'other') return 'Outro';
-    return comanda.payment_method || 'Nao informado';
+    return comanda.payment_method || 'Não informado';
 };
 
 const formatParticipationRole = (role?: string | null) => {
@@ -276,20 +316,136 @@ const formatParticipationRole = (role?: string | null) => {
     return role || 'Principal';
 };
 
-const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || participant.professional_id || '';
+const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || '';
 
-const isSharedCommissionItem = (
-    item: { staff_id?: string | null },
+const buildSoloParticipant = (comandaItemId: string, staffId?: string | null): ParticipantRow => ({
+    comanda_item_id: comandaItemId,
+    staff_id: staffId || null,
+    role: 'primary',
+    payout_type: 'percentage',
+    payout_value: 100,
+    affects_commission: true,
+});
+
+const buildInferredPrimaryParticipant = (
+    comandaItemId: string,
+    staffId: string,
+    participant: ParticipantRow,
+    itemValue: number,
+): ParticipantRow | null => {
+    if (participant.payout_type === 'fixed') {
+        const remainingValue = Math.max(0, itemValue - toNumber(participant.payout_value));
+        if (remainingValue <= 0) return null;
+        return {
+            ...buildSoloParticipant(comandaItemId, staffId),
+            payout_type: 'fixed',
+            payout_value: remainingValue,
+        };
+    }
+
+    const participantRate = normalizePercentage(participant.payout_value);
+    const remainingRate = Math.max(0, 1 - participantRate);
+    if (remainingRate <= 0) return null;
+    return {
+        ...buildSoloParticipant(comandaItemId, staffId),
+        payout_value: remainingRate * 100,
+    };
+};
+
+const hasPartialSavedPayout = (participant: ParticipantRow, itemValue: number) => {
+    if (participant.payout_type === 'fixed') {
+        const payoutValue = toNumber(participant.payout_value);
+        return payoutValue > 0 && payoutValue < itemValue;
+    }
+
+    const payoutRate = normalizePercentage(participant.payout_value);
+    return payoutRate > 0 && payoutRate < 1;
+};
+
+const normalizeCommissionParticipants = (
+    item: { id: string; staff_id?: string | null },
     comanda: { staff_id?: string | null },
     participants: ParticipantRow[],
+    itemValue: number,
+    staffById: Record<string, StaffMember>,
 ) => {
-    if (participants.length === 0) return false;
-    if (participants.length > 1) return true;
-    const [participant] = participants;
-    const mainProfessionalId = item.staff_id || comanda.staff_id || null;
-    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === mainProfessionalId;
-    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizePercentage(participant.payout_value) === 1;
-    return !isPrimaryMainProfessional || !isFullPercentagePayout;
+    const mainStaffId = item.staff_id || comanda.staff_id || null;
+    const mainStaffReceivesCommission = mainStaffId ? receivesCommission(staffById[mainStaffId]) : false;
+    const commissionableByStaffId = participants.reduce((acc, participant) => {
+        const staffId = getParticipantStaffId(participant);
+        if (!staffId || !receivesCommission(staffById[staffId])) {
+            return acc;
+        }
+        if (!acc.has(staffId)) acc.set(staffId, participant);
+        return acc;
+    }, new Map<string, ParticipantRow>());
+
+    if (commissionableByStaffId.size === 0) {
+        return {
+            participants: mainStaffReceivesCommission ? [buildSoloParticipant(item.id, mainStaffId)] : [],
+            participantStaffIds: mainStaffReceivesCommission && mainStaffId ? [mainStaffId] : [],
+            sharedStaffIds: mainStaffReceivesCommission && mainStaffId ? [mainStaffId] : [],
+            isShared: false,
+        };
+    }
+
+    if (commissionableByStaffId.size === 1) {
+        const [onlyParticipant] = Array.from(commissionableByStaffId.values());
+        const onlyStaffId = getParticipantStaffId(onlyParticipant);
+
+        if (onlyStaffId === mainStaffId) {
+            return {
+                participants: [buildSoloParticipant(item.id, onlyStaffId)],
+                participantStaffIds: [onlyStaffId],
+                sharedStaffIds: [onlyStaffId],
+                isShared: false,
+            };
+        }
+
+        if (!mainStaffId) {
+            return {
+                participants: [buildSoloParticipant(item.id, onlyStaffId)],
+                participantStaffIds: [onlyStaffId],
+                sharedStaffIds: [onlyStaffId],
+                isShared: false,
+            };
+        }
+
+        // Legacy splits may save only the supporting barber; the primary professional can live on the item/comanda.
+        const inferredPrimary = hasPartialSavedPayout(onlyParticipant, itemValue)
+            ? buildInferredPrimaryParticipant(item.id, mainStaffId, onlyParticipant, itemValue)
+            : null;
+
+        const sharedStaffIds = [mainStaffId, onlyStaffId].filter(Boolean) as string[];
+
+        if (inferredPrimary) {
+            return {
+                participants: [inferredPrimary, onlyParticipant],
+                participantStaffIds: [mainStaffId, onlyStaffId].filter(Boolean) as string[],
+                sharedStaffIds,
+                isShared: true,
+            };
+        }
+
+        return {
+            participants: [onlyParticipant],
+            participantStaffIds: [onlyStaffId],
+            sharedStaffIds,
+            isShared: true,
+        };
+    }
+
+    const uniqueParticipants = Array.from(commissionableByStaffId.values());
+    const uniqueStaffIds = uniqueParticipants.map(getParticipantStaffId).filter(Boolean);
+    const sharedStaffIds = mainStaffId && !uniqueStaffIds.includes(mainStaffId)
+        ? [mainStaffId, ...uniqueStaffIds]
+        : uniqueStaffIds;
+    return {
+        participants: uniqueParticipants,
+        participantStaffIds: uniqueStaffIds,
+        sharedStaffIds,
+        isShared: uniqueStaffIds.length > 1,
+    };
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
@@ -302,9 +458,12 @@ const Commissions: React.FC = () => {
     const { tenantId } = useAuth();
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-    const [rows, setRows] = useState<CommissionRow[]>([]);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [commissionLines, setCommissionLines] = useState<CommissionLine[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [professionalFilter, setProfessionalFilter] = useState('all');
+    const [commissionTypeFilter, setCommissionTypeFilter] = useState<CommissionTypeFilter>('all');
+    const [statusFilter, setStatusFilter] = useState<CommissionStatusFilter>('all');
     const [selectedRow, setSelectedRow] = useState<CommissionRow | null>(null);
     const [startDate, setStartDate] = useState(() => {
         const now = new Date();
@@ -332,9 +491,7 @@ const Commissions: React.FC = () => {
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .in('status', ['open', 'paid', 'blocked', 'cancelled'])
-                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
-                .gte('created_at', startOfRange.toISOString())
-                .lte('created_at', endOfRange.toISOString()),
+                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false'),
         ]);
 
         if (staffRes.error) throw staffRes.error;
@@ -346,8 +503,28 @@ const Commissions: React.FC = () => {
             return acc;
         }, {} as Record<string, StaffMember>);
         const comandas = (comandasRes.data || []) as ComandaRow[];
-        const comandaIds = comandas.map((comanda) => comanda.id);
-        const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+        const appointmentIds = Array.from(new Set(comandas.map((comanda) => comanda.appointment_id).filter((id): id is string => Boolean(id))));
+        const { data: appointments, error: appointmentsError } = appointmentIds.length > 0
+            ? await client
+                .from('appointments')
+                .select('id, start_time')
+                .eq('tenant_id', tenantId)
+                .in('id', appointmentIds)
+            : { data: [] as AppointmentRow[], error: null };
+
+        if (appointmentsError) throw appointmentsError;
+
+        const appointmentById = ((appointments || []) as AppointmentRow[]).reduce((acc, appointment) => {
+            acc[appointment.id] = appointment;
+            return acc;
+        }, {} as Record<string, AppointmentRow>);
+        const comandasInProductionRange = comandas.filter((comanda) => {
+            const productionDate = new Date(getProductionDate(comanda, appointmentById));
+            if (Number.isNaN(productionDate.getTime())) return false;
+            return productionDate >= startOfRange && productionDate <= endOfRange;
+        });
+        const comandaIds = comandasInProductionRange.map((comanda) => comanda.id);
+        const clientIds = Array.from(new Set(comandasInProductionRange.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
 
         const [itemsRes, clientsRes] = await Promise.all([
             comandaIds.length > 0
@@ -391,7 +568,7 @@ const Commissions: React.FC = () => {
             acc[currentClient.id] = currentClient.name;
             return acc;
         }, {} as Record<string, string>);
-        const comandaById = comandas.reduce((acc, comanda) => {
+        const comandaById = comandasInProductionRange.reduce((acc, comanda) => {
             acc[comanda.id] = comanda;
             return acc;
         }, {} as Record<string, ComandaRow>);
@@ -408,32 +585,27 @@ const Commissions: React.FC = () => {
             const itemValue = getComandaItemValue(item);
             const baseChoice = getCommissionBaseChoice(item);
             const quantity = getQuantity(item);
-            const savedParticipants = (participantsByItem[item.id] || [])
-                .filter((participant) => getParticipantStaffId(participant))
-                .filter((participant) => participant.affects_commission !== false);
-            const isShared = isSharedCommissionItem(item, comanda, savedParticipants);
-            const participantStaffIds = Array.from(new Set(savedParticipants.map(getParticipantStaffId).filter(Boolean)));
-            const participantsForCommission = savedParticipants.length > 0
-                ? savedParticipants
-                : [{
-                    comanda_item_id: item.id,
-                    staff_id: item.staff_id || comanda.staff_id || null,
-                    role: 'primary',
-                    payout_type: 'percentage',
-                    payout_value: 100,
-                    affects_commission: true,
-                } as ParticipantRow];
+            const normalizedParticipants = normalizeCommissionParticipants(
+                { id: item.id, staff_id: item.staff_id },
+                comanda,
+                participantsByItem[item.id] || [],
+                itemValue,
+                staffById,
+            );
+            const isShared = normalizedParticipants.isShared;
+            const participantStaffIds = normalizedParticipants.participantStaffIds;
+            const participantsForCommission = normalizedParticipants.participants;
+            const sharedStaffIds = normalizedParticipants.sharedStaffIds;
+            const productionDate = getProductionDate(comanda, appointmentById);
+            const dateSource = getProductionDateSource(comanda, appointmentById);
             const getParticipantName = (participant: ParticipantRow) => {
                 const staffId = getParticipantStaffId(participant);
                 return staffId ? staffById[staffId]?.name || staffId : 'Profissional';
             };
-            const participantNames = isShared
-                ? Array.from(new Set(
-                    participantsForCommission
-                        .map((participant) => getParticipantName(participant))
-                        .filter(Boolean),
-                )).join(' / ')
-                : '';
+            const sharedParticipantNamesByStaffId = sharedStaffIds.reduce((acc, staffId) => {
+                acc[staffId] = staffById[staffId]?.name || staffId;
+                return acc;
+            }, {} as Record<string, string>);
             const divisionLaunched = isShared
                 ? participantsForCommission.map((participant) => formatSavedPayout(participant, getParticipantName(participant))).join(' / ')
                 : '';
@@ -445,31 +617,40 @@ const Commissions: React.FC = () => {
 
             return participantsForCommission
                 .filter((participant) => getParticipantStaffId(participant))
-                .map((participant) => {
+                .flatMap((participant): CommissionLine[] => {
                     const staffId = getParticipantStaffId(participant);
                     const staff = staffById[staffId];
+                    if (!receivesCommission(staff)) return [];
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
                         : null;
                     const commissionBase = participant.payout_type === 'fixed'
                         ? toNumber(participant.payout_value)
                         : itemValue * Number(participationRate || 0);
-                    const commissionRate = normalizeRate(staff?.commission_rate);
+                    const commissionRate = getEffectiveCommissionRate(staff);
                     const commissionValue = commissionBase * commissionRate;
                     const payoutType = participant.payout_type || '';
                     const payoutValue = participant.payout_value == null ? null : toNumber(participant.payout_value);
                     const payoutValueNormalized = participant.payout_type === 'percentage' ? normalizePercentage(participant.payout_value) : null;
                     const sharedValue = isShared ? commissionBase : 0;
+                    const participantNames = isShared
+                        ? Object.entries(sharedParticipantNamesByStaffId)
+                            .filter(([participantStaffId]) => participantStaffId !== staffId)
+                            .map(([, name]) => name)
+                            .filter(Boolean)
+                            .join(' / ')
+                        : '';
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
                     const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
+                    const discountAmount = toNumber(item.discount ?? comanda.discount);
 
-                    return {
+                    return [{
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
                         comandaItemId: item.id,
-                        createdAt: comanda.created_at,
+                        createdAt: productionDate,
                         clientName,
-                        serviceName: item.product_name || 'Servico',
+                        serviceName: item.product_name || 'Serviço',
                         quantity,
                         unitPrice: toNumber(item.unit_price),
                         itemValue,
@@ -494,6 +675,8 @@ const Commissions: React.FC = () => {
                         paymentStatus: getPaymentStatus(comanda.status),
                         commissionStatus: getCommissionStatus(comanda.status),
                         paymentMethod: getPaymentMethodLabel(comanda),
+                        dateSource,
+                        discountAmount,
                         audit: {
                             comanda_id: comanda.id,
                             client_name: clientName,
@@ -506,7 +689,7 @@ const Commissions: React.FC = () => {
                                 : '',
                             comanda_item_id: item.id,
                             service_id: item.service_id || '',
-                            service_name: item.product_name || 'Servico',
+                            service_name: item.product_name || 'Serviço',
                             item_type: item.item_type || item.type || (item.service_id ? 'service' : ''),
                             staff_id: staffId,
                             staff_name: staff?.name || staffId || 'Profissional',
@@ -525,7 +708,7 @@ const Commissions: React.FC = () => {
                             base_value_escolhido: baseChoice.value,
                             campo_usado_como_base: baseChoice.field,
                             motivo_da_escolha: baseChoice.reason,
-                            credit_applied_detected: creditAppliedDetected ? 'Sim' : 'Nao',
+                            credit_applied_detected: creditAppliedDetected ? 'Sim' : 'Não',
                             payout_type: payoutType,
                             payout_value: payoutValue == null ? '' : payoutValue,
                             payout_value_normalizado: payoutValueNormalized == null ? '' : payoutValueNormalized,
@@ -534,12 +717,12 @@ const Commissions: React.FC = () => {
                             base_participante: commissionBase,
                             commission_rate: nullableNumber(staff?.commission_rate),
                             commission_rate_normalizado: commissionRate,
-                            participants_count: savedParticipants.length,
+                            participants_count: participantsForCommission.length,
                             participants_staff_ids: participantStaffIds.join(' / '),
-                            is_shared_real: isShared ? 'Sim' : 'Nao',
+                            is_shared_real: isShared ? 'Sim' : 'Não',
                             commission_value: commissionValue,
                         },
-                    };
+                    }];
                 });
         });
     }, [endDate, startDate, tenantId]);
@@ -592,43 +775,55 @@ const Commissions: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !startDate || !endDate) {
-            setRows([]);
             setCommissionLines([]);
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        setLoadError(null);
         try {
             const lines = await loadCommissionLines();
             setCommissionLines(lines);
-            setRows(groupCommissionRows(lines));
         } catch (error) {
-            console.error('Erro ao carregar comissoes:', error);
-            setToast({ message: 'Erro ao carregar dados de comissoes.', type: 'error' });
+            console.error('Erro ao carregar comissões:', error);
+            setCommissionLines([]);
+            setLoadError('Não foi possível carregar as comissões. Nenhum dado financeiro foi alterado.');
+            setToast({ message: 'Erro ao carregar dados de comissões.', type: 'error' });
         } finally {
             setLoading(false);
         }
-    }, [endDate, groupCommissionRows, loadCommissionLines, startDate, tenantId]);
+    }, [endDate, loadCommissionLines, startDate, tenantId]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    const filteredRows = useMemo(
-        () =>
-            rows.filter((row) =>
-                row.professionalName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                row.role.toLowerCase().includes(searchTerm.toLowerCase())
-            ),
-        [rows, searchTerm],
-    );
+    const professionalOptions = useMemo(() => groupCommissionRows(commissionLines), [commissionLines, groupCommissionRows]);
+    const filteredLines = useMemo(() => {
+        const normalizedSearch = normalizeSearchText(searchTerm);
+        return commissionLines.filter((line) => {
+            if (professionalFilter !== 'all' && line.professionalId !== professionalFilter) return false;
+            if (commissionTypeFilter === 'solo' && line.isShared) return false;
+            if (commissionTypeFilter === 'shared' && !line.isShared) return false;
+            if (statusFilter !== 'all' && getLineStatusBucket(line) !== statusFilter) return false;
 
-    const visibleProfessionalIds = useMemo(() => new Set(filteredRows.map((row) => row.id)), [filteredRows]);
-    const filteredLines = useMemo(
-        () => commissionLines.filter((line) => visibleProfessionalIds.has(line.professionalId)),
-        [commissionLines, visibleProfessionalIds],
-    );
+            if (!normalizedSearch) return true;
+            const searchable = [
+                line.professionalName,
+                line.professionalRole,
+                line.clientName,
+                line.serviceName,
+                line.participantNames,
+                line.comandaId,
+                getShortComandaRef(line.comandaId),
+                line.paymentMethod,
+                line.commissionStatus,
+            ].map(normalizeSearchText).join(' ');
+            return searchable.includes(normalizedSearch);
+        });
+    }, [commissionLines, commissionTypeFilter, professionalFilter, searchTerm, statusFilter]);
+    const filteredRows = useMemo(() => groupCommissionRows(filteredLines), [filteredLines, groupCommissionRows]);
 
     const confirmedCommission = filteredRows.reduce((sum, row) => sum + row.confirmedCommission, 0);
     const pendingCommission = filteredRows.reduce((sum, row) => sum + row.pendingCommission, 0);
@@ -643,44 +838,59 @@ const Commissions: React.FC = () => {
         (best, current) => (!best || current.commissionValue > best.commissionValue ? current : best),
         null,
     );
+    const sharedServicesCount = filteredLines.filter((line) => line.isShared).length;
+    const legacyDateCount = filteredLines.filter((line) => line.dateSource !== 'appointment_start').length;
+    const discountInfoCount = filteredLines.filter((line) => line.discountAmount > 0).length;
+    const hasActiveFilters = Boolean(searchTerm.trim()) ||
+        professionalFilter !== 'all' ||
+        commissionTypeFilter !== 'all' ||
+        statusFilter !== 'all';
 
     const exportCommissions = async () => {
         if (!tenantId || !startDate || !endDate) {
-            setToast({ message: 'Informe um periodo valido para exportar comissoes.', type: 'error' });
+            setToast({ message: 'Informe um período válido para exportar comissões.', type: 'error' });
             return;
         }
 
         try {
-            const lines = commissionLines.length > 0 ? commissionLines : await loadCommissionLines();
+            const lines = filteredLines;
+            if (lines.length === 0) {
+                setToast({ message: 'Nenhuma comissão visível para exportar com os filtros atuais.', type: 'info' });
+                return;
+            }
             const headers = [
                 'Data',
+                'Origem da data',
                 'Cliente',
-                'ID da comanda',
-                'Servico',
-                'Valor do servico',
+                'Comanda',
+                'Serviço',
+                'Valor do serviço',
+                'Desconto informativo',
                 'Valor compartilhado',
                 'Profissional',
-                'Tipo de participacao',
-                'Percentual de participacao',
-                'Valor base da comissao',
-                'Divisao lancada',
+                'Tipo de participação',
+                'Percentual de participação',
+                'Valor base da comissão',
+                'Divisão lançada',
                 'Base por participante',
-                'Percentual de comissao',
-                'Valor da comissao',
-                'Servico compartilhado',
-                'Participantes do servico',
+                'Percentual de comissão',
+                'Valor da comissão',
+                'Tipo',
+                'Participantes do serviço',
                 'Status da comanda',
                 'Status de pagamento',
-                'Status da comissao',
+                'Status da comissão',
                 'Forma de pagamento',
             ];
 
             const rowsForExport = lines.map((line) => [
                 escapeCSV(new Date(line.createdAt).toLocaleDateString('pt-BR')),
+                escapeCSV(getProductionDateSourceLabel(line.dateSource)),
                 escapeCSV(normalizeClientName(line.clientName)),
-                escapeCSV(line.comandaId),
+                escapeCSV(getShortComandaRef(line.comandaId)),
                 escapeCSV(line.serviceName),
                 formatMoneyForExport(line.itemValue),
+                formatMoneyForExport(line.discountAmount),
                 line.isShared ? formatMoneyForExport(line.sharedValue) : '-',
                 escapeCSV(line.professionalName),
                 escapeCSV(line.participationRole),
@@ -690,7 +900,7 @@ const Commissions: React.FC = () => {
                 escapeCSV(line.baseByParticipant),
                 escapeCSV(`${(line.commissionRate * 100).toFixed(2).replace('.', ',')}%`),
                 formatMoneyForExport(line.commissionValue),
-                escapeCSV(line.isShared ? 'Sim' : 'Nao'),
+                escapeCSV(line.isShared ? 'Compartilhado' : 'Solo'),
                 escapeCSV(line.participantNames),
                 escapeCSV(line.comandaStatus),
                 escapeCSV(line.paymentStatus),
@@ -708,21 +918,25 @@ const Commissions: React.FC = () => {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            setToast({ message: 'Relatorio de comissoes exportado com sucesso.', type: 'success' });
+            setToast({ message: 'Relatório de comissões exportado com a lista filtrada visível.', type: 'success' });
         } catch (error) {
-            console.error('Erro ao exportar comissoes:', error);
-            setToast({ message: 'Erro ao exportar relatorio de comissoes.', type: 'error' });
+            console.error('Erro ao exportar comissões:', error);
+            setToast({ message: 'Erro ao exportar relatório de comissões. Nenhum dado financeiro foi alterado.', type: 'error' });
         }
     };
 
     const exportCommissionAudit = async () => {
         if (!tenantId || !startDate || !endDate) {
-            setToast({ message: 'Informe um periodo valido para auditar comissoes.', type: 'error' });
+            setToast({ message: 'Informe um período válido para auditar comissões.', type: 'error' });
             return;
         }
 
         try {
-            const lines = commissionLines.length > 0 ? commissionLines : await loadCommissionLines();
+            const lines = filteredLines;
+            if (lines.length === 0) {
+                setToast({ message: 'Nenhuma comissão visível para auditar com os filtros atuais.', type: 'info' });
+                return;
+            }
             const headers: Array<keyof CommissionAuditLine> = [
                 'comanda_id',
                 'client_name',
@@ -780,10 +994,10 @@ const Commissions: React.FC = () => {
             if (import.meta.env.DEV) {
                 console.table(lines.map((line) => line.audit));
             }
-            setToast({ message: 'Auditoria de comissoes exportada com sucesso.', type: 'success' });
+            setToast({ message: 'Auditoria de comissões exportada com a lista filtrada visível.', type: 'success' });
         } catch (error) {
-            console.error('Erro ao exportar auditoria de comissoes:', error);
-            setToast({ message: 'Erro ao exportar auditoria de comissoes.', type: 'error' });
+            console.error('Erro ao exportar auditoria de comissões:', error);
+            setToast({ message: 'Erro ao exportar auditoria de comissões. Nenhum dado financeiro foi alterado.', type: 'error' });
         }
     };
 
@@ -793,10 +1007,31 @@ const Commissions: React.FC = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Comissoes</h2>
-                    <p className="text-slate-500 mt-1">Acompanhe a producao variavel por profissional e o valor previsto para repasse.</p>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Comissões</h2>
+                    <p className="text-slate-500 mt-1">Acompanhe a produção variável por profissional e o valor previsto para repasse.</p>
                 </div>
                 <div className="flex gap-2">
+                    <AuditAdjustmentButton
+                        context={{
+                            sourceType: 'commission',
+                            sourceLabel: 'Relatório de Comissões',
+                            beforeSnapshot: {
+                                profissionais: filteredRows.length,
+                                comissao_confirmada: confirmedCommission,
+                                comissao_pendente: pendingCommission,
+                                comissao_cancelada: cancelledCommission,
+                                periodo_inicio: startDate,
+                                periodo_fim: endDate,
+                            },
+                            financialImpactLabel: 'Impacto potencial em repasse de comissão',
+                            allowedAdjustmentTypes: [
+                                'commission_correction',
+                                'service_participation_correction',
+                                'mark_for_review',
+                            ],
+                        }}
+                        defaultAdjustmentType="commission_correction"
+                    />
                     <Button variant="secondary" leftIcon="download" onClick={exportCommissions}>
                         Exportar
                     </Button>
@@ -809,27 +1044,46 @@ const Commissions: React.FC = () => {
                 </div>
             </div>
 
+            {loadError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/30 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div>
+                        <p className="text-sm font-black text-rose-700 dark:text-rose-200">Falha ao carregar comissões</p>
+                        <p className="text-sm text-rose-600 dark:text-rose-200/80">{loadError}</p>
+                    </div>
+                    <Button variant="secondary" leftIcon="refresh" onClick={fetchData}>
+                        Tentar novamente
+                    </Button>
+                </div>
+            )}
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4">
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">Regra auditada nesta fase</p>
+                <p className="text-sm text-amber-700 dark:text-amber-100/80 mt-1">
+                    Barber pode receber comissão. Manager e Receptionist não recebem comissão. Descontos aparecem apenas como informação visual e não reduzem a comissão automaticamente nesta fase.
+                </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissao confirmada</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão confirmada</p>
                     <h3 className="text-2xl font-black text-emerald-500">
                         {confirmedCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissao pendente</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão pendente</p>
                     <h3 className="text-2xl font-black text-amber-500">
                         {pendingCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissao cancelada</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão cancelada</p>
                     <h3 className="text-2xl font-black text-rose-500">
                         {cancelledCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </h3>
                 </div>
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Vendas validas</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Vendas válidas</p>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">
                         {totalSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </h3>
@@ -845,29 +1099,106 @@ const Commissions: React.FC = () => {
                     showPresets={true}
                 />
                 <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Buscar profissional</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Busca</label>
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                         <input
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Nome ou cargo..."
+                            placeholder="Cliente, serviço, profissional ou comanda..."
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
                         />
                     </div>
                 </div>
+                <div className="min-w-[180px]">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Profissional</label>
+                    <select
+                        value={professionalFilter}
+                        onChange={(event) => setProfessionalFilter(event.target.value)}
+                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                    >
+                        <option value="all">Todos</option>
+                        {professionalOptions.map((row) => (
+                            <option key={row.id} value={row.id}>{row.professionalName}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="min-w-[160px]">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Tipo</label>
+                    <select
+                        value={commissionTypeFilter}
+                        onChange={(event) => setCommissionTypeFilter(event.target.value as CommissionTypeFilter)}
+                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                    >
+                        <option value="all">Solo e compartilhado</option>
+                        <option value="solo">Solo</option>
+                        <option value="shared">Compartilhado</option>
+                    </select>
+                </div>
+                <div className="min-w-[150px]">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">Status</label>
+                    <select
+                        value={statusFilter}
+                        onChange={(event) => setStatusFilter(event.target.value as CommissionStatusFilter)}
+                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="confirmed">Confirmada</option>
+                        <option value="pending">Pendente</option>
+                        <option value="cancelled">Cancelada</option>
+                    </select>
+                </div>
                 <div className="w-full md:w-72 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark px-4 py-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Destaque do periodo</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Destaque do período</p>
                     <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
                         {topPerformer ? topPerformer.professionalName : 'Sem dados'}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
                         {topPerformer
-                            ? `${topPerformer.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em comissao prevista`
-                            : 'Nenhuma comissao encontrada no periodo.'}
+                            ? `${topPerformer.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em comissão prevista`
+                            : 'Nenhuma comissão encontrada no período.'}
                     </p>
                 </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs">
+                <span className="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold">
+                    {filteredLines.length} lançamentos visíveis
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-200 font-bold">
+                    {sharedServicesCount} compartilhados
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-200 font-bold">
+                    {totalServices} serviços
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-200 font-bold">
+                    Taxa média {averageRate.toFixed(1)}%
+                </span>
+                {legacyDateCount > 0 && (
+                    <span className="px-3 py-1.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200 font-bold">
+                        {legacyDateCount} com dados legados
+                    </span>
+                )}
+                {discountInfoCount > 0 && (
+                    <span className="px-3 py-1.5 rounded-full bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-200 font-bold">
+                        {discountInfoCount} com desconto informativo
+                    </span>
+                )}
+                {hasActiveFilters && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearchTerm('');
+                            setProfessionalFilter('all');
+                            setCommissionTypeFilter('all');
+                            setStatusFilter('all');
+                        }}
+                        className="px-3 py-1.5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
+                    >
+                        Limpar filtros
+                    </button>
+                )}
             </div>
 
             <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
@@ -879,12 +1210,12 @@ const Commissions: React.FC = () => {
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Cargo</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Taxa</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Itens</th>
-                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Vendas validas</th>
+                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Vendas válidas</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Confirmada</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Pendente</th>
                                 <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Cancelada</th>
-                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Ultimo lancamento</th>
-                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Acao</th>
+                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Último lançamento</th>
+                                <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right">Ação</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
@@ -892,13 +1223,19 @@ const Commissions: React.FC = () => {
                                 <tr>
                                     <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                                         <div className="animate-spin size-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                                        Carregando comissoes...
+                                        <p className="font-bold text-slate-700 dark:text-slate-200">Carregando comissões...</p>
+                                        <p className="text-xs text-slate-500 mt-1">Buscando produção, participantes e comandas do período selecionado.</p>
                                     </td>
                                 </tr>
                             ) : filteredRows.length === 0 ? (
                                 <tr>
                                     <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
-                                        Nenhum profissional com dados de comissao neste periodo.
+                                        <p className="font-bold text-slate-700 dark:text-slate-200">
+                                            {hasActiveFilters ? 'Nenhuma comissão encontrada com os filtros atuais.' : 'Nenhum profissional com comissão neste período.'}
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            A tela não altera comissão. Ajuste período/filtros ou revise a origem dos atendimentos e comandas.
+                                        </p>
                                     </td>
                                 </tr>
                             ) : (
@@ -909,11 +1246,14 @@ const Commissions: React.FC = () => {
                                                 <img src={row.avatar} alt={row.professionalName} className="size-10 rounded-full border border-slate-200 dark:border-border-dark object-cover" />
                                                 <div>
                                                     <p className="font-bold text-slate-900 dark:text-white">{row.professionalName}</p>
-                                                    <p className="text-xs text-slate-500">{row.items.length} lancamentos vinculados</p>
+                                                    <p className="text-xs text-slate-500">{row.items.length} lançamentos vinculados</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{row.role}</td>
+                                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                                            <div className="font-semibold">{row.role}</div>
+                                            <div className="text-xs text-emerald-600 dark:text-emerald-300">Comissionável</div>
+                                        </td>
                                         <td className="px-6 py-4">
                                             <span className="inline-flex px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
                                                 {row.commissionRate.toFixed(1)}%
@@ -955,24 +1295,30 @@ const Commissions: React.FC = () => {
             <Modal
                 isOpen={!!selectedRow}
                 onClose={() => setSelectedRow(null)}
-                title={selectedRow ? `Detalhes de comissao - ${selectedRow.professionalName}` : 'Detalhes de comissao'}
+                title={selectedRow ? `Detalhes de comissão - ${selectedRow.professionalName}` : 'Detalhes de comissão'}
                 maxWidth="xl"
             >
                 {selectedRow && (
                     <div className="space-y-4">
+                        <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 p-4">
+                            <p className="text-sm font-black text-slate-900 dark:text-white">Auditoria visual</p>
+                            <p className="text-sm text-slate-500 mt-1">
+                                Este detalhe mostra a base já calculada pela regra atual. Descontos e datas legadas são informativos nesta fase.
+                            </p>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
                                 <p className="text-xs font-bold uppercase text-slate-500">Taxa aplicada</p>
                                 <p className="text-xl font-black text-primary mt-1">{selectedRow.commissionRate.toFixed(1)}%</p>
                             </div>
                             <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Vendas validas</p>
+                                <p className="text-xs font-bold uppercase text-slate-500">Vendas válidas</p>
                                 <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
                                     {selectedRow.grossSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
                             </div>
                             <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Comissao prevista</p>
+                                <p className="text-xs font-bold uppercase text-slate-500">Comissão prevista</p>
                                 <p className="text-xl font-black text-emerald-500 mt-1">
                                     {selectedRow.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
@@ -986,31 +1332,62 @@ const Commissions: React.FC = () => {
                                         <tr>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Cliente</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Servico</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Serviço</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Qtd</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Valor vendido</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Divisao/Regra</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Comissao</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Divisão/Regra</th>
+                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Comissão</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                                         {selectedRow.items.map((item) => (
                                             <tr key={item.id}>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{new Date(item.createdAt).toLocaleDateString('pt-BR')}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                                                    <div>{new Date(item.createdAt).toLocaleDateString('pt-BR')}</div>
+                                                    <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                                        item.dateSource === 'appointment_start'
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                                            : 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200'
+                                                    }`}>
+                                                        {getProductionDateSourceLabel(item.dateSource)}
+                                                    </span>
+                                                </td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">
                                                     <div>{item.serviceName}</div>
-                                                    {item.isShared && <div className="text-xs text-amber-600 dark:text-amber-300">Compartilhado: {item.participantNames}</div>}
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                                            item.isShared
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
+                                                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                                        }`}>
+                                                            {item.isShared ? 'Compartilhado' : 'Solo'}
+                                                        </span>
+                                                        {item.discountAmount > 0 && (
+                                                            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200">
+                                                                Desconto informativo
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {item.isShared && item.participantNames && (
+                                                        <div className="text-xs text-amber-600 dark:text-amber-300 mt-1">Participantes: {item.participantNames}</div>
+                                                    )}
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Comanda {getShortComandaRef(item.comandaId)}</div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{item.quantity}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
                                                     {item.itemValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    <div>{item.isShared ? item.divisionLaunched : '-'}</div>
+                                                    <div>{item.isShared ? item.divisionLaunched : 'Solo 100%'}</div>
                                                     {item.isShared && (
                                                         <div className="text-xs text-slate-500 dark:text-slate-400">
                                                             Compartilhado: {item.sharedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </div>
+                                                    )}
+                                                    {item.discountAmount > 0 && (
+                                                        <div className="text-xs text-orange-600 dark:text-orange-300">
+                                                            Desconto da comanda: {item.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (não altera comissão aqui)
                                                         </div>
                                                     )}
                                                     <div className="text-xs text-slate-500 dark:text-slate-400">

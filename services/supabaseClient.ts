@@ -36,3 +36,10 @@ export type {
     RequiredTenantContext,
     RequiredTenantContextInput,
 } from '../src/lib/supabase/tenant';
+export {
+    extractSupabaseError,
+    logSupabaseError,
+} from '../src/lib/supabase/errors';
+export type {
+    SupabaseErrorPayload,
+} from '../src/lib/supabase/errors';

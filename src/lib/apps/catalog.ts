@@ -35,6 +35,14 @@ export const ACCESS_APPS: AccessAppDefinition[] = [
     audience: 'Clubes, recorrencia e membership',
     status: 'active',
   },
+  {
+    slug: 'estetica',
+    name: 'SMG Estética',
+    shortName: 'Estética',
+    description: 'Gestão para clínicas, studios e profissionais de estética.',
+    audience: 'Clínicas, studios e profissionais de estética',
+    status: 'active',
+  },
 ];
 
 export const getAccessApp = (appSlug: AppSlug): AccessAppDefinition =>

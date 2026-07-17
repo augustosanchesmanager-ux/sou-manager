@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -18,9 +18,16 @@ const Modal: React.FC<ModalProps> = ({
     footer,
     maxWidth = 'md'
 }) => {
+    const modalCardRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (isOpen) {
             document.body.classList.add('modal-open');
+            requestAnimationFrame(() => {
+                if (modalCardRef.current) {
+                    modalCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
         } else {
             document.body.classList.remove('modal-open');
         }
@@ -41,12 +48,13 @@ const Modal: React.FC<ModalProps> = ({
     };
 
     const modalContent = (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in pointer-events-auto">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 py-6 sm:p-6 sm:py-8 animate-fade-in pointer-events-auto">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-0" onClick={onClose}></div>
 
             {/* Modal Card — z-10 so it sits above the backdrop */}
             <div
+                ref={modalCardRef}
                 className={`bg-white dark:bg-card-dark w-full ${maxWidthClasses[maxWidth]} rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10`}
             >
                 <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5 shrink-0">

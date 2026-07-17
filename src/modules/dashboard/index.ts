@@ -8,12 +8,14 @@ export { AppointmentDetailModal } from './components/AppointmentDetailModal';
 export { TeamStatusCard } from './components/TeamStatusCard';
 export { UpcomingBirthdaysCard } from './components/UpcomingBirthdaysCard';
 export { NewClientModal } from './components/NewClientModal';
+export { QuickScheduleModal } from './components/QuickScheduleModal';
 export type {
   DashboardAppointment,
   DashboardChartPoint,
   DashboardClient,
   DashboardData,
   DashboardMetrics,
+  DashboardPeriod,
   DashboardProfile,
   DashboardService,
   DashboardStaff,
@@ -30,4 +32,3 @@ export type {
   DashboardService as Service,
   DashboardStaff as Staff,
 } from './types';
-

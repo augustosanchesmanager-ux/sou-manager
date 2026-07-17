@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { logSupabaseError } from '../src/lib/supabase/errors';
 
 interface AlertItem {
     id: string;
@@ -127,7 +128,7 @@ const DashboardAlerts: React.FC = () => {
 
             setAlerts(newAlerts);
         } catch (error) {
-            console.error('Error fetching alerts', error);
+            logSupabaseError('[DashboardAlerts] Erro ao buscar alertas', error, { tenantId });
         }
         setLoading(false);
     };

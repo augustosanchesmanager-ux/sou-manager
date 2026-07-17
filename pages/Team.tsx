@@ -4,6 +4,8 @@ import { supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
+import { getDefaultCommissionRateForRole } from '../src/lib/staff/roles';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 interface TeamMember {
     id: string;
@@ -16,14 +18,23 @@ interface TeamMember {
     status: string;
 }
 
-const roles = ['Manager', 'Barber', 'Receptionist'];
-const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
-const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', Barber: 'content_cut', Receptionist: 'support_agent' };
+const roles = ['Manager', 'AdminManager', 'Barber', 'Receptionist'];
+const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', AdminManager: 'shield', Barber: 'content_cut', Receptionist: 'support_agent' };
 
 const Team: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { tenantId } = useAuth();
+    const { tenantId, appSlug } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
+    const memberLabel = isEsteticaApp ? labels.professional : 'Colaborador';
+    const memberLabelLower = memberLabel.toLowerCase();
+    const memberPluralLabel = isEsteticaApp ? labels.professionalPlural : 'Equipe';
+    const memberPluralLower = isEsteticaApp ? labels.professionalPlural.toLowerCase() : 'membros';
+    const commissionLabel = isEsteticaApp ? 'Repasse' : 'Comissão';
+    const roleLabels: Record<string, string> = isEsteticaApp
+        ? { Manager: 'Gestor Operacional', AdminManager: 'Gestor Administrativo', Barber: labels.professional, Receptionist: 'Recepção' }
+        : { Manager: 'Gerente Operacional', AdminManager: 'Gerente Administrativo', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
     const [team, setTeam] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -33,7 +44,8 @@ const Team: React.FC = () => {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
+    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
+    const [commissionEditedManually, setCommissionEditedManually] = useState(false);
 
     const fetchTeam = useCallback(async () => {
         if (!tenantId) {
@@ -48,9 +60,9 @@ const Team: React.FC = () => {
             .eq('tenant_id', tenantId)
             .order('name');
         if (data) setTeam(data);
-        if (error) setToast({ message: 'Erro ao carregar equipe.', type: 'error' });
+        if (error) setToast({ message: `Erro ao carregar ${isEsteticaApp ? 'profissionais' : 'equipe'}.`, type: 'error' });
         setLoading(false);
-    }, [tenantId]);
+    }, [isEsteticaApp, tenantId]);
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
@@ -65,12 +77,14 @@ const Team: React.FC = () => {
 
     const openNewModal = () => {
         setEditingMember(null);
-        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: '40', status: 'active', password: '' });
+        setCommissionEditedManually(false);
+        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
         setShowModal(true);
     };
 
     const openEditModal = (member: TeamMember) => {
         setEditingMember(member);
+        setCommissionEditedManually(false);
         setForm({
             name: member.name,
             email: member.email,
@@ -81,6 +95,21 @@ const Team: React.FC = () => {
             password: '', // Não editamos senha por aqui
         });
         setShowModal(true);
+    };
+
+    const handleRoleChange = (role: string) => {
+        setForm((current) => ({
+            ...current,
+            role,
+            commission_rate: commissionEditedManually
+                ? current.commission_rate
+                : String(getDefaultCommissionRateForRole(role)),
+        }));
+    };
+
+    const handleCommissionRateChange = (value: string) => {
+        setCommissionEditedManually(true);
+        setForm((current) => ({ ...current, commission_rate: value }));
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -106,7 +135,13 @@ const Team: React.FC = () => {
                 .update(editableFields)
                 .eq('id', editingMember.id)
                 .eq('tenant_id', tenantId);
-            if (error) { console.error('UPDATE ERROR:', JSON.stringify(error)); setToast({ message: `Erro ao atualizar: ${error.message}`, type: 'error' }); return; }
+            if (error) {
+                console.error('UPDATE ERROR:', JSON.stringify(error));
+                let friendlyMsg = error.message;
+                if (error.code === '23514') friendlyMsg = 'Valor de cargo inválido. Use: Gerente, Barbeiro ou Recepcionista.';
+                setToast({ message: `Erro ao atualizar: ${friendlyMsg}`, type: 'error' });
+                return;
+            }
             setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
             if (!tenantId) {
@@ -143,6 +178,16 @@ const Team: React.FC = () => {
             if (edgeError || edgeData?.error) {
                 // Try to extract the real message from the Edge Function response body
                 let msg = edgeData?.error || edgeData?.message || edgeError?.message || 'Erro desconhecido';
+                let code = edgeData?.code || null;
+                let details = edgeData?.details || null;
+                let hint = edgeData?.hint || null;
+
+                // Also check staff_error for additional context
+                const staffError = edgeData?.staff_error;
+                if (staffError?.message) {
+                    details = details || `Staff error: ${staffError.message}`;
+                    code = code || staffError.code || null;
+                }
 
                 // FunctionsHttpError wraps the response; try to parse the body
                 if (edgeError && typeof (edgeError as any).context?.json === 'function') {
@@ -150,10 +195,16 @@ const Team: React.FC = () => {
                         const body = await (edgeError as any).context.json();
                         if (body?.error) msg = body.error;
                         else if (body?.message) msg = body.message;
+                        if (body?.code) code = body.code;
+                        if (body?.details) details = body.details;
+                        if (body?.hint) hint = body.hint;
+                        if (body?.staff_error?.message) {
+                            details = details || `Staff error: ${body.staff_error.message}`;
+                        }
                     } catch (_) { }
                 }
 
-                console.error('Edge function error:', { edgeError, edgeData, msg });
+                console.error('Edge function error:', { edgeError, edgeData, msg, code, details, hint });
 
                 // Translate common errors to pt-br
                 let friendlyMsg = msg;
@@ -166,16 +217,20 @@ const Team: React.FC = () => {
                 } else if (msg.includes('email_exists') || msg.includes('duplicate')) {
                     friendlyMsg = 'Este e-mail já está cadastrado.';
                 } else if (msg.includes('not authorized') || msg.includes('Unauthorized') || msg.includes('403')) {
-                    friendlyMsg = 'Sem permissão. Certifique-se de estar logado como Gerente.';
+                    friendlyMsg = `Sem permissão. Certifique-se de estar logado como ${isEsteticaApp ? 'Gestor' : 'Gerente'}.`;
                 }
-                setToast({ message: `Erro ao criar colaborador: ${friendlyMsg}`, type: 'error' });
+                setToast({ message: `Erro ao criar ${memberLabelLower}: ${friendlyMsg}`, type: 'error' });
                 console.error('Detalhe completo do erro:', msg);
                 return;
             }
 
             // After creation, optionally update the extra operational details on the staff table that the function didn't set
-            if (edgeData?.user?.id) {
-                await supabase
+            if (edgeData?.warning || edgeData?.staff_error) {
+                const staffErrMsg = edgeData.staff_error?.message || edgeData.warning || 'Registro de equipe não criado.';
+                console.warn('Staff record warning:', edgeData.staff_error || edgeData.warning);
+                setToast({ message: `${memberLabel} criado no sistema, mas houve erro ao criar registro de equipe: ${staffErrMsg}`, type: 'error' });
+            } else if (edgeData?.user?.id) {
+                const { error: phoneUpdateErr } = await supabase
                     .from('staff')
                     .update({
                         phone: form.phone,
@@ -183,9 +238,13 @@ const Team: React.FC = () => {
                     })
                     .eq('id', edgeData.user.id)
                     .eq('tenant_id', tenantId);
+                if (phoneUpdateErr) {
+                    console.warn('Supplementary staff update failed:', JSON.stringify(phoneUpdateErr));
+                }
+                setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
+            } else {
+                setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
             }
-
-            setToast({ message: 'Login cadastrado com sucesso!', type: 'success' });
         }
 
         setShowModal(false);
@@ -207,7 +266,7 @@ const Team: React.FC = () => {
             console.error('DELETE ERROR:', JSON.stringify(error));
             setToast({ message: `Erro ao deletar: ${error.message} (${error.code})`, type: 'error' });
         } else {
-            setToast({ message: 'Colaborador removido.', type: 'info' });
+            setToast({ message: `${memberLabel} removido.`, type: 'info' });
             fetchTeam();
         }
     };
@@ -217,20 +276,20 @@ const Team: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">Equipe</h2>
-                    <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} membro(s) ativo(s)</p>
+                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">{memberPluralLabel}</h2>
+                    <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} {memberPluralLower} ativo(s)</p>
                 </div>
                 <button onClick={openNewModal}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all">
                     <span className="material-symbols-outlined text-lg">person_add</span>
-                    Novo Colaborador
+                    Novo {memberLabelLower}
                 </button>
             </div>
 
             {/* Search */}
             <div className="relative max-w-md">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                <input type="text" placeholder="Buscar colaborador..." value={search} onChange={(e) => setSearch(e.target.value)}
+                <input type="text" placeholder={`Buscar ${memberLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
                     className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
             </div>
 
@@ -240,7 +299,7 @@ const Team: React.FC = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-10 text-slate-500">Nenhum membro encontrado.</div>
+                <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre profissionais para organizar agenda e atendimentos.' : 'Nenhum membro encontrado.'}</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filtered.map(member => (
@@ -265,7 +324,7 @@ const Team: React.FC = () => {
 
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-slate-50 dark:bg-[#141414] border border-slate-100 dark:border-[#262626] p-3 rounded-xl">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Comissão</p>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{commissionLabel}</p>
                                     <p className="text-xl mt-0.5 font-bold text-slate-900 dark:text-white display-font">{member.commission_rate}%</p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-[#141414] border border-slate-100 dark:border-[#262626] p-3 rounded-xl">
@@ -302,7 +361,7 @@ const Team: React.FC = () => {
             <Modal
                 isOpen={showModal}
                 onClose={() => { setShowModal(false); setEditingMember(null); }}
-                title={editingMember ? 'Editar Colaborador' : 'Novo Colaborador'}
+                title={editingMember ? `Editar ${memberLabel}` : `Novo ${memberLabel}`}
                 maxWidth="md"
             >
                 <form onSubmit={handleSave} className="space-y-4">
@@ -315,7 +374,7 @@ const Team: React.FC = () => {
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email</label>
                             <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="email@barber.com" />
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder={isEsteticaApp ? 'email@studio.com' : 'email@barber.com'} />
                         </div>
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
@@ -326,22 +385,22 @@ const Team: React.FC = () => {
                     {!editingMember && (
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial)</label>
-                            <input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                            <input type="password" required autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="Mínimo 6 caracteres" />
-                            <p className="text-[10px] text-slate-400 mt-1">Essa será a senha que o colaborador usará para logar no sistema.</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Essa será a senha que {isEsteticaApp ? 'o profissional' : 'o colaborador'} usará para logar no sistema.</p>
                         </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
-                            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                            <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
                                 {roles.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Comissão (%)</label>
-                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })}
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">{commissionLabel} (%)</label>
+                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => handleCommissionRateChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
                         </div>
                     </div>

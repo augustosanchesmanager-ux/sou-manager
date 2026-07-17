@@ -17,7 +17,13 @@ CREATE INDEX IF NOT EXISTS idx_comandas_client_status ON public.comandas(client_
 CREATE INDEX IF NOT EXISTS idx_comanda_items_service ON public.comanda_items(service_id);
 
 -- Transactions: filter by tenant + type + date (for reports)
-CREATE INDEX IF NOT EXISTS idx_transactions_tenant_type_date ON public.transactions(tenant_id, type, date DESC);
+DO $$
+BEGIN
+  IF to_regclass('public.transactions') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_transactions_tenant_type_date
+    ON public.transactions(tenant_id, type, date DESC);
+  END IF;
+END $$;
 
 -- Clients: active clients lookup
 CREATE INDEX IF NOT EXISTS idx_clients_tenant_status ON public.clients(tenant_id, status);
@@ -35,7 +41,13 @@ CREATE INDEX IF NOT EXISTS idx_feedback_barber_tenant_created ON public.feedback
 CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON public.support_tickets(created_at DESC);
 
 -- Transactions: date for reports
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON public.transactions(date DESC);
+DO $$
+BEGIN
+  IF to_regclass('public.transactions') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_transactions_date
+    ON public.transactions(date DESC);
+  END IF;
+END $$;
 
 -- Promotions: created_at for recent promotions
 CREATE INDEX IF NOT EXISTS idx_promotions_created ON public.promotions(created_at DESC);

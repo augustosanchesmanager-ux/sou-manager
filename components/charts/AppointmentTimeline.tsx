@@ -17,10 +17,10 @@ interface AppointmentTimelineProps {
 }
 
 const STATUS_CONFIG = {
-  completed: { icon: 'task_alt', color: 'emerald', bg: 'bg-emerald-500', label: 'Concluído' },
-  cancelled: { icon: 'cancel', color: 'rose', bg: 'bg-rose-500', label: 'Cancelado' },
-  no_show: { icon: 'person_off', color: 'amber', bg: 'bg-amber-500', label: 'Faltou' },
-  pending: { icon: 'schedule', color: 'blue', bg: 'bg-blue-500', label: 'Pendente' },
+  completed: { icon: 'task_alt', bg: 'bg-emerald-500', text: 'text-emerald-500', label: 'Concluído' },
+  cancelled: { icon: 'cancel', bg: 'bg-rose-500', text: 'text-rose-500', label: 'Cancelado' },
+  no_show: { icon: 'person_off', bg: 'bg-[#B88A44]', text: 'text-[#B88A44]', label: 'Faltou' },
+  pending: { icon: 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: 'Pendente' },
 };
 
 export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
@@ -77,12 +77,12 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
       {/* Timeline */}
       <div className="relative">
         {/* Vertical Line */}
-        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-purple-500 to-rose-500" />
+        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[linear-gradient(180deg,#007BFF,#00D2FF,#B88A44)]" />
 
         {/* Timeline Items */}
         <div className="space-y-3">
           {displayData.map((apt, index) => {
-            const config = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending || { icon: 'schedule', color: 'blue', bg: 'bg-blue-500', label: 'Pendente' };
+            const config = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending || { icon: 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: 'Pendente' };
             const isFirst = index === 0;
             const isLast = index === displayData.length - 1;
             
@@ -94,14 +94,14 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
                   before:absolute before:left-2.5 before:top-3 before:size-3 
                   before:rounded-full before:bg-white before:border-2 
                   before:border-slate-300 before:z-10
-                  ${isFirst ? 'before:border-primary before:bg-primary' : ''}
+                  ${isFirst ? 'before:border-[#007BFF] before:bg-[#007BFF]' : ''}
                   ${isLast ? 'before:border-rose-500 before:bg-rose-500' : ''}
                 `}
               >
                 {/* Dot */}
                 <div className={`
                   absolute left-2 top-2 size-3 rounded-full ${config.bg}
-                  ${isFirst ? 'ring-4 ring-primary/20' : ''}
+                  ${isFirst ? 'ring-4 ring-[#007BFF]/20' : ''}
                 `} />
 
                 {/* Card */}
@@ -119,7 +119,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
                 `}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-sm text-${config.color}-500`}>
+                      <span className={`material-symbols-outlined text-sm ${config.text}`}>
                         {config.icon}
                       </span>
                       <div>

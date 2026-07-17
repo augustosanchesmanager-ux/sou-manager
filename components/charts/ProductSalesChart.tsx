@@ -17,8 +17,8 @@ interface ProductSalesChartProps {
 }
 
 const DEFAULT_COLORS = [
-  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981',
-  '#06B6D4', '#EF4444', '#A78BFA', '#F97316', '#84CC16'
+  '#007BFF', '#00D2FF', '#B88A44', '#10B981', '#EF4444',
+  '#14B8A6', '#64748B', '#003366', '#F97316', '#84CC16'
 ];
 
 export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
@@ -46,7 +46,7 @@ export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span className="material-symbols-outlined text-pink-500">shopping_bag</span>
+          <span className="material-symbols-outlined text-[#B88A44]">shopping_bag</span>
           {title}
         </h3>
         <span className="text-xs text-slate-400">
@@ -66,7 +66,7 @@ export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
               <div className={`
                 size-6 rounded-lg flex items-center justify-center text-xs font-black
                 ${index < 3 
-                  ? 'bg-gradient-to-br from-primary to-primary/70 text-white' 
+                  ? 'bg-[#007BFF] text-white' 
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}
               `}>
                 {index + 1}
@@ -88,7 +88,7 @@ export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
                       {formatCurrency(product.revenue)}
                     </p>
                     <p className="text-[10px] text-slate-400">
-                      {product.quantity}× R$ {(product.revenue / product.quantity).toFixed(0)}
+                      {product.quantity}× R$ {(product.revenue / Math.max(product.quantity, 1)).toFixed(0)}
                     </p>
                   </div>
                 </div>

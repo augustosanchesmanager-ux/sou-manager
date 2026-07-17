@@ -10,10 +10,13 @@ import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { logSupabaseError } from '../src/lib/supabase/errors';
 import ComandaListItem from '../components/ComandaListItem';
-import ComandaSidebar from '../components/ComandaSidebar';
+import ComandaSidebar, { type ComandaFinancialHistory } from '../components/ComandaSidebar';
 import ComandaFiltersModal from '../components/ComandaFiltersModal';
 
 type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
@@ -96,6 +99,26 @@ interface AppointmentLookup {
     start_time: string;
 }
 
+interface ComandaTransactionRow {
+    id: string;
+    tenant_id?: string | null;
+    source_id?: string | null;
+    amount: number | string | null;
+    payment_method?: string | null;
+    date?: string | null;
+    created_at?: string | null;
+    status?: string | null;
+}
+
+interface FinancialReversalRow {
+    original_transaction_id: string | null;
+    reversal_transaction_id?: string | null;
+    reversal_type?: string | null;
+    amount: number | string | null;
+    reason_type?: string | null;
+    created_at?: string | null;
+}
+
 interface ComandaItemRow {
     id: string;
     comanda_id: string;
@@ -116,6 +139,7 @@ interface ComandasPreferences {
     sortField: SortField;
     sortDirection: SortDirection;
     staffFilter: string;
+    paymentMethodFilter: string;
     minTotal: string;
     maxTotal: string;
     consumptionType: ConsumptionType;
@@ -140,6 +164,12 @@ const STATUS_LABELS: Record<'all' | ComandaStatus, string> = {
 };
 
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
+const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price, product_id, service_id';
+const CLIENT_NAME_FALLBACK = 'Cliente não informado';
+const NOT_INFORMED_FALLBACK = 'Não informado';
+const BATCH_SIZE = 80;
+
+// logSupabaseError is imported from src/lib/supabase/errors.ts
 
 const formatDateInputValue = (date: Date) => {
     const year = date.getFullYear();
@@ -164,8 +194,36 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
+type SupabaseQueryBuilder = ReturnType<ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>['from']>;
+
+const batchedIn = async <T extends Record<string, unknown>>(
+    client: ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>,
+    table: string,
+    select: string,
+    column: string,
+    ids: string[],
+    extraFilters?: (q: SupabaseQueryBuilder) => SupabaseQueryBuilder,
+): Promise<{ data: T[] | null; error: unknown }> => {
+    if (ids.length === 0) return { data: [], error: null };
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
+    }
+    const allData: T[] = [];
+    let lastError: unknown = null;
+    for (const batch of batches) {
+        let q = client.from(table).select(select).in(column, batch);
+        if (extraFilters) q = extraFilters(q);
+        const { data, error } = await q as { data: T[] | null; error: unknown };
+        if (error) { lastError = error; break; }
+        if (data) allData.push(...data);
+    }
+    return { data: lastError ? null : allData, error: lastError };
+};
+
 const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+const getShortComandaRef = (id: string) => `#${getDisplayId(id)}`;
 const formatMonthInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const getDefaultLegacyReferenceMonth = () => {
     const date = new Date();
@@ -187,6 +245,13 @@ const getStatusSortValue = (status: ComandaStatus) => {
         cancelled: 2,
     };
     return orderMap[status] ?? 99;
+};
+
+const getStatusContextLabel = (status: ComandaStatus, isEsteticaApp = false) => {
+    if (status === 'open') return isEsteticaApp ? 'Aberto para procedimento, produto ou finalização.' : 'Aberta para consumo ou baixa no checkout.';
+    if (status === 'blocked') return 'Bloqueada para baixa financeira segura.';
+    if (status === 'paid') return 'Baixada/fechada no financeiro.';
+    return 'Anulada/cancelada com motivo operacional.';
 };
 
 const getConsumptionSummary = (comanda: Comanda) => {
@@ -223,6 +288,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
         sortField: 'date',
         sortDirection: 'desc',
         staffFilter: '',
+        paymentMethodFilter: '',
         minTotal: '',
         maxTotal: '',
         consumptionType: 'all',
@@ -251,6 +317,7 @@ const loadComandasPreferences = (): ComandasPreferences => {
                 ? (parsed.sortDirection as SortDirection)
                 : defaultPreferences.sortDirection,
             staffFilter: typeof parsed.staffFilter === 'string' ? parsed.staffFilter : defaultPreferences.staffFilter,
+            paymentMethodFilter: typeof parsed.paymentMethodFilter === 'string' ? parsed.paymentMethodFilter : defaultPreferences.paymentMethodFilter,
             minTotal: typeof parsed.minTotal === 'string' ? parsed.minTotal : defaultPreferences.minTotal,
             maxTotal: typeof parsed.maxTotal === 'string' ? parsed.maxTotal : defaultPreferences.maxTotal,
             consumptionType: ['all', 'service', 'product', 'mixed'].includes(parsed.consumptionType || '')
@@ -285,9 +352,22 @@ const KpiCard: React.FC<{
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { appSlug, schema, tenantId, user, canAccessSuperAdmin } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
+    const orderLabel = labels.order;
+    const orderLabelLower = orderLabel.toLowerCase();
+    const orderPluralLabel = labels.orderPlural;
+    const orderPluralLower = orderPluralLabel.toLowerCase();
+    const servicePluralLabel = labels.servicePlural;
+    const servicePluralLower = servicePluralLabel.toLowerCase();
+    const financialImpactCopy = isEsteticaApp ? 'o financeiro e repasses' : 'o financeiro e comissões';
+    const statusLabels: Record<'all' | ComandaStatus, string> = isEsteticaApp
+        ? { all: 'Todos', blocked: 'Bloqueados', open: 'Abertos', paid: 'Finalizados', cancelled: 'Cancelados' }
+        : STATUS_LABELS;
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
+    const [financialHistoryByComandaId, setFinancialHistoryByComandaId] = useState<Record<string, ComandaFinancialHistory>>({});
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | ComandaStatus>(preferences.filterStatus);
     const [searchTerm, setSearchTerm] = useState(preferences.searchTerm);
@@ -297,6 +377,7 @@ const Comandas: React.FC = () => {
     const [sortField, setSortField] = useState<SortField>(preferences.sortField);
     const [sortDirection, setSortDirection] = useState<SortDirection>(preferences.sortDirection);
     const [staffFilter, setStaffFilter] = useState(preferences.staffFilter);
+    const [paymentMethodFilter, setPaymentMethodFilter] = useState(preferences.paymentMethodFilter);
     const [minTotal, setMinTotal] = useState(preferences.minTotal);
     const [maxTotal, setMaxTotal] = useState(preferences.maxTotal);
     const [consumptionType, setConsumptionType] = useState<ConsumptionType>(preferences.consumptionType);
@@ -313,15 +394,19 @@ const Comandas: React.FC = () => {
     const [cancelReason, setCancelReason] = useState('');
     const [cancelReasonOther, setCancelReasonOther] = useState('');
     const [filtersModalOpen, setFiltersModalOpen] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
             setComandas([]);
+            setFinancialHistoryByComandaId({});
+            setLoadError(null);
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        setLoadError(null);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
             const client = getScopedClient('barber');
@@ -339,10 +424,14 @@ const Comandas: React.FC = () => {
             if (resolvedTenantId) query = query.eq('tenant_id', resolvedTenantId);
 
             const { data, error } = await query;
-            if (error) throw error;
+            if (error) {
+                logSupabaseError('[Comandas] Erro ao buscar comandas', error, { tenantId: resolvedTenantId });
+                throw error;
+            }
 
             if (!data || data.length === 0) {
                 setComandas([]);
+                setFinancialHistoryByComandaId({});
                 return;
             }
 
@@ -355,27 +444,69 @@ const Comandas: React.FC = () => {
                 comandasRows.map((c) => c.client_id).filter((id): id is string => Boolean(id)),
             ));
 
-            const { data: itemsData, error: itemsError } = await client
-                .from('comanda_items')
-                .select('id, comanda_id, staff_id, product_name, quantity, unit_price, product_id, service_id')
-                .in('comanda_id', comandaIds);
+            const { data: itemsData, error: itemsError } = await batchedIn(
+                client, 'comanda_items', COMANDA_ITEMS_SELECT, 'comanda_id', comandaIds,
+            );
 
-            if (itemsError) throw itemsError;
             const itemRows = (itemsData || []) as ComandaItemRow[];
+            if (itemsError) {
+                logSupabaseError('[Comandas] Erro ao buscar itens das comandas', itemsError, {
+                    select: COMANDA_ITEMS_SELECT,
+                    comandaCount: comandaIds.length,
+                });
+            }
 
             const staffIds = Array.from(new Set([
                 ...comandasRows.map((c) => c.staff_id ?? null),
                 ...itemRows.map((i) => i.staff_id ?? null),
             ].filter((id): id is string => Boolean(id))));
 
-            const [clientsResult, staffResult, appointmentsResult] = await Promise.all([
-                clientIds.length > 0 ? client.from('clients').select('id, name, avatar, phone').in('id', clientIds) : Promise.resolve({ data: [] as ClientLookup[], error: null }),
-                staffIds.length > 0 ? client.from('staff').select('id, name').in('id', staffIds) : Promise.resolve({ data: [] as StaffLookup[], error: null }),
-                appointmentIds.length > 0 ? client.from('appointments').select('id, start_time').in('id', appointmentIds) : Promise.resolve({ data: [] as AppointmentLookup[], error: null }),
-            ]);
+            let clientsResult: { data: ClientLookup[] | null; error: unknown } = { data: null, error: null };
+            let staffResult: { data: StaffLookup[] | null; error: unknown } = { data: null, error: null };
+            let appointmentsResult: { data: AppointmentLookup[] | null; error: unknown } = { data: null, error: null };
 
-            const clientsById = ((clientsResult.data || []) as ClientLookup[]).reduce((acc, c) => { acc[c.id] = c; return acc; }, {} as Record<string, ClientLookup>);
-            const staffById = ((staffResult.data || []) as StaffLookup[]).reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<string, StaffLookup>);
+            if (clientIds.length > 0) {
+                try {
+                    clientsResult = await batchedIn(client, 'clients', 'id, name, avatar, phone', 'id', clientIds);
+                } catch (err) {
+                    clientsResult = { data: null, error: err };
+                }
+            } else {
+                clientsResult = { data: [], error: null };
+            }
+
+            if (staffIds.length > 0) {
+                try {
+                    staffResult = await batchedIn(client, 'staff', 'id, name', 'id', staffIds);
+                } catch (err) {
+                    staffResult = { data: null, error: err };
+                }
+            } else {
+                staffResult = { data: [], error: null };
+            }
+
+            if (appointmentIds.length > 0) {
+                try {
+                    appointmentsResult = await batchedIn(client, 'appointments', 'id, start_time', 'id', appointmentIds);
+                } catch (err) {
+                    appointmentsResult = { data: null, error: err };
+                }
+            } else {
+                appointmentsResult = { data: [], error: null };
+            }
+
+            if (clientsResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar clientes das comandas', clientsResult.error, { clientCount: clientIds.length });
+            }
+            if (staffResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar profissionais das comandas', staffResult.error, { staffCount: staffIds.length });
+            }
+            if (appointmentsResult.error) {
+                logSupabaseError('[Comandas] Erro ao buscar agendamentos das comandas', appointmentsResult.error, { appointmentCount: appointmentIds.length });
+            }
+
+            const clientsById = ((clientsResult.error ? [] : clientsResult.data) || [] as ClientLookup[]).reduce((acc, c) => { acc[c.id] = c; return acc; }, {} as Record<string, ClientLookup>);
+            const staffById = ((staffResult.error ? [] : staffResult.data) || [] as StaffLookup[]).reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<string, StaffLookup>);
             const appointmentsById = ((appointmentsResult.error ? [] : appointmentsResult.data) || [] as AppointmentLookup[]).reduce((acc, a) => { acc[a.id] = a; return acc; }, {} as Record<string, AppointmentLookup>);
 
             const itemsByComanda = itemRows.reduce((acc, item) => {
@@ -384,21 +515,118 @@ const Comandas: React.FC = () => {
                 return acc;
             }, {} as Record<string, ComandaItem[]>);
 
+            const transactionsSelect = 'id, tenant_id, source_id, amount, payment_method, date, created_at, status';
+            const { data: transactionRows, error: transactionsError } = await batchedIn(
+                client, 'transactions', transactionsSelect, 'source_id', comandaIds,
+                (q) => {
+                    let filtered = q.eq('source_type', 'comanda');
+                    if (resolvedTenantId) filtered = filtered.eq('tenant_id', resolvedTenantId);
+                    return filtered;
+                },
+            );
+
+            if (transactionsError) {
+                logSupabaseError('[Comandas] Erro ao buscar histórico financeiro das comandas', transactionsError, {
+                    comandaCount: comandaIds.length,
+                    tenantId: resolvedTenantId,
+                });
+                setFinancialHistoryByComandaId({});
+            } else {
+                const transactions = ((transactionRows || []) as ComandaTransactionRow[])
+                    .filter((transaction) => Boolean(transaction.id) && Boolean(transaction.source_id));
+                const transactionIds = transactions.map((transaction) => transaction.id);
+                const reversedByTransactionId = new Map<string, number>();
+                const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
+
+                if (transactionIds.length > 0) {
+                    let reversalsQuery = supabase
+                        .from('financial_reversals')
+                        .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+                        .in('original_transaction_id', transactionIds);
+
+                    if (resolvedTenantId) {
+                        reversalsQuery = reversalsQuery.eq('tenant_id', resolvedTenantId);
+                    }
+
+                    const { data: reversals, error: reversalsError } = await reversalsQuery;
+
+                    if (reversalsError) {
+                        logSupabaseError('[Comandas] Erro ao buscar reversoes financeiras das comandas', reversalsError, {
+                            transactionCount: transactionIds.length,
+                            tenantId: resolvedTenantId,
+                        });
+                    } else {
+                        ((reversals || []) as FinancialReversalRow[]).forEach((reversal) => {
+                            if (!reversal.original_transaction_id) return;
+                            const amount = Math.abs(Number(reversal.amount || 0));
+                            reversedByTransactionId.set(
+                                reversal.original_transaction_id,
+                                (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                            );
+                            const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                            current.push({
+                                reversalTransactionId: reversal.reversal_transaction_id || null,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount,
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                            reversalsByTransactionId.set(reversal.original_transaction_id, current);
+                        });
+                    }
+                }
+
+                const historyByComanda = transactions.reduce<Record<string, ComandaFinancialHistory>>((acc, transaction) => {
+                    if (!transaction.source_id) return acc;
+                    const amount = Number(transaction.amount || 0);
+                    const reversedAmount = Math.min(amount, reversedByTransactionId.get(transaction.id) || 0);
+                    const reversibleAmount = Math.max(amount - reversedAmount, 0);
+                    const reversalStatus: ComandaFinancialHistory['reversalStatus'] = reversedAmount <= 0
+                        ? 'none'
+                        : reversibleAmount <= 0
+                            ? 'full'
+                            : 'partial';
+
+                    const current = acc[transaction.source_id];
+                    const transactionDate = transaction.date || transaction.created_at || null;
+                    if (current && new Date(current.date || 0).getTime() >= new Date(transactionDate || 0).getTime()) {
+                        return acc;
+                    }
+
+                    acc[transaction.source_id] = {
+                        transactionId: transaction.id,
+                        amount,
+                        paymentMethod: transaction.payment_method || NOT_INFORMED_FALLBACK,
+                        date: transactionDate,
+                        status: transaction.status || null,
+                        reversedAmount,
+                        reversibleAmount,
+                        reversalStatus,
+                        reversals: reversalsByTransactionId.get(transaction.id) || [],
+                    };
+                    return acc;
+                }, {});
+
+                setFinancialHistoryByComandaId(historyByComanda);
+            }
+
             const hydratedComandas = comandasRows.map((comanda) => {
                 const mappedItems = itemsByComanda[comanda.id] || [];
                 const mappedStaffIds = Array.from(new Set([
                     comanda.staff_id, ...mappedItems.map((i) => i.staff_id)
                 ].filter((id): id is string => Boolean(id))));
-                const mappedStaffNames = mappedStaffIds.map((id) => staffById[id]?.name).filter((name): name is string => Boolean(name));
+                const mappedStaffNames = mappedStaffIds
+                    .map((id) => staffById[id]?.name || NOT_INFORMED_FALLBACK)
+                    .filter((name): name is string => Boolean(name));
 
                 return {
                     ...comanda,
                     clients: {
-                        name: clientsById[comanda.client_id]?.name || 'Cliente sem nome',
+                        name: clientsById[comanda.client_id]?.name || CLIENT_NAME_FALLBACK,
                         avatar: clientsById[comanda.client_id]?.avatar || '',
                         phone: clientsById[comanda.client_id]?.phone || null,
                     },
-                    staff: comanda.staff_id ? staffById[comanda.staff_id] : undefined,
+                    staff: { name: comanda.staff_id ? staffById[comanda.staff_id]?.name || NOT_INFORMED_FALLBACK : NOT_INFORMED_FALLBACK },
                     appointment: comanda.appointment_id ? { start_time: appointmentsById[comanda.appointment_id]?.start_time || null } : undefined,
                     comanda_items: mappedItems,
                     staff_ids: mappedStaffIds,
@@ -416,15 +644,26 @@ const Comandas: React.FC = () => {
                     }));
                     setComandas(enrichedComandas);
                     return;
-                } catch {
-                    console.warn('Erro ao carregar info do Clube');
+                } catch (chefClubError) {
+                    logSupabaseError('[Comandas] Erro ao buscar info do Clube', chefClubError, {
+                        clientCount: clientIds.length,
+                        tenantId: resolvedTenantId,
+                    });
                 }
             }
 
             setComandas(hydratedComandas);
         } catch (error) {
-            console.error(error);
-            setToast({ message: 'Erro ao carregar comandas.', type: 'error' });
+            logSupabaseError('[Comandas] Falha critica ao carregar pagina', error, {
+                tenantId,
+                appSlug,
+                canAccessSuperAdmin,
+            });
+            const message = `Não foi possível carregar ${orderPluralLower}. Nenhuma ação financeira foi aplicada.`;
+            setLoadError(message);
+            setComandas([]);
+            setFinancialHistoryByComandaId({});
+            setToast({ message, type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -464,7 +703,7 @@ const Comandas: React.FC = () => {
                     .in('id', commandsToUnblock);
 
                 if (error) {
-                    console.warn('Erro ao desbloquear comandas:', error);
+                    logSupabaseError('[Comandas] Erro ao desbloquear comandas', error, { comandaIds: commandsToUnblock });
                     return;
                 }
 
@@ -474,7 +713,7 @@ const Comandas: React.FC = () => {
                     )
                 );
             } catch (err) {
-                console.warn('Erro ao desbloquear comandas:', err);
+                logSupabaseError('[Comandas] Erro ao desbloquear comandas (catch)', err, { comandaIds: commandsToUnblock });
             }
         };
 
@@ -483,9 +722,9 @@ const Comandas: React.FC = () => {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const nextPrefs = { filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, minTotal, maxTotal, consumptionType };
+        const nextPrefs = { filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType };
         window.localStorage.setItem(COMANDAS_PREFERENCES_KEY, JSON.stringify(nextPrefs));
-    }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, minTotal, maxTotal, consumptionType]);
+    }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
 
     const applyQuickRange = (range: QuickRange) => {
         const today = new Date();
@@ -519,17 +758,13 @@ const Comandas: React.FC = () => {
         Boolean(searchTerm.trim()),
         hasCustomDateFilter,
         Boolean(staffFilter),
+        Boolean(paymentMethodFilter),
         Boolean(minTotal),
         Boolean(maxTotal),
         consumptionType !== 'all',
     ].filter(Boolean).length;
-    const hasAdvancedFilters = Boolean(staffFilter || minTotal || maxTotal || consumptionType !== 'all');
+    const hasAdvancedFilters = Boolean(staffFilter || paymentMethodFilter || minTotal || maxTotal || consumptionType !== 'all');
     const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
-
-    const openCountAll = comandas.filter((c) => c.status === 'open').length;
-    const paidCountAll = comandas.filter((c) => c.status === 'paid').length;
-    const cancelledCountAll = comandas.filter((c) => c.status === 'cancelled').length;
-    const blockedCountAll = comandas.filter((c) => c.status === 'blocked').length;
 
     const dateFilteredComandas = comandas.filter((c) => {
         const createdAt = new Date(c.created_at);
@@ -541,18 +776,24 @@ const Comandas: React.FC = () => {
         return true;
     });
 
-    const filteredComandas = dateFilteredComandas.filter((c) => {
-        const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const statusScopeComandas = dateFilteredComandas.filter((c) => {
         const matchesSearch = !normalizedSearchTerm
             || c.clients.name.toLowerCase().includes(normalizedSearchTerm)
+            || (c.clients.phone || '').toLowerCase().includes(normalizedSearchTerm)
             || c.id.toLowerCase().includes(normalizedSearchTerm)
+            || String(getDisplayId(c.id)).includes(normalizedSearchTerm)
             || c.staff_names.some((name) => name.toLowerCase().includes(normalizedSearchTerm));
-        const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
         const matchesStaff = !staffFilter || c.staff_ids.includes(staffFilter);
+        const matchesPaymentMethod = !paymentMethodFilter || (c.payment_method || NOT_INFORMED_FALLBACK) === paymentMethodFilter;
         const matchesMin = !minTotal || c.total >= Number(minTotal);
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
         const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
-        return matchesSearch && matchesStatus && matchesStaff && matchesMin && matchesMax && matchesConsumption;
+        return matchesSearch && matchesStaff && matchesPaymentMethod && matchesMin && matchesMax && matchesConsumption;
+    });
+
+    const filteredComandas = statusScopeComandas.filter((c) => {
+        return filterStatus === 'all' || c.status === filterStatus;
     });
 
     const sortedComandas = [...filteredComandas].sort((first, second) => {
@@ -584,14 +825,14 @@ const Comandas: React.FC = () => {
     const allOpenInViewSelected = openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id));
 
     const tabs = [
-        { key: 'all' as const, label: STATUS_LABELS.all, count: comandas.length },
-        { key: 'blocked' as const, label: STATUS_LABELS.blocked, count: blockedCountAll },
-        { key: 'open' as const, label: STATUS_LABELS.open, count: openCountAll },
-        { key: 'paid' as const, label: STATUS_LABELS.paid, count: paidCountAll },
-        { key: 'cancelled' as const, label: STATUS_LABELS.cancelled, count: cancelledCountAll },
+        { key: 'all' as const, label: statusLabels.all, count: statusScopeComandas.length },
+        { key: 'blocked' as const, label: statusLabels.blocked, count: statusScopeComandas.filter((c) => c.status === 'blocked').length },
+        { key: 'open' as const, label: statusLabels.open, count: statusScopeComandas.filter((c) => c.status === 'open').length },
+        { key: 'paid' as const, label: statusLabels.paid, count: statusScopeComandas.filter((c) => c.status === 'paid').length },
+        { key: 'cancelled' as const, label: statusLabels.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
     ];
 
-    const openCount = dateFilteredComandas.filter((c) => c.status === 'open').length;
+    const openCount = statusScopeComandas.filter((c) => c.status === 'open').length;
     const finalizedToday = comandas.filter((c) => {
         if (c.status !== 'paid') return false;
         const createdAt = new Date(c.created_at);
@@ -613,7 +854,7 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => Array.from(new Set([...current, ...openComandasInView.map((c) => c.id)])));
     };
 
-    const totalOpen = comandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0);
+    const totalOpen = statusScopeComandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0);
     const avgTicket = filteredComandas.length > 0 ? filteredComandas.reduce((sum, c) => sum + c.total, 0) / filteredComandas.length : 0;
 
     const staffOptions = Array.from(new Map<string, { id: string; name: string }>(
@@ -621,6 +862,12 @@ const Comandas: React.FC = () => {
             .map((s) => [s.id, s] as [string, { id: string; name: string }])
             .values(),
     ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+
+    const paymentMethodOptions = Array.from(new Set<string>(
+        comandas
+            .map((c) => c.payment_method || '')
+            .filter((method): method is string => Boolean(method.trim())),
+    )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 
     const dateFilterDescription = !dateFrom && !dateTo
         ? 'Periodo completo'
@@ -632,6 +879,7 @@ const Comandas: React.FC = () => {
         setFilterStatus('all');
         setSearchTerm('');
         setStaffFilter('');
+        setPaymentMethodFilter('');
         setMinTotal('');
         setMaxTotal('');
         setConsumptionType('all');
@@ -684,8 +932,12 @@ const Comandas: React.FC = () => {
     };
 
     const generateCSV = async () => {
+        if (sortedComandas.length === 0) {
+            setToast({ message: `Não há ${orderPluralLower} filtrados para exportar.`, type: 'info' });
+            return;
+        }
         if (!tenantId) {
-            setToast({ message: 'Tenant inválido para exportar comandas.', type: 'error' });
+            setToast({ message: `Tenant inválido para exportar ${orderPluralLower}.`, type: 'error' });
             return;
         }
 
@@ -708,7 +960,7 @@ const Comandas: React.FC = () => {
             : { data: [] as ServiceExecutionParticipantRow[], error: null };
 
         if (participantsError) {
-            console.warn('Erro ao carregar compartilhamentos para exportacao de comandas:', participantsError);
+            logSupabaseError('[Comandas] Erro ao carregar compartilhamentos para exportação', participantsError);
             setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
             return;
         }
@@ -729,26 +981,26 @@ const Comandas: React.FC = () => {
         }, {} as Record<string, ServiceExecutionParticipantRow[]>);
 
         const headers = [
-            'ID da comanda',
+            `ID do ${orderLabelLower}`,
             'Data de abertura',
             'Data de fechamento',
             'Cliente',
             'Telefone',
-            'Status da comanda',
+            `Status do ${orderLabelLower}`,
             'Profissional principal',
-            'Serviços',
+            servicePluralLabel,
             'Produtos',
-            'Subtotal serviços',
+            `Subtotal ${servicePluralLower}`,
             'Subtotal produtos',
             'Desconto',
-            'Créditos Clube do Chefe utilizados',
+            isEsteticaApp ? 'Créditos utilizados' : 'Créditos Clube do Chefe utilizados',
             'Valor total',
             'Valor pago',
             'Saldo pendente',
             'Forma de pagamento',
             'Status de pagamento',
-            'Serviço compartilhado',
-            'Valor do serviço',
+            `${labels.service} compartilhado`,
+            `Valor do ${labels.service.toLowerCase()}`,
             'Valor compartilhado',
             'Profissionais participantes',
             'Divisão lançada',
@@ -783,12 +1035,12 @@ const Comandas: React.FC = () => {
             const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
             const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
             return [
-                escapeCSV(getDisplayId(c.id)),
+                escapeCSV(getShortComandaRef(c.id)),
                 escapeCSV(new Date(c.created_at).toLocaleString('pt-BR')),
                 escapeCSV(c.closed_at ? new Date(c.closed_at).toLocaleString('pt-BR') : ''),
                 escapeCSV(c.clients.name),
                 escapeCSV(c.clients.phone || ''),
-                escapeCSV(STATUS_LABELS[c.status]),
+                escapeCSV(statusLabels[c.status]),
                 escapeCSV(c.staff?.name || c.staff_names[0] || 'Sem profissional'),
                 escapeCSV(services.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
                 escapeCSV(products.map((item) => `${item.product_name} x${item.quantity}`).join(' | ')),
@@ -816,21 +1068,26 @@ const Comandas: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `comandas_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute('download', `${orderPluralLower.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
         window.document.body.appendChild(link);
         link.click();
         window.document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        setToast({ message: `${sortedComandas.length} ${orderPluralLower} exportado(s) da lista filtrada.`, type: 'success' });
     };
 
     const copyToClipboard = async () => {
+        if (sortedComandas.length === 0) {
+            setToast({ message: `Não há ${orderPluralLower} filtrados para copiar.`, type: 'info' });
+            return;
+        }
         const headers = ['Codigo', 'Cliente', 'Consumo', 'Total', 'Status', 'Abertura'];
-        const rows = sortedComandas.map((c) => [getDisplayId(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), STATUS_LABELS[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
+        const rows = sortedComandas.map((c) => [getShortComandaRef(c.id), c.clients.name, getConsumptionSummary(c).title, c.total.toFixed(2).replace('.', ','), statusLabels[c.status], new Date(c.created_at).toLocaleString('pt-BR')]);
         try {
             await navigator.clipboard.writeText([headers.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n'));
-            setToast({ message: 'Copiado para Excel/Sheets', type: 'success' });
+            setToast({ message: `${sortedComandas.length} ${orderPluralLower} copiado(s) da lista filtrada.`, type: 'success' });
         } catch {
-            setToast({ message: 'Erro ao copiar', type: 'error' });
+            setToast({ message: 'Não foi possível copiar a lista filtrada.', type: 'error' });
         }
     };
 
@@ -839,8 +1096,8 @@ const Comandas: React.FC = () => {
         if (!printWindow) return;
         const itemsHtml = comanda.comanda_items.map((item) => `<li>${item.product_name} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
         printWindow.document.write(`
-            <html><head><title>Comanda #${getDisplayId(comanda.id)}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
-            <body><h1>Comanda #${getDisplayId(comanda.id)}</h1><div class="line"><strong>Cliente:</strong> ${comanda.clients.name}</div><div class="line"><strong>Status:</strong> ${STATUS_LABELS[comanda.status]}</div><div class="line"><strong>Abertura:</strong> ${new Date(comanda.created_at).toLocaleString('pt-BR')}</div><div class="line"><strong>Profissionais:</strong> ${comanda.staff_names.join(' / ') || 'Sem profissional'}</div><ul>${itemsHtml}</ul><div class="total">Total: ${formatCurrency(comanda.total)}</div></body></html>
+            <html><head><title>${orderLabel} #${getDisplayId(comanda.id)}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
+            <body><h1>${orderLabel} #${getDisplayId(comanda.id)}</h1><div class="line"><strong>Cliente:</strong> ${comanda.clients.name}</div><div class="line"><strong>Status:</strong> ${statusLabels[comanda.status]}</div><div class="line"><strong>Abertura:</strong> ${new Date(comanda.created_at).toLocaleString('pt-BR')}</div><div class="line"><strong>Profissionais:</strong> ${comanda.staff_names.join(' / ') || 'Sem profissional'}</div><ul>${itemsHtml}</ul><div class="total">Total: ${formatCurrency(comanda.total)}</div></body></html>
         `);
         printWindow.document.close();
         printWindow.print();
@@ -857,7 +1114,7 @@ const Comandas: React.FC = () => {
 
         if (comanda.status === 'paid') {
             const confirmed = window.confirm(
-                'Esta comanda foi fechada (status: paga). Anulá-la pode afetar o financeiro e comissões.\n\nTem certeza que deseja anular?'
+                `Este ${orderLabelLower} foi finalizado. Anulá-lo pode afetar ${financialImpactCopy}.\n\nTem certeza que deseja anular?`
             );
             if (!confirmed) return;
         }
@@ -895,19 +1152,19 @@ const Comandas: React.FC = () => {
                     if (resolvedTenantId) fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
                     const fallbackResult = await fallbackQuery;
                     error = fallbackResult.error;
-                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria nao foram salvos.', type: 'info' });
+                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria não foram salvos.', type: 'info' });
                 }
                 if (error) throw error;
             }
 
-            setToast({ message: 'Comanda anulada com sucesso.', type: 'success' });
+            setToast({ message: `${orderLabel} anulado com sucesso.`, type: 'success' });
             setDeleteComanda(null);
             setCancelReason('');
             setCancelReasonOther('');
             await fetchData();
         } catch (error: any) {
-            console.error(error);
-            setToast({ message: `Erro ao anular: ${error.message}`, type: 'error' });
+            logSupabaseError('[Comandas] Erro ao anular comanda', error, { comandaId: comanda?.id });
+            setToast({ message: `Não foi possível anular o ${orderLabelLower}. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
         }
@@ -915,11 +1172,11 @@ const Comandas: React.FC = () => {
 
     const handleBulkClose = async () => {
         if (selectedOpenComandaIds.length === 0) {
-            setToast({ message: 'Selecione pelo menos uma comanda aberta.', type: 'info' });
+            setToast({ message: `Selecione pelo menos um ${orderLabelLower} aberto.`, type: 'info' });
             return;
         }
         if (bulkCloseType === 'admin' && !bulkLegacyReferenceMonth) {
-            setToast({ message: 'Informe o mes de referencia.', type: 'info' });
+            setToast({ message: 'Informe o mês de referência.', type: 'info' });
             return;
         }
         setBulkClosing(true);
@@ -951,8 +1208,8 @@ const Comandas: React.FC = () => {
             const updatedCount = Number((data as { updated_count?: number } | null)?.updated_count || selectedOpenComandaIds.length);
             setToast({
                 message: bulkCloseType === 'normal'
-                    ? `${updatedCount} comanda(s) baixada(s) com impacto financeiro`
-                    : `${updatedCount} comanda(s) baixada(s) em modo administrativo`,
+                    ? `${updatedCount} ${orderPluralLower} finalizado(s) com impacto financeiro`
+                    : `${updatedCount} ${orderPluralLower} finalizado(s) em modo administrativo`,
                 type: 'success',
             });
             setSelectedOpenComandaIds([]);
@@ -961,8 +1218,11 @@ const Comandas: React.FC = () => {
             setBulkLegacyReferenceMonth(getDefaultLegacyReferenceMonth());
             await fetchData();
         } catch (error: any) {
-            console.error(error);
-            setToast({ message: `Erro ao baixar: ${error.message}`, type: 'error' });
+            logSupabaseError('[Comandas] Erro ao fechar comandas em massa', error, {
+                comandaCount: selectedOpenComandaIds.length,
+                bulkCloseType,
+            });
+            setToast({ message: `Não foi possível concluir a baixa em massa. Nenhuma baixa local falsa foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setBulkClosing(false);
         }
@@ -972,24 +1232,106 @@ const Comandas: React.FC = () => {
         <div className="space-y-4 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <section className="rounded-2xl border border-slate-200/70 bg-white p-4 dark:border-white/8 dark:bg-[#121826]">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-900 dark:text-white">Gestao de Comandas</h1>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sortedComandas.length} comanda(s) • {dateFilterDescription}</p>
+            <section className="relative overflow-hidden rounded-2xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(0,210,255,0.22),transparent_32%),linear-gradient(135deg,rgba(0,51,102,0.97),rgba(15,23,42,0.98)_56%,rgba(146,104,45,0.68))]" />
+                <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="max-w-3xl">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                            <span className="material-symbols-outlined text-[14px]">content_cut</span>
+                            {isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de atendimento'}
+                        </span>
+                        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}</h1>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
+                            {sortedComandas.length} {orderPluralLower} no recorte atual, com foco em cliente, profissional, {isEsteticaApp ? 'procedimentos, produtos e finalização real' : 'consumo e baixa real'}. {dateFilterDescription}.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/checkout?mode=comanda')}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">add</span>
+                                Novo {orderLabelLower}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/checkout?mode=pdv')}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
+                                {isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir</Button>
-                        <Button size="sm" variant="secondary" onClick={() => navigate('/checkout?mode=pdv')} leftIcon="point_of_sale">PDV</Button>
+                    <div className="grid overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] sm:min-w-[420px] sm:grid-cols-3">
+                        <div className="border-white/10 p-3 sm:border-r">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Abertos' : 'Abertas'}</p>
+                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(openCount).padStart(2, '0')}</p>
+                        </div>
+                        <div className="border-white/10 p-3 sm:border-r">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Finalizados hoje' : 'Finalizadas hoje'}</p>
+                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(finalizedToday).padStart(2, '0')}</p>
+                        </div>
+                        <div className="p-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Total em aberto</p>
+                            <p className="mt-1 text-xl font-black">{loading ? '...' : formatCurrency(totalOpen)}</p>
+                        </div>
                     </div>
+                </div>
+                <div className="relative mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+                        <AuditAdjustmentButton
+                            context={{
+                                sourceType: 'comanda',
+                                sourceLabel: isEsteticaApp ? orderPluralLabel : 'Comandas do balcão',
+                                beforeSnapshot: {
+                                    total_filtrado: sortedComandas.length,
+                                    abertas: openCount,
+                                    total_aberto: totalOpen,
+                                    periodo: dateFilterDescription,
+                                },
+                                financialImpactLabel: isEsteticaApp
+                                    ? 'Possível impacto em baixa, repasses e contas a receber'
+                                    : 'Possível impacto em baixa, comissão e contas a receber',
+                                allowedAdjustmentTypes: [
+                                    'service_participation_correction',
+                                    'settlement_reversal',
+                                    'payment_date_correction',
+                                    'payment_method_correction',
+                                    'hide_from_financial_with_reason',
+                                    'mark_for_review',
+                                ],
+                            }}
+                            defaultAdjustmentType="mark_for_review"
+                        />
+                        <Button size="sm" variant="secondary" onClick={generateCSV} leftIcon="download" disabled={loading}>
+                            CSV
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={copyToClipboard} leftIcon="content_copy" disabled={loading}>
+                            Copiar
+                        </Button>
                 </div>
             </section>
 
+            {loadError && (
+                <section className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-lg text-rose-600 dark:text-rose-300">error</span>
+                        <div>
+                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Falha ao carregar {orderPluralLower}</p>
+                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
+                        </div>
+                    </div>
+                    <Button variant="secondary" leftIcon="sync" onClick={fetchData} disabled={loading}>
+                        Tentar novamente
+                    </Button>
+                </section>
+            )}
+
             <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <KpiCard title="Abertas" value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
-                <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper="Finalizadas" icon="task_alt" accentClassName="bg-emerald-400" />
+                <KpiCard title={isEsteticaApp ? 'Abertos' : 'Abertas'} value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
+                <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper={isEsteticaApp ? 'Finalizados' : 'Finalizadas'} icon="task_alt" accentClassName="bg-emerald-400" />
                 <KpiCard title="Total" value={loading ? '...' : formatCurrency(totalOpen)} helper="Pendente" icon="payments" accentClassName="bg-sky-400" />
-                <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Media" icon="monitoring" accentClassName="bg-fuchsia-400" />
+                <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Média" icon="monitoring" accentClassName="bg-fuchsia-400" />
             </section>
 
             <section className="rounded-2xl border border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]">
@@ -1000,14 +1342,15 @@ const Comandas: React.FC = () => {
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setFilterStatus(tab.key)}
+                                title={tab.key === 'all' ? `Todos os ${orderPluralLower} filtrados` : getStatusContextLabel(tab.key, isEsteticaApp)}
                                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                                     filterStatus === tab.key
-                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-100'
+                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
                                         : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-400'
                                 }`}
                             >
                                 {tab.label}
-                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-white/10 text-white' : 'bg-slate-100 dark:bg-white/5'}`}>
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-amber-500 text-white dark:bg-white/10' : 'bg-slate-100 dark:bg-white/5'}`}>
                                     {tab.count}
                                 </span>
                             </button>
@@ -1021,7 +1364,7 @@ const Comandas: React.FC = () => {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Buscar cliente..."
+                                placeholder={`Buscar cliente, telefone, profissional ou #${orderLabelLower}...`}
                                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
                             />
                         </div>
@@ -1053,6 +1396,17 @@ const Comandas: React.FC = () => {
                             <option value="all">Todos</option>
                         </select>
                         <select
+                            value={paymentMethodFilter}
+                            onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            title="Filtrar por forma de pagamento já registrada"
+                        >
+                            <option value="">Pagamento</option>
+                            {paymentMethodOptions.map((method) => (
+                                <option key={method} value={method}>{method}</option>
+                            ))}
+                        </select>
+                        <select
                             value={`${sortField}:${sortDirection}`}
                             onChange={(e) => {
                                 const [nextField, nextDirection] = e.target.value.split(':') as [SortField, SortDirection];
@@ -1070,7 +1424,12 @@ const Comandas: React.FC = () => {
                             <option value="status:asc">Status</option>
                             <option value="status:desc">Status invertido</option>
                         </select>
-                        <button type="button" onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2 py-2 dark:border-white/10">
+                        <button
+                            type="button"
+                            onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
+                            className="flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400 hover:text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            title={sortDirection === 'asc' ? 'Ordenar descendente' : 'Ordenar ascendente'}
+                        >
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
                         </button>
                         {hasAnyFilter && (
@@ -1084,24 +1443,65 @@ const Comandas: React.FC = () => {
                         )}
                     </div>
 
+                    {hasAnyFilter && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
+                            <span className="font-black uppercase tracking-[0.12em] text-slate-500">Filtros ativos</span>
+                            <span>{statusLabels[filterStatus]}</span>
+                            <span>{dateFilterDescription}</span>
+                            {staffFilter && <span>Profissional selecionado</span>}
+                            {paymentMethodFilter && <span>Pagamento: {paymentMethodFilter}</span>}
+                            {consumptionType !== 'all' && <span>Consumo: {consumptionType}</span>}
+                        </div>
+                    )}
+
                     {selectedOpenComandaIds.length > 0 && (
                         <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
-                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} selecionada(s)</span>
+                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} {isEsteticaApp ? 'selecionado(s)' : 'selecionada(s)'}</span>
                             <button onClick={toggleSelectAllOpenInView} className="ml-auto text-xs text-amber-700 hover:underline dark:text-amber-300">
                                 {allOpenInViewSelected ? 'Desmarcar todas' : 'Selecionar todas'}
                             </button>
-                            <Button size="sm" variant="warning" onClick={() => setBulkCloseModalOpen(true)}>Baixar em massa</Button>
+                            <Button size="sm" variant="warning" onClick={() => setBulkCloseModalOpen(true)}>{isEsteticaApp ? 'Finalizar em massa' : 'Baixar em massa'}</Button>
                         </div>
                     )}
                 </div>
 
                 <div className="divide-y divide-slate-200/70 dark:divide-white/8">
                     {loading ? (
-                        <div className="p-8 text-center text-sm text-slate-500">Carregando...</div>
+                        <div className="space-y-3 p-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-10 animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800 dark:text-white">Carregando {orderPluralLower}...</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e histórico financeiro.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {[1, 2, 3, 4].map((item) => (
+                                <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-white/[0.04]" />
+                            ))}
+                        </div>
                     ) : sortedComandas.length === 0 ? (
                         <div className="p-8 text-center">
-                            <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma comanda encontrada.</p>
-                            <Button className="mt-3" onClick={() => navigate('/checkout?mode=comanda')}>Abrir comanda</Button>
+                            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/5">
+                                <span className="material-symbols-outlined">receipt_long</span>
+                            </div>
+                            <p className="text-sm font-black text-slate-800 dark:text-white">
+                                {hasAnyFilter ? `Nenhum ${orderLabelLower} encontrado com os filtros atuais.` : `Nenhum ${orderLabelLower} encontrado.`}
+                            </p>
+                            <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                                {hasAnyFilter
+                                    ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
+                                    : `Quando houver ${orderPluralLower} abertos ou finalizados, eles aparecerão aqui com referência curta, cliente e status operacional.`}
+                            </p>
+                            <div className="mt-4 flex flex-wrap justify-center gap-2">
+                                {hasAnyFilter && (
+                                    <Button variant="secondary" onClick={clearAllFilters} leftIcon="filter_alt_off">
+                                        Limpar filtros
+                                    </Button>
+                                )}
+                                <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir {orderLabelLower}</Button>
+                            </div>
                         </div>
                     ) : (
                         sortedComandas.map((comanda) => (
@@ -1124,6 +1524,7 @@ const Comandas: React.FC = () => {
                 <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-[#121826] md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
                     <ComandaSidebar
                         comanda={selectedComanda}
+                        financialHistory={financialHistoryByComandaId[selectedComanda.id] || null}
                         onClose={() => setSelectedComandaId(null)}
                         onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
                         onPrint={() => selectedComanda && handlePrint(selectedComanda)}
@@ -1173,7 +1574,7 @@ const Comandas: React.FC = () => {
                                 bulkCloseType === 'normal' ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
                             }`}
                         >
-                            Venda Normal
+                            {isEsteticaApp ? 'Finalização normal' : 'Venda Normal'}
                         </button>
                         <button
                             type="button"
@@ -1186,11 +1587,11 @@ const Comandas: React.FC = () => {
                         </button>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {selectedOpenComandaIds.length} comanda(s) selecionada(s)
+                        {selectedOpenComandaIds.length} {orderPluralLower} selecionado(s)
                     </p>
                     {bulkCloseType === 'admin' && (
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-500">Mes de referencia</label>
+                            <label className="mb-1 block text-xs font-semibold text-slate-500">Mês de referência</label>
                             <input
                                 type="month"
                                 value={bulkLegacyReferenceMonth}
@@ -1203,7 +1604,7 @@ const Comandas: React.FC = () => {
                         value={bulkClosureNote}
                         onChange={(e) => setBulkClosureNote(e.target.value)}
                         rows={2}
-                        placeholder="Observacao"
+                        placeholder="Observação"
                         className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
                     />
                     <div className="flex gap-2">
@@ -1216,7 +1617,7 @@ const Comandas: React.FC = () => {
             <Modal
                 isOpen={!!deleteComanda}
                 onClose={() => { setDeleteComanda(null); setCancelReason(''); setCancelReasonOther(''); }}
-                title="Anular Comanda"
+                title={`Anular ${orderLabel}`}
                 maxWidth="sm"
             >
                 {deleteComanda && (
@@ -1224,12 +1625,12 @@ const Comandas: React.FC = () => {
                         {deleteComanda.status === 'paid' && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="text-xs font-medium text-amber-800">
-                                    ⚠️ Esta comanda está <strong>PAGA</strong>. Anulá-la pode afetar o financeiro e comissões.
+                                    ⚠️ Este {orderLabelLower} está <strong>{isEsteticaApp ? 'FINALIZADO' : 'PAGO'}</strong>. Anulá-lo pode afetar {financialImpactCopy}.
                                 </p>
                             </div>
                         )}
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Anular comanda <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
+                            Anular {orderLabelLower} <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
                         </p>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-500">Motivo</label>
@@ -1255,7 +1656,7 @@ const Comandas: React.FC = () => {
                         {['operational_error', 'test', 'duplicate'].includes(cancelReason) && (
                             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="text-xs font-medium text-amber-800">
-                                    ⚠️ Esta comanda <strong>não será considerada no financeiro</strong>.
+                                    ⚠️ Este {orderLabelLower} <strong>não será considerado no financeiro</strong>.
                                 </p>
                             </div>
                         )}

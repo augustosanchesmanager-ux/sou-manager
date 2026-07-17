@@ -18,6 +18,10 @@ export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   revenue: 0,
   revenuePrevious: 0,
   revenueGrowth: 0,
+  expenses: 0,
+  expensesPrevious: 0,
+  netRevenue: 0,
+  netRevenuePrevious: 0,
   revenueGoal: 0,
   activeStaffPercent: 0,
   todayAppointments: 0,
@@ -122,57 +126,58 @@ export const buildRevenueChartData = (transactions: any[]): DashboardChartPoint[
 };
 
 export const buildDashboardMetrics = (
-  transactions: any[],
+  currentTransactions: any[],
+  previousTransactions: any[],
   staffList: DashboardStaff[],
   todayAppointmentsByStaff: Array<{ staff_id?: string | null }>,
-  todayAppointmentsCount: number,
-  yesterdayTransactions: any[],
-  yesterdayAppointmentsCount: number,
+  currentAppointmentsCount: number,
+  previousAppointmentsCount: number,
   last30daysAppointments: any[],
   last60to90daysAppointments: any[],
   revenueGoal: number = 0,
   appointmentsGoal: number = 0,
 ): DashboardMetrics => {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  let currentIncome = 0;
+  let currentExpenses = 0;
+  let previousIncome = 0;
+  let previousExpenses = 0;
+  let currentIncomeCount = 0;
+  let previousIncomeCount = 0;
 
-  let thisMonthRevenue = 0;
-  let lastMonthRevenue = 0;
-  let thisMonthIncomeCount = 0;
-
-  transactions.forEach((transaction) => {
-    const transactionDate = new Date(transaction.date);
+  currentTransactions.forEach((transaction) => {
     const amount = toNumber(transaction.amount || transaction.val);
-
-    if (transactionDate >= startOfThisMonth && transactionDate < startOfNextMonth) {
-      thisMonthRevenue += amount;
-      thisMonthIncomeCount += 1;
+    if (transaction.type === 'income') {
+      currentIncome += amount;
+      currentIncomeCount += 1;
       return;
     }
-
-    if (transactionDate >= startOfLastMonth && transactionDate < startOfThisMonth) {
-      lastMonthRevenue += amount;
+    if (transaction.type === 'expense') {
+      currentExpenses += amount;
     }
   });
 
-  let yesterdayRevenue = 0;
-  let yesterdayIncomeCount = 0;
-  yesterdayTransactions.forEach((transaction) => {
+  previousTransactions.forEach((transaction) => {
     const amount = toNumber(transaction.amount || transaction.val);
-    yesterdayRevenue += amount;
-    yesterdayIncomeCount += 1;
+    if (transaction.type === 'income') {
+      previousIncome += amount;
+      previousIncomeCount += 1;
+      return;
+    }
+    if (transaction.type === 'expense') {
+      previousExpenses += amount;
+    }
   });
 
   const activeIds = new Set(todayAppointmentsByStaff.map((appointment) => appointment.staff_id).filter(Boolean));
   const activeStaffPercent = staffList.length > 0 ? (activeIds.size / staffList.length) * 100 : 0;
 
-  const revenueGrowth = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
-  const appointmentsGrowth = yesterdayAppointmentsCount > 0 ? ((todayAppointmentsCount - yesterdayAppointmentsCount) / yesterdayAppointmentsCount) * 100 : 0;
-  const yesterdayAvgTicket = yesterdayIncomeCount > 0 ? yesterdayRevenue / yesterdayIncomeCount : 0;
-  const avgTicketGrowth = yesterdayAvgTicket > 0 ? ((thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0) - yesterdayAvgTicket) / yesterdayAvgTicket * 100 : 0;
+  const revenueGrowth = previousIncome > 0 ? ((currentIncome - previousIncome) / previousIncome) * 100 : 0;
+  const appointmentsGrowth = previousAppointmentsCount > 0 ? ((currentAppointmentsCount - previousAppointmentsCount) / previousAppointmentsCount) * 100 : 0;
+  const previousAvgTicket = previousIncomeCount > 0 ? previousIncome / previousIncomeCount : 0;
+  const currentAvgTicket = currentIncomeCount > 0 ? currentIncome / currentIncomeCount : 0;
+  const avgTicketGrowth = previousAvgTicket > 0 ? ((currentAvgTicket - previousAvgTicket) / previousAvgTicket) * 100 : 0;
+  const netRevenue = currentIncome - currentExpenses;
+  const netRevenuePrevious = previousIncome - previousExpenses;
 
   const prevVisitorIds = new Set(
     last60to90daysAppointments
@@ -195,16 +200,20 @@ export const buildDashboardMetrics = (
   const retentionRate = prevVisitorIds.size > 0 ? (returning / prevVisitorIds.size) * 100 : 0;
 
   return {
-    revenue: thisMonthRevenue,
-    revenuePrevious: yesterdayRevenue,
+    revenue: currentIncome,
+    revenuePrevious: previousIncome,
     revenueGrowth,
+    expenses: currentExpenses,
+    expensesPrevious: previousExpenses,
+    netRevenue,
+    netRevenuePrevious,
     revenueGoal,
-    avgTicket: thisMonthIncomeCount > 0 ? thisMonthRevenue / thisMonthIncomeCount : 0,
-    avgTicketPrevious: yesterdayAvgTicket,
+    avgTicket: currentAvgTicket,
+    avgTicketPrevious: previousAvgTicket,
     avgTicketGrowth,
     activeStaffPercent,
-    todayAppointments: todayAppointmentsCount || 0,
-    previousAppointments: yesterdayAppointmentsCount,
+    todayAppointments: currentAppointmentsCount || 0,
+    previousAppointments: previousAppointmentsCount,
     appointmentsGrowth,
     appointmentsGoal,
     retentionRate,
@@ -341,4 +350,3 @@ export const formatAppointmentTime = (isoString: string): string => {
   const date = new Date(isoString);
   return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 };
-

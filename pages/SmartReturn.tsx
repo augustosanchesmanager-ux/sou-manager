@@ -13,18 +13,23 @@ type ActiveTab = SmartReturnCategory | 'all';
 /* ─── Badge components ───────────────────────────────────────── */
 const CategoryBadge: React.FC<{ category: SmartReturnCategory }> = ({ category }) => {
     const map = {
-        returning: { label: '🔵 Retorno', cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700/50' },
-        risk: { label: '🟠 Risco', cls: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-700/50' },
-        inactive: { label: '🔴 Inativo', cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700/50' },
+        returning: { label: 'Retorno', icon: 'undo', cls: 'bg-[#EAF7FF] dark:bg-[#0D2238] text-[#007BFF] dark:text-[#72E7FF] border border-[#00D2FF]/25' },
+        risk: { label: 'Atenção', icon: 'warning', cls: 'bg-[#FFF6E5] dark:bg-[#2B2110] text-[#9A6F2D] dark:text-[#E3C382] border border-[#B88A44]/30' },
+        inactive: { label: 'Inativo', icon: 'person_off', cls: 'bg-rose-50 dark:bg-rose-950/25 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50' },
     };
-    const { label, cls } = map[category];
-    return <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${cls}`}>{label}</span>;
+    const { label, icon, cls } = map[category];
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${cls}`}>
+            <span className="material-symbols-outlined text-sm">{icon}</span>
+            {label}
+        </span>
+    );
 };
 
 /* ─── Main Component ─────────────────────────────────────────── */
 const SmartReturn: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId } = useAuth();
+    const { tenantId, tenant } = useAuth();
 
     const [allClients, setAllClients] = useState<SmartReturnClient[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,11 +39,22 @@ const SmartReturn: React.FC = () => {
     const [selectedClient, setSelectedClient] = useState<SmartReturnClient | null>(null);
     const [whatsappMessage, setWhatsappMessage] = useState('');
 
-    const defaultMessage = 'Olá, {nome}! Aqui é da Sanchez Barber. Faz um tempinho que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?';
+    const shopName = tenant?.name?.trim();
+    const defaultMessage = useMemo(() => (
+        shopName
+            ? `Olá, {nome}! Aqui é da ${shopName}. Faz um tempinho que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?`
+            : 'Olá, {nome}! Aqui é da sua barbearia. Faz um tempinho que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?'
+    ), [shopName]);
 
     /* ─── Fetch ────────────────────────────────────────────────── */
     const fetch = useCallback(async () => {
         setLoading(true);
+        if (!tenantId) {
+            setAllClients([]);
+            setLoading(false);
+            return;
+        }
+
         const [clientsRes, appointmentsRes] = await Promise.all([
             supabase
                 .from('clients')
@@ -111,25 +127,22 @@ const SmartReturn: React.FC = () => {
         <div className="space-y-8 animate-fade-in pb-12">
 
             {/* Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-black dark:via-[#0d0d0d] dark:to-black border border-white/10 p-8 shadow-2xl">
-                <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute top-0 right-0 w-72 h-72 bg-primary/10 rounded-full blur-[80px] -mr-20 -mt-20" />
-                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-[60px] -ml-10 -mb-10" />
-                </div>
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="relative overflow-hidden rounded-2xl border border-[#D9EAF5] bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF7FF_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182F_0%,#08284D_58%,#14100A_100%)]">
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+                <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-3">
-                            <div className="size-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary text-xl">psychology</span>
+                            <div className="size-10 rounded-xl bg-[#007BFF]/10 border border-[#00D2FF]/30 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF] text-xl">psychology</span>
                             </div>
-                            <span className="px-3 py-1 bg-primary/20 border border-primary/30 text-primary text-[10px] font-black uppercase tracking-[0.2em] rounded-full">Smart Return Engine</span>
+                            <span className="px-3 py-1 bg-white/75 dark:bg-white/10 border border-[#007BFF]/20 dark:border-[#00D2FF]/25 text-[#003366] dark:text-[#9DEBFF] text-[11px] font-black rounded-full">SMG Motor de Retorno</span>
                         </div>
-                        <h2 className="text-3xl font-black text-white tracking-tight">Motor de Retorno Inteligente</h2>
-                        <p className="text-slate-400 mt-2 max-w-lg leading-relaxed">
-                            Clientes classificados por tempo desde última visita. Sem agendamento futuro.
+                        <h2 className="text-2xl md:text-3xl font-black text-slate-950 dark:text-white">Motor de Retorno Inteligente</h2>
+                        <p className="text-slate-600 dark:text-slate-300 mt-2 max-w-2xl leading-6 text-sm">
+                            Clientes reais sem agendamento futuro, organizados pelo tempo desde a última visita para reativar a cadeira antes que o vínculo esfrie.
                         </p>
                     </div>
-                    <button onClick={fetch} className="flex items-center gap-2 px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-sm font-bold transition-all group">
+                    <button onClick={fetch} className="flex items-center justify-center gap-2 px-5 py-3 bg-[#007BFF] hover:bg-[#006ADF] text-white rounded-xl text-sm font-bold transition-all group shadow-sm shadow-[#007BFF]/20">
                         <span className="material-symbols-outlined text-sm group-hover:rotate-180 transition-transform duration-500">refresh</span>
                         Atualizar
                     </button>
@@ -137,17 +150,17 @@ const SmartReturn: React.FC = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {([
-                    { key: 'returning' as SmartReturnCategory, icon: 'undo', label: 'Retorno', desc: '30-60 dias', color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-                    { key: 'risk' as SmartReturnCategory, icon: 'warning', label: 'Risco', desc: '61-90 dias', color: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
-                    { key: 'inactive' as SmartReturnCategory, icon: 'person_off', label: 'Inativo', desc: '+90 dias', color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+                    { key: 'returning' as SmartReturnCategory, icon: 'undo', label: 'Retorno', desc: '30-60 dias', color: 'text-[#007BFF] dark:text-[#72E7FF]', bg: 'bg-[#007BFF]/10', border: 'border-[#00D2FF]/25' },
+                    { key: 'risk' as SmartReturnCategory, icon: 'warning', label: 'Atenção', desc: '61-90 dias', color: 'text-[#9A6F2D] dark:text-[#E3C382]', bg: 'bg-[#B88A44]/15', border: 'border-[#B88A44]/30' },
+                    { key: 'inactive' as SmartReturnCategory, icon: 'person_off', label: 'Inativo', desc: '+90 dias', color: 'text-rose-600 dark:text-rose-300', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
                 ] as { key: SmartReturnCategory; icon: string; label: string; desc: string; color: string; bg: string; border: string }[]).map((kpi) => (
                     <div key={kpi.key} className="card-boutique p-5">
                         <div className={`size-11 rounded-xl ${kpi.bg} border ${kpi.border} flex items-center justify-center mb-3`}>
                             <span className={`material-symbols-outlined ${kpi.color}`}>{kpi.icon}</span>
                         </div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{kpi.label}</p>
+                        <p className="text-[11px] font-black text-slate-500 mb-1">{kpi.label}</p>
                         <p className={`text-2xl font-black ${kpi.color}`}>{kpis[kpi.key]}</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">{kpi.desc}</p>
                     </div>
@@ -158,16 +171,16 @@ const SmartReturn: React.FC = () => {
             <div className="card-boutique p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="flex items-center gap-2 overflow-x-auto">
                     {([
-                        { key: 'returning' as SmartReturnCategory, label: '🔵 Retorno', count: kpis.returning },
-                        { key: 'risk' as SmartReturnCategory, label: '🟠 Risco', count: kpis.risk },
-                        { key: 'inactive' as SmartReturnCategory, label: '🔴 Inativo', count: kpis.inactive },
+                        { key: 'returning' as SmartReturnCategory, label: 'Retorno', count: kpis.returning },
+                        { key: 'risk' as SmartReturnCategory, label: 'Atenção', count: kpis.risk },
+                        { key: 'inactive' as SmartReturnCategory, label: 'Inativos', count: kpis.inactive },
                         { key: 'all' as ActiveTab, label: 'Todos', count: allClients.length },
                     ] as { key: ActiveTab; label: string; count: number }[]).map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === tab.key
-                                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                                ? 'bg-[#007BFF] text-white shadow-md shadow-[#007BFF]/20'
                                 : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
                             }`}
                         >
@@ -182,7 +195,7 @@ const SmartReturn: React.FC = () => {
                         placeholder="Buscar por nome ou telefone..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-[#007BFF]"
                     />
                 </div>
             </div>
@@ -191,7 +204,7 @@ const SmartReturn: React.FC = () => {
             <div className="card-boutique overflow-hidden">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#007BFF]" />
                         <p className="text-sm text-slate-500 font-medium">Analisando comportamento dos clientes...</p>
                     </div>
                 ) : filtered.length === 0 ? (
@@ -204,7 +217,7 @@ const SmartReturn: React.FC = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-100 dark:border-white/5">
+                                <tr className="text-left text-[11px] font-black text-slate-500 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-100 dark:border-white/5">
                                     <th className="px-6 py-4">Cliente</th>
                                     <th className="px-6 py-4">Última Visita</th>
                                     <th className="px-6 py-4">Categoria</th>
@@ -241,7 +254,7 @@ const SmartReturn: React.FC = () => {
                                                 <button
                                                     onClick={() => navigate(`/schedule?clientId=${client.id}&clientName=${encodeURIComponent(client.name)}`)}
                                                     title="Agendar"
-                                                    className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                                    className="p-2 text-slate-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10 rounded-lg transition-colors"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">calendar_add_on</span>
                                                 </button>
@@ -287,7 +300,7 @@ const SmartReturn: React.FC = () => {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                            <label className="text-[11px] font-black text-slate-500 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-sm">edit</span> Mensagem
                             </label>
                             <textarea

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { fetchDashboardData } from '../queries';
 import { EMPTY_DASHBOARD_DATA } from '../selectors';
-import type { DashboardData } from '../types';
+import { logSupabaseError } from '../../../../src/lib/supabase/errors';
+import type { DashboardData, DashboardPeriod } from '../types';
 
-export const useDashboardData = () => {
+export const useDashboardData = (period: DashboardPeriod = 'today') => {
   const { tenantId, user } = useAuth();
   const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [loading, setLoading] = useState(true);
@@ -20,17 +21,17 @@ export const useDashboardData = () => {
 
     setLoading(true);
     try {
-      const nextData = await fetchDashboardData({ tenantId, userId: user?.id });
+      const nextData = await fetchDashboardData({ tenantId, userId: user?.id, period });
       setData(nextData);
       setError(null);
     } catch (nextError: any) {
-      console.error('Failed to load dashboard data', nextError);
+      logSupabaseError('[useDashboardData] Failed to load dashboard data', nextError, { tenantId, period });
       setData(EMPTY_DASHBOARD_DATA);
       setError(nextError?.message || 'Erro ao carregar dashboard.');
     } finally {
       setLoading(false);
     }
-  }, [tenantId, user?.id]);
+  }, [tenantId, user?.id, period]);
 
   useEffect(() => {
     void reload();
@@ -38,4 +39,3 @@ export const useDashboardData = () => {
 
   return { data, loading, error, reload };
 };
-

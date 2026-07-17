@@ -77,6 +77,8 @@ const ChefClubPlans: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+    const [planToDelete, setPlanToDelete] = useState<Plan | null>(null);
+    const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
     const [form, setForm] = useState(createEmptyForm);
 
     const availableServices = useMemo(
@@ -84,10 +86,27 @@ const ChefClubPlans: React.FC = () => {
         [form.service_credit_map, services],
     );
 
-    const fetchPlans = async () => {
-        if (!tenantId) return;
+    const planSummary = useMemo(() => {
+        const activePlans = plans.filter((plan) => plan.active);
+        return {
+            activePlans: activePlans.length,
+            potentialMonthlyRevenue: activePlans.reduce((sum, plan) => sum + Number(plan.monthly_price || 0), 0),
+            plannedCredits: activePlans.reduce((sum, plan) => {
+                return sum + getTotalPlannedCredits(normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits));
+            }, 0),
+            serviceCatalog: services.length,
+        };
+    }, [plans, services]);
 
+    const fetchPlans = async () => {
         setLoading(true);
+        if (!tenantId) {
+            setPlans([]);
+            setServices([]);
+            setLoading(false);
+            return;
+        }
+
         const [plansRes, servicesRes] = await Promise.all([
             barberSupabase
                 .from('customer_plans')
@@ -105,7 +124,7 @@ const ChefClubPlans: React.FC = () => {
         if (plansRes.data) setPlans(plansRes.data as Plan[]);
         if (servicesRes.data) setServices(servicesRes.data as ServiceOption[]);
         if (plansRes.error) setToast({ message: 'Erro ao carregar planos.', type: 'error' });
-        if (servicesRes.error) setToast({ message: 'Erro ao carregar servicos do catalogo.', type: 'error' });
+        if (servicesRes.error) setToast({ message: 'Erro ao carregar serviços do catálogo.', type: 'error' });
         setLoading(false);
     };
 
@@ -120,7 +139,7 @@ const ChefClubPlans: React.FC = () => {
 
     const handleAddServiceCredit = () => {
         if (availableServices.length === 0) {
-            setToast({ message: 'Todos os servicos ativos ja foram adicionados ao plano.', type: 'info' });
+            setToast({ message: 'Todos os serviços ativos já foram adicionados ao plano.', type: 'info' });
             return;
         }
 
@@ -191,7 +210,7 @@ const ChefClubPlans: React.FC = () => {
             .filter((item) => item.service_id && item.service_name && item.credits > 0);
 
         if (normalizedCredits.length === 0) {
-            setToast({ message: 'Adicione pelo menos um servico com credito ao plano.', type: 'info' });
+            setToast({ message: 'Adicione pelo menos um serviço com crédito ao plano.', type: 'info' });
             return;
         }
 
@@ -244,7 +263,7 @@ const ChefClubPlans: React.FC = () => {
         } else {
             setToast({
                 message: usedLegacyFallback
-                    ? 'Plano salvo no modo legado. O detalhamento por servico sera ativado quando o cache do Supabase atualizar.'
+                    ? 'Plano salvo no modo legado. O detalhamento por serviço será ativado quando o cache do Supabase atualizar.'
                     : `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`,
                 type: usedLegacyFallback ? 'info' : 'success',
             });
@@ -292,46 +311,75 @@ const ChefClubPlans: React.FC = () => {
         }
     };
 
-    const handleDelete = async (plan: Plan) => {
-        if (!confirm(`Tem certeza que deseja excluir o plano "${plan.name}"? Esta ação não pode ser desfeita.`)) return;
-        if (!tenantId) return;
+    const handleDelete = (plan: Plan) => {
+        setPlanToDelete(plan);
+    };
+
+    const confirmDelete = async () => {
+        if (!planToDelete || !tenantId) return;
+
+        setDeletingPlanId(planToDelete.id);
 
         const { error } = await barberSupabase
             .from('customer_plans')
             .delete()
-            .eq('id', plan.id)
+            .eq('id', planToDelete.id)
             .eq('tenant_id', tenantId);
 
         if (error) {
             setToast({ message: `Erro ao excluir plano: ${error.message}`, type: 'error' });
         } else {
             setToast({ message: 'Plano excluído com sucesso.', type: 'info' });
-            setPlans((current) => current.filter((p) => p.id !== plan.id));
+            setPlans((current) => current.filter((p) => p.id !== planToDelete.id));
+            setPlanToDelete(null);
         }
+
+        setDeletingPlanId(null);
     };
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in p-4 md:p-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="size-14 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
-                        <span className="material-symbols-outlined text-amber-500 text-3xl">workspace_premium</span>
+            <div className="relative overflow-hidden rounded-2xl border border-[#D9EAF5] bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF7FF_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182F_0%,#08284D_58%,#14100A_100%)]">
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+                <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+                    <div className="max-w-2xl">
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#B88A44]/30 bg-white/75 px-3 py-1 text-[11px] font-black text-[#7A5528] shadow-sm dark:bg-white/10 dark:text-[#E3C382]">
+                            <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                            SMG recorrência da barbearia
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-950 dark:text-white md:text-3xl">Clube do Chefe</h2>
+                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                            Planos mensais com créditos por serviço, prioridade de agenda e benefícios pensados para manter clientes bons voltando à cadeira.
+                        </p>
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Clube do Chefe</h2>
-                        <p className="text-slate-500 text-sm font-medium">Gestao de planos e creditos por servico.</p>
-                    </div>
+                    <button
+                        onClick={() => {
+                            resetFormState();
+                            setShowModal(true);
+                        }}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#007BFF] px-5 py-3 text-sm font-bold text-white shadow-sm shadow-[#007BFF]/20 transition-all hover:bg-[#006ADF]"
+                    >
+                        <span className="material-symbols-outlined">add_circle</span>
+                        Novo plano
+                    </button>
                 </div>
-                <button
-                    onClick={() => {
-                        resetFormState();
-                        setShowModal(true);
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-primary/20 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-                >
-                    <span className="material-symbols-outlined">add_circle</span>
-                    Novo Plano
-                </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    { label: 'Planos ativos', value: String(planSummary.activePlans), icon: 'verified', tone: 'text-[#007BFF] dark:text-[#72E7FF]', bg: 'bg-[#007BFF]/10 border-[#00D2FF]/25' },
+                    { label: 'Recorrência potencial', value: `R$ ${planSummary.potentialMonthlyRevenue.toFixed(2)}`, icon: 'payments', tone: 'text-emerald-600 dark:text-emerald-300', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+                    { label: 'Créditos planejados', value: String(planSummary.plannedCredits), icon: 'local_activity', tone: 'text-[#9A6F2D] dark:text-[#E3C382]', bg: 'bg-[#B88A44]/15 border-[#B88A44]/30' },
+                    { label: 'Serviços no catálogo', value: String(planSummary.serviceCatalog), icon: 'content_cut', tone: 'text-slate-600 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10' },
+                ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-card-dark">
+                        <div className={`mb-3 flex size-10 items-center justify-center rounded-xl border ${item.bg}`}>
+                            <span className={`material-symbols-outlined text-xl ${item.tone}`}>{item.icon}</span>
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-2xl font-black text-slate-950 dark:text-white">{item.value}</p>
+                    </div>
+                ))}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -339,44 +387,44 @@ const ChefClubPlans: React.FC = () => {
                     const serviceCredits = normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits);
 
                     return (
-                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-3xl border ${plan.active ? 'border-amber-500/30' : 'border-slate-200 dark:border-border-dark'} overflow-hidden shadow-xl transition-all hover:shadow-2xl hover:translate-y-[-4px]`}>
+                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-2xl border ${plan.active ? 'border-[#B88A44]/35' : 'border-slate-200 dark:border-border-dark'} overflow-hidden shadow-sm transition-all hover:border-[#007BFF]/35 hover:shadow-md`}>
                             <div className="p-6">
                                 <div className="flex justify-between items-start mb-4">
-                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${plan.active ? 'bg-amber-500/10 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                    <span className={`px-3 py-1 rounded-full text-[11px] font-black ${plan.active ? 'bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382]' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                                         {plan.active ? 'Ativo' : 'Inativo'}
                                     </span>
                                     <div className="flex gap-1">
-                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-primary transition-colors">
+                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-[#007BFF] transition-colors" title="Editar plano">
                                             <span className="material-symbols-outlined text-lg">edit</span>
                                         </button>
                                         <button onClick={() => toggleStatus(plan)} className={`p-2 transition-colors ${plan.active ? 'text-red-400 hover:text-red-600' : 'text-emerald-400 hover:text-emerald-600'}`}>
                                             <span className="material-symbols-outlined text-lg">{plan.active ? 'visibility_off' : 'visibility'}</span>
                                         </button>
-                                        <button onClick={() => handleDelete(plan)} className="p-2 text-rose-500 hover:text-rose-600 transition-colors" title="Excluir plano">
-                                            <span className="material-symbols-outlined text-lg">delete</span>
+                                        <button onClick={() => handleDelete(plan)} className="p-2 text-rose-500 hover:text-rose-600 transition-colors" title="Excluir plano" disabled={deletingPlanId === plan.id}>
+                                            <span className="material-symbols-outlined text-lg">{deletingPlanId === plan.id ? 'progress_activity' : 'delete'}</span>
                                         </button>
                                     </div>
                                 </div>
 
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-1">{plan.name}</h3>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1">{plan.name}</h3>
                                 <div className="flex items-baseline gap-1 mb-4">
-                                    <span className="text-2xl font-black text-primary">R$ {Number(plan.monthly_price || 0).toFixed(2)}</span>
-                                    <span className="text-xs text-slate-500 font-bold uppercase">/mes</span>
+                                    <span className="text-2xl font-black text-[#007BFF] dark:text-[#72E7FF]">R$ {Number(plan.monthly_price || 0).toFixed(2)}</span>
+                                    <span className="text-xs text-slate-500 font-bold">/mês</span>
                                 </div>
 
                                 <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-white/5">
                                     <div className="rounded-2xl bg-slate-50 dark:bg-white/5 p-3 border border-slate-100 dark:border-white/10">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Creditos por servico</p>
+                                        <p className="text-[11px] font-black text-slate-500 mb-2">Créditos por serviço</p>
                                         <div className="space-y-2">
                                             {serviceCredits.length > 0 ? serviceCredits.map((entry) => (
                                                 <div key={`${plan.id}-${entry.service_id || entry.service_name}`} className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
                                                     <span className="font-bold">{entry.service_name}</span>
-                                                    <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-600">
+                                                    <span className="inline-flex items-center rounded-full bg-[#B88A44]/15 px-2.5 py-1 text-[11px] font-black text-[#9A6F2D] dark:text-[#E3C382]">
                                                         {entry.credits}
                                                     </span>
                                                 </div>
                                             )) : (
-                                                <p className="text-xs text-slate-400">Sem creditos configurados.</p>
+                                                <p className="text-xs text-slate-400">Sem créditos configurados.</p>
                                             )}
                                         </div>
                                     </div>
@@ -401,10 +449,10 @@ const ChefClubPlans: React.FC = () => {
             </div>
 
             {plans.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center p-20 bg-slate-50 dark:bg-white/5 rounded-3xl border-2 border-dashed border-slate-200 dark:border-white/10 text-center">
-                    <span className="material-symbols-outlined text-6xl text-slate-300 mb-4">loyalty</span>
-                    <h3 className="text-xl font-bold text-slate-600 dark:text-slate-400">Nenhum plano criado ainda</h3>
-                    <p className="text-slate-500 max-w-xs mt-2">Crie seu primeiro plano com creditos distribuidos por servico.</p>
+                <div className="flex flex-col items-center justify-center p-12 md:p-20 bg-slate-50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 text-center">
+                    <span className="material-symbols-outlined text-5xl text-[#B88A44] mb-4">loyalty</span>
+                    <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">Nenhum plano criado ainda</h3>
+                    <p className="text-slate-500 max-w-sm mt-2">Monte o primeiro pacote mensal com créditos por serviço e benefícios da barbearia.</p>
                 </div>
             )}
 
@@ -415,9 +463,9 @@ const ChefClubPlans: React.FC = () => {
                 maxWidth="md"
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Nome do Plano</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="sm:col-span-2">
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Nome do plano</label>
                             <input
                                 required
                                 value={form.name}
@@ -428,7 +476,7 @@ const ChefClubPlans: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Valor Mensal (R$)</label>
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Valor mensal (R$)</label>
                             <input
                                 type="number"
                                 required
@@ -441,28 +489,28 @@ const ChefClubPlans: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Total de Creditos</label>
-                            <div className="w-full bg-slate-100 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm font-black text-amber-600">
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Total de créditos</label>
+                            <div className="w-full bg-slate-100 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm font-black text-[#9A6F2D] dark:text-[#E3C382]">
                                 {getTotalPlannedCredits(form.service_credit_map)}
                             </div>
                         </div>
 
-                        <div className="col-span-2">
+                        <div className="sm:col-span-2">
                             <div className="flex items-center justify-between mb-2">
-                                <label className="text-[10px] font-black uppercase text-slate-500 block">Creditos por Servico</label>
+                                <label className="text-[11px] font-black text-slate-500 block">Créditos por serviço</label>
                                 <button
                                     type="button"
                                     onClick={handleAddServiceCredit}
                                     disabled={availableServices.length === 0}
-                                    className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="inline-flex items-center gap-1 rounded-lg bg-[#B88A44]/15 px-3 py-1.5 text-[11px] font-black text-[#9A6F2D] disabled:opacity-50 disabled:cursor-not-allowed dark:text-[#E3C382]"
                                 >
                                     <span className="material-symbols-outlined text-sm">add</span>
-                                    Adicionar Servico
+                                    Adicionar serviço
                                 </button>
                             </div>
                             {services.length === 0 && (
                                 <p className="text-[11px] text-slate-500 mb-3">
-                                    Cadastre servicos no catalogo antes de montar os creditos do plano.
+                                    Cadastre serviços no catálogo antes de montar os créditos do plano.
                                 </p>
                             )}
 
@@ -473,9 +521,9 @@ const ChefClubPlans: React.FC = () => {
                                     );
 
                                     return (
-                                        <div key={`${item.service_id}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3">
+                                        <div key={`${item.service_id}-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 items-end rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3">
                                             <div>
-                                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Servico</label>
+                                                <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Serviço</label>
                                                 <select
                                                     value={item.service_id}
                                                     onChange={(e) => handleUpdateServiceCredit(index, 'service_id', e.target.value)}
@@ -489,7 +537,7 @@ const ChefClubPlans: React.FC = () => {
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Creditos</label>
+                                                <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Créditos</label>
                                                 <input
                                                     type="number"
                                                     min="0"
@@ -502,8 +550,8 @@ const ChefClubPlans: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveServiceCredit(index)}
-                                                className="h-12 w-12 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center"
-                                                title="Remover servico"
+                                                className="h-12 w-full rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center sm:w-12"
+                                                title="Remover serviço"
                                             >
                                                 <span className="material-symbols-outlined">delete</span>
                                             </button>
@@ -511,24 +559,24 @@ const ChefClubPlans: React.FC = () => {
                                     );
                                 }) : (
                                     <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 p-4 text-sm text-slate-500 text-center">
-                                        Nenhum servico vinculado. Adicione os servicos que este plano cobre.
+                                        Nenhum serviço vinculado. Adicione os serviços que este plano cobre.
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="col-span-2">
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Descricao</label>
+                        <div className="sm:col-span-2">
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Descrição</label>
                             <textarea
                                 value={form.description}
                                 onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-                                title="Descricao"
+                                title="Descrição"
                                 rows={2}
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white"
                             />
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">% Desconto Produtos</label>
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">% desconto em produtos</label>
                             <input
                                 type="number"
                                 min="0"
@@ -540,14 +588,14 @@ const ChefClubPlans: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">Acumulo Maximo</label>
+                            <label className="text-[11px] font-black text-slate-500 mb-1.5 block">Acúmulo máximo</label>
                             <input
                                 type="number"
                                 min="0"
                                 step="1"
                                 value={form.max_rollover_credits}
                                 onChange={(e) => setForm((current) => ({ ...current, max_rollover_credits: Number(e.target.value) }))}
-                                title="Acumulo Maximo"
+                                title="Acúmulo máximo"
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white"
                                 placeholder="0 = não acumula"
                             />
@@ -560,18 +608,55 @@ const ChefClubPlans: React.FC = () => {
                             title="Prioridade de Agendamento"
                             checked={form.priority_booking}
                             onChange={(e) => setForm((current) => ({ ...current, priority_booking: e.target.checked }))}
-                            className="size-4 rounded border-slate-300 text-primary focus:ring-primary"
+                            className="size-4 rounded border-slate-300 text-[#007BFF] focus:ring-[#007BFF]"
                         />
                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Habilitar Prioridade de Agendamento</span>
                     </div>
 
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex flex-col gap-3 pt-4 sm:flex-row">
                         <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 px-6 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 font-bold rounded-xl text-sm">Cancelar</button>
-                        <button type="submit" disabled={loading} className="flex-1 py-3 px-6 bg-primary text-white font-black uppercase tracking-widest rounded-xl text-sm shadow-lg shadow-primary/20">
+                        <button type="submit" disabled={loading} className="flex-1 py-3 px-6 bg-[#007BFF] text-white font-black rounded-xl text-sm shadow-sm shadow-[#007BFF]/20">
                             {loading ? 'Salvando...' : 'Salvar Plano'}
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal
+                isOpen={!!planToDelete}
+                onClose={() => setPlanToDelete(null)}
+                title="Excluir plano"
+                maxWidth="sm"
+            >
+                {planToDelete && (
+                    <div className="space-y-4">
+                        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+                            <p className="text-sm font-bold text-rose-700 dark:text-rose-300">
+                                Esta ação remove o plano {planToDelete.name} do catálogo do Clube do Chefe.
+                            </p>
+                            <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-300/80">
+                                Use somente quando o plano não fizer mais parte da estratégia comercial da barbearia.
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                            <button
+                                type="button"
+                                onClick={() => setPlanToDelete(null)}
+                                className="flex-1 rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                            >
+                                Manter plano
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void confirmDelete()}
+                                disabled={deletingPlanId === planToDelete.id}
+                                className="flex-1 rounded-xl bg-rose-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+                            >
+                                {deletingPlanId === planToDelete.id ? 'Excluindo...' : 'Excluir plano'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

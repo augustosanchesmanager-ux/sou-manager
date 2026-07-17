@@ -30,62 +30,74 @@ const getAlertIcon = (type: AlertType) => {
 const getAlertColors = (type: AlertType, priority: 'high' | 'medium' | 'low') => {
   if (priority === 'high') {
     return {
-      bg: 'bg-red-50 dark:bg-red-900/10',
-      border: 'border-red-100 dark:border-red-800/20',
+      bg: 'bg-red-50 dark:bg-red-500/10',
+      border: 'border-red-200 dark:border-red-500/30',
       icon: 'text-red-500',
-      text: 'text-red-700 dark:text-red-400',
+      text: 'text-red-700 dark:text-red-300',
+      badge: 'bg-red-500 text-white',
     };
   }
-  
-  const colors: Record<AlertType, { bg: string; border: string; icon: string; text: string }> = {
+
+  const colors: Record<AlertType, { bg: string; border: string; icon: string; text: string; badge: string }> = {
     stock: {
-      bg: 'bg-amber-50 dark:bg-amber-900/10',
-      border: 'border-amber-100 dark:border-amber-800/20',
+      bg: 'bg-amber-50 dark:bg-amber-500/10',
+      border: 'border-amber-200 dark:border-amber-500/30',
       icon: 'text-amber-500',
-      text: 'text-amber-700 dark:text-amber-400',
+      text: 'text-amber-700 dark:text-amber-300',
+      badge: 'bg-amber-500 text-white',
     },
     churn: {
-      bg: 'bg-orange-50 dark:bg-orange-900/10',
-      border: 'border-orange-100 dark:border-orange-800/20',
+      bg: 'bg-orange-50 dark:bg-orange-500/10',
+      border: 'border-orange-200 dark:border-orange-500/30',
       icon: 'text-orange-500',
-      text: 'text-orange-700 dark:text-orange-400',
+      text: 'text-orange-700 dark:text-orange-300',
+      badge: 'bg-orange-500 text-white',
     },
     revenue: {
-      bg: 'bg-red-50 dark:bg-red-900/10',
-      border: 'border-red-100 dark:border-red-800/20',
+      bg: 'bg-red-50 dark:bg-red-500/10',
+      border: 'border-red-200 dark:border-red-500/30',
       icon: 'text-red-500',
-      text: 'text-red-700 dark:text-red-400',
+      text: 'text-red-700 dark:text-red-300',
+      badge: 'bg-red-500 text-white',
     },
     inadimplence: {
-      bg: 'bg-red-50 dark:bg-red-900/10',
-      border: 'border-red-100 dark:border-red-800/20',
+      bg: 'bg-red-50 dark:bg-red-500/10',
+      border: 'border-red-200 dark:border-red-500/30',
       icon: 'text-red-500',
-      text: 'text-red-700 dark:text-red-400',
+      text: 'text-red-700 dark:text-red-300',
+      badge: 'bg-red-500 text-white',
     },
     occupation: {
-      bg: 'bg-blue-50 dark:bg-blue-900/10',
-      border: 'border-blue-100 dark:border-blue-800/20',
-      icon: 'text-blue-500',
-      text: 'text-blue-700 dark:text-blue-400',
+      bg: 'bg-[#EAF7FF] dark:bg-[#0D2238]',
+      border: 'border-[#BDEFFF] dark:border-[#14304A]',
+      icon: 'text-[#007BFF] dark:text-[#00D2FF]',
+      text: 'text-[#003366] dark:text-[#D9F6FF]',
+      badge: 'bg-[#007BFF] text-white',
     },
   };
-  
+
   return colors[type] || colors.revenue;
 };
 
 export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAlertClick }) => {
   if (!alerts || alerts.length === 0) {
     return (
-      <div className="card-boutique p-6">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-          Alertas Estratégicos
-        </h3>
-        <div className="py-4 text-center text-emerald-600 dark:text-emerald-400 text-sm">
-          <span className="material-symbols-outlined text-2xl mb-1">sentiment_satisfied</span>
-          <p>Nenhum alerta crítico</p>
+      <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+            <span className="material-symbols-outlined">check_circle</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Atenção do dono</p>
+            <h3 className="text-base font-black text-[#003366] dark:text-white">Alertas estratégicos</h3>
+          </div>
         </div>
-      </div>
+        <div className="flex h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
+          <span className="material-symbols-outlined mb-2 text-3xl text-emerald-500">done_all</span>
+          <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Nenhum alerta crítico agora</p>
+          <p className="mt-1 text-xs text-slate-500">Estoque, inadimplência e ocupação seguem sem sinal urgente.</p>
+        </div>
+      </section>
     );
   }
 
@@ -94,14 +106,21 @@ export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAler
     return priorityOrder[a.priority] - priorityOrder[b.priority];
   });
 
+  const highPriorityCount = alerts.filter((alert) => alert.priority === 'high').length;
+
   return (
-    <div className="card-boutique p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span className="material-symbols-outlined text-amber-500">notifications_active</span>
-          Alertas Estratégicos
-        </h3>
-        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+    <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+            <span className="material-symbols-outlined">notifications_active</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Atenção do dono</p>
+            <h3 className="text-base font-black text-[#003366] dark:text-white">Alertas estratégicos</h3>
+          </div>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${highPriorityCount > 0 ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}>
           {alerts.length}
         </span>
       </div>
@@ -109,37 +128,37 @@ export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAler
       <div className="space-y-2">
         {sortedAlerts.map((alert) => {
           const colors = getAlertColors(alert.type, alert.priority);
-          
+
           return (
-            <div
+            <button
               key={alert.id}
+              type="button"
               onClick={() => onAlertClick?.(alert)}
-              className={`flex items-center gap-3 p-3 rounded-lg border ${colors.bg} ${colors.border} hover:opacity-90 transition-opacity cursor-pointer`}
+              className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/30 ${colors.bg} ${colors.border}`}
             >
-              <div className={`size-8 rounded-lg flex items-center justify-center bg-white dark:bg-black/20 ${colors.icon}`}>
+              <div className={`flex size-9 items-center justify-center rounded-xl bg-white dark:bg-black/20 ${colors.icon}`}>
                 <span className="material-symbols-outlined text-lg">{getAlertIcon(alert.type)}</span>
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-bold ${colors.text} truncate`}>
+
+              <div className="min-w-0 flex-1">
+                <p className={`truncate text-sm font-bold ${colors.text}`}>
                   {alert.message}
                 </p>
                 {alert.count !== undefined && (
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] font-semibold text-slate-500">
                     {alert.count} item(s) afetado(s)
                   </p>
                 )}
               </div>
-              
-              {alert.priority === 'high' && (
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              )}
-              
-              <span className="material-symbols-outlined text-slate-400 text-sm">chevron_right</span>
-            </div>
+
+              <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${colors.badge}`}>
+                {alert.priority === 'high' ? 'Urgente' : alert.priority === 'medium' ? 'Revisar' : 'Baixo'}
+              </span>
+              <span className="material-symbols-outlined text-sm text-slate-400">chevron_right</span>
+            </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };

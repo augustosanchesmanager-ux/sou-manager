@@ -9,9 +9,10 @@ import {
 } from '../../services/scheduleBlocksApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { ChevronLeft, Scissors, User, Calendar as CalendarIcon, Clock, CheckCircle } from 'lucide-react';
+import { shouldAppearOnSchedule } from '../../src/lib/staff/roles';
 
 interface Service { id: string; name: string; price: number; duration_minutes: number; }
-interface Barber { id: string; name: string; }
+interface Barber { id: string; name: string; role?: string; }
 interface Slot { time: string; datetime: string; }
 
 type ScheduleStep = 'service' | 'barber' | 'datetime' | 'confirm' | 'success';
@@ -91,11 +92,11 @@ const PortalSchedule: React.FC = () => {
             // 3. Services and Barbers base load
             const [svcRes, bbrRes] = await Promise.all([
                 supabase.from('services').select('id, name, price, duration_minutes').eq('tenant_id', tenantData.id).eq('is_active', true).order('name'),
-                supabase.from('staff').select('id, name').eq('tenant_id', tenantData.id).eq('status', 'active').order('name')
+                supabase.from('staff').select('id, name, role').eq('tenant_id', tenantData.id).eq('status', 'active').order('name')
             ]);
 
             setServices(svcRes.data || []);
-            setBarbers(bbrRes.data || []);
+            setBarbers(((bbrRes.data || []) as Barber[]).filter(shouldAppearOnSchedule));
 
         } catch (e: any) {
             console.error(e);

@@ -5,6 +5,21 @@
 -- to prevent recursive RLS evaluation on profiles table
 -- =====================================================
 
+-- Compatibility helper for historical local rebuilds before the newer
+-- current_tenant_id_from_auth_uid() helper exists.
+CREATE OR REPLACE FUNCTION public.get_current_tenant_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT tenant_id
+  FROM public.profiles
+  WHERE id = auth.uid()
+  LIMIT 1
+$$;
+
 -- 1) Fix profiles table: Remove the recursive "Superadmins can view all profiles" policy
 -- and replace with a non-recursive version
 DROP POLICY IF EXISTS "Superadmins can view all profiles" ON public.profiles;

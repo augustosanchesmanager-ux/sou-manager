@@ -6,9 +6,11 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { LoadingBlock } from '../components/ui/Loading';
+import CustomerVouchersSection from '../components/customers/CustomerVouchersSection';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
+import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 
 interface Client {
     id: string;
@@ -58,7 +60,13 @@ const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { showLoading, hideLoading } = useLoading();
-    const { tenantId } = useAuth();
+    const { tenantId, user, appSlug } = useAuth();
+    const labels = getBusinessLabels(appSlug);
+    const isEsteticaApp = appSlug === 'estetica';
+    const orderLabel = labels.order;
+    const orderLabelLower = orderLabel.toLowerCase();
+    const orderPluralLower = labels.orderPlural.toLowerCase();
+    const serviceLabel = labels.service;
     const barberSupabase = getScopedClient('barber');
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
@@ -239,7 +247,7 @@ const Clients: React.FC = () => {
     const handleCreateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para cadastro de cliente.', type: 'error' });
+            setToast({ message: 'Tenant inválido para cadastro de cliente.', type: 'error' });
             return;
         }
         const clientsClient = getClientForTable('clients', 'barber');
@@ -291,10 +299,11 @@ const Clients: React.FC = () => {
         const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
 
         const cleanupByClientId = async (table: string) => {
-            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions'
+            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions' || table === 'customer_vouchers'
                 ? barberSupabase
                 : supabase;
-            const { error } = await targetClient.from(table).delete().eq('client_id', clientId);
+            const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
+            const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
             if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
                 console.warn(`Falha ao limpar dependencias em ${table}:`, error);
             }
@@ -324,6 +333,7 @@ const Clients: React.FC = () => {
             await cleanupByClientId('kiosk_sessions');
             await cleanupByClientId('customer_credits');
             await cleanupByClientId('customer_subscriptions');
+            await cleanupByClientId('customer_vouchers');
             await cleanupByClientId('comandas');
 
             const clientsClient = getClientForTable('clients', 'barber');
@@ -432,7 +442,7 @@ const Clients: React.FC = () => {
 
     const handleConfirmImport = async () => {
         if (!tenantId) {
-            setToast({ message: 'Tenant invalido para importar clientes.', type: 'error' });
+            setToast({ message: 'Tenant inválido para importar clientes.', type: 'error' });
             return;
         }
         setLoading(true);
@@ -530,7 +540,7 @@ const Clients: React.FC = () => {
                                     <th className="px-5 py-3 hidden md:table-cell">Telefone</th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
                                         <button onClick={() => handleSort('last_visit')} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
-                                            Última Visita <span className="material-symbols-outlined text-sm">{sortIcon('last_visit')}</span>
+                                            {isEsteticaApp ? 'Último atendimento' : 'Última Visita'} <span className="material-symbols-outlined text-sm">{sortIcon('last_visit')}</span>
                                         </button>
                                     </th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
@@ -545,7 +555,9 @@ const Clients: React.FC = () => {
                             <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
                                 {processed.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="text-center py-10 text-slate-500 text-sm">Nenhum cliente encontrado.</td>
+                                        <td colSpan={6} className="text-center py-10 text-slate-500 text-sm">
+                                            {isEsteticaApp ? 'Cadastre clientes para acompanhar atendimentos, retornos e histórico.' : 'Nenhum cliente encontrado.'}
+                                        </td>
                                     </tr>
                                 )}
                                 {processed.map(client => (
@@ -564,7 +576,7 @@ const Clients: React.FC = () => {
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                         <p className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</p>
-                                                        {chefClubMap[client.id] && (
+                                                        {!isEsteticaApp && chefClubMap[client.id] && (
                                                             <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded text-[9px] font-black uppercase tracking-tighter" title={`Clube do Chefe: ${chefClubMap[client.id]}`}>
                                                                 <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
                                                                 Membro
@@ -587,13 +599,15 @@ const Clients: React.FC = () => {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
-                                                <button
-                                                    onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
-                                                    className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                                                    title="Virar Assinante"
-                                                >
-                                                    <span className="material-symbols-outlined text-lg">workspace_premium</span>
-                                                </button>
+                                                {!isEsteticaApp && (
+                                                    <button
+                                                        onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
+                                                        className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                        title="Virar Assinante"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">workspace_premium</span>
+                                                    </button>
+                                                )}
                                                 <button onClick={() => void openClientDetails(client)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
                                                     <span className="material-symbols-outlined text-lg">visibility</span>
                                                 </button>
@@ -618,7 +632,7 @@ const Clients: React.FC = () => {
                 isOpen={!!detailClient}
                 onClose={() => setDetailClient(null)}
                 title="Detalhes do Cliente"
-                maxWidth="md"
+                maxWidth="2xl"
             >
                 {detailClient && (
                     <div className="space-y-4">
@@ -656,7 +670,7 @@ const Clients: React.FC = () => {
                             </div>
                             {detailOpenComandasLoading && (
                                 <div className="col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Verificando comandas abertas...</p>
+                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Verificando {orderPluralLower} abertos...</p>
                                 </div>
                             )}
                             {!detailOpenComandasLoading && detailOpenComandasCount > 0 && (
@@ -664,12 +678,12 @@ const Clients: React.FC = () => {
                                     <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                                                Este cliente possui comanda aberta
+                                                Este cliente possui {orderLabelLower} aberto
                                             </p>
                                             <p className="text-xs text-slate-600 dark:text-slate-300">
                                                 {detailOpenComandasCount === 1
-                                                    ? '1 comanda em aberto'
-                                                    : `${detailOpenComandasCount} comandas em aberto`}
+                                                    ? `1 ${orderLabelLower} em aberto`
+                                                    : `${detailOpenComandasCount} ${orderPluralLower} em aberto`}
                                             </p>
                                         </div>
                                         <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-500/30 bg-white/70 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:bg-white/5 dark:text-amber-300">
@@ -682,10 +696,10 @@ const Clients: React.FC = () => {
                                             <div key={comanda.id} className="flex flex-col gap-2 rounded-lg bg-white/80 p-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
                                                 <div>
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">
-                                                        Comanda #{getDisplayId(comanda.id)}
+                                                        {orderLabel} #{getDisplayId(comanda.id)}
                                                     </p>
                                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                        {formatCurrency(comanda.total)} • {formatDateTime(comanda.created_at)} • open
+                                                        {formatCurrency(comanda.total)} • {formatDateTime(comanda.created_at)} • Aberto
                                                     </p>
                                                 </div>
                                                 <button
@@ -697,14 +711,14 @@ const Clients: React.FC = () => {
                                                     className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
                                                 >
                                                     <span className="material-symbols-outlined text-[14px]">visibility</span>
-                                                    Ver comanda
+                                                    Ver {orderLabelLower}
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
-                            {detailChefClub && (
+                            {!isEsteticaApp && detailChefClub && (
                                 <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -723,13 +737,19 @@ const Clients: React.FC = () => {
                                 </div>
                             )}
                             <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Última Visita</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">{isEsteticaApp ? 'Último atendimento' : 'Última Visita'}</p>
                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(detailClient.last_visit)}</p>
                             </div>
                             <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Último Serviço</p>
+                                <p className="text-[10px] text-slate-500 uppercase font-bold">Último {serviceLabel}</p>
                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.last_service || '-'}</p>
                             </div>
+                            <CustomerVouchersSection
+                                tenantId={tenantId}
+                                customerId={detailClient.id}
+                                currentUserId={user?.id || null}
+                                onToast={setToast}
+                            />
                         </div>
                         <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
                             className="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors mt-2">

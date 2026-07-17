@@ -8,7 +8,7 @@ BEGIN
         SELECT 1 FROM pg_policies WHERE policyname = 'customer_plans_tenant_access' AND tablename = 'customer_plans'
     ) THEN
         CREATE POLICY customer_plans_tenant_access ON customer_plans
-        FOR ALL USING (tenant_id = current_setting('app.current_tenant_id', true));
+        FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
     END IF;
 END
 $$;

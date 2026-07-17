@@ -6,6 +6,30 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const getDefaultCommissionRateForRole = (role: string) => {
+    return String(role || '').trim().toLowerCase() === 'barber' ? 50 : 0;
+};
+
+const STAFF_ROLE_MAP: Record<string, string> = {
+    'manager': 'Manager',
+    'gerente': 'Manager',
+    'gerente operacional': 'Manager',
+    'owner': 'Manager',
+    'admin': 'AdminManager',
+    'adminmanager': 'AdminManager',
+    'gerente administrativo': 'AdminManager',
+    'barber': 'Barber',
+    'barbeiro': 'Barber',
+    'receptionist': 'Receptionist',
+    'recepcionista': 'Receptionist',
+};
+
+const normalizeStaffRole = (role: string): string => {
+    const trimmed = String(role || '').trim();
+    if (['Manager', 'AdminManager', 'Barber', 'Receptionist'].includes(trimmed)) return trimmed;
+    return STAFF_ROLE_MAP[trimmed.toLowerCase()] || 'Barber';
+};
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -84,7 +108,9 @@ Deno.serve(async (req: Request) => {
             callerRole === 'manager' ||
             callerRole === 'gerente' ||
             callerRole === 'owner' ||
-            callerRole === 'admin';
+            callerRole === 'admin' ||
+            callerRole === 'adminmanager' ||
+            callerRole === 'gerente administrativo';
 
         if (!isSuperAdmin && !isManagerLike) {
             return new Response(JSON.stringify({ error: 'Forbidden: insufficient privileges' }), {
@@ -94,7 +120,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { email, password, name, role, tenant_id } = await req.json();
-        const normalizedRequestedRole = String(role || 'Barber').trim();
+        const normalizedRequestedRole = normalizeStaffRole(role);
         const normalizedRequestedRoleLower = normalizedRequestedRole.toLowerCase();
         if (!isSuperAdmin && (normalizedRequestedRoleLower === 'super admin' || normalizedRequestedRoleLower === 'superadmin')) {
             return new Response(JSON.stringify({ error: 'Forbidden: only super admin can assign super admin role' }), {
@@ -161,33 +187,49 @@ Deno.serve(async (req: Request) => {
         }
 
         if (createError) {
-            console.error('Create user error:', createError);
-            return new Response(JSON.stringify({ error: createError.message }), {
+            console.error('Create user error:', JSON.stringify(createError, null, 2));
+            return new Response(JSON.stringify({
+                error: createError.message || 'Erro ao criar usuário',
+                code: createError.code || null,
+                details: createError.details || null,
+                hint: createError.hint || null,
+                status: createError.status || null,
+            }), {
                 status: 400,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
         console.log('Auth user created:', newUser.user?.id);
+        const defaultCommissionRate = getDefaultCommissionRateForRole(normalizedRequestedRole);
 
         // 2. Insert or Update staff record
-        const { error: staffError } = await supabaseAdmin.from('staff').upsert({
+        const staffPayload = {
             id: newUser.user!.id,
             name,
             email,
-            role: normalizedRequestedRole || 'Barber',
+            role: normalizedRequestedRole,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
             status: 'active',
-            commission_rate: 40,
+            commission_rate: defaultCommissionRate,
             tenant_id: resolvedTenantId,
-        });
+        };
+        console.log('Staff upsert payload:', JSON.stringify({ ...staffPayload, avatar: '(omitted)' }));
+
+        const { error: staffError } = await supabaseAdmin.from('staff').upsert(staffPayload);
 
         if (staffError) {
-            console.error('Staff insert error:', staffError);
-            // Don't fail — the auth user was created. Return a warning.
+            console.error('Staff insert error:', JSON.stringify(staffError, null, 2));
+            // Don't fail — the auth user was created. Return a warning with full context.
             return new Response(JSON.stringify({
                 user: newUser.user,
-                warning: `User created but staff record failed: ${staffError.message}`
+                warning: `User created but staff record failed: ${staffError.message}`,
+                staff_error: {
+                    message: staffError.message || null,
+                    code: staffError.code || null,
+                    details: staffError.details || null,
+                    hint: staffError.hint || null,
+                },
             }), {
                 status: 200,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -200,8 +242,13 @@ Deno.serve(async (req: Request) => {
         });
 
     } catch (err: any) {
-        console.error('Unexpected error:', err);
-        return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
+        console.error('Unexpected error:', JSON.stringify(err, null, 2));
+        return new Response(JSON.stringify({
+            error: err.message || 'Internal server error',
+            code: err.code || null,
+            details: err.details || null,
+            hint: err.hint || null,
+        }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
