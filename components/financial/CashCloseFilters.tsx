@@ -5,6 +5,7 @@ import type { CashCloseFilters } from './cashCloseUtils';
 interface StaffMember {
     id: string;
     name: string;
+    role?: string | null;
 }
 
 interface CashCloseFiltersBarProps {

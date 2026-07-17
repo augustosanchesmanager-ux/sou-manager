@@ -31,6 +31,7 @@ import {
     generateCSVContent,
     downloadCSV,
     generatePreviewText,
+    isFrontlineRole,
 } from '../components/financial/cashCloseUtils';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -322,6 +323,63 @@ const CashClosingPage: React.FC = () => {
 
             setComandaDetails(Array.from(comandaIdToDetail.values()));
 
+            const missingComandaIds = txData
+                .filter(t => t.source_type === 'comanda' && t.source_id && !comandaIdToDetail.has(t.source_id))
+                .map(t => t.source_id!);
+
+            if (missingComandaIds.length > 0) {
+                const { data: missingComandas } = await supabase
+                    .from('comandas')
+                    .select('id, appointment_id, client_id, client_name, staff_id, status, total, payment_method')
+                    .in('id', missingComandaIds);
+
+                if (missingComandas && missingComandas.length > 0) {
+                    const missingIds = missingComandas.map((c: ComandaRecord) => c.id);
+                    const { data: missingItems } = await supabase
+                        .from('comanda_items')
+                        .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
+                        .in('comanda_id', missingIds);
+
+                    const missingItemsByComanda = new Map<string, ComandaItemRecord[]>();
+                    (missingItems || []).forEach((item: ComandaItemRecord) => {
+                        const list = missingItemsByComanda.get(item.comanda_id) || [];
+                        list.push(item);
+                        missingItemsByComanda.set(item.comanda_id, list);
+                    });
+
+                    missingComandas.forEach((cmd: ComandaRecord) => {
+                        if (comandaIdToDetail.has(cmd.id)) return;
+                        const items = missingItemsByComanda.get(cmd.id) || [];
+                        const detailItems: ComandaItemDetail[] = items.map(item => {
+                            const itemStaffId = item.staff_id || cmd.staff_id;
+                            return {
+                                id: item.id,
+                                serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
+                                quantity: item.quantity,
+                                unitPrice: Number(item.unit_price || 0),
+                                staffId: itemStaffId,
+                                staffName: staffMap[itemStaffId || '']?.name || '-',
+                            };
+                        });
+                        const resolvedStaffId = cmd.staff_id || items.find(i => i.staff_id)?.staff_id || null;
+                        const clientName = cmd.client_name || clientMap[cmd.client_id || ''] || 'Cliente nao identificado';
+                        comandaIdToDetail.set(cmd.id, {
+                            comandaId: cmd.id,
+                            clientId: cmd.client_id,
+                            clientName,
+                            staffId: resolvedStaffId,
+                            staffName: staffMap[resolvedStaffId || '']?.name || 'Sem profissional',
+                            paymentMethod: cmd.payment_method,
+                            total: Number(cmd.total || 0),
+                            status: cmd.status,
+                            items: detailItems,
+                        });
+                    });
+
+                    setComandaDetails(Array.from(comandaIdToDetail.values()));
+                }
+            }
+
             const transactionIds = txData.map((t) => t.id).filter(Boolean);
             const reversalSourceByTransactionId = new Map<string, CashClosingEntryExtended['reversalSource']>();
 
@@ -469,6 +527,11 @@ const CashClosingPage: React.FC = () => {
         staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '' }; });
         return map;
     }, [staffList]);
+
+    const frontlineStaff = useMemo(
+        () => staffList.filter(s => isFrontlineRole(s.role)),
+        [staffList]
+    );
 
     const barberSummaries = useMemo(
         () => buildBarberSummaries(filteredComandaDetails, staffMap),
@@ -738,7 +801,7 @@ const CashClosingPage: React.FC = () => {
             <CashCloseFiltersBar
                 filters={filters}
                 onFiltersChange={(f) => setFilters(prev => ({ ...prev, ...f }))}
-                operators={staffList}
+                operators={frontlineStaff}
                 filteredCount={filteredEntries.length}
                 totalCount={entries.length}
             />
@@ -807,18 +870,43 @@ const CashClosingPage: React.FC = () => {
                                         <span className="text-sm font-black text-slate-900 dark:text-white">{b.staffName}</span>
                                         {b.role && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400 bg-slate-100 dark:bg-white/5 rounded-full px-2 py-0.5">{b.role}</span>}
                                     </div>
-                                    <span className="text-lg font-black text-primary">{formatCurrency(b.totalReceived)}</span>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black text-primary">{formatCurrency(b.totalReceived)}</span>
+                                        {b.openTotal > 0 && (
+                                            <p className="text-[10px] font-bold text-amber-500">Pendente: {formatCurrency(b.openTotal)}</p>
+                                        )}
+                                    </div>
                                 </div>
-                                <p className="text-xs text-slate-500 mb-2">{b.comandaCount} comanda{b.comandaCount !== 1 ? 's' : ''}</p>
+                                <p className="text-xs text-slate-500 mb-2">
+                                    {b.comandaCount} comanda{b.comandaCount !== 1 ? 's' : ''} paga{b.comandaCount !== 1 ? 's' : ''}
+                                    {b.openComandaCount > 0 && (
+                                        <span className="text-amber-500"> | {b.openComandaCount} aberta{b.openComandaCount !== 1 ? 's' : ''}</span>
+                                    )}
+                                </p>
                                 <div className="space-y-1">
                                     {b.comandas.slice(0, 5).map(cmd => (
-                                        <div key={cmd.comandaId} className="flex items-center justify-between text-xs py-1 border-t border-slate-100 dark:border-white/5">
+                                        <div key={`${cmd.comandaId}-paid`} className="flex items-center justify-between text-xs py-1 border-t border-slate-100 dark:border-white/5">
                                             <span className="text-slate-600 dark:text-slate-300">{cmd.clientName}</span>
                                             <span className="text-slate-400">{cmd.items.map(i => i.serviceName).join(', ')}</span>
                                             <span className="font-bold text-slate-700 dark:text-white">{formatCurrency(cmd.total)}</span>
                                         </div>
                                     ))}
                                     {b.comandas.length > 5 && <p className="text-[10px] text-slate-400">+{b.comandas.length - 5} mais...</p>}
+                                    {b.openComandas.length > 0 && (
+                                        <>
+                                            <div className="pt-1 mt-1 border-t border-amber-200 dark:border-amber-500/20">
+                                                <p className="text-[10px] font-bold text-amber-500 uppercase">Comandas Abertas (Pendentes)</p>
+                                            </div>
+                                            {b.openComandas.slice(0, 3).map(cmd => (
+                                                <div key={`${cmd.comandaId}-open`} className="flex items-center justify-between text-xs py-1 border-t border-amber-100 dark:border-amber-500/10">
+                                                    <span className="text-slate-600 dark:text-slate-300">{cmd.clientName}</span>
+                                                    <span className="text-amber-400">{cmd.items.map(i => i.serviceName).join(', ')}</span>
+                                                    <span className="font-bold text-amber-600">{formatCurrency(cmd.total)}</span>
+                                                </div>
+                                            ))}
+                                            {b.openComandas.length > 3 && <p className="text-[10px] text-amber-400">+{b.openComandas.length - 3} abertas...</p>}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         ))}

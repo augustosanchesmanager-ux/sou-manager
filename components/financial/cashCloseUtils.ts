@@ -55,6 +55,9 @@ export interface BarberSummary {
     totalReceived: number;
     comandaCount: number;
     comandas: ComandaDetail[];
+    openComandaCount: number;
+    openTotal: number;
+    openComandas: ComandaDetail[];
 }
 
 export interface CashClosingEntryExtended extends EnrichedCashFlowEntry {
@@ -75,6 +78,13 @@ export interface CashClosingEntryExtended extends EnrichedCashFlowEntry {
     clientName?: string;
     comandaItems?: string;
 }
+
+export const isFrontlineRole = (role: string | null | undefined): boolean => {
+    const r = (role || '').toLowerCase().trim();
+    if (!r) return false;
+    const excluded = ['receptionist', 'recepcionista', 'unknown', ''];
+    return !excluded.includes(r);
+};
 
 export const formatCurrency = (value: number): string =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -116,28 +126,83 @@ export const buildBarberSummaries = (
     comandas: ComandaDetail[],
     staffMap: Record<string, { name: string; role: string }>,
 ): BarberSummary[] => {
-    const byBarber = new Map<string, BarberSummary>();
+    const byBarber = new Map<string, {
+        totalReceived: number;
+        openTotal: number;
+        paidComandas: ComandaDetail[];
+        openComandas: ComandaDetail[];
+    }>();
 
-    comandas.forEach(cmd => {
-        const staffId = cmd.staffId || 'sem-profissional';
+    const getOrCreate = (staffId: string) => {
         if (!byBarber.has(staffId)) {
-            const info = staffMap[staffId];
             byBarber.set(staffId, {
-                staffId,
-                staffName: info?.name || (staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
-                role: info?.role || '',
                 totalReceived: 0,
-                comandaCount: 0,
-                comandas: [],
+                openTotal: 0,
+                paidComandas: [],
+                openComandas: [],
             });
         }
-        const summary = byBarber.get(staffId)!;
-        summary.totalReceived += cmd.total;
-        summary.comandaCount += 1;
-        summary.comandas.push(cmd);
+        return byBarber.get(staffId)!;
+    };
+
+    comandas.forEach(cmd => {
+        const isOpen = cmd.status === 'open';
+
+        const itemStaffIds = new Set(
+            cmd.items.map(i => i.staffId).filter(id => id && id !== cmd.staffId)
+        );
+        const isShared = itemStaffIds.size > 0;
+
+        if (isShared && cmd.items.length > 0) {
+            cmd.items.forEach(item => {
+                const staffId = item.staffId || cmd.staffId || 'sem-profissional';
+                const data = getOrCreate(staffId);
+                const itemValue = item.unitPrice * item.quantity;
+
+                const partialCmd: ComandaDetail = {
+                    ...cmd,
+                    staffId: item.staffId || cmd.staffId,
+                    staffName: staffMap[item.staffId || '']?.name || cmd.staffName,
+                    total: itemValue,
+                    items: [item],
+                };
+
+                if (isOpen) {
+                    data.openTotal += itemValue;
+                    data.openComandas.push(partialCmd);
+                } else {
+                    data.totalReceived += itemValue;
+                    data.paidComandas.push(partialCmd);
+                }
+            });
+        } else {
+            const staffId = cmd.staffId || 'sem-profissional';
+            const data = getOrCreate(staffId);
+
+            if (isOpen) {
+                data.openTotal += cmd.total;
+                data.openComandas.push(cmd);
+            } else {
+                data.totalReceived += cmd.total;
+                data.paidComandas.push(cmd);
+            }
+        }
     });
 
-    return Array.from(byBarber.values()).sort((a, b) => b.totalReceived - a.totalReceived);
+    return Array.from(byBarber.entries()).map(([staffId, data]) => {
+        const info = staffMap[staffId];
+        return {
+            staffId,
+            staffName: info?.name || (staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
+            role: info?.role || '',
+            totalReceived: data.totalReceived,
+            comandaCount: data.paidComandas.length,
+            comandas: data.paidComandas,
+            openComandaCount: data.openComandas.length,
+            openTotal: data.openTotal,
+            openComandas: data.openComandas,
+        };
+    }).sort((a, b) => b.totalReceived - a.totalReceived);
 };
 
 export const filterEntries = (
@@ -194,7 +259,14 @@ export const generateCSVContent = (
     lines.push(`Status;${validation.isValid ? 'Conferido' : 'Divergente'}`);
     lines.push('');
 
-    lines.push('REcebIMENTO POR FORMA DE PAGAMENTO');
+    const totalOpen = barberSummaries.reduce((s, b) => s + b.openTotal, 0);
+    if (totalOpen > 0) {
+        lines.push('VALORES NAO RECEBIDOS (COMANDAS ABERTAS)');
+        lines.push(`Total Pendente;${totalOpen.toFixed(2)}`);
+        lines.push('');
+    }
+
+    lines.push('RECEBIMENTO POR FORMA DE PAGAMENTO');
     lines.push('Forma;Valor Esperado;Valor Lanado;Diferenca');
     paymentRows.forEach(r => {
         lines.push(`${r.method};${r.expected.toFixed(2)};${r.launched.toFixed(2)};${(r.launched - r.expected).toFixed(2)}`);
@@ -203,9 +275,9 @@ export const generateCSVContent = (
 
     if (barberSummaries.length > 0) {
         lines.push('RECEBIMENTO POR BARBEIRO/PROFISSIONAL');
-        lines.push('Profissional;Funcao;Qtd Comandas;Total Recebido');
+        lines.push('Profissional;Funcao;Qtd Comandas;Total Recebido;Qtd Abertas;Total Pendente');
         barberSummaries.forEach(b => {
-            lines.push(`${b.staffName};${b.role || '-'};${b.comandaCount};${b.totalReceived.toFixed(2)}`);
+            lines.push(`${b.staffName};${b.role || '-'};${b.comandaCount};${b.totalReceived.toFixed(2)};${b.openComandaCount};${b.openTotal.toFixed(2)}`);
         });
         lines.push('');
     }
@@ -259,13 +331,25 @@ export const generateCSVContent = (
         lines.push('DETALHAMENTO POR BARBEIRO');
         barberSummaries.forEach(b => {
             lines.push('');
-            lines.push(`BARBEIRO: ${b.staffName} (${b.role || 'N/A'}) - Total: ${b.totalReceived.toFixed(2)}`);
-            lines.push('Data;Cliente;Servicos;Total;Forma Pagamento');
-            b.comandas.forEach(cmd => {
-                const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
-                const cmdDate = cmd.items.length > 0 ? '' : '';
-                lines.push(`-;${cmd.clientName};${itemNames};${cmd.total.toFixed(2)};${cmd.paymentMethod || '-'}`);
-            });
+            lines.push(`BARBEIRO: ${b.staffName} (${b.role || 'N/A'}) - Recebido: ${b.totalReceived.toFixed(2)} - Pendente: ${b.openTotal.toFixed(2)}`);
+
+            if (b.comandas.length > 0) {
+                lines.push('COMANDAS PAGAS');
+                lines.push('Data;Cliente;Servicos;Total;Forma Pagamento');
+                b.comandas.forEach(cmd => {
+                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
+                    lines.push(`-;${cmd.clientName};${itemNames};${cmd.total.toFixed(2)};${cmd.paymentMethod || '-'}`);
+                });
+            }
+
+            if (b.openComandas.length > 0) {
+                lines.push('COMANDAS ABERTAS (PENDENTES)');
+                lines.push('Data;Cliente;Servicos;Total;Forma Pagamento');
+                b.openComandas.forEach(cmd => {
+                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
+                    lines.push(`-;${cmd.clientName};${itemNames};${cmd.total.toFixed(2)};${cmd.paymentMethod || '-'}`);
+                });
+            }
         });
         lines.push('');
     }
@@ -304,6 +388,7 @@ export const generatePreviewText = (
     barberSummaries: BarberSummary[],
     filteredEntries: CashClosingEntryExtended[],
 ): string => {
+    const totalOpen = barberSummaries.reduce((s, b) => s + b.openTotal, 0);
     const lines: string[] = [
         '=======================================',
         '    COMPROVANTE DE FECHAMENTO DE CAIXA',
@@ -323,6 +408,14 @@ export const generatePreviewText = (
         '',
     ];
 
+    if (totalOpen > 0) {
+        lines.push('---------------------------------------');
+        lines.push('    VALORES NAO RECEBIDOS');
+        lines.push('---------------------------------------');
+        lines.push(`  Total Pendente (Comandas Abertas): ${formatCurrency(totalOpen)}`);
+        lines.push('');
+    }
+
     lines.push('---------------------------------------');
     lines.push('    POR FORMA DE PAGAMENTO');
     lines.push('---------------------------------------');
@@ -336,7 +429,8 @@ export const generatePreviewText = (
         lines.push('    RECEBIMENTO POR BARBEIRO');
         lines.push('---------------------------------------');
         barberSummaries.forEach(b => {
-            lines.push(`  ${b.staffName.padEnd(22)} ${formatCurrency(b.totalReceived).padStart(14)}  (${b.comandaCount} comandas)`);
+            const pendingLabel = b.openTotal > 0 ? ` | Pendente: ${formatCurrency(b.openTotal)}` : '';
+            lines.push(`  ${b.staffName.padEnd(22)} ${formatCurrency(b.totalReceived).padStart(14)}  (${b.comandaCount} comandas${pendingLabel})`);
         });
         lines.push('');
     }
@@ -347,15 +441,32 @@ export const generatePreviewText = (
         lines.push('=======================================');
         barberSummaries.forEach(b => {
             lines.push('');
-            lines.push(`  >> ${b.staffName} (${b.role || 'N/A'}) - Total: ${formatCurrency(b.totalReceived)}`);
-            lines.push('  -----------------------------------');
-            b.comandas.forEach(cmd => {
-                const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
-                lines.push(`    Cliente: ${cmd.clientName}`);
-                lines.push(`    Servicos: ${itemNames}`);
-                lines.push(`    Total: ${formatCurrency(cmd.total)} | Forma: ${cmd.paymentMethod || '-'}`);
-                lines.push('');
-            });
+            lines.push(`  >> ${b.staffName} (${b.role || 'N/A'})`);
+            lines.push(`  Recebido: ${formatCurrency(b.totalReceived)} | Pendente: ${formatCurrency(b.openTotal)}`);
+
+            if (b.comandas.length > 0) {
+                lines.push('  --- COMANDAS PAGAS ---');
+                b.comandas.forEach(cmd => {
+                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
+                    const isPartial = cmd.items.length === 1 && cmd.total < (cmd.total || 0);
+                    const partialTag = isPartial ? ' [servico compartilhado]' : '';
+                    lines.push(`    Cliente: ${cmd.clientName}${partialTag}`);
+                    lines.push(`    Servicos: ${itemNames}`);
+                    lines.push(`    Total: ${formatCurrency(cmd.total)} | Forma: ${cmd.paymentMethod || '-'}`);
+                    lines.push('');
+                });
+            }
+
+            if (b.openComandas.length > 0) {
+                lines.push('  --- COMANDAS ABERTAS (PENDENTES) ---');
+                b.openComandas.forEach(cmd => {
+                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
+                    lines.push(`    Cliente: ${cmd.clientName}`);
+                    lines.push(`    Servicos: ${itemNames}`);
+                    lines.push(`    Total: ${formatCurrency(cmd.total)} | Forma: ${cmd.paymentMethod || '-'}`);
+                    lines.push('');
+                });
+            }
         });
     }
 
