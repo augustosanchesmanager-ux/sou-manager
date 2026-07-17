@@ -28,13 +28,21 @@ const Modal: React.FC<ModalProps> = ({
                     modalCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') onClose();
+            };
+            document.addEventListener('keydown', handleKeyDown);
+            return () => {
+                document.body.classList.remove('modal-open');
+                document.removeEventListener('keydown', handleKeyDown);
+            };
         } else {
             document.body.classList.remove('modal-open');
         }
         return () => {
             document.body.classList.remove('modal-open');
         };
-    }, [isOpen]);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 

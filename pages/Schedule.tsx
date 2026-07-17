@@ -3512,23 +3512,25 @@ Podemos confirmar? 😄`;
         })()}
       </Modal>
 
-      {isDetailDrawerOpen && selectedAppointmentDetails && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <button className="absolute inset-0 bg-black/40" onClick={closeDetailDrawer} aria-label="Fechar detalhes" />
-          <div className="relative w-full max-w-xl h-full bg-white dark:bg-[#111318] border-l border-slate-200 dark:border-border-dark shadow-2xl flex flex-col">
-            <div className="p-5 border-b border-slate-200 dark:border-border-dark flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-500">Detalhes do atendimento</p>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.client}</h3>
-              </div>
-              <button onClick={closeDetailDrawer} className="size-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      <Modal isOpen={isDetailDrawerOpen && !!selectedAppointmentDetails} onClose={closeDetailDrawer} title="Detalhes do Agendamento" maxWidth="lg">
+        {selectedAppointmentDetails && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${selectedAppointmentDetails.statusBadgeClassName}`}>
+                <span className="material-symbols-outlined text-sm">{selectedAppointmentDetails.statusIcon}</span>
+                {selectedAppointmentDetails.statusLabel}
+              </span>
+              {selectedAppointmentDetails.isOverdue && (
+                <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                  <span className="material-symbols-outlined text-sm">warning</span>
+                  Atrasado
+                </span>
+              )}
             </div>
 
-            <div className="flex-none border-b border-slate-200 bg-white/95 p-4 dark:border-border-dark dark:bg-[#111318]/95">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ações rápidas</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-3">Ações rápidas</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sky-50 text-sky-600 text-sm font-bold">Iniciar</button>
@@ -3540,56 +3542,49 @@ Podemos confirmar? 😄`;
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${selectedAppointmentDetails.statusBadgeClassName}`}>
-                  <span className="material-symbols-outlined text-sm">{selectedAppointmentDetails.statusIcon}</span>
-                  {selectedAppointmentDetails.statusLabel}
-                </span>
-                {selectedAppointmentDetails.isOverdue && (
-                  <span className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                    <span className="material-symbols-outlined text-sm">warning</span>
-                    Atrasado
-                  </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Horário</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(selectedAppointmentDetails.start)} - {getAppointmentEndLabel(selectedAppointmentDetails)}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{new Date(selectedAppointmentDetails.startTime).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Cliente</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.client}</p>
+                {selectedAppointmentDetails.clientPhone && (
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedAppointmentDetails.clientPhone}</p>
                 )}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Cliente</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.client}</p>
-                  <p className="text-sm text-slate-500">{selectedAppointmentDetails.clientPhone || 'Sem telefone'}</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{professionalLabel}</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.staffName || '-'}</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{serviceLabel}</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.service}</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Origem</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.originLabel}</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Data</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{new Date(selectedAppointmentDetails.startTime).toLocaleDateString('pt-BR')}</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Horário</p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(selectedAppointmentDetails.start)} - {getAppointmentEndLabel(selectedAppointmentDetails)}</p>
-                </div>
-              </div>
-
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
-                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observação</p>
-                <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes || 'Sem observações.'}</p>
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">{serviceLabel}</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAppointmentDetails.service}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status do Atendimento</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {selectedAppointmentDetails.status === 'in_progress' ? 'Iniciado' : selectedAppointmentDetails.isOverdue ? 'Atrasado' : selectedAppointmentDetails.statusLabel}
+                </p>
+              </div>
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status da Comanda</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {selectedAppointmentDetails.hasOpenComanda ? 'Aberta' : 'Pendente'}
+                </p>
               </div>
             </div>
+
+            {selectedAppointmentDetails.notes && (
+              <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observações</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes}</p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {showCancelModal && appointmentToCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
