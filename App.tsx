@@ -11,6 +11,7 @@ import { TenantProvider } from './src/context/TenantContext';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
 
 const Layout = lazy(() => import('./components/Layout'));
+const AccessControl = lazy(() => import('./pages/AccessControl'));
 const Admin = lazy(() => import('./pages/Admin'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
@@ -232,6 +233,7 @@ const AppRoutes: React.FC = () => {
 
             <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
             <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} />
+            <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />

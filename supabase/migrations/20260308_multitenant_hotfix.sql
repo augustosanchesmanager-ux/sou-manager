@@ -63,7 +63,7 @@ BEGIN
 
   IF is_super_admin THEN
     access_role := 'superadmin';
-  ELSIF normalized_role IN ('manager', 'gerente', 'owner', 'admin') THEN
+  ELSIF normalized_role IN ('manager', 'gerente', 'owner', 'admin', 'adminmanager', 'admin_manager') THEN
     access_role := 'manager';
   ELSIF normalized_role = 'receptionist' THEN
     access_role := 'receptionist';

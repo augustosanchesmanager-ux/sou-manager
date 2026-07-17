@@ -111,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { name: 'Kiosk', icon: 'tablet_android', path: '/kiosk-admin', module: 'kiosk' },
         { name: 'Portal', icon: 'public', path: '/portal-admin', module: 'portal' },
         { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
+        { name: 'Perfis de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
       ]
     },
     {
@@ -220,9 +221,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       ? 'Barber'
       : accessRole === 'receptionist'
         ? 'Receptionist'
-        : accessRole === 'adminmanager'
-          ? 'Admin Manager'
-          : accessRole === 'manager'
+        : accessRole === 'manager'
             ? 'Manager'
             : '';
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';

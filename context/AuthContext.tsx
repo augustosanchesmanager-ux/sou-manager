@@ -61,7 +61,7 @@ interface AccessContextResult {
 const deriveAccessRole = (rawRole: string | null | undefined, isSuperAdmin: boolean): AccessRole => {
     const normalized = (rawRole || '').toLowerCase().trim();
     if (isSuperAdmin) return 'superadmin';
-    if (normalized === 'manager' || normalized === 'gerente' || normalized === 'owner' || normalized === 'admin') return 'manager';
+    if (normalized === 'manager' || normalized === 'gerente' || normalized === 'owner' || normalized === 'admin' || normalized === 'adminmanager' || normalized === 'admin_manager') return 'manager';
     if (normalized === 'barber') return 'barber';
     if (normalized === 'receptionist') return 'receptionist';
     return 'unknown';
