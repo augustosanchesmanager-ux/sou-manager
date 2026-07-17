@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/services/supabaseClient';
+import { supabase, getSharedClient } from '@/services/supabaseClient';
 import {
     CashCloseFilters,
     SangriaSuprimento,
@@ -278,16 +278,16 @@ export function useCashClosing(
                     .eq('tenant_id', tenantId)
                     .gte('date', start)
                     .lte('date', end),
-                supabase
+                getSharedClient()
                     .from('staff')
                     .select('id, name, role')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'active'),
-                supabase
+                getSharedClient()
                     .from('clients')
                     .select('id, name')
                     .eq('tenant_id', tenantId),
-                supabase
+                getSharedClient()
                     .from('services')
                     .select('id, name')
                     .eq('tenant_id', tenantId),
