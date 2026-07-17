@@ -7,9 +7,10 @@ import BarberClosingDetailPanel from './BarberClosingDetailPanel';
 interface BarberClosingCardProps {
     barber: BarberClosingDetail;
     loading: boolean;
+    onCloseBarberCash?: (barberStaffId: string, conference: { countedCash: number; justification: string }) => void;
 }
 
-const BarberClosingCard: React.FC<BarberClosingCardProps> = ({ barber, loading }) => {
+const BarberClosingCard: React.FC<BarberClosingCardProps> = ({ barber, loading, onCloseBarberCash }) => {
     const [expanded, setExpanded] = useState(false);
 
     if (loading) return null;
@@ -68,7 +69,7 @@ const BarberClosingCard: React.FC<BarberClosingCardProps> = ({ barber, loading }
 
             {expanded && (
                 <div className="border-t border-slate-200 dark:border-border-dark">
-                    <BarberClosingDetailPanel barber={barber} />
+                    <BarberClosingDetailPanel barber={barber} onCloseBarberCash={onCloseBarberCash} />
                 </div>
             )}
         </div>

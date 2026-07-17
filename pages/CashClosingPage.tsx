@@ -304,6 +304,10 @@ const CashClosingPage: React.FC = () => {
                 onSave={() => setShowSaveConfirm(true)}
                 onPreview={() => setShowPreview(true)}
                 hasTenantContext={hasTenantContext}
+                openingTime={closing.openingTime}
+                closingTime={closing.closingTime}
+                isConfirmed={closing.isConfirmed}
+                onOpenCash={closing.openCashRegister}
             />
 
             {/* Audit Button */}
@@ -415,6 +419,7 @@ const CashClosingPage: React.FC = () => {
                                 key={barber.staffId}
                                 barber={barber}
                                 loading={closing.loading}
+                                onCloseBarberCash={closing.closeBarberCash}
                             />
                         ))}
                     </div>
@@ -459,6 +464,7 @@ const CashClosingPage: React.FC = () => {
             {/* ETAPA 8: Timeline */}
             <ClosingTimeline
                 events={closing.timeline}
+                dbEvents={closing.closingEvents}
                 loading={closing.loading}
             />
 

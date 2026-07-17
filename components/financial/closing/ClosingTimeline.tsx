@@ -1,9 +1,10 @@
 import React from 'react';
-import { Clock, Scissors, ArrowDownCircle, ArrowUpCircle, RotateCcw, AlertCircle } from 'lucide-react';
-import type { TimelineEvent } from '../cashCloseUtils';
+import { Clock, Scissors, ArrowDownCircle, ArrowUpCircle, RotateCcw, AlertCircle, UserCheck } from 'lucide-react';
+import type { TimelineEvent, CashClosingEventRecord } from '../cashCloseUtils';
 
 interface ClosingTimelineProps {
     events: TimelineEvent[];
+    dbEvents?: CashClosingEventRecord[];
     loading: boolean;
 }
 
@@ -43,12 +44,30 @@ const EVENT_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: s
         color: 'text-violet-600 dark:text-violet-400',
         bg: 'bg-violet-50 dark:bg-violet-500/10',
     },
+    barber_closing: {
+        icon: <UserCheck size={12} />,
+        color: 'text-teal-600 dark:text-teal-400',
+        bg: 'bg-teal-50 dark:bg-teal-500/10',
+    },
 };
 
-const ClosingTimeline: React.FC<ClosingTimelineProps> = ({ events, loading }) => {
+const ClosingTimeline: React.FC<ClosingTimelineProps> = ({ events, dbEvents = [], loading }) => {
     if (loading) return null;
 
-    if (events.length === 0) {
+    const mergedEvents: TimelineEvent[] = [
+        ...dbEvents.map((e): TimelineEvent => ({
+            type: e.event_type as TimelineEvent['type'],
+            time: e.event_time,
+            label: e.label,
+            detail: e.detail || undefined,
+        })),
+        ...events,
+    ].sort((a, b) => {
+        if (!a.time || !b.time) return 0;
+        return new Date(a.time).getTime() - new Date(b.time).getTime();
+    });
+
+    if (mergedEvents.length === 0) {
         return (
             <div className="rounded-xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-4 shadow-[0_4px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-3">
@@ -69,7 +88,7 @@ const ClosingTimeline: React.FC<ClosingTimelineProps> = ({ events, loading }) =>
             <div className="relative">
                 <div className="absolute left-[15px] top-0 bottom-0 w-px bg-slate-200 dark:bg-white/10" />
                 <div className="space-y-3">
-                    {events.map((event, i) => {
+                    {mergedEvents.map((event, i) => {
                         const style = EVENT_STYLES[event.type] || EVENT_STYLES.service;
                         const timeLabel = event.time
                             ? new Date(event.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })

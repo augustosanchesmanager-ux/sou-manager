@@ -8,6 +8,7 @@ import type { BarberClosingDetail, TimelineEvent } from '../cashCloseUtils';
 
 interface BarberClosingDetailProps {
     barber: BarberClosingDetail;
+    onCloseBarberCash?: (barberStaffId: string, conference: { countedCash: number; justification: string }) => void;
 }
 
 const ChecklistItem: React.FC<{ label: string; passed: boolean }> = ({ label, passed }) => (
@@ -23,8 +24,9 @@ const ChecklistItem: React.FC<{ label: string; passed: boolean }> = ({ label, pa
     </div>
 );
 
-const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber }) => {
+const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber, onCloseBarberCash }) => {
     const [countedCash, setCountedCash] = useState('');
+    const [justification, setJustification] = useState('');
     const [activeTab, setActiveTab] = useState<'financial' | 'clients' | 'products' | 'commissions' | 'checklist'>('financial');
 
     const countedValue = parseFloat(countedCash) || 0;
@@ -249,6 +251,19 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber }
                                 </p>
                             </div>
                         </div>
+                        {countedValue > 0 && Math.abs(cashDifference) > 0.01 && (
+                            <div className="mt-2">
+                                <label className="text-[9px] font-bold text-amber-600 mb-1 block">Justificativa da divergencia</label>
+                                <textarea
+                                    rows={2}
+                                    maxLength={200}
+                                    placeholder="Motivo da diferenca encontrada..."
+                                    value={justification}
+                                    onChange={e => setJustification(e.target.value)}
+                                    className="w-full rounded-lg border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-400/30 resize-none"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -278,7 +293,18 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber }
                 <button className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                     Salvar
                 </button>
-                <button className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors">
+                <button
+                    onClick={() => {
+                        if (onCloseBarberCash && countedValue >= 0) {
+                            onCloseBarberCash(barber.staffId, {
+                                countedCash: countedValue,
+                                justification,
+                            });
+                        }
+                    }}
+                    disabled={!onCloseBarberCash || countedValue <= 0}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
                     Fechar Caixa do Barbeiro
                 </button>
                 <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">

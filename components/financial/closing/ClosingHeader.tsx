@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarRange, RefreshCw, Lock, Save, Eye } from 'lucide-react';
+import { CalendarRange, RefreshCw, Lock, Save, Eye, Clock, CircleCheck } from 'lucide-react';
 
 interface ClosingHeaderProps {
     filterDate: string;
@@ -14,6 +14,10 @@ interface ClosingHeaderProps {
     onSave: () => void;
     onPreview: () => void;
     hasTenantContext: boolean;
+    openingTime?: string | null;
+    closingTime?: string | null;
+    isConfirmed?: boolean;
+    onOpenCash?: () => void;
 }
 
 const ClosingHeader: React.FC<ClosingHeaderProps> = ({
@@ -29,6 +33,10 @@ const ClosingHeader: React.FC<ClosingHeaderProps> = ({
     onSave,
     onPreview,
     hasTenantContext,
+    openingTime,
+    closingTime,
+    isConfirmed,
+    onOpenCash,
 }) => {
     return (
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -46,6 +54,18 @@ const ClosingHeader: React.FC<ClosingHeaderProps> = ({
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         {formattedDate}
                     </span>
+                    {openingTime && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            <Clock className="h-3 w-3" />
+                            Abriu: {new Date(openingTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
+                    {closingTime && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                            <CircleCheck className="h-3 w-3" />
+                            Fechou: {new Date(closingTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
                     <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
                         Salvo: {lastSavedLabel}
                     </span>
@@ -70,6 +90,16 @@ const ClosingHeader: React.FC<ClosingHeaderProps> = ({
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     {loading ? 'Atualizando...' : 'Atualizar'}
                 </button>
+                {onOpenCash && !openingTime && !isConfirmed && (
+                    <button
+                        onClick={onOpenCash}
+                        disabled={!hasTenantContext}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                        <Lock className="h-4 w-4" />
+                        Abrir Caixa
+                    </button>
+                )}
                 <button
                     onClick={onPreview}
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
