@@ -464,16 +464,16 @@ const CashClosingPage: React.FC = () => {
         return filtered;
     }, [comandaDetails, filters, entries]);
 
-    const barberSummaries = useMemo(
-        () => buildBarberSummaries(filteredComandaDetails, staffMap),
-        [filteredComandaDetails]
-    );
-
     const staffMap = useMemo(() => {
         const map: Record<string, { name: string; role: string }> = {};
         staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '' }; });
         return map;
     }, [staffList]);
+
+    const barberSummaries = useMemo(
+        () => buildBarberSummaries(filteredComandaDetails, staffMap),
+        [filteredComandaDetails, staffMap]
+    );
 
     const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
     const totalSaidas = filteredEntries.filter(e => e.type === 'saida').reduce((sum, e) => sum + e.value, 0);
