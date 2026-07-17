@@ -1996,10 +1996,10 @@ const Schedule: React.FC = () => {
     setIsDetailDrawerOpen(true);
   };
 
-  const closeDetailDrawer = () => {
+  const closeDetailDrawer = useCallback(() => {
     setIsDetailDrawerOpen(false);
     setSelectedAppointment(null);
-  };
+  }, []);
 
   const executeAppointmentStatusChange = async (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
     if (!tenantId) return;

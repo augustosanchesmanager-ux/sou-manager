@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -19,30 +19,24 @@ const Modal: React.FC<ModalProps> = ({
     maxWidth = 'md'
 }) => {
     const modalCardRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
     useEffect(() => {
-        if (isOpen) {
-            document.body.classList.add('modal-open');
-            requestAnimationFrame(() => {
-                if (modalCardRef.current) {
-                    modalCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            });
-            const handleKeyDown = (e: KeyboardEvent) => {
-                if (e.key === 'Escape') onClose();
-            };
-            document.addEventListener('keydown', handleKeyDown);
-            return () => {
-                document.body.classList.remove('modal-open');
-                document.removeEventListener('keydown', handleKeyDown);
-            };
-        } else {
-            document.body.classList.remove('modal-open');
-        }
+        if (!isOpen) return;
+
+        document.body.classList.add('modal-open');
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onCloseRef.current();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
         return () => {
             document.body.classList.remove('modal-open');
+            document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
