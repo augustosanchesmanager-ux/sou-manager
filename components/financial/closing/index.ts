@@ -1,0 +1,12 @@
+export { default as ClosingHeader } from './ClosingHeader';
+export { default as FinancialSummarySection } from './FinancialSummarySection';
+export { default as PaymentMethodBreakdown } from './PaymentMethodBreakdown';
+export { default as PhysicalConference } from './PhysicalConference';
+export { default as SangriaSuprimentoSection } from './SangriaSuprimentoSection';
+export { default as DailyAudit } from './DailyAudit';
+export { default as Indicators } from './Indicators';
+export { default as ClosingTimeline } from './ClosingTimeline';
+export { default as ClosingNotes } from './ClosingNotes';
+export { default as ClosingActions } from './ClosingActions';
+export { default as BarberClosingCard } from './BarberClosingCard';
+export { default as BarberClosingDetailPanel } from './BarberClosingDetailPanel';

@@ -69,6 +69,15 @@ export interface BarberAttendanceSummary {
     averageValue: number;
 }
 
+export interface AgendaSummary {
+    scheduled: { count: number; total: number };
+    completed: { count: number; total: number };
+    received: { count: number; total: number };
+    cancelled: { count: number; total: number };
+    pending: { count: number; total: number };
+    no_show: { count: number; total: number };
+}
+
 export interface OpenComandaSummary {
     comandaId: string;
     clientName: string;
@@ -76,6 +85,91 @@ export interface OpenComandaSummary {
     total: number;
     status: string;
     paymentMethod: string | null;
+}
+
+export interface TimelineEvent {
+    time: string;
+    label: string;
+    type: 'service' | 'sangria' | 'suprimento' | 'reversal' | 'opening' | 'closing' | 'audit';
+    detail?: string;
+}
+
+export interface DailyAuditData {
+    totalComandas: number;
+    openComandas: number;
+    cancelledComandas: number;
+    reversedComandas: number;
+    pendingPayments: number;
+    pendingPaymentsTotal: number;
+    reaberturas: number;
+    manualReceivables: number;
+    manualExpenses: number;
+    totalIncome: number;
+    totalExpenses: number;
+    totalReversals: number;
+    totalTransactions: number;
+}
+
+export interface IndicatorsData {
+    ticketMedio: number;
+    clientesAtendidos: number;
+    novosClientes: number;
+    produtosVendidos: number;
+    servicosVendidos: number;
+    tempoMedioAtendimento: number;
+    comissaoTotal: number;
+    metaDoDia: number;
+    percentualMeta: number;
+}
+
+export interface BarberClosingDetail {
+    staffId: string;
+    staffName: string;
+    role: string;
+    status: 'open' | 'closed';
+    totalProduced: number;
+    totalReceived: number;
+    commission: number;
+    repasse: number;
+    discounts: number;
+    advances: number;
+    balance: number;
+    paymentMethods: Record<string, number>;
+    clientsServed: {
+        clientName: string;
+        serviceName: string;
+        time: string;
+        value: number;
+        paymentMethod: string;
+        status: string;
+    }[];
+    productsSold: {
+        name: string;
+        quantity: number;
+        value: number;
+    }[];
+    commissions: {
+        services: number;
+        products: number;
+        bonus: number;
+        discounts: number;
+        finalValue: number;
+    };
+    conference: {
+        countedCash: number;
+        expectedCash: number;
+        difference: number;
+        justification: string;
+    };
+    checklist: {
+        allCommandsClosed: boolean;
+        allPaymentsCompleted: boolean;
+        noPendingReversals: boolean;
+        noOpenCommands: boolean;
+        noInconsistentCommissions: boolean;
+        conferenceDone: boolean;
+    };
+    timeline: TimelineEvent[];
 }
 
 export interface CashClosingEntryExtended extends EnrichedCashFlowEntry {

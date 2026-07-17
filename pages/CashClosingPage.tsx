@@ -1,788 +1,106 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-    ArrowDownCircle,
-    ArrowUpCircle,
-    CalendarRange,
-    CheckCircle,
-    AlertTriangle,
-    RotateCcw,
-    Wallet,
-    Trash2,
-    Download,
-    Printer,
-    FileText,
-    Package,
-} from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { AlertTriangle, Users } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Toast from '../components/Toast';
-import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
-import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import CashCloseFiltersBar from '../components/financial/CashCloseFilters';
 import { AuditAdjustmentButton } from '../components/audit';
+import { useCashClosing } from '../src/hooks/useCashClosing';
 import {
-    CashCloseFilters,
-    SangriaSuprimento,
-    CashClosingEntryExtended,
-    ComandaDetail,
-    ComandaItemDetail,
-    BarberSummary,
-    BarberAttendanceSummary,
-    OpenComandaSummary,
+    ClosingHeader,
+    FinancialSummarySection,
+    PaymentMethodBreakdown,
+    PhysicalConference,
+    SangriaSuprimentoSection,
+    DailyAudit,
+    Indicators,
+    ClosingTimeline,
+    ClosingNotes,
+    ClosingActions,
+    BarberClosingCard,
+} from '../components/financial/closing';
+import {
     formatCurrency,
-    generateId,
-    validateCashClose,
-    buildPaymentMethodRows,
-    buildBarberSummaries,
-    buildAttendancesByBarber,
-    buildOpenComandasSummary,
-    filterEntries,
     generateCSVContent,
     downloadCSV,
     generatePreviewText,
-    isFrontlineRole,
 } from '../components/financial/cashCloseUtils';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
-
-interface TransactionRecord {
-    id: string;
-    type: string;
-    category: string | null;
-    amount: number | string | null;
-    description: string | null;
-    payment_method: string | null;
-    date: string | null;
-    created_at?: string | null;
-    source_type?: string | null;
-    source_id?: string | null;
-}
-
-interface FinancialReversalRecord {
-    original_transaction_id: string | null;
-    reversal_transaction_id?: string | null;
-    reversal_type?: string | null;
-    amount: number | string | null;
-    reason_type?: string | null;
-    created_at?: string | null;
-}
-
-interface AppointmentRecord {
-    id: string;
-    status: string;
-    price: number;
-    start_time: string;
-    staff_id?: string | null;
-}
-
-interface ComandaRecord {
-    id: string;
-    appointment_id: string | null;
-    client_id: string | null;
-    client_name?: string | null;
-    staff_id: string | null;
-    status: string;
-    total: number;
-    payment_method?: string | null;
-}
-
-interface ComandaItemRecord {
-    id: string;
-    comanda_id: string;
-    service_id?: string | null;
-    product_name?: string | null;
-    quantity: number;
-    unit_price: number;
-    staff_id?: string | null;
-}
-
-interface StaffRecord {
-    id: string;
-    name: string;
-    role: string | null;
-}
-
-interface ClientRecord {
-    id: string;
-    name: string;
-}
-
-interface ServiceRecord {
-    id: string;
-    name: string;
-    price?: number;
-}
-
-interface AgendaSummary {
-    scheduled: { count: number; total: number };
-    completed: { count: number; total: number };
-    received: { count: number; total: number };
-    cancelled: { count: number; total: number };
-    pending: { count: number; total: number };
-    no_show: { count: number; total: number };
-}
-
-const getReversalTypeLabel = (type?: string | null) => {
-    switch (type) {
-        case 'wrong_settlement': return 'Estorno de baixa';
-        case 'full_refund': return 'Devolucao total';
-        case 'partial_refund': return 'Devolucao parcial';
-        default: return 'Reversao auditada';
-    }
-};
 
 const CashClosingPage: React.FC = () => {
     const { tenantId, user } = useAuth();
     const hasTenantContext = Boolean(tenantId);
 
-    const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [closing, setClosing] = useState(false);
-    const [loadError, setLoadError] = useState<string | null>(null);
-    const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+    const closing = useCashClosing(tenantId, user);
 
-    const [entries, setEntries] = useState<CashClosingEntryExtended[]>([]);
-    const [comandaDetails, setComandaDetails] = useState<ComandaDetail[]>([]);
-    const [showSummary, setShowSummary] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-    const [showPreview, setShowPreview] = useState(false);
 
-    const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
-    const [comandas, setComandas] = useState<ComandaRecord[]>([]);
-    const [staffList, setStaffList] = useState<StaffRecord[]>([]);
-    const [openComandasCount, setOpenComandasCount] = useState(0);
-    const [openComandasTotal, setOpenComandasTotal] = useState(0);
-    const [clubOverdueCount, setClubOverdueCount] = useState(0);
-    const [clubOverdueTotal, setClubOverdueTotal] = useState(0);
-    const [pendingReceiptsCount, setPendingReceiptsCount] = useState(0);
-    const [pendingReceiptsTotal, setPendingReceiptsTotal] = useState(0);
+    const formattedFilterDate = closing.filterDate
+        ? new Date(`${closing.filterDate}T00:00:00`).toLocaleDateString('pt-BR')
+        : 'Data nao informada';
+    const lastSavedLabel = closing.lastSavedAt
+        ? new Date(closing.lastSavedAt).toLocaleString('pt-BR')
+        : 'Ainda nao salvo';
 
-    const [filters, setFilters] = useState<CashCloseFilters>({
-        operatorId: null,
-        showOnlyOpenComandas: false,
-        onlyClubMembers: false,
-    });
+    const closingStatus = closing.loading
+        ? 'Carregando'
+        : closing.saving
+            ? 'Salvando'
+            : closing.loadError
+                ? 'Erro'
+                : closing.hasPendingAlerts
+                    ? 'Pendencias'
+                    : closing.hasDailyFinancialData
+                        ? 'Conferido'
+                        : 'Vazio';
 
-    const [extras, setExtras] = useState<SangriaSuprimento[]>([]);
-    const [observations, setObservations] = useState('');
-    const [newExtraType, setNewExtraType] = useState<'sangria' | 'suprimento'>('sangria');
-    const [newExtraValue, setNewExtraValue] = useState('');
-    const [newExtraDesc, setNewExtraDesc] = useState('');
-
-    const getDayRange = (dateStr: string) => {
-        const d = new Date(dateStr + 'T00:00:00');
-        const start = d.toISOString();
-        const end = new Date(d.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString();
-        return { start, end };
-    };
-
-    const fetchData = useCallback(async () => {
-        if (!tenantId || !filterDate) {
-            setEntries([]);
-            setComandaDetails([]);
-            setAppointments([]);
-            setComandas([]);
-            setStaffList([]);
-            setOpenComandasCount(0);
-            setOpenComandasTotal(0);
-            setClubOverdueCount(0);
-            setClubOverdueTotal(0);
-            setPendingReceiptsCount(0);
-            setPendingReceiptsTotal(0);
-            setLoadError(null);
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setLoadError(null);
-        const { start, end } = getDayRange(filterDate);
-
-        try {
-            const [
-                transactionsResult,
-                appointmentsResult,
-                comandasResult,
-                comandaItemsResult,
-                clubResult,
-                receiptsResult,
-                staffResult,
-                clientsResult,
-                servicesResult,
-            ] = await Promise.all([
-                supabase
-                    .from('transactions')
-                    .select('id, type, category, amount, description, payment_method, date, created_at, source_type, source_id')
-                    .eq('tenant_id', tenantId)
-                    .gte('date', start)
-                    .lte('date', end)
-                    .order('date', { ascending: true }),
-                supabase
-                    .from('appointments')
-                    .select('id, status, price, start_time, staff_id')
-                    .eq('tenant_id', tenantId)
-                    .gte('start_time', start)
-                    .lte('start_time', end),
-                supabase
-                    .from('comandas')
-                    .select('id, appointment_id, client_id, client_name, staff_id, status, total, payment_method')
-                    .eq('tenant_id', tenantId)
-                    .gte('created_at', start)
-                    .lte('created_at', end),
-                supabase
-                    .from('comanda_items')
-                    .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
-                    .eq('tenant_id', tenantId),
-                supabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
-                    supabase
-                        .from('customer_subscription_receivables')
-                        .select('id, amount, status')
-                        .eq('tenant_id', tenantId)
-                        .in('status', ['pending', 'overdue'])
-                ),
-                supabase
-                    .from('transactions')
-                    .select('id, status, amount')
-                    .eq('tenant_id', tenantId)
-                    .gte('date', start)
-                    .lte('date', end),
-                supabase
-                    .from('staff')
-                    .select('id, name, role')
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'active'),
-                supabase
-                    .from('clients')
-                    .select('id, name')
-                    .eq('tenant_id', tenantId),
-                supabase
-                    .from('services')
-                    .select('id, name')
-                    .eq('tenant_id', tenantId),
-            ]);
-
-            if (transactionsResult.error) throw transactionsResult.error;
-
-            const txData = (transactionsResult.data || []) as TransactionRecord[];
-            const allComandas = (comandasResult.data || []) as ComandaRecord[];
-            const allComandaItems = (comandaItemsResult.data || []) as ComandaItemRecord[];
-            const allStaff = (staffResult.data || []) as StaffRecord[];
-            const allClients = (clientsResult.data || []) as ClientRecord[];
-            const allServices = (servicesResult.data || []) as ServiceRecord[];
-
-            setStaffList(allStaff);
-
-            const staffMap: Record<string, { name: string; role: string }> = {};
-            allStaff.forEach(s => { staffMap[s.id] = { name: s.name, role: s.role || '' }; });
-
-            const clientMap: Record<string, string> = {};
-            allClients.forEach(c => { clientMap[c.id] = c.name; });
-
-            const serviceMap: Record<string, string> = {};
-            allServices.forEach(s => { serviceMap[s.id] = s.name; });
-
-            const comandaMap = new Map<string, ComandaRecord>();
-            allComandas.forEach(c => { comandaMap.set(c.id, c); });
-
-            const itemsByComanda = new Map<string, ComandaItemRecord[]>();
-            allComandaItems.forEach(item => {
-                const list = itemsByComanda.get(item.comanda_id) || [];
-                list.push(item);
-                itemsByComanda.set(item.comanda_id, list);
-            });
-
-            const comandaIdToDetail = new Map<string, ComandaDetail>();
-            allComandas.forEach(cmd => {
-                const items = itemsByComanda.get(cmd.id) || [];
-                const detailItems: ComandaItemDetail[] = items.map(item => {
-                    const itemStaffId = item.staff_id || cmd.staff_id;
-                    return {
-                        id: item.id,
-                        serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
-                        quantity: item.quantity,
-                        unitPrice: Number(item.unit_price || 0),
-                        staffId: itemStaffId,
-                        staffName: staffMap[itemStaffId || '']?.name || '-',
-                    };
-                });
-
-                const resolvedStaffId = cmd.staff_id
-                    || items.find(i => i.staff_id)?.staff_id
-                    || null;
-
-                const clientName = cmd.client_name
-                    || clientMap[cmd.client_id || '']
-                    || 'Cliente nao identificado';
-
-                comandaIdToDetail.set(cmd.id, {
-                    comandaId: cmd.id,
-                    clientId: cmd.client_id,
-                    clientName,
-                    staffId: resolvedStaffId,
-                    staffName: staffMap[resolvedStaffId || '']?.name || 'Sem profissional',
-                    paymentMethod: cmd.payment_method,
-                    total: Number(cmd.total || 0),
-                    status: cmd.status,
-                    items: detailItems,
-                });
-            });
-
-            setComandaDetails(Array.from(comandaIdToDetail.values()));
-
-            const missingComandaIds = txData
-                .filter(t => t.source_type === 'comanda' && t.source_id && !comandaIdToDetail.has(t.source_id))
-                .map(t => t.source_id!);
-
-            if (missingComandaIds.length > 0) {
-                const { data: missingComandas } = await supabase
-                    .from('comandas')
-                    .select('id, appointment_id, client_id, client_name, staff_id, status, total, payment_method')
-                    .in('id', missingComandaIds);
-
-                if (missingComandas && missingComandas.length > 0) {
-                    const missingIds = missingComandas.map((c: ComandaRecord) => c.id);
-                    const { data: missingItems } = await supabase
-                        .from('comanda_items')
-                        .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
-                        .in('comanda_id', missingIds);
-
-                    const missingItemsByComanda = new Map<string, ComandaItemRecord[]>();
-                    (missingItems || []).forEach((item: ComandaItemRecord) => {
-                        const list = missingItemsByComanda.get(item.comanda_id) || [];
-                        list.push(item);
-                        missingItemsByComanda.set(item.comanda_id, list);
-                    });
-
-                    missingComandas.forEach((cmd: ComandaRecord) => {
-                        if (comandaIdToDetail.has(cmd.id)) return;
-                        const items = missingItemsByComanda.get(cmd.id) || [];
-                        const detailItems: ComandaItemDetail[] = items.map(item => {
-                            const itemStaffId = item.staff_id || cmd.staff_id;
-                            return {
-                                id: item.id,
-                                serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
-                                quantity: item.quantity,
-                                unitPrice: Number(item.unit_price || 0),
-                                staffId: itemStaffId,
-                                staffName: staffMap[itemStaffId || '']?.name || '-',
-                            };
-                        });
-                        const resolvedStaffId = cmd.staff_id || items.find(i => i.staff_id)?.staff_id || null;
-                        const clientName = cmd.client_name || clientMap[cmd.client_id || ''] || 'Cliente nao identificado';
-                        comandaIdToDetail.set(cmd.id, {
-                            comandaId: cmd.id,
-                            clientId: cmd.client_id,
-                            clientName,
-                            staffId: resolvedStaffId,
-                            staffName: staffMap[resolvedStaffId || '']?.name || 'Sem profissional',
-                            paymentMethod: cmd.payment_method,
-                            total: Number(cmd.total || 0),
-                            status: cmd.status,
-                            items: detailItems,
-                        });
-                    });
-
-                    setComandaDetails(Array.from(comandaIdToDetail.values()));
-                }
-            }
-
-            const transactionIds = txData.map((t) => t.id).filter(Boolean);
-            const reversalSourceByTransactionId = new Map<string, CashClosingEntryExtended['reversalSource']>();
-
-            if (transactionIds.length > 0) {
-                const { data: reversalSources, error: reversalSourcesError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('reversal_transaction_id', transactionIds);
-
-                if (!reversalSourcesError) {
-                    ((reversalSources || []) as FinancialReversalRecord[]).forEach((rev) => {
-                        if (!rev.reversal_transaction_id) return;
-                        reversalSourceByTransactionId.set(rev.reversal_transaction_id, {
-                            originalTransactionId: rev.original_transaction_id || null,
-                            reversalType: rev.reversal_type || 'reversal',
-                            reasonType: rev.reason_type || 'Sem motivo informado',
-                            amount: Math.abs(Number(rev.amount || 0)),
-                            createdAt: rev.created_at || null,
-                        });
-                    });
-                }
-            }
-
-            const openComandaIdSet = new Set(allComandas.filter(c => c.status === 'open').map(c => c.id));
-
-            const clubSourceIds = new Set(
-                (clubResult.data || [])
-                    .filter((r: any) => !r.transaction_id && r.status === 'overdue')
-                    .map((r: any) => r.id)
-            );
-
-            const mappedEntries: CashClosingEntryExtended[] = txData.map(transaction => {
-                const reversalSource = reversalSourceByTransactionId.get(transaction.id) || null;
-                const comandaDetail = transaction.source_type === 'comanda' && transaction.source_id
-                    ? comandaIdToDetail.get(transaction.source_id)
-                    : undefined;
-
-                const barberStaffId = comandaDetail?.staffId || null;
-                const barberName = comandaDetail?.staffName || null;
-                const clientName = comandaDetail?.clientName || '';
-                const comandaItemsStr = comandaDetail?.items.map(i => i.serviceName).join(', ') || '';
-
-                return {
-                    id: transaction.id,
-                    date: transaction.date || transaction.created_at || new Date().toISOString(),
-                    description: transaction.description || transaction.category || 'Lancamento sem descricao',
-                    category: transaction.category || 'Sem categoria',
-                    accountId: transaction.payment_method || 'nao-informado',
-                    accountName: transaction.payment_method || 'Nao informado',
-                    costCenter: transaction.category || 'Sem centro',
-                    type: transaction.type === 'income' ? 'entrada' : 'saida',
-                    paymentMethod: transaction.payment_method || 'Nao informado',
-                    status: 'realizado',
-                    value: Number(transaction.amount || 0),
-                    runningBalance: 0,
-                    sourceType: transaction.source_type || null,
-                    sourceId: transaction.source_id || null,
-                    isReversalTransaction: Boolean(reversalSource),
-                    reversalSource,
-                    barberStaffId,
-                    barberName,
-                    comandaStatus: transaction.source_id
-                        ? (openComandaIdSet.has(transaction.source_id) ? 'Aberta' : 'Fechada')
-                        : null,
-                    isClubMember: clubSourceIds.has(transaction.source_id || ''),
-                    clientName,
-                    comandaItems: comandaItemsStr,
-                };
-            });
-            setEntries(mappedEntries);
-
-            if (appointmentsResult.data) setAppointments(appointmentsResult.data as AppointmentRecord[]);
-
-            if (comandasResult.data) {
-                const cmds = comandasResult.data as ComandaRecord[];
-                const openCmds = cmds.filter(c => c.status === 'open');
-                setOpenComandasCount(openCmds.length);
-                setOpenComandasTotal(openCmds.reduce((sum, c) => sum + Number(c.total || 0), 0));
-                setComandas(cmds);
-            }
-
-            if (clubResult.data) {
-                const clubData = (clubResult.data as any[]).filter((r: any) => !r.transaction_id);
-                const overdue = clubData.filter((r: any) => r.status === 'overdue');
-                setClubOverdueCount(overdue.length);
-                setClubOverdueTotal(overdue.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0));
-            }
-
-            if (receiptsResult.data) {
-                const txAll = receiptsResult.data as any[];
-                const pendentes = txAll.filter((tx: any) => {
-                    let status = tx.status || 'Pago';
-                    if (status !== 'Pago' && status !== 'Pendente' && status !== 'Cancelado') {
-                        status = status === 'paid' ? 'Pago' : (status === 'pending' ? 'Pendente' : 'Pago');
-                    }
-                    return status === 'Pendente';
-                });
-                setPendingReceiptsCount(pendentes.length);
-                setPendingReceiptsTotal(pendentes.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0));
-            }
-
-        } catch (error: any) {
-            console.error('Erro ao carregar dados:', error);
-            setLoadError(error?.message || 'Nao foi possivel carregar os dados.');
-            setToast({ message: error?.message || 'Erro ao carregar dados.', type: 'error' });
-            setEntries([]);
-            setComandaDetails([]);
-            setAppointments([]);
-            setComandas([]);
-            setStaffList([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [tenantId, filterDate]);
-
-    useEffect(() => { fetchData(); }, [fetchData]);
-
-    const openComandaIds = useMemo(
-        () => new Set(comandas.filter(c => c.status === 'open').map(c => c.id)),
-        [comandas]
-    );
-
-    const filteredEntries = useMemo(
-        () => filterEntries(entries, filters, openComandaIds),
-        [entries, filters, openComandaIds]
-    );
-
-    const filteredComandaDetails = useMemo(() => {
-        let filtered = comandaDetails;
-        if (filters.operatorId) {
-            filtered = filtered.filter(c => c.staffId === filters.operatorId);
-        }
-        if (filters.onlyClubMembers) {
-            filtered = filtered.filter(c => {
-                const txEntry = entries.find(e => e.sourceId === c.comandaId);
-                return txEntry?.isClubMember;
-            });
-        }
-        return filtered;
-    }, [comandaDetails, filters, entries]);
-
-    const staffMap = useMemo(() => {
-        const map: Record<string, { name: string; role: string }> = {};
-        staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '' }; });
-        return map;
-    }, [staffList]);
-
-    const frontlineStaff = useMemo(
-        () => staffList.filter(s => isFrontlineRole(s.role)),
-        [staffList]
-    );
-
-    const barberSummaries = useMemo(
-        () => buildBarberSummaries(filteredComandaDetails, staffMap),
-        [filteredComandaDetails, staffMap]
-    );
-
-    const attendancesByBarber = useMemo(
-        () => {
-            const base = buildAttendancesByBarber(filteredComandaDetails);
-            return base.map(b => ({
-                ...b,
-                staffName: staffMap[b.staffId]?.name || (b.staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
-                role: staffMap[b.staffId]?.role || '',
-            }));
-        },
-        [filteredComandaDetails, staffMap]
-    );
-
-    const openComandasSummary = useMemo(
-        () => buildOpenComandasSummary(filteredComandaDetails),
-        [filteredComandaDetails]
-    );
-
-    const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
-    const totalSaidas = filteredEntries.filter(e => e.type === 'saida').reduce((sum, e) => sum + e.value, 0);
-    const reversalEntries = filteredEntries.filter(e => e.isReversalTransaction);
-    const totalReversals = reversalEntries.reduce((sum, e) => sum + e.value, 0);
-    const reversalCount = reversalEntries.length;
-    const regularSaidas = Math.max(totalSaidas - totalReversals, 0);
-    const saldoAtual = totalEntradas - totalSaidas;
-    const entradasCount = filteredEntries.filter(e => e.type === 'entrada').length;
-    const saidasCount = filteredEntries.filter(e => e.type === 'saida').length;
-
-    const totalExtrasSuprimento = extras.filter(e => e.type === 'suprimento').reduce((s, e) => s + e.value, 0);
-    const totalExtrasSangria = extras.filter(e => e.type === 'sangria').reduce((s, e) => s + e.value, 0);
-
-    const totalExpected = saldoAtual;
-    const totalReceived = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
-    const validation = useMemo(() => validateCashClose(totalExpected, totalReceived), [totalExpected, totalReceived]);
-
-    const paymentRows = useMemo(() => buildPaymentMethodRows(filteredEntries, extras), [filteredEntries, extras]);
-
-    const paymentMethodBreakdown = useMemo(() => {
-        const map: Record<string, { entradas: number; saidas: number; count: number }> = {};
-        filteredEntries.forEach(e => {
-            if (!map[e.paymentMethod]) map[e.paymentMethod] = { entradas: 0, saidas: 0, count: 0 };
-            if (e.type === 'entrada') map[e.paymentMethod].entradas += e.value;
-            else map[e.paymentMethod].saidas += e.value;
-            map[e.paymentMethod].count += 1;
-        });
-        return Object.entries(map).sort((a, b) => b[1].count - a[1].count);
-    }, [filteredEntries]);
-
-    const agendaSummary = useMemo((): AgendaSummary => {
-        const apptIds = new Set(appointments.map(a => a.id));
-        const paidComandas = comandas.filter(c => c.appointment_id && apptIds.has(c.appointment_id) && c.status === 'paid');
-        const receivedTotal = paidComandas.reduce((sum, c) => sum + Number(c.total || 0), 0);
-        const completed = appointments.filter(a => a.status === 'completed');
-        const cancelled = appointments.filter(a => a.status === 'cancelled');
-        const pending = appointments.filter(a => ['scheduled', 'pending', 'confirmed', 'in_progress'].includes(a.status));
-        const no_show = appointments.filter(a => a.status === 'no_show');
-        const scheduled = appointments.filter(a => ['scheduled', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'].includes(a.status));
-
-        return {
-            scheduled: { count: scheduled.length, total: scheduled.reduce((s, a) => s + Number(a.price || 0), 0) },
-            completed: { count: completed.length, total: completed.reduce((s, a) => s + Number(a.price || 0), 0) },
-            received: { count: paidComandas.length, total: receivedTotal },
-            cancelled: { count: cancelled.length, total: cancelled.reduce((s, a) => s + Number(a.price || 0), 0) },
-            pending: { count: pending.length, total: pending.reduce((s, a) => s + Number(a.price || 0), 0) },
-            no_show: { count: no_show.length, total: no_show.reduce((s, a) => s + Number(a.price || 0), 0) },
-        };
-    }, [appointments, comandas]);
-
-    const hasPendingAlerts = openComandasCount > 0 || clubOverdueCount > 0 || pendingReceiptsCount > 0;
-    const hasDailyFinancialData = entries.length > 0;
-    const formattedFilterDate = filterDate ? new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR') : 'Data nao informada';
-    const lastSavedLabel = lastSavedAt ? new Date(lastSavedAt).toLocaleString('pt-BR') : 'Ainda nao salvo';
-    const closingStatus = loading ? 'Carregando' : saving ? 'Salvando' : loadError ? 'Erro' : hasPendingAlerts ? 'Pendencias' : hasDailyFinancialData ? 'Conferido' : 'Vazio';
-    const closingStatusClasses = loadError
+    const closingStatusClasses = closing.loadError
         ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20'
-        : hasPendingAlerts
+        : closing.hasPendingAlerts
             ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20'
-            : hasDailyFinancialData
+            : closing.hasDailyFinancialData
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
                 : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-border-dark';
 
-    const getOperatorName = (operatorId?: string | null) => {
+    const getOperatorName = useCallback((operatorId?: string | null) => {
         if (!operatorId) return 'Todos';
-        return staffMap[operatorId]?.name || 'Desconhecido';
-    };
+        return closing.staffMap[operatorId]?.name || 'Desconhecido';
+    }, [closing.staffMap]);
 
-    const handleAddExtra = () => {
-        const value = parseFloat(newExtraValue);
-        if (!value || value <= 0) {
-            setToast({ message: 'Informe um valor valido.', type: 'error' });
-            return;
-        }
-        const newExtra: SangriaSuprimento = {
-            id: generateId(),
-            type: newExtraType,
-            value,
-            description: newExtraDesc.trim(),
-            createdAt: new Date().toISOString(),
-        };
-        setExtras(prev => [...prev, newExtra]);
-        setNewExtraValue('');
-        setNewExtraDesc('');
-        setToast({ message: `${newExtraType === 'sangria' ? 'Sangria' : 'Suprimento'} adicionado.`, type: 'success' });
-    };
+    const previewText = useMemo(() => generatePreviewText(
+        formattedFilterDate, closing.validation, closing.extras, closing.paymentRows,
+        closing.observations, user?.email || 'Nao informado', closing.barberSummaries,
+        closing.filteredEntries, closing.openComandasSummary, closing.attendancesByBarber,
+    ), [formattedFilterDate, closing.validation, closing.extras, closing.paymentRows,
+        closing.observations, user, closing.barberSummaries, closing.filteredEntries,
+        closing.openComandasSummary, closing.attendancesByBarber]);
 
-    const handleRemoveExtra = (id: string) => {
-        setExtras(prev => prev.filter(e => e.id !== id));
-    };
-
-    const handleSaveConference = async () => {
-        if (!tenantId) return;
-        setSaving(true);
-        const { start, end } = getDayRange(filterDate);
-
-        try {
-            const { error } = await supabase
-                .from('cash_closings')
-                .upsert({
-                    tenant_id: tenantId,
-                    business_date: filterDate,
-                    period_start: start,
-                    period_end: end,
-                    status: 'draft',
-                    created_by_user_id: user?.id,
-                    expected_income: totalEntradas,
-                    expected_expense: totalSaidas,
-                    expected_balance: saldoAtual,
-                    total_counted: totalReceived,
-                    total_difference: validation.difference,
-                    appointments_scheduled_count: agendaSummary.scheduled.count,
-                    appointments_completed_count: agendaSummary.completed.count,
-                    appointments_received_count: agendaSummary.received.count,
-                    appointments_cancelled_count: agendaSummary.cancelled.count,
-                    appointments_pending_count: agendaSummary.pending.count,
-                    appointments_no_show_count: agendaSummary.no_show.count,
-                    appointments_summary: JSON.stringify(agendaSummary),
-                    financial_summary: JSON.stringify({
-                        entradas: totalEntradas, entradas_count: entradasCount,
-                        saidas: totalSaidas, saidas_count: saidasCount,
-                        saldo: saldoAtual, payment_methods: paymentMethodBreakdown,
-                        extras, observations, total_expected: totalExpected,
-                        total_received: totalReceived, difference: validation.difference,
-                        filters, barber_summaries: barberSummaries.map(b => ({
-                            name: b.staffName, role: b.role, total: b.totalReceived, count: b.comandaCount,
-                        })),
-                    }),
-                }, { onConflict: 'tenant_id,business_date' });
-
-            if (error) throw error;
-            setLastSavedAt(new Date().toISOString());
-            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
-            setShowSaveConfirm(false);
-        } catch (error: any) {
-            setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleCloseCash = async () => {
-        if (!tenantId) return;
-        setClosing(true);
-        const { start, end } = getDayRange(filterDate);
-
-        try {
-            for (const extra of extras) {
-                await supabase.from('transactions').insert({
-                    tenant_id: tenantId,
-                    type: extra.type === 'sangria' ? 'expense' : 'income',
-                    category: extra.type === 'sangria' ? 'Sangria - Fechamento' : 'Suprimento - Fechamento',
-                    amount: extra.value,
-                    description: extra.description || `${extra.type === 'sangria' ? 'Sangria' : 'Suprimento'} - ${formattedFilterDate}`,
-                    payment_method: 'Dinheiro',
-                    date: new Date().toISOString(),
-                    status: 'completed',
-                    source_type: 'cash_closing',
-                    user_id: user?.id,
-                });
-            }
-
-            const { error } = await supabase
-                .from('cash_closings')
-                .upsert({
-                    tenant_id: tenantId,
-                    business_date: filterDate,
-                    period_start: start,
-                    period_end: end,
-                    status: 'confirmed',
-                    created_by_user_id: user?.id,
-                    expected_income: totalEntradas,
-                    expected_expense: totalSaidas,
-                    expected_balance: saldoAtual,
-                    total_counted: totalReceived,
-                    total_difference: validation.difference,
-                    appointments_summary: JSON.stringify(agendaSummary),
-                    financial_summary: JSON.stringify({
-                        entradas: totalEntradas, saidas: totalSaidas, saldo: saldoAtual,
-                        payment_methods: paymentMethodBreakdown, extras, observations,
-                        total_expected: totalExpected, total_received: totalReceived,
-                        difference: validation.difference, filters,
-                        closed_at: new Date().toISOString(), closed_by: user?.id,
-                        barber_summaries: barberSummaries.map(b => ({
-                            name: b.staffName, role: b.role, total: b.totalReceived, count: b.comandaCount,
-                        })),
-                    }),
-                }, { onConflict: 'tenant_id,business_date' });
-
-            if (error) throw error;
-            setLastSavedAt(new Date().toISOString());
-            setToast({ message: 'Caixa fechado com sucesso!', type: 'success' });
-            setShowCloseConfirm(false);
-        } catch (error: any) {
-            setToast({ message: error?.message || 'Erro ao fechar caixa.', type: 'error' });
-        } finally {
-            setClosing(false);
-        }
-    };
-
-    const handleExportCSV = () => {
+    const handleExportCSV = useCallback(() => {
         const csv = generateCSVContent(
-            formattedFilterDate, filters, validation, extras, paymentRows,
-            observations, getOperatorName(filters.operatorId), filteredEntries, barberSummaries,
-            attendancesByBarber, openComandasSummary,
+            formattedFilterDate, closing.filters, closing.validation, closing.extras,
+            closing.paymentRows, closing.observations, getOperatorName(closing.filters.operatorId),
+            closing.filteredEntries, closing.barberSummaries, closing.attendancesByBarber,
+            closing.openComandasSummary,
             {
                 responsible: user?.email || 'Nao informado',
                 closingTime: new Date().toLocaleString('pt-BR'),
-                grossSales: totalEntradas,
+                grossSales: closing.totalEntradas,
                 discounts: 0,
                 surcharges: 0,
             }
         );
-        downloadCSV(csv, `fechamento-caixa-${filterDate.replace(/-/g, '')}.csv`);
+        downloadCSV(csv, `fechamento-caixa-${closing.filterDate.replace(/-/g, '')}.csv`);
         setToast({ message: 'CSV exportado com sucesso.', type: 'success' });
-    };
+    }, [formattedFilterDate, closing.filters, closing.validation, closing.extras,
+        closing.paymentRows, closing.observations, closing.filteredEntries,
+        closing.barberSummaries, closing.attendancesByBarber, closing.openComandasSummary,
+        user, closing.totalEntradas, closing.filterDate, getOperatorName]);
 
-    const handleExportPDF = () => {
+    const handleExportPDF = useCallback(() => {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 14;
@@ -808,7 +126,6 @@ const CashClosingPage: React.FC = () => {
             y += 2;
         };
 
-        // Header
         addText('COMPROVANTE DE FECHAMENTO DE CAIXA', { fontSize: 14, fontStyle: 'bold', align: 'center' });
         y += 4;
         addText(`Data: ${formattedFilterDate}`, { fontSize: 10 });
@@ -816,24 +133,19 @@ const CashClosingPage: React.FC = () => {
         addText(`Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 10 });
         y += 4;
 
-        // Resumo Geral
         addSection('RESUMO GERAL');
-        addText(`Total Esperado:    ${formatCurrency(validation.totalExpected)}`);
-        addText(`Total Recebido:    ${formatCurrency(validation.totalReceived)}`);
-        addText(`Diferenca:         ${formatCurrency(validation.difference)}`);
-        addText(`Situacao:          ${validation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`, {
-            color: validation.isValid ? [0, 128, 0] : [255, 0, 0]
+        addText(`Total Esperado:    ${formatCurrency(closing.validation.totalExpected)}`);
+        addText(`Total Recebido:    ${formatCurrency(closing.validation.totalReceived)}`);
+        addText(`Diferenca:         ${formatCurrency(closing.validation.difference)}`);
+        addText(`Situacao:          ${closing.validation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`, {
+            color: closing.validation.isValid ? [0, 128, 0] : [255, 0, 0]
         });
         y += 2;
 
-        // Comandas Abertas
-        if (openComandasSummary.length > 0) {
+        if (closing.openComandasSummary.length > 0) {
             addSection('COMANDAS ABERTAS DO DIA');
-            const tableBody = openComandasSummary.map(cmd => [
-                cmd.clientName,
-                cmd.staffName,
-                formatCurrency(cmd.total),
-                cmd.status,
+            const tableBody = closing.openComandasSummary.map(cmd => [
+                cmd.clientName, cmd.staffName, formatCurrency(cmd.total), cmd.status,
             ]);
             (doc as any).autoTable({
                 startY: y,
@@ -847,14 +159,10 @@ const CashClosingPage: React.FC = () => {
             });
         }
 
-        // Atendimentos por Barbeiro
-        if (attendancesByBarber.length > 0) {
+        if (closing.attendancesByBarber.length > 0) {
             addSection('ATENDIMENTOS POR BARBEIRO');
-            const tableBody = attendancesByBarber.map(att => [
-                att.staffName,
-                String(att.comandaCount),
-                formatCurrency(att.totalValue),
-                formatCurrency(att.averageValue),
+            const tableBody = closing.attendancesByBarber.map(att => [
+                att.staffName, String(att.comandaCount), formatCurrency(att.totalValue), formatCurrency(att.averageValue),
             ]);
             (doc as any).autoTable({
                 startY: y,
@@ -868,10 +176,9 @@ const CashClosingPage: React.FC = () => {
             });
         }
 
-        // Por Forma de Pagamento
         addSection('POR FORMA DE PAGAMENTO');
-        const paymentTableBody = paymentRows.map(r => {
-            const count = filteredEntries.filter(e => e.paymentMethod === r.method && e.type === 'entrada').length;
+        const paymentTableBody = closing.paymentRows.map(r => {
+            const count = closing.filteredEntries.filter(e => e.paymentMethod === r.method && e.type === 'entrada').length;
             return [r.method, formatCurrency(r.launched), String(count)];
         });
         (doc as any).autoTable({
@@ -885,16 +192,11 @@ const CashClosingPage: React.FC = () => {
             didDrawPage: (data: any) => { y = data.cursor.y + 4; },
         });
 
-        // Recebimento por Barbeiro
-        if (barberSummaries.length > 0) {
+        if (closing.barberSummaries.length > 0) {
             addSection('RECEBIMENTO POR BARBEIRO');
-            const barberTableBody = barberSummaries.map(b => [
-                b.staffName,
-                b.role || '-',
-                String(b.comandaCount),
-                formatCurrency(b.totalReceived),
-                String(b.openComandaCount),
-                formatCurrency(b.openTotal),
+            const barberTableBody = closing.barberSummaries.map(b => [
+                b.staffName, b.role || '-', String(b.comandaCount), formatCurrency(b.totalReceived),
+                String(b.openComandaCount), formatCurrency(b.openTotal),
             ]);
             (doc as any).autoTable({
                 startY: y,
@@ -908,14 +210,11 @@ const CashClosingPage: React.FC = () => {
             });
         }
 
-        // Sangrias e Suprimentos
-        if (extras.length > 0) {
+        if (closing.extras.length > 0) {
             addSection('SANGRIAS E SUPRIMENTOS');
-            const extrasTableBody = extras.map(ext => [
-                ext.type === 'sangria' ? 'Sangria' : 'Suprimento',
-                formatCurrency(ext.value),
-                ext.description || '-',
-                new Date(ext.createdAt).toLocaleString('pt-BR'),
+            const extrasTableBody = closing.extras.map(ext => [
+                ext.type === 'sangria' ? 'Sangria' : 'Suprimento', formatCurrency(ext.value),
+                ext.description || '-', new Date(ext.createdAt).toLocaleString('pt-BR'),
             ]);
             (doc as any).autoTable({
                 startY: y,
@@ -929,13 +228,11 @@ const CashClosingPage: React.FC = () => {
             });
         }
 
-        // Observacoes
-        if (observations.trim()) {
+        if (closing.observations.trim()) {
             addSection('OBSERVACOES');
-            addText(observations);
+            addText(closing.observations);
         }
 
-        // Footer
         y += 6;
         doc.setDrawColor(0, 0, 0);
         doc.setLineWidth(0.3);
@@ -944,17 +241,13 @@ const CashClosingPage: React.FC = () => {
         addText(`Assinatura: ${user?.email || 'Nao informado'}`, { fontSize: 9 });
         addText(`Data/Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 9 });
 
-        doc.save(`fechamento-${filterDate.replace(/-/g, '-')}.pdf`);
+        doc.save(`fechamento-${closing.filterDate.replace(/-/g, '-')}.pdf`);
         setToast({ message: 'PDF exportado com sucesso.', type: 'success' });
-    };
+    }, [formattedFilterDate, user, closing.validation, closing.openComandasSummary,
+        closing.attendancesByBarber, closing.paymentRows, closing.filteredEntries,
+        closing.barberSummaries, closing.extras, closing.observations, closing.filterDate]);
 
-    const previewText = useMemo(() => generatePreviewText(
-        formattedFilterDate, validation, extras, paymentRows,
-        observations, user?.email || 'Nao informado', barberSummaries, filteredEntries,
-        openComandasSummary, attendancesByBarber,
-    ), [formattedFilterDate, validation, extras, paymentRows, observations, user, barberSummaries, filteredEntries, openComandasSummary, attendancesByBarber]);
-
-    const handlePrint = () => {
+    const handlePrint = useCallback(() => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         printWindow.document.write(`
@@ -964,128 +257,131 @@ const CashClosingPage: React.FC = () => {
         `);
         printWindow.document.close();
         printWindow.print();
-    };
+    }, [formattedFilterDate, previewText]);
+
+    const handleSaveWithToast = useCallback(async () => {
+        try {
+            await closing.handleSaveConference();
+            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
+            setShowSaveConfirm(false);
+        } catch (error: any) {
+            setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
+        }
+    }, [closing.handleSaveConference]);
+
+    const handleCloseWithToast = useCallback(async () => {
+        try {
+            await closing.handleCloseCash();
+            setToast({ message: 'Caixa fechado com sucesso!', type: 'success' });
+            setShowCloseConfirm(false);
+        } catch (error: any) {
+            setToast({ message: error?.message || 'Erro ao fechar caixa.', type: 'error' });
+        }
+    }, [closing.handleCloseCash]);
+
+    const allBarbersConferido = closing.barberClosingDetails.every(b =>
+        Object.values(b.checklist).every(v => v)
+    );
+    const pendingBarberCount = closing.barberClosingDetails.filter(b =>
+        !Object.values(b.checklist).every(v => v)
+    ).length;
 
     return (
-        <div className="space-y-6 animate-fade-in pb-20">
+        <div className="space-y-4 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Fechamento de Caixa</h2>
-                    <p className="text-slate-500 mt-1">Conferencia, ajustes e fechamento do caixa diario.</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.12em] ${closingStatusClasses}`}>{closingStatus}</span>
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{formattedFilterDate}</span>
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Salvo: {lastSavedLabel}</span>
-                    </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    <AuditAdjustmentButton
-                        context={{
-                            sourceType: 'cash_closing',
-                            sourceLabel: 'Fechamento de Caixa',
-                            beforeSnapshot: { data: filterDate, entradas: totalEntradas, saidas: totalSaidas, saldo: saldoAtual },
-                            financialImpactLabel: 'Impacto em fechamento de caixa',
-                            allowedAdjustmentTypes: ['cash_difference_correction', 'mark_for_review'],
-                        }}
-                        defaultAdjustmentType="mark_for_review"
-                    />
-                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
-                        <CalendarRange className="h-4 w-4 text-slate-400" />
-                        <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]" />
-                    </label>
-                    <Button leftIcon="sync" onClick={fetchData} disabled={loading}>{loading ? 'Atualizando...' : 'Atualizar'}</Button>
-                </div>
-            </div>
-
-            <CashCloseFiltersBar
-                filters={filters}
-                onFiltersChange={(f) => setFilters(prev => ({ ...prev, ...f }))}
-                operators={frontlineStaff}
-                filteredCount={filteredEntries.length}
-                totalCount={entries.length}
+            {/* ETAPA 1: Header */}
+            <ClosingHeader
+                filterDate={closing.filterDate}
+                onDateChange={closing.setFilterDate}
+                status={closingStatus}
+                statusClasses={closingStatusClasses}
+                lastSavedLabel={lastSavedLabel}
+                formattedDate={formattedFilterDate}
+                loading={closing.loading}
+                saving={closing.saving}
+                onRefresh={closing.fetchData}
+                onSave={() => setShowSaveConfirm(true)}
+                onPreview={() => setShowPreview(true)}
+                hasTenantContext={hasTenantContext}
             />
 
-            {loadError && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center sm:justify-between">
+            {/* Audit Button */}
+            <div className="flex justify-end">
+                <AuditAdjustmentButton
+                    context={{
+                        sourceType: 'cash_closing',
+                        sourceLabel: 'Fechamento de Caixa',
+                        beforeSnapshot: { data: closing.filterDate, entradas: closing.totalEntradas, saidas: closing.totalSaidas, saldo: closing.saldoAtual },
+                        financialImpactLabel: 'Impacto em fechamento de caixa',
+                        allowedAdjustmentTypes: ['cash_difference_correction', 'mark_for_review'],
+                    }}
+                    defaultAdjustmentType="mark_for_review"
+                />
+            </div>
+
+            {/* Filters */}
+            <CashCloseFiltersBar
+                filters={closing.filters}
+                onFiltersChange={(f) => closing.setFilters(prev => ({ ...prev, ...f }))}
+                operators={closing.frontlineStaff}
+                filteredCount={closing.filteredEntries.length}
+                totalCount={closing.entries.length}
+            />
+
+            {/* Error */}
+            {closing.loadError && (
+                <div className="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="size-5 text-rose-600 dark:text-rose-300 shrink-0" />
                         <div>
                             <p className="text-sm font-black text-rose-700 dark:text-rose-300">Erro ao carregar.</p>
-                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
+                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{closing.loadError}</p>
                         </div>
                     </div>
-                    <Button variant="secondary" leftIcon="sync" onClick={fetchData} disabled={loading}>Tentar novamente</Button>
+                    <button
+                        onClick={closing.fetchData}
+                        disabled={closing.loading}
+                        className="inline-flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-500/20 bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 disabled:opacity-50 transition-colors"
+                    >
+                        Tentar novamente
+                    </button>
                 </div>
             )}
 
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => <div key={i} className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 h-32 animate-pulse" />)}
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    <FinancialSummaryCard title="Entradas" value={totalEntradas} changeText={`${entradasCount} registros`} trend="up" tone="positive" helperText="Receitas do dia" icon={<ArrowUpCircle size={18} />} />
-                    <FinancialSummaryCard title="Saidas" value={totalSaidas} changeText={`${saidasCount} registros`} trend="down" tone="negative" helperText="Despesas do dia" icon={<ArrowDownCircle size={18} />} />
-                    <FinancialSummaryCard title="Estornos" value={totalReversals} changeText={`${reversalCount} reversoes`} trend="down" tone={totalReversals > 0 ? 'negative' : 'neutral'} helperText="Reversoes auditadas" icon={<RotateCcw size={18} />} />
-                    <FinancialSummaryCard title="Saldo Operacional" value={saldoAtual} changeText={saldoAtual >= 0 ? 'Positivo' : 'Negativo'} trend={saldoAtual >= 0 ? 'up' : 'down'} tone={saldoAtual >= 0 ? 'positive' : 'negative'} helperText="Entradas menos saidas" icon={<CheckCircle size={18} />} />
-                </div>
-            )}
+            {/* ETAPA 2: Financial Summary */}
+            <FinancialSummarySection
+                loading={closing.loading}
+                totalEntradas={closing.totalEntradas}
+                totalSaidas={closing.totalSaidas}
+                totalReversals={closing.totalReversals}
+                reversalCount={closing.reversalCount}
+                saldoAtual={closing.saldoAtual}
+                entradasCount={closing.entradasCount}
+                saidasCount={closing.saidasCount}
+            />
 
-            {!loading && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Validacao</h3>
-                        {validation.isValid ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-800 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle size={12} /> Conferido</span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-800 px-3 py-1 text-xs font-black text-rose-700 dark:text-rose-300"><AlertTriangle size={12} /> Divergencia</span>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total Esperado</p>
-                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{formatCurrency(totalExpected)}</p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total Recebido</p>
-                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{formatCurrency(totalReceived)}</p>
-                        </div>
-                        <div className={`rounded-xl border p-4 ${validation.isValid ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-800'}`}>
-                            <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${validation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>Diferenca</p>
-                            <p className={`mt-1 text-xl font-black ${validation.isValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatCurrency(validation.difference)}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {!loading && openComandasSummary.length > 0 && (
-                <div className="rounded-2xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300 mb-4 flex items-center gap-2">
-                        <Package size={14} />
-                        Comandas Abertas do Dia (em atraso no dia seguinte)
+            {/* Open Comandas Warning */}
+            {!closing.loading && closing.openComandasSummary.length > 0 && (
+                <div className="rounded-xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300 mb-3">
+                        Comandas Abertas do Dia ({closing.openComandasCount})
                     </h3>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-amber-200 dark:border-amber-500/20">
-                                    <th className="text-left py-2 text-xs font-bold text-amber-600">Cliente</th>
-                                    <th className="text-left py-2 text-xs font-bold text-amber-600">Barbeiro</th>
-                                    <th className="text-right py-2 text-xs font-bold text-amber-600">Valor</th>
-                                    <th className="text-center py-2 text-xs font-bold text-amber-600">Status</th>
+                                    <th className="text-left py-2 text-[10px] font-bold uppercase tracking-wider text-amber-600">Cliente</th>
+                                    <th className="text-left py-2 text-[10px] font-bold uppercase tracking-wider text-amber-600">Barbeiro</th>
+                                    <th className="text-right py-2 text-[10px] font-bold uppercase tracking-wider text-amber-600">Valor</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {openComandasSummary.map(cmd => (
+                                {closing.openComandasSummary.map(cmd => (
                                     <tr key={cmd.comandaId} className="border-b border-amber-100 dark:border-amber-500/10 last:border-0">
-                                        <td className="py-2 font-medium text-slate-900 dark:text-white">{cmd.clientName}</td>
-                                        <td className="py-2 text-slate-700 dark:text-slate-300">{cmd.staffName}</td>
-                                        <td className="text-right py-2 font-bold text-amber-600">{formatCurrency(cmd.total)}</td>
-                                        <td className="text-center py-2">
-                                            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase bg-amber-100 text-amber-700">{cmd.status}</span>
-                                        </td>
+                                        <td className="py-2 font-semibold text-slate-900 dark:text-white text-xs">{cmd.clientName}</td>
+                                        <td className="py-2 text-slate-700 dark:text-slate-300 text-xs">{cmd.staffName}</td>
+                                        <td className="text-right py-2 font-bold text-amber-600 text-xs">{formatCurrency(cmd.total)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1094,182 +390,88 @@ const CashClosingPage: React.FC = () => {
                 </div>
             )}
 
-            {!loading && attendancesByBarber.length > 0 && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Atendimentos por Barbeiro</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-slate-200 dark:border-white/5">
-                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Barbeiro</th>
-                                    <th className="text-center py-2 text-xs font-bold text-slate-500">Qtd. Comandas</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Valor Total</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Media por Comanda</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {attendancesByBarber.map(att => (
-                                    <tr key={att.staffId} className="border-b border-slate-100 dark:border-white/5 last:border-0">
-                                        <td className="py-2 font-medium text-slate-900 dark:text-white">{att.staffName}</td>
-                                        <td className="text-center py-2 text-slate-700 dark:text-slate-300">{att.comandaCount}</td>
-                                        <td className="text-right py-2 font-bold text-primary">{formatCurrency(att.totalValue)}</td>
-                                        <td className="text-right py-2 font-medium text-slate-700 dark:text-slate-300">{formatCurrency(att.averageValue)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* Conferencia de Caixa Individual por Barbeiro */}
+            {!closing.loading && closing.barberClosingDetails.length > 0 && (
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <Users size={16} className="text-slate-400" />
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                            Conferencia de Caixa do Barbeiro
+                        </h3>
+                        {pendingBarberCount > 0 && (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
+                                {pendingBarberCount} pendente{pendingBarberCount > 1 ? 's' : ''}
+                            </span>
+                        )}
+                        {allBarbersConferido && closing.barberClosingDetails.length > 0 && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                                Todos conferidos
+                            </span>
+                        )}
                     </div>
-                </div>
-            )}
-
-            {!loading && barberSummaries.length > 0 && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Recebimento por Barbeiro/Profissional</h3>
-                    <div className="space-y-3">
-                        {barberSummaries.map(b => (
-                            <div key={b.staffId} className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div>
-                                        <span className="text-sm font-black text-slate-900 dark:text-white">{b.staffName}</span>
-                                        {b.role && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400 bg-slate-100 dark:bg-white/5 rounded-full px-2 py-0.5">{b.role}</span>}
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-lg font-black text-primary">{formatCurrency(b.totalReceived)}</span>
-                                        {b.openTotal > 0 && (
-                                            <p className="text-[10px] font-bold text-amber-500">Pendente: {formatCurrency(b.openTotal)}</p>
-                                        )}
-                                    </div>
-                                </div>
-                                <p className="text-xs text-slate-500 mb-2">
-                                    {b.comandaCount} comanda{b.comandaCount !== 1 ? 's' : ''} paga{b.comandaCount !== 1 ? 's' : ''}
-                                    {b.openComandaCount > 0 && (
-                                        <span className="text-amber-500"> | {b.openComandaCount} aberta{b.openComandaCount !== 1 ? 's' : ''}</span>
-                                    )}
-                                </p>
-                                <div className="space-y-1">
-                                    {b.comandas.slice(0, 5).map(cmd => (
-                                        <div key={`${cmd.comandaId}-paid`} className="flex items-center justify-between text-xs py-1 border-t border-slate-100 dark:border-white/5">
-                                            <span className="text-slate-600 dark:text-slate-300">{cmd.clientName}</span>
-                                            <span className="text-slate-400">{cmd.items.map(i => i.serviceName).join(', ')}</span>
-                                            <span className="font-bold text-slate-700 dark:text-white">{formatCurrency(cmd.total)}</span>
-                                        </div>
-                                    ))}
-                                    {b.comandas.length > 5 && <p className="text-[10px] text-slate-400">+{b.comandas.length - 5} mais...</p>}
-                                    {b.openComandas.length > 0 && (
-                                        <>
-                                            <div className="pt-1 mt-1 border-t border-amber-200 dark:border-amber-500/20">
-                                                <p className="text-[10px] font-bold text-amber-500 uppercase">Comandas Abertas (Pendentes)</p>
-                                            </div>
-                                            {b.openComandas.slice(0, 3).map(cmd => (
-                                                <div key={`${cmd.comandaId}-open`} className="flex items-center justify-between text-xs py-1 border-t border-amber-100 dark:border-amber-500/10">
-                                                    <span className="text-slate-600 dark:text-slate-300">{cmd.clientName}</span>
-                                                    <span className="text-amber-400">{cmd.items.map(i => i.serviceName).join(', ')}</span>
-                                                    <span className="font-bold text-amber-600">{formatCurrency(cmd.total)}</span>
-                                                </div>
-                                            ))}
-                                            {b.openComandas.length > 3 && <p className="text-[10px] text-amber-400">+{b.openComandas.length - 3} abertas...</p>}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                    <div className="space-y-2">
+                        {closing.barberClosingDetails.map(barber => (
+                            <BarberClosingCard
+                                key={barber.staffId}
+                                barber={barber}
+                                loading={closing.loading}
+                            />
                         ))}
                     </div>
                 </div>
             )}
 
-            {!loading && paymentMethodBreakdown.length > 0 && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Por Forma de Pagamento</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead><tr className="border-b border-slate-200 dark:border-white/5">
-                                <th className="text-left py-2 text-xs font-bold text-slate-500">Forma</th>
-                                <th className="text-right py-2 text-xs font-bold text-slate-500">Entradas</th>
-                                <th className="text-right py-2 text-xs font-bold text-slate-500">Saidas</th>
-                                <th className="text-right py-2 text-xs font-bold text-slate-500">Liquido</th>
-                                <th className="text-center py-2 text-xs font-bold text-slate-500">Registros</th>
-                            </tr></thead>
-                            <tbody>
-                                {paymentMethodBreakdown.map(([method, data]) => {
-                                    const net = data.entradas - data.saidas;
-                                    return (
-                                        <tr key={method} className="border-b border-slate-100 dark:border-white/5 last:border-0">
-                                            <td className="py-2.5 font-semibold text-slate-700 dark:text-slate-200">{method}</td>
-                                            <td className="text-right py-2.5 text-emerald-600 font-bold">{formatCurrency(data.entradas)}</td>
-                                            <td className="text-right py-2.5 text-rose-600 font-bold">{formatCurrency(data.saidas)}</td>
-                                            <td className={`text-right py-2.5 font-black ${net >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrency(net)}</td>
-                                            <td className="text-center py-2.5 text-slate-500">{data.count}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+            {/* ETAPA 3: Payment Method Breakdown */}
+            <PaymentMethodBreakdown
+                paymentMethodBreakdown={closing.paymentMethodBreakdown}
+                filteredEntries={closing.filteredEntries}
+                loading={closing.loading}
+            />
 
-            {!loading && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Wallet size={16} className="text-slate-400" />
-                        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Sangria e Suprimento</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <select value={newExtraType} onChange={e => setNewExtraType(e.target.value as 'sangria' | 'suprimento')}
-                            className="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none">
-                            <option value="sangria">Sangria</option>
-                            <option value="suprimento">Suprimento</option>
-                        </select>
-                        <input type="number" step="0.01" min="0" placeholder="Valor (R$)" value={newExtraValue} onChange={e => setNewExtraValue(e.target.value)}
-                            className="rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30" />
-                        <div className="flex gap-2">
-                            <input type="text" placeholder="Descricao" value={newExtraDesc} onChange={e => setNewExtraDesc(e.target.value)} maxLength={200}
-                                className="flex-1 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30" />
-                            <Button leftIcon="add" onClick={handleAddExtra} disabled={!newExtraValue || parseFloat(newExtraValue) <= 0}>Add</Button>
-                        </div>
-                    </div>
-                    {extras.length > 0 && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead><tr className="border-b border-slate-200 dark:border-white/5">
-                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Tipo</th>
-                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Valor</th>
-                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Descricao</th>
-                                    <th className="text-center py-2 text-xs font-bold text-slate-500">Remover</th>
-                                </tr></thead>
-                                <tbody>
-                                    {extras.map(ext => (
-                                        <tr key={ext.id} className="border-b border-slate-100 dark:border-white/5 last:border-0">
-                                            <td className="py-2">
-                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${ext.type === 'sangria' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
-                                                    {ext.type === 'sangria' ? 'Sangria' : 'Suprimento'}
-                                                </span>
-                                            </td>
-                                            <td className={`text-right py-2 font-bold ${ext.type === 'sangria' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(ext.value)}</td>
-                                            <td className="py-2 text-slate-600 dark:text-slate-300">{ext.description || '-'}</td>
-                                            <td className="text-center py-2"><button onClick={() => handleRemoveExtra(ext.id)} className="p-1 text-slate-400 hover:text-rose-500"><Trash2 size={14} /></button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                    {extras.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Nenhum registro.</p>}
-                </div>
-            )}
+            {/* ETAPA 4: Physical Conference */}
+            <PhysicalConference
+                validation={closing.validation}
+                totalExpected={closing.totalExpected}
+                totalReceived={closing.totalReceived}
+                loading={closing.loading}
+            />
 
-            {!loading && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
-                    <label htmlFor="cash-close-obs" className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2 block">Observacoes</label>
-                    <textarea id="cash-close-obs" rows={3} maxLength={200} placeholder="Divergencias, notas ou justificativas..."
-                        value={observations} onChange={e => setObservations(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
-                    <p className="text-[10px] text-slate-400 mt-1 text-right">{observations.length}/200</p>
-                </div>
-            )}
+            {/* ETAPA 5: Sangrias e Suprimentos */}
+            <SangriaSuprimentoSection
+                extras={closing.extras}
+                onAdd={closing.addExtra}
+                onRemove={closing.removeExtra}
+                loading={closing.loading}
+            />
 
-            {!loading && !validation.isValid && observations.trim() === '' && (
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+            {/* ETAPA 6: Daily Audit */}
+            <DailyAudit
+                audit={closing.dailyAudit}
+                loading={closing.loading}
+            />
+
+            {/* ETAPA 7: Indicators */}
+            <Indicators
+                indicators={closing.indicators}
+                loading={closing.loading}
+            />
+
+            {/* ETAPA 8: Timeline */}
+            <ClosingTimeline
+                events={closing.timeline}
+                loading={closing.loading}
+            />
+
+            {/* ETAPA 9: Notes */}
+            <ClosingNotes
+                observations={closing.observations}
+                onChange={closing.setObservations}
+                loading={closing.loading}
+            />
+
+            {/* Divergence Warning */}
+            {!closing.loading && !closing.validation.isValid && closing.observations.trim() === '' && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
                     <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <div>
                         <p className="text-sm font-black text-amber-700 dark:text-amber-300">Divergencia detectada</p>
@@ -1278,71 +480,88 @@ const CashClosingPage: React.FC = () => {
                 </div>
             )}
 
-            {!loading && (
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark p-8">
-                    <div className="flex items-start gap-4 mb-6">
-                        <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                            <span className="material-symbols-outlined text-2xl">fact_check</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h3 className="text-base font-bold text-slate-950 dark:text-white">Acoes do Fechamento</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Revise, salve, feche ou exporte o caixa do dia.</p>
-                        </div>
-                    </div>
-                    <div className="border-t border-slate-200 dark:border-border-dark pt-6 flex flex-wrap gap-3">
-                        <Button leftIcon="visibility" onClick={() => setShowPreview(true)} className="flex-1 min-w-[130px]">Pre-visualizar</Button>
-                        <Button leftIcon="save" variant="secondary" onClick={() => setShowSaveConfirm(true)} disabled={loading || saving || !hasTenantContext} className="flex-1 min-w-[130px]">
-                            {saving ? 'Salvando...' : 'Salvar'}
-                        </Button>
-                        <Button leftIcon="lock" variant="success" onClick={() => setShowCloseConfirm(true)}
-                            disabled={loading || closing || !hasTenantContext || (!validation.isValid && observations.trim() === '')}
-                            className="flex-1 min-w-[130px]">
-                            {closing ? 'Fechando...' : 'Fechar Caixa'}
-                        </Button>
-                        <Button leftIcon="file-text" variant="secondary" onClick={handleExportPDF} className="flex-1 min-w-[130px]">PDF</Button>
-                        <Button leftIcon="download" variant="secondary" onClick={handleExportCSV} className="flex-1 min-w-[130px]">CSV</Button>
-                        <Button leftIcon="printer" variant="secondary" onClick={handlePrint} className="flex-1 min-w-[130px]">Imprimir</Button>
-                    </div>
-                </div>
-            )}
+            {/* ETAPA 10: Actions */}
+            <ClosingActions
+                loading={closing.loading}
+                saving={closing.saving}
+                closing={closing.closing}
+                hasTenantContext={hasTenantContext}
+                validationValid={closing.validation.isValid}
+                hasObservations={closing.observations.trim() !== ''}
+                onSave={() => setShowSaveConfirm(true)}
+                onClose={() => setShowCloseConfirm(true)}
+                onPreview={() => setShowPreview(true)}
+                onExportPDF={handleExportPDF}
+                onExportCSV={handleExportCSV}
+                onPrint={handlePrint}
+            />
 
+            {/* Preview Modal */}
             <Modal isOpen={showPreview} onClose={() => setShowPreview(false)} title="Comprovante de Fechamento" maxWidth="lg">
                 <div className="space-y-4">
-                    <pre className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-xl p-4 text-xs font-mono whitespace-pre-wrap text-slate-700 dark:text-slate-200 max-h-[60vh] overflow-y-auto">{previewText}</pre>
+                    <pre className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark rounded-lg p-4 text-xs font-mono whitespace-pre-wrap text-slate-700 dark:text-slate-200 max-h-[60vh] overflow-y-auto">
+                        {previewText}
+                    </pre>
                     <div className="flex gap-3">
-                        <Button variant="secondary" leftIcon="print" onClick={handlePrint} className="flex-1">Imprimir</Button>
-                        <Button leftIcon="download" onClick={handleExportCSV} className="flex-1">Exportar CSV</Button>
+                        <button onClick={handlePrint} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                            Imprimir
+                        </button>
+                        <button onClick={handleExportCSV} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-gold-hover transition-colors">
+                            Exportar CSV
+                        </button>
                     </div>
                 </div>
             </Modal>
 
+            {/* Save Confirm Modal */}
             <Modal isOpen={showSaveConfirm} onClose={() => setShowSaveConfirm(false)} title="Salvar Conferencia" maxWidth="sm">
                 <div className="space-y-4">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">Salvar conferencia do dia <strong>{formattedFilterDate}</strong>? Nenhum lancamento e alterado.</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Salvar conferencia do dia <strong>{formattedFilterDate}</strong>? Nenhum lancamento e alterado.
+                    </p>
                     <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={() => setShowSaveConfirm(false)} className="flex-1">Cancelar</Button>
-                        <Button leftIcon="save" onClick={handleSaveConference} disabled={saving} className="flex-1">{saving ? 'Salvando...' : 'Confirmar'}</Button>
+                        <button onClick={() => setShowSaveConfirm(false)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                            Cancelar
+                        </button>
+                        <button onClick={handleSaveWithToast} disabled={closing.saving} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-gold-hover disabled:opacity-50 transition-colors">
+                            {closing.saving ? 'Salvando...' : 'Confirmar'}
+                        </button>
                     </div>
                 </div>
             </Modal>
 
+            {/* Close Confirm Modal */}
             <Modal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} title="Fechar Caixa" maxWidth="sm">
                 <div className="space-y-4">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
-                        <p className="text-xs font-black uppercase text-slate-500 mb-2">Resumo</p>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-border-dark dark:bg-white/5">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 mb-2">Resumo</p>
                         <div className="space-y-1 text-xs">
                             <p>Data: <strong>{formattedFilterDate}</strong></p>
-                            <p>Esperado: <strong>{formatCurrency(totalExpected)}</strong></p>
-                            <p>Recebido: <strong>{formatCurrency(totalReceived)}</strong></p>
-                            <p>Diferenca: <strong className={validation.isValid ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(validation.difference)}</strong></p>
-                            <p>Sangrias: <strong className="text-rose-600">{extras.filter(e => e.type === 'sangria').length} ({formatCurrency(totalExtrasSangria)})</strong></p>
-                            <p>Suprimentos: <strong className="text-emerald-600">{extras.filter(e => e.type === 'suprimento').length} ({formatCurrency(totalExtrasSuprimento)})</strong></p>
+                            <p>Esperado: <strong>{formatCurrency(closing.totalExpected)}</strong></p>
+                            <p>Recebido: <strong>{formatCurrency(closing.totalReceived)}</strong></p>
+                            <p>Diferenca: <strong className={closing.validation.isValid ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(closing.validation.difference)}</strong></p>
+                            <p>Sangrias: <strong className="text-rose-600">{closing.extras.filter(e => e.type === 'sangria').length} ({formatCurrency(closing.extras.filter(e => e.type === 'sangria').reduce((s, e) => s + e.value, 0))})</strong></p>
+                            <p>Suprimentos: <strong className="text-emerald-600">{closing.extras.filter(e => e.type === 'suprimento').length} ({formatCurrency(closing.extras.filter(e => e.type === 'suprimento').reduce((s, e) => s + e.value, 0))})</strong></p>
                         </div>
                     </div>
-                    <p className="text-xs text-slate-500">Sangrias e suprimentos serao registrados como transacoes.</p>
+                    {pendingBarberCount > 0 && (
+                        <div className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-3">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
+                                <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                                    Existem {pendingBarberCount} caixa(s) individual(is) pendente(s) de conferencia.
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    <p className="text-[10px] text-slate-400">Sangrias e suprimentos serao registrados como transacoes.</p>
                     <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={() => setShowCloseConfirm(false)} className="flex-1">Cancelar</Button>
-                        <Button leftIcon="lock" variant="success" onClick={handleCloseCash} disabled={closing} className="flex-1">{closing ? 'Fechando...' : 'Confirmar'}</Button>
+                        <button onClick={() => setShowCloseConfirm(false)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                            Cancelar
+                        </button>
+                        <button onClick={handleCloseWithToast} disabled={closing.closing} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                            {closing.closing ? 'Fechando...' : 'Confirmar'}
+                        </button>
                     </div>
                 </div>
             </Modal>
