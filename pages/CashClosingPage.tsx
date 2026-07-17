@@ -8,7 +8,13 @@ import {
     RotateCcw,
     Wallet,
     Trash2,
+    Download,
+    Printer,
+    FileText,
+    Package,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -22,11 +28,15 @@ import {
     ComandaDetail,
     ComandaItemDetail,
     BarberSummary,
+    BarberAttendanceSummary,
+    OpenComandaSummary,
     formatCurrency,
     generateId,
     validateCashClose,
     buildPaymentMethodRows,
     buildBarberSummaries,
+    buildAttendancesByBarber,
+    buildOpenComandasSummary,
     filterEntries,
     generateCSVContent,
     downloadCSV,
@@ -538,6 +548,23 @@ const CashClosingPage: React.FC = () => {
         [filteredComandaDetails, staffMap]
     );
 
+    const attendancesByBarber = useMemo(
+        () => {
+            const base = buildAttendancesByBarber(filteredComandaDetails);
+            return base.map(b => ({
+                ...b,
+                staffName: staffMap[b.staffId]?.name || (b.staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
+                role: staffMap[b.staffId]?.role || '',
+            }));
+        },
+        [filteredComandaDetails, staffMap]
+    );
+
+    const openComandasSummary = useMemo(
+        () => buildOpenComandasSummary(filteredComandaDetails),
+        [filteredComandaDetails]
+    );
+
     const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
     const totalSaidas = filteredEntries.filter(e => e.type === 'saida').reduce((sum, e) => sum + e.value, 0);
     const reversalEntries = filteredEntries.filter(e => e.isReversalTransaction);
@@ -742,15 +769,190 @@ const CashClosingPage: React.FC = () => {
         const csv = generateCSVContent(
             formattedFilterDate, filters, validation, extras, paymentRows,
             observations, getOperatorName(filters.operatorId), filteredEntries, barberSummaries,
+            attendancesByBarber, openComandasSummary,
+            {
+                responsible: user?.email || 'Nao informado',
+                closingTime: new Date().toLocaleString('pt-BR'),
+                grossSales: totalEntradas,
+                discounts: 0,
+                surcharges: 0,
+            }
         );
         downloadCSV(csv, `fechamento-caixa-${filterDate.replace(/-/g, '')}.csv`);
         setToast({ message: 'CSV exportado com sucesso.', type: 'success' });
     };
 
+    const handleExportPDF = () => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 14;
+        let y = margin;
+
+        const addText = (text: string, options: { fontSize?: number; fontStyle?: string; color?: [number, number, number]; align?: 'left' | 'center' | 'right' } = {}) => {
+            doc.setFontSize(options.fontSize || 10);
+            doc.setFont('helvetica', options.fontStyle || 'normal');
+            if (options.color) doc.setTextColor(...options.color);
+            else doc.setTextColor(0, 0, 0);
+            const lines = doc.splitTextToSize(text, pageWidth - 2 * margin);
+            doc.text(lines, margin, y, { align: options.align });
+            y += lines.length * (options.fontSize || 10) * 0.5;
+        };
+
+        const addSection = (title: string) => {
+            y += 4;
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.3);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 2;
+            addText(title, { fontSize: 11, fontStyle: 'bold' });
+            y += 2;
+        };
+
+        // Header
+        addText('COMPROVANTE DE FECHAMENTO DE CAIXA', { fontSize: 14, fontStyle: 'bold', align: 'center' });
+        y += 4;
+        addText(`Data: ${formattedFilterDate}`, { fontSize: 10 });
+        addText(`Responsavel: ${user?.email || 'Nao informado'}`, { fontSize: 10 });
+        addText(`Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 10 });
+        y += 4;
+
+        // Resumo Geral
+        addSection('RESUMO GERAL');
+        addText(`Total Esperado:    ${formatCurrency(validation.totalExpected)}`);
+        addText(`Total Recebido:    ${formatCurrency(validation.totalReceived)}`);
+        addText(`Diferenca:         ${formatCurrency(validation.difference)}`);
+        addText(`Situacao:          ${validation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`, {
+            color: validation.isValid ? [0, 128, 0] : [255, 0, 0]
+        });
+        y += 2;
+
+        // Comandas Abertas
+        if (openComandasSummary.length > 0) {
+            addSection('COMANDAS ABERTAS DO DIA');
+            const tableBody = openComandasSummary.map(cmd => [
+                cmd.clientName,
+                cmd.staffName,
+                formatCurrency(cmd.total),
+                cmd.status,
+            ]);
+            (doc as any).autoTable({
+                startY: y,
+                head: [['Cliente', 'Barbeiro', 'Valor', 'Status']],
+                body: tableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: margin, right: margin },
+                didDrawPage: (data: any) => { y = data.cursor.y + 4; },
+            });
+        }
+
+        // Atendimentos por Barbeiro
+        if (attendancesByBarber.length > 0) {
+            addSection('ATENDIMENTOS POR BARBEIRO');
+            const tableBody = attendancesByBarber.map(att => [
+                att.staffName,
+                String(att.comandaCount),
+                formatCurrency(att.totalValue),
+                formatCurrency(att.averageValue),
+            ]);
+            (doc as any).autoTable({
+                startY: y,
+                head: [['Barbeiro', 'Qtd. Comandas', 'Valor Total', 'Media por Comanda']],
+                body: tableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: margin, right: margin },
+                didDrawPage: (data: any) => { y = data.cursor.y + 4; },
+            });
+        }
+
+        // Por Forma de Pagamento
+        addSection('POR FORMA DE PAGAMENTO');
+        const paymentTableBody = paymentRows.map(r => {
+            const count = filteredEntries.filter(e => e.paymentMethod === r.method && e.type === 'entrada').length;
+            return [r.method, formatCurrency(r.launched), String(count)];
+        });
+        (doc as any).autoTable({
+            startY: y,
+            head: [['Forma', 'Valor', 'Quantidade']],
+            body: paymentTableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            margin: { left: margin, right: margin },
+            didDrawPage: (data: any) => { y = data.cursor.y + 4; },
+        });
+
+        // Recebimento por Barbeiro
+        if (barberSummaries.length > 0) {
+            addSection('RECEBIMENTO POR BARBEIRO');
+            const barberTableBody = barberSummaries.map(b => [
+                b.staffName,
+                b.role || '-',
+                String(b.comandaCount),
+                formatCurrency(b.totalReceived),
+                String(b.openComandaCount),
+                formatCurrency(b.openTotal),
+            ]);
+            (doc as any).autoTable({
+                startY: y,
+                head: [['Profissional', 'Funcao', 'Qtd Comandas', 'Total Recebido', 'Qtd Abertas', 'Total Pendente']],
+                body: barberTableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: margin, right: margin },
+                didDrawPage: (data: any) => { y = data.cursor.y + 4; },
+            });
+        }
+
+        // Sangrias e Suprimentos
+        if (extras.length > 0) {
+            addSection('SANGRIAS E SUPRIMENTOS');
+            const extrasTableBody = extras.map(ext => [
+                ext.type === 'sangria' ? 'Sangria' : 'Suprimento',
+                formatCurrency(ext.value),
+                ext.description || '-',
+                new Date(ext.createdAt).toLocaleString('pt-BR'),
+            ]);
+            (doc as any).autoTable({
+                startY: y,
+                head: [['Tipo', 'Valor', 'Descricao', 'Data/Hora']],
+                body: extrasTableBody,
+                theme: 'striped',
+                headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: margin, right: margin },
+                didDrawPage: (data: any) => { y = data.cursor.y + 4; },
+            });
+        }
+
+        // Observacoes
+        if (observations.trim()) {
+            addSection('OBSERVACOES');
+            addText(observations);
+        }
+
+        // Footer
+        y += 6;
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.3);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 4;
+        addText(`Assinatura: ${user?.email || 'Nao informado'}`, { fontSize: 9 });
+        addText(`Data/Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 9 });
+
+        doc.save(`fechamento-${filterDate.replace(/-/g, '-')}.pdf`);
+        setToast({ message: 'PDF exportado com sucesso.', type: 'success' });
+    };
+
     const previewText = useMemo(() => generatePreviewText(
         formattedFilterDate, validation, extras, paymentRows,
         observations, user?.email || 'Nao informado', barberSummaries, filteredEntries,
-    ), [formattedFilterDate, validation, extras, paymentRows, observations, user, barberSummaries, filteredEntries]);
+        openComandasSummary, attendancesByBarber,
+    ), [formattedFilterDate, validation, extras, paymentRows, observations, user, barberSummaries, filteredEntries, openComandasSummary, attendancesByBarber]);
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -855,6 +1057,67 @@ const CashClosingPage: React.FC = () => {
                             <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${validation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>Diferenca</p>
                             <p className={`mt-1 text-xl font-black ${validation.isValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatCurrency(validation.difference)}</p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {!loading && openComandasSummary.length > 0 && (
+                <div className="rounded-2xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300 mb-4 flex items-center gap-2">
+                        <Package size={14} />
+                        Comandas Abertas do Dia (em atraso no dia seguinte)
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-amber-200 dark:border-amber-500/20">
+                                    <th className="text-left py-2 text-xs font-bold text-amber-600">Cliente</th>
+                                    <th className="text-left py-2 text-xs font-bold text-amber-600">Barbeiro</th>
+                                    <th className="text-right py-2 text-xs font-bold text-amber-600">Valor</th>
+                                    <th className="text-center py-2 text-xs font-bold text-amber-600">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {openComandasSummary.map(cmd => (
+                                    <tr key={cmd.comandaId} className="border-b border-amber-100 dark:border-amber-500/10 last:border-0">
+                                        <td className="py-2 font-medium text-slate-900 dark:text-white">{cmd.clientName}</td>
+                                        <td className="py-2 text-slate-700 dark:text-slate-300">{cmd.staffName}</td>
+                                        <td className="text-right py-2 font-bold text-amber-600">{formatCurrency(cmd.total)}</td>
+                                        <td className="text-center py-2">
+                                            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase bg-amber-100 text-amber-700">{cmd.status}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {!loading && attendancesByBarber.length > 0 && (
+                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-4">Atendimentos por Barbeiro</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-white/5">
+                                    <th className="text-left py-2 text-xs font-bold text-slate-500">Barbeiro</th>
+                                    <th className="text-center py-2 text-xs font-bold text-slate-500">Qtd. Comandas</th>
+                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Valor Total</th>
+                                    <th className="text-right py-2 text-xs font-bold text-slate-500">Media por Comanda</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {attendancesByBarber.map(att => (
+                                    <tr key={att.staffId} className="border-b border-slate-100 dark:border-white/5 last:border-0">
+                                        <td className="py-2 font-medium text-slate-900 dark:text-white">{att.staffName}</td>
+                                        <td className="text-center py-2 text-slate-700 dark:text-slate-300">{att.comandaCount}</td>
+                                        <td className="text-right py-2 font-bold text-primary">{formatCurrency(att.totalValue)}</td>
+                                        <td className="text-right py-2 font-medium text-slate-700 dark:text-slate-300">{formatCurrency(att.averageValue)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
@@ -1036,8 +1299,9 @@ const CashClosingPage: React.FC = () => {
                             className="flex-1 min-w-[130px]">
                             {closing ? 'Fechando...' : 'Fechar Caixa'}
                         </Button>
+                        <Button leftIcon="file-text" variant="secondary" onClick={handleExportPDF} className="flex-1 min-w-[130px]">PDF</Button>
                         <Button leftIcon="download" variant="secondary" onClick={handleExportCSV} className="flex-1 min-w-[130px]">CSV</Button>
-                        <Button leftIcon="print" variant="secondary" onClick={handlePrint} className="flex-1 min-w-[130px]">Imprimir</Button>
+                        <Button leftIcon="printer" variant="secondary" onClick={handlePrint} className="flex-1 min-w-[130px]">Imprimir</Button>
                     </div>
                 </div>
             )}

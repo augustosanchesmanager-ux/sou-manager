@@ -60,6 +60,24 @@ export interface BarberSummary {
     openComandas: ComandaDetail[];
 }
 
+export interface BarberAttendanceSummary {
+    staffId: string;
+    staffName: string;
+    role: string;
+    comandaCount: number;
+    totalValue: number;
+    averageValue: number;
+}
+
+export interface OpenComandaSummary {
+    comandaId: string;
+    clientName: string;
+    staffName: string;
+    total: number;
+    status: string;
+    paymentMethod: string | null;
+}
+
 export interface CashClosingEntryExtended extends EnrichedCashFlowEntry {
     sourceType: string | null;
     sourceId: string | null;
@@ -205,6 +223,45 @@ export const buildBarberSummaries = (
     }).sort((a, b) => b.totalReceived - a.totalReceived);
 };
 
+export const buildAttendancesByBarber = (
+    comandas: ComandaDetail[],
+): BarberAttendanceSummary[] => {
+    const byBarber = new Map<string, { total: number; count: number }>();
+
+    comandas.forEach(cmd => {
+        const staffId = cmd.staffId || 'sem-profissional';
+        const existing = byBarber.get(staffId) || { total: 0, count: 0 };
+        existing.total += cmd.total;
+        existing.count += 1;
+        byBarber.set(staffId, existing);
+    });
+
+    return Array.from(byBarber.entries()).map(([staffId, data]) => ({
+        staffId,
+        staffName: '', // Will be filled by caller using staffMap
+        role: '',
+        comandaCount: data.count,
+        totalValue: data.total,
+        averageValue: data.count > 0 ? data.total / data.count : 0,
+    })).sort((a, b) => b.totalValue - a.totalValue);
+};
+
+export const buildOpenComandasSummary = (
+    comandas: ComandaDetail[],
+): OpenComandaSummary[] => {
+    return comandas
+        .filter(c => c.status === 'open')
+        .map(c => ({
+            comandaId: c.comandaId,
+            clientName: c.clientName,
+            staffName: c.staffName,
+            total: c.total,
+            status: c.status,
+            paymentMethod: c.paymentMethod,
+        }))
+        .sort((a, b) => b.total - a.total);
+};
+
 export const filterEntries = (
     entries: CashClosingEntryExtended[],
     filters: CashCloseFilters,
@@ -242,125 +299,109 @@ export const generateCSVContent = (
     operatorName: string,
     entries: CashClosingEntryExtended[],
     barberSummaries: BarberSummary[],
+    attendancesByBarber: BarberAttendanceSummary[],
+    openComandasSummary: OpenComandaSummary[],
+    cashCloseData: {
+        responsible: string;
+        closingTime: string;
+        grossSales: number;
+        discounts: number;
+        surcharges: number;
+    },
 ): string => {
     const lines: string[] = [];
 
-    lines.push('RESUMO DO FECHAMENTO DE CAIXA');
-    lines.push(`Data;${date}`);
-    lines.push(`Operador Filtro;${operatorName || 'Todos'}`);
-    lines.push(`Filtro Comandas Abertas;${filters.showOnlyOpenComandas ? 'Sim' : 'Nao'}`);
-    lines.push(`Filtro Somente Clube do Chefe;${filters.onlyClubMembers ? 'Sim' : 'Nao'}`);
+    lines.push('# FECHAMENTO DE CAIXA');
+    lines.push(`Data,${date}`);
+    lines.push(`Responsavel,${cashCloseData.responsible}`);
+    lines.push(`Hora de Fechamento,${cashCloseData.closingTime}`);
     lines.push('');
 
-    lines.push('RESUMO FINANCEIRO');
-    lines.push(`Total Esperado;${validation.totalExpected.toFixed(2)}`);
-    lines.push(`Total Recebido;${validation.totalReceived.toFixed(2)}`);
-    lines.push(`Diferenca;${validation.difference.toFixed(2)}`);
-    lines.push(`Status;${validation.isValid ? 'Conferido' : 'Divergente'}`);
+    lines.push('# RESUMO GERAL');
+    lines.push(`Total Esperado,${validation.totalExpected.toFixed(2)}`);
+    lines.push(`Total Recebido,${validation.totalReceived.toFixed(2)}`);
+    lines.push(`Diferenca,${validation.difference.toFixed(2)}`);
+    lines.push(`Situacao,${validation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`);
     lines.push('');
 
-    const totalOpen = barberSummaries.reduce((s, b) => s + b.openTotal, 0);
-    if (totalOpen > 0) {
-        lines.push('VALORES NAO RECEBIDOS (COMANDAS ABERTAS)');
-        lines.push(`Total Pendente;${totalOpen.toFixed(2)}`);
-        lines.push('');
-    }
-
-    lines.push('RECEBIMENTO POR FORMA DE PAGAMENTO');
-    lines.push('Forma;Valor Esperado;Valor Lanado;Diferenca');
+    lines.push('# POR FORMA DE PAGAMENTO');
+    lines.push('Forma,Valor,Quantidade');
     paymentRows.forEach(r => {
-        lines.push(`${r.method};${r.expected.toFixed(2)};${r.launched.toFixed(2)};${(r.launched - r.expected).toFixed(2)}`);
+        const count = entries.filter(e => e.paymentMethod === r.method && e.type === 'entrada').length;
+        lines.push(`${r.method},${r.launched.toFixed(2)},${count}`);
     });
     lines.push('');
 
-    if (barberSummaries.length > 0) {
-        lines.push('RECEBIMENTO POR BARBEIRO/PROFISSIONAL');
-        lines.push('Profissional;Funcao;Qtd Comandas;Total Recebido;Qtd Abertas;Total Pendente');
-        barberSummaries.forEach(b => {
-            lines.push(`${b.staffName};${b.role || '-'};${b.comandaCount};${b.totalReceived.toFixed(2)};${b.openComandaCount};${b.openTotal.toFixed(2)}`);
+    if (openComandasSummary.length > 0) {
+        lines.push('# COMANDAS ABERTAS DO DIA');
+        lines.push('Cliente,Barbeiro,Valor,Status');
+        openComandasSummary.forEach(cmd => {
+            lines.push(`"${cmd.clientName}","${cmd.staffName}",${cmd.total.toFixed(2)},${cmd.status}`);
         });
         lines.push('');
     }
 
-    lines.push('DETALHAMENTO POR CLIENTE (ANALITICO)');
-    lines.push('Data;Profissional;Cliente;Servicos;Qtd Itens;Total;Forma Pagamento;Status Comanda');
+    if (attendancesByBarber.length > 0) {
+        lines.push('# ATENDIMENTOS POR BARBEIRO');
+        lines.push('Barbeiro,Quantidade Comandas,Valor Total,Media por Comanda');
+        attendancesByBarber.forEach(b => {
+            lines.push(`${b.staffName},${b.comandaCount},${b.totalValue.toFixed(2)},${b.averageValue.toFixed(2)}`);
+        });
+        lines.push('');
+    }
+
+    lines.push('# DETALHAMENTO POR CLIENTE (ANALITICO)');
+    lines.push('Data,Profissional,Cliente,Servicos,Qtd Itens,Total,Forma Pagamento,Status Comanda');
     entries
         .filter(e => e.type === 'entrada' && e.sourceType === 'comanda')
         .forEach(e => {
             const dataHora = new Date(e.date).toLocaleString('pt-BR');
             lines.push(
-                `${dataHora};${e.barberName || '-'};${e.clientName || '-'};${e.comandaItems || '-'};1;${e.value.toFixed(2)};${e.paymentMethod || '-'};${e.comandaStatus || '-'}`
+                `${dataHora},${e.barberName || '-'},${e.clientName || '-'},${e.comandaItems || '-'},1,${e.value.toFixed(2)},${e.paymentMethod || '-'},${e.comandaStatus || '-'}`
             );
         });
     lines.push('');
 
     const nonComandaEntries = entries.filter(e => e.sourceType !== 'comanda' && e.type === 'entrada');
     if (nonComandaEntries.length > 0) {
-        lines.push('OUTROS RECEBIMENTOS (SEM COMANDA)');
-        lines.push('Data;Descricao;Categoria;Valor;Forma Pagamento');
+        lines.push('# OUTROS RECEBIMENTOS (SEM COMANDA)');
+        lines.push('Data,Descricao,Categoria,Valor,Forma Pagamento');
         nonComandaEntries.forEach(e => {
             const dataHora = new Date(e.date).toLocaleString('pt-BR');
-            lines.push(`${dataHora};${e.description};${e.category};${e.value.toFixed(2)};${e.paymentMethod || '-'}`);
+            lines.push(`${dataHora},${e.description},${e.category},${e.value.toFixed(2)},${e.paymentMethod || '-'}`);
         });
         lines.push('');
     }
 
     const saidas = entries.filter(e => e.type === 'saida');
     if (saidas.length > 0) {
-        lines.push('SAIDAS');
-        lines.push('Data;Descricao;Categoria;Valor;Forma Pagamento');
+        lines.push('# SAIDAS');
+        lines.push('Data,Descricao,Categoria,Valor,Forma Pagamento');
         saidas.forEach(e => {
             const dataHora = new Date(e.date).toLocaleString('pt-BR');
-            lines.push(`${dataHora};${e.description};${e.category};${e.value.toFixed(2)};${e.paymentMethod || '-'}`);
+            lines.push(`${dataHora},${e.description},${e.category},${e.value.toFixed(2)},${e.paymentMethod || '-'}`);
         });
         lines.push('');
     }
 
     if (extras.length > 0) {
-        lines.push('SANGRIAS E SUPRIMENTOS');
-        lines.push('Tipo;Valor;Descricao;Data/Hora;Responsavel');
+        lines.push('# SANGRIAS E SUPRIMENTOS');
+        lines.push('Tipo,Valor,Descricao,Data/Hora,Responsavel');
         extras.forEach(ext => {
             lines.push(
-                `${ext.type === 'sangria' ? 'Sangria' : 'Suprimento'};${ext.value.toFixed(2)};"${ext.description || '-'}";${new Date(ext.createdAt).toLocaleString('pt-BR')};${operatorName || '-'}`
+                `${ext.type === 'sangria' ? 'Sangria' : 'Suprimento'},${ext.value.toFixed(2)},"${ext.description || '-'}","${new Date(ext.createdAt).toLocaleString('pt-BR')}",${operatorName || '-'}`
             );
         });
         lines.push('');
     }
 
-    if (barberSummaries.length > 0) {
-        lines.push('DETALHAMENTO POR BARBEIRO');
-        barberSummaries.forEach(b => {
-            lines.push('');
-            lines.push(`BARBEIRO: ${b.staffName} (${b.role || 'N/A'}) - Recebido: ${b.totalReceived.toFixed(2)} - Pendente: ${b.openTotal.toFixed(2)}`);
-
-            if (b.comandas.length > 0) {
-                lines.push('COMANDAS PAGAS');
-                lines.push('Data;Cliente;Servicos;Total;Forma Pagamento');
-                b.comandas.forEach(cmd => {
-                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
-                    lines.push(`-;${cmd.clientName};${itemNames};${cmd.total.toFixed(2)};${cmd.paymentMethod || '-'}`);
-                });
-            }
-
-            if (b.openComandas.length > 0) {
-                lines.push('COMANDAS ABERTAS (PENDENTES)');
-                lines.push('Data;Cliente;Servicos;Total;Forma Pagamento');
-                b.openComandas.forEach(cmd => {
-                    const itemNames = cmd.items.map(i => i.serviceName).join(', ') || '-';
-                    lines.push(`-;${cmd.clientName};${itemNames};${cmd.total.toFixed(2)};${cmd.paymentMethod || '-'}`);
-                });
-            }
-        });
-        lines.push('');
-    }
-
     if (observations.trim()) {
-        lines.push('OBSERVACOES');
+        lines.push('# OBSERVACOES');
         lines.push(`"${observations.replace(/"/g, '""')}"`);
         lines.push('');
     }
 
-    lines.push(`GERADO EM;${new Date().toLocaleString('pt-BR')}`);
+    lines.push(`GERADO EM,${new Date().toLocaleString('pt-BR')}`);
 
     return lines.join('\n');
 };
@@ -387,6 +428,8 @@ export const generatePreviewText = (
     userName: string,
     barberSummaries: BarberSummary[],
     filteredEntries: CashClosingEntryExtended[],
+    openComandasSummary: OpenComandaSummary[],
+    attendancesByBarber: BarberAttendanceSummary[],
 ): string => {
     const totalOpen = barberSummaries.reduce((s, b) => s + b.openTotal, 0);
     const lines: string[] = [
@@ -431,6 +474,38 @@ export const generatePreviewText = (
         barberSummaries.forEach(b => {
             const pendingLabel = b.openTotal > 0 ? ` | Pendente: ${formatCurrency(b.openTotal)}` : '';
             lines.push(`  ${b.staffName.padEnd(22)} ${formatCurrency(b.totalReceived).padStart(14)}  (${b.comandaCount} comandas${pendingLabel})`);
+        });
+        lines.push('');
+    }
+
+    if (openComandasSummary.length > 0) {
+        lines.push('---------------------------------------');
+        lines.push('    COMANDAS ABERTAS DO DIA');
+        lines.push('---------------------------------------');
+        lines.push('  Cliente                | Barbeiro             | Valor        | Status');
+        lines.push('  -----------------------|----------------------|--------------|-------');
+        openComandasSummary.forEach(cmd => {
+            const client = cmd.clientName.padEnd(24).slice(0, 24);
+            const barber = cmd.staffName.padEnd(22).slice(0, 22);
+            const valor = formatCurrency(cmd.total).padStart(12);
+            const status = cmd.status.padEnd(7).slice(0, 7);
+            lines.push(`  ${client} | ${barber} | ${valor} | ${status}`);
+        });
+        lines.push('');
+    }
+
+    if (attendancesByBarber.length > 0) {
+        lines.push('---------------------------------------');
+        lines.push('    ATENDIMENTOS POR BARBEIRO');
+        lines.push('---------------------------------------');
+        lines.push('  Barbeiro               | Qtd | Valor Total  | Media');
+        lines.push('  -----------------------|-----|--------------|--------');
+        attendancesByBarber.forEach(att => {
+            const barber = att.staffName.padEnd(24).slice(0, 24);
+            const qtd = String(att.comandaCount).padStart(3);
+            const total = formatCurrency(att.totalValue).padStart(12);
+            const media = formatCurrency(att.averageValue).padStart(8);
+            lines.push(`  ${barber} | ${qtd} | ${total} | ${media}`);
         });
         lines.push('');
     }
