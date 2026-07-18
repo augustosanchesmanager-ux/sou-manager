@@ -9,6 +9,8 @@ import type { BarberClosingDetail, TimelineEvent } from '../cashCloseUtils';
 interface BarberClosingDetailProps {
     barber: BarberClosingDetail;
     onCloseBarberCash?: (barberStaffId: string, conference: { countedCash: number; justification: string }) => void;
+    onSaveBarberCash?: (barberStaffId: string) => void;
+    onExportBarberPDF?: (barber: BarberClosingDetail) => void;
 }
 
 const ChecklistItem: React.FC<{ label: string; passed: boolean }> = ({ label, passed }) => (
@@ -24,7 +26,12 @@ const ChecklistItem: React.FC<{ label: string; passed: boolean }> = ({ label, pa
     </div>
 );
 
-const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber, onCloseBarberCash }) => {
+const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
+    barber,
+    onCloseBarberCash,
+    onSaveBarberCash,
+    onExportBarberPDF,
+}) => {
     const [countedCash, setCountedCash] = useState('');
     const [justification, setJustification] = useState('');
     const [activeTab, setActiveTab] = useState<'financial' | 'clients' | 'products' | 'commissions' | 'checklist'>('financial');
@@ -290,7 +297,10 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber, 
 
             {/* Action Buttons */}
             <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-border-dark">
-                <button className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <button
+                    onClick={() => onSaveBarberCash?.(barber.staffId)}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                >
                     Salvar
                 </button>
                 <button
@@ -307,7 +317,10 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({ barber, 
                 >
                     Fechar Caixa do Barbeiro
                 </button>
-                <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <button
+                    onClick={() => onExportBarberPDF?.(barber)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                >
                     PDF
                 </button>
             </div>

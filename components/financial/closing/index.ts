@@ -10,3 +10,5 @@ export { default as ClosingNotes } from './ClosingNotes';
 export { default as ClosingActions } from './ClosingActions';
 export { default as BarberClosingCard } from './BarberClosingCard';
 export { default as BarberClosingDetailPanel } from './BarberClosingDetailPanel';
+export { default as ProfessionalPerformanceSection } from './ProfessionalPerformanceSection';
+export { default as SalesRanking } from './SalesRanking';

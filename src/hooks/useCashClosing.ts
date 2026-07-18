@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, getSharedClient } from '@/services/supabaseClient';
 import {
     CashCloseFilters,
@@ -84,6 +84,7 @@ interface StaffRecord {
     id: string;
     name: string;
     role: string | null;
+    commission_rate: number | null;
 }
 
 interface ClientRecord {
@@ -201,6 +202,8 @@ export function useCashClosing(
     const [barberClosingRecords, setBarberClosingRecords] = useState<BarberClosingRecord[]>([]);
     const [closingEvents, setClosingEvents] = useState<CashClosingEventRecord[]>([]);
 
+    const fetchRequestIdRef = useRef(0);
+
     const getDayRange = useCallback((dateStr: string) => {
         const d = new Date(dateStr + 'T00:00:00');
         const start = d.toISOString();
@@ -226,6 +229,7 @@ export function useCashClosing(
             return;
         }
 
+        const requestId = ++fetchRequestIdRef.current;
         setLoading(true);
         setLoadError(null);
         const { start, end } = getDayRange(filterDate);
@@ -237,7 +241,6 @@ export function useCashClosing(
                 comandasResult,
                 comandaItemsResult,
                 clubResult,
-                receiptsResult,
                 staffResult,
                 clientsResult,
                 servicesResult,
@@ -265,22 +268,17 @@ export function useCashClosing(
                     .from('comanda_items')
                     .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
                     .eq('tenant_id', tenantId),
-                supabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
-                    supabase
+                supabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(
+                    () => supabase
                         .from('customer_subscription_receivables')
                         .select('id, amount, status')
                         .eq('tenant_id', tenantId)
-                        .in('status', ['pending', 'overdue'])
+                        .in('status', ['pending', 'overdue']),
+                    () => ({ data: [] as any[], error: null }),
                 ),
-                supabase
-                    .from('transactions')
-                    .select('id, status, amount')
-                    .eq('tenant_id', tenantId)
-                    .gte('date', start)
-                    .lte('date', end),
                 getSharedClient()
                     .from('staff')
-                    .select('id, name, role')
+                    .select('id, name, role, commission_rate')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'active'),
                 getSharedClient()
@@ -355,6 +353,8 @@ export function useCashClosing(
                     paymentMethod: cmd.payment_method,
                     total: Number(cmd.total || 0),
                     status: cmd.status,
+                    appointmentId: cmd.appointment_id || null,
+                    createdAt: null,
                     items: detailItems,
                 });
             });
@@ -410,6 +410,8 @@ export function useCashClosing(
                             paymentMethod: cmd.payment_method,
                             total: Number(cmd.total || 0),
                             status: cmd.status,
+                            appointmentId: cmd.appointment_id || null,
+                            createdAt: null,
                             items: detailItems,
                         });
                     });
@@ -544,20 +546,11 @@ export function useCashClosing(
                 setClubOverdueTotal(overdue.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0));
             }
 
-            if (receiptsResult.data) {
-                const txAll = receiptsResult.data as any[];
-                const pendentes = txAll.filter((tx: any) => {
-                    let status = tx.status || 'Pago';
-                    if (status !== 'Pago' && status !== 'Pendente' && status !== 'Cancelado') {
-                        status = status === 'paid' ? 'Pago' : (status === 'pending' ? 'Pendente' : 'Pago');
-                    }
-                    return status === 'Pendente';
-                });
-                setPendingReceiptsCount(pendentes.length);
-                setPendingReceiptsTotal(pendentes.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0));
-            }
+            setPendingReceiptsCount(0);
+            setPendingReceiptsTotal(0);
 
         } catch (error: any) {
+            if (requestId !== fetchRequestIdRef.current) return;
             console.error('Erro ao carregar dados:', error);
             setLoadError(error?.message || 'Nao foi possivel carregar os dados.');
             setEntries([]);
@@ -566,15 +559,17 @@ export function useCashClosing(
             setComandas([]);
             setStaffList([]);
         } finally {
-            setLoading(false);
+            if (requestId === fetchRequestIdRef.current) {
+                setLoading(false);
+            }
         }
     }, [tenantId, filterDate, getDayRange]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const staffMap = useMemo(() => {
-        const map: Record<string, { name: string; role: string }> = {};
-        staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '' }; });
+        const map: Record<string, { name: string; role: string; commissionRate: number }> = {};
+        staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '', commissionRate: s.commission_rate ?? 40 }; });
         return map;
     }, [staffList]);
 
@@ -777,7 +772,7 @@ export function useCashClosing(
         const serviceItems = comandaItemsFiltered.filter(i => i.serviceName && !i.serviceName.includes('Produto'));
         const productItems = comandaItemsFiltered.filter(i => i.serviceName && i.serviceName.includes('Produto'));
 
-        const totalCommissions = barberSummaries.reduce((s, b) => s + b.totalReceived * 0.35, 0);
+        const totalCommissions = barberSummaries.reduce((s, b) => s + b.totalReceived * (b.commissionRate / 100), 0);
 
         return {
             ticketMedio,
@@ -822,23 +817,31 @@ export function useCashClosing(
                     }))
             );
 
-            const commissionServices = barber.totalReceived * 0.35;
-            const commissionProducts = productsSold.reduce((s, p) => s + p.value, 0) * 0.10;
-
-            const allExtras = extras.filter(() => false);
+            const commissionRate = barber.commissionRate / 100;
+            const commissionServices = barber.totalReceived * commissionRate;
+            const commissionProducts = productsSold.reduce((s, p) => s + p.value, 0) * commissionRate;
 
             const timelineEvents: TimelineEvent[] = [];
             if (barberComandas.length > 0) {
+                const firstAppt = barberComandas[0].appointmentId
+                    ? appointments.find(a => a.id === barberComandas[0].appointmentId)
+                    : null;
                 timelineEvents.push({
-                    time: barberComandas[0].comandaId,
+                    time: firstAppt?.start_time || barberComandas[0].comandaId,
                     label: 'Primeiro atendimento',
                     type: 'service',
+                    detail: `${barberComandas[0].clientName} (${formatCurrencyBR(barberComandas[0].total)})`,
                 });
                 if (barberComandas.length > 1) {
+                    const lastCmd = barberComandas[barberComandas.length - 1];
+                    const lastAppt = lastCmd.appointmentId
+                        ? appointments.find(a => a.id === lastCmd.appointmentId)
+                        : null;
                     timelineEvents.push({
-                        time: barberComandas[barberComandas.length - 1].comandaId,
+                        time: lastAppt?.start_time || lastCmd.comandaId,
                         label: 'Ultimo atendimento',
                         type: 'service',
+                        detail: `${lastCmd.clientName} (${formatCurrencyBR(lastCmd.total)})`,
                     });
                 }
             }
@@ -882,7 +885,7 @@ export function useCashClosing(
                 timeline: timelineEvents,
             };
         });
-    }, [barberSummaries, extras]);
+    }, [barberSummaries, appointments]);
 
     const addExtra = useCallback((type: 'sangria' | 'suprimento', value: number, description: string) => {
         const newExtra: SangriaSuprimento = {
@@ -955,8 +958,8 @@ export function useCashClosing(
         const formattedDate = new Date(`${filterDate}T00:00:00`).toLocaleDateString('pt-BR');
 
         try {
-            for (const extra of extras) {
-                await supabase.from('transactions').insert({
+            if (extras.length > 0) {
+                const extraTransactions = extras.map(extra => ({
                     tenant_id: tenantId,
                     type: extra.type === 'sangria' ? 'expense' : 'income',
                     category: extra.type === 'sangria' ? 'Sangria - Fechamento' : 'Suprimento - Fechamento',
@@ -967,7 +970,9 @@ export function useCashClosing(
                     status: 'completed',
                     source_type: 'cash_closing',
                     user_id: user?.id,
-                });
+                }));
+                const { error: insertError } = await supabase.from('transactions').insert(extraTransactions);
+                if (insertError) throw insertError;
             }
 
             const { error } = await supabase
@@ -1011,44 +1016,6 @@ export function useCashClosing(
             setClosing(false);
         }
     }, [tenantId, filterDate, getDayRange, extras, user?.id, totalEntradas, totalSaidas, saldoAtual, totalReceived, validation.difference, agendaSummary, paymentMethodBreakdown, observations, totalExpected, filters, barberSummaries, totalExtrasSangria, totalExtrasSuprimento]);
-
-    const openCashRegister = useCallback(async () => {
-        if (!tenantId) return;
-        const { start, end } = getDayRange(filterDate);
-
-        // Upsert or update the cash_closings record with opening_time
-        const { data: existing } = await supabase
-            .from('cash_closings')
-            .select('id')
-            .eq('tenant_id', tenantId)
-            .eq('business_date', filterDate)
-            .single();
-
-        if (existing) {
-            await supabase
-                .from('cash_closings')
-                .update({ opening_time: new Date().toISOString() })
-                .eq('id', existing.id);
-        } else {
-            await supabase
-                .from('cash_closings')
-                .insert({
-                    tenant_id: tenantId,
-                    business_date: filterDate,
-                    period_start: start,
-                    period_end: end,
-                    status: 'draft',
-                    created_by_user_id: user?.id,
-                    opening_time: new Date().toISOString(),
-                });
-        }
-
-        // Record opening event
-        await recordEvent('opening', 'Caixa Aberto', undefined, { opened_by: user?.id });
-
-        // Refresh data
-        await fetchData();
-    }, [tenantId, filterDate, getDayRange, user?.id, fetchData]);
 
     const closeBarberCash = useCallback(async (barberStaffId: string, conference: { countedCash: number; justification: string }) => {
         if (!tenantId || !cashClosingRecord) return;
@@ -1147,6 +1114,45 @@ export function useCashClosing(
                 created_by_user_id: user?.id,
             });
     }, [tenantId, cashClosingRecord?.id, filterDate, user?.id]);
+
+    const openCashRegister = useCallback(async () => {
+        if (!tenantId) return;
+        const { start, end } = getDayRange(filterDate);
+
+        try {
+            const { data: existing } = await supabase
+                .from('cash_closings')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('business_date', filterDate)
+                .single();
+
+            if (existing) {
+                await supabase
+                    .from('cash_closings')
+                    .update({ opening_time: new Date().toISOString() })
+                    .eq('id', existing.id);
+            } else {
+                await supabase
+                    .from('cash_closings')
+                    .insert({
+                        tenant_id: tenantId,
+                        business_date: filterDate,
+                        period_start: start,
+                        period_end: end,
+                        status: 'draft',
+                        created_by_user_id: user?.id,
+                        opening_time: new Date().toISOString(),
+                    });
+            }
+
+            await recordEvent('opening', 'Caixa Aberto', undefined, { opened_by: user?.id });
+            await fetchData();
+        } catch (error: any) {
+            console.error('Erro ao abrir caixa:', error);
+            throw error;
+        }
+    }, [tenantId, filterDate, getDayRange, user?.id, fetchData, recordEvent]);
 
     const openingTime = cashClosingRecord?.opening_time || null;
     const closingTime = cashClosingRecord?.closing_time || null;

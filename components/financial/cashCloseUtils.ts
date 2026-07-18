@@ -109,6 +109,8 @@ export interface ComandaDetail {
     paymentMethod: string | null;
     total: number;
     status: string;
+    appointmentId: string | null;
+    createdAt: string | null;
     items: ComandaItemDetail[];
 }
 
@@ -125,6 +127,7 @@ export interface BarberSummary {
     staffId: string;
     staffName: string;
     role: string;
+    commissionRate: number;
     totalReceived: number;
     comandaCount: number;
     comandas: ComandaDetail[];
@@ -309,7 +312,7 @@ export const buildPaymentMethodRows = (
 
 export const buildBarberSummaries = (
     comandas: ComandaDetail[],
-    staffMap: Record<string, { name: string; role: string }>,
+    staffMap: Record<string, { name: string; role: string; commissionRate: number }>,
 ): BarberSummary[] => {
     const byBarber = new Map<string, {
         totalReceived: number;
@@ -380,6 +383,7 @@ export const buildBarberSummaries = (
             staffId,
             staffName: info?.name || (staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
             role: info?.role || '',
+            commissionRate: info?.commissionRate ?? 40,
             totalReceived: data.totalReceived,
             comandaCount: data.paidComandas.length,
             comandas: data.paidComandas,

@@ -8,9 +8,17 @@ interface BarberClosingCardProps {
     barber: BarberClosingDetail;
     loading: boolean;
     onCloseBarberCash?: (barberStaffId: string, conference: { countedCash: number; justification: string }) => void;
+    onSaveBarberCash?: (barberStaffId: string) => void;
+    onExportBarberPDF?: (barber: BarberClosingDetail) => void;
 }
 
-const BarberClosingCard: React.FC<BarberClosingCardProps> = ({ barber, loading, onCloseBarberCash }) => {
+const BarberClosingCard: React.FC<BarberClosingCardProps> = ({
+    barber,
+    loading,
+    onCloseBarberCash,
+    onSaveBarberCash,
+    onExportBarberPDF,
+}) => {
     const [expanded, setExpanded] = useState(false);
 
     if (loading) return null;
@@ -69,7 +77,12 @@ const BarberClosingCard: React.FC<BarberClosingCardProps> = ({ barber, loading, 
 
             {expanded && (
                 <div className="border-t border-slate-200 dark:border-border-dark">
-                    <BarberClosingDetailPanel barber={barber} onCloseBarberCash={onCloseBarberCash} />
+                    <BarberClosingDetailPanel
+                        barber={barber}
+                        onCloseBarberCash={onCloseBarberCash}
+                        onSaveBarberCash={onSaveBarberCash}
+                        onExportBarberPDF={onExportBarberPDF}
+                    />
                 </div>
             )}
         </div>

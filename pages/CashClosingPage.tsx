@@ -19,6 +19,8 @@ import {
     ClosingNotes,
     ClosingActions,
     BarberClosingCard,
+    ProfessionalPerformanceSection,
+    SalesRanking,
 } from '../components/financial/closing';
 import {
     formatCurrency,
@@ -279,6 +281,57 @@ const CashClosingPage: React.FC = () => {
         }
     }, [closing.handleCloseCash]);
 
+    const handleExportBarberPDF = useCallback((barber: { staffName: string; totalProduced: number; commission: number; clientsServed: { clientName: string; serviceName: string; value: number }[] }) => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 14;
+        let y = margin;
+
+        const addText = (text: string, options: { fontSize?: number; fontStyle?: string; align?: 'left' | 'center' | 'right' } = {}) => {
+            doc.setFontSize(options.fontSize || 10);
+            doc.setFont('helvetica', options.fontStyle || 'normal');
+            doc.setTextColor(0, 0, 0);
+            const lines = doc.splitTextToSize(text, pageWidth - 2 * margin);
+            doc.text(lines, margin, y, { align: options.align });
+            y += lines.length * (options.fontSize || 10) * 0.5;
+        };
+
+        addText(`FECHAMENTO - ${barber.staffName}`, { fontSize: 12, fontStyle: 'bold', align: 'center' });
+        y += 2;
+        addText(`Data: ${formattedFilterDate}`);
+        addText(`Producao: ${formatCurrency(barber.totalProduced)}`);
+        addText(`Comissao: ${formatCurrency(barber.commission)}`);
+        y += 4;
+
+        if (barber.clientsServed.length > 0) {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CLIENTES ATENDIDOS', margin, y);
+            y += 6;
+            (doc as any).autoTable({
+                startY: y,
+                head: [['Cliente', 'Servico', 'Valor']],
+                body: barber.clientsServed.map(c => [c.clientName, c.serviceName, formatCurrency(c.value)]),
+                theme: 'striped',
+                headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: margin, right: margin },
+            });
+        }
+
+        doc.save(`fechamento-${barber.staffName.replace(/\s+/g, '-').toLowerCase()}-${closing.filterDate.replace(/-/g, '')}.pdf`);
+        setToast({ message: `PDF de ${barber.staffName} exportado.`, type: 'success' });
+    }, [formattedFilterDate, closing.filterDate]);
+
+    const handleSaveBarberCash = useCallback(async (barberStaffId: string) => {
+        try {
+            await closing.handleSaveConference();
+            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
+        } catch (error: any) {
+            setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
+        }
+    }, [closing.handleSaveConference]);
+
     const allBarbersConferido = closing.barberClosingDetails.every(b =>
         Object.values(b.checklist).every(v => v)
     );
@@ -365,6 +418,18 @@ const CashClosingPage: React.FC = () => {
                 saidasCount={closing.saidasCount}
             />
 
+            {/* ETAPA 2.1: Valor Realizado por Profissional */}
+            <ProfessionalPerformanceSection
+                barberSummaries={closing.barberSummaries}
+                loading={closing.loading}
+            />
+
+            {/* ETAPA 2.2: Ranking de Vendas */}
+            <SalesRanking
+                barberSummaries={closing.barberSummaries}
+                loading={closing.loading}
+            />
+
             {/* Open Comandas Warning */}
             {!closing.loading && closing.openComandasSummary.length > 0 && (
                 <div className="rounded-xl border border-amber-200/80 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-4">
@@ -420,6 +485,8 @@ const CashClosingPage: React.FC = () => {
                                 barber={barber}
                                 loading={closing.loading}
                                 onCloseBarberCash={closing.closeBarberCash}
+                                onSaveBarberCash={handleSaveBarberCash}
+                                onExportBarberPDF={handleExportBarberPDF}
                             />
                         ))}
                     </div>
