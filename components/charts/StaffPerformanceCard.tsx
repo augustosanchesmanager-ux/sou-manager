@@ -1,6 +1,7 @@
 import React from 'react';
 import { SparkLineChart } from './SparkLineChart';
 import { TrendBadge } from './TrendBadge';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface StaffMember {
   id: string;
@@ -30,13 +31,6 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
   rank,
   onClick,
 }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const revenueGrowth = staff.revenuePrevious 
     ? ((staff.revenue - staff.revenuePrevious) / staff.revenuePrevious) * 100 

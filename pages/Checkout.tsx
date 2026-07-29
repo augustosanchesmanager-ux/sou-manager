@@ -6,15 +6,26 @@ import {
     requireTenantContext,
     supabase,
 } from '../services/supabaseClient';
+import { normalizePercentage } from '../shared/numbers/normalize';
+import {
+    checkoutApplicationService,
+    CheckoutError,
+    type FinishRequest,
+    type DiscountAuditDraft,
+} from '../application/checkout';
+import { computeCheckoutFlags } from '../application/checkout/flags';
+import { resolveMembershipContext, canApplyCredit } from '../application/chefClub';
+import type { MembershipContext } from '../application/chefClub';
+import {
+    calculateParticipantPayout as domainCalculateParticipantPayout,
+    calculateTotalPayouts as domainCalculateTotalPayouts,
+} from '../domain/commission/calculate';
+import { isSharedExecution as domainIsSharedExecution } from '../domain/commission/participants';
+import { formatParticipantPayout as domainFormatParticipantPayout } from '../domain/commission/format';
+import type { ParticipantRow } from '../domain/commission/types';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
-import {
-    type ServiceBalanceEntry,
-    getAvailableCreditsForService,
-    getTotalAvailableCredits,
-    normalizeCreditBalances,
-} from '../src/utils/chefClubCredits';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 import {
     buildZeroCloseAuditNote,
@@ -26,7 +37,6 @@ import { receivesCommission } from '../src/lib/staff/roles';
 import {
     DISCOUNT_REASON_LABELS,
     DISCOUNT_TYPE_LABELS,
-    type DiscountAuditDraft,
     type DiscountAuditType,
     type DiscountReasonType,
     formatDiscountAuditNote,
@@ -181,33 +191,21 @@ const toMonthInputValue = (value?: string | null) => {
     return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const normalizePercentageValue = (value: number) => {
-    if (!Number.isFinite(value)) return 0;
-    return value > 1 ? value / 100 : value;
-};
+const normalizePercentageValue = normalizePercentage;
 
 const formatPayoutValue = (participant: Pick<CartParticipant, 'payout_type' | 'payout_value'>) => {
-    if (participant.payout_type === 'percentage') {
-        return `${(normalizePercentageValue(participant.payout_value) * 100).toFixed(0)}%`;
-    }
-    return `R$ ${Number(participant.payout_value || 0).toFixed(2)}`;
+    return domainFormatParticipantPayout(participant as ParticipantRow, '');
 };
 
 const isSharedExecution = (item: Pick<CartItem, 'staff_id' | 'execution_participants'>) => {
-    const participants = item.execution_participants || [];
-    if (participants.length === 0) return false;
-    if (participants.length > 1) return true;
-    const [participant] = participants;
-    return participant.role !== 'primary' || participant.professional_id !== item.staff_id;
+    const participants = (item.execution_participants || []) as unknown as ParticipantRow[];
+    return domainIsSharedExecution(
+        { service_id: undefined },
+        participants.filter((p) => p.affects_commission),
+    );
 };
 
 const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
-
-const isFutureOrOpenDate = (value?: string | null) => {
-    if (!value) return true;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) || parsed.getTime() >= Date.now();
-};
 
 const getDirectSettlementBlockMessage = (orderLabelLower: string, isMasculineOrder: boolean) =>
     `${isMasculineOrder ? 'Este' : 'Esta'} ${orderLabelLower} pertence a um atendimento anterior ou foi ${isMasculineOrder ? 'cadastrado' : 'cadastrada'} fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.`;
@@ -279,7 +277,7 @@ const Checkout: React.FC = () => {
         : checkoutEntryMode === 'open_comanda'
             ? 'Abrir Comanda'
             : 'Checkout / PDV';
-    const checkoutCopy = checkoutEntryMode === 'edit_comanda'
+    const checkoutCopy = React.useMemo(() => checkoutEntryMode === 'edit_comanda'
         ? {
             title: isEsteticaApp ? businessLabels.checkout : 'Fechamento de Comanda',
             subtitle: isEsteticaApp ? 'Revise os itens do atendimento, confira valores e conclua a finalização.' : 'Revise os itens, ajuste o consumo e conclua a cobrança.',
@@ -340,7 +338,8 @@ const Checkout: React.FC = () => {
                 finalButtonOpenLabel: isEsteticaApp ? 'Manter atendimento aberto' : 'Manter aberta',
                 summaryTitle: isEsteticaApp ? `Resumo do ${orderLabelLower}` : 'Resumo financeiro',
                 redirectPath: '/checkout?mode=pdv',
-            };
+            },
+        [checkoutEntryMode, isEsteticaApp, businessLabels, orderLabel, orderLabelLower, servicePluralLabelLower]);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // State
@@ -389,12 +388,7 @@ const Checkout: React.FC = () => {
     const [services, setServices] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
     const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
-    const [chefClubInfo, setChefClubInfo] = useState<{
-        id: string;
-        planName: string;
-        credits: number;
-        serviceBalances: ServiceBalanceEntry[];
-    } | null>(null);
+    const [checkoutBenefits, setCheckoutBenefits] = useState<MembershipContext | null>(null);
     const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
     const finishLockRef = React.useRef(false);
@@ -405,9 +399,9 @@ const Checkout: React.FC = () => {
         : checkoutEntryMode === 'open_comanda'
             ? 'Fechamento de Comanda'
             : 'Fechamento de Atendimento';
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const discountValue = parseFloat(discount) || 0;
-    const total = Math.max(0, subtotal - discountValue);
+    const subtotal = React.useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
+    const discountValue = React.useMemo(() => parseFloat(discount) || 0, [discount]);
+    const total = React.useMemo(() => Math.max(0, subtotal - discountValue), [subtotal, discountValue]);
     const assignedStaffIds = useMemo(
         () => Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[],
         [cart],
@@ -420,28 +414,37 @@ const Checkout: React.FC = () => {
         ? assignedCommissionStaff
         : staff.filter(pro => receivesCommission(pro));
     const discountResponsibleStaff = staff.find(pro => pro.id === discountResponsibleStaffId) || null;
-    const visibleDiscountTypeLabels: Record<DiscountAuditType, string> = isEsteticaApp
+    const visibleDiscountTypeLabels = React.useMemo<Record<DiscountAuditType, string>>(() => isEsteticaApp
         ? {
             ...DISCOUNT_TYPE_LABELS,
             barber_discount: `Desconto do ${professionalLabelLower}`,
             barbershop_discount: 'Desconto da unidade',
         }
-        : DISCOUNT_TYPE_LABELS;
+        : DISCOUNT_TYPE_LABELS,
+        [isEsteticaApp, professionalLabelLower]);
     const shouldCollectDiscountAudit = discountValue > 0;
-    const creditItems = cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id);
-    const isZeroPaidCheckout = paymentStatus === 'paid' && total <= 0;
-    const canCloseWithClubCredit = isZeroPaidCheckout && creditItems.length > 0 && Boolean(chefClubInfo);
+    const creditItems = React.useMemo(() => cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id), [cart]);
     const canCloseWithAdministrativeOrigin = isManagerLikeRole(accessRole, canAccessSuperAdmin);
-    const isLegacyClubSettlement = paymentStatus === 'paid' && closureMode === 'legacy_membership';
-    const shouldShowPaymentMethod = paymentStatus === 'paid' && !isZeroPaidCheckout;
-    const isZeroAuditSettlement = isZeroPaidCheckout && (
-        zeroCloseOrigin === 'club_credit'
-            ? canCloseWithClubCredit
-            : zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment'
-    );
-    const shouldSettleZeroWithAudit = isZeroAuditSettlement && !isLegacyClubSettlement;
-    const shouldApplyFinancialEffects = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
-    const shouldDeductMembershipCredits = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
+
+    const checkoutFlags = React.useMemo(() => computeCheckoutFlags({
+        paymentStatus,
+        total,
+        creditItemCount: creditItems.length,
+        isClubMember: Boolean(checkoutBenefits),
+        closureMode,
+        zeroCloseOrigin,
+        canCloseWithAdministrativeOrigin,
+    }), [paymentStatus, total, creditItems.length, checkoutBenefits, closureMode, zeroCloseOrigin, canCloseWithAdministrativeOrigin]);
+
+    const {
+        isZeroPaidCheckout,
+        canCloseWithClubCredit,
+        isLegacyClubSettlement,
+        shouldShowPaymentMethod,
+        shouldSettleZeroWithAudit,
+        shouldApplyFinancialEffects,
+        shouldDeductMembershipCredits,
+    } = checkoutFlags;
 
     const resetComandaRequestKey = () => {
         comandaRequestKeyRef.current = generateIdempotencyKey('comanda');
@@ -464,7 +467,7 @@ const Checkout: React.FC = () => {
         setLegacyReferenceMonth('');
         setZeroCloseOrigin('club_credit');
         setZeroCloseReason('');
-        setChefClubInfo(null);
+        setCheckoutBenefits(null);
         setDuplicateComanda(null);
         setPendingClient(null);
         setShowDuplicateModal(false);
@@ -474,83 +477,7 @@ const Checkout: React.FC = () => {
         resetComandaRequestKey();
     }, [checkoutEntryMode, comandaId]);
 
-    const loadChefClubForClient = useCallback(async (clientId: string, resolvedTenantId: string) => {
-        const clientDb = getScopedClient('barber');
-        const nowIso = new Date().toISOString();
-        const { data: sub, error: subError } = await clientDb
-            .from('customer_subscriptions')
-            .select('id, plan_id, cycle_start, cycle_end, next_billing_date, created_at')
-            .eq('client_id', clientId)
-            .eq('tenant_id', resolvedTenantId)
-            .eq('status', 'active')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (subError) throw subError;
-
-        if (!sub || !isFutureOrOpenDate(sub.cycle_end || sub.next_billing_date)) {
-            setChefClubInfo(null);
-            return null;
-        }
-
-        const { data: paidCycle, error: paidCycleError } = await clientDb
-            .from('customer_subscription_receivables')
-            .select('id')
-            .eq('tenant_id', resolvedTenantId)
-            .eq('subscription_id', sub.id)
-            .eq('status', 'paid')
-            .not('transaction_id', 'is', null)
-            .lte('billing_cycle_start', nowIso)
-            .gte('billing_cycle_end', nowIso)
-            .limit(1)
-            .maybeSingle();
-
-        if (paidCycleError) throw paidCycleError;
-
-        if (!paidCycle) {
-            setChefClubInfo(null);
-            return null;
-        }
-
-        const [{ data: plan, error: planError }, { data: credits, error: creditsError }] = await Promise.all([
-            clientDb
-                .from('customer_plans')
-                .select('name')
-                .eq('id', sub.plan_id)
-                .eq('tenant_id', resolvedTenantId)
-                .maybeSingle(),
-            clientDb
-                .from('customer_credits')
-                .select('available_credits, used_credits, service_balance_map, period_end')
-                .eq('subscription_id', sub.id)
-                .eq('tenant_id', resolvedTenantId)
-                .maybeSingle(),
-        ]);
-
-        if (planError) throw planError;
-        if (creditsError) throw creditsError;
-
-        if (!credits || !isFutureOrOpenDate(credits.period_end)) {
-            setChefClubInfo(null);
-            return null;
-        }
-
-        const serviceBalances = normalizeCreditBalances(
-            credits.service_balance_map,
-            credits.available_credits || 0,
-            credits.used_credits || 0,
-        );
-
-        const nextInfo = {
-            id: sub.id,
-            planName: plan?.name || 'Plano ativo',
-            credits: getTotalAvailableCredits(serviceBalances),
-            serviceBalances,
-        };
-        setChefClubInfo(nextInfo);
-        return nextInfo;
-    }, []);
+    // ─── ChefClub: replaced by resolveMembershipContext ─────────
 
     // Fetch initial data
     const fetchData = useCallback(async () => {
@@ -706,9 +633,10 @@ const Checkout: React.FC = () => {
                     setCart(mappedItems);
 
                     if (selectedClientData?.id) {
-                        await loadChefClubForClient(selectedClientData.id, resolvedTenantId);
+                        const ctx = await resolveMembershipContext(resolvedTenantId, selectedClientData.id);
+                        setCheckoutBenefits(ctx.hasMembership ? ctx : null);
                     } else {
-                        setChefClubInfo(null);
+                        setCheckoutBenefits(null);
                     }
                 }
             }
@@ -722,7 +650,7 @@ const Checkout: React.FC = () => {
             setActivePromotions([]);
         }
         setLoading(false);
-    }, [appSlug, comandaId, loadChefClubForClient, schema, tenantId]);
+    }, [appSlug, comandaId, schema, tenantId]);
 
     useEffect(() => {
         fetchData();
@@ -734,11 +662,11 @@ const Checkout: React.FC = () => {
     }, [checkoutEntryMode, comandaId]);
 
     useEffect(() => {
-        if (comandaId || chefClubInfo || closureMode !== 'legacy_membership') return;
+        if (comandaId || checkoutBenefits || closureMode !== 'legacy_membership') return;
         setClosureMode('standard');
         setClosureNote('');
         setLegacyReferenceMonth('');
-    }, [chefClubInfo, closureMode, comandaId]);
+    }, [checkoutBenefits, closureMode, comandaId]);
 
     useEffect(() => {
         if (!shouldCollectDiscountAudit || discountType !== 'barber_discount') return;
@@ -804,7 +732,7 @@ const Checkout: React.FC = () => {
     ]);
 
     // Calculations
-    const appliedCreditsCount = cart.filter(item => item.usedCredit).length;
+    const appliedCreditsCount = React.useMemo(() => cart.filter(item => item.usedCredit).length, [cart]);
 
     // Duplicate client check
     const handleSelectClient = async (client: Client) => {
@@ -853,7 +781,8 @@ const Checkout: React.FC = () => {
 
             const targetClient = pendingClient || client;
             setSelectedClient(targetClient);
-            await loadChefClubForClient(targetClient.id, resolvedTenantId);
+            const ctx = await resolveMembershipContext(resolvedTenantId, targetClient.id);
+            setCheckoutBenefits(ctx.hasMembership ? ctx : null);
         } catch (error) {
             console.error('Error selecting checkout client:', error);
             setToast({ message: 'Erro ao carregar dados do cliente.', type: 'error' });
@@ -874,7 +803,8 @@ const Checkout: React.FC = () => {
                         table: 'comandas',
                         operation: 'confirm duplicate checkout client',
                     });
-                    await loadChefClubForClient(pendingClient.id, resolvedTenantId);
+                    const ctx = await resolveMembershipContext(resolvedTenantId, pendingClient.id);
+                    setCheckoutBenefits(ctx.hasMembership ? ctx : null);
                 } catch (error) {
                     console.error('Error loading duplicate client club info:', error);
                     setToast({ message: isEsteticaApp ? 'Cliente selecionado, mas não foi possível carregar créditos disponíveis.' : 'Cliente selecionado, mas não foi possível carregar créditos do Clube.', type: 'info' });
@@ -1030,12 +960,11 @@ const Checkout: React.FC = () => {
 
     const handleAddItem = (item: any, type: 'service' | 'product') => {
         const finalPrice = calculateItemPrice(item, type);
-        const canSuggestCredit = type === 'service' && !!chefClubInfo;
-        const creditsForService = canSuggestCredit
-            ? getAvailableCreditsForService(chefClubInfo?.serviceBalances || [], item.id)
+        const canSuggestCredit = type === 'service' && !!checkoutBenefits;
+        const usedCreditsForService = canSuggestCredit
+            ? cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length
             : 0;
-        const usedCreditsForService = cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length;
-        const hasCreditsAvailable = canSuggestCredit && usedCreditsForService < creditsForService;
+        const hasCreditsAvailable = canSuggestCredit && canApplyCredit(checkoutBenefits?.serviceBalances || [], item.id, usedCreditsForService);
 
         if (hasCreditsAvailable) {
             setPendingCreditItem({ item, type, finalPrice });
@@ -1204,16 +1133,11 @@ const Checkout: React.FC = () => {
     };
 
     const calculateParticipantPayout = (itemUnitPrice: number, participant: CartParticipant): number => {
-        if (participant.payout_type === 'percentage') {
-            return itemUnitPrice * normalizePercentageValue(participant.payout_value);
-        }
-        return participant.payout_value;
+        return domainCalculateParticipantPayout(itemUnitPrice, 1, participant as unknown as ParticipantRow);
     };
 
     const calculateTotalPayouts = (itemUnitPrice: number, participants: CartParticipant[]): number => {
-        return participants
-            .filter(p => p.affects_commission)
-            .reduce((sum, p) => sum + calculateParticipantPayout(itemUnitPrice, p), 0);
+        return domainCalculateTotalPayouts(itemUnitPrice, 1, participants as unknown as ParticipantRow[]);
     };
 
     const addParticipant = (itemId: string, professionalId: string, professionalName: string, role: ExecutionRole, payoutType: PayoutType, payoutValue: number) => {
@@ -1276,61 +1200,10 @@ const Checkout: React.FC = () => {
     const handleFinish = async () => {
         if (finishLockRef.current) return;
         finishLockRef.current = true;
-        if (!selectedClient) {
-            setToast({ message: checkoutCopy.clientRequiredError, type: 'error' });
-            finishLockRef.current = false;
-            return;
-        }
-        if (cart.length === 0) {
-            setToast({ message: checkoutCopy.itemRequiredError, type: 'error' });
-            finishLockRef.current = false;
-            return;
-        }
-        if (isLegacyClubSettlement && !canCloseWithAdministrativeOrigin) {
-            setToast({ message: 'Baixa administrativa exige permissão de gerente, admin ou superadmin.', type: 'error' });
-            finishLockRef.current = false;
-            return;
-        }
-        if (isLegacyClubSettlement && !legacyReferenceMonth) {
-            setToast({ message: isEsteticaApp ? 'Informe o mes de referencia para a baixa administrativa.' : 'Informe o mes de referencia para a baixa administrativa do Clube.', type: 'info' });
-            finishLockRef.current = false;
-            return;
-        }
-        if (isLegacyClubSettlement && !closureNote.trim()) {
-            setToast({ message: 'Informe o motivo obrigatório para a baixa administrativa.', type: 'error' });
-            finishLockRef.current = false;
-            return;
-        }
-        if (isZeroPaidCheckout) {
-            if (zeroCloseOrigin === 'club_credit' && !canCloseWithClubCredit) {
-                setToast({ message: `${orderLabel} zero só pode finalizar por crédito quando há crédito aplicado e disponível.`, type: 'error' });
-                finishLockRef.current = false;
-                return;
-            }
-            if (zeroCloseOrigin === 'administrative_adjustment' && !canCloseWithAdministrativeOrigin) {
-                setToast({ message: 'Baixa administrativa zero exige permissão de gerente, admin ou superadmin.', type: 'error' });
-                finishLockRef.current = false;
-                return;
-            }
-            if ((zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment') && !zeroCloseReason.trim()) {
-                setToast({ message: `Informe o motivo obrigatório para finalizar ${orderLabelLower} zero.`, type: 'error' });
-                finishLockRef.current = false;
-                return;
-            }
-        }
+
+        // Build discount audit draft if needed
         let discountAuditDraft: DiscountAuditDraft | null = null;
         if (shouldCollectDiscountAudit) {
-            if (discountType === 'barber_discount' && !discountResponsibleStaffId) {
-                setToast({ message: `Selecione o ${professionalLabelLower} responsável pelo desconto.`, type: 'error' });
-                finishLockRef.current = false;
-                return;
-            }
-            if (!discountReasonNote.trim()) {
-                setToast({ message: 'Informe uma observação para auditar o desconto.', type: 'error' });
-                finishLockRef.current = false;
-                return;
-            }
-
             discountAuditDraft = {
                 amount: discountValue,
                 type: discountType,
@@ -1341,317 +1214,70 @@ const Checkout: React.FC = () => {
                 commissionImpact: 'pending_review',
             };
         }
-        if (!tenantId) {
-            setToast({ message: 'Tenant inválido para finalizar operação.', type: 'error' });
+
+        // Delegate validation and execution to Application Service
+        const finishRequest: FinishRequest = {
+            tenantId: tenantId || '',
+            appSlug,
+            schema,
+            userId: user?.id || null,
+            comandaId,
+            cart: cart as any,
+            client: selectedClient as any,
+            total,
+            discountValue,
+            paymentStatus: paymentStatus as any,
+            paymentMethod,
+            paymentDescription,
+            closureMode: closureMode as any,
+            closureNote,
+            relatedAppointmentId,
+            shouldApplyFinancialEffects,
+            shouldDeductMembershipCredits,
+            isLegacyClubSettlement,
+            legacyReferenceMonth,
+            canCloseWithAdministrativeOrigin,
+            shouldSettleZeroWithAudit,
+            zeroCloseOrigin: zeroCloseOrigin as any,
+            zeroCloseReason,
+            creditItems: creditItems as any,
+            chefClubInfo: checkoutBenefits ? { id: checkoutBenefits.subscriptionId } : null,
+            shouldCollectDiscountAudit,
+            discountAuditDraft,
+            internalSettlementTitle,
+            incomeCategory,
+        };
+
+        // Pre-validation by service (returns errors without side effects)
+        const validationErrors = checkoutApplicationService.validateFinishRequest(finishRequest);
+        if (validationErrors.length > 0) {
+            setToast({ message: validationErrors[0], type: 'error' });
             finishLockRef.current = false;
             return;
         }
 
         setLoading(true);
         try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug, 'checkout', ['barber']);
-            const { tenantId: resolvedTenantId } = requireTenantContext({
-                tenantId,
-                appSlug: currentAppSlug,
-                schema,
-                table: 'comandas',
-                operation: 'finish checkout',
-            });
-            const client = getScopedClient('barber');
-            let currentComandaId = comandaId;
-            const assignedStaffIds = Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[];
-            const comandaStaffId = assignedStaffIds.length === 1 ? assignedStaffIds[0] : null;
-            const shouldSettleViaRpc = paymentStatus === 'paid' && !isLegacyClubSettlement && !shouldSettleZeroWithAudit;
-            const shouldCloseAfterComandaSync = shouldSettleViaRpc || shouldSettleZeroWithAudit;
-            const paymentDateReal = new Date().toISOString();
-            const discountAuditNote = discountAuditDraft ? formatDiscountAuditNote(discountAuditDraft) : null;
-            const legacyClosureAuditNote = isLegacyClubSettlement
-                ? buildZeroCloseAuditNote({
-                    origin: 'administrative_adjustment',
-                    source: 'checkout',
-                    authorizedBy: user?.id || null,
-                    userId: user?.id || null,
-                    reason: closureNote.trim(),
-                })
-                : null;
-            const settlementNotes = [
-                paymentMethod === 'other' && paymentDescription ? `Forma de pagamento: ${paymentDescription}` : null,
-                discountAuditNote,
-            ].filter(Boolean).join('\n\n') || null;
+            // Execute full checkout flow via Application Service
+            const result = await checkoutApplicationService.finish(finishRequest, comandaRequestKeyRef.current);
 
-            if (paymentStatus === 'paid' && relatedAppointmentId) {
-                const [{ data: appointmentForSettlement }, { data: comandaForSettlement }] = await Promise.all([
-                    client
-                        .from('appointments')
-                        .select('id, start_time')
-                        .eq('id', relatedAppointmentId)
-                        .eq('tenant_id', resolvedTenantId)
-                        .maybeSingle(),
-                    currentComandaId
-                        ? client
-                            .from('comandas')
-                            .select('id, created_at')
-                            .eq('id', currentComandaId)
-                            .eq('tenant_id', resolvedTenantId)
-                            .maybeSingle()
-                        : client
-                            .from('comandas')
-                            .select('id, created_at')
-                            .eq('appointment_id', relatedAppointmentId)
-                            .eq('tenant_id', resolvedTenantId)
-                            .maybeSingle(),
-                ]);
-
-                // Validação de data do agendamento removida para permitir fechamento fora da data
-            }
-
-            // 1. Create or Update Comanda
-            const comandaData: any = {
-                client_id: selectedClient.id,
-                staff_id: comandaStaffId,
-                appointment_id: relatedAppointmentId,
-                status: shouldCloseAfterComandaSync ? 'open' : (paymentStatus === 'paid' ? 'paid' : 'open'),
-                total: total,
-                discount: discountValue,
-                payment_method: shouldCloseAfterComandaSync ? null : (paymentStatus === 'paid' ? paymentMethod : null),
-                closure_mode: paymentStatus === 'paid' ? closureMode : 'standard',
-                closure_note: paymentStatus === 'paid' && isLegacyClubSettlement ? legacyClosureAuditNote : null,
-                financial_effect: paymentStatus === 'paid' ? shouldApplyFinancialEffects : true,
-                membership_credit_effect: paymentStatus === 'paid' ? shouldDeductMembershipCredits : true,
-                legacy_reference_month: paymentStatus === 'paid' && isLegacyClubSettlement
-                    ? `${legacyReferenceMonth}-01`
-                    : null,
-                closed_at: shouldCloseAfterComandaSync ? null : (paymentStatus === 'paid' ? paymentDateReal : null),
-                tenant_id: resolvedTenantId
-            };
-
-            if (currentComandaId) {
-                const { error: updateError } = await client
-                    .from('comandas')
-                    .update(comandaData)
-                    .eq('id', currentComandaId)
-                    .eq('tenant_id', resolvedTenantId);
-                if (updateError) throw updateError;
-                // Delete existing items to re-insert (simple sync strategy)
-                const { error: delError } = await client
-                    .from('comanda_items')
-                    .delete()
-                    .eq('comanda_id', currentComandaId)
-                    .eq('tenant_id', resolvedTenantId);
-                if (delError) throw delError;
-            } else {
-                let existingComanda: { id: string } | null = null;
-
-                if (relatedAppointmentId) {
-                    const { data } = await client
-                        .from('comandas')
-                        .select('id')
-                        .eq('tenant_id', resolvedTenantId)
-                        .eq('appointment_id', relatedAppointmentId)
-                        .limit(1)
-                        .maybeSingle();
-                    existingComanda = data;
-                }
-
-                if (!existingComanda && paymentStatus === 'pending') {
-                    const { data } = await client
-                        .from('comandas')
-                        .select('id')
-                        .eq('tenant_id', resolvedTenantId)
-                        .eq('client_id', selectedClient.id)
-                        .eq('status', 'open')
-                        .limit(1)
-                        .maybeSingle();
-                    existingComanda = data;
-                }
-
-                if (existingComanda) {
-                    currentComandaId = existingComanda.id;
-                    const { error: syncError } = await client
-                        .from('comandas')
-                        .update(comandaData)
-                        .eq('id', currentComandaId)
-                        .eq('tenant_id', resolvedTenantId);
-                    if (syncError) throw syncError;
-
-                    const { error: delError } = await client
-                        .from('comanda_items')
-                        .delete()
-                        .eq('comanda_id', currentComandaId)
-                        .eq('tenant_id', resolvedTenantId);
-                    if (delError) throw delError;
-                } else {
-                    const { data: newC, error: insertError } = await client
-                        .from('comandas')
-                        .insert({ ...comandaData, idempotency_key: comandaRequestKeyRef.current })
-                        .select()
-                        .single();
-
-                    if (insertError) {
-                        if (insertError.code === '23505') {
-                            const { data: duplicatedComanda } = await client
-                                .from('comandas')
-                                .select('id')
-                                .eq('tenant_id', resolvedTenantId)
-                                .eq('idempotency_key', comandaRequestKeyRef.current)
-                                .limit(1)
-                                .maybeSingle();
-
-                            if (!duplicatedComanda) throw insertError;
-                            currentComandaId = duplicatedComanda.id;
-                        } else {
-                            throw insertError;
-                        }
-                    } else {
-                        currentComandaId = newC.id;
-                    }
-                }
-            }
-
-            // 2. Insert Items
-            const itemsToInsert = cart.map(item => ({
-                comanda_id: currentComandaId,
-                service_id: item.service_id || null,
-                product_id: item.product_id || null,
-                product_name: item.name,
-                quantity: item.quantity,
-                unit_price: item.price,
-                staff_id: item.staff_id || null,
-                tenant_id: resolvedTenantId
-            }));
-
-            const { data: insertedItems, error: itemsError } = await client.from('comanda_items').insert(itemsToInsert).select('id');
-            if (itemsError) throw itemsError;
-
-            // 3. Insert execution participants if any
-            if (insertedItems && insertedItems.length > 0) {
-                const allParticipantsToInsert: any[] = [];
-                
-                cart.forEach((item, index) => {
-                    const itemId = insertedItems[index]?.id;
-                    if (!itemId) return;
-                    
-                    const participants = item.execution_participants || [];
-                    
-                    if (participants.length > 0) {
-                        participants.forEach(p => {
-                            allParticipantsToInsert.push({
-                                comanda_item_id: itemId,
-                                staff_id: p.professional_id,
-                                role: p.role,
-                                payout_type: p.payout_type,
-                                payout_value: p.payout_value,
-                                affects_revenue: p.affects_revenue,
-                                affects_commission: p.affects_commission,
-                                tenant_id: resolvedTenantId
-                            });
-                        });
-                    } else if (item.staff_id) {
-                        allParticipantsToInsert.push({
-                            comanda_item_id: itemId,
-                            staff_id: item.staff_id,
-                            role: 'primary',
-                            payout_type: 'percentage',
-                            // payout_value represents service participation, not the barber commission rate.
-                            payout_value: 100,
-                            affects_revenue: true,
-                            affects_commission: true,
-                            tenant_id: resolvedTenantId
-                        });
-                    }
-                });
-
-                if (allParticipantsToInsert.length > 0) {
-                    const { error: participantsError } = await client.from('service_execution_participants').insert(allParticipantsToInsert);
-                    if (participantsError) {
-                        console.warn('Error inserting execution participants:', participantsError);
-                    }
-                }
-            }
-
-            // 4. If PAID, mark comanda as paid
-            if (shouldSettleViaRpc) {
-                await settleCheckoutComanda({
-                    client: selectedClient,
-                    comandaId: currentComandaId,
-                    appointmentId: relatedAppointmentId,
-                    tenantId: resolvedTenantId,
-                    supabase,
-                    clientDb: client,
-                    paymentMethod,
-                    paidAmount: total,
-                    paymentDateReal,
-                    source: 'checkout',
-                    notes: settlementNotes,
-                    idempotencyKey: `finance-settle-${currentComandaId}-${comandaRequestKeyRef.current}`,
-                    incomeCategory,
-                    description: paymentMethod === 'other' && paymentDescription
-                        ? `${internalSettlementTitle} - Cliente: ${selectedClient.name} (${paymentDescription})`
-                        : `${internalSettlementTitle} - Cliente: ${selectedClient.name}`,
-                    shouldApplyFinancialEffects,
-                    closure: {
-                        mode: closureMode,
-                        note: isLegacyClubSettlement ? (closureNote.trim() || null) : null,
-                        financialEffect: shouldApplyFinancialEffects,
-                        membershipCreditEffect: shouldDeductMembershipCredits,
-                        legacyReferenceMonth: isLegacyClubSettlement ? `${legacyReferenceMonth}-01` : null,
-                    },
-                    clientStats: {
-                        lastService: cart.length > 0 ? cart[0].name : '',
-                    },
-                });
-            }
-
-            // 5. Deduct Chef Club Credits if used
-            if (shouldSettleZeroWithAudit) {
-                await closeZeroAmountComanda({
-                    comandaId: currentComandaId,
-                    tenantId: resolvedTenantId,
-                    supabase: client,
-                    origin: zeroCloseOrigin,
-                    source: 'checkout',
-                    authorizedBy: user?.id || null,
-                    userId: user?.id || null,
-                    reason: zeroCloseOrigin === 'club_credit'
-                        ? `Crédito do Clube consumido no checkout: ${creditItems.length} serviço(s).`
-                        : zeroCloseReason.trim(),
-                    legacyReferenceMonth: zeroCloseOrigin === 'administrative_adjustment' && legacyReferenceMonth
-                        ? `${legacyReferenceMonth}-01`
-                        : null,
-                });
-            }
-
-            if (shouldDeductMembershipCredits && creditItems.length > 0 && chefClubInfo) {
-                for (const creditItem of creditItems) {
-                    const { error: creditErr } = await client.rpc('deduct_chef_club_credits', {
-                        p_subscription_id: chefClubInfo.id,
-                        p_service_id: creditItem.service_id,
-                        p_amount: 1,
-                        p_reference: `Comanda #${currentComandaId} - ${creditItem.name}`,
-                    });
-
-                    if (creditErr) {
-                        console.error('Error deducting credits:', creditErr);
-                    }
-                }
-            }
-
+            // UI-only: toast and navigation
             setToast({
-                message: isLegacyClubSettlement
+                message: result.isLegacyClubSettlement
                     ? (isEsteticaApp ? 'Atendimento baixado no modo administrativo sem impactar financeiro nem créditos atuais.' : 'Comanda baixada no modo administrativo do Clube sem impactar financeiro nem créditos atuais.')
-                    : paymentStatus === 'paid'
+                    : result.paymentStatus === 'paid'
                         ? checkoutCopy.successPaid
                         : checkoutCopy.successOpen,
                 type: 'success'
             });
 
-            if (paymentStatus === 'paid' && !isLegacyClubSettlement) {
+            if (result.paymentStatus === 'paid' && !result.isLegacyClubSettlement) {
                 navigate('/operation-success', {
                     state: {
                         operationType: 'comanda',
                         comanda: {
-                            id: currentComandaId,
-                            client: selectedClient.name,
+                            id: result.comandaId,
+                            client: selectedClient?.name || '',
                             total,
                             paymentMethod,
                             itemsCount: cart.length,
@@ -1662,7 +1288,7 @@ const Checkout: React.FC = () => {
                 });
             } else {
                 setTimeout(() => {
-                    if (checkoutEntryMode === 'pdv' && !comandaId && !isLegacyClubSettlement) {
+                    if (checkoutEntryMode === 'pdv' && !comandaId && !result.isLegacyClubSettlement) {
                         resetOperationalState();
                     }
                     navigate(checkoutCopy.redirectPath, { replace: true });
@@ -1679,9 +1305,9 @@ const Checkout: React.FC = () => {
     };
 
     const normalizedItemSearch = searchTerm.trim().toLowerCase();
-    const filteredItems = itemModalTab === 'services'
+    const filteredItems = React.useMemo(() => itemModalTab === 'services'
         ? services.filter(s => getCatalogSearchText(s).includes(normalizedItemSearch))
-        : products.filter(p => getCatalogSearchText(p).includes(normalizedItemSearch));
+        : products.filter(p => getCatalogSearchText(p).includes(normalizedItemSearch)), [itemModalTab, services, products, normalizedItemSearch]);
 
     return (
         <div className="max-w-7xl mx-auto w-full animate-fade-in pb-20">
@@ -1885,13 +1511,12 @@ const Checkout: React.FC = () => {
                                                     />
                                                 </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
-                                                {item.type === 'service' && chefClubInfo && getAvailableCreditsForService(chefClubInfo.serviceBalances, item.service_id) > 0 && (
+                                                {item.type === 'service' && checkoutBenefits && canApplyCredit(checkoutBenefits.serviceBalances, item.service_id, cart.filter(c => c.usedCredit && c.service_id === item.service_id && c.id !== item.id).length) && (
                                                     <button
                                                         onClick={() => {
                                                             const isUsed = !(item as any).usedCredit;
                                                             const currentUsedForService = cart.filter(c => c.usedCredit && c.service_id === item.service_id && c.id !== item.id).length;
-                                                            const availableForService = getAvailableCreditsForService(chefClubInfo.serviceBalances, item.service_id);
-                                                            if (isUsed && currentUsedForService >= availableForService) {
+                                                            if (isUsed && !canApplyCredit(checkoutBenefits.serviceBalances, item.service_id, currentUsedForService)) {
                                                                 setToast({ message: `Sem créditos suficientes para aplicar em mais ${servicePluralLabelLower}.`, type: 'error' });
                                                                 return;
                                                             }
@@ -1926,20 +1551,20 @@ const Checkout: React.FC = () => {
                         </div>
                     </div>
 
-                    {!isEsteticaApp && chefClubInfo && (
+                    {!isEsteticaApp && checkoutBenefits && (
                         <div className="mt-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center justify-between animate-fade-in">
                             <div className="flex items-center gap-3">
                                 <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
                                     <span className="material-symbols-outlined">workspace_premium</span>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-black text-amber-600 uppercase">Clube do Chefe - {chefClubInfo.planName}</p>
+                                    <p className="text-xs font-black text-amber-600 uppercase">Club dos Chefes - {checkoutBenefits.planName}</p>
                                     <p className="text-[10px] text-slate-500 font-bold">Cliente possui créditos disponíveis para resgate.</p>
                                     <p className="text-[10px] text-amber-700 font-black">Aplicados nesta comanda: {appliedCreditsCount}</p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-sm font-black text-amber-600">{chefClubInfo.credits}</p>
+                                <p className="text-sm font-black text-amber-600">{checkoutBenefits.creditsRemaining}</p>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase">Disponíveis</p>
                             </div>
                         </div>
@@ -1984,7 +1609,7 @@ const Checkout: React.FC = () => {
                             </div>
                         </div>
 
-                        {paymentStatus === 'paid' && ((!isEsteticaApp && chefClubInfo) || closureMode === 'legacy_membership') && (
+                        {paymentStatus === 'paid' && ((!isEsteticaApp && checkoutBenefits) || closureMode === 'legacy_membership') && (
                             <div className="mb-6 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
                                 <div>
                                     <p className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-300">Modo de fechamento</p>
@@ -2152,7 +1777,7 @@ const Checkout: React.FC = () => {
                                                     : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
                                             }`}
                                         >
-                                            <span className="block font-black">{isEsteticaApp ? 'Pagamento por crédito disponível' : 'Pagamento via Clube do Chefe'}</span>
+                                            <span className="block font-black">{isEsteticaApp ? 'Pagamento por crédito disponível' : 'Pagamento via Club dos Chefes'}</span>
                                             <span>Crédito será consumido e não gera nova entrada no caixa.</span>
                                         </button>
                                     )}
@@ -2567,7 +2192,7 @@ const Checkout: React.FC = () => {
                             <div className="min-w-0">
                                 <p className="text-sm font-black">Cliente assinante com crédito disponível.</p>
                                 <p className="mt-1 text-xs font-semibold opacity-80">
-                                    {isEsteticaApp ? `Use 1 crédito disponível para zerar este ${serviceLabelLower} no atendimento.` : 'Use 1 crédito do Clube do Chefe para zerar este serviço na comanda.'}
+                                    {isEsteticaApp ? `Use 1 crédito disponível para zerar este ${serviceLabelLower} no atendimento.` : 'Use 1 crédito do Club dos Chefes para zerar este serviço na comanda.'}
                                 </p>
                             </div>
                         </div>

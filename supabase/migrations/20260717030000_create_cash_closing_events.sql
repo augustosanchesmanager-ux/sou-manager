@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS public.cash_closing_events (
 -- RLS: tenant isolation
 ALTER TABLE public.cash_closing_events ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "cash_closing_events_tenant_isolation" ON public.cash_closing_events;
 CREATE POLICY "cash_closing_events_tenant_isolation"
   ON public.cash_closing_events FOR ALL
   USING (tenant_id = public.current_tenant_id_from_auth_uid())

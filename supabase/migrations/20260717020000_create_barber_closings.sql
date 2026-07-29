@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS public.barber_closings (
 -- RLS: tenant isolation
 ALTER TABLE public.barber_closings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "barber_closings_tenant_isolation" ON public.barber_closings;
 CREATE POLICY "barber_closings_tenant_isolation"
   ON public.barber_closings FOR ALL
   USING (tenant_id = public.current_tenant_id_from_auth_uid())

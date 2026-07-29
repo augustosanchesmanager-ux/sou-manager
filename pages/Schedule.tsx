@@ -8,8 +8,16 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { appointmentApplicationService, AppointmentError } from '../application/appointment';
+import { comandaRepository } from '../domain/comanda';
 import { getCatalogDisplayName, getEsteticaDemoServiceName } from '../src/lib/catalog/display';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
+import {
+  appointmentStatusMeta,
+  appointmentDotColors,
+  normalizeAppointmentStatus,
+  getAppointmentStatusMeta,
+} from '../shared/status/appointment';
 import {
   ExistingAppointmentsAction,
   ScheduleBlock,
@@ -23,6 +31,7 @@ import {
   scheduleBlocksApi,
   toDateKey,
 } from '../services/scheduleBlocksApi';
+import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 
 
 
@@ -140,70 +149,9 @@ type ScheduleConfirmIntent =
   | { type: 'saveImpactedBlock'; payload: ScheduleBlockInput; impacted: CalendarAppointment[] }
   | { type: 'statusChange'; appointment: CalendarAppointment; nextStatus: string; confirmationLabel: string };
 
-const statusColors: Record<string, string> = {
-  scheduled: 'bg-slate-500',
-  confirmed: 'bg-blue-500',
-  pending: 'bg-amber-500',
-  in_progress: 'bg-sky-500',
-  completed: 'bg-emerald-500',
-  cancelled: 'bg-rose-500',
-  no_show: 'bg-slate-600',
-};
-
 const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
 
-const appointmentStatusMeta: Record<string, { label: string; icon: string; badge: string }> = {
-  scheduled: {
-    label: 'Agendado',
-    icon: 'event',
-    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-  },
-  pending: {
-    label: 'Pendente',
-    icon: 'schedule',
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-  },
-  confirmed: {
-    label: 'Confirmado',
-    icon: 'check_circle',
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  },
-  in_progress: {
-    label: 'Em atendimento',
-    icon: 'content_cut',
-    badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
-  },
-  completed: {
-    label: 'Finalizado',
-    icon: 'task_alt',
-    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-  },
-  cancelled: {
-    label: 'Cancelado',
-    icon: 'cancel',
-    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-  },
-  no_show: {
-    label: 'Não compareceu',
-    icon: 'person_off',
-    badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
-  },
-};
-
-const normalizeAppointmentStatus = (status: string | null | undefined) => {
-  const normalized = `${status || 'pending'}`.toLowerCase();
-  return appointmentStatusMeta[normalized] ? normalized : 'pending';
-};
-
-const getAppointmentStatusMeta = (status: string | null | undefined, isEsteticaApp = false) => {
-  const normalized = normalizeAppointmentStatus(status);
-  const meta = appointmentStatusMeta[normalized];
-  return {
-    normalized,
-    ...meta,
-    label: isEsteticaApp && normalized === 'completed' ? 'Concluído' : meta.label,
-  };
-};
+const statusColors: Record<string, string> = appointmentDotColors;
 
 const getOriginLabel = (source?: string | null, channel?: string | null, isEsteticaApp = false) => {
   const normalizedSource = `${source || ''}`.toLowerCase();
@@ -292,6 +240,7 @@ const Schedule: React.FC = () => {
   const [openComandasByAppointment, setOpenComandasByAppointment] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [blockSaving, setBlockSaving] = useState(false);
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
     date: getDateInputValue(new Date()),
@@ -319,7 +268,7 @@ const Schedule: React.FC = () => {
       return wd;
     });
   };
-  const weekDays = getWeekDays(selectedDate);
+  const weekDays = React.useMemo(() => getWeekDays(selectedDate), [selectedDate]);
   const selectedDateKey = toDateKey(selectedDate);
 
   const toHourDecimal = (time: string) => {
@@ -446,7 +395,7 @@ const Schedule: React.FC = () => {
       `${service.name} ${getCatalogDisplayName(service, appSlug)}`.toLowerCase().includes(normalizedSearch),
     );
   }, [serviceSearchTerm, servicesList]);
-  const selectedServicesTotal = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+  const selectedServicesTotal = React.useMemo(() => selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0), [selectedServices]);
 
   const getServicesLabel = (services: DBService[]) => {
     if (services.length === 0) return '';
@@ -633,7 +582,6 @@ const Schedule: React.FC = () => {
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
     const appointmentsClient = getClientForTable('appointments', scheduleAppSlug);
-    const comandasClient = getClientForTable('comandas', scheduleAppSlug);
 
     const fetchAppointmentRows = async (options: { includeHiddenFilter: boolean; includeServerRange: boolean }) => {
       let query = appointmentsClient
@@ -729,19 +677,7 @@ const Schedule: React.FC = () => {
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const { data: comandas } = await comandasClient
-          .from('comandas')
-          .select('id, appointment_id')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'open')
-          .in('appointment_id', appointmentIds);
-
-        const nextOpenComandasByAppointment: Record<string, string> = {};
-        (comandas || []).forEach((comanda: any) => {
-          if (comanda.appointment_id) {
-            nextOpenComandasByAppointment[comanda.appointment_id] = comanda.id;
-          }
-        });
+        const nextOpenComandasByAppointment = await comandaRepository.listOpenByAppointmentIds(appointmentIds, tenantId);
         setOpenComandasByAppointment(nextOpenComandasByAppointment);
       } else {
         setOpenComandasByAppointment({});
@@ -821,17 +757,15 @@ const Schedule: React.FC = () => {
       }
 
       const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
-      const checkoutComandasClient = getClientForTable('comandas', scheduleAppSlug);
       const checkoutClientsClient = getClientForTable('clients', scheduleAppSlug);
 
-      const { data: existingComanda, error: existingComandaError } = await checkoutComandasClient
-        .from('comandas')
-        .select('id, status')
-        .eq('tenant_id', tenantId)
-        .eq('appointment_id', apt.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let existingComanda: { id: string; status: string } | null = null;
+      let existingComandaError: unknown = null;
+      try {
+        existingComanda = await comandaRepository.findLatestByAppointment(apt.id, tenantId, scheduleAppSlug);
+      } catch (err) {
+        existingComandaError = err;
+      }
 
       if (existingComandaError) {
         throw existingComandaError;
@@ -1096,31 +1030,18 @@ const Schedule: React.FC = () => {
       }
 
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
-      const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
-      const dragAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
-      const dragComandasClient = getClientForTable('comandas', scheduleAppSlug);
 
-      const { error } = await dragAppointmentsClient.from('appointments').update({
-        staff_id: dropStaffId,
-        staff_name: selectedStaff?.name || apt.staffName,
-        start_time: newStartTimeLine.toISOString(),
-        end_time: newEndTimeLine.toISOString(),
-        duration: apt.duration,
-      }).eq('id', apt.id).eq('tenant_id', tenantId);
+      await appointmentApplicationService.rescheduleAppointment({
+        tenantId,
+        appointmentId: apt.id,
+        newStaffId: dropStaffId,
+        newStaffName: selectedStaff?.name || apt.staffName,
+        newStartTime: newStartTimeLine.toISOString(),
+        newEndTime: newEndTimeLine.toISOString(),
+      });
 
-      if (error) {
-        setToast({ message: 'Erro ao salvar alteração no banco.', type: 'error' });
-        fetchAppointments();
-      } else {
-        await dragComandasClient
-          .from('comandas')
-          .update({
-            staff_id: dropStaffId,
-          }).eq('appointment_id', apt.id).eq('tenant_id', tenantId).eq('status', 'open');
-
-        setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
-        fetchAppointments(); // Refresh for safety
-      }
+      setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
+      fetchAppointments();
     } catch (err) {
       console.error('Error dragging appointment:', err);
       fetchAppointments(); // Revert on failure
@@ -1134,35 +1055,14 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
-    const cancelAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
-    const cancelComandasClient = getClientForTable('comandas', scheduleAppSlug);
-
-    const isHidden = cancellationType === 'registration_error' || cancellationType === 'test';
-    const newStatus = cancellationType === 'no_show' ? 'no_show' : 'cancelled';
-
     try {
-      const { error } = await cancelAppointmentsClient
-        .from('appointments')
-        .update({
-          status: newStatus,
-          cancellation_reason: cancelReason || 'Não informado',
-          cancellation_type: cancellationType || null,
-          hidden_from_schedule: isHidden,
-          cancelled_at: new Date().toISOString(),
-          cancelled_by_user_id: user?.id || null
-        })
-        .eq('id', appointmentId)
-        .eq('tenant_id', tenantId);
-
-      if (error) throw error;
-
-      await cancelComandasClient
-        .from('comandas')
-        .update({ status: 'cancelled' })
-        .eq('appointment_id', appointmentId)
-        .eq('tenant_id', tenantId)
-        .eq('status', 'open');
+      await appointmentApplicationService.cancelAppointment({
+        tenantId,
+        appointmentId,
+        cancellationType: (cancellationType as any) || 'client_request',
+        cancellationReason: cancelReason || 'Não informado',
+        userId: user?.id || '',
+      });
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
       closeDetailDrawer();
@@ -1300,13 +1200,17 @@ const Schedule: React.FC = () => {
   };
 
   const executeDeleteBlock = async (block: ScheduleBlock) => {
+    if (deletingBlockId) return;
+    setDeletingBlockId(block.id);
     try {
       await scheduleBlocksApi.remove(block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
-      console.error('Erro ao remover bloqueio:', err);
+      console.error('[SMG][SCHEDULE][BLOCK_DELETE][ERROR]', err);
       setToast({ message: 'Não foi possível remover o bloqueio.', type: 'error' });
+    } finally {
+      setDeletingBlockId(null);
     }
   };
 
@@ -1413,10 +1317,6 @@ const Schedule: React.FC = () => {
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
     const saveClientsClient = getClientForTable('clients', scheduleAppSlug);
-    const saveAppointmentsClient = getClientForTable('appointments', scheduleAppSlug);
-    const saveComandasClient = getClientForTable('comandas', scheduleAppSlug);
-    const saveServicesClient = getClientForTable('services', scheduleAppSlug);
-    const saveComandaItemsClient = getClientForTable('comanda_items', scheduleAppSlug);
 
     const selectedService = selectedServices[0];
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
@@ -1488,30 +1388,25 @@ const Schedule: React.FC = () => {
       const updatedAppointmentDate = updatedStartIso;
 
       // UPDATE EXISTING
-      const { error: updateError } = await supabase.from('appointments').update({
-        service_id: selectedService?.id || null,
-        staff_id: formData.staffId || null,
-        client_id: clientId,
-        client_name: formData.client,
-        service_name: selectedServicesLabel,
-        client_phone: formData.clientPhone,
-        notes: formData.notes.trim(),
-        staff_name: selectedStaff?.name || '',
-        start_time: updatedStartIso,
-        end_time: endTimeLine.toISOString(),
-        duration: Number(formData.duration),
-        price: selectedServicesTotalPrice,
-      }).eq('id', editingAppointmentId).eq('tenant_id', tenantId);
-
-      if (updateError) {
-        console.error('Erro ao atualizar agendamento:', updateError);
-        setError(`Erro ao atualizar agendamento: ${updateError.message}`);
+      try {
+        await appointmentApplicationService.updateAppointment({
+          tenantId,
+          appointmentId: editingAppointmentId,
+          updates: {
+            staff_id: formData.staffId || null,
+            start_time: updatedStartIso,
+            end_time: endTimeLine.toISOString(),
+            price: selectedServicesTotalPrice,
+            notes: formData.notes.trim(),
+          },
+          syncComandaStaff: true,
+        });
+      } catch (updateErr) {
+        const message = updateErr instanceof AppointmentError ? updateErr.message : 'Erro ao atualizar agendamento.';
+        console.error('Erro ao atualizar agendamento:', updateErr);
+        setError(`Erro ao atualizar agendamento: ${message}`);
         return;
       }
-
-      await saveComandasClient.from('comandas').update({
-        staff_id: formData.staffId || null,
-      }).eq('appointment_id', editingAppointmentId).eq('tenant_id', tenantId).eq('status', 'open');
 
       setAppointments(prev => prev.map((apt) =>
         apt.id === editingAppointmentId
@@ -1537,97 +1432,42 @@ const Schedule: React.FC = () => {
       let finalPrice = selectedServicesTotalPrice;
 
       if (selectedService && selectedServices.length === 1) {
-        const { data: serviceData } = await saveServicesClient.from('services').select('price').eq('id', selectedService.id).maybeSingle();
-        finalPrice = serviceData?.price || selectedService.price || 0;
-
-        const promo = activePromotions.find(p =>
-          (p.target_type === 'all') ||
-          (p.target_type === 'service' && p.target_id === selectedService.id)
-        );
-
-        if (promo) {
-          if (promo.discount_type === 'fixed') {
-            finalPrice = Math.max(0, finalPrice - promo.discount_value);
-          } else {
-            finalPrice = finalPrice * (1 - (promo.discount_value / 100));
-          }
-        }
+        finalPrice = await appointmentApplicationService.resolveFinalPrice({
+          tenantId,
+          serviceId: selectedService.id,
+          basePrice: selectedService.price || 0,
+          promotions: activePromotions.map(p => ({
+            target_type: p.target_type,
+            target_id: p.target_id,
+            discount_type: p.discount_type,
+            discount_value: p.discount_value,
+          })),
+        });
       }
 
-      const rpcName = selectedServices.length > 1 ? 'create_appointment_with_services' : 'create_appointment_with_comanda';
-      const payload = selectedServices.length > 1 ? {
-        p_tenant_id: tenantId,
-        p_client_id: clientId,
-        p_client_name: formData.client,
-        p_client_phone: formData.clientPhone || null,
-        p_staff_id: formData.staffId || null,
-        p_start_time: startTimeLine.toISOString(),
-        p_notes: formData.notes.trim() || null,
-        p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_services: selectedServices.map((service) => ({ service_id: service.id })),
-      } : {
-        p_tenant_id: tenantId,
-        p_client_id: clientId,
-        p_client_name: formData.client,
-        p_client_phone: formData.clientPhone || null,
-        p_service_id: selectedService?.id || null,
-        p_staff_id: formData.staffId || null,
-        p_start_time: startTimeLine.toISOString(),
-        p_price: finalPrice,
-        p_notes: formData.notes.trim() || null,
-        p_idempotency_key: scheduleIdempotencyKeyRef.current,
-        p_is_overbooked: forceOverbook,
-      };
-      const currentBusiness = {
+      const result = await appointmentApplicationService.createAppointment({
         tenantId,
         appSlug: scheduleAppSlug,
-        selectedService,
-        selectedStaff,
-      };
-      const shouldDebugCreateAppointmentRpc =
-        import.meta.env.DEV ||
-        localStorage.getItem('soumanager.debug.createAppointmentRpc') === 'true';
+        schema: 'barber',
+        userId: user?.id || '',
+        clientId: clientId || undefined,
+        clientName: formData.client,
+        clientPhone: formData.clientPhone || undefined,
+        staffId: formData.staffId || '',
+        serviceIds: selectedServices.map(s => s.id),
+        serviceNames: selectedServices.map(s => s.name),
+        totalPrice: finalPrice,
+        duration: Number(formData.duration),
+        startTime: startTimeLine.toISOString(),
+        endTime: new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000).toISOString(),
+        notes: formData.notes.trim() || undefined,
+        idempotencyKey: scheduleIdempotencyKeyRef.current,
+        isOverbooked: forceOverbook || undefined,
+      });
 
-      if (shouldDebugCreateAppointmentRpc) {
-        console.group("DEBUG CREATE APPOINTMENT RPC");
-        console.log("RPC name:", rpcName);
-        console.log("Payload:", payload);
-        console.log("User:", user);
-        console.log("Business/Tenant:", currentBusiness);
-        console.log("Supabase error:", {
-          code: undefined,
-          message: undefined,
-          details: undefined,
-          hint: undefined,
-        });
-        console.groupEnd();
-      }
-
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, payload);
-
-      if (rpcError || !rpcResult) {
-        console.error('Erro ao criar agendamento via RPC:', rpcError);
-        if (shouldDebugCreateAppointmentRpc) {
-          console.group("DEBUG CREATE APPOINTMENT RPC");
-          console.log("RPC name:", rpcName);
-          console.log("Payload:", payload);
-          console.log("User:", user);
-          console.log("Business/Tenant:", currentBusiness);
-          console.log("Supabase error:", {
-            code: rpcError?.code,
-            message: rpcError?.message,
-            details: rpcError?.details,
-            hint: rpcError?.hint,
-          });
-          console.groupEnd();
-        }
-        setError(`Erro ao criar agendamento: ${rpcError?.message || 'Erro desconhecido'}`);
-        return;
-      }
-
-      const newAptId = (rpcResult as any).appointment_id;
-      const newComandaId = (rpcResult as any).comanda_id;
-      const createdTotalPrice = Number((rpcResult as any).total_price ?? (rpcResult as any).service_price ?? finalPrice);
+      const newAptId = result.appointmentId;
+      const newComandaId = result.comandaId;
+      const createdTotalPrice = Number(result.totalPrice ?? finalPrice);
 
       setAppointments(prev => [...prev, {
         id: newAptId,
@@ -1697,22 +1537,22 @@ const Schedule: React.FC = () => {
     return appointments.filter((appointment) => toDateKey(appointment.date || appointment.startTime) === selectedDateKey);
   }, [appointments, selectedDateKey, viewMode, weekDays]);
 
-  const visibleOpenComandasCount = visibleAppointments.filter((appointment) => openComandasByAppointment[appointment.id]).length;
-  const visibleExpectedRevenue = visibleAppointments
+  const visibleOpenComandasCount = React.useMemo(() => visibleAppointments.filter((appointment) => openComandasByAppointment[appointment.id]).length, [visibleAppointments, openComandasByAppointment]);
+  const visibleExpectedRevenue = React.useMemo(() => visibleAppointments
     .filter((appointment) => !['cancelled', 'no_show'].includes(normalizeAppointmentStatus(appointment.status)))
-    .reduce((sum, appointment) => sum + Number(appointment.price || 0), 0);
-  const visiblePendingCount = visibleAppointments
+    .reduce((sum, appointment) => sum + Number(appointment.price || 0), 0), [visibleAppointments]);
+  const visiblePendingCount = React.useMemo(() => visibleAppointments
     .filter((appointment) => ['pending', 'scheduled'].includes(normalizeAppointmentStatus(appointment.status)))
-    .length;
-  const visibleConfirmedCount = visibleAppointments
+    .length, [visibleAppointments]);
+  const visibleConfirmedCount = React.useMemo(() => visibleAppointments
     .filter((appointment) => normalizeAppointmentStatus(appointment.status) === 'confirmed')
-    .length;
-  const visibleRangeLabel = viewMode === 'week'
+    .length, [visibleAppointments]);
+  const visibleRangeLabel = React.useMemo(() => viewMode === 'week'
     ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
-    : formatDateDisplay(selectedDate);
-  const visibleBlockCount = viewMode === 'week'
+    : formatDateDisplay(selectedDate), [viewMode, weekDays, selectedDate]);
+  const visibleBlockCount = React.useMemo(() => viewMode === 'week'
     ? scheduleBlocks.filter((block) => weekDays.some((day) => blockAppliesToDate(block, toDateKey(day)))).length
-    : scheduleBlocks.filter((block) => blockAppliesToDate(block, selectedDateKey)).length;
+    : scheduleBlocks.filter((block) => blockAppliesToDate(block, selectedDateKey)).length, [viewMode, scheduleBlocks, weekDays, selectedDateKey]);
   const formatScheduleCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 
   const escapeCSV = (value: string | number | null | undefined) => {
@@ -1724,34 +1564,15 @@ const Schedule: React.FC = () => {
 
   const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
 
-  const normalizeParticipantPercentage = (value: unknown) => {
-    const numeric = Number(value || 0);
-    if (!Number.isFinite(numeric)) return 0;
-    return numeric > 1 ? numeric / 100 : numeric;
-  };
-
-  const getParticipantSharedValue = (serviceValue: number, participant: any) => {
-    if (participant?.payout_type === 'fixed') return Number(participant.payout_value || 0);
-    return serviceValue * normalizeParticipantPercentage(participant?.payout_value);
-  };
-
   const formatExportMoneyValue = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
 
   const formatParticipantPayout = (participant: any, name: string) => {
     if (participant?.payout_type === 'fixed') {
       return `${name} R$ ${formatExportMoneyValue(Number(participant.payout_value || 0))}`;
     }
-    const percent = normalizeParticipantPercentage(participant?.payout_value) * 100;
+    const numeric = Number(participant?.payout_value || 0);
+    const percent = (!Number.isFinite(numeric) ? 0 : numeric > 1 ? numeric / 100 : numeric) * 100;
     return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
-  };
-
-  const isSharedServiceItem = (item: any, participants: any[]) => {
-    if (participants.length === 0) return false;
-    if (participants.length > 1) return true;
-    const [participant] = participants;
-    const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
-    const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
-    return !isPrimaryMainProfessional || !isFullPercentagePayout;
   };
 
   const exportToCSV = async () => {
@@ -1869,7 +1690,7 @@ const Schedule: React.FC = () => {
             const staffId = getParticipantStaffId(participant);
             const name = staffById[staffId] || staffId || 'Profissional';
             const itemValue = Number(item.unit_price || 0);
-            const participantBase = getParticipantSharedValue(itemValue, participant);
+            const participantBase = calculateParticipantBaseValue(itemValue, participant);
             return { participant, name, participantBase };
           }))
         : [];
@@ -2009,13 +1830,11 @@ const Schedule: React.FC = () => {
     if (!tenantId) return;
 
     try {
-      const { error: updateError } = await supabase
-        .from('appointments')
-        .update({ status: nextStatus })
-        .eq('id', appointment.id)
-        .eq('tenant_id', tenantId);
-
-      if (updateError) throw updateError;
+      await appointmentApplicationService.changeStatus({
+        tenantId,
+        appointmentId: appointment.id,
+        newStatus: nextStatus as 'confirmed' | 'in_progress' | 'completed',
+      });
 
       setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: nextStatus, color: statusColors[nextStatus] || apt.color } : apt));
       setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: nextStatus, color: statusColors[nextStatus] || prev.color } : prev);
@@ -2897,7 +2716,7 @@ Podemos confirmar? 😄`;
                 <div>
                   <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                    Membro Clube do Chefe
+                    Membro Club dos Chefes
                   </label>
                   <p className="text-xs font-bold text-slate-700 dark:text-amber-200">Plano {chefClubInfo.planName}</p>
                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">
@@ -3362,29 +3181,14 @@ Podemos confirmar? 😄`;
           const startDate = new Date(apt.startTime);
           const endDate = new Date(startDate.getTime() + apt.duration * 60 * 60 * 1000);
           const staff = staffList.find(s => s.id === apt.staffId);
-
-          const statusLabels: Record<string, string> = {
-            confirmed: 'Confirmado',
-            pending: 'Pendente',
-            completed: 'Concluído',
-          };
-          const statusBgColors: Record<string, string> = {
-            confirmed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-            pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-            completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-          };
-          const statusIcons: Record<string, string> = {
-            confirmed: 'check_circle',
-            pending: 'schedule',
-            completed: 'task_alt',
-          };
+          const aptMeta = getAppointmentStatusMeta(apt.status, isEsteticaApp);
 
           return (
             <div className="space-y-5">
               <div className="flex justify-center">
-                <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${statusBgColors[apt.status] || 'bg-slate-100 text-slate-700'}`}>
-                  <span className="material-symbols-outlined text-base">{statusIcons[apt.status] || 'info'}</span>
-                  {statusLabels[apt.status] || apt.status}
+                <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${aptMeta.badge || 'bg-slate-100 text-slate-700'}`}>
+                  <span className="material-symbols-outlined text-base">{aptMeta.icon || 'info'}</span>
+                  {aptMeta.label || apt.status}
                 </span>
               </div>
 

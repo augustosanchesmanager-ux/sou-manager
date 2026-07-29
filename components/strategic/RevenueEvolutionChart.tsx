@@ -1,13 +1,11 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface RevenueEvolutionChartProps {
   data: { date: string; value: number }[];
   title?: string;
 }
-
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);

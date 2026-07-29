@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { isAppModuleEnabled } from '../src/lib/apps/modules';
-import type { AppModuleSlug } from '../src/lib/supabase/schemas';
+import type { AppModuleSlug } from '../domain/shared/app';
 
 type QuickActionRole = 'all' | 'manager' | 'operational';
 

@@ -8,6 +8,6 @@ export interface AppModuleDefinition {
 
 export const clubModule: AppModuleDefinition = {
   slug: 'club',
-  label: 'Club',
+  label: 'Club dos Chefes',
   enabled: false,
 };

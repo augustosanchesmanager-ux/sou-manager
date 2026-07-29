@@ -4,37 +4,14 @@ import {
   isKnownAppModule,
 } from '../apps/moduleRegistry';
 
-export const APP_SLUGS = ['barber', 'auto', 'club', 'estetica'] as const;
-
-export type AppSlug = (typeof APP_SLUGS)[number];
+export { APP_SLUGS, DEFAULT_APP_SLUG } from '../../../domain/shared/app';
+export type { AppSlug, AppModuleSlug } from '../../../domain/shared/app';
+import { APP_SLUGS, DEFAULT_APP_SLUG, type AppSlug } from '../../../domain/shared/app';
 export type SharedSchemaName = 'public';
 export type AppSchemaName = AppSlug;
 export type SupabaseSchemaName = SharedSchemaName | AppSchemaName;
-export type AppModuleSlug =
-  | 'dashboard'
-  | 'checkout'
-  | 'orders'
-  | 'products'
-  | 'clients'
-  | 'schedule'
-  | 'schedule_blocks'
-  | 'services'
-  | 'comandas'
-  | 'cashflow'
-  | 'financial'
-  | 'reports'
-  | 'settings'
-  | 'suppliers'
-  | 'team'
-  | 'commissions'
-  | 'chef_club'
-  | 'feedback'
-  | 'portal'
-  | 'notifications'
-  | 'kiosk';
 
 export const SHARED_SCHEMA: SharedSchemaName = 'public';
-export const DEFAULT_APP_SLUG: AppSlug = 'barber';
 export const SUPABASE_SCHEMAS = [SHARED_SCHEMA, ...APP_SLUGS] as const;
 
 export const APP_SCHEMA_MAP: Record<AppSlug, AppSchemaName> = {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSlug } from '../lib/supabase/schemas';
 import {
   resolveTenantForUser,
@@ -7,7 +7,7 @@ import {
   type UserTenantMembership,
 } from '../lib/supabase/tenant';
 import { useApp } from './AppContext';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthSession } from './authContextBase';
 
 export interface TenantContextValue {
   tenant: TenantRecord | null;
@@ -32,15 +32,18 @@ const getTenantErrorMessage = (error: unknown, appSlug: AppSlug): string => {
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { appSlug } = useApp();
-  const { session: authSession } = useAuth();
+  const { session: authSession } = useAuthSession();
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [role, setRole] = useState<TenantRole>('unknown');
   const [memberships, setMemberships] = useState<UserTenantMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestCounterRef = useRef(0);
 
   const refreshTenant = async (): Promise<void> => {
+    const thisRequest = ++requestCounterRef.current;
     if (!authSession?.user) {
+      if (thisRequest !== requestCounterRef.current) return;
       setTenant(null);
       setRole('unknown');
       setMemberships([]);
@@ -51,9 +54,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setLoading(true);
     setError(null);
+    if (thisRequest !== requestCounterRef.current) return;
 
     try {
       const resolved = await resolveTenantForUser(authSession.user, appSlug);
+      if (thisRequest !== requestCounterRef.current) return;
       setTenant(resolved.tenant);
       setRole(resolved.role);
       setMemberships(resolved.memberships);
@@ -62,6 +67,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setError(`Nenhum tenant compativel com o app ${appSlug} foi encontrado para o usuario atual.`);
       }
     } catch (err) {
+      if (thisRequest !== requestCounterRef.current) return;
       console.warn('[TenantContext] Failed to resolve tenant context', {
         error: err,
         appSlug,
@@ -73,7 +79,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setMemberships([]);
       setError(getTenantErrorMessage(err, appSlug));
     } finally {
-      setLoading(false);
+      if (thisRequest === requestCounterRef.current) {
+        setLoading(false);
+      }
     }
   };
 

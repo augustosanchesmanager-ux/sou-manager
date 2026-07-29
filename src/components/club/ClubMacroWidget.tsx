@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMembershipOverview } from '../../hooks/useMembershipOverview';
+import { formatCurrency } from '../../../shared/format/currency';
 
 interface ClubMacroWidgetProps {
   compact?: boolean;
@@ -9,9 +10,6 @@ interface ClubMacroWidgetProps {
 export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = false }) => {
   const navigate = useNavigate();
   const { data } = useMembershipOverview({ status: 'all' });
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
   if (data.loading) {
     return (
@@ -42,7 +40,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
                 workspace_premium
               </span>
             </div>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">Clube do Chefe</span>
+            <span className="text-sm font-bold text-slate-900 dark:text-white">Club dos Chefes</span>
           </div>
           <button
             type="button"
@@ -97,7 +95,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Recorrência</p>
-            <h3 className="text-base font-black text-[#003366] dark:text-white">Clube do Chefe</h3>
+            <h3 className="text-base font-black text-[#003366] dark:text-white">Club dos Chefes</h3>
           </div>
         </div>
         <button

@@ -10,6 +10,7 @@ import {
     getTotalAvailableCredits,
     normalizePlanServiceCredits,
 } from '../src/utils/chefClubCredits';
+import { formatCurrency } from '../shared/format/currency';
 
 interface ClientOption {
     id: string;
@@ -43,9 +44,6 @@ const originLabels: Record<string, string> = {
     clients: 'Clientes',
     subscriptions: 'Assinaturas',
 };
-
-const formatCurrency = (value: number | string | null | undefined) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 
 const toDateOnly = (date: Date) => {
     const year = date.getFullYear();
@@ -267,7 +265,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
                     <div className="max-w-3xl">
                         <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-[#BFEFFF]">
                             <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                            Ativação do Clube do Chefe
+                            Ativação do Club dos Chefes
                         </div>
                         <h1 className="mt-4 text-2xl font-black leading-tight md:text-3xl">Novo assinante do Clube</h1>
                         <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-200">
@@ -336,7 +334,7 @@ const ChefClubSubscriptionNew: React.FC = () => {
                             <h2 className="text-base font-black text-slate-900 dark:text-white">{stepLabels[step]}</h2>
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                                 {step === 1 && 'Selecione um cliente real da base para iniciar a recorrência.'}
-                                {step === 2 && 'Use apenas planos ativos configurados no Clube do Chefe.'}
+                                {step === 2 && 'Use apenas planos ativos configurados no Club dos Chefes.'}
                                 {step === 3 && 'Confira créditos, data de cobrança e regra de substituição antes de salvar.'}
                             </p>
                         </div>

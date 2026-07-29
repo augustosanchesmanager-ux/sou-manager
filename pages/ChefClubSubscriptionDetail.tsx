@@ -1,74 +1,27 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getScopedClient } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
-import Button from '../components/ui/Button';
 import {
+    loadSubscriptionDetail,
+    changePlan,
+    updateCreditMap,
+    updateBillingDate,
+    updateSubscriptionStatus,
+    type SubscriptionDetailData,
+    type SubscriptionDetailClient,
+} from '../application/chefClub';
+import {
+    normalizePlanServiceCredits,
+    normalizeCreditBalances,
     getTotalAvailableCredits,
     getTotalUsedCredits,
-    normalizeCreditBalances,
-    normalizePlanServiceCredits,
-} from '../src/utils/chefClubCredits';
-import type { ServiceBalanceEntry, ServiceCreditsEntry } from '../src/utils/chefClubCredits';
+    type ServiceBalanceEntry,
+} from '../domain/chefClub';
+import { formatCurrency } from '../shared/format/currency';
 
-interface Plan {
-    id: string;
-    name: string;
-    monthly_price: number;
-    service_credits: number;
-    service_credit_map?: ServiceCreditsEntry[] | null;
-    description: string;
-    priority_booking: boolean;
-    product_discount: number;
-    max_rollover_credits: number;
-    credit_validity_days: number;
-    active: boolean;
-}
-
-interface SubscriptionDetails {
-    id: string;
-    client_id: string;
-    plan_id: string;
-    status: 'active' | 'past_due' | 'canceled' | 'paused';
-    started_at: string;
-    cycle_start: string;
-    cycle_end: string;
-    next_billing_date: string;
-    created_at: string;
-    canceled_at?: string;
-}
-
-interface ClientInfo {
-    id: string;
-    name: string;
-    phone: string;
-}
-
-interface CreditRecord {
-    id: string;
-    subscription_id: string;
-    available_credits: number;
-    used_credits: number;
-    service_balance_map: ServiceBalanceEntry[];
-    period_start: string;
-    period_end?: string;
-}
-
-interface TransactionEntry {
-    id: string;
-    created_at: string;
-    service_name: string;
-    credits_used: number;
-    appointment_id?: string;
-    notes?: string;
-}
-
-const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
-
-const formatDate = (dateString?: string) => {
+const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -83,16 +36,10 @@ const ChefClubSubscriptionDetail: React.FC = () => {
     const { subscriptionId } = useParams<{ subscriptionId: string }>();
     const navigate = useNavigate();
     const { tenantId } = useAuth();
-    const barberSupabase = getScopedClient('barber');
 
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-    const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
-    const [client, setClient] = useState<ClientInfo | null>(null);
-    const [plan, setPlan] = useState<Plan | null>(null);
-    const [credits, setCredits] = useState<CreditRecord | null>(null);
-    const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
-    const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
+    const [detail, setDetail] = useState<SubscriptionDetailData | null>(null);
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editTab, setEditTab] = useState<EditTab>('plan');
@@ -109,117 +56,50 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
         setLoading(true);
         try {
-            const [subRes, plansRes, creditsRes] = await Promise.all([
-                barberSupabase
-                    .from('customer_subscriptions')
-                    .select('*')
-                    .eq('id', subscriptionId)
-                    .eq('tenant_id', tenantId)
-                    .single(),
-                barberSupabase
-                    .from('customer_plans')
-                    .select('*')
-                    .eq('tenant_id', tenantId)
-                    .eq('active', true)
-                    .order('monthly_price', { ascending: true }),
-                barberSupabase
-                    .from('customer_credits')
-                    .select('*')
-                    .eq('subscription_id', subscriptionId)
-                    .eq('tenant_id', tenantId)
-                    .single(),
-            ]);
+            const result = await loadSubscriptionDetail(tenantId, subscriptionId);
+            if (!result) {
+                setToast({ message: 'Assinatura não encontrada', type: 'error' });
+                return;
+            }
+            setDetail(result);
+            setNextBillingDate(result.subscription.next_billing_date || '');
+            setSelectedPlanId(result.plan?.id || '');
 
-            if (subRes.error) throw subRes.error;
-            if (subRes.data) {
-                setSubscription(subRes.data as SubscriptionDetails);
-
-                const [clientRes] = await Promise.all([
-                    import('../services/supabaseClient').then(m =>
-                        m.supabase.from('clients').select('id, name, phone')
-                            .eq('tenant_id', tenantId)
-                            .eq('id', subRes.data.client_id)
-                            .single()
-                    ),
-                ]);
-
-                if (clientRes.data) setClient(clientRes.data as ClientInfo);
-
-                if (plansRes.data) {
-                    const plans = plansRes.data as Plan[];
-                    setAvailablePlans(plans);
-                    const currentPlan = plans.find(p => p.id === subRes.data.plan_id);
-                    setPlan(currentPlan || null);
-                    setSelectedPlanId(currentPlan?.id || '');
-                }
-
-                if (creditsRes.data) {
-                    setCredits(creditsRes.data as CreditRecord);
-                    setEditCredits(normalizeCreditBalances(
-                        (creditsRes.data as CreditRecord).service_balance_map,
-                        (creditsRes.data as CreditRecord).available_credits,
-                        (creditsRes.data as CreditRecord).used_credits,
-                    ));
-                }
-
-                setNextBillingDate(subRes.data.next_billing_date || '');
+            if (result.credits) {
+                setEditCredits(normalizeCreditBalances(
+                    result.credits.service_balance_map,
+                    result.credits.available_credits,
+                    result.credits.used_credits,
+                ));
             }
         } catch (err: any) {
             setToast({ message: `Erro ao carregar detalhes: ${err.message}`, type: 'error' });
         } finally {
             setLoading(false);
         }
-    }, [tenantId, subscriptionId, barberSupabase]);
+    }, [tenantId, subscriptionId]);
 
     useEffect(() => {
         void loadData();
     }, [loadData]);
 
     const handleSaveChanges = async () => {
-        if (!tenantId || !subscriptionId) return;
+        if (!tenantId || !subscriptionId || !detail) return;
 
         setSaving(true);
         try {
-            if (editTab === 'plan' && selectedPlanId !== subscription?.plan_id) {
-                const { error } = await barberSupabase
-                    .from('customer_subscriptions')
-                    .update({ plan_id: selectedPlanId })
-                    .eq('id', subscriptionId)
-                    .eq('tenant_id', tenantId);
-
-                if (error) throw error;
+            if (editTab === 'plan' && selectedPlanId !== detail.subscription.plan_id) {
+                await changePlan(tenantId, subscriptionId, selectedPlanId);
                 setToast({ message: 'Plano atualizado com sucesso!', type: 'success' });
             }
 
             if (editTab === 'credits') {
-                const { error } = await barberSupabase
-                    .from('customer_credits')
-                    .update({
-                        service_balance_map: editCredits,
-                        available_credits: getTotalAvailableCredits(editCredits),
-                        used_credits: getTotalUsedCredits(editCredits),
-                    })
-                    .eq('subscription_id', subscriptionId)
-                    .eq('tenant_id', tenantId);
-
-                if (error) throw error;
+                await updateCreditMap(tenantId, subscriptionId, editCredits);
                 setToast({ message: 'Créditos ajustados com sucesso!', type: 'success' });
             }
 
             if (editTab === 'billing' && nextBillingDate) {
-                const cycleEnd = new Date(nextBillingDate);
-                cycleEnd.setDate(cycleEnd.getDate() + 30);
-
-                const { error } = await barberSupabase
-                    .from('customer_subscriptions')
-                    .update({
-                        next_billing_date: nextBillingDate,
-                        cycle_end: cycleEnd.toISOString(),
-                    })
-                    .eq('id', subscriptionId)
-                    .eq('tenant_id', tenantId);
-
-                if (error) throw error;
+                await updateBillingDate(tenantId, subscriptionId, nextBillingDate);
                 setToast({ message: 'Data de cobrança atualizada!', type: 'success' });
             }
 
@@ -237,18 +117,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
         setSaving(true);
         try {
-            const updateData: Record<string, unknown> = { status: pendingStatus };
-            if (pendingStatus === 'canceled') {
-                updateData.canceled_at = new Date().toISOString();
-            }
-
-            const { error } = await barberSupabase
-                .from('customer_subscriptions')
-                .update(updateData)
-                .eq('id', subscriptionId)
-                .eq('tenant_id', tenantId);
-
-            if (error) throw error;
+            await updateSubscriptionStatus(tenantId, subscriptionId, pendingStatus);
 
             const statusLabels = { active: 'reativada', paused: 'pausada', canceled: 'cancelada' };
             setToast({ message: `Assinatura ${statusLabels[pendingStatus]} com sucesso!`, type: 'success' });
@@ -274,7 +143,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
         );
     }
 
-    if (!subscription) {
+    if (!detail) {
         return (
             <div className="p-6">
                 <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-center">
@@ -286,6 +155,8 @@ const ChefClubSubscriptionDetail: React.FC = () => {
             </div>
         );
     }
+
+    const { subscription, plan, credits, client, availablePlans } = detail;
 
     const planServices = plan ? normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits) : [];
     const serviceBalances = normalizeCreditBalances(

@@ -2,6 +2,7 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area } from 'recharts';
 import { useTheme } from '../../context/ThemeContext';
 import { METALLIC_COLORS, METALLIC_TOOLTIP_STYLE, METALLIC_GRID_STYLE, METALLIC_AXIS_STYLE } from './MetallicChartStyles';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface LineChartData {
   name: string;
@@ -18,14 +19,6 @@ interface TrendLineChartProps {
   showArea?: boolean;
   color?: string;
 }
-
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('pt-BR', { 
-    style: 'currency', 
-    currency: 'BRL', 
-    maximumFractionDigits: 0,
-    notation: value >= 1000 ? 'compact' : 'standard'
-  }).format(value);
 
 export const TrendLineChart: React.FC<TrendLineChartProps> = ({ 
   data, 

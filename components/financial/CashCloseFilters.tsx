@@ -97,7 +97,7 @@ const CashCloseFiltersBar: React.FC<CashCloseFiltersBarProps> = ({
                         className="accent-primary rounded"
                     />
                     <Crown size={12} className="text-amber-500" />
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Somente Clube do Chefe</span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Somente Club dos Chefes</span>
                 </label>
 
                 {hasActiveFilters && (

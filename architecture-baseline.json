@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "created": "2026-07-24",
+  "description": "Architecture baseline — violations must not increase",
+  "repositoryViolations": 233,
+  "forbiddenImports": 0,
+  "circularImports": 0,
+  "notes": "233 repo violations are legacy debt in pages/components/hooks. Fixed 5 forbidden imports in 4.7.8."
+}

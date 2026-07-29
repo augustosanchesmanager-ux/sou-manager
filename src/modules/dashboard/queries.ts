@@ -177,10 +177,6 @@ export const fetchDashboardData = async ({
     transactionsRes,
     previousAppointmentsCountRes,
     last90daysAppointmentsRes,
-    upcomingAppointmentsRes,
-    last30to60daysAppointmentsRes,
-    last60to90daysAppointmentsRes,
-    todayAppointmentsByStaffRes,
     currentAppointmentsCountRes,
     openComandasRes,
   ] = await Promise.all([
@@ -247,92 +243,12 @@ export const fetchDashboardData = async ({
     (() => {
       let q = appointmentsClient
         .from('appointments')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false)
-        .neq('status', 'cancelled')
-        .gte('start_time', (() => {
-          const d = new Date();
-          return d.toISOString();
-        })());
-      if (isBarber) q = q.eq('staff_id', userId);
-      return q;
-    })(),
-    (() => {
-      let q = appointmentsClient
-        .from('appointments')
-        .select('id, client_id, client_name, start_time, status')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false)
-        .neq('status', 'cancelled')
-        .gte('start_time', (() => {
-          const d = new Date();
-          d.setDate(d.getDate() - 60);
-          return d.toISOString();
-        })())
-        .lt('start_time', (() => {
-          const d = new Date();
-          d.setDate(d.getDate() - 30);
-          return d.toISOString();
-        })());
-      if (isBarber) q = q.eq('staff_id', userId);
-      return q;
-    })(),
-    (() => {
-      let q = appointmentsClient
-        .from('appointments')
-        .select('id, client_id, client_name, start_time, status')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false)
-        .neq('status', 'cancelled')
-        .gte('start_time', (() => {
-          const d = new Date();
-          d.setDate(d.getDate() - 90);
-          return d.toISOString();
-        })())
-        .lt('start_time', (() => {
-          const d = new Date();
-          d.setDate(d.getDate() - 60);
-          return d.toISOString();
-        })());
-      if (isBarber) q = q.eq('staff_id', userId);
-      return q;
-    })(),
-    (() => {
-      let q = appointmentsClient
-        .from('appointments')
-        .select('staff_id')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false)
-        .eq('status', 'confirmed')
-        .gte('start_time', `${new Date().toISOString().split('T')[0]}T00:00:00`)
-        .lt('start_time', `${new Date().toISOString().split('T')[0]}T23:59:59`);
-      if (isBarber) q = q.eq('staff_id', userId);
-      return q;
-    })(),
-    (() => {
-      let q = appointmentsClient
-        .from('appointments')
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
         .eq('hidden_from_schedule', false)
         .neq('status', 'cancelled')
         .gte('start_time', periodRange.currentStart.toISOString())
         .lt('start_time', periodRange.currentEnd.toISOString());
-      if (isBarber) q = q.eq('staff_id', userId);
-      return q;
-    })(),
-    (() => {
-      let q = appointmentsClient
-        .from('appointments')
-        .select('id, client_id')
-        .eq('tenant_id', tenantId)
-        .eq('hidden_from_schedule', false)
-        .neq('status', 'cancelled')
-        .gte('start_time', (() => {
-          const d = new Date();
-          return d.toISOString();
-        })());
       if (isBarber) q = q.eq('staff_id', userId);
       return q;
     })(),
@@ -354,10 +270,6 @@ export const fetchDashboardData = async ({
   logSupabaseError('transactions', transactionsRes.error);
   logSupabaseError('appointments.previous-period-count', previousAppointmentsCountRes.error);
   logSupabaseError('appointments.last-90-days', last90daysAppointmentsRes.error);
-  logSupabaseError('appointments.upcoming', upcomingAppointmentsRes.error);
-  logSupabaseError('appointments.last-30-to-60-days', last30to60daysAppointmentsRes.error);
-  logSupabaseError('appointments.last-60-to-90-days', last60to90daysAppointmentsRes.error);
-  logSupabaseError('appointments.today-by-staff', todayAppointmentsByStaffRes.error);
   logSupabaseError('appointments.current-period-count', currentAppointmentsCountRes.error);
   logSupabaseError('comandas.open', openComandasRes.error);
 
@@ -380,8 +292,10 @@ export const fetchDashboardData = async ({
     name: staff.name,
   }));
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const upcomingClientIds = new Set(
-    (upcomingAppointmentsRes.data || [])
+    (appointmentsRes.data || [])
       .map((a: any) => a.client_id)
       .filter(Boolean)
   );
@@ -408,9 +322,29 @@ export const fetchDashboardData = async ({
     return transactionDate >= periodRange.previousStart && transactionDate < periodRange.previousEnd;
   });
 
+  const last90DaysApts = (last90daysAppointmentsRes.data || []) as any[];
+
+  const last60to90daysAppointments = last90DaysApts.filter((a: any) => {
+    const d = new Date(a.start_time);
+    const cutoff90 = new Date(); cutoff90.setDate(cutoff90.getDate() - 90);
+    const cutoff60 = new Date(); cutoff60.setDate(cutoff60.getDate() - 60);
+    return d >= cutoff90 && d < cutoff60;
+  });
+
+  const last30to60daysAppointments = last90DaysApts.filter((a: any) => {
+    const d = new Date(a.start_time);
+    const cutoff60 = new Date(); cutoff60.setDate(cutoff60.getDate() - 60);
+    const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
+    return d >= cutoff60 && d < cutoff30;
+  });
+
+  const todayAppointmentsByStaff = last90DaysApts.filter((a: any) => {
+    return a.start_time && a.start_time.startsWith(todayStr);
+  });
+
   const returningClients = buildReturningClients({
     clients,
-    appointments: last90daysAppointmentsRes.data || [],
+    appointments: last90DaysApts,
     upcomingClientIds,
   });
 
@@ -426,11 +360,11 @@ export const fetchDashboardData = async ({
       currentTransactions,
       previousTransactions,
       staffList,
-      todayAppointmentsByStaffRes.data || [],
+      todayAppointmentsByStaff,
       currentAppointmentsCountRes.count || 0,
       previousAppointmentsCountRes.count || 0,
-      last90daysAppointmentsRes.data || [],
-      last60to90daysAppointmentsRes.data || [],
+      last90DaysApts,
+      last60to90daysAppointments,
       goals.revenue_goal || 0,
       goals.appointments_goal || 0,
     ),

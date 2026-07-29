@@ -1,4 +1,4 @@
-import type { AppModuleSlug, AppSlug } from '../supabase/schemas';
+import type { AppModuleSlug, AppSlug } from '../../../domain/shared/app';
 
 export const APP_ENABLED_MODULES: Record<AppSlug, readonly AppModuleSlug[]> = {
   barber: [

@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { formatCurrency } from '../shared/format/currency';
+import { getAppointmentStatusLabel } from '../shared/status/appointment';
 
 type OperationType = 'appointment' | 'comanda';
 
@@ -28,15 +30,6 @@ interface OperationSuccessLocationState {
   appointment?: AppointmentData;
   comanda?: ComandaData;
 }
-
-const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Agendado',
-  confirmed: 'Confirmado',
-  pending: 'Pendente',
-  in_progress: 'Em atendimento',
-  completed: 'Finalizado',
-  cancelled: 'Cancelado',
-};
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit: 'Crédito',
@@ -80,17 +73,12 @@ const OperationSuccess: React.FC = () => {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return `R$ ${Number(value || 0).toFixed(2)}`;
-  };
-
   const getPaymentMethodLabel = (method: string) => {
     return PAYMENT_METHOD_LABELS[method] || method;
   };
 
   const getStatusLabel = (status: string) => {
-    if (isEsteticaApp && status === 'completed') return 'Concluído';
-    return APPOINTMENT_STATUS_LABELS[status] || status;
+    return getAppointmentStatusLabel(status, isEsteticaApp);
   };
 
   if (!hasValidData) {

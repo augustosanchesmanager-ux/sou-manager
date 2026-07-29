@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getScopedClient } from '../../services/supabaseClient';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface ReceivableItem {
   id: string;
@@ -143,9 +144,6 @@ export const ClubReceivablesWidget: React.FC = () => {
 
     fetchMetrics();
   }, [tenantId]);
-
-  const formatCurrency = (value: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 

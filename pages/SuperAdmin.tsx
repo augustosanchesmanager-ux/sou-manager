@@ -14,6 +14,7 @@ import AdminActionMenu from '../components/superadmin/AdminActionMenu';
 import { AdminActivity, AdminFilterState, AdminKpi, AdminStatus, AdminTab, AuditEntry, ManagedUserRow, QuickAction, RiskAlert, SubscriptionRequestRow } from '../components/superadmin/types';
 import Button from '../components/ui/Button';
 import { supabase } from '../services/supabaseClient';
+import { formatCurrency } from '../shared/format/currency';
 
 type TenantRow = { id: string; name: string; slug: string; active: boolean; created_at: string };
 type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; role: string | null; created_at: string; updated_at?: string | null };
@@ -45,7 +46,6 @@ const defaultFilters: AdminFilterState = {
 };
 
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const paginate = <T,>(items: T[], page: number, size = 6) => ({ totalPages: Math.max(1, Math.ceil(items.length / size)), items: items.slice((page - 1) * size, (page - 1) * size + size) });
@@ -151,7 +151,7 @@ const SuperAdmin: React.FC = () => {
     slug: tenant.slug,
     usersCount: profiles.filter((profile) => profile.tenant_id === tenant.id).length,
     createdAt: tenant.created_at,
-    status: tenant.active ? 'ativo' : 'inativo',
+    status: tenant.status === 'active' ? 'ativo' : 'inativo',
   })), [profiles, tenants]);
 
   const users = useMemo<ManagedUserRow[]>(() => profiles.map((profile) => {
@@ -162,7 +162,7 @@ const SuperAdmin: React.FC = () => {
       company: tenant?.name || 'Sem tenant',
       role: profile.role || 'Sem perfil',
       lastAccess: profile.updated_at || profile.created_at,
-      status: tenant?.active === false ? 'inativo' : 'ativo',
+      status: tenant?.status === 'active' ? 'ativo' : 'inativo',
       phone: '-',
       email: profile.id,
       riskLevel: auditLogs.filter((audit) => audit.changed_by === profile.id).length > 3 ? 'alto' : 'baixo',
@@ -301,7 +301,7 @@ const SuperAdmin: React.FC = () => {
   const kpis = useMemo<AdminKpi[]>(() => {
     const income = transactions.filter((item: any) => item.type === 'income').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
     return [
-      { id: 'kpi-tenants', title: 'Empresas ativas', value: String(tenants.filter((tenant) => tenant.active).length), delta: `${tenants.length} tenants cadastrados`, context: 'Base real de tenants em operacao.', icon: Building2, tone: 'gold' },
+      { id: 'kpi-tenants', title: 'Empresas ativas', value: String(tenants.filter((tenant) => tenant.status === 'active').length), delta: `${tenants.length} tenants cadastrados`, context: 'Base real de tenants em operacao.', icon: Building2, tone: 'gold' },
       { id: 'kpi-users', title: 'Usuarios mapeados', value: String(profiles.length), delta: `${profiles.filter((profile) => (profile.role || '').toLowerCase() === 'manager').length} gestores`, context: 'Perfis reais encontrados em profiles.', icon: Users, tone: 'emerald' },
       { id: 'kpi-requests', title: 'Solicitacoes pendentes', value: String(plans.filter((plan) => plan.status === 'pending').length + accessRequests.filter((request) => request.status === 'pending').length), delta: `${tickets.filter((ticket) => ticket.status !== 'closed').length} tickets em aberto`, context: 'Fila comercial e operacional atual.', icon: CreditCard, tone: 'blue' },
       { id: 'kpi-alerts', title: 'Alertas criticos', value: String(alerts.filter((alert) => !alert.resolved_at && alert.level === 'critical').length), delta: `${alertItems.length} alertas ativos`, context: 'Incidentes reais do ambiente.', icon: AlertTriangle, tone: 'red' },

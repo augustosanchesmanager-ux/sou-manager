@@ -8,6 +8,7 @@ import { isAppModuleEnabled } from './src/lib/apps/modules';
 import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
+import { useObservability } from './src/lib/observability/useObservability';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
 
 const Layout = lazy(() => import('./components/Layout'));
@@ -50,6 +51,8 @@ const Register = lazy(() => import('./pages/Register'));
 const RegisterSuccess = lazy(() => import('./pages/RegisterSuccess'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Observability = lazy(() => import('./pages/Observability'));
+const EventVersioningAdmin = lazy(() => import('./pages/EventVersioningAdmin'));
 const RoleSelection = lazy(() => import('./pages/onboarding/RoleSelection'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
@@ -103,7 +106,7 @@ const InstitutionalAppRedirect: React.FC = () => {
 };
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading, profileStatus, isSuperAdmin, authError } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin, authError, tenant } = useAuth();
 
   if (loading) {
     return (
@@ -136,6 +139,14 @@ const ProtectedRoute: React.FC = () => {
 
   if (!isSuperAdmin && (profileStatus === 'pending' || profileStatus === 'suspended')) {
     return <Navigate to="/pending-approval" replace />;
+  }
+
+  if (!isSuperAdmin && tenant && (tenant.status === 'cancelled' || tenant.status === 'archived' || tenant.status === 'suspended')) {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
+  if (!isSuperAdmin && tenant && tenant.status === 'draft') {
+    return <Navigate to="/onboarding/shop-setup" replace />;
   }
 
   return (
@@ -260,6 +271,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
             <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
+            <Route path="/observability" element={<ManagerRoute><Observability /></ManagerRoute>} />
+            <Route path="/event-versioning" element={<SuperAdminRoute><EventVersioningAdmin /></SuperAdminRoute>} />
             <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
             <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
             <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
@@ -277,6 +290,8 @@ const AppRoutes: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  useObservability();
+
   return (
     <ThemeProvider>
       <LoadingProvider>

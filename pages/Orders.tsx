@@ -4,6 +4,7 @@ import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
+import { orderStatusLabels, orderStatusColors, type OrderStatus } from '../shared/status/order';
 
 interface Supplier {
     id: string;
@@ -27,28 +28,12 @@ interface PurchaseOrder {
     supplier_id: string;
     quantity: number;
     unit_price: number;
-    status: 'pending' | 'approved' | 'ordered' | 'received' | 'cancelled';
+    status: OrderStatus;
     created_at: string;
     notes?: string;
     products?: { name: string; cost_price: number };
     suppliers?: { name: string; phone: string; email: string; document: string; address: string };
 }
-
-const statusLabels: Record<string, string> = {
-    pending: 'Aguardando Aprovação',
-    approved: 'Aprovado',
-    ordered: 'Pedido Enviado',
-    received: 'Mercadoria Recebida',
-    cancelled: 'Cancelado'
-};
-
-const statusColors: Record<string, string> = {
-    pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-    approved: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-    ordered: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-    received: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-    cancelled: 'bg-red-500/10 text-red-500 border-red-500/20',
-};
 
 const Orders: React.FC = () => {
     const { tenantId } = useAuth();
@@ -116,7 +101,7 @@ const Orders: React.FC = () => {
         if (error) {
             setToast({ message: 'Erro ao atualizar pedido', type: 'error' });
         } else {
-            setToast({ message: `Pedido ${statusLabels[newStatus]}`, type: 'info' });
+            setToast({ message: `Pedido ${orderStatusLabels[newStatus]}`, type: 'info' });
             fetchData();
             if (selectedOrder?.id === orderId) {
                 // Refresh local state if detail modal is open
@@ -239,8 +224,8 @@ const Orders: React.FC = () => {
                                             {order.quantity}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${statusColors[order.status]}`}>
-                                                {statusLabels[order.status]}
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${orderStatusColors[order.status]}`}>
+                                                {orderStatusLabels[order.status]}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
@@ -360,8 +345,8 @@ const Orders: React.FC = () => {
                         {/* Status Bar */}
                         <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-background-dark rounded-2xl border border-slate-200 dark:border-border-dark print:hidden">
                             <div className="flex items-center gap-3">
-                                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase border ${statusColors[selectedOrder.status]}`}>
-                                    {statusLabels[selectedOrder.status]}
+                                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase border ${orderStatusColors[selectedOrder.status]}`}>
+                                    {orderStatusLabels[selectedOrder.status]}
                                 </span>
                                 <p className="text-xs text-slate-500 font-medium">Emitido em: {new Date(selectedOrder.created_at).toLocaleDateString()}</p>
                             </div>

@@ -150,20 +150,15 @@ const KioskAdmin: React.FC = () => {
     const handleActivateAddon = async () => {
         setSaving(true);
         try {
-            if (addon) {
-                await supabase.from('tenant_addons')
-                    .update({ status: 'enabled', activated_at: new Date().toISOString() })
-                    .eq('tenant_id', tenantId)
-                    .eq('addon_key', 'TOTEM_QR');
-            } else {
-                await supabase.from('tenant_addons').insert({
-                    tenant_id: tenantId,
-                    addon_key: 'TOTEM_QR',
-                    status: 'enabled',
-                    activated_at: new Date().toISOString(),
-                    limits: { theme: 'default', max_devices: 1, logo_url: '', ambient_images: [] }
-                });
-            }
+            const { error } = await supabase.from('tenant_addons').upsert({
+                tenant_id: tenantId,
+                addon_key: 'TOTEM_QR',
+                status: 'enabled',
+                activated_at: new Date().toISOString(),
+                limits: addon?.limits || { theme: 'default', max_devices: 1, logo_url: '', ambient_images: [] }
+            }, { onConflict: 'tenant_id,addon_key' });
+
+            if (error) throw error;
             setShowModal(false);
             await loadAddon();
         } finally {
@@ -172,9 +167,19 @@ const KioskAdmin: React.FC = () => {
     };
 
     const handleDisableAddon = async () => {
+        if (saving) return;
         if (!confirm('Desabilitar o add-on Totem + QR? O totem e o QR Code ficarão inacessíveis.')) return;
-        await supabase.from('tenant_addons').update({ status: 'disabled' }).eq('tenant_id', tenantId).eq('addon_key', 'TOTEM_QR');
-        await loadAddon();
+        setSaving(true);
+        try {
+            const { error } = await supabase.from('tenant_addons')
+                .update({ status: 'disabled' })
+                .eq('tenant_id', tenantId)
+                .eq('addon_key', 'TOTEM_QR');
+            if (error) throw error;
+            await loadAddon();
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleSaveSettings = async () => {

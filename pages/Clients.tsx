@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as Papa from 'papaparse';
-import { getScopedClient, getClientForTable, supabase } from '../services/supabaseClient';
+import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -11,6 +11,8 @@ import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { formatCurrency } from '../shared/format/currency';
+import { clientRepository, RepositoryError } from '../domain/client';
 
 interface Client {
     id: string;
@@ -42,7 +44,6 @@ interface OpenComandaSummary {
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
 
-const formatCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const getDisplayId = (id: string) => {
     const hexStr = id.replace(/-/g, '').slice(0, 8);
     const num = parseInt(hexStr, 16);
@@ -120,7 +121,7 @@ const Clients: React.FC = () => {
         try {
             const [clubSummary, openComandasResult] = await Promise.all([
                 fetchChefClubSummaryByClient(client.id, tenantId).catch((error) => {
-                    console.error('Erro ao carregar resumo do Clube do Chefe:', error);
+                    console.error('Erro ao carregar resumo do Club dos Chefes:', error);
                     return null;
                 }),
                 tenantId
@@ -169,23 +170,15 @@ const Clients: React.FC = () => {
         loadingId = showLoading('CLIENTS');
         
         try {
-            const clientsClient = getClientForTable('clients', 'barber');
-            const { data, error } = await clientsClient
-                .from('clients')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .order('name');
-            if (data) {
-                setClients(data);
+            const data = await clientRepository.list(tenantId);
+            setClients(data);
 
-                if (data.length === 0) {
-                    setChefClubMap({});
-                } else {
-                    const planMap = await fetchActiveChefClubPlanMap(tenantId);
-                    setChefClubMap(planMap);
-                }
+            if (data.length === 0) {
+                setChefClubMap({});
+            } else {
+                const planMap = await fetchActiveChefClubPlanMap(tenantId);
+                setChefClubMap(planMap);
             }
-            if (error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
         } catch (error) {
             console.error('Erro ao carregar clientes:', error);
             setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
@@ -250,24 +243,22 @@ const Clients: React.FC = () => {
             setToast({ message: 'Tenant inválido para cadastro de cliente.', type: 'error' });
             return;
         }
-        const clientsClient = getClientForTable('clients', 'barber');
-        const { error } = await clientsClient.from('clients').insert({
-            name: newForm.name,
-            email: newForm.email,
-            phone: newForm.phone,
-            birthday: newForm.birthday,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newForm.name)}&background=random`,
-            tenant_id: tenantId,
-        });
-        if (error) {
+        try {
+            await clientRepository.create({
+                name: newForm.name,
+                email: newForm.email,
+                phone: newForm.phone,
+                birthday: newForm.birthday,
+            }, tenantId);
+            setShowModal(false);
+            setNewForm({ name: '', email: '', phone: '', birthday: '' });
+            setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
+            fetchClients();
+        } catch (error) {
+            const message = error instanceof RepositoryError ? error.message : 'Erro ao salvar cliente.';
             console.error('Erro ao salvar cliente:', error);
-            setToast({ message: `Erro ao salvar: ${error.message}`, type: 'error' });
-            return;
+            setToast({ message, type: 'error' });
         }
-        setShowModal(false);
-        setNewForm({ name: '', email: '', phone: '', birthday: '' });
-        setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
-        fetchClients();
     };
 
     const handleEditClick = (client: Client) => {
@@ -278,17 +269,16 @@ const Clients: React.FC = () => {
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingId || !tenantId) return;
-        const clientsClient = getClientForTable('clients', 'barber');
-        const { error } = await clientsClient
-            .from('clients')
-            .update(editForm)
-            .eq('id', editingId)
-            .eq('tenant_id', tenantId);
-        if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
-        setEditingId(null);
-        setEditForm({});
-        setToast({ message: 'Cliente atualizado!', type: 'success' });
-        fetchClients();
+        try {
+            await clientRepository.update(editingId, editForm, tenantId);
+            setEditingId(null);
+            setEditForm({});
+            setToast({ message: 'Cliente atualizado!', type: 'success' });
+            fetchClients();
+        } catch (error) {
+            const message = error instanceof RepositoryError ? error.message : 'Erro ao atualizar.';
+            setToast({ message, type: 'error' });
+        }
     };
 
     const handleDelete = async () => {
@@ -297,6 +287,7 @@ const Clients: React.FC = () => {
 
         const clientId = deleteTarget.id;
         const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
+        const cleanupLog: Array<{ table: string; status: 'success' | 'error'; detail?: string }> = [];
 
         const cleanupByClientId = async (table: string) => {
             const targetClient = table === 'customer_credits' || table === 'customer_subscriptions' || table === 'customer_vouchers'
@@ -304,8 +295,15 @@ const Clients: React.FC = () => {
                 : supabase;
             const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
             const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
-            if (error && !ignoredCleanupErrorCodes.has(String(error.code || ''))) {
-                console.warn(`Falha ao limpar dependencias em ${table}:`, error);
+            if (error) {
+                if (ignoredCleanupErrorCodes.has(String(error.code || ''))) {
+                    cleanupLog.push({ table, status: 'success', detail: `Ignorado (código ${error.code})` });
+                } else {
+                    cleanupLog.push({ table, status: 'error', detail: `${error.message} (${error.code || 'sem-codigo'})` });
+                    throw new Error(`Falha ao limpar ${table}: ${error.message}`);
+                }
+            } else {
+                cleanupLog.push({ table, status: 'success' });
             }
         };
 
@@ -322,35 +320,70 @@ const Clients: React.FC = () => {
                     .delete()
                     .in('comanda_id', comandaIds);
                 if (itemsError && !ignoredCleanupErrorCodes.has(String(itemsError.code || ''))) {
-                    console.warn('Falha ao limpar comanda_items:', itemsError);
+                    cleanupLog.push({ table: 'comanda_items', status: 'error', detail: itemsError.message });
+                } else {
+                    cleanupLog.push({ table: 'comanda_items', status: 'success' });
                 }
             }
 
-            await cleanupByClientId('appointments');
-            await cleanupByClientId('portal_sessions');
-            await cleanupByClientId('feedback_barber');
-            await cleanupByClientId('feedback_shop');
-            await cleanupByClientId('kiosk_sessions');
-            await cleanupByClientId('customer_credits');
-            await cleanupByClientId('customer_subscriptions');
-            await cleanupByClientId('customer_vouchers');
-            await cleanupByClientId('comandas');
+            // Limpeza paralela de todas as dependências independentes
+            const cleanupTargets = [
+                'appointments', 'portal_sessions', 'feedback_barber',
+                'feedback_shop', 'kiosk_sessions', 'customer_credits',
+                'customer_subscriptions', 'customer_vouchers', 'comandas',
+            ];
 
-            const clientsClient = getClientForTable('clients', 'barber');
-            const { error } = await clientsClient
-                .from('clients')
-                .delete()
-                .eq('id', clientId)
-                .eq('tenant_id', tenantId);
+            const results = await Promise.allSettled(
+                cleanupTargets.map(table => cleanupByClientId(table))
+            );
 
-            if (error) {
-                console.error('DELETE CLIENT ERROR:', JSON.stringify(error));
-                setToast({ message: `Erro ao excluir: ${error.message} (${error.code || 'sem-codigo'})`, type: 'error' });
+            // Consolidar falhas
+            results.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    const existing = cleanupLog.find(l => l.table === cleanupTargets[index]);
+                    if (!existing) {
+                        cleanupLog.push({
+                            table: cleanupTargets[index],
+                            status: 'error',
+                            detail: result.reason?.message || 'Erro desconhecido',
+                        });
+                    }
+                }
+            });
+
+            const failures = cleanupLog.filter(l => l.status === 'error');
+
+            console.group(`[SMG][CLIENT][DELETE] clientId=${clientId} tenantId=${tenantId}`);
+            console.log('Cleanup results:', cleanupLog);
+            if (failures.length > 0) {
+                console.warn('Failures:', failures);
+            }
+            console.groupEnd();
+
+            // Delete final do cliente via repositório
+            try {
+                await clientRepository.delete(clientId, tenantId);
+            } catch (deleteError) {
+                console.error('[SMG][CLIENT][DELETE][ERROR]', deleteError);
+                const failureReport = failures.length > 0
+                    ? `\nDependências com falha: ${failures.map(f => f.table).join(', ')}`
+                    : '';
+                const message = deleteError instanceof RepositoryError
+                    ? `${deleteError.message} (${deleteError.code || 'sem-codigo'})`
+                    : 'Erro ao excluir cliente.';
+                setToast({ message: `${message}${failureReport}`, type: 'error' });
                 return;
             }
 
-            setDeleteTarget(null);
-            setToast({ message: 'Cliente excluído.', type: 'info' });
+            if (failures.length > 0) {
+                setToast({
+                    message: `Cliente excluído, mas ${failures.length} dependência(s) não foram removidas: ${failures.map(f => f.table).join(', ')}. Verifique o console.`,
+                    type: 'warning',
+                });
+            } else {
+                setDeleteTarget(null);
+                setToast({ message: 'Cliente excluído.', type: 'info' });
+            }
             fetchClients();
         } finally {
             setDeleting(false);
@@ -446,28 +479,18 @@ const Clients: React.FC = () => {
             return;
         }
         setLoading(true);
-        const toInsert = parsedData.map(c => ({
-            name: c.name,
-            phone: c.phone,
-            email: c.email,
-            birthday: c.birthday ? c.birthday : null,
-            status: 'active',
-            tenant_id: tenantId,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`
-        }));
-
-        const clientsClient = getClientForTable('clients', 'barber');
-        const { error } = await clientsClient.from('clients').insert(toInsert);
-
-        if (error) {
-            setToast({ message: `Erro ao importar: ${error.message}`, type: 'error' });
-        } else {
-            setToast({ message: `${toInsert.length} clientes importados com sucesso!`, type: 'success' });
+        try {
+            await clientRepository.import(parsedData, tenantId);
+            setToast({ message: `${parsedData.length} clientes importados com sucesso!`, type: 'success' });
             setIsImportModalOpen(false);
             setParsedData([]);
             fetchClients();
+        } catch (error) {
+            const message = error instanceof RepositoryError ? error.message : 'Erro ao importar clientes.';
+            setToast({ message, type: 'error' });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (
@@ -577,7 +600,7 @@ const Clients: React.FC = () => {
                                                     <div className="flex items-center gap-2">
                                                         <p className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</p>
                                                         {!isEsteticaApp && chefClubMap[client.id] && (
-                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded text-[9px] font-black uppercase tracking-tighter" title={`Clube do Chefe: ${chefClubMap[client.id]}`}>
+                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded text-[9px] font-black uppercase tracking-tighter" title={`Club dos Chefes: ${chefClubMap[client.id]}`}>
                                                                 <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
                                                                 Membro
                                                             </span>
@@ -725,7 +748,7 @@ const Clients: React.FC = () => {
                                             <span className="material-symbols-outlined">workspace_premium</span>
                                         </div>
                                         <div>
-                                            <p className="text-[10px] text-amber-600 font-black uppercase">Clube do Chefe</p>
+                                            <p className="text-[10px] text-amber-600 font-black uppercase">Club dos Chefes</p>
                                             <p className="text-sm font-bold text-slate-900 dark:text-white">{detailChefClub.planName}</p>
                                             <p className="text-[10px] text-slate-500 font-bold">Status: {detailChefClub.status === 'active' ? 'Ativo' : 'Pendente'}</p>
                                         </div>

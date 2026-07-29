@@ -186,53 +186,46 @@ const Receipts: React.FC = () => {
             const reversalSourceByTransactionId = new Map<string, ReceiptReversalSummary>();
 
             if (transactionIds.length > 0) {
-                const { data: reversals, error: reversalsError } = await supabase
+                // Single query for all reversals (avoids 2 sequential queries)
+                const { data: allReversals, error: reversalsError } = await supabase
                     .from('financial_reversals')
                     .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
                     .eq('tenant_id', tenantId)
-                    .in('original_transaction_id', transactionIds);
+                    .or(`original_transaction_id.in.(${transactionIds}),reversal_transaction_id.in.(${transactionIds})`);
 
                 if (reversalsError) {
                     console.warn('Nao foi possivel carregar reversoes dos recibos:', reversalsError);
                 } else {
-                    ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
-                        if (!reversal.original_transaction_id) return;
-                        const amount = Math.abs(Number(reversal.amount || 0));
-                        reversedByTransactionId.set(
-                            reversal.original_transaction_id,
-                            (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
-                        );
-                        const currentReversals = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
-                        currentReversals.push({
-                            reversalTransactionId: reversal.reversal_transaction_id || null,
-                            reversalType: reversal.reversal_type || 'reversal',
-                            amount,
-                            reasonType: reversal.reason_type || 'Sem motivo informado',
-                            createdAt: reversal.created_at || null,
-                        });
-                        reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
-                    });
-                }
+                    ((allReversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
+                        // Build reversedByTransactionId and reversalsByTransactionId (original direction)
+                        if (reversal.original_transaction_id && transactionIds.includes(reversal.original_transaction_id)) {
+                            const amount = Math.abs(Number(reversal.amount || 0));
+                            reversedByTransactionId.set(
+                                reversal.original_transaction_id,
+                                (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                            );
+                            const currentReversals = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                            currentReversals.push({
+                                reversalTransactionId: reversal.reversal_transaction_id || null,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount,
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                            reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
+                        }
 
-                const { data: reversalSources, error: reversalSourcesError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('reversal_transaction_id', transactionIds);
-
-                if (reversalSourcesError) {
-                    console.warn('Nao foi possivel carregar vinculos reversos dos recibos:', reversalSourcesError);
-                } else {
-                    ((reversalSources || []) as FinancialReversalRecord[]).forEach((reversal) => {
-                        if (!reversal.reversal_transaction_id) return;
-                        reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
-                            originalTransactionId: reversal.original_transaction_id || null,
-                            reversalTransactionId: reversal.reversal_transaction_id,
-                            reversalType: reversal.reversal_type || 'reversal',
-                            amount: Math.abs(Number(reversal.amount || 0)),
-                            reasonType: reversal.reason_type || 'Sem motivo informado',
-                            createdAt: reversal.created_at || null,
-                        });
+                        // Build reversalSourceByTransactionId (reverse direction)
+                        if (reversal.reversal_transaction_id && transactionIds.includes(reversal.reversal_transaction_id)) {
+                            reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
+                                originalTransactionId: reversal.original_transaction_id || null,
+                                reversalTransactionId: reversal.reversal_transaction_id,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount: Math.abs(Number(reversal.amount || 0)),
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                        }
                     });
                 }
             }

@@ -6,6 +6,7 @@ import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 import { getDefaultCommissionRateForRole } from '../src/lib/staff/roles';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { staffRepository, RepositoryError } from '../domain/staff';
 
 interface TeamMember {
     id: string;
@@ -54,14 +55,15 @@ const Team: React.FC = () => {
             return;
         }
         setLoading(true);
-        const { data, error } = await supabase
-            .from('staff')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('name');
-        if (data) setTeam(data);
-        if (error) setToast({ message: `Erro ao carregar ${isEsteticaApp ? 'profissionais' : 'equipe'}.`, type: 'error' });
-        setLoading(false);
+        try {
+            const data = await staffRepository.list(tenantId);
+            setTeam(data);
+        } catch (error) {
+            console.error('Erro ao carregar equipe:', error);
+            setToast({ message: `Erro ao carregar ${isEsteticaApp ? 'profissionais' : 'equipe'}.`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
     }, [isEsteticaApp, tenantId]);
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
@@ -125,24 +127,23 @@ const Team: React.FC = () => {
         };
 
         if (editingMember) {
-            // UPDATE: Do NOT send tenant_id — it should never change and sending null breaks RLS
             if (!tenantId) {
                 setToast({ message: 'Tenant inválido para atualizar colaborador.', type: 'error' });
                 return;
             }
-            const { error } = await supabase
-                .from('staff')
-                .update(editableFields)
-                .eq('id', editingMember.id)
-                .eq('tenant_id', tenantId);
-            if (error) {
-                console.error('UPDATE ERROR:', JSON.stringify(error));
-                let friendlyMsg = error.message;
-                if (error.code === '23514') friendlyMsg = 'Valor de cargo inválido. Use: Gerente, Barbeiro ou Recepcionista.';
+            try {
+                await staffRepository.update(editingMember.id, editableFields, tenantId);
+                setToast({ message: 'Colaborador atualizado!', type: 'success' });
+            } catch (error) {
+                console.error('UPDATE ERROR:', error);
+                let friendlyMsg = 'Erro ao atualizar.';
+                if (error instanceof RepositoryError) {
+                    friendlyMsg = error.message;
+                    if (error.code === '23514') friendlyMsg = 'Valor de cargo inválido. Use: Gerente, Barbeiro ou Recepcionista.';
+                }
                 setToast({ message: `Erro ao atualizar: ${friendlyMsg}`, type: 'error' });
                 return;
             }
-            setToast({ message: 'Colaborador atualizado!', type: 'success' });
         } else {
             if (!tenantId) {
                 setToast({ message: 'Tenant inválido para criar colaborador.', type: 'error' });
@@ -230,16 +231,13 @@ const Team: React.FC = () => {
                 console.warn('Staff record warning:', edgeData.staff_error || edgeData.warning);
                 setToast({ message: `${memberLabel} criado no sistema, mas houve erro ao criar registro de equipe: ${staffErrMsg}`, type: 'error' });
             } else if (edgeData?.user?.id) {
-                const { error: phoneUpdateErr } = await supabase
-                    .from('staff')
-                    .update({
+                try {
+                    await staffRepository.update(edgeData.user.id, {
                         phone: form.phone,
                         commission_rate: editableFields.commission_rate
-                    })
-                    .eq('id', edgeData.user.id)
-                    .eq('tenant_id', tenantId);
-                if (phoneUpdateErr) {
-                    console.warn('Supplementary staff update failed:', JSON.stringify(phoneUpdateErr));
+                    }, tenantId);
+                } catch (updateErr) {
+                    console.warn('Supplementary staff update failed:', updateErr);
                 }
                 setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
             } else {
@@ -257,17 +255,16 @@ const Team: React.FC = () => {
             setToast({ message: 'Tenant inválido para remover colaborador.', type: 'error' });
             return;
         }
-        const { error } = await supabase
-            .from('staff')
-            .delete()
-            .eq('id', id)
-            .eq('tenant_id', tenantId);
-        if (error) {
-            console.error('DELETE ERROR:', JSON.stringify(error));
-            setToast({ message: `Erro ao deletar: ${error.message} (${error.code})`, type: 'error' });
-        } else {
+        try {
+            await staffRepository.delete(id, tenantId);
             setToast({ message: `${memberLabel} removido.`, type: 'info' });
             fetchTeam();
+        } catch (error) {
+            const message = error instanceof RepositoryError
+                ? `Erro ao deletar: ${error.message} (${error.code || 'sem-codigo'})`
+                : 'Erro ao deletar colaborador.';
+            console.error('DELETE ERROR:', error);
+            setToast({ message, type: 'error' });
         }
     };
 

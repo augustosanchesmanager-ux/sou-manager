@@ -3,6 +3,7 @@ import Modal from '../components/ui/Modal';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
 import Toast from '../components/Toast';
 
 interface PayrollRecord {
@@ -108,7 +109,7 @@ const Payroll: React.FC = () => {
                         return acc + (quantity * unitPrice);
                     }, 0);
                     // if commission_rate is 40%
-                    const rate = Number(staff.commission_rate || 40) / 100;
+                    const rate = getEffectiveCommissionRate({ commission_rate: staff.commission_rate });
                     staffCommissions = totalSales * rate;
                 }
 

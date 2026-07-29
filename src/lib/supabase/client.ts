@@ -37,7 +37,8 @@ const getDemoTenantRecord = () => ({
   name: 'Sou Manager Demo',
   slug: 'sou-manager-demo',
   app_slug: DEFAULT_APP_SLUG,
-  active: true,
+  status: 'active',
+  plan: 'free',
   created_at: new Date('2026-04-02T10:00:00-03:00').toISOString(),
 });
 
@@ -2037,8 +2038,8 @@ const client = {
           type: 'income',
           amount: Number(receivable.amount || 0),
           date: p.p_paid_at || now,
-          description: `Mensalidade Clube do Chefe - ${plan.name}`,
-          category: 'Receita recorrente Clube do Chefe',
+          description: `Mensalidade Club dos Chefes - ${plan.name}`,
+          category: 'Receita recorrente Club dos Chefes',
           status: 'paid',
           payment_method: p.p_payment_method || 'Pix',
           notes: p.p_notes || undefined,
@@ -2354,7 +2355,7 @@ const client = {
           }
 
           comanda.status = 'paid';
-          comanda.payment_method = fn === 'bulk_close_comandas_with_credits' ? (p.p_payment_method || 'Clube do Chefe') : null;
+          comanda.payment_method = fn === 'bulk_close_comandas_with_credits' ? (p.p_payment_method || 'Club dos Chefes') : null;
           comanda.closure_mode = fn === 'bulk_close_comandas_admin' ? 'legacy_membership' : 'standard';
           comanda.closure_note = p.p_closure_note || null;
           comanda.financial_effect = fn === 'bulk_close_comandas_with_credits';

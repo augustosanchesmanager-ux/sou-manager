@@ -54,9 +54,6 @@ const getPeriodDates = (period: BusinessPeriod): { from: Date; to: Date; prevFro
 
 const diffDays = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 86400000);
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
-
 const APP_SLUG_FOR_BI = 'barber' as const;
 
 export const useBusinessInsights = (filters: BusinessInsightsFilters) => {

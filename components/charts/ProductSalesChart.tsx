@@ -1,5 +1,6 @@
 import React from 'react';
 import { SparkLineChart } from './SparkLineChart';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface ProductSale {
   id: string;
@@ -26,13 +27,6 @@ export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
   title = 'Vendas de Produtos',
   showTrend = true,
 }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const maxRevenue = Math.max(...data.map(d => d.revenue), 1);
 

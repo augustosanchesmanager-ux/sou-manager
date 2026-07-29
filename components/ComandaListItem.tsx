@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { formatCurrency } from '../shared/format/currency';
 
 interface ComandaItemData {
     id: string;
@@ -48,7 +49,6 @@ interface ComandaListItemProps {
 
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 const formatTimeLabel = (value: string) => new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const CLIENT_NAME_FALLBACK = 'Cliente não informado';
 const getDisplayId = (id: string) => {
     const hexStr = id.replace(/-/g, '').slice(0, 8);

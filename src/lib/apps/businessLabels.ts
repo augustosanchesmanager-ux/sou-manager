@@ -29,7 +29,7 @@ export const BUSINESS_LABELS: Record<AppSlug, BusinessLabels> = {
     order: 'Comanda',
     orderPlural: 'Comandas',
     checkout: 'Checkout',
-    package: 'Clube do Chefe',
+    package: 'Club dos Chefes',
     credits: 'Créditos',
     client: 'Cliente',
     clientPlural: 'Clientes',

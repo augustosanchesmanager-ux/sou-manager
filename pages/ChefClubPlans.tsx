@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getScopedClient } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -7,7 +6,15 @@ import {
     type ServiceCreditsEntry,
     getTotalPlannedCredits,
     normalizePlanServiceCredits,
-} from '../src/utils/chefClubCredits';
+} from '../domain/chefClub';
+import {
+    loadPlansPage,
+    savePlan,
+    deletePlan,
+    togglePlanStatus,
+    computePlanSummary,
+} from '../application/chefClub';
+import type { ServiceOption } from '../application/chefClub';
 
 interface Plan {
     id: string;
@@ -21,12 +28,6 @@ interface Plan {
     max_rollover_credits: number;
     credit_validity_days: number;
     active: boolean;
-}
-
-interface ServiceOption {
-    id: string;
-    name: string;
-    active?: boolean;
 }
 
 interface ServiceCreditFormItem {
@@ -70,7 +71,6 @@ const isServiceCreditMapSchemaCacheError = (error: SupabaseLikeError | null | un
 
 const ChefClubPlans: React.FC = () => {
     const { tenantId } = useAuth();
-    const barberSupabase = getScopedClient('barber');
     const [plans, setPlans] = useState<Plan[]>([]);
     const [services, setServices] = useState<ServiceOption[]>([]);
     const [loading, setLoading] = useState(true);
@@ -86,17 +86,7 @@ const ChefClubPlans: React.FC = () => {
         [form.service_credit_map, services],
     );
 
-    const planSummary = useMemo(() => {
-        const activePlans = plans.filter((plan) => plan.active);
-        return {
-            activePlans: activePlans.length,
-            potentialMonthlyRevenue: activePlans.reduce((sum, plan) => sum + Number(plan.monthly_price || 0), 0),
-            plannedCredits: activePlans.reduce((sum, plan) => {
-                return sum + getTotalPlannedCredits(normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits));
-            }, 0),
-            serviceCatalog: services.length,
-        };
-    }, [plans, services]);
+    const planSummary = useMemo(() => computePlanSummary(plans, services), [plans, services]);
 
     const fetchPlans = async () => {
         setLoading(true);
@@ -107,24 +97,13 @@ const ChefClubPlans: React.FC = () => {
             return;
         }
 
-        const [plansRes, servicesRes] = await Promise.all([
-            barberSupabase
-                .from('customer_plans')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .order('monthly_price', { ascending: true }),
-            barberSupabase
-                .from('services')
-                .select('id, name, active')
-                .eq('tenant_id', tenantId)
-                .neq('active', false)
-                .order('name', { ascending: true }),
-        ]);
-
-        if (plansRes.data) setPlans(plansRes.data as Plan[]);
-        if (servicesRes.data) setServices(servicesRes.data as ServiceOption[]);
-        if (plansRes.error) setToast({ message: 'Erro ao carregar planos.', type: 'error' });
-        if (servicesRes.error) setToast({ message: 'Erro ao carregar serviços do catálogo.', type: 'error' });
+        try {
+            const data = await loadPlansPage(tenantId);
+            setPlans(data.plans as Plan[]);
+            setServices(data.services);
+        } catch {
+            setToast({ message: 'Erro ao carregar planos.', type: 'error' });
+        }
         setLoading(false);
     };
 
@@ -226,50 +205,20 @@ const ChefClubPlans: React.FC = () => {
             product_discount: Number(form.product_discount) || 0,
             max_rollover_credits: Number(form.max_rollover_credits) || 0,
             credit_validity_days: Number(form.credit_validity_days) || 30,
-            tenant_id: tenantId,
         };
 
-        const legacyPlanData = {
-            name: planData.name,
-            monthly_price: planData.monthly_price,
-            service_credits: planData.service_credits,
-            description: planData.description,
-            priority_booking: planData.priority_booking,
-            product_discount: planData.product_discount,
-            max_rollover_credits: planData.max_rollover_credits,
-            credit_validity_days: planData.credit_validity_days,
-            tenant_id: planData.tenant_id,
-        };
-
-        const savePlan = async (payload: typeof planData | typeof legacyPlanData) => (
-            editingPlan
-                ? barberSupabase.from('customer_plans').update(payload).eq('id', editingPlan.id)
-                : barberSupabase.from('customer_plans').insert(payload)
-        );
-
-        let { error } = await savePlan(planData);
-        let usedLegacyFallback = false;
-
-        if (error && isServiceCreditMapSchemaCacheError(error as SupabaseLikeError)) {
-            console.warn('Fallback para formato legado do plano por causa do schema cache:', error);
-            const fallbackResult = await savePlan(legacyPlanData);
-            error = fallbackResult.error;
-            usedLegacyFallback = !fallbackResult.error;
-        }
-
-        if (error) {
-            console.error('Erro ao salvar plano do Chef Club:', error);
-            setToast({ message: getFriendlySaveErrorMessage(error as SupabaseLikeError), type: 'error' });
-        } else {
+        try {
+            await savePlan(tenantId, planData, editingPlan?.id);
             setToast({
-                message: usedLegacyFallback
-                    ? 'Plano salvo no modo legado. O detalhamento por serviço será ativado quando o cache do Supabase atualizar.'
-                    : `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`,
-                type: usedLegacyFallback ? 'info' : 'success',
+                message: `Plano ${editingPlan ? 'atualizado' : 'criado'} com sucesso!`,
+                type: 'success',
             });
             setShowModal(false);
             resetFormState();
             void fetchPlans();
+        } catch (error: any) {
+            console.error('Erro ao salvar plano do Club dos Chefes:', error);
+            setToast({ message: getFriendlySaveErrorMessage(error), type: 'error' });
         }
 
         setLoading(false);
@@ -299,15 +248,13 @@ const ChefClubPlans: React.FC = () => {
     };
 
     const toggleStatus = async (plan: Plan) => {
-        const { error } = await barberSupabase
-            .from('customer_plans')
-            .update({ active: !plan.active })
-            .eq('id', plan.id);
+        if (!tenantId) return;
 
-        if (error) {
-            setToast({ message: 'Erro ao alterar status.', type: 'error' });
-        } else {
+        try {
+            await togglePlanStatus(tenantId, plan.id, !plan.active);
             setPlans((current) => current.map((item) => (item.id === plan.id ? { ...item, active: !item.active } : item)));
+        } catch {
+            setToast({ message: 'Erro ao alterar status.', type: 'error' });
         }
     };
 
@@ -320,18 +267,13 @@ const ChefClubPlans: React.FC = () => {
 
         setDeletingPlanId(planToDelete.id);
 
-        const { error } = await barberSupabase
-            .from('customer_plans')
-            .delete()
-            .eq('id', planToDelete.id)
-            .eq('tenant_id', tenantId);
-
-        if (error) {
-            setToast({ message: `Erro ao excluir plano: ${error.message}`, type: 'error' });
-        } else {
+        try {
+            await deletePlan(tenantId, planToDelete.id);
             setToast({ message: 'Plano excluído com sucesso.', type: 'info' });
             setPlans((current) => current.filter((p) => p.id !== planToDelete.id));
             setPlanToDelete(null);
+        } catch (error: any) {
+            setToast({ message: `Erro ao excluir plano: ${error?.message}`, type: 'error' });
         }
 
         setDeletingPlanId(null);
@@ -347,7 +289,7 @@ const ChefClubPlans: React.FC = () => {
                             <span className="material-symbols-outlined text-sm">workspace_premium</span>
                             SMG recorrência da barbearia
                         </div>
-                        <h2 className="text-2xl font-black text-slate-950 dark:text-white md:text-3xl">Clube do Chefe</h2>
+                        <h2 className="text-2xl font-black text-slate-950 dark:text-white md:text-3xl">Club dos Chefes</h2>
                         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                             Planos mensais com créditos por serviço, prioridade de agenda e benefícios pensados para manter clientes bons voltando à cadeira.
                         </p>
@@ -632,7 +574,7 @@ const ChefClubPlans: React.FC = () => {
                     <div className="space-y-4">
                         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
                             <p className="text-sm font-bold text-rose-700 dark:text-rose-300">
-                                Esta ação remove o plano {planToDelete.name} do catálogo do Clube do Chefe.
+                                Esta ação remove o plano {planToDelete.name} do catálogo do Club dos Chefes.
                             </p>
                             <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-300/80">
                                 Use somente quando o plano não fizer mais parte da estratégia comercial da barbearia.

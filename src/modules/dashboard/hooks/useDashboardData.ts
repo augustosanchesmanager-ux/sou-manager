@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { fetchDashboardData } from '../queries';
 import { EMPTY_DASHBOARD_DATA } from '../selectors';
-import { logSupabaseError } from '../../../../src/lib/supabase/errors';
+import { logSupabaseError } from '../../../../domain/shared/errors';
 import type { DashboardData, DashboardPeriod } from '../types';
 
 export const useDashboardData = (period: DashboardPeriod = 'today') => {

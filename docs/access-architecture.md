@@ -21,9 +21,9 @@ Os sistemas operacionais devem ser publicados em subdominios proprios, com separ
 
 ### Subdominios de sistemas
 
-- `barber.soumanager.com` -> **SMG Barber**
-- `autocontrol.soumanager.com` -> **SMG AutoControl**
-- `club.soumanager.com` -> **SMG Club**
+- `barber.soumanager.com` -> **SMG Barber** (ÚNICO SISTEMA ATIVO)
+
+> **Nota:** Domínios para futuros sistemas serão definidos quando houver decisão oficial do Product Owner.
 
 ## Problema identificado
 
@@ -66,9 +66,7 @@ Foi criada uma base de roteamento orientada por hostname para que a aplicacao mu
 3. Clica em `Acessar plataforma`.
 4. Realiza login.
 5. Escolhe o sistema desejado:
-   - `SMG Barber`
-   - `SMG AutoControl`
-   - `SMG Club`
+   - `SMG Barber` (ÚNICO SISTEMA ATIVO)
 6. E redirecionado para o subdominio correspondente.
 
 ### Entrada por subdominio direto
@@ -86,14 +84,10 @@ A recomendacao oficial para producao e separar institucional e sistemas em proje
   - `soumanager.com`
   - `www.soumanager.com`
 
-- **Projeto 2** -> **SMG Barber**
+- **Projeto 2** -> **SMG Barber** (ÚNICO SISTEMA ATIVO)
   - `barber.soumanager.com`
 
-- **Projeto 3** -> **SMG AutoControl**
-  - `autocontrol.soumanager.com`
-
-- **Projeto 4** -> **SMG Club**
-  - `club.soumanager.com`
+> **Nota:** Projetos para futuros sistemas serão criados quando houver decisão oficial do Product Owner.
 
 ## Justificativa tecnica
 
@@ -143,9 +137,9 @@ Os subdominios representam:
 
 ### Aplicacao nos produtos
 
-- `SMG Barber`
-- `SMG AutoControl`
-- `SMG Club`
+- `SMG Barber` (ÚNICO PRODUTO ATIVO)
+
+> **Nota:** Novos produtos serão adicionados quando houver decisão oficial do Product Owner.
 
 ## Configuracao recomendada na Vercel
 
@@ -162,23 +156,13 @@ Os subdominios representam:
 - remover esse subdominio do projeto institucional
 - manter envs proprias do **SMG Barber**
 
-### Projeto AutoControl
-
-- anexar `autocontrol.soumanager.com`
-- remover esse subdominio do projeto institucional
-- manter envs proprias do **SMG AutoControl**
-
-### Projeto Club
-
-- anexar `club.soumanager.com`
-- remover esse subdominio do projeto institucional
-- manter envs proprias do **SMG Club**
+> **Nota:** Projetos para futuros sistemas serão criados quando houver decisão oficial do Product Owner.
 
 ## Variaveis de ambiente recomendadas
 
 ```env
-VITE_APP_PUBLIC_HOSTNAME_MAP={"barber":"barber.soumanager.com","auto":"autocontrol.soumanager.com","club":"club.soumanager.com"}
-VITE_APP_HOSTNAME_MAP={"barber.soumanager.com":"barber","autocontrol.soumanager.com":"auto","club.soumanager.com":"club"}
+VITE_APP_PUBLIC_HOSTNAME_MAP={"barber":"barber.soumanager.com"}
+VITE_APP_HOSTNAME_MAP={"barber.soumanager.com":"barber"}
 ```
 
 ## Proximo passo recomendado

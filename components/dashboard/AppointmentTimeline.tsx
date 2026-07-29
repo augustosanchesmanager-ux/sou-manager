@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 import { getEsteticaDemoServiceName } from '../../src/lib/catalog/display';
 import type { DashboardAppointment } from '../../src/modules/dashboard/types';
+import { appointmentStatusLabels, appointmentDotColors } from '../../shared/status/appointment';
 
 interface AppointmentTimelineProps {
   appSlug?: string | null;
@@ -15,18 +16,11 @@ interface AppointmentTimelineProps {
   onNewAppointment?: () => void;
 }
 
-const STATUS_COLORS = {
-  confirmed: { dot: 'bg-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-200 dark:border-emerald-800/30' },
-  pending: { dot: 'bg-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-200 dark:border-amber-800/30' },
-  cancelled: { dot: 'bg-slate-300', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700' },
-  completed: { dot: 'bg-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-200 dark:border-blue-800/30' },
-};
-
-const STATUS_LABELS = {
-  confirmed: 'Confirmado',
-  pending: 'Pendente',
-  cancelled: 'Cancelado',
-  completed: 'Concluído',
+const STATUS_COLORS: Record<string, { dot: string; bg: string; border: string }> = {
+  confirmed: { dot: appointmentDotColors.confirmed || 'bg-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-200 dark:border-emerald-800/30' },
+  pending: { dot: appointmentDotColors.pending || 'bg-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-200 dark:border-amber-800/30' },
+  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-300', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700' },
+  completed: { dot: appointmentDotColors.completed || 'bg-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-200 dark:border-blue-800/30' },
 };
 
 const formatTime = (isoString: string) => {
@@ -146,7 +140,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
                 </div>
 
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${status.bg} ${status.border}`}>
-                  {STATUS_LABELS[apt.status as keyof typeof STATUS_LABELS] || 'Pendente'}
+                  {appointmentStatusLabels[apt.status as keyof typeof appointmentStatusLabels] || 'Pendente'}
                 </span>
               </div>
             </button>

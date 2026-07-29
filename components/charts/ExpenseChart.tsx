@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface ExpenseData {
   category: string;
@@ -33,14 +34,6 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({
       color: item.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
     }));
   }, [data, total]);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   if (compact) {
     return (

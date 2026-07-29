@@ -97,6 +97,7 @@ export function calculateParticipantPayout(
   itemQuantity: number,
   participant: ServiceExecutionParticipant | CartParticipant
 ): number {
+  if (!participant.affects_commission) return 0;
   const totalItemValue = itemUnitPrice * itemQuantity;
   
   if (participant.payout_type === 'percentage') {
@@ -119,11 +120,11 @@ export function calculateTotalPayouts(
 export function getPrimaryParticipant(
   participants: (ServiceExecutionParticipant | CartParticipant)[]
 ): ServiceExecutionParticipant | CartParticipant | undefined {
-  return participants.find(p => p.role === 'primary' || p.affects_revenue);
+  return participants.find(p => p.role === 'primary' && p.affects_commission);
 }
 
 export function getAssistantParticipants(
   participants: (ServiceExecutionParticipant | CartParticipant)[]
 ): (ServiceExecutionParticipant | CartParticipant)[] {
-  return participants.filter(p => p.role === 'assistant' || p.role === 'co_executor');
+  return participants.filter(p => (p.role === 'assistant' || p.role === 'co_executor') && p.affects_commission);
 }

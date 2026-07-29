@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { DashboardAppointment } from '../../src/modules/dashboard/types';
+import { appointmentStatusLabels, appointmentDotColors } from '../../shared/status/appointment';
 
 interface NextAppointmentCardProps {
   appointments: DashboardAppointment[];
@@ -8,18 +9,11 @@ interface NextAppointmentCardProps {
   onNewAppointment?: () => void;
 }
 
-const STATUS_COLORS = {
-  confirmed: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200' },
-  pending: { dot: 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200' },
-  cancelled: { dot: 'bg-slate-300', badge: 'bg-slate-100 text-slate-500 border-slate-200' },
-  completed: { dot: 'bg-blue-500', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200' },
-};
-
-const STATUS_LABELS = {
-  confirmed: 'Confirmado',
-  pending: 'Pendente',
-  cancelled: 'Cancelado',
-  completed: 'Concluído',
+const STATUS_COLORS: Record<string, { dot: string; badge: string }> = {
+  confirmed: { dot: appointmentDotColors.confirmed || 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200' },
+  pending: { dot: appointmentDotColors.pending || 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200' },
+  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-300', badge: 'bg-slate-100 text-slate-500 border-slate-200' },
+  completed: { dot: appointmentDotColors.completed || 'bg-blue-500', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200' },
 };
 
 const formatTime = (isoString: string) => {
@@ -97,7 +91,7 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
   }
 
   const status = STATUS_COLORS[next.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.pending;
-  const statusLabel = STATUS_LABELS[next.status as keyof typeof STATUS_LABELS] || 'Pendente';
+  const statusLabel = appointmentStatusLabels[next.status as keyof typeof appointmentStatusLabels] || 'Pendente';
 
   return (
     <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">

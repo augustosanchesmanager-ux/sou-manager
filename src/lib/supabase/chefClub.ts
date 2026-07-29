@@ -47,7 +47,7 @@ const runCustomerQueryWithFallback = async <T>(
   const sharedResult = await run(sharedClient);
 
   if (!sharedResult.error) {
-    console.warn('Fallback para schema public em consulta do Chef Club.', primaryResult.error);
+    console.warn('Fallback para schema public em consulta do Club dos Chefes.', primaryResult.error);
   }
 
   return {

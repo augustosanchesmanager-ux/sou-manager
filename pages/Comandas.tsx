@@ -13,13 +13,22 @@ import Button from '../components/ui/Button';
 import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
+import { formatCurrency } from '../shared/format/currency';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { logSupabaseError } from '../src/lib/supabase/errors';
 import ComandaListItem from '../components/ComandaListItem';
 import ComandaSidebar, { type ComandaFinancialHistory } from '../components/ComandaSidebar';
 import ComandaFiltersModal from '../components/ComandaFiltersModal';
+import {
+  comandaStatusLabels,
+  comandaStatusLabelsEstetica,
+  comandaStatusSortOrder,
+  getPaymentStatusLabel,
+} from '../shared/status/comanda';
+import type { ComandaStatus } from '../shared/status/comanda';
+import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
+import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
 
-type ComandaStatus = 'blocked' | 'open' | 'paid' | 'cancelled';
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
 type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
@@ -36,12 +45,14 @@ interface ComandaItem {
 }
 
 interface ServiceExecutionParticipantRow {
+    id: string;
     comanda_item_id: string;
     staff_id?: string | null;
     professional_id?: string | null;
     role: string | null;
     payout_type: string | null;
     payout_value: number | null;
+    affects_commission?: boolean | null;
 }
 
 interface Comanda {
@@ -155,14 +166,6 @@ const CANCEL_TYPE_OPTIONS = [
     { value: 'other', label: 'Outro' },
 ] as const;
 
-const STATUS_LABELS: Record<'all' | ComandaStatus, string> = {
-    all: 'Todas',
-    blocked: 'Bloqueadas',
-    open: 'Abertas',
-    paid: 'Pagas',
-    cancelled: 'Canceladas',
-};
-
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
 const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price, product_id, service_id';
 const CLIENT_NAME_FALLBACK = 'Cliente não informado';
@@ -221,7 +224,6 @@ const batchedIn = async <T extends Record<string, unknown>>(
     return { data: lastError ? null : allData, error: lastError };
 };
 
-const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 const getShortComandaRef = (id: string) => `#${getDisplayId(id)}`;
 const formatMonthInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -238,13 +240,7 @@ const getDisplayId = (id: string) => {
 };
 
 const getStatusSortValue = (status: ComandaStatus) => {
-    const orderMap: Record<ComandaStatus, number> = {
-        blocked: -1,
-        open: 0,
-        paid: 1,
-        cancelled: 2,
-    };
-    return orderMap[status] ?? 99;
+    return comandaStatusSortOrder[status] ?? 99;
 };
 
 const getStatusContextLabel = (status: ComandaStatus, isEsteticaApp = false) => {
@@ -362,8 +358,8 @@ const Comandas: React.FC = () => {
     const servicePluralLower = servicePluralLabel.toLowerCase();
     const financialImpactCopy = isEsteticaApp ? 'o financeiro e repasses' : 'o financeiro e comissões';
     const statusLabels: Record<'all' | ComandaStatus, string> = isEsteticaApp
-        ? { all: 'Todos', blocked: 'Bloqueados', open: 'Abertos', paid: 'Finalizados', cancelled: 'Cancelados' }
-        : STATUS_LABELS;
+        ? comandaStatusLabelsEstetica
+        : comandaStatusLabels;
     const preferences = loadComandasPreferences();
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
@@ -767,7 +763,7 @@ const Comandas: React.FC = () => {
     const hasAdvancedFilters = Boolean(staffFilter || paymentMethodFilter || minTotal || maxTotal || consumptionType !== 'all');
     const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
 
-    const dateFilteredComandas = comandas.filter((c) => {
+    const dateFilteredComandas = React.useMemo(() => comandas.filter((c) => {
         const createdAt = new Date(c.created_at);
         if (Number.isNaN(createdAt.getTime())) return false;
         const startDate = parseDateInputValue(dateFrom);
@@ -775,10 +771,10 @@ const Comandas: React.FC = () => {
         if (startDate && createdAt < startDate) return false;
         if (endDate && createdAt > endDate) return false;
         return true;
-    });
+    }), [comandas, dateFrom, dateTo]);
 
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-    const statusScopeComandas = dateFilteredComandas.filter((c) => {
+    const statusScopeComandas = React.useMemo(() => dateFilteredComandas.filter((c) => {
         const matchesSearch = !normalizedSearchTerm
             || c.clients.name.toLowerCase().includes(normalizedSearchTerm)
             || (c.clients.phone || '').toLowerCase().includes(normalizedSearchTerm)
@@ -791,13 +787,13 @@ const Comandas: React.FC = () => {
         const matchesMax = !maxTotal || c.total <= Number(maxTotal);
         const matchesConsumption = consumptionType === 'all' || getConsumptionTypeForFilter(c) === consumptionType;
         return matchesSearch && matchesStaff && matchesPaymentMethod && matchesMin && matchesMax && matchesConsumption;
-    });
+    }), [dateFilteredComandas, normalizedSearchTerm, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
 
-    const filteredComandas = statusScopeComandas.filter((c) => {
+    const filteredComandas = React.useMemo(() => statusScopeComandas.filter((c) => {
         return filterStatus === 'all' || c.status === filterStatus;
-    });
+    }), [statusScopeComandas, filterStatus]);
 
-    const sortedComandas = [...filteredComandas].sort((first, second) => {
+    const sortedComandas = React.useMemo(() => [...filteredComandas].sort((first, second) => {
         let comparison = 0;
         if (sortField === 'date') comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
         if (sortField === 'client') comparison = (first.clients?.name || '').localeCompare(second.clients?.name || '', 'pt-BR', { sensitivity: 'base' });
@@ -805,7 +801,7 @@ const Comandas: React.FC = () => {
         if (sortField === 'total') comparison = first.total - second.total;
         if (comparison === 0) comparison = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
         return sortDirection === 'asc' ? comparison : comparison * -1;
-    });
+    }), [filteredComandas, sortField, sortDirection]);
 
     useEffect(() => {
         if (!selectedComandaId) {
@@ -821,25 +817,25 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => current.filter((id) => comandas.some((c) => c.id === id && c.status === 'open')));
     }, [comandas]);
 
-    const selectedComanda = sortedComandas.find((c) => c.id === selectedComandaId) || null;
-    const openComandasInView = sortedComandas.filter((c) => c.status === 'open');
-    const allOpenInViewSelected = openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id));
+    const selectedComanda = React.useMemo(() => sortedComandas.find((c) => c.id === selectedComandaId) || null, [sortedComandas, selectedComandaId]);
+    const openComandasInView = React.useMemo(() => sortedComandas.filter((c) => c.status === 'open'), [sortedComandas]);
+    const allOpenInViewSelected = React.useMemo(() => openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id)), [openComandasInView, selectedOpenComandaIds]);
 
-    const tabs = [
+    const tabs = React.useMemo(() => [
         { key: 'all' as const, label: statusLabels.all, count: statusScopeComandas.length },
         { key: 'blocked' as const, label: statusLabels.blocked, count: statusScopeComandas.filter((c) => c.status === 'blocked').length },
         { key: 'open' as const, label: statusLabels.open, count: statusScopeComandas.filter((c) => c.status === 'open').length },
         { key: 'paid' as const, label: statusLabels.paid, count: statusScopeComandas.filter((c) => c.status === 'paid').length },
         { key: 'cancelled' as const, label: statusLabels.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
-    ];
+    ], [statusScopeComandas, statusLabels]);
 
-    const openCount = statusScopeComandas.filter((c) => c.status === 'open').length;
-    const finalizedToday = comandas.filter((c) => {
+    const openCount = React.useMemo(() => statusScopeComandas.filter((c) => c.status === 'open').length, [statusScopeComandas]);
+    const finalizedToday = React.useMemo(() => comandas.filter((c) => {
         if (c.status !== 'paid') return false;
         const createdAt = new Date(c.created_at);
         const today = new Date();
         return createdAt.getDate() === today.getDate() && createdAt.getMonth() === today.getMonth() && createdAt.getFullYear() === today.getFullYear();
-    }).length;
+    }).length, [comandas]);
 
     const toggleOpenComandaSelection = (comandaId: string) => {
         setSelectedOpenComandaIds((current) =>
@@ -855,20 +851,20 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => Array.from(new Set([...current, ...openComandasInView.map((c) => c.id)])));
     };
 
-    const totalOpen = statusScopeComandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0);
-    const avgTicket = filteredComandas.length > 0 ? filteredComandas.reduce((sum, c) => sum + c.total, 0) / filteredComandas.length : 0;
+    const totalOpen = React.useMemo(() => statusScopeComandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0), [statusScopeComandas]);
+    const avgTicket = React.useMemo(() => filteredComandas.length > 0 ? filteredComandas.reduce((sum, c) => sum + c.total, 0) / filteredComandas.length : 0, [filteredComandas]);
 
-    const staffOptions = Array.from(new Map<string, { id: string; name: string }>(
+    const staffOptions = React.useMemo(() => Array.from(new Map<string, { id: string; name: string }>(
         comandas.flatMap((c) => c.staff_ids.map((staffId, index) => ({ id: staffId, name: c.staff_names[index] || 'Profissional' })))
             .map((s) => [s.id, s] as [string, { id: string; name: string }])
             .values(),
-    ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+    ).values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })), [comandas]);
 
-    const paymentMethodOptions = Array.from(new Set<string>(
+    const paymentMethodOptions = React.useMemo(() => Array.from(new Set<string>(
         comandas
             .map((c) => c.payment_method || '')
             .filter((method): method is string => Boolean(method.trim())),
-    )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+    )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })), [comandas]);
 
     const dateFilterDescription = !dateFrom && !dateTo
         ? 'Periodo completo'
@@ -896,12 +892,6 @@ const Comandas: React.FC = () => {
 
     const formatExportMoney = (value: number) => Number(value || 0).toFixed(2).replace('.', ',');
 
-    const getPaymentStatusLabel = (status: ComandaStatus) => {
-        if (status === 'paid') return 'Pago';
-        if (status === 'cancelled') return 'Cancelado';
-        return 'Pendente';
-    };
-
     const getParticipantStaffId = (participant: ServiceExecutionParticipantRow) => participant.staff_id || participant.professional_id || '';
 
     const normalizeParticipantPercentage = (value: number | null | undefined) => {
@@ -910,26 +900,12 @@ const Comandas: React.FC = () => {
         return numeric > 1 ? numeric / 100 : numeric;
     };
 
-    const getParticipantSharedValue = (serviceValue: number, participant: ServiceExecutionParticipantRow) => {
-        if (participant.payout_type === 'fixed') return Number(participant.payout_value || 0);
-        return serviceValue * normalizeParticipantPercentage(participant.payout_value);
-    };
-
     const formatParticipantPayout = (participant: ServiceExecutionParticipantRow, name: string) => {
         if (participant.payout_type === 'fixed') {
             return `${name} R$ ${formatExportMoney(Number(participant.payout_value || 0))}`;
         }
         const percent = normalizeParticipantPercentage(participant.payout_value) * 100;
         return `${name} ${percent.toFixed(2).replace('.', ',').replace(/,00$/, '')}%`;
-    };
-
-    const isSharedServiceItem = (item: ComandaItem, participants: ServiceExecutionParticipantRow[]) => {
-        if (participants.length === 0) return false;
-        if (participants.length > 1) return true;
-        const [participant] = participants;
-        const isPrimaryMainProfessional = participant.role === 'primary' && getParticipantStaffId(participant) === item.staff_id;
-        const isFullPercentagePayout = participant.payout_type === 'percentage' && normalizeParticipantPercentage(participant.payout_value) === 1;
-        return !isPrimaryMainProfessional || !isFullPercentagePayout;
     };
 
     const generateCSV = async () => {
@@ -994,7 +970,7 @@ const Comandas: React.FC = () => {
             `Subtotal ${servicePluralLower}`,
             'Subtotal produtos',
             'Desconto',
-            isEsteticaApp ? 'Créditos utilizados' : 'Créditos Clube do Chefe utilizados',
+            isEsteticaApp ? 'Créditos utilizados' : 'Créditos Club dos Chefes utilizados',
             'Valor total',
             'Valor pago',
             'Saldo pendente',
@@ -1014,13 +990,13 @@ const Comandas: React.FC = () => {
             const products = c.comanda_items.filter((item) => Boolean(item.product_id) || !item.service_id);
             const serviceSubtotal = services.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
             const productSubtotal = products.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
-            const sharedService = services.some((item) => isSharedServiceItem(item, participantsByItem[item.id] || []));
+            const sharedService = services.some((item) => isSharedServiceItem(item, (participantsByItem[item.id] || []) as unknown as DomainParticipantRow[]));
             const serviceValue = services.reduce((sum, item) => sum + Number(item.unit_price || 0), 0);
             const sharedDetails = sharedService
                 ? services.flatMap((item) => (participantsByItem[item.id] || []).map((participant) => {
                     const staffId = getParticipantStaffId(participant);
                     const name = staffId ? (staffById[staffId] || staffId) : 'Profissional';
-                    const participantBase = getParticipantSharedValue(Number(item.unit_price || 0), participant);
+                    const participantBase = calculateParticipantBaseValue(Number(item.unit_price || 0), participant as unknown as DomainParticipantRow);
                     return { participant, name, participantBase };
                 }))
                 : [];

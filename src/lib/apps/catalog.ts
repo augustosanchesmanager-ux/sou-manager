@@ -29,8 +29,8 @@ export const ACCESS_APPS: AccessAppDefinition[] = [
   },
   {
     slug: 'club',
-    name: 'SMG Club',
-    shortName: 'Club',
+    name: 'SMG Club dos Chefes',
+    shortName: 'Club dos Chefes',
     description: 'Sistema operacional da SMG para clubes, assinaturas, beneficios e relacionamento continuo.',
     audience: 'Clubes, recorrencia e membership',
     status: 'active',

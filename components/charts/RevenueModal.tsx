@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MetricCard } from './MetricCard';
 import { SparkLineChart } from './SparkLineChart';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface RevenueData {
   today: number;
@@ -57,14 +58,6 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
       document.body.classList.remove('modal-open');
     };
   }, [isOpen]);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const getGrowth = (current: number, previous: number) => {
     if (!previous) return 0;

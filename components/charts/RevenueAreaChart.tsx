@@ -2,6 +2,7 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '../../context/ThemeContext';
 import { METALLIC_COLORS, METALLIC_TOOLTIP_STYLE, METALLIC_GRID_STYLE, METALLIC_AXIS_STYLE } from './MetallicChartStyles';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface RevenueChartProps {
   data: Array<{ month: string; income: number; expense: number }>;
@@ -9,14 +10,6 @@ interface RevenueChartProps {
   showExpenses?: boolean;
   height?: number;
 }
-
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('pt-BR', { 
-    style: 'currency', 
-    currency: 'BRL', 
-    maximumFractionDigits: 0,
-    notation: value >= 1000 ? 'compact' : 'standard'
-  }).format(value);
 
 export const RevenueAreaChart: React.FC<RevenueChartProps> = ({ 
   data, 

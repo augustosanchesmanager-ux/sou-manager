@@ -8,6 +8,7 @@ import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
+import { formatCurrency } from '../shared/format/currency';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 import {
     closeZeroAmountComanda,
@@ -183,7 +184,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 const SOURCE_FILTER_OPTIONS: { value: SourceFilter; label: string }[] = [
     { value: 'todos', label: 'Todos' },
     { value: 'comanda', label: 'Comandas' },
-    { value: 'clube', label: 'Clube do Chefe' },
+    { value: 'clube', label: 'Club dos Chefes' },
     { value: 'recibo', label: 'Recibos' },
 ];
 
@@ -206,7 +207,7 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
 const CLIENT_FALLBACK_LABEL = 'Cliente não identificado';
 const SOURCE_LABELS: Record<ARSource, string> = {
     comanda: 'Comanda',
-    clube: 'Clube do Chefe',
+    clube: 'Club dos Chefes',
     recibo: 'Recibo',
 };
 const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
@@ -220,7 +221,7 @@ const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }
     },
     clube: {
         title: 'Nenhum recebivel do Clube pendente',
-        description: 'Cobrancas pendentes ou atrasadas do Clube do Chefe aparecerao nesta aba.',
+        description: 'Cobrancas pendentes ou atrasadas do Club dos Chefes aparecerao nesta aba.',
     },
     recibos: {
         title: 'Nenhum recibo pendente',
@@ -311,8 +312,6 @@ const extractClientNameFromTransactionDescription = (description?: string | null
     const clientName = clientMatch?.[1]?.trim();
     return clientName || CLIENT_FALLBACK_LABEL;
 };
-
-const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const AccountsReceivable: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin, user } = useAuth();
@@ -1239,7 +1238,7 @@ const AccountsReceivable: React.FC = () => {
     const tabs: { key: ActiveTab; label: string }[] = [
         { key: 'todos', label: 'Todos' },
         { key: 'comandas', label: 'Comandas' },
-        { key: 'clube', label: 'Clube do Chefe' },
+        { key: 'clube', label: 'Club dos Chefes' },
         { key: 'recibos', label: 'Recibos' },
     ];
 
@@ -1814,7 +1813,7 @@ const AccountsReceivable: React.FC = () => {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Contas a Receber</h2>
-                    <p className="text-slate-500 mt-1">Visão consolidada de valores a receber de comandas, Clube do Chefe e recibos.</p>
+                    <p className="text-slate-500 mt-1">Visão consolidada de valores a receber de comandas, Club dos Chefes e recibos.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -2138,7 +2137,7 @@ const AccountsReceivable: React.FC = () => {
                                 {tabs.find(t => t.key === activeTab)?.label}
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Comandas abertas e baixadas, Clube do Chefe e recibos em {selectedPeriodLabel}.
+                                Comandas abertas e baixadas, Club dos Chefes e recibos em {selectedPeriodLabel}.
                             </p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">

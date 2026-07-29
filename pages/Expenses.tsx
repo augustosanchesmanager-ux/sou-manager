@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
-import { supabase } from '../services/supabaseClient';
+import { transactionRepository } from '../domain/transaction';
 import { useAuth } from '../context/AuthContext';
 import RecurringBillsWidget from '../components/RecurringBillsWidget';
 
@@ -55,26 +55,18 @@ const Expenses: React.FC = () => {
         }
 
         setLoading(true);
-        const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('type', 'expense')
-            .eq('tenant_id', tenantId)
-            .order('date', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching expenses:', error);
-        } else if (data) {
-            // Map table columns to interface columns if necessary
-            // Assuming table has description, category, amount, date, status, type
-            setExpenses(data.map((item: any) => ({
+        try {
+            const data = await transactionRepository.list(tenantId, { type: 'expense' });
+            setExpenses(data.map((item) => ({
                 id: item.id,
-                description: item.description || item.desc || '',
+                description: item.description || '',
                 category: item.category || 'Outros',
-                amount: Number(item.amount || item.val || 0),
+                amount: Number(item.amount || 0),
                 date: item.date || item.created_at || new Date().toISOString(),
-                status: item.status || 'paid', // Default to paid if not specified
+                status: (item.status as 'paid' | 'pending') || 'paid',
             })));
+        } catch (err) {
+            console.error('Error fetching expenses:', err);
         }
         setLoading(false);
     }, [tenantId]);
@@ -115,8 +107,7 @@ const Expenses: React.FC = () => {
             return;
         }
 
-        const payload = {
-            user_id: user.id,
+        const input = {
             description: formData.description,
             category: formData.category,
             amount,
@@ -124,37 +115,21 @@ const Expenses: React.FC = () => {
             status: formData.status,
             type: 'expense',
             payment_method: 'Dinheiro',
-            tenant_id: tenantId
         };
 
-        if (editingExpense) {
-            const { error } = await supabase
-                .from('transactions')
-                .update(payload)
-                .eq('id', editingExpense.id)
-                .eq('tenant_id', tenantId);
-
-            if (error) {
-                console.error('Error updating expense:', error);
-                setToast({ message: 'Erro ao atualizar despesa.', type: 'error' });
-            } else {
+        try {
+            if (editingExpense) {
+                await transactionRepository.update(editingExpense.id, input, tenantId);
                 setToast({ message: 'Despesa atualizada!', type: 'success' });
-                fetchExpenses();
-                setIsModalOpen(false);
-            }
-        } else {
-            const { error } = await supabase
-                .from('transactions')
-                .insert(payload);
-
-            if (error) {
-                console.error('Error creating expense:', error);
-                setToast({ message: 'Erro ao cadastrar despesa.', type: 'error' });
             } else {
+                await transactionRepository.create(input, tenantId);
                 setToast({ message: 'Despesa cadastrada!', type: 'success' });
-                fetchExpenses();
-                setIsModalOpen(false);
             }
+            fetchExpenses();
+            setIsModalOpen(false);
+        } catch (err) {
+            console.error('Error saving expense:', err);
+            setToast({ message: editingExpense ? 'Erro ao atualizar despesa.' : 'Erro ao cadastrar despesa.', type: 'error' });
         }
     };
 
@@ -164,18 +139,13 @@ const Expenses: React.FC = () => {
             return;
         }
 
-        const { error } = await supabase
-            .from('transactions')
-            .delete()
-            .eq('id', id)
-            .eq('tenant_id', tenantId);
-
-        if (error) {
-            console.error('Error deleting expense:', error);
-            setToast({ message: 'Erro ao remover despesa.', type: 'error' });
-        } else {
+        try {
+            await transactionRepository.delete(id, tenantId);
             setToast({ message: 'Despesa removida.', type: 'info' });
             fetchExpenses();
+        } catch (err) {
+            console.error('Error deleting expense:', err);
+            setToast({ message: 'Erro ao remover despesa.', type: 'error' });
         }
     };
 

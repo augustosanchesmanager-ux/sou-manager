@@ -40,17 +40,19 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
         }
         setLoading(true);
         try {
-            // Check if user has services
-            const { count: servicesCount } = await supabase.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
-            const { count: staffCount } = await supabase.from('staff').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
-            const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
-            const { count: aptsCount } = await supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+            // Check all counts in parallel (avoids 4 sequential round-trips)
+            const [servicesRes, staffRes, productsRes, aptsRes] = await Promise.all([
+                supabase.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+                supabase.from('staff').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+                supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+                supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+            ]);
 
             setSteps(prev => prev.map(step => {
-                if (step.id === 'services') return { ...step, completed: (servicesCount || 0) > 0 };
-                if (step.id === 'staff') return { ...step, completed: (staffCount || 0) > 0 };
-                if (step.id === 'products') return { ...step, completed: (productsCount || 0) > 0 };
-                if (step.id === 'appointment') return { ...step, completed: (aptsCount || 0) > 0 };
+                if (step.id === 'services') return { ...step, completed: (servicesRes.count || 0) > 0 };
+                if (step.id === 'staff') return { ...step, completed: (staffRes.count || 0) > 0 };
+                if (step.id === 'products') return { ...step, completed: (productsRes.count || 0) > 0 };
+                if (step.id === 'appointment') return { ...step, completed: (aptsRes.count || 0) > 0 };
                 return step;
             }));
         } catch (error) {

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { getClientForTable, requireTenantContext, supabase } from '../../../../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
-import { logSupabaseError } from '../../../../src/lib/supabase/errors';
+import { logSupabaseError } from '../../../../domain/shared/errors';
 import type {
   BusyState,
   DashboardClient,

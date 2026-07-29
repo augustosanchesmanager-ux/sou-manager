@@ -1,4 +1,6 @@
 import React from 'react';
+import { formatCurrency } from '../../shared/format/currency';
+import { appointmentStatusMeta } from '../../shared/status/appointment';
 
 interface AppointmentPoint {
   id: string;
@@ -16,11 +18,11 @@ interface AppointmentTimelineProps {
   maxItems?: number;
 }
 
-const STATUS_CONFIG = {
-  completed: { icon: 'task_alt', bg: 'bg-emerald-500', text: 'text-emerald-500', label: 'Concluído' },
-  cancelled: { icon: 'cancel', bg: 'bg-rose-500', text: 'text-rose-500', label: 'Cancelado' },
-  no_show: { icon: 'person_off', bg: 'bg-[#B88A44]', text: 'text-[#B88A44]', label: 'Faltou' },
-  pending: { icon: 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: 'Pendente' },
+const STATUS_CONFIG: Record<string, { icon: string; bg: string; text: string; label: string }> = {
+  completed: { icon: appointmentStatusMeta.completed.icon || 'task_alt', bg: 'bg-emerald-500', text: 'text-emerald-500', label: appointmentStatusMeta.completed.label || 'Concluído' },
+  cancelled: { icon: appointmentStatusMeta.cancelled.icon || 'cancel', bg: 'bg-rose-500', text: 'text-rose-500', label: appointmentStatusMeta.cancelled.label || 'Cancelado' },
+  no_show: { icon: appointmentStatusMeta.no_show.icon || 'person_off', bg: 'bg-[#B88A44]', text: 'text-[#B88A44]', label: 'Faltou' },
+  pending: { icon: appointmentStatusMeta.pending.icon || 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: appointmentStatusMeta.pending.label || 'Pendente' },
 };
 
 export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
@@ -28,14 +30,6 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
   title = 'Linha do Tempo',
   maxItems = 10,
 }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR', {

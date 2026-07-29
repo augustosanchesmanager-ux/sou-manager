@@ -7,7 +7,7 @@ import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { isAppModuleEnabled } from '../src/lib/apps/modules';
-import type { AppModuleSlug } from '../src/lib/supabase/schemas';
+import type { AppModuleSlug } from '../domain/shared/app';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -331,6 +331,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       items: [
         { name: 'Administração Geral', icon: 'shield_person', path: '/superadmin' },
         { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
+        { name: 'Event Versioning', icon: 'schema', path: '/event-versioning' },
       ]
     });
   }

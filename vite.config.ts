@@ -6,6 +6,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
+    test: {
+      exclude: ['tests/e2e/**', 'node_modules/**', '.opencode/**'],
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
@@ -50,6 +53,10 @@ export default defineConfig(({ mode }) => {
 
             if (id.includes('papaparse')) {
               return 'vendor-data';
+            }
+
+            if (id.includes('jspdf')) {
+              return 'vendor-pdf';
             }
 
             if (id.includes('react-dom') || id.includes('/react/')) {

@@ -18,7 +18,7 @@ Premium, inteligente e acolhedora. A marca SMG deve transmitir tecnologia, preci
 
 ## Anti-references
 
-Nao parecer um ERP generico, burocratico ou frio. Nao parecer um SaaS generico com dashboard indiferenciado, excesso de roxo/azul padrao, cards repetidos e metricas decorativas. Nao usar dados fake quando ja houver dados reais ou caminhos reais de consulta. Nao diluir o Clube do Chefe em um produto separado: dentro deste app, ele e um modulo recorrente do Barber. Nao sacrificar clareza operacional por efeitos visuais de marketing.
+Nao parecer um ERP generico, burocratico ou frio. Nao parecer um SaaS generico com dashboard indiferenciado, excesso de roxo/azul padrao, cards repetidos e metricas decorativas. Nao usar dados fake quando ja houver dados reais ou caminhos reais de consulta. Nao diluir o Club dos Chefes em um produto separado: dentro deste app, ele e um modulo recorrente do Barber. Nao sacrificar clareza operacional por efeitos visuais de marketing.
 
 ## Design Principles
 

@@ -255,7 +255,7 @@ const StrategicDashboard: React.FC = () => {
           <div className="rounded-2xl border border-[#D9EAF5] bg-white p-6 text-center shadow-2xl dark:border-[#14304A] dark:bg-card-dark">
             <div className="mx-auto size-9 animate-spin rounded-full border-4 border-[#00D2FF]/30 border-t-[#007BFF]" />
             <p className="mt-3 text-sm font-bold text-[#003366] dark:text-white">Carregando dados reais...</p>
-            <p className="mt-1 text-xs text-slate-500">Financeiro, agenda, equipe e Clube do Chefe.</p>
+            <p className="mt-1 text-xs text-slate-500">Financeiro, agenda, equipe e Club dos Chefes.</p>
           </div>
         </div>
       )}

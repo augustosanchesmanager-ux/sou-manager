@@ -1,0 +1,53 @@
+/**
+ * [SMG][DOMAIN][COMANDA] types
+ *
+ * Tipos centrais do domínio de comandas.
+ */
+
+export interface Comanda {
+  id: string;
+  tenant_id: string;
+  client_id: string | null;
+  client_name: string | null;
+  appointment_id: string | null;
+  staff_id: string | null;
+  status: string;
+  total: number;
+  paid_amount: number;
+  payment_method: string | null;
+  notes: string | null;
+  created_at: string;
+  closed_at: string | null;
+}
+
+export interface ComandaItem {
+  id: string;
+  comanda_id: string;
+  service_id: string | null;
+  name: string;
+  type: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  staff_id: string | null;
+  created_at: string;
+}
+
+export interface UpdateComandaInput {
+  status?: string;
+  total?: number;
+  paid_amount?: number;
+  payment_method?: string | null;
+  notes?: string | null;
+  staff_id?: string | null;
+  closed_at?: string | null;
+}
+
+export interface ComandaListOptions {
+  staffId?: string;
+  status?: string;
+  clientId?: string;
+  appointmentId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}

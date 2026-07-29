@@ -1,6 +1,7 @@
 import React from 'react';
 import Modal from '../../../../components/ui/Modal';
 import type { DashboardAppointment } from '../types';
+import { getAppointmentStatusMeta } from '../../../../shared/status/appointment';
 
 interface AppointmentDetailModalProps {
   appointment: DashboardAppointment | null;
@@ -18,28 +19,14 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   <Modal isOpen={isOpen} onClose={onClose} title="Resumo do Atendimento" maxWidth="md">
     {appointment && (() => {
       const startDate = new Date(appointment.start_time);
-      const statusLabels: Record<string, string> = {
-        confirmed: 'Confirmado',
-        pending: 'Pendente',
-        completed: 'Concluido',
-      };
-      const statusBgColors: Record<string, string> = {
-        confirmed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-        pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-        completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      };
-      const statusIcons: Record<string, string> = {
-        confirmed: 'check_circle',
-        pending: 'schedule',
-        completed: 'task_alt',
-      };
+      const meta = getAppointmentStatusMeta(appointment.status, false);
 
       return (
         <div className="space-y-5">
           <div className="flex justify-center">
-            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${statusBgColors[appointment.status] || 'bg-slate-100 text-slate-700'}`}>
-              <span className="material-symbols-outlined text-base">{statusIcons[appointment.status] || 'info'}</span>
-              {statusLabels[appointment.status] || appointment.status}
+            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold ${meta.badge || 'bg-slate-100 text-slate-700'}`}>
+              <span className="material-symbols-outlined text-base">{meta.icon || 'info'}</span>
+              {meta.label || appointment.status}
             </span>
           </div>
 

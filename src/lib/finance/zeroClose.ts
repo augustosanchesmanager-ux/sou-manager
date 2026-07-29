@@ -30,7 +30,7 @@ const ZERO_CLOSE_ERROR_MESSAGE =
   'Fechamento zero exige origem auditavel. Nenhuma baixa foi aplicada.';
 
 const ZERO_CLOSE_ORIGIN_LABELS: Record<ZeroCloseOrigin, string> = {
-  club_credit: 'Crédito do Clube do Chefe',
+  club_credit: 'Crédito do Club dos Chefes',
   house_courtesy: 'Cortesia da casa',
   administrative_adjustment: 'Baixa administrativa',
 };
@@ -122,7 +122,7 @@ export const closeZeroAmountComanda = async ({
         p_comanda_ids: [comandaId],
         p_tenant_id: tenantId,
         p_closure_note: auditNote,
-        p_payment_method: 'Clube do Chefe',
+        p_payment_method: 'Club dos Chefes',
         p_apply_credits: true,
       }
     : {

@@ -82,6 +82,7 @@ const Dashboard: React.FC = () => {
   const [newClientForm, setNewClientForm] = useState<NewClientFormState>({ name: '', phone: '', email: '' });
   const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (error) {
@@ -148,22 +149,30 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCancelAppointment = async (id: string) => {
+    if (processingId) return;
+    setProcessingId(id);
     try {
       await cancelAppointment(id);
       setToast({ message: 'Agendamento cancelado.', type: 'info' });
       await reload();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao cancelar agendamento.', type: 'error' });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleCompleteAppointment = async (id: string) => {
+    if (processingId) return;
+    setProcessingId(id);
     try {
       await completeAppointment(id);
       setToast({ message: 'Agendamento concluído!', type: 'success' });
       await reload();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao concluir agendamento.', type: 'error' });
+    } finally {
+      setProcessingId(null);
     }
   };
 

@@ -196,7 +196,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-medium leading-5 text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
           {isEsteticaApp
             ? 'Cadastros alimentam agenda, atendimentos e retornos.'
-            : 'Cadastros alimentam agenda, comanda, retorno inteligente e Clube do Chefe.'}
+            : 'Cadastros alimentam agenda, comanda, retorno inteligente e Club dos Chefes.'}
         </div>
 
         <WidgetLink to="/clients">Ver {clientPluralLabel.toLowerCase()}</WidgetLink>

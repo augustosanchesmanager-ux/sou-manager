@@ -20,7 +20,7 @@ Esta fase não aplica migration, não altera schema remoto, não cria RPC e não
   - Ajustes futuros: cancelamento de cobrança, forma de pagamento, reclassificação e revisão.
 - `pages/CashClosingPage.tsx`
   - Ajustes futuros: divergência de caixa, reclassificação, estorno, data/forma de pagamento e revisão.
-- Clube do Chefe
+- Club dos Chefes
   - Apenas mapeado para fase futura. Esta entrega não altera fluxo do Clube.
 
 ## Tipos de ajuste preparados
@@ -120,4 +120,4 @@ Barbeiro e recepção não solicitam ajuste financeiro nesta camada.
 - Sem RPC transacional, qualquer alteração real poderia ficar parcialmente aplicada.
 - `staff.role` legado ainda limita separação fina entre gerente operacional e administrativo.
 - Relatórios podem divergir até existir fonte financeira central.
-- O Clube do Chefe precisa de fase própria para cancelamento auditável e cliente duplicado.
+- O Club dos Chefes precisa de fase própria para cancelamento auditável e cliente duplicado.

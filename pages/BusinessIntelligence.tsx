@@ -9,6 +9,7 @@ import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
 import { RevenueAreaChart, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
 import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
+import { formatCurrency } from '../shared/format/currency';
 
 const COLORS = ['#007BFF', '#00D2FF', '#10B981', '#B88A44', '#EF4444', '#14B8A6', '#64748B', '#003366'];
 
@@ -19,9 +20,6 @@ const periodLabels = {
     '90d': '90 Dias',
     custom: 'Personalizado'
 };
-
-const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
 
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();

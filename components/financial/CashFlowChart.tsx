@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface CashFlowChartProps {
   title: string;
@@ -18,9 +19,6 @@ interface CashFlowChartProps {
   variant: 'bar' | 'area';
   data: Array<{ label: string; entradas: number; saidas: number; saldo: number }>;
 }
-
-const formatCurrency = (value: number) =>
-  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const CashFlowChart: React.FC<CashFlowChartProps> = ({ title, subtitle, data, variant }) => {
   return (

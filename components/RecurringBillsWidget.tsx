@@ -3,9 +3,7 @@ import { useRecurringBills, BILL_CATEGORIES } from '../src/hooks/useRecurringBil
 import type { RecurringBill } from '../src/hooks/useRecurringBills';
 import Modal from './ui/Modal';
 import Toast from './Toast';
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(value);
+import { formatCurrency } from '../shared/format/currency';
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);

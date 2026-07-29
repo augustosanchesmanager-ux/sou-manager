@@ -50,8 +50,8 @@ Atualizado em: 09/03/2026
 - `Portal Admin` (`/portal-admin`): administracao de addons do portal.
 
 ### 1.8 Modulos de plano/assinatura
-- `Chef Club Plans` (`/chef-club-plans`): gerenciamento de planos.
-- `Chef Club Subscriptions` (`/chef-club-subscriptions`): acompanhamento de assinaturas ativas/inativas.
+- `Club dos Chefes Plans` (`/chef-club-plans`): gerenciamento de planos.
+- `Club dos Chefes Subscriptions` (`/chef-club-subscriptions`): acompanhamento de assinaturas ativas/inativas.
 
 ## 2) Funcoes em ajuste
 

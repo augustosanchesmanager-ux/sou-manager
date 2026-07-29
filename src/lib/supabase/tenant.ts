@@ -18,12 +18,22 @@ export type TenantRole =
   | 'staff'
   | 'unknown';
 
+export type TenantStatus =
+  | 'draft'
+  | 'trial'
+  | 'active'
+  | 'past_due'
+  | 'suspended'
+  | 'cancelled'
+  | 'archived';
+
 export interface TenantRecord {
   id: string;
   name: string;
   slug: string | null;
   app_slug: AppSlug;
-  active: boolean | null;
+  plan: 'free' | 'pro' | 'elite';
+  status: TenantStatus;
   created_at?: string | null;
 }
 
@@ -96,7 +106,7 @@ const fetchTenantsByIds = async (tenantIds: string[]): Promise<Record<string, Te
 
   const { data, error } = await getSharedClient()
     .from('tenants')
-    .select('id, name, slug, app_slug, active, created_at')
+    .select('id, name, slug, app_slug, plan, status, created_at')
     .in('id', tenantIds);
 
   if (error) {
@@ -109,7 +119,8 @@ const fetchTenantsByIds = async (tenantIds: string[]): Promise<Record<string, Te
       name: tenant.name,
       slug: tenant.slug ?? null,
       app_slug: isAppSlug(tenant.app_slug) ? tenant.app_slug : DEFAULT_APP_SLUG,
-      active: tenant.active ?? null,
+      plan: (tenant.plan as TenantRecord['plan']) ?? 'free',
+      status: (tenant.status as TenantStatus) ?? 'draft',
       created_at: tenant.created_at ?? null,
     };
     return acc;

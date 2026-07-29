@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface StrategicKPICardsProps {
   revenue: number;
@@ -11,9 +12,6 @@ interface StrategicKPICardsProps {
   appointmentCount: number;
   onKpiClick?: (kpi: string) => void;
 }
-
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
 const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 const getTrendTone = (value: number) => {

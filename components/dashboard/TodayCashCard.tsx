@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface TodayCashCardProps {
   loading?: boolean;
@@ -16,13 +17,6 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   week: 'esta semana',
   month: 'este mês',
 };
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  }).format(value);
 
 export const TodayCashCard: React.FC<TodayCashCardProps> = ({ loading, income, expenses, net, period }) => {
   if (loading) {

@@ -11,6 +11,7 @@ import { supabase } from '../services/supabaseClient';
 import { useAppOptional } from '../src/context/AppContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/supabase/tenant';
+import { AuthSessionContext } from '../src/context/authContextBase';
 
 export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
 
@@ -222,22 +223,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider
-            value={{
-                session,
-                user,
-                resolvedTenantId,
-                accessRole,
-                canAccessSuperAdmin,
-                isSuperAdmin: canAccessSuperAdmin,
-                profileStatus,
-                authError,
-                loading,
-                signOut,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
+        <AuthSessionContext.Provider value={{ session, user }}>
+            <AuthContext.Provider
+                value={{
+                    session,
+                    user,
+                    resolvedTenantId,
+                    accessRole,
+                    canAccessSuperAdmin,
+                    isSuperAdmin: canAccessSuperAdmin,
+                    profileStatus,
+                    authError,
+                    loading,
+                    signOut,
+                }}
+            >
+                {children}
+            </AuthContext.Provider>
+        </AuthSessionContext.Provider>
     );
 };
 

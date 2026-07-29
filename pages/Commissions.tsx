@@ -6,7 +6,18 @@ import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
-import { getEffectiveCommissionRate, receivesCommission } from '../src/lib/staff/roles';
+import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
+import { normalizePercentage } from '../shared/numbers/normalize';
+import { calculateParticipantBaseValue, resolveCommissionBase, isCommissionEligible } from '../domain/commission/calculate';
+import { formatParticipantPayout } from '../domain/commission/format';
+import type { ParticipantRow as DomainParticipantRow, CommissionBaseChoice as DomainCommissionBaseChoice } from '../domain/commission/types';
+import {
+  commissionStatusLabels,
+  getCommissionStatus,
+  getCommissionPaymentLabel,
+  isCommissionStatusFilter,
+} from '../shared/status/commission';
+import type { CommissionStatusFilter } from '../shared/status/commission';
 
 interface StaffMember {
     id: string;
@@ -41,20 +52,10 @@ interface AppointmentRow {
     start_time?: string | null;
 }
 
-interface ParticipantRow {
-    comanda_item_id: string;
-    staff_id?: string | null;
-    role: string | null;
-    payout_type: 'percentage' | 'fixed' | string | null;
-    payout_value: number | null;
-    affects_commission?: boolean | null;
-}
-
-interface CommissionBaseChoice {
-    value: number;
-    field: string;
-    reason: string;
-}
+// ParticipantRow from domain/commission/types.ts
+// Local alias for backward compatibility with existing code
+type ParticipantRow = DomainParticipantRow;
+type CommissionBaseChoice = DomainCommissionBaseChoice;
 
 interface CommissionAuditLine {
     comanda_id: string;
@@ -102,7 +103,6 @@ interface CommissionAuditLine {
 
 type ProductionDateSource = 'appointment_start' | 'comanda_closed_at' | 'comanda_created_at';
 type CommissionTypeFilter = 'all' | 'solo' | 'shared';
-type CommissionStatusFilter = 'all' | 'confirmed' | 'pending' | 'cancelled';
 
 interface CommissionLine {
     id: string;
@@ -159,17 +159,7 @@ interface CommissionRow {
     items: CommissionLine[];
 }
 
-const normalizeRate = (value: number | null | undefined) => {
-    const numeric = Number(value || 0);
-    if (!Number.isFinite(numeric)) return 0;
-    return numeric > 1 ? numeric / 100 : numeric;
-};
-
-const normalizePercentage = (value: number | null | undefined) => {
-    const numeric = Number(value || 0);
-    if (!Number.isFinite(numeric)) return 0;
-    return numeric > 1 ? numeric / 100 : numeric;
-};
+const normalizeRate = normalizePercentage;
 
 const toNumber = (value: unknown, fallback = 0) => {
     const numeric = Number(value);
@@ -200,17 +190,11 @@ const normalizeClientName = (value?: string | null) => {
 };
 
 const formatSavedPayout = (participant: ParticipantRow, staffName: string) => {
-    if (participant.payout_type === 'fixed') {
-        return `${staffName} ${formatMoneyLabel(toNumber(participant.payout_value))}`;
-    }
-    const percent = normalizePercentage(participant.payout_value) * 100;
-    const formattedPercent = percent.toFixed(2).replace('.', ',').replace(/,00$/, '');
-    return `${staffName} ${formattedPercent}%`;
+    return formatParticipantPayout(participant, staffName);
 };
 
 const getParticipantBaseValue = (itemValue: number, participant: ParticipantRow) => {
-    if (participant.payout_type === 'fixed') return toNumber(participant.payout_value);
-    return itemValue * normalizePercentage(participant.payout_value);
+    return calculateParticipantBaseValue(itemValue, participant);
 };
 
 const getQuantity = (item: any) => {
@@ -219,33 +203,7 @@ const getQuantity = (item: any) => {
 };
 
 const getCommissionBaseChoice = (item: any): CommissionBaseChoice => {
-    if (item.unit_price !== null && item.unit_price !== undefined && item.unit_price !== '') {
-        return {
-            value: toNumber(item.unit_price),
-            field: 'unit_price',
-            reason: 'Checkout salva comanda_items.unit_price = item.price, que é o preço final do serviço no carrinho; serviços entram com quantity 1 nesse fluxo.',
-        };
-    }
-    if (item.price !== null && item.price !== undefined && item.price !== '') {
-        return {
-            value: toNumber(item.price),
-            field: 'price',
-            reason: 'Fallback: campo unit_price ausente; usando price por representar preço salvo do item quando existir.',
-        };
-    }
-    if (item.amount !== null && item.amount !== undefined && item.amount !== '') {
-        return {
-            value: toNumber(item.amount),
-            field: 'amount',
-            reason: 'Fallback: unit_price/price ausentes; usando amount persistido do item.',
-        };
-    }
-    const quantity = getQuantity(item);
-    return {
-        value: toNumber(item.unit_price) * quantity,
-        field: 'unit_price * quantity',
-        reason: 'Fallback final: nenhum campo de preço final do item estava disponível.',
-    };
+    return resolveCommissionBase(item);
 };
 
 const getComandaItemValue = (item: any) => {
@@ -284,21 +242,9 @@ const isServiceItem = (item: any) => {
     return Boolean(item.service_id) || type === 'service' || type === 'servico' || type === 'serviço';
 };
 
-const getCommissionStatus = (status: ComandaStatus) => {
-    if (status === 'paid') return 'Confirmada';
-    if (status === 'cancelled') return 'Cancelada';
-    return 'Pendente';
-};
-
-const getPaymentStatus = (status: ComandaStatus) => {
-    if (status === 'paid') return 'Pago';
-    if (status === 'cancelled') return 'Cancelado';
-    return 'Pendente';
-};
-
 const getPaymentMethodLabel = (comanda: ComandaRow) => {
     if (comanda.closure_mode === 'legacy_membership' || comanda.financial_effect === false) {
-        return 'Clube do Chefe';
+        return 'Club dos Chefes';
     }
     const method = String(comanda.payment_method || '').toLowerCase();
     if (method === 'credit') return 'Crédito';
@@ -319,8 +265,10 @@ const formatParticipationRole = (role?: string | null) => {
 const getParticipantStaffId = (participant: ParticipantRow) => participant.staff_id || '';
 
 const buildSoloParticipant = (comandaItemId: string, staffId?: string | null): ParticipantRow => ({
+    id: `solo-${comandaItemId}`,
     comanda_item_id: comandaItemId,
     staff_id: staffId || null,
+    professional_id: staffId || null,
     role: 'primary',
     payout_type: 'percentage',
     payout_value: 100,
@@ -370,10 +318,10 @@ const normalizeCommissionParticipants = (
     staffById: Record<string, StaffMember>,
 ) => {
     const mainStaffId = item.staff_id || comanda.staff_id || null;
-    const mainStaffReceivesCommission = mainStaffId ? receivesCommission(staffById[mainStaffId]) : false;
+    const mainStaffReceivesCommission = mainStaffId ? isCommissionEligible(staffById[mainStaffId]) : false;
     const commissionableByStaffId = participants.reduce((acc, participant) => {
         const staffId = getParticipantStaffId(participant);
-        if (!staffId || !receivesCommission(staffById[staffId])) {
+        if (!staffId || !isCommissionEligible(staffById[staffId])) {
             return acc;
         }
         if (!acc.has(staffId)) acc.set(staffId, participant);
@@ -449,9 +397,7 @@ const normalizeCommissionParticipants = (
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
-    if (line.comandaStatus === 'paid') return 'confirmed';
-    if (line.comandaStatus === 'cancelled') return 'cancelled';
-    return 'pending';
+    return getCommissionStatus(line.comandaStatus);
 };
 
 const Commissions: React.FC = () => {
@@ -620,7 +566,7 @@ const Commissions: React.FC = () => {
                 .flatMap((participant): CommissionLine[] => {
                     const staffId = getParticipantStaffId(participant);
                     const staff = staffById[staffId];
-                    if (!receivesCommission(staff)) return [];
+                    if (!isCommissionEligible(staff)) return [];
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
                         : null;
@@ -672,8 +618,8 @@ const Commissions: React.FC = () => {
                         isShared,
                         participantNames,
                         comandaStatus: comanda.status,
-                        paymentStatus: getPaymentStatus(comanda.status),
-                        commissionStatus: getCommissionStatus(comanda.status),
+                        paymentStatus: getCommissionPaymentLabel(comanda.status),
+                        commissionStatus: commissionStatusLabels[getCommissionStatus(comanda.status)],
                         paymentMethod: getPaymentMethodLabel(comanda),
                         dateSource,
                         discountAmount,
@@ -681,7 +627,7 @@ const Commissions: React.FC = () => {
                             comanda_id: comanda.id,
                             client_name: clientName,
                             comanda_status: comanda.status,
-                            payment_status: getPaymentStatus(comanda.status),
+                            payment_status: getCommissionPaymentLabel(comanda.status),
                             payment_method: getPaymentMethodLabel(comanda),
                             comanda_total: toNumber(comanda.total),
                             comanda_paid_amount: comanda.status === 'paid'

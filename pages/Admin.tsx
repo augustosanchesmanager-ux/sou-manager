@@ -95,13 +95,33 @@ const Admin: React.FC = () => {
             .select('id, tenant_id, onboarding_completed, created_at, tenants(plan)')
             .order('created_at', { ascending: false });
 
-        // Enrich with auth user data via user_metadata if available
-        // We also join with staff count per tenant
-        const enriched = await Promise.all((data || []).map(async (p: any) => {
+        const profiles = data || [];
+        const tenantIds = [...new Set(profiles.map((p: any) => p.tenant_id).filter(Boolean))];
+
+        // Bulk fetch staff counts and transaction revenue (avoids N+1)
+        const [staffCountsRes, txRevenueRes] = await Promise.all([
+            tenantIds.length > 0
+                ? supabase.from('staff').select('tenant_id').in('tenant_id', tenantIds)
+                : Promise.resolve({ data: [] as any[] }),
+            tenantIds.length > 0
+                ? supabase.from('transactions').select('tenant_id, amount').in('tenant_id', tenantIds).eq('type', 'income')
+                : Promise.resolve({ data: [] as any[] }),
+        ]);
+
+        // Build lookup maps
+        const staffCountByTenant: Record<string, number> = {};
+        (staffCountsRes.data || []).forEach((s: any) => {
+            staffCountByTenant[s.tenant_id] = (staffCountByTenant[s.tenant_id] || 0) + 1;
+        });
+
+        const revenueByTenant: Record<string, number> = {};
+        (txRevenueRes.data || []).forEach((t: any) => {
+            revenueByTenant[t.tenant_id] = (revenueByTenant[t.tenant_id] || 0) + (Number(t.amount) || 0);
+        });
+
+        // Enrich with auth user data (still per-user for admin API, but no extra DB queries)
+        const enriched = await Promise.all(profiles.map(async (p: any) => {
             const { data: authUser } = await supabase.auth.admin?.getUserById?.(p.id) || { data: null };
-            const { count: staffCount } = await supabase.from('staff').select('id', { count: 'exact', head: true }).eq('tenant_id', p.tenant_id);
-            const { data: txData } = await supabase.from('transactions').select('amount').eq('tenant_id', p.tenant_id).eq('type', 'income');
-            const revenue = (txData || []).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
 
             return {
                 ...p,
@@ -109,8 +129,8 @@ const Admin: React.FC = () => {
                 name: authUser?.user?.user_metadata?.shop_name || authUser?.user?.user_metadata?.first_name || 'Barbearia',
                 owner: `${authUser?.user?.user_metadata?.first_name || ''} ${authUser?.user?.user_metadata?.last_name || ''}`.trim() || 'Proprietário',
                 plan: (p as any).tenants?.plan || authUser?.user?.user_metadata?.plan || 'free',
-                staff: staffCount || 0,
-                revenue,
+                staff: staffCountByTenant[p.tenant_id] || 0,
+                revenue: revenueByTenant[p.tenant_id] || 0,
                 last: authUser?.user?.last_sign_in_at
                     ? new Date(authUser.user.last_sign_in_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
                     : 'Nunca',
