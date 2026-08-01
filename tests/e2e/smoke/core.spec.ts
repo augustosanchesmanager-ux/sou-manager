@@ -14,10 +14,8 @@ import { CommissionsPage } from '../pages/CommissionsPage';
  *
  * All routes use HashRouter: /#/path
  * Login credentials (demo mode): teste@soumanager.local / 12345678
- *
- * @smoke
  */
-test.describe('Smoke — Core Functionality', () => {
+test.describe('Smoke — Core Functionality', { tag: '@smoke' }, () => {
   test('01 — Login page loads', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();

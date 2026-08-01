@@ -1089,7 +1089,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ⬜ Não iniciada.
+**Status:** ✅ Em andamento — Fase 6.0.1 concluída e aprovada pelo PO (2026-08-01).
 
 **Critérios de Entrada:**
 - Fase 5 (Business Architecture) concluída
@@ -1103,11 +1103,41 @@ Para cada item:
 
 **Justificativa:** Primeiro implementamos o núcleo do SaaS. Depois garantimos qualidade, infraestrutura e produção. Essa sequência reduz retrabalho e torna os testes e a observabilidade mais próximos do comportamento real da plataforma.
 
-- [ ] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding
+- [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO
 - [ ] **6.0.2** Provisioning Engine — Criação automática da estrutura inicial (unidade, owner, configurações)
 - [ ] **6.0.3** Tenant Lifecycle — Migration `tenants.status` (enum 7 estados), transições, verificação em `ProtectedRoute`
 - [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
 - [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
+
+#### 6.0.1 Tenant Creation ✅ APROVADA PELO PO (2026-08-01)
+
+**Certificação oficial:**
+
+```
+STATUS:
+Phase 6.0.1 — COMPLETED
+
+Certification:
+APPROVED BY PO
+
+Build:
+PASS
+
+Tests:
+PASS
+
+Architecture:
+APPROVED
+
+Ready for:
+Phase 6.0.2 — Provisioning Engine
+```
+
+**Pendências registradas pelo PO (prioridade):**
+- 🔴 Alta — Aplicar a Migration #91 (`20260801000000_phase_6_0_1_provisioning.sql`) em ambiente real
+- 🔴 Alta — E2E real do fluxo: Register → Email → Provision → Onboarding → Dashboard → Logout → Login → Dashboard
+- 🟡 Média — Consertar o runner de Smoke (`test:e2e:smoke`)
+- 🟢 Baixa — 127 erros TS pré-existentes (futura fase "TypeScript Strict Cleanup")
 
 ### 6.1 CI/CD
 
