@@ -27,10 +27,16 @@ interface Tenant {
 ```
 Tenant 1──1 TenantSettings
 Tenant 1──N Profile (users)
+Tenant 1──N UserTenants (memberships)
 Tenant 1──N Staff (employees)
 Tenant 1──1 Subscription (current plan)
 Tenant 1──N AuditLog
 ```
+
+> **Provisionamento (Fase 6.0.1):** `provision_new_tenant` cria tenant + profile
+> (owner/manager) + `user_tenants` (role `manager`, `is_primary=true`) +
+> skeleton de `tenant_settings`. O staff inicial é criado pelo trigger
+> `handle_new_manager_profile` ao inserir o profile.
 
 ### 1.2 TenantSettings
 
@@ -102,3 +108,4 @@ Ver máquina de estados completa em `LIFECYCLE_MODEL.md`.
 |-----------|-------------|
 | MIG #8 (`20260724000000`) | `tenants.plan` |
 | MIG #10 (`20260728000000`) | `tenants.status`, `tenants.app_slug`, `tenant_settings`, ENUM, RPCs |
+| MIG #11 (`20260801000000`) | Fase 6.0.1: `user_tenants` + `tenant_settings` no provisionamento; colunas `timezone`/`currency` |

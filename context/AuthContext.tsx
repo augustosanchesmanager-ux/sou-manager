@@ -26,6 +26,7 @@ interface AuthSessionContextType {
     authError: string | null;
     loading: boolean;
     signOut: () => Promise<void>;
+    refreshAccessContext: () => Promise<void>;
 }
 
 export interface AuthContextType {
@@ -48,6 +49,7 @@ export interface AuthContextType {
     schema: SupabaseSchemaName;
     signOut: () => Promise<void>;
     refreshTenant: () => Promise<void>;
+    refreshAccessContext: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthSessionContextType | undefined>(undefined);
@@ -222,6 +224,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut();
     };
 
+    // Re-resolve o contexto de acesso para o usuário atual.
+    // Usado após o provisionamento do tenant (ex: fluxo de registro) para
+    // garantir que resolvedTenantId/accessRole/profileStatus estejam frescos
+    // antes da navegação — evita o authError sintético "tenant não identificado".
+    const refreshAccessContext = async (): Promise<void> => {
+        if (!user) return;
+        try {
+            const authContext = await fetchAccessContext(user.id);
+            setResolvedTenantId(authContext.tenantId);
+            setAccessRole(authContext.accessRole);
+            setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
+            setProfileStatus(authContext.profileStatus);
+        } catch (err) {
+            console.error('Failed to refresh auth session context:', err);
+        }
+    };
+
     return (
         <AuthSessionContext.Provider value={{ session, user }}>
             <AuthContext.Provider
@@ -236,6 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     authError,
                     loading,
                     signOut,
+                    refreshAccessContext,
                 }}
             >
                 {children}
@@ -296,5 +316,6 @@ export const useAuth = (): AuthContextType => {
         schema,
         signOut: authSessionContext.signOut,
         refreshTenant: tenantContext?.refreshTenant ?? (async () => {}),
+        refreshAccessContext: authSessionContext.refreshAccessContext,
     };
 };

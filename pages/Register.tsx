@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
 import { tenantProvisioningService } from '../application/tenantProvisioning';
+import { useAuth } from '../context/AuthContext';
 
 const Register: React.FC = () => {
     const navigate = useNavigate();
+    const { refreshAccessContext, refreshTenant } = useAuth();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [shopName, setShopName] = useState('');
@@ -45,6 +47,11 @@ const Register: React.FC = () => {
                 firstName,
                 lastName,
             });
+
+            // Re-resolve contextos após o provisionamento — o onAuthStateChange
+            // original pode ter lido profiles antes do RPC criar o tenant.
+            await refreshAccessContext();
+            await refreshTenant();
 
             navigate('/onboarding/shop-setup');
         } catch (err: any) {

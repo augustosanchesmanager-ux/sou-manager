@@ -21,9 +21,11 @@ Role Selection (manager | barber | receptionist)
 Tenant Creation (provision_new_tenant RPC)
      │
      ├── tenants row (status = 'draft', plan = 'free')
-     ├── profiles row (role, status = 'active')
-     ├── staff row (auto-inserted by trigger)
-     └── event: TenantCreated
+     ├── profiles row (role = 'manager', status = 'active')   ← owner
+     ├── user_tenants row (role = 'manager', is_primary = true)
+     ├── tenant_settings row (skeleton — valores no Shop Setup)
+     ├── staff row (auto-inserted by trigger handle_new_manager_profile)
+     └── event: TenantCreated (somente tenant novo; ver TenantProvisioningService)
      │
      ▼
 Shop Setup (complete_onboarding RPC)
@@ -152,8 +154,9 @@ Estado atual armazenado em `profiles.onboarding_completed` (boolean).
 | `p_user_id` | Deve ser `auth.uid()` (security definer) |
 | `p_tenant_name` | Obrigatório, máx 100 chars |
 | `p_app_slug` | DEFAULT 'barber' |
-| `tenant_settings.tenant_id` | UNIQUE (só um settings por tenant) |
-| E-mail | Confirmação obrigatória antes de criar tenant |
+| `user_tenants` | Inserido como `manager`/`is_primary=true` no provisionamento |
+| `tenant_settings.tenant_id` | UNIQUE (só um settings por tenant); skeleton criado no provision |
+| E-mail | Confirmação obrigatória antes de criar tenant (futuro — F9) |
 
 ---
 

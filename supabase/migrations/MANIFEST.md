@@ -134,6 +134,7 @@
 | 88 | `20260723100000_event_store.sql` | 🟣 Event | SAFE | Automático | event_store table (append-only, RLS) |
 | 89 | `20260723110000_processed_operations.sql` | 🟣 Event | SAFE | Automático | processed_operations table (idempotency) |
 | 90 | `20260724000000_add_plan_to_tenants.sql` | 🔵 Schema | SAFE | Automático | Add plan column to tenants (4.7.3 fix) |
+| 91 | `20260801000000_phase_6_0_1_provisioning.sql` | 🔵 Schema | SAFE | Automático | Fase 6.0.1: provision_new_tenant cria user_tenants + tenant_settings; colunas timezone/currency |
 
 ### Não-Timestamped
 
@@ -220,6 +221,7 @@
 | `20260506214059` | `20260420120001` (RPC v1) | Consolidação | ✅ OK |
 | `20260723000000` | `20260227223434` (get_current_tenant_id) | Substitui por Gen 4 | ✅ OK |
 | `20260723110000` | PostgreSQL 13+ (gen_random_uuid) | Built-in | ✅ OK |
+| `20260801000000` | `20260728000000` (RPC provision_new_tenant) | Fase 6.0.1 | ✅ OK |
 
 ---
 

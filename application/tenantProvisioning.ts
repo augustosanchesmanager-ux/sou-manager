@@ -3,14 +3,16 @@
  *
  * RESPONSABILIDADE: Orquestra o provisioning completo de um novo tenant.
  *   - O Application Service É o responsável pelas decisões de negócio
- *   - A RPC faz apenas trabalho transacional (inserir tenant + profile)
+ *   - A RPC faz apenas trabalho transacional
+ *     (tenant + profile + user_tenants + tenant_settings skeleton + staff via trigger)
  *   - Quem decide criar tenant, publicar evento, iniciar onboarding, criar defaults
  *     é o Application Service
  *
  * NÃO FAZ:
  *   - Renderização de UI
  *   - Onboarding (CompleteOnboardingService)
- *   - Criação de settings (CompleteOnboardingService)
+ *   - Preenchimento dos valores de settings (CompleteOnboardingService)
+ *     — a RPC cria apenas o skeleton de tenant_settings no provisionamento
  *
  * FLUXO:
  *   1. Valida dados de entrada (regra de negócio)
@@ -20,13 +22,15 @@
  *
  * SEPARAÇÃO:
  *   - TenantProvisioningService = ORQUESTRADOR (decide o quê fazer)
- *   - provision_new_tenant RPC = EXECUTOR TRANSCIONAL (faz o inserir)
+ *   - provision_new_tenant RPC = EXECUTOR TRANSACIONAL (faz o inserir)
  *   - EventBus = DIFUSOR (publica eventos para subscribers)
  *
  * GARANTIAS:
  *   - RPC provision_new_tenant é idempotente (verifica profile existente)
  *   - Tenant inicia como draft (não ativo até onboarding completo)
  *   - Slug gerado com sufixo incremental (-2, -3) para unicidade
+ *   - Owner vira manager em profiles + user_tenants (is_primary=true)
+ *   - Staff inicial do manager criado via trigger handle_new_manager_profile
  *   - Evento TenantCreated é publicado apenas para tenants novos
  */
 

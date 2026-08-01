@@ -12,5 +12,5 @@
 
 export interface DatabaseClient {
   from(table: string): any;
-  rpc(fn: string, params?: Record<string, unknown>): Promise<any>;
+  rpc(fn: string, params?: Record<string, unknown>): any;
 }
