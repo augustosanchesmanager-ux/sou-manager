@@ -11,7 +11,7 @@ const CHAIR_OPTIONS = [
 
 const ShopSetup: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId, tenantSlug } = useAuth();
+    const { tenantId, tenantSlug, refreshTenant } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -46,6 +46,11 @@ const ShopSetup: React.FC = () => {
                 addressZip: addressZip || undefined,
                 chairCount,
             });
+
+            // O complete_onboarding ativa o tenant no banco; sem refrescar o
+            // contexto, o ProtectedRoute ainda enxerga status=draft e devolve o
+            // usuário para o shop-setup em vez de liberar o /dashboard.
+            await refreshTenant();
 
             navigate('/dashboard');
         } catch (err: any) {

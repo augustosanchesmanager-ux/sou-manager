@@ -15,7 +15,7 @@ test.describe('P1 — Client Management', () => {
     await clientsPage.goto();
 
     // Verify heading is visible
-    await expect(clientsPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(clientsPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('should_show_client_data_in_demo_mode', async ({ loggedAdmin }) => {

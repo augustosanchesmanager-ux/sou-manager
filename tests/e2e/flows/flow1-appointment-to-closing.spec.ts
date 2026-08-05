@@ -24,7 +24,7 @@ test.describe('Flow 1 — Schedule Navigation', () => {
     const scheduleLink = loggedAdmin.locator('a[href*="schedule"], a:has-text("Agenda")').first();
     if (await scheduleLink.isVisible()) {
       await scheduleLink.click();
-      await loggedAdmin.waitForURL(/#\/schedule/, { timeout: 5_000 });
+      await loggedAdmin.waitForURL(/#\/schedule/, { timeout: 15_000 });
     }
   });
 });

@@ -14,7 +14,7 @@ test.describe('Flow 4 — Commissions Navigation', () => {
     await commissionsPage.goto();
 
     // Verify heading is visible
-    await expect(commissionsPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(commissionsPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('should_navigate_to_commissions_from_sidebar', async ({ loggedAdmin }) => {
@@ -22,7 +22,7 @@ test.describe('Flow 4 — Commissions Navigation', () => {
     const commissionLink = loggedAdmin.locator('a[href*="commissions"], a:has-text("Comissões")').first();
     if (await commissionLink.isVisible()) {
       await commissionLink.click();
-      await loggedAdmin.waitForURL(/#\/commissions/, { timeout: 5_000 });
+      await loggedAdmin.waitForURL(/#\/commissions/, { timeout: 15_000 });
     }
   });
 });

@@ -1,17 +1,24 @@
 import { test as base, type Page } from '@playwright/test';
-import { DEMO_USER } from '../data/demo.data';
+import { getFixtureState, type E2EUserState } from '../data/fixtureState';
 
 /**
  * Auth fixtures for E2E tests
  *
- * Local demo mode only supports ONE user (teste@soumanager.local / 12345678).
- * All fixtures login with the same credentials — role differences are
- * not available in demo mode.
+ * Runs against REAL Supabase (local demo mode does not support the suite —
+ * see tests/e2e/setup/globalSetup.ts). globalSetup seeds one fixture tenant
+ * with a manager, a barber and a cashier via the Admin API (confirmed emails)
+ * and stores the credentials in test-results/.e2e-fixture-state.json.
+ *
+ * Each fixture logs in through the UI with the matching seeded user:
+ *   - loggedAdmin  -> manager (full access, ManagerRoute allowed)
+ *   - loggedManager -> manager
+ *   - loggedBarber1/2 -> barber
+ *   - loggedCashier  -> receptionist
  *
  * IMPORTANT: The app root "/" shows the Landing page.
  * Login page is at "/#/login" (HashRouter).
  */
-async function loginAsDemo(page: Page): Promise<void> {
+async function loginAsUser(page: Page, user: E2EUserState, timeout = 30_000): Promise<void> {
   // Navigate directly to login page (HashRouter)
   await page.goto('/#/login');
 
@@ -19,23 +26,20 @@ async function loginAsDemo(page: Page): Promise<void> {
   const emailInput = page.locator('input[type="email"]');
   await emailInput.waitFor({ state: 'visible', timeout: 15_000 });
 
-  // Fill credentials (demo mode only accepts these)
-  await emailInput.fill(DEMO_USER.email);
-  await page.locator('input[type="password"]').fill(DEMO_USER.password);
+  await emailInput.fill(user.email);
+  await page.locator('input[type="password"]').fill(user.password);
 
   // Click login button
   await page.locator('button[type="submit"]').click();
 
-  // Wait for navigation to /#/dashboard (HashRouter)
-  await page.waitForURL(/#\/dashboard/, { timeout: 15_000 });
+  // Wait for navigation to /#/dashboard (HashRouter). The app shell may take
+  // a few seconds to resolve AuthContext + TenantContext before redirecting.
+  await page.waitForURL(/#\/dashboard/, { timeout });
 }
 
 /**
- * Extend base test with auth fixtures
- *
- * In demo mode, all roles are the same user (manager).
- * Named fixtures are kept for API consistency — when running
- * against real Supabase, each would use different credentials.
+ * Extend base test with auth fixtures. Each role uses its own seeded user so
+ * role-specific behaviors can be tested against the real backend.
  */
 export const test = base.extend<{
   loggedAdmin: Page;
@@ -45,27 +49,27 @@ export const test = base.extend<{
   loggedCashier: Page;
 }>({
   loggedAdmin: async ({ page }, use) => {
-    await loginAsDemo(page);
+    await loginAsUser(page, getFixtureState().users.manager);
     await use(page);
   },
 
   loggedManager: async ({ page }, use) => {
-    await loginAsDemo(page);
+    await loginAsUser(page, getFixtureState().users.manager);
     await use(page);
   },
 
   loggedBarber1: async ({ page }, use) => {
-    await loginAsDemo(page);
+    await loginAsUser(page, getFixtureState().users.barber);
     await use(page);
   },
 
   loggedBarber2: async ({ page }, use) => {
-    await loginAsDemo(page);
+    await loginAsUser(page, getFixtureState().users.barber);
     await use(page);
   },
 
   loggedCashier: async ({ page }, use) => {
-    await loginAsDemo(page);
+    await loginAsUser(page, getFixtureState().users.cashier);
     await use(page);
   },
 });

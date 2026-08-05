@@ -30,7 +30,8 @@ const Register: React.FC = () => {
                         first_name: firstName,
                         last_name: lastName,
                         shop_name: shopName,
-                    }
+                    },
+                    emailRedirectTo: window.location.origin,
                 }
             });
 
@@ -41,19 +42,29 @@ const Register: React.FC = () => {
                 throw new Error('Não foi possível obter o ID do usuário');
             }
 
-            await tenantProvisioningService.provision({
-                userId,
-                tenantName: shopName,
-                firstName,
-                lastName,
-            });
+            if (signUpData.session) {
+                // Confirmação de e-mail DESATIVADA (ex: ambiente de dev/autoconfirm).
+                // O signUp já retorna sessão → provisiona na hora e segue para o onboarding.
+                await tenantProvisioningService.provision({
+                    userId,
+                    tenantName: shopName,
+                    firstName,
+                    lastName,
+                });
 
-            // Re-resolve contextos após o provisionamento — o onAuthStateChange
-            // original pode ter lido profiles antes do RPC criar o tenant.
-            await refreshAccessContext();
-            await refreshTenant();
+                // Re-resolve contextos após o provisionamento — o onAuthStateChange
+                // original pode ter lido profiles antes do RPC criar o tenant.
+                await refreshAccessContext();
+                await refreshTenant();
 
-            navigate('/onboarding/shop-setup');
+                navigate('/onboarding/shop-setup');
+            } else {
+                // Confirmação de e-mail ATIVADA no Supabase: o signUp não cria sessão
+                // e o RPC provision_new_tenant exige auth.uid(). O provisionamento
+                // acontece no primeiro login após a confirmação do e-mail
+                // (ProtectedRoute redireciona para /onboarding/provision).
+                navigate('/register/verify-email', { replace: true });
+            }
         } catch (err: any) {
             // If signUp succeeded but provision failed, sign out to prevent orphaned session
             await supabase.auth.signOut().catch(() => {});

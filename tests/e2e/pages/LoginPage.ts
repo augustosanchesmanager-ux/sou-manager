@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { BasePage } from './BasePage';
-import { DEMO_USER } from '../data/demo.data';
+import { getFixtureState } from '../data/fixtureState';
 
 /**
  * Page Object for Login page
@@ -33,16 +33,22 @@ export class LoginPage extends BasePage {
   }
 
   async login(email?: string, password?: string): Promise<void> {
-    const e = email || DEMO_USER.email;
-    const p = password || DEMO_USER.password;
+    // Default to the seeded fixture manager when no credentials are given.
+    // Loaded lazily so callers that pass explicit credentials (flow6/flow6a)
+    // do not require the fixture state file.
+    if (!email || !password) {
+      const state = getFixtureState();
+      email = email || state.users.manager.email;
+      password = password || state.users.manager.password;
+    }
 
     await this.emailInput.waitFor({ state: 'visible', timeout: 10_000 });
-    await this.emailInput.fill(e);
-    await this.passwordInput.fill(p);
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
     await this.submitButton.click();
 
     // Wait for navigation to dashboard (HashRouter)
-    await this.page.waitForURL(/#\/dashboard/, { timeout: 15_000 });
+    await this.page.waitForURL(/#\/dashboard/, { timeout: 30_000 });
   }
 
   async getErrorMessage(): Promise<string | null> {

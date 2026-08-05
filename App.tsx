@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
@@ -46,9 +46,11 @@ const Performance = lazy(() => import('./pages/Performance'));
 const Products = lazy(() => import('./pages/Products'));
 const ProfessionalSetup = lazy(() => import('./pages/onboarding/ProfessionalSetup'));
 const Promotions = lazy(() => import('./pages/Promotions'));
+const Provision = lazy(() => import('./pages/onboarding/Provision'));
 const Receipts = lazy(() => import('./pages/Receipts'));
 const Register = lazy(() => import('./pages/Register'));
 const RegisterSuccess = lazy(() => import('./pages/RegisterSuccess'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Observability = lazy(() => import('./pages/Observability'));
@@ -106,7 +108,8 @@ const InstitutionalAppRedirect: React.FC = () => {
 };
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading, profileStatus, isSuperAdmin, authError, tenant } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin, authError, tenant, user } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -137,6 +140,16 @@ const ProtectedRoute: React.FC = () => {
     );
   }
 
+  // Usuário confirmou o e-mail mas ainda não provisionou o tenant (confirmação
+  // de e-mail ATIVADA no Supabase → signUp não retorna sessão). O provisionamento
+  // roda aqui, no primeiro login pós-confirmação, e segue para o onboarding.
+  const pendingRegistration =
+    Boolean(session.user?.user_metadata?.shop_name) && !tenant;
+
+  if (pendingRegistration && location.pathname !== '/onboarding/provision') {
+    return <Navigate to="/onboarding/provision" replace />;
+  }
+
   if (!isSuperAdmin && (profileStatus === 'pending' || profileStatus === 'suspended')) {
     return <Navigate to="/pending-approval" replace />;
   }
@@ -145,7 +158,7 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  if (!isSuperAdmin && tenant && tenant.status === 'draft') {
+  if (!isSuperAdmin && tenant && tenant.status === 'draft' && location.pathname !== '/onboarding/shop-setup') {
     return <Navigate to="/onboarding/shop-setup" replace />;
   }
 
@@ -216,6 +229,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-success" element={<RegisterSuccess />} />
+        <Route path="/register/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
 
@@ -229,6 +243,7 @@ const AppRoutes: React.FC = () => {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/role" element={<RoleSelection />} />
+          <Route path="/onboarding/provision" element={<Provision />} />
           <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
           <Route path="/onboarding/professional-setup" element={<ProfessionalSetup />} />
 

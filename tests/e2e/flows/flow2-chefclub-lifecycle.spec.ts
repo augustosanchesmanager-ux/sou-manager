@@ -14,7 +14,7 @@ test.describe('Flow 2 — ChefClub Navigation', () => {
     await chefClubPage.goto();
 
     // Verify heading is visible
-    await expect(chefClubPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(chefClubPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('should_navigate_to_chefclub_from_sidebar', async ({ loggedAdmin }) => {
@@ -22,7 +22,7 @@ test.describe('Flow 2 — ChefClub Navigation', () => {
     const clubLink = loggedAdmin.locator('a[href*="chef-club"], a:has-text("Clube")').first();
     if (await clubLink.isVisible()) {
       await clubLink.click();
-      await loggedAdmin.waitForURL(/#\/chef-club/, { timeout: 5_000 });
+      await loggedAdmin.waitForURL(/#\/chef-club/, { timeout: 15_000 });
     }
   });
 });

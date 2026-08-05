@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const rpcResult = rpcData as { access_role?: unknown; is_super_admin?: unknown; profile_status?: unknown; tenant_id?: unknown };
                 const role = deriveAccessRole(String(rpcResult.access_role ?? ''), Boolean(rpcResult.is_super_admin));
                 const status = (rpcResult.profile_status || null) as 'pending' | 'active' | 'suspended' | null;
-                const tenantId = String(rpcResult.tenant_id || null);
+                const tenantId = rpcResult.tenant_id ? String(rpcResult.tenant_id) : null;
                 return {
                     tenantId,
                     accessRole: role,
@@ -285,9 +285,17 @@ export const useAuth = (): AuthContextType => {
             : toAccessRoleFromTenantRole(tenantRole);
     const tenantLoading = tenantContext?.loading ?? false;
     const loading = authSessionContext.loading || (Boolean(authSessionContext.session) && tenantLoading);
+    // Usuário recém-cadastrado com confirmação de e-mail: tem sessão mas ainda
+    // NÃO provisionou o tenant (o provisionamento roda no primeiro login após a
+    // confirmação). Nesse estado o authError sintético "tenant não identificado"
+    // não deve disparar — o ProtectedRoute redireciona para /onboarding/provision.
+    const pendingRegistration = Boolean(
+        authSessionContext.session?.user?.user_metadata?.shop_name && !tenantId,
+    );
     const authError =
         authSessionContext.authError ||
         (
+            !pendingRegistration &&
             !authSessionContext.canAccessSuperAdmin &&
             Boolean(authSessionContext.session) &&
             !loading &&

@@ -59,7 +59,7 @@ test.describe('Smoke — Core Functionality', { tag: '@smoke' }, () => {
     await clientsPage.goto();
 
     // Verify heading "Clientes" is visible
-    await expect(clientsPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(clientsPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('06 — Cash closing page loads', async ({ loggedAdmin }) => {
@@ -76,7 +76,7 @@ test.describe('Smoke — Core Functionality', { tag: '@smoke' }, () => {
     await chefClubPage.goto();
 
     // Verify heading is visible
-    await expect(chefClubPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(chefClubPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('08 — Commissions page loads', async ({ loggedAdmin }) => {
@@ -84,7 +84,7 @@ test.describe('Smoke — Core Functionality', { tag: '@smoke' }, () => {
     await commissionsPage.goto();
 
     // Verify heading is visible
-    await expect(commissionsPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(commissionsPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('09 — Dashboard page loads after login', async ({ loggedAdmin }) => {

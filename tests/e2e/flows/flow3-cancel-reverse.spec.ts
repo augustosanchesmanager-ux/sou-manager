@@ -23,7 +23,7 @@ test.describe('Flow 3 — Cash Closing Navigation', () => {
     const closingLink = loggedAdmin.locator('a[href*="cash-closing"], a:has-text("Fechamento")').first();
     if (await closingLink.isVisible()) {
       await closingLink.click();
-      await loggedAdmin.waitForURL(/#\/cash-closing/, { timeout: 5_000 });
+      await loggedAdmin.waitForURL(/#\/cash-closing/, { timeout: 15_000 });
     }
   });
 });

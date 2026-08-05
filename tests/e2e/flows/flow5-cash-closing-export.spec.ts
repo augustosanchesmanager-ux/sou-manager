@@ -14,7 +14,7 @@ test.describe('Flow 5 — Clients Navigation', () => {
     await clientsPage.goto();
 
     // Verify heading "Clientes" is visible
-    await expect(clientsPage.heading).toBeVisible({ timeout: 5_000 });
+    await expect(clientsPage.heading).toBeVisible({ timeout: 30_000 });
   });
 
   test('should_navigate_to_clients_from_sidebar', async ({ loggedAdmin }) => {
@@ -22,7 +22,7 @@ test.describe('Flow 5 — Clients Navigation', () => {
     const clientsLink = loggedAdmin.locator('a[href*="clients"], a:has-text("Clientes")').first();
     if (await clientsLink.isVisible()) {
       await clientsLink.click();
-      await loggedAdmin.waitForURL(/#\/clients/, { timeout: 5_000 });
+      await loggedAdmin.waitForURL(/#\/clients/, { timeout: 15_000 });
     }
   });
 });
