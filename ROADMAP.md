@@ -7,7 +7,7 @@
 >
 > **Diretriz Oficial:** Ver seção "Diretriz Oficial" abaixo.
 >
-> **Última atualização:** 2026-07-28
+> **Última atualização:** 2026-08-05
 
 ---
 
@@ -1089,7 +1089,9 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.1 concluída e aprovada pelo PO (2026-08-01).
+**Status:** ✅ Em andamento — Fase 6.0.1 ENCERRADA e certificada (E2E real + baseline `v1.1.0-e2e-certified`, 2026-08-05).
+
+> **⚠ BASELINE CONGELADA (decisão PO, 2026-08-05):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
 **Critérios de Entrada:**
 - Fase 5 (Business Architecture) concluída
@@ -1103,8 +1105,8 @@ Para cada item:
 
 **Justificativa:** Primeiro implementamos o núcleo do SaaS. Depois garantimos qualidade, infraestrutura e produção. Essa sequência reduz retrabalho e torna os testes e a observabilidade mais próximos do comportamento real da plataforma.
 
-- [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO
-- [ ] **6.0.2** Provisioning Engine — Criação automática da estrutura inicial (unidade, owner, configurações)
+- [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
+- [ ] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05)
 - [ ] **6.0.3** Tenant Lifecycle — Migration `tenants.status` (enum 7 estados), transições, verificação em `ProtectedRoute`
 - [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
 - [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
@@ -1130,14 +1132,32 @@ Architecture:
 APPROVED
 
 Ready for:
-Phase 6.0.2 — Provisioning Engine
+Phase 6.0.2 — Onboarding Completo
 ```
 
-**Pendências registradas pelo PO (prioridade):**
-- 🔴 Alta — Aplicar a Migration #91 (`20260801000000_phase_6_0_1_provisioning.sql`) em ambiente real
-- 🔴 Alta — E2E real do fluxo: Register → Email → Provision → Onboarding → Dashboard → Logout → Login → Dashboard
-- 🟡 Média — Consertar o runner de Smoke (`test:e2e:smoke`)
-- 🟢 Baixa — 127 erros TS pré-existentes (futura fase "TypeScript Strict Cleanup")
+**Pendências registradas pelo PO (resolução em 2026-08-05):**
+- ✅ Aplicar a Migration #91 (`20260801000000_phase_6_0_1_provisioning.sql`) em ambiente real — aplicada; regras RPC validadas + fix `20260805000000_fix_provision_new_tenant_auth_check.sql`
+- ✅ E2E real do fluxo: Register → Email → Provision → Onboarding → Dashboard → Logout → Login → Dashboard — suite determinística via Admin API; 28 testes (27 passed / 1 gated), 2 execuções consecutivas verdes (~52s)
+- ✅ Consertar o runner de Smoke (`test:e2e:smoke`) — `globalSetup` + fixtures reais
+- 🟢 Baixa — 127 erros TS pré-existentes (futura fase "TypeScript Strict Cleanup") — permanece
+
+#### 6.0.2 Onboarding Completo ⬜ (PRÓXIMA — decisão PO 2026-08-05)
+
+**Objetivo:** Completar o onboarding do tenant recém-criado, indo da criação de conta até o dashboard operacional.
+
+**Escopo (definido pelo PO):**
+- [ ] Checklist inicial do onboarding (etapas obrigatórias)
+- [ ] Configuração da loja (unidade, horários, dados de contato)
+- [ ] Configurações obrigatórias (serviços, profissionais básicos, métodos de pagamento)
+- [ ] Wizard final do onboarding (progresso, persistência por etapa, retomada)
+- [ ] E2E do fluxo completo de onboarding
+
+**Critérios de Saída:**
+- Tenant criado chega ao dashboard com configuração mínima válida
+- Onboarding retomável e consistente com `tenants.status`
+- E2E verde para o fluxo de onboarding completo
+
+**Nota:** O escopo anterior ("Provisioning Engine — criação automática da estrutura inicial") foi incorporado ao onboarding conforme decisão do PO em 2026-08-05.
 
 ### 6.1 CI/CD
 

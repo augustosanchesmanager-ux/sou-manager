@@ -1,6 +1,6 @@
 # SMG Platform — Status do Projeto
 
-> Visão instantânea da evolução do projeto. Última atualização: 2026-07-28.
+> Visão instantânea da evolução do projeto. Última atualização: 2026-08-05.
 >
 > **Produto Comercial Ativo:** SMG Barber (único)
 > **Arquitetura:** SMG Platform (multi-tenant, genérica, permanente)
@@ -141,12 +141,12 @@ Congelada. Nenhuma alteração estrutural aceita.
 
 > ⚠️ Concluída com ressalvas. 6/9 itens OK, 3 com gaps documentados para Fase 6.0.
 
-### Fase 6 — Production Readiness ⬜
+### Fase 6 — Production Readiness 🔵
 
 ```
-6.0  SaaS Core Impl.    ░░░░░░░░░░░░░░░░░░░░   0%
-6.0.1  Tenant Creation    ░░░░░░░░░░░░░░░░░░░░   0%
-6.0.2  Provisioning       ░░░░░░░░░░░░░░░░░░░░   0%
+6.0  SaaS Core Impl.    ████░░░░░░░░░░░░░░░░  20%
+6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
+6.0.2  Onboarding Comp. ░░░░░░░░░░░░░░░░░░░░   0%  (escopo redefinido pelo PO)
 6.0.3  Tenant Lifecycle   ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.4  Billing Foundation ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
@@ -205,7 +205,9 @@ Migration Health
 
 ██████████ 100%
 
-89 migrations timestamped
+100 arquivos SQL
+84 migrations timestamped
+16 utilitários / migrações legadas (sem timestamp)
 1 arquivo vazio (0 bytes)
 0 quebradas
 0 pendentes
@@ -214,7 +216,7 @@ Migration Health
 4 issues médios documentados
 4 issues baixos documentados
 
-Última auditoria: 24/07/2026
+Última auditoria: 05/08/2026 (Fase 6.0.1)
 ```
 
 ---
@@ -224,7 +226,7 @@ Migration Health
 | Métrica | Valor |
 |---------|-------|
 | Total de testes | 631 |
-| Testes E2E | 26 |
+| Testes E2E | 28 |
 | Arquivos de teste | 22 |
 | Migrações SQL | 89 |
 | Tabelas com RLS | 47 |
@@ -244,7 +246,7 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | ⬜ Próxima |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 concluída — 6.0.2 Onboarding |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
@@ -266,6 +268,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-05 | 6.0 | Fase 6.0.1 (Tenant Creation) ENCERRADA e CERTIFICADA. Suite E2E real (28 testes) verde em 2 execuções consecutivas. Baseline congelada `v1.1.0-e2e-certified`. Fase 6.0.2 renomeada para "Onboarding Completo" (decisão PO). |
 | 2026-07-28 | 6.0 | Fase 5.6 CONCLUÍDA com ressalvas. Taxonomia corrigida (60 ocorrências). Dívida técnica registrada. Fase 6 reestruturada com 6.0 SaaS Core Implementation. |
 | 2026-07-28 | 5.0 | Fase 5 e 5.5 CONCLUÍDAS. 5 definições finais incorporadas: Grace Period, Retenção, Gateway, Notificações, Auditoria. Architecture Freeze v1.0 recomendado. |
 | 2026-07-28 | 4.0 | Decisões do PO incorporadas: onboarding (8 etapas), lifecycle (7 estados), billing (mensal, gateway desacoplado), planos (Free/Pro/Elite, limites configuráveis), hierarquia de papéis |
