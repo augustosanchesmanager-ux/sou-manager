@@ -135,6 +135,8 @@
 | 89 | `20260723110000_processed_operations.sql` | 🟣 Event | SAFE | Automático | processed_operations table (idempotency) |
 | 90 | `20260724000000_add_plan_to_tenants.sql` | 🔵 Schema | SAFE | Automático | Add plan column to tenants (4.7.3 fix) |
 | 91 | `20260801000000_phase_6_0_1_provisioning.sql` | 🔵 Schema | SAFE | Automático | Fase 6.0.1: provision_new_tenant cria user_tenants + tenant_settings; colunas timezone/currency |
+| 92 | `20260805000000_fix_provision_new_tenant_auth_check.sql` | 🔴 Security | LOW RISK | Manual | Fase 6.0.1: fix auth.uid() check no RPC provision_new_tenant |
+| 93 | `20260805120000_phase_6_0_2_onboarding.sql` | 🔵 Schema | LOW RISK | Manual | Fase 6.0.2: first_appointment_at + trigger, RPC save_onboarding_step, tenant_settings onboarding defaults, UNIQUE |
 
 ### Não-Timestamped
 
@@ -154,11 +156,11 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Migrations timestamped | 90 |
+| Migrations timestamped | 92 |
 | Arquivos diagnóstico | 5 |
 | Utility | 1 |
-| **Total de arquivos SQL** | **96** |
-| **Total de migrations reais** | **90** |
+| **Total de arquivos SQL** | **98** |
+| **Total de migrations reais** | **92** |
 | Schema | 39 |
 | Data | 1 |
 | Security | 12 |
@@ -222,6 +224,8 @@
 | `20260723000000` | `20260227223434` (get_current_tenant_id) | Substitui por Gen 4 | ✅ OK |
 | `20260723110000` | PostgreSQL 13+ (gen_random_uuid) | Built-in | ✅ OK |
 | `20260801000000` | `20260728000000` (RPC provision_new_tenant) | Fase 6.0.1 | ✅ OK |
+| `20260805000000` | `20260801000000` (RPC provision_new_tenant) | Fix auth check | ✅ OK |
+| `20260805120000` | `20260801000000` (tenant_settings) | Fase 6.0.2 | ✅ OK |
 
 ---
 
@@ -240,6 +244,7 @@
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-05 | 4.0 | Migrations #92 (fix auth) e #93 (Fase 6.0.2) adicionadas; timestamped=92 |
 | 2026-07-23 | 3.0 | Validação estática aprovada, issues documentados, READY FOR DEPLOY |
 | 2026-07-23 | 2.0 | Reconstrução completa com nomes reais de migrações (89 timestamped) |
 | 2026-07-23 | 1.0 | Versão inicial com nomes fabricados (substituída) |

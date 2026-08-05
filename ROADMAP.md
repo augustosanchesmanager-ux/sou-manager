@@ -1089,7 +1089,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.1 ENCERRADA e certificada (E2E real + baseline `v1.1.0-e2e-certified`, 2026-08-05).
+**Status:** ✅ Em andamento — Fase 6.0.2 ENCERRADA e certificada (E2E real + baseline `v1.2.0-onboarding-certified`, 2026-08-05).
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-05):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1106,7 +1106,7 @@ Para cada item:
 **Justificativa:** Primeiro implementamos o núcleo do SaaS. Depois garantimos qualidade, infraestrutura e produção. Essa sequência reduz retrabalho e torna os testes e a observabilidade mais próximos do comportamento real da plataforma.
 
 - [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
-- [ ] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05)
+- [x] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [ ] **6.0.3** Tenant Lifecycle — Migration `tenants.status` (enum 7 estados), transições, verificação em `ProtectedRoute`
 - [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
 - [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
@@ -1141,16 +1141,41 @@ Phase 6.0.2 — Onboarding Completo
 - ✅ Consertar o runner de Smoke (`test:e2e:smoke`) — `globalSetup` + fixtures reais
 - 🟢 Baixa — 127 erros TS pré-existentes (futura fase "TypeScript Strict Cleanup") — permanece
 
-#### 6.0.2 Onboarding Completo ⬜ (PRÓXIMA — decisão PO 2026-08-05)
+#### 6.0.2 Onboarding Completo ✅ APROVADA PELO PO (2026-08-05)
 
 **Objetivo:** Completar o onboarding do tenant recém-criado, indo da criação de conta até o dashboard operacional.
 
 **Escopo (definido pelo PO):**
-- [ ] Checklist inicial do onboarding (etapas obrigatórias)
-- [ ] Configuração da loja (unidade, horários, dados de contato)
-- [ ] Configurações obrigatórias (serviços, profissionais básicos, métodos de pagamento)
-- [ ] Wizard final do onboarding (progresso, persistência por etapa, retomada)
-- [ ] E2E do fluxo completo de onboarding
+- [x] Checklist inicial do onboarding (etapas obrigatórias)
+- [x] Configuração da loja (unidade, horários, dados de contato)
+- [x] Configurações obrigatórias (serviços, profissionais básicos, métodos de pagamento)
+- [x] Wizard final do onboarding (progresso, persistência por etapa, retomada)
+- [x] E2E do fluxo completo de onboarding
+
+**Certificação oficial (2026-08-05):**
+
+```
+STATUS:
+Phase 6.0.2 — COMPLETED
+
+Certification:
+APPROVED BY PO
+
+Build:
+PASS
+
+Tests:
+PASS (unit 644/644, E2E 29/29 incluindo flow6/flow6a/flow7 gated)
+
+Migration #93:
+APPLIED (db real, via db query + migration repair — estratégia MIGRATION_EXCEPTION_20260801.md)
+
+Architecture:
+APPROVED
+
+Ready for:
+Phase 6.0.3 — Tenant Lifecycle
+```
 
 **Critérios de Saída:**
 - Tenant criado chega ao dashboard com configuração mínima válida

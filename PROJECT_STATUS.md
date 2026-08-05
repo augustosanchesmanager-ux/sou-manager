@@ -144,9 +144,9 @@ Congelada. Nenhuma alteração estrutural aceita.
 ### Fase 6 — Production Readiness 🔵
 
 ```
-6.0  SaaS Core Impl.    ████░░░░░░░░░░░░░░░░  20%
+6.0  SaaS Core Impl.    ████████░░░░░░░░░░░░░░  40%
 6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
-6.0.2  Onboarding Comp. ░░░░░░░░░░░░░░░░░░░░   0%  (escopo redefinido pelo PO)
+6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.3  Tenant Lifecycle   ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.4  Billing Foundation ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
@@ -216,7 +216,7 @@ Migration Health
 4 issues médios documentados
 4 issues baixos documentados
 
-Última auditoria: 05/08/2026 (Fase 6.0.1)
+Última auditoria: 05/08/2026 (Fase 6.0.2)
 ```
 
 ---
@@ -225,10 +225,10 @@ Migration Health
 
 | Métrica | Valor |
 |---------|-------|
-| Total de testes | 631 |
-| Testes E2E | 28 |
+| Total de testes | 644 |
+| Testes E2E | 29 |
 | Arquivos de teste | 22 |
-| Migrações SQL | 89 |
+| Migrações SQL | 92 |
 | Tabelas com RLS | 47 |
 | Eventos de domínio | 11 |
 | Subscribers | 8 |
@@ -246,7 +246,7 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | 🔵 6.0.1 concluída — 6.0.2 Onboarding |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 concluídas — 6.0.3 Tenant Lifecycle |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
@@ -268,6 +268,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-05 | 6.0 | Fase 6.0.2 (Onboarding Completo) ENCERRADA e CERTIFICADA. Migration #93 aplicada (db real). E2E gated flow6/flow6a/flow7 verdes + suíte completa 29/29. Baseline `v1.2.0-onboarding-certified`. |
 | 2026-08-05 | 6.0 | Fase 6.0.1 (Tenant Creation) ENCERRADA e CERTIFICADA. Suite E2E real (28 testes) verde em 2 execuções consecutivas. Baseline congelada `v1.1.0-e2e-certified`. Fase 6.0.2 renomeada para "Onboarding Completo" (decisão PO). |
 | 2026-07-28 | 6.0 | Fase 5.6 CONCLUÍDA com ressalvas. Taxonomia corrigida (60 ocorrências). Dívida técnica registrada. Fase 6 reestruturada com 6.0 SaaS Core Implementation. |
 | 2026-07-28 | 5.0 | Fase 5 e 5.5 CONCLUÍDAS. 5 definições finais incorporadas: Grace Period, Retenção, Gateway, Notificações, Auditoria. Architecture Freeze v1.0 recomendado. |
