@@ -13,10 +13,10 @@ import { tenantProvisioningService } from '../../application/tenantProvisioning'
  * usuário recém-cadastrado (ProtectedRoute redireciona para cá).
  *
  * FLUXO:
- *   1. Se já existe tenant → segue direto para /onboarding/shop-setup.
+ *   1. Se já existe tenant → segue direto para /onboarding/welcome.
  *   2. Lê dados do cadastro de user_metadata (first_name/last_name/shop_name).
  *   3. Chama tenantProvisioningService.provision (RPC autenticada).
- *   4. Re-resolve contextos e navega para /onboarding/shop-setup.
+ *   4. Re-resolve contextos e navega para /onboarding/welcome.
  *
  * Fallback: se user_metadata não tiver shop_name (caso limite), exibe um pequeno
  * formulário para completar o cadastro antes de provisionar.
@@ -48,7 +48,7 @@ const Provision: React.FC = () => {
             await refreshAccessContext();
             await refreshTenant();
             setState('done');
-            navigate('/onboarding/shop-setup', { replace: true });
+            navigate('/onboarding/welcome', { replace: true });
         } catch (err: any) {
             setState('error');
             setError(err.message || 'Não foi possível concluir a criação da conta.');
@@ -69,7 +69,7 @@ const Provision: React.FC = () => {
             return;
         }
         if (tenantId) {
-            navigate('/onboarding/shop-setup', { replace: true });
+            navigate('/onboarding/welcome', { replace: true });
             return;
         }
 

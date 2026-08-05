@@ -9,11 +9,12 @@
 import { appointmentRepository } from '../../domain/appointment/repository';
 import { comandaRepository } from '../../domain/comanda/repository';
 import { serviceRepository } from '../../domain/service/repository';
+import { tenantRepository } from '../../domain/tenant/repository';
 import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
 import type { DatabaseClient } from '../../domain/shared/database-client';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
-import type { AppointmentCreatedEvent, AppointmentCancelledEvent } from '../../domain/events/types';
+import type { AppointmentCreatedEvent, AppointmentCancelledEvent, TenantFirstAppointmentReachedEvent } from '../../domain/events/types';
 import type {
     CreateAppointmentParams,
     CreateAppointmentResult,
@@ -52,6 +53,21 @@ export async function createAppointment(params: CreateAppointmentParams): Promis
     const rpcName = isMultiService
         ? 'create_appointment_with_services'
         : 'create_appointment_with_comanda';
+
+    // TTFA (Time to First Appointment): se o tenant ainda não tem o primeiro
+    // agendamento, publicamos TenantFirstAppointmentReached após a criação.
+    // A coluna tenants.first_appointment_at é gravada por trigger no banco
+    // (fonte de verdade); o evento é a observabilidade do KPI (best-effort).
+    // Um fallback aqui nunca pode bloquear a criação do agendamento.
+    let wasFirstAppointment = false;
+    let tenantCreatedAt: string | null = null;
+    try {
+        const tenantBefore = await tenantRepository.getById(tenantId);
+        wasFirstAppointment = Boolean(tenantBefore && !tenantBefore.first_appointment_at);
+        tenantCreatedAt = tenantBefore?.created_at ?? null;
+    } catch (err) {
+        console.warn('[SMG][APPOINTMENT][CREATE] Falha ao ler tenant para TTFA (best-effort):', err);
+    }
 
     const rpcParams: Record<string, unknown> = {
         p_tenant_id: tenantId,
@@ -110,6 +126,26 @@ export async function createAppointment(params: CreateAppointmentParams): Promis
             source: 'AppointmentApplicationService',
         },
     }));
+
+    // TTFA: primeiro agendamento do tenant → evento para observabilidade/analytics
+    if (wasFirstAppointment) {
+        const ttfaMs = Math.max(0, Date.now() - new Date(tenantCreatedAt ?? Date.now()).getTime());
+        await appEventBus.publish(createEvent<TenantFirstAppointmentReachedEvent>({
+            eventType: 'TenantFirstAppointmentReached',
+            aggregateId: tenantId,
+            aggregateType: 'tenant',
+            payload: {
+                tenantId,
+                appointmentId,
+                ttfaMs,
+            },
+            metadata: {
+                tenantId,
+                correlationId: idempotencyKey,
+                source: 'AppointmentApplicationService',
+            },
+        }));
+    }
 
     return {
         appointmentId,

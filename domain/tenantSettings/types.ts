@@ -25,6 +25,12 @@ export interface TenantSettings {
   address_city: string | null;
   address_state: string | null;
   address_zip: string | null;
+  timezone: string;
+  currency: string;
+  appointment_interval_minutes: number;
+  default_appointment_duration_minutes: number;
+  booking_horizon_days: number;
+  staff_owned_schedule: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -48,4 +54,10 @@ export interface CreateTenantSettingsInput {
   address_city?: string | null;
   address_state?: string | null;
   address_zip?: string | null;
+  timezone?: string | null;
+  currency?: string | null;
+  appointment_interval_minutes?: number | null;
+  default_appointment_duration_minutes?: number | null;
+  booking_horizon_days?: number | null;
+  staff_owned_schedule?: boolean | null;
 }

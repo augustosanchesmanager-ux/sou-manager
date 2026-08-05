@@ -389,7 +389,7 @@ const Landing: React.FC = () => {
                     ))}
                   </div>
                   <Link
-                    to="/onboarding/role"
+                    to="/register"
                     className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light transform hover:-translate-y-1' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
                   >
                     {plan.cta}

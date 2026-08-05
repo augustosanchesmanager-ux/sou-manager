@@ -60,6 +60,7 @@ import {
 import { AppointmentError } from './types';
 import type { CreateAppointmentParams, CancelAppointmentParams } from './types';
 import type { Appointment } from '../../domain/appointment/types';
+import { appEventBus } from '../../domain/events/app-bus';
 
 // ─── Builders ─────────────────────────────────────────────────────
 const makeCreateParams = (overrides: Partial<CreateAppointmentParams> = {}): CreateAppointmentParams => ({
@@ -110,6 +111,15 @@ const makeFromChain = (result: unknown = null) => {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({ data: result, error: null }),
+  };
+  return chain;
+};
+
+const makeTenantChain = (tenant: Record<string, unknown> | null) => {
+  const chain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: tenant, error: null }),
   };
   return chain;
 };
@@ -271,6 +281,50 @@ describe('AppointmentApplicationService', () => {
           'create_appointment_with_comanda',
           expect.objectContaining({ p_is_overbooked: false }),
         );
+      });
+
+      it('should_publish_TenantFirstAppointmentReached_when_tenant_has_no_first_appointment', async () => {
+        mockRpc.mockResolvedValue({ data: { appointment_id: 'apt-1', comanda_id: 'com-1', total_price: 50 }, error: null });
+        mockFromChain.mockReturnValue(makeTenantChain({
+          id: 'tenant-1',
+          name: 'Barbearia Teste',
+          status: 'active',
+          plan: 'free',
+          app_slug: 'barber',
+          first_appointment_at: null,
+          created_at: '2026-07-23T09:00:00.000Z',
+        }));
+
+        const published: string[] = [];
+        const unsub = appEventBus.subscribeAll((event) => { published.push(event.eventType); });
+        try {
+          await createAppointment(makeCreateParams());
+          expect(published).toContain('TenantFirstAppointmentReached');
+        } finally {
+          unsub();
+        }
+      });
+
+      it('should_NOT_publish_TenantFirstAppointmentReached_when_tenant_already_has_first_appointment', async () => {
+        mockRpc.mockResolvedValue({ data: { appointment_id: 'apt-1', comanda_id: 'com-1', total_price: 50 }, error: null });
+        mockFromChain.mockReturnValue(makeTenantChain({
+          id: 'tenant-1',
+          name: 'Barbearia Teste',
+          status: 'active',
+          plan: 'free',
+          app_slug: 'barber',
+          first_appointment_at: '2026-07-23T10:00:00.000Z',
+          created_at: '2026-07-23T09:00:00.000Z',
+        }));
+
+        const published: string[] = [];
+        const unsub = appEventBus.subscribeAll((event) => { published.push(event.eventType); });
+        try {
+          await createAppointment(makeCreateParams());
+          expect(published).not.toContain('TenantFirstAppointmentReached');
+        } finally {
+          unsub();
+        }
       });
     });
 

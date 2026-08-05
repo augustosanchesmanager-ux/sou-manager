@@ -167,6 +167,15 @@ export const BUSINESS_EVENTS = {
     optionalFields: ['reason', 'cancelDate'],
   },
 
+  // ─── Tenant Onboarding Events ────────────────────────────────
+  TENANT_FIRST_APPOINTMENT_REACHED: {
+    name: 'tenant_first_appointment_reached',
+    category: 'lifecycle',
+    description: 'Tenant reached the first appointment (Time to First Appointment KPI)',
+    requiredFields: ['tenantId', 'appointmentId', 'ttfaMs'],
+    optionalFields: ['tenantCreatedAt'],
+  },
+
   // ─── Auth Events ─────────────────────────────────────────────
   USER_LOGIN: {
     name: 'user_login',

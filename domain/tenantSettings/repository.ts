@@ -36,6 +36,12 @@ const toTenantSettings = (row: Record<string, unknown>): TenantSettings => ({
   address_city: (row.address_city as string) ?? null,
   address_state: (row.address_state as string) ?? null,
   address_zip: (row.address_zip as string) ?? null,
+  timezone: (row.timezone as string) ?? 'America/Sao_Paulo',
+  currency: (row.currency as string) ?? 'BRL',
+  appointment_interval_minutes: (row.appointment_interval_minutes as number) ?? 30,
+  default_appointment_duration_minutes: (row.default_appointment_duration_minutes as number) ?? 60,
+  booking_horizon_days: (row.booking_horizon_days as number) ?? 30,
+  staff_owned_schedule: (row.staff_owned_schedule as boolean) ?? true,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });
@@ -73,6 +79,12 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
           address_city: input.address_city ?? null,
           address_state: input.address_state ?? null,
           address_zip: input.address_zip ?? null,
+          timezone: input.timezone ?? 'America/Sao_Paulo',
+          currency: input.currency ?? 'BRL',
+          appointment_interval_minutes: input.appointment_interval_minutes ?? 30,
+          default_appointment_duration_minutes: input.default_appointment_duration_minutes ?? 60,
+          booking_horizon_days: input.booking_horizon_days ?? 30,
+          staff_owned_schedule: input.staff_owned_schedule ?? true,
         }, { onConflict: 'tenant_id' })
         .select()
         .single();

@@ -30,6 +30,7 @@ const toTenant = (row: Record<string, unknown>): Tenant => ({
   status: (row.status as Tenant['status']) || 'draft',
   plan: (row.plan as Tenant['plan']) || 'free',
   app_slug: (row.app_slug as string) || 'barber',
+  first_appointment_at: (row.first_appointment_at as string) ?? null,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });

@@ -44,7 +44,6 @@ const Payroll = lazy(() => import('./pages/Payroll'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const Performance = lazy(() => import('./pages/Performance'));
 const Products = lazy(() => import('./pages/Products'));
-const ProfessionalSetup = lazy(() => import('./pages/onboarding/ProfessionalSetup'));
 const Promotions = lazy(() => import('./pages/Promotions'));
 const Provision = lazy(() => import('./pages/onboarding/Provision'));
 const Receipts = lazy(() => import('./pages/Receipts'));
@@ -55,11 +54,12 @@ const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Observability = lazy(() => import('./pages/Observability'));
 const EventVersioningAdmin = lazy(() => import('./pages/EventVersioningAdmin'));
-const RoleSelection = lazy(() => import('./pages/onboarding/RoleSelection'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ShopSetup = lazy(() => import('./pages/onboarding/ShopSetup'));
+const OperationalSetup = lazy(() => import('./pages/onboarding/OperationalSetup'));
+const Welcome = lazy(() => import('./pages/onboarding/Welcome'));
 const SmartReturn = lazy(() => import('./pages/SmartReturn'));
 const StrategicDashboard = lazy(() => import('./pages/StrategicDashboard'));
 const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
@@ -158,8 +158,8 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  if (!isSuperAdmin && tenant && tenant.status === 'draft' && location.pathname !== '/onboarding/shop-setup') {
-    return <Navigate to="/onboarding/shop-setup" replace />;
+  if (!isSuperAdmin && tenant && tenant.status === 'draft' && !['/onboarding/welcome', '/onboarding/shop-setup', '/onboarding/operational-setup'].includes(location.pathname)) {
+    return <Navigate to="/onboarding/welcome" replace />;
   }
 
   return (
@@ -242,10 +242,10 @@ const AppRoutes: React.FC = () => {
         <Route path="/c/:tenantSlug/app/schedule" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalSchedule /></PortalAuthProvider></ModuleRoute>} />
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/onboarding/role" element={<RoleSelection />} />
           <Route path="/onboarding/provision" element={<Provision />} />
+          <Route path="/onboarding/welcome" element={<Welcome />} />
           <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
-          <Route path="/onboarding/professional-setup" element={<ProfessionalSetup />} />
+          <Route path="/onboarding/operational-setup" element={<OperationalSetup />} />
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />

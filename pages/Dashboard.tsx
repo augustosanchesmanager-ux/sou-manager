@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
+import OnboardingChecklist from '../components/onboarding/OnboardingChecklist';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import {
   AppointmentDetailModal,
@@ -59,7 +60,7 @@ const DEFAULT_QUICK_APPOINTMENT_DATETIME = getDefaultQuickAppointmentDateTime();
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, appSlug } = useAuth();
+  const { user, appSlug, tenantId } = useAuth();
   const labels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
   const [period, setPeriod] = useState<DashboardPeriod>('today');
@@ -221,6 +222,8 @@ const Dashboard: React.FC = () => {
         onOpenComandas={() => navigate('/comandas')}
         onOpenSmartReturn={() => navigate('/smart-return')}
       />
+
+      {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
 
       <KPIGrid metrics={metricValues} period={period} appSlug={appSlug} />
 

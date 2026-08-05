@@ -217,6 +217,16 @@ export interface TenantOnboardingCompletedEvent extends DomainEvent {
   };
 }
 
+export interface TenantFirstAppointmentReachedEvent extends DomainEvent {
+  readonly eventType: 'TenantFirstAppointmentReached';
+  readonly aggregateType: 'tenant';
+  readonly payload: {
+    tenantId: string;
+    appointmentId: string;
+    ttfaMs: number;
+  };
+}
+
 // ─── Union Type ──────────────────────────────────────────────────
 
 export type SystemEvent =
@@ -232,7 +242,8 @@ export type SystemEvent =
   | TransactionCreatedEvent
   | CommissionCalculatedEvent
   | TenantCreatedEvent
-  | TenantOnboardingCompletedEvent;
+  | TenantOnboardingCompletedEvent
+  | TenantFirstAppointmentReachedEvent;
 
 export type EventType = SystemEvent['eventType'];
 

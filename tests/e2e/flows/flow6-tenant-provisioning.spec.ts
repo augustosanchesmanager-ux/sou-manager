@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { WelcomePage } from '../pages/WelcomePage';
 import { ShopSetupPage } from '../pages/ShopSetupPage';
+import { OperationalSetupPage } from '../pages/OperationalSetupPage';
 import { LoginPage } from '../pages/LoginPage';
 import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin';
 
 /**
- * FLOW 6: Tenant provisioning (new user registration)
+ * FLOW 6: Tenant provisioning (new user registration) — Fase 6.0.2
  *
  * Requires REAL Supabase (demo mode does not support provisioning).
  * Gate: E2E_PROVISIONING=1
@@ -19,8 +21,9 @@ import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin
  *   2. ProtectedRoute redirects to /onboarding/provision;
  *   3. Provision.tsx calls the authenticated RPC provision_new_tenant (the
  *      security-fixed one — rejects auth.uid() == NULL) and lands on
- *      /onboarding/shop-setup;
- *   4. complete_onboarding -> /dashboard.
+ *      /onboarding/welcome;
+ *   4. Welcome (Bloco 1) -> ShopSetup (Bloco 2) -> OperationalSetup (Bloco 3)
+ *      -> complete_onboarding -> /dashboard.
  *
  * The UI signup flow (register -> verify-email) is covered SEPARATELY by
  * flow6a-signup-ui.spec.ts (gated, non-blocking) because the environment uses
@@ -32,14 +35,14 @@ import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin
  */
 const enabled = process.env.E2E_PROVISIONING === '1';
 
-test.describe('Flow 6 — Tenant Provisioning (Phase 6.0.1)', () => {
+test.describe('Flow 6 — Tenant Provisioning (Phase 6.0.2)', () => {
   const email = `e2e-provision-${Date.now()}@gmail.com`;
   const password = 'E2e-Provision-2026!';
 
   test.skip(!enabled, 'Requires E2E_PROVISIONING=1 and real Supabase in .env.local');
 
-  test('create confirmed user -> login -> provision -> shop-setup -> complete -> dashboard', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('create confirmed user -> login -> provision -> welcome -> shop-setup -> operational-setup -> dashboard', async ({ page }) => {
+    test.setTimeout(150_000);
 
     // 1. Create the user directly via the Admin API (confirmed email). The app
     //    is NOT involved — this emulates a user who registered and confirmed
@@ -56,26 +59,48 @@ test.describe('Flow 6 — Tenant Provisioning (Phase 6.0.1)', () => {
     expect(userId).toBeTruthy();
 
     // 2. Login through the UI. On first login the app detects the pending
-    //    registration (session sem tenant) and auto-runs provision_new_tenant
-    //    via /onboarding/provision, landing on shop-setup.
+    //    registration (session sem tenant), auto-runs provision_new_tenant via
+    //    /onboarding/provision and lands on /onboarding/welcome (Bloco 1).
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.emailInput.fill(email);
     await loginPage.passwordInput.fill(password);
     await loginPage.submitButton.click();
-    await page.waitForURL(/#\/onboarding\/shop-setup/, { timeout: 60_000 });
+    await page.waitForURL(/#\/onboarding\/welcome/, { timeout: 60_000 });
 
-    // 3. Shop setup step 1 (phone required)
+    // 3. Welcome: validates the Bloco 1 content and proceeds.
+    const welcome = new WelcomePage(page);
+    await expect(welcome.heading).toBeVisible({ timeout: 10_000 });
+    await expect(welcome.planBadge).toBeVisible();
+    await welcome.begin();
+
+    // 4. Shop setup (Bloco 2): step 1 (phone required) -> step 2 (address +
+    //    chairs) -> step 3 (timezone/currency) -> /onboarding/operational-setup.
     const shopSetup = new ShopSetupPage(page);
-    await shopSetup.completeStep1({ phone: '(11) 99999-9999', cnpj: '' });
-
-    // 4. Shop setup step 2 (address + chairs) -> complete_onboarding -> /dashboard
+    await expect(shopSetup.phoneInput).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep1({ phone: '(11) 99999-9999', cnpj: '12.345.678/0001-90' });
+    await expect(shopSetup.zipInput).toBeVisible({ timeout: 15_000 });
     await shopSetup.completeStep2({
       zip: '01310-100',
       street: 'Av. Paulista',
       number: '1000',
+      city: 'São Paulo',
+      state: 'SP',
       chairCount: 2,
     });
+    await expect(shopSetup.timezoneSelect).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep3({ timezone: 'America/Sao_Paulo', currency: 'BRL' });
+
+    // 5. Operational setup (Bloco 3): keep defaults, finish -> complete_onboarding
+    //    -> /dashboard.
+    await page.waitForURL(/#\/onboarding\/operational-setup/, { timeout: 20_000 });
+    const operational = new OperationalSetupPage(page);
+    await expect(operational.heading).toBeVisible({ timeout: 15_000 });
+    await operational.setInterval(30);
+    await operational.setDuration(60);
+    await operational.setHorizon(30);
+    await expect.poll(() => operational.isStaffScheduleEnabled()).toBe(true);
+    await operational.finish();
 
     // Expected: /dashboard. The app refreshes TenantContext after
     // complete_onboarding (so status becomes 'active' before navigating). We

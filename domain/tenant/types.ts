@@ -34,6 +34,7 @@ export interface Tenant {
   status: TenantStatus;
   plan: TenantPlan;
   app_slug: string;
+  first_appointment_at: string | null;
   created_at: string;
   updated_at: string;
 }
