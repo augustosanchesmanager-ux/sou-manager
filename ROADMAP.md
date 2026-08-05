@@ -1107,7 +1107,7 @@ Para cada item:
 
 - [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [x] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
-- [ ] **6.0.3** Tenant Lifecycle — Migration `tenants.status` (enum 7 estados), transições, verificação em `ProtectedRoute`
+- [ ] **6.0.3** Team Onboarding & Invitations — Convites de profissionais, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais (decisão PO 2026-08-05 — ver seção 6.0.3)
 - [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
 - [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
 
@@ -1174,7 +1174,7 @@ Architecture:
 APPROVED
 
 Ready for:
-Phase 6.0.3 — Tenant Lifecycle
+Phase 6.0.3 — Team Onboarding & Invitations
 ```
 
 **Critérios de Saída:**
@@ -1183,6 +1183,37 @@ Phase 6.0.3 — Tenant Lifecycle
 - E2E verde para o fluxo de onboarding completo
 
 **Nota:** O escopo anterior ("Provisioning Engine — criação automática da estrutura inicial") foi incorporado ao onboarding conforme decisão do PO em 2026-08-05.
+
+---
+
+#### 6.0.3 Team Onboarding & Invitations ⬜ (PRÓXIMA — decisão PO 2026-08-05)
+
+> **Decisão do PO (2026-08-05):** A fase foi **renomeada de "Tenant Lifecycle" para "Team Onboarding & Invitations"**. O Tenant Lifecycle já foi amplamente implementado e está em uso desde a Sprint 1 / Fase 6.0.1 — ver evidência abaixo — portanto reabri-lo seria retrabalho. A 6.0.3 foca no onboarding da equipe: convites, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais.
+
+**Objetivo:** Onboarding de profissionais convidados, da criação do convite até o acesso operacional ao tenant.
+
+**Já implementado (não é escopo — evidência):**
+- Enum `tenant_status` (7 estados) — `supabase/migrations/20260728000000_sprint1_tenant_lifecycle.sql`
+- Coluna `tenants.status` substituindo `active` (booleano) — mesma migration
+- Transição `draft → active` via RPC `complete_onboarding` — `application/onboarding.ts`
+- Verificação de `tenant.status` em `ProtectedRoute` (bloqueia `cancelled`/`archived`/`suspended`; redireciona `draft` para onboarding) — `App.tsx:157-162`
+- Tipos de domínio `TenantStatus`/`Tenant` — `domain/tenant/types.ts`
+
+**Escopo (definido pelo PO):**
+- [ ] Convite de profissionais (convite por email do gestor/owner)
+- [ ] Aceite de convite (fluxo do convidado)
+- [ ] Criação de credenciais (criação de conta do profissional)
+- [ ] Associação ao `tenant` (`staff` + `user_tenants`)
+- [ ] Conclusão do perfil do profissional
+- [ ] Permissões iniciais (papel baseado em `role_permissions`)
+- [ ] E2E do fluxo completo de convite → acesso
+
+**Critérios de Saída:**
+- Profissional convidado consegue aceitar, criar conta e acessar o tenant
+- Papel/permissões iniciais atribuídos automaticamente
+- E2E verde para o fluxo de convite → acesso
+
+**Dependência do ROADMAP:** remoção do item de "Tenant Lifecycle" da 6.0.3 (decisão PO). Gaps residuais de lifecycle (ex.: transições de billing via 6.0.4) migram para `PLATFORM_CERTIFICATION.md` como pendências, não como fase própria.
 
 ### 6.1 CI/CD
 

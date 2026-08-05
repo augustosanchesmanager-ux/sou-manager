@@ -147,7 +147,7 @@ Congelada. Nenhuma alteração estrutural aceita.
 6.0  SaaS Core Impl.    ████████░░░░░░░░░░░░░░  40%
 6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
-6.0.3  Tenant Lifecycle   ░░░░░░░░░░░░░░░░░░░░   0%
+6.0.3  Team Onboarding    ░░░░░░░░░░░░░░░░░░░░   0%  (escopo redefinido pelo PO)
 6.0.4  Billing Foundation ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
 6.1  CI/CD                ░░░░░░░░░░░░░░░░░░░░   0%
@@ -234,7 +234,7 @@ Migration Health
 | Subscribers | 8 |
 | Application Services | 5 |
 | Repositories | 14 |
-| ADRs | 10 |
+| ADRs | 11 |
 
 ---
 
@@ -246,7 +246,7 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 concluídas — 6.0.3 Tenant Lifecycle |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 concluídas — 6.0.3 Team Onboarding & Invitations |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
@@ -268,6 +268,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-05 | 6.0 | Fase 6.0.3 renomeada para "Team Onboarding & Invitations" (decisão PO). Tenant Lifecycle considerado já implementado (Sprint 1/6.0.1) e removido como fase. Branch `feature/phase-6.0.3-team-onboarding` criada. |
 | 2026-08-05 | 6.0 | Fase 6.0.2 (Onboarding Completo) ENCERRADA e CERTIFICADA. Migration #93 aplicada (db real). E2E gated flow6/flow6a/flow7 verdes + suíte completa 29/29. Baseline `v1.2.0-onboarding-certified`. |
 | 2026-08-05 | 6.0 | Fase 6.0.1 (Tenant Creation) ENCERRADA e CERTIFICADA. Suite E2E real (28 testes) verde em 2 execuções consecutivas. Baseline congelada `v1.1.0-e2e-certified`. Fase 6.0.2 renomeada para "Onboarding Completo" (decisão PO). |
 | 2026-07-28 | 6.0 | Fase 5.6 CONCLUÍDA com ressalvas. Taxonomia corrigida (60 ocorrências). Dívida técnica registrada. Fase 6 reestruturada com 6.0 SaaS Core Implementation. |

@@ -7,6 +7,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | ADR | Status | Theme |
 |---|---|---|
 | [ADR-001](./ADR-001-Commission-vs-Settlement.md) | Accepted | Commission vs Settlement |
+| [ADR-011](./ADR-011-phase-6.0.3-scope-team-onboarding.md) | Accepted | Phase 6.0.3 scope — Team Onboarding & Invitations |
 
 ---
 
