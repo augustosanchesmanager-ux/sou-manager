@@ -253,6 +253,30 @@ Migration Health
 
 ---
 
+## Estimativas do PO (2026-08-05)
+
+> Registradas por decisão do PO durante a auditoria pós-6.0.2. Refletem a visão de negócio do progresso da plataforma.
+
+| Área | Status |
+|-------|--------|
+| Arquitetura | ✅ 100% |
+| Segurança | ✅ 95% |
+| Banco | ✅ 98% |
+| Refatoração | ✅ 100% |
+| E2E | ✅ 100% |
+| Onboarding Owner | ✅ 100% |
+| SaaS Foundation | ✅ 90% |
+| Team Onboarding | ⏳ 0% |
+| Billing | ⏳ 0% |
+| Feature Flags | ⏳ 0% |
+| Produção Final | ⏳ ~40% |
+
+**Visão geral do PO:** SMG Barber entre **82% e 88%** do caminho para um SaaS completo.
+
+**Próximas etapas (estimativa do PO):** 6.0.3 Team Onboarding (1–2 semanas) → 6.0.4 Billing (~25–30% do esforço restante) → 6.0.5 Feature Flags → Fase 7 Hardening/observabilidade/produção. Depois, foco em evolução funcional e crescimento do produto.
+
+---
+
 ## Referências
 
 - `ROADMAP.md` — Roadmap oficial do projeto
@@ -268,6 +292,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-05 | 6.0 | Estimativas do PO registradas (82–88% SaaS completo). Início do planejamento da Fase 6.0.3 Team Onboarding. |
 | 2026-08-05 | 6.0 | Fase 6.0.3 renomeada para "Team Onboarding & Invitations" (decisão PO). Tenant Lifecycle considerado já implementado (Sprint 1/6.0.1) e removido como fase. Branch `feature/phase-6.0.3-team-onboarding` criada. |
 | 2026-08-05 | 6.0 | Fase 6.0.2 (Onboarding Completo) ENCERRADA e CERTIFICADA. Migration #93 aplicada (db real). E2E gated flow6/flow6a/flow7 verdes + suíte completa 29/29. Baseline `v1.2.0-onboarding-certified`. |
 | 2026-08-05 | 6.0 | Fase 6.0.1 (Tenant Creation) ENCERRADA e CERTIFICADA. Suite E2E real (28 testes) verde em 2 execuções consecutivas. Baseline congelada `v1.1.0-e2e-certified`. Fase 6.0.2 renomeada para "Onboarding Completo" (decisão PO). |
