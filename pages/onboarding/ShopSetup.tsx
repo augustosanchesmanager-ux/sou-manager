@@ -75,16 +75,21 @@ const ShopSetup: React.FC = () => {
             try {
                 const settings = await completeOnboardingService.getSettings(tenantId);
                 if (cancelled || !settings) return;
-                setPhone(settings.phone ?? '');
-                setCnpj(settings.cnpj ?? '');
-                setAddressZip(settings.address_zip ?? '');
-                setAddressStreet(settings.address_street ?? '');
-                setAddressNumber(settings.address_number ?? '');
-                setAddressCity(settings.address_city ?? '');
-                setAddressState(settings.address_state ?? '');
-                setChairCount(settings.chair_count ?? 2);
-                setTimezone(settings.timezone || 'America/Sao_Paulo');
-                setCurrency(settings.currency || 'BRL');
+                // Functional updaters: só preenchem campos que ainda estão no
+                // valor inicial. Se o usuário já digitou (fetch resolveu
+                // depois), o valor digitado é preservado — evita o race que
+                // apagava o telefone digitado em tenants recém-provisionados
+                // (tenant_settings.phone ainda NULL).
+                setPhone((prev) => (prev === '' ? (settings.phone ?? '') : prev));
+                setCnpj((prev) => (prev === '' ? (settings.cnpj ?? '') : prev));
+                setAddressZip((prev) => (prev === '' ? (settings.address_zip ?? '') : prev));
+                setAddressStreet((prev) => (prev === '' ? (settings.address_street ?? '') : prev));
+                setAddressNumber((prev) => (prev === '' ? (settings.address_number ?? '') : prev));
+                setAddressCity((prev) => (prev === '' ? (settings.address_city ?? '') : prev));
+                setAddressState((prev) => (prev === '' ? (settings.address_state ?? '') : prev));
+                setChairCount((prev) => (prev === 2 ? (settings.chair_count ?? 2) : prev));
+                setTimezone((prev) => (prev === 'America/Sao_Paulo' ? (settings.timezone || 'America/Sao_Paulo') : prev));
+                setCurrency((prev) => (prev === 'BRL' ? (settings.currency || 'BRL') : prev));
             } catch {
                 // Segue com campos vazios — o prefill é otimização, não requisito.
             }

@@ -63,7 +63,7 @@ const Register: React.FC = () => {
                 // e o RPC provision_new_tenant exige auth.uid(). O provisionamento
                 // acontece no primeiro login após a confirmação do e-mail
                 // (ProtectedRoute redireciona para /onboarding/provision).
-                navigate('/register/verify-email', { replace: true });
+                navigate('/register/verify-email', { replace: true, state: { email } });
             }
         } catch (err: any) {
             // If signUp succeeded but provision failed, sign out to prevent orphaned session

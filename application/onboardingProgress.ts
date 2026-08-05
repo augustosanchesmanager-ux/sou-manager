@@ -68,7 +68,10 @@ class OnboardingProgressServiceImpl {
           copy.done = Boolean(settings && tenant && tenant.status !== 'draft');
           break;
         case 'barbers':
-          copy.done = staff.length > 0;
+          // Apenas barbeiros reais contam. O staff do Manager é auto-criado
+          // pelo trigger handle_new_manager_profile durante o provisionamento
+          // e NÃO deve marcar "Adicionar barbeiros" como concluído.
+          copy.done = staff.some((m) => m.role === 'Barber');
           break;
         case 'services':
           copy.done = services.length > 0;

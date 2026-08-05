@@ -96,7 +96,7 @@ test.describe('Flow 7 — Onboarding Completo (Phase 6.0.2)', () => {
     await expect(checklist.getByText('Fazer primeiro agendamento')).toBeVisible();
     await expect(checklist.getByText(/^\d+ de 5 passos/)).toBeVisible();
     const link = checklist.getByRole('link', { name: /Começar/ }).first();
-    await expect(link).toHaveAttribute('href', /\/#\/team/);
+    await expect(link).toHaveAttribute('href', '#/team');
 
     // 7. Rotas legadas removidas -> fallback para "/" (Landing).
     await page.goto('/#/onboarding/role');
