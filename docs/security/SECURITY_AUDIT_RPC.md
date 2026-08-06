@@ -163,6 +163,28 @@ $$;
 GRANT EXECUTE ON FUNCTION public.my_function(uuid) TO authenticated;
 ```
 
+> **Padrão obrigatório (ADR-012):** além do `GRANT TO authenticated`, toda migration que cria/redefine RPC deve executar `REVOKE EXECUTE ... FROM PUBLIC` e `REVOKE EXECUTE ... FROM anon`. O Supabase **auto-concede `EXECUTE` a `anon`** em funções novas; o `GRANT TO authenticated` é aditivo e não remove esse grant. Ver `docs/adr/ADR-012-rpc-execute-grants.md`.
+
+---
+
+## ⏳ Backlog — Security Hardening: RPC Permission Audit
+
+> **Item de backlog permanente** (registrado em 2026-08-06 por decisão do PO). Não pertence a nenhuma fase em andamento; será executado como fase própria de hardening/segurança.
+
+**Motivação (ADR-012):** o Supabase auto-concede `EXECUTE` a `anon` em toda função nova. A auditoria da Fase 6.0.4.2 confirmou que **muitas RPCs históricas** (criadas antes do hardening) permanecem anon-executáveis mesmo com `GRANT TO authenticated` nas migrations.
+
+**Escopo:**
+
+- [ ] Inventariar **todas** as RPCs em `public` (incluindo as de fases 1–4 e 6.0.1–6.0.3).
+- [ ] Verificar quais ainda possuem `EXECUTE` para `anon` (`aclexplode(pg_proc.proacl)`).
+- [ ] Classificar: função com guard `auth.uid()` (segura, só least-privilege) vs função sem guard (corrigir ou documentar).
+- [ ] Aplicar `REVOKE EXECUTE FROM anon` + `GRANT EXECUTE TO authenticated` onde não há justificativa de público.
+- [ ] Manter públicas **apenas** as exceções explícitas (atualmente `get_invite_by_token`, `kiosk_get_staff`).
+- [ ] Rodar regressão completa (unit + E2E) após a aplicação.
+- [ ] Gerar relatório de cobertura (funções auditadas / revogadas / mantidas públicas).
+
+**Já tratado nesta data:** as funções do módulo Billing/Team Invitations da 6.0.4 (migration `20260806030000_fix_auth_staff_id_to_profiles.sql`).
+
 ---
 
 ## Conclusion
