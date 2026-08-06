@@ -40,7 +40,12 @@ const defaultMetadata = (overrides?: Partial<EventMetadata>): EventMetadata => (
   ...overrides,
 });
 
-const buildCheckoutEvent = (overrides?: Partial<CheckoutCompletedEvent>): CheckoutCompletedEvent =>
+const buildCheckoutEvent = (
+  overrides?: {
+    payload?: Partial<CheckoutCompletedEvent['payload']>;
+    metadata?: Partial<EventMetadata>;
+  },
+): CheckoutCompletedEvent =>
   createEvent<CheckoutCompletedEvent>({
     eventType: 'CheckoutCompleted',
     aggregateId: 'comanda-1',
@@ -58,12 +63,14 @@ const buildCheckoutEvent = (overrides?: Partial<CheckoutCompletedEvent>): Checko
       financialEffect: true,
       ...overrides?.payload,
     },
-    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
-    ...overrides,
+    metadata: defaultMetadata(overrides?.metadata),
   });
 
 const buildSubscriptionCancelledEvent = (
-  overrides?: Partial<SubscriptionCancelledEvent>,
+  overrides?: {
+    payload?: Partial<SubscriptionCancelledEvent['payload']>;
+    metadata?: Partial<EventMetadata>;
+  },
 ): SubscriptionCancelledEvent =>
   createEvent<SubscriptionCancelledEvent>({
     eventType: 'SubscriptionCancelled',
@@ -74,12 +81,14 @@ const buildSubscriptionCancelledEvent = (
       reason: 'customer_request',
       ...overrides?.payload,
     },
-    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
-    ...overrides,
+    metadata: defaultMetadata(overrides?.metadata),
   });
 
 const buildCreditsDeductedEvent = (
-  overrides?: Partial<CreditsDeductedEvent>,
+  overrides?: {
+    payload?: Partial<CreditsDeductedEvent['payload']>;
+    metadata?: Partial<EventMetadata>;
+  },
 ): CreditsDeductedEvent =>
   createEvent<CreditsDeductedEvent>({
     eventType: 'CreditsDeducted',
@@ -92,12 +101,14 @@ const buildCreditsDeductedEvent = (
       reference: 'comanda-1',
       ...overrides?.payload,
     },
-    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
-    ...overrides,
+    metadata: defaultMetadata(overrides?.metadata),
   });
 
 const buildCashClosingEvent = (
-  overrides?: Partial<CashClosingCompletedEvent>,
+  overrides?: {
+    payload?: Partial<CashClosingCompletedEvent['payload']>;
+    metadata?: Partial<EventMetadata>;
+  },
 ): CashClosingCompletedEvent =>
   createEvent<CashClosingCompletedEvent>({
     eventType: 'CashClosingCompleted',
@@ -114,8 +125,7 @@ const buildCashClosingEvent = (
       hasDiscrepancy: true,
       ...overrides?.payload,
     },
-    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
-    ...overrides,
+    metadata: defaultMetadata(overrides?.metadata),
   });
 
 // ─── Billing events (Fase 6.0.4) — NUNCA confundir com ChefClub (R2) ──

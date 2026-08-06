@@ -24,7 +24,7 @@ type AdminClient = SupabaseClient<any, 'public', any>;
  *   - VITE_SUPABASE_URL
  *   - SUPABASE_SERVICE_ROLE_KEY
  */
-function loadEnvLocal(): Record<string, string> {
+export function loadEnvLocal(): Record<string, string> {
   const filePath = path.resolve(process.cwd(), '.env.local');
   const raw = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
   const env: Record<string, string> = {};

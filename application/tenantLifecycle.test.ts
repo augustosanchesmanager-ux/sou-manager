@@ -31,6 +31,7 @@ interface FakeRow {
   trial_ends_at: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
+  cancel_at_period_end: string | null;
   canceled_at: string | null;
   created_at: string | null;
 }
@@ -44,6 +45,7 @@ const fakeTrialingRow = (overrides: Partial<FakeRow> = {}): FakeRow => ({
   trial_ends_at: '2026-08-20T10:00:00.000Z',
   current_period_start: '2026-08-06T10:00:00.000Z',
   current_period_end: '2026-08-20T10:00:00.000Z',
+  cancel_at_period_end: null,
   canceled_at: null,
   created_at: '2026-08-06T10:00:00.000Z',
   ...overrides,
@@ -107,6 +109,7 @@ describe('TenantLifecycleService.startTrial', () => {
         trialEndsAt: '2026-08-20T10:00:00.000Z',
         currentPeriodStart: '2026-08-06T10:00:00.000Z',
         currentPeriodEnd: '2026-08-20T10:00:00.000Z',
+        cancelAtPeriodEnd: null,
         canceledAt: null,
         createdAt: '2026-08-06T10:00:00.000Z',
       });
@@ -219,38 +222,50 @@ describe('TenantLifecycleService.activate', () => {
 });
 
 describe('TenantLifecycleService.cancel', () => {
+  const cancelRequestRow = fakeTrialingRow({
+    status: 'active',
+    current_period_end: '2026-09-06T10:00:00.000Z',
+    cancel_at_period_end: '2026-09-06T10:00:00.000Z',
+    canceled_at: null,
+  });
+
   beforeEach(() => {
     mockRpcClient.rpcSingle.mockReset();
     mockRpcClient.rpc.mockReset();
     mockRpcClient.rpc.mockReturnValue({ single: mockRpcClient.rpcSingle });
     mockEventBus.publish.mockReset();
-    mockRpcClient.rpcSingle.mockResolvedValue({
-      data: fakeTrialingRow({ status: 'cancelled', canceled_at: '2026-08-06T12:00:00.000Z' }),
-      error: null,
-    });
+    mockRpcClient.rpcSingle.mockResolvedValue({ data: cancelRequestRow, error: null });
   });
 
   it('rejeita tenantId vazio', async () => {
     await expect(service.cancel('')).rejects.toThrow('tenantId é obrigatório');
   });
 
-  it('chama RPC cancel_subscription e publica TenantSubscriptionCancelled com reason', async () => {
-    const result = await service.cancel('tenant-1', 'Sem necessidade');
+  it('chama RPC cancel_subscription e NÃO muda o status (D-A: pedido)', async () => {
+    const result = await service.cancel('tenant-1');
 
     expect(mockRpcClient.rpc).toHaveBeenCalledWith('cancel_subscription', {
       p_tenant_id: 'tenant-1',
     });
-    expect(result.status).toBe('cancelled');
-    expect(result.canceledAt).toBe('2026-08-06T12:00:00.000Z');
+
+    // Acesso mantido: status permanece active; cancelamento marcado p/ fim do período
+    expect(result.status).toBe('active');
+    expect(result.cancelAtPeriodEnd).toBe('2026-09-06T10:00:00.000Z');
+    expect(result.canceledAt).toBeNull();
+  });
+
+  it('publica TenantSubscriptionUpdated (pedido) e NÃO TenantSubscriptionCancelled', async () => {
+    await service.cancel('tenant-1');
 
     expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
     const event = mockEventBus.publish.mock.calls[0][0];
-    expect(event.eventType).toBe('TenantSubscriptionCancelled');
+    expect(event.eventType).toBe('TenantSubscriptionUpdated');
     expect(event.payload).toEqual({
       subscriptionId: 'sub-1',
       tenantId: 'tenant-1',
-      reason: 'Sem necessidade',
-      canceledAt: '2026-08-06T12:00:00.000Z',
+      plan: 'free',
+      status: 'active',
+      cancelAtPeriodEnd: '2026-09-06T10:00:00.000Z',
     });
     expect(event.metadata).toMatchObject({ source: 'TenantLifecycleService' });
   });

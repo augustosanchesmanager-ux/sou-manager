@@ -279,6 +279,8 @@ export interface TenantSubscriptionUpdatedEvent extends DomainEvent {
     tenantId: string;
     plan: 'free' | 'pro' | 'premium';
     status: 'trialing' | 'active' | 'past_due' | 'cancelled';
+    /** Pedido de cancelamento (D-A): fim do período; null quando não há pedido. */
+    cancelAtPeriodEnd?: string | null;
   };
 }
 

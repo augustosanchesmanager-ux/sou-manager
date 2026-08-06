@@ -15,8 +15,9 @@
  *                → publica TenantSubscriptionCreated + TenantTrialStarted
  *   activate   : valida → RPC activate_subscription (trialing→active)
  *                → publica TenantSubscriptionUpdated
- *   cancel     : valida → RPC cancel_subscription (→cancelled)
- *                → publica TenantSubscriptionCancelled
+ *   cancel     : valida → RPC cancel_subscription (pedido: cancel_at_period_end)
+ *                → publica TenantSubscriptionUpdated (acesso mantido)
+ *                → efetivação (cancelled) via BillingService.runCycle (6.0.4.4)
  *   getStatus  : RPC get_subscription (leitura do tenant resolvido do chamador)
  *
  * NÃO FAZ:
@@ -34,7 +35,6 @@ import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type {
-  TenantSubscriptionCancelledEvent,
   TenantSubscriptionCreatedEvent,
   TenantSubscriptionUpdatedEvent,
   TenantTrialStartedEvent,
@@ -59,6 +59,7 @@ export interface TenantSubscriptionView {
   trialEndsAt: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: string | null;
   canceledAt: string | null;
   createdAt: string | null;
 }
@@ -72,6 +73,7 @@ interface SubscriptionRow {
   trial_ends_at: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
+  cancel_at_period_end: string | null;
   canceled_at: string | null;
   created_at: string | null;
 }
@@ -104,6 +106,7 @@ function toSubscriptionView(row: SubscriptionRow): TenantSubscriptionView {
     trialEndsAt: row.trial_ends_at ?? null,
     currentPeriodStart: row.current_period_start ?? null,
     currentPeriodEnd: row.current_period_end ?? null,
+    cancelAtPeriodEnd: row.cancel_at_period_end ?? null,
     canceledAt: row.canceled_at ?? null,
     createdAt: row.created_at ?? null,
   };
@@ -215,10 +218,18 @@ export class TenantLifecycleServiceImpl {
   }
 
   /**
-   * Cancela a assinatura (trialing/active/past_due → cancelled;
-   * tenants → cancelled). Publica TenantSubscriptionCancelled.
+   * Cancela a assinatura (D-A, cancel_at_period_end).
+   *
+   * PEDIDO de cancelamento: marca encerramento no fim do período contratado
+   * (cancel_at_period_end = current_period_end). Acesso MANTIDO até lá.
+   * Publica TenantSubscriptionUpdated com cancelAtPeriodEnd no payload.
+   *
+   * A EFETIVAÇÃO (status -> cancelled + evento TenantSubscriptionCancelled)
+   * acontece no BillingService.runCycle(asOf) quando cancel_at_period_end é
+   * alcançado — fora deste serviço (6.0.4.4).
    */
   async cancel(tenantId: string, reason?: string): Promise<TenantSubscriptionView> {
+    void reason;
     validateTenantId(tenantId);
 
     const { data, error } = await this.getClient()
@@ -234,15 +245,16 @@ export class TenantLifecycleServiceImpl {
 
     const view = toSubscriptionView(data as SubscriptionRow);
 
-    await appEventBus.publish(createEvent<TenantSubscriptionCancelledEvent>({
-      eventType: 'TenantSubscriptionCancelled',
+    await appEventBus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
+      eventType: 'TenantSubscriptionUpdated',
       aggregateId: view.id,
       aggregateType: 'tenant_subscription',
       payload: {
         subscriptionId: view.id,
         tenantId: view.tenantId,
-        reason: reason ?? undefined,
-        canceledAt: view.canceledAt ?? new Date().toISOString(),
+        plan: view.plan,
+        status: view.status,
+        cancelAtPeriodEnd: view.cancelAtPeriodEnd,
       },
       metadata: {
         tenantId: view.tenantId,
