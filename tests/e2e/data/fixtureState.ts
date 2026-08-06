@@ -23,6 +23,7 @@ export interface E2EFixtureState {
     manager: E2EUserState;
     barber: E2EUserState;
     cashier: E2EUserState;
+    invitee: E2EUserState;
   };
 }
 

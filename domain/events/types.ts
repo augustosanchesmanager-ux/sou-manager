@@ -227,6 +227,31 @@ export interface TenantFirstAppointmentReachedEvent extends DomainEvent {
   };
 }
 
+// ─── Team Invitation Events (Fase 6.0.3) ────────────────────────
+
+export interface StaffInvitedEvent extends DomainEvent {
+  readonly eventType: 'StaffInvited';
+  readonly aggregateType: 'invitation';
+  readonly payload: {
+    invitationId: string;
+    tenantId: string;
+    email: string;
+    role: 'barber' | 'receptionist';
+  };
+}
+
+export interface StaffAcceptedEvent extends DomainEvent {
+  readonly eventType: 'StaffAccepted';
+  readonly aggregateType: 'invitation';
+  readonly payload: {
+    invitationId: string;
+    tenantId: string;
+    staffId: string;
+    role: 'barber' | 'receptionist';
+    email: string;
+  };
+}
+
 // ─── Union Type ──────────────────────────────────────────────────
 
 export type SystemEvent =
@@ -243,7 +268,9 @@ export type SystemEvent =
   | CommissionCalculatedEvent
   | TenantCreatedEvent
   | TenantOnboardingCompletedEvent
-  | TenantFirstAppointmentReachedEvent;
+  | TenantFirstAppointmentReachedEvent
+  | StaffInvitedEvent
+  | StaffAcceptedEvent;
 
 export type EventType = SystemEvent['eventType'];
 

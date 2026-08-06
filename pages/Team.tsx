@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { getDefaultCommissionRateForRole } from '../src/lib/staff/roles';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { staffRepository, RepositoryError } from '../domain/staff';
+import { teamInvitationService } from '../application/teamInvitation';
+import type { InvitationView } from '../domain/invitation/types';
 
 interface TeamMember {
     id: string;
@@ -19,8 +21,9 @@ interface TeamMember {
     status: string;
 }
 
-const roles = ['Manager', 'AdminManager', 'Barber', 'Receptionist'];
-const roleIcons: Record<string, string> = { Manager: 'admin_panel_settings', AdminManager: 'shield', Barber: 'content_cut', Receptionist: 'support_agent' };
+const roles = ['manager', 'admin', 'barber', 'receptionist'];
+const inviteRoles = ['barber', 'receptionist'];
+const roleIcons: Record<string, string> = { manager: 'admin_panel_settings', admin: 'shield', barber: 'content_cut', receptionist: 'support_agent' };
 
 const Team: React.FC = () => {
     const navigate = useNavigate();
@@ -34,10 +37,12 @@ const Team: React.FC = () => {
     const memberPluralLower = isEsteticaApp ? labels.professionalPlural.toLowerCase() : 'membros';
     const commissionLabel = isEsteticaApp ? 'Repasse' : 'Comissão';
     const roleLabels: Record<string, string> = isEsteticaApp
-        ? { Manager: 'Gestor Operacional', AdminManager: 'Gestor Administrativo', Barber: labels.professional, Receptionist: 'Recepção' }
-        : { Manager: 'Gerente Operacional', AdminManager: 'Gerente Administrativo', Barber: 'Barbeiro', Receptionist: 'Recepcionista' };
+        ? { manager: 'Gestor Operacional', admin: 'Gestor Administrativo', barber: labels.professional, receptionist: 'Recepção' }
+        : { manager: 'Gerente Operacional', admin: 'Gerente Administrativo', barber: 'Barbeiro', receptionist: 'Recepcionista' };
     const [team, setTeam] = useState<TeamMember[]>([]);
+    const [invitations, setInvitations] = useState<InvitationView[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingInvites, setLoadingInvites] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [search, setSearch] = useState('');
@@ -45,7 +50,7 @@ const Team: React.FC = () => {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
+    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
     const [commissionEditedManually, setCommissionEditedManually] = useState(false);
 
     const fetchTeam = useCallback(async () => {
@@ -68,6 +73,21 @@ const Team: React.FC = () => {
 
     useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
+    const fetchInvitations = useCallback(async () => {
+        if (!tenantId) return;
+        setLoadingInvites(true);
+        try {
+            const data = await teamInvitationService.list();
+            setInvitations(data.filter(i => i.status === 'pending'));
+        } catch (error) {
+            console.error('Erro ao carregar convites:', error);
+        } finally {
+            setLoadingInvites(false);
+        }
+    }, [tenantId]);
+
+    useEffect(() => { fetchInvitations(); }, [fetchInvitations]);
+
     useEffect(() => {
         const shouldOpenNew = Boolean((location.state as { openNewTeamMember?: boolean } | null)?.openNewTeamMember);
         if (!shouldOpenNew) return;
@@ -80,7 +100,7 @@ const Team: React.FC = () => {
     const openNewModal = () => {
         setEditingMember(null);
         setCommissionEditedManually(false);
-        setForm({ name: '', email: '', phone: '', role: 'Barber', commission_rate: String(getDefaultCommissionRateForRole('Barber')), status: 'active', password: '' });
+        setForm({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
         setShowModal(true);
     };
 
@@ -147,6 +167,44 @@ const Team: React.FC = () => {
         } else {
             if (!tenantId) {
                 setToast({ message: 'Tenant inválido para criar colaborador.', type: 'error' });
+                return;
+            }
+
+            // Fluxo de convite (D1/D2): barber/receptionist recebem link + definem a própria senha.
+            if (inviteRoles.includes(form.role)) {
+                if (!form.email || !form.email.includes('@')) {
+                    setToast({ message: 'Informe um e-mail válido para o convite.', type: 'error' });
+                    return;
+                }
+                const { data: sessionData } = await supabase.auth.getSession();
+                const accessToken = sessionData?.session?.access_token;
+                if (!accessToken) {
+                    setToast({ message: 'Sessão expirada. Por favor, faça login novamente.', type: 'error' });
+                    return;
+                }
+                const { data: edgeData, error: edgeError } = await supabase.functions.invoke('invite-team-member', {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    body: {
+                        email: form.email,
+                        role: form.role,
+                        tenant_id: tenantId,
+                        redirect_url: window.location.origin,
+                    },
+                });
+                if (edgeError || edgeData?.error) {
+                    let msg = edgeData?.error || edgeError?.message || 'Erro ao enviar convite.';
+                    if (msg.includes('already invited') || msg.includes('pending')) {
+                        msg = 'Já existe um convite pendente para este e-mail.';
+                    } else if (msg.includes('limit') || msg.includes('plan') || msg.includes('Team limit')) {
+                        msg = 'Limite de profissionais do seu plano atingido.';
+                    }
+                    setToast({ message: `Erro ao convidar: ${msg}`, type: 'error' });
+                    return;
+                }
+                setToast({ message: `Convite enviado para ${form.email}!`, type: 'success' });
+                setShowModal(false);
+                setEditingMember(null);
+                fetchInvitations();
                 return;
             }
 
@@ -268,6 +326,43 @@ const Team: React.FC = () => {
         }
     };
 
+    const handleRevokeInvite = async (id: string) => {
+        try {
+            await teamInvitationService.revoke(id);
+            setToast({ message: 'Convite revogado.', type: 'info' });
+            fetchInvitations();
+        } catch (error) {
+            console.error('REVOKE INVITE ERROR:', error);
+            setToast({ message: 'Erro ao revogar o convite.', type: 'error' });
+        }
+    };
+
+    const handleResendInvite = async (id: string, email: string) => {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) {
+                setToast({ message: 'Sessão expirada. Por favor, faça login novamente.', type: 'error' });
+                return;
+            }
+            await teamInvitationService.resend(id);
+            // Reenvio do e-mail pelo canal SMTP (Auth), como no convite original.
+            const { data: edgeData, error: edgeError } = await supabase.functions.invoke('invite-team-member', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: { email, role: invitations.find(i => i.id === id)?.role || 'barber', tenant_id: tenantId, redirect_url: window.location.origin },
+            });
+            if (edgeError || edgeData?.error) {
+                setToast({ message: `Convite renovado, mas o e-mail não pôde ser reenviado.`, type: 'error' });
+                return;
+            }
+            setToast({ message: `Convite reenviado para ${email}.`, type: 'success' });
+            fetchInvitations();
+        } catch (error) {
+            console.error('RESEND INVITE ERROR:', error);
+            setToast({ message: 'Erro ao reenviar o convite.', type: 'error' });
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in">
             {/* Header */}
@@ -279,9 +374,48 @@ const Team: React.FC = () => {
                 <button onClick={openNewModal}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all">
                     <span className="material-symbols-outlined text-lg">person_add</span>
-                    Novo {memberLabelLower}
+                    {isEsteticaApp ? `Novo ${labels.professional}` : 'Novo Colaborador'}
                 </button>
             </div>
+
+            {/* Convites pendentes */}
+            {!loadingInvites && invitations.length > 0 && (
+                <div className="bg-white dark:bg-card-dark border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined text-amber-500 text-lg">mail</span>
+                        <h3 className="font-bold text-slate-900 dark:text-white">Convites pendentes</h3>
+                        <span className="ml-auto text-xs text-slate-500">
+                            {invitations.length} aguardando aceite
+                        </span>
+                    </div>
+                    <div className="space-y-2">
+                        {invitations.map(inv => {
+                            const expired = new Date(inv.expiresAt) < new Date();
+                            return (
+                                <div key={inv.id} className="flex items-center gap-3 bg-amber-50/60 dark:bg-[#141414] border border-amber-100 dark:border-amber-900/30 rounded-xl px-4 py-3">
+                                    <span className="material-symbols-outlined text-slate-400">person</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{inv.email}</p>
+                                        <p className="text-xs text-slate-500">
+                                            {roleLabels[inv.role] || inv.role} · {expired ? 'Expirado' : `Expira em ${new Date(inv.expiresAt).toLocaleDateString('pt-BR')}`}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => handleResendInvite(inv.id, inv.email)}
+                                            className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Reenviar convite">
+                                            <span className="material-symbols-outlined text-lg">refresh</span>
+                                        </button>
+                                        <button onClick={() => handleRevokeInvite(inv.id)}
+                                            className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Revogar convite">
+                                            <span className="material-symbols-outlined text-lg">link_off</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Search */}
             <div className="relative max-w-md">
@@ -364,7 +498,7 @@ const Team: React.FC = () => {
                 <form onSubmit={handleSave} className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                        <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        <input type="text" required={editingMember || !inviteRoles.includes(form.role)} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: João Silva" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -379,7 +513,12 @@ const Team: React.FC = () => {
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="(11) 99999-0000" />
                         </div>
                     </div>
-                    {!editingMember && (
+                    {!editingMember && inviteRoles.includes(form.role) && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-900/40 rounded-lg px-3 py-2">
+                            {isEsteticaApp ? 'O profissional' : 'O colaborador'} receberá um convite por e-mail e definirá a própria senha ao aceitar.
+                        </div>
+                    )}
+                    {!editingMember && !inviteRoles.includes(form.role) && (
                         <div>
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial)</label>
                             <input type="password" required autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -414,7 +553,7 @@ const Team: React.FC = () => {
                             className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
                         <button type="submit"
                             className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
-                            {editingMember ? 'Salvar Alterações' : 'Adicionar'}
+                            {editingMember ? 'Salvar Alterações' : inviteRoles.includes(form.role) ? 'Enviar Convite' : 'Adicionar'}
                         </button>
                     </div>
                 </form>

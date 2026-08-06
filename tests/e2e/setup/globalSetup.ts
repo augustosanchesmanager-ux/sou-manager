@@ -17,8 +17,9 @@ import type { E2EFixtureState } from '../data/fixtureState';
  * Seeding strategy:
  *   1. Create 3 confirmed users (manager, barber, cashier) via Admin API.
  *   2. Insert tenant (status active, app_slug barber) via service role.
- *   3. Insert profiles (role must pass CHECK (superadmin,manager,staff,barber);
- *      cashier uses 'staff'), user_tenants and staff rows.
+ *   3. Insert profiles (role must pass CHECK — lowercase R6:
+ *      owner|manager|barber|receptionist|admin|superadmin; cashier uses
+ *      'receptionist'), user_tenants and staff rows.
  *      The manager profile insert fires handle_new_manager_profile(), which
  *      auto-creates the Manager staff row.
  *   4. Seed minimal domain data (tenant_settings, clients, services) so pages
@@ -38,12 +39,16 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     manager: { email: `e2e-suite-${runId}-manager@gmail.com`, password: PASSWORD },
     barber: { email: `e2e-suite-${runId}-barber@gmail.com`, password: PASSWORD },
     cashier: { email: `e2e-suite-${runId}-cashier@gmail.com`, password: PASSWORD },
+    invitee: { email: `e2e-suite-${runId}-invitee@gmail.com`, password: PASSWORD },
   };
 
   const admin = getAdminClient();
 
   // 1. Confirmed users via Admin API (no shop_name -> no pendingRegistration).
-  const userIds: Record<'manager' | 'barber' | 'cashier', string> = {
+  //    invitee has NO profile/staff/membership rows on purpose: it is the user
+  //    that will ACCEPT a team invitation (flow8) and have them created by the
+  //    accept_invite RPC.
+  const userIds: Record<'manager' | 'barber' | 'cashier' | 'invitee', string> = {
     manager: await createConfirmedUser({
       email: users.manager.email,
       password: users.manager.password,
@@ -59,18 +64,24 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       password: users.cashier.password,
       userMetadata: { first_name: 'E2E', last_name: 'Cashier' },
     }),
+    invitee: await createConfirmedUser({
+      email: users.invitee.email,
+      password: users.invitee.password,
+      userMetadata: { first_name: 'E2E', last_name: 'Invitee' },
+    }),
   };
 
   const tenantSlug = `e2e-suite-${runId}`;
 
-  // 2. Tenant (active, barber app).
+  // 2. Tenant (active, barber app). Plan 'pro' so the suite tenant can host the
+  //    flow8 invitation (D3: pro allows 5 = 3 seeded staff + 1 invited member).
   const { data: tenant, error: tenantError } = await admin
     .from('tenants')
     .insert({
       name: `E2E Suite ${runId}`,
       slug: tenantSlug,
       app_slug: 'barber',
-      plan: 'free',
+      plan: 'pro',
       status: 'active',
     })
     .select('id')
@@ -90,6 +101,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   // 3. Profiles (may fire remote triggers that auto-create staff/user_tenants
   //    rows). Insert them, then clear tenant-scoped rows so the seed is fully
   //    deterministic regardless of remote trigger drift.
+  //    R6: roles are lowercase (owner|manager|barber|receptionist|admin).
   const { error: profilesError } = await admin.from('profiles').insert([
     {
       id: userIds.manager,
@@ -111,7 +123,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       id: userIds.cashier,
       tenant_id: tenantId,
       full_name: 'E2E Cashier',
-      role: 'staff',
+      role: 'receptionist',
       status: 'active',
       onboarding_completed: true,
     },
@@ -142,30 +154,33 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   const { error: staffError } = await admin.from('staff').insert([
     {
+      id: userIds.manager,
       name: 'E2E Manager',
       email: users.manager.email,
       phone: '',
-      role: 'Manager',
+      role: 'manager',
       avatar: '',
       commission_rate: 0,
       status: 'active',
       tenant_id: tenantId,
     },
     {
+      id: userIds.barber,
       name: 'E2E Barber',
       email: users.barber.email,
       phone: '',
-      role: 'Barber',
+      role: 'barber',
       avatar: '',
       commission_rate: 40,
       status: 'active',
       tenant_id: tenantId,
     },
     {
+      id: userIds.cashier,
       name: 'E2E Cashier',
       email: users.cashier.email,
       phone: '',
-      role: 'Receptionist',
+      role: 'receptionist',
       avatar: '',
       commission_rate: 0,
       status: 'active',
@@ -216,6 +231,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       }
       await admin.from('clients').delete().eq('tenant_id', tenantId);
       await admin.from('services').delete().eq('tenant_id', tenantId);
+      await admin.from('team_invitations').delete().eq('tenant_id', tenantId);
       await admin.from('staff').delete().eq('tenant_id', tenantId);
       await admin.from('tenant_settings').delete().eq('tenant_id', tenantId);
       await admin.from('tenants').delete().eq('id', tenantId);

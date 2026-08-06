@@ -90,9 +90,10 @@ const PortalSchedule: React.FC = () => {
             setTenant({ ...tenantData, theme: addon.limits?.theme || 'default' });
 
             // 3. Services and Barbers base load
+            // D5: staff via camada segura kiosk_get_staff (anon) — só id/name/role/status de ativos.
             const [svcRes, bbrRes] = await Promise.all([
                 supabase.from('services').select('id, name, price, duration_minutes').eq('tenant_id', tenantData.id).eq('is_active', true).order('name'),
-                supabase.from('staff').select('id, name, role').eq('tenant_id', tenantData.id).eq('status', 'active').order('name')
+                supabase.rpc('kiosk_get_staff', { p_tenant_identifier: tenantData.id })
             ]);
 
             setServices(svcRes.data || []);

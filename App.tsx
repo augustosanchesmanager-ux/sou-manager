@@ -13,6 +13,7 @@ import type { AppModuleSlug } from './src/lib/supabase/schemas';
 
 const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const Admin = lazy(() => import('./pages/Admin'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
@@ -231,6 +232,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/register-success" element={<RegisterSuccess />} />
         <Route path="/register/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/accept-invite/:token" element={<AcceptInvite />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
 
         <Route path="/kiosk/:tenantSlug" element={<ModuleRoute moduleName="kiosk"><KioskPage /></ModuleRoute>} />

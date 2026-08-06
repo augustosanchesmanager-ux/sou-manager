@@ -32,7 +32,7 @@ const toStaffMember = (row: Record<string, unknown>): StaffMember => ({
   name: row.name as string,
   email: (row.email as string) || '',
   phone: (row.phone as string) || '',
-  role: (row.role as string) || 'Barber',
+  role: (row.role as string) || 'barber',
   avatar: (row.avatar as string) || '',
   commission_rate: (row.commission_rate as number) || 0,
   status: (row.status as string) || 'active',
@@ -118,6 +118,40 @@ class StaffRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'list staff for commission');
     }
   }
+
+  async create(input: CreateStaffInput, tenantId: string): Promise<StaffMember> {
+    try {
+      const result = await this.from()
+        .insert({
+          id: input.id,
+          name: input.name,
+          email: input.email || '',
+          phone: input.phone || '',
+          role: input.role || 'barber',
+          avatar: input.avatar || '',
+          commission_rate: input.commission_rate ?? (input.role === 'barber' ? 50 : 0),
+          status: input.status || 'active',
+          tenant_id: tenantId,
+        })
+        .select()
+        .single();
+      const data = this.extractData<Record<string, unknown>>(result, 'Erro ao criar membro da equipe');
+      return toStaffMember(data);
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao criar membro da equipe');
+    }
+  }
+}
+
+export interface CreateStaffInput {
+  id?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  avatar?: string;
+  commission_rate?: number;
+  status?: string;
 }
 
 export interface StaffRepository extends IRepository<StaffMember> {
@@ -127,6 +161,7 @@ export interface StaffRepository extends IRepository<StaffMember> {
   update(id: string, input: UpdateStaffInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;
   listForCommission(tenantId: string): Promise<Array<{ id: string; name: string; role?: string; avatar?: string; commission_rate?: number | null }>>;
+  create(input: CreateStaffInput, tenantId: string): Promise<StaffMember>;
 }
 
 export const staffRepository: StaffRepository = new StaffRepositoryImpl();

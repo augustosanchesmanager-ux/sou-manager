@@ -31,7 +31,8 @@ const KioskBarberFeedback: React.FC<KioskBarberFeedbackProps> = ({ tenantId, cli
     useEffect(() => { loadBarbers(); }, []);
 
     const loadBarbers = async () => {
-        const { data } = await supabase.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active');
+        // D5: camada segura (kiosk_get_staff) — expõe apenas id/name/role/status de staff ativo.
+        const { data } = await supabase.rpc('kiosk_get_staff', { p_tenant_identifier: tenantId });
         setBarbers(((data || []) as Barber[]).filter(shouldAppearOnSchedule));
     };
 

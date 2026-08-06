@@ -10,24 +10,33 @@ const getDefaultCommissionRateForRole = (role: string) => {
     return String(role || '').trim().toLowerCase() === 'barber' ? 50 : 0;
 };
 
+// Contrato R6 (2026-08-06): staff.role = owner | manager | barber | receptionist | admin
+// Mapeamento aceita termos PT/EN e valores legados PascalCase (normalizados para lowercase).
 const STAFF_ROLE_MAP: Record<string, string> = {
-    'manager': 'Manager',
-    'gerente': 'Manager',
-    'gerente operacional': 'Manager',
-    'owner': 'Manager',
-    'admin': 'AdminManager',
-    'adminmanager': 'AdminManager',
-    'gerente administrativo': 'AdminManager',
-    'barber': 'Barber',
-    'barbeiro': 'Barber',
-    'receptionist': 'Receptionist',
-    'recepcionista': 'Receptionist',
+    'manager': 'manager',
+    'gerente': 'manager',
+    'gerente operacional': 'manager',
+    'owner': 'manager',
+    'admin': 'admin',
+    'adminmanager': 'admin',
+    'admin_manager': 'admin',
+    'gerente administrativo': 'admin',
+    'barber': 'barber',
+    'barbeiro': 'barber',
+    'receptionist': 'receptionist',
+    'recepcionista': 'receptionist',
 };
 
 const normalizeStaffRole = (role: string): string => {
     const trimmed = String(role || '').trim();
-    if (['Manager', 'AdminManager', 'Barber', 'Receptionist'].includes(trimmed)) return trimmed;
-    return STAFF_ROLE_MAP[trimmed.toLowerCase()] || 'Barber';
+    const lower = trimmed.toLowerCase();
+    // Valores legados PascalCase sao normalizados para o contrato R6
+    if (lower === 'manager') return 'manager';
+    if (lower === 'adminmanager' || lower === 'admin_manager') return 'admin';
+    if (lower === 'barber') return 'barber';
+    if (lower === 'receptionist') return 'receptionist';
+    if (['owner', 'manager', 'admin', 'barber', 'receptionist'].includes(lower)) return lower;
+    return STAFF_ROLE_MAP[lower] || 'barber';
 };
 
 Deno.serve(async (req: Request) => {
