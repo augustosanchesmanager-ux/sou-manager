@@ -9,6 +9,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-001](./ADR-001-Commission-vs-Settlement.md) | Accepted | Commission vs Settlement |
 | [ADR-011](./ADR-011-phase-6.0.3-scope-team-onboarding.md) | Accepted | Phase 6.0.3 scope — Team Onboarding & Invitations |
 | [ADR-012](./ADR-012-rpc-execute-grants.md) | Accepted | RPC EXECUTE grants — least-privilege by default |
+| [ADR-013](./ADR-013-billing-tenant-featureflags.md) | Accepted | Billing × Tenant Lifecycle × Feature Flags — three decoupled contexts (6.0.5) |
 
 ---
 
