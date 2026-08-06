@@ -6,23 +6,27 @@
  *   - Valida dados obrigatórios antes de cada passo
  *   - Finaliza: RPC complete_onboarding (atomic: settings + tenant.status + profile.onboarding_completed)
  *   - Publica domínio TenantOnboardingCompleted via EventBus → Outbox
+ *   - Delega a emissão dos eventos de billing (TenantSubscriptionCreated +
+ *     TenantTrialStarted) ao TenantLifecycleService (6.0.4.3)
  *
  * NÃO FAZ:
  *   - Renderização de UI
  *   - Criação do tenant (TenantProvisioningService)
  *   - Seleção de plano (hardcoded free até Billing)
+ *   - Emissão direta de eventos de billing (centralizada no TenantLifecycleService)
  *
  * FLUXO:
  *   1. Usuário preenche ShopSetup (dados empresa) → saveCompanyStep
  *   2. Usuário preenche OperationalSetup (horários/intervalo/duração) → saveOperationalStep
  *   3. Finalização → CompleteOnboardingService.complete()
- *      (RPC complete_onboarding → settings + tenant.status='active' + onboarding_completed)
+ *      (RPC complete_onboarding → settings + tenant.status='trial' via start_trial + onboarding_completed)
  *   4. Event TenantOnboardingCompleted published → EventBus → Outbox
+ *   5. tenantLifecycleService.startTrial() publica TenantSubscriptionCreated + TenantTrialStarted
  *
  * GARANTIAS:
  *   - Validação obrigatória: name, phone (campos mínimos)
  *   - Passos idempotentes (RPC save_onboarding_step → upsert em tenant_settings)
- *   - Após onboarding, tenant fica ativo
+ *   - Após onboarding, tenant fica em trial (draft → trial obrigatório, F10/D5)
  *   - Zero conhecimento de React, UI, navigate, toast
  */
 
@@ -32,6 +36,7 @@ import type { TenantSettings, BusinessHours } from '../domain/tenantSettings/typ
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type { TenantOnboardingCompletedEvent } from '../domain/events/types';
+import { tenantLifecycleService } from './tenantLifecycle';
 
 // ─── RPC Client ──────────────────────────────────────────────────
 
@@ -243,6 +248,12 @@ class CompleteOnboardingServiceImpl {
         source: 'CompleteOnboardingService',
       },
     }));
+
+    // 6.0.4.3: eventos de billing centralizados no TenantLifecycleService.
+    // O RPC complete_onboarding já efetuou draft -> trial via start_trial
+    // (idempotente); aqui apenas difundimos TenantSubscriptionCreated +
+    // TenantTrialStarted para os subscribers.
+    await tenantLifecycleService.startTrial(req.tenantId);
   }
 
   validate(req: CompleteOnboardingRequest): ValidationResult {

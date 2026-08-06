@@ -2,7 +2,7 @@
 
 > **Fonte oficial de nomenclatura.** Toda documentação futura deve utilizar este documento como referência.
 >
-> **Última atualização:** 2026-07-27
+> **Última atualização:** 2026-08-06
 >
 > **Autoridade:** Augusto (Product Owner)
 
@@ -144,6 +144,20 @@ soumanager.com                    ← Domínio raiz
 | **Comissão** | Percentual do profissional sobre serviços prestados |
 | **Settlement** | Pagamento efetivo ao profissional (diferente de comissão) |
 | **Club dos Chefes** | Sistema de assinatura com créditos mensais |
+
+### 8.1 Termos de Billing (Tenant)
+
+| Termo | Definição |
+|-------|-----------|
+| **Tenant Subscription** | Assinatura SaaS do tenant (Billing 6.0.4) — **não confundir** com assinatura do Club dos Chefes (`customer_subscriptions`). Eventos usam prefixo `TenantSubscription*`. |
+| **Trial** | Período de avaliação — 14 dias contados do **provisionamento** do tenant (`tenants.created_at`), não do onboarding (D3/F3). |
+| **Grace Period** | Janela de tolerância após `past_due` — 5 dias antes de suspender. |
+| **Transition Rule (F10)** | `draft → trial → active` é obrigatório. Nunca `draft → active` direto. |
+| **Plan** | `free` (1 profissional), `pro` (5), `premium` (ilimitado). Slugs oficiais: `free`, `pro`, `premium` — o slug `elite` foi **deprecado** e normalizado para `premium` (D1). |
+| **Billing Event** | Registro de auditoria em `billing_events` (ex.: `TenantTrialStarted`, `TenantSubscriptionActivated`, `TenantSubscriptionCancelled`). |
+| **Billing Domain Event** | Evento de domínio difundido via EventBus (ex.: `TenantTrialStarted`, `TenantSubscriptionCreated/Updated/Cancelled`) — emitido centralmente por `TenantLifecycleService`. |
+| **Invoice** | Fatura gerada pelo Billing Engine (6.0.4.4) — agregação `invoice`. |
+| **Payment Attempt** | Tentativa de cobrança contra uma invoice — agregação `payment`. |
 
 ---
 

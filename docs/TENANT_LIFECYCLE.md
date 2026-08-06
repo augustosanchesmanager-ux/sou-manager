@@ -21,38 +21,44 @@
 ## Transições Permitidas
 
 ```
-draft ──────────────► active ────────► past_due
-  │                                      │
-  │                                      ├──► active (pagou)
-  │                                      │
-  │                                      └──► suspended
-  │                                             │
-  │                                             └──► cancelled
-  │                                                    │
-  │                                                    └──► archived
-  │
+draft ──────────────► trial ───────────► active ────────► past_due
+  │                    │                    │               │
+  │                    │                    │               ├──► active (pagou)
+  │                    │                    │               │
+  │                    │                    │               └──► suspended
+  │                    │                    │                      │
+  │                    │                    │                      └──► cancelled
+  │                    │                    │                             │
+  │                    │                    │                             └──► archived
+  │                    │                    │
+  │                    ├──► cancelled       └──► cancelled
+  │                    │
   └──► cancelled
-
-[ ] trial ─ future state when Billing is implemented (draft → trial → active)
 ```
 
 ### Detalhamento
 
 | De | Para | Trigger | Quem decide |
 |----|------|---------|-------------|
-| `draft` | `active` | Usuário completa onboarding (ShopSetup) | `CompleteOnboardingService` |
+| `draft` | `trial` | Usuário completa onboarding (ShopSetup) — `complete_onboarding()` invoca `start_trial()` | `CompleteOnboardingService` + `TenantLifecycleService` |
 | `draft` | `cancelled` | Usuário cancela antes de completar onboarding | Usuário |
 | `draft` | `archived` | Onboarding não completado em X dias | Cron job futuro |
+| `trial` | `active` | Pagamento confirmado / ativação manual — `activate_subscription()` | Billing (sem gateway na 6.0.4) |
+| `trial` | `cancelled` | Usuário cancela durante o trial — `cancel_subscription()` | Usuário |
+| `trial` | `past_due` | Pagamento falha ao fim do trial | Billing |
 | `active` | `past_due` | Pagamento falha | Billing |
 | `active` | `cancelled` | Usuário cancela assinatura | Usuário |
 | `active` | `archived` | Inatividade prolongada | Cron job futuro |
 | `past_due` | `active` | Pagamento confirmado | Billing |
-| `past_due` | `suspended` | Inadimplência prolongada | Billing |
+| `past_due` | `suspended` | Inadimplência prolongada (grace 5 dias) | Billing |
 | `suspended` | `cancelled` | Suspensão prolongada | Cron job futuro |
 | `cancelled` | `archived` | Após período de retenção | Cron job futuro |
 | Qualquer | `archived` | Superadmin decide | SuperAdmin |
 
-> **Nota:** `trial` está definido no ENUM e no tipo TypeScript, mas não é usado enquanto Billing não for implementado. Quando Billing for ativo, onboarding passará a transicionar `draft → trial`, e pagamento `trial → active`. Atualmente onboarding vai direto de `draft → active`.
+> **Regra do PO (F10/D5):** `draft → trial → active` é **obrigatório**. **Nunca**
+> `draft → active` direto, mesmo com trial de zero dias — mantém o fluxo consistente.
+> O trial dura 14 dias contados do **provisionamento** do tenant (`tenants.created_at`),
+> não do onboarding (D3).
 
 ---
 
@@ -67,7 +73,7 @@ if (tenant.status === 'draft') return <Navigate to="/onboarding/shop-setup" />;
 // suspended, cancelled, archived → bloqueado
 if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navigate to="/pending-approval" />;
 
-// active, past_due → liberado
+// trial, active, past_due → liberado
 ```
 
 ### Resumo
@@ -75,6 +81,7 @@ if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navi
 | Status | Usuário comum | Manager | SuperAdmin |
 |--------|---------------|---------|------------|
 | `draft` | Redirecionado para onboarding | — | Total |
+| `trial` | Total | Total | Total |
 | `active` | Total | Total | Total |
 | `past_due` | Com restrições | Com restrições | Total |
 | `suspended` | Bloqueado | Bloqueado | Total |
@@ -91,4 +98,10 @@ if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navi
 - **Domain**: `domain/tenant/types.ts` — `TenantStatus`
 - **Guard**: `App.tsx` → `ProtectedRoute` — redireciona baseado em `tenant.status`
 - **RPC**: `provision_new_tenant()` — cria tenant com status `draft`
-- **RPC**: `complete_onboarding()` — transição `draft → active` (futuramente `draft → trial` com Billing)
+- **RPC**: `complete_onboarding()` — transição `draft → trial` (invoca `start_trial()`); guard via `current_is_tenant_manager_from_auth_uid` (6.0.4.3)
+- **RPC**: `start_trial()` — cria subscription `trialing` e transiciona `draft → trial` (idempotente; trial 14 dias do provisionamento)
+- **RPC**: `activate_subscription()` — transição `trial → active`
+- **RPC**: `cancel_subscription()` — transição `trialing/active/past_due → cancelled`
+- **RPC**: `get_subscription()` — leitura da assinatura do tenant do chamador
+- **Service**: `application/tenantLifecycle.ts` — `TenantLifecycleService` (startTrial/activate/cancel/getStatus) centraliza a emissão dos eventos de billing
+- **Eventos**: `TenantSubscriptionCreated`, `TenantTrialStarted`, `TenantSubscriptionUpdated`, `TenantSubscriptionCancelled` (catálogo `domain/events/types.ts`)

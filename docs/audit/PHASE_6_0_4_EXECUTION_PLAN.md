@@ -57,12 +57,12 @@ Ver `PHASE_6_0_4_AUDIT.md`. Destaques:
 - [ ] RPC `activate_subscription(tenant_id)` SECURITY DEFINER: `trialing → active` (sem gateway, uso manual/superadmin).
 - [ ] RPC `cancel_subscription(tenant_id)` SECURITY DEFINER: `trialing/active/past_due → cancelled` → `tenants.status='cancelled'`.
 
-### 5.2 Lifecycle Billing — 6.0.4.3
+### 5.2 Lifecycle Billing — 6.0.4.3 ✅ CONCLUÍDA
 
-- [ ] `complete_onboarding`: transição `draft → trial` (invoca `start_trial`), mantendo F10. **Nunca** `draft → active` direto.
-- [ ] `TenantLifecycleService` (TS): `startTrial`, `activate`, `cancel`, `getStatus` — espelhando `tenantProvisioning.ts`.
-- [ ] Janela de trial: 14 dias do provisionamento; 5 dias de grace (`past_due`) antes de `suspended` — lógica documentada; execução automática via cron fica registrada como futuro (sem gateway).
-- [ ] Docs: atualizar `TENANT_LIFECYCLE.md` (transições implementadas), `LIFECYCLE_MODEL.md` se necessário, **texto F3 em `BUSINESS_DECISIONS.md`** e `PLAN_MODEL.md` (início do trial = provisionamento), `TAXONOMY.md` (termos billing).
+- [x] `complete_onboarding`: transição `draft → trial` (invoca `start_trial`), mantendo F10. **Nunca** `draft → active` direto. → migration `20260806040000_fix_complete_onboarding_trial.sql` (guard via `current_is_tenant_manager_from_auth_uid` + grants ADR-012)
+- [x] `TenantLifecycleService` (TS): `startTrial`, `activate`, `cancel`, `getStatus` — espelhando `tenantProvisioning.ts`. → `application/tenantLifecycle.ts` + testes (18) — centraliza a emissão dos eventos de billing
+- [x] Janela de trial: 14 dias do provisionamento; 5 dias de grace (`past_due`) antes de `suspended` — lógica documentada em `TENANT_LIFECYCLE.md`; execução automática via cron fica registrada como futuro (sem gateway)
+- [x] Docs: `TENANT_LIFECYCLE.md` (transições implementadas), `LIFECYCLE_MODEL.md` já alinhado, **texto F3 em `BUSINESS_DECISIONS.md`** e `PLAN_MODEL.md` já alinhados (início do trial = provisionamento), `TAXONOMY.md` (8.1 Termos de Billing) atualizado
 
 ### 5.3 Billing Engine — 6.0.4.4
 
