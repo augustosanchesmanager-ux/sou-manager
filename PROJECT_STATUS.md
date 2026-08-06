@@ -1,6 +1,6 @@
 # SMG Platform — Status do Projeto
 
-> Visão instantânea da evolução do projeto. Última atualização: 2026-08-05.
+> Visão instantânea da evolução do projeto. Última atualização: 2026-08-06.
 >
 > **Produto Comercial Ativo:** SMG Barber (único)
 > **Arquitetura:** SMG Platform (multi-tenant, genérica, permanente)
@@ -144,10 +144,10 @@ Congelada. Nenhuma alteração estrutural aceita.
 ### Fase 6 — Production Readiness 🔵
 
 ```
-6.0  SaaS Core Impl.    ████████░░░░░░░░░░░░░░  40%
+6.0  SaaS Core Impl.    ██████████████░░░░░░  60%
 6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
-6.0.3  Team Onboarding    ░░░░░░░░░░░░░░░░░░░░   0%  (escopo redefinido pelo PO)
+6.0.3  Team Onboarding  ████████████████████ 100%  ✅ CERTIFICADA E2E (baseline v1.3.0)
 6.0.4  Billing Foundation ░░░░░░░░░░░░░░░░░░░░   0%
 6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
 6.1  CI/CD                ░░░░░░░░░░░░░░░░░░░░   0%
@@ -205,10 +205,10 @@ Migration Health
 
 ██████████ 100%
 
-100 arquivos SQL
-84 migrations timestamped
-16 utilitários / migrações legadas (sem timestamp)
-1 arquivo vazio (0 bytes)
+103 arquivos SQL
+97 migrations timestamped
+6 utilitários / migrações legadas (sem timestamp)
+0 arquivo vazio (0 bytes)
 0 quebradas
 0 pendentes
 0 divergentes
@@ -216,7 +216,7 @@ Migration Health
 4 issues médios documentados
 4 issues baixos documentados
 
-Última auditoria: 05/08/2026 (Fase 6.0.2)
+Última auditoria: 06/08/2026 (Fase 6.0.3)
 ```
 
 ---
@@ -225,12 +225,12 @@ Migration Health
 
 | Métrica | Valor |
 |---------|-------|
-| Total de testes | 644 |
-| Testes E2E | 29 |
-| Arquivos de teste | 22 |
-| Migrações SQL | 92 |
+| Total de testes | 659 |
+| Testes E2E | 31 |
+| Arquivos de teste | 24 |
+| Migrações SQL | 97 |
 | Tabelas com RLS | 47 |
-| Eventos de domínio | 11 |
+| Eventos de domínio | 16 |
 | Subscribers | 8 |
 | Application Services | 5 |
 | Repositories | 14 |
@@ -246,34 +246,31 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 concluídas — 6.0.3 Team Onboarding & Invitations |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 + 6.0.3 concluídas — 6.0.4 Billing Foundation (PRÓXIMA) |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
 
 ---
 
-## Estimativas do PO (2026-08-05)
+## Estimativas do PO (2026-08-06)
 
-> Registradas por decisão do PO durante a auditoria pós-6.0.2. Refletem a visão de negócio do progresso da plataforma.
+> Registradas por decisão do PO após a certificação da 6.0.3. Refletem a visão de negócio do progresso da plataforma.
 
 | Área | Status |
 |-------|--------|
 | Arquitetura | ✅ 100% |
-| Segurança | ✅ 95% |
-| Banco | ✅ 98% |
-| Refatoração | ✅ 100% |
-| E2E | ✅ 100% |
-| Onboarding Owner | ✅ 100% |
-| SaaS Foundation | ✅ 90% |
-| Team Onboarding | ⏳ 0% |
-| Billing | ⏳ 0% |
-| Feature Flags | ⏳ 0% |
-| Produção Final | ⏳ ~40% |
+| Segurança Base | ✅ 97% |
+| Multi-tenant | ✅ 98% |
+| Onboarding Owner | ✅ |
+| Team Onboarding | ✅ |
+| Convites | ✅ |
+| SaaS Core | ✅ |
+| E2E | ✅ Muito madura |
 
-**Visão geral do PO:** SMG Barber entre **82% e 88%** do caminho para um SaaS completo.
+**Visão geral do PO:** SMG Barber entre **90% e 92%** do caminho para um SaaS completo. A fundação do SaaS está encerrada; o que resta são capacidades de negócio (Billing, Feature Flags e Hardening final).
 
-**Próximas etapas (estimativa do PO):** 6.0.3 Team Onboarding (1–2 semanas) → 6.0.4 Billing (~25–30% do esforço restante) → 6.0.5 Feature Flags → Fase 7 Hardening/observabilidade/produção. Depois, foco em evolução funcional e crescimento do produto.
+**Próximas etapas (estimativa do PO):** 6.0.4 Billing (~maior fase restante — planos, trial, invoices, cobrança, suspensão, grace period) → 6.0.5 Feature Flags → Observabilidade/Produção/Deploy definitivo/Monitoramento.
 
 ---
 
@@ -292,6 +289,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 6.0 | Fase 6.0.3 (Team Onboarding & Invitations) ENCERRADA e CERTIFICADA. Edge Function `invite-team-member` deployada + SMTP/APP_URL/allowlist validados. E2E real 30/30 + 1 gated, unit 659/659, build OK. Bug `tenant_id is ambiguous` no `accept_invite` corrigido via migration `20260806010000`. Baseline `v1.3.0-team-onboarding-certified`. Branch `feature/phase-6.0.4-billing` criada. |
 | 2026-08-05 | 6.0 | Estimativas do PO registradas (82–88% SaaS completo). Início do planejamento da Fase 6.0.3 Team Onboarding. |
 | 2026-08-05 | 6.0 | Fase 6.0.3 renomeada para "Team Onboarding & Invitations" (decisão PO). Tenant Lifecycle considerado já implementado (Sprint 1/6.0.1) e removido como fase. Branch `feature/phase-6.0.3-team-onboarding` criada. |
 | 2026-08-05 | 6.0 | Fase 6.0.2 (Onboarding Completo) ENCERRADA e CERTIFICADA. Migration #93 aplicada (db real). E2E gated flow6/flow6a/flow7 verdes + suíte completa 29/29. Baseline `v1.2.0-onboarding-certified`. |

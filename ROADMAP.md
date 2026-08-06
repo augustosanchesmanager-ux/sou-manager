@@ -7,7 +7,7 @@
 >
 > **Diretriz Oficial:** Ver seção "Diretriz Oficial" abaixo.
 >
-> **Última atualização:** 2026-08-05
+> **Última atualização:** 2026-08-06
 
 ---
 
@@ -1089,9 +1089,9 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.2 ENCERRADA e certificada (E2E real + baseline `v1.2.0-onboarding-certified`, 2026-08-05).
+**Status:** ✅ Em andamento — Fase 6.0.2 e 6.0.3 ENCERRADAS e certificadas (E2E real; baselines `v1.2.0-onboarding-certified` e `v1.3.0-team-onboarding-certified`).
 
-> **⚠ BASELINE CONGELADA (decisão PO, 2026-08-05):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
+> **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
 **Critérios de Entrada:**
 - Fase 5 (Business Architecture) concluída
@@ -1107,7 +1107,7 @@ Para cada item:
 
 - [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [x] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
-- [ ] **6.0.3** Team Onboarding & Invitations — Convites de profissionais, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais (decisão PO 2026-08-05 — ver seção 6.0.3)
+- [x] **6.0.3** Team Onboarding & Invitations — Convites de profissionais, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais (decisão PO 2026-08-05 — ver seção 6.0.3) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-06)
 - [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
 - [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
 
@@ -1186,7 +1186,7 @@ Phase 6.0.3 — Team Onboarding & Invitations
 
 ---
 
-#### 6.0.3 Team Onboarding & Invitations ⬜ (PRÓXIMA — decisão PO 2026-08-05)
+#### 6.0.3 Team Onboarding & Invitations ✅ APROVADA PELO PO (2026-08-06)
 
 > **Decisão do PO (2026-08-05):** A fase foi **renomeada de "Tenant Lifecycle" para "Team Onboarding & Invitations"**. O Tenant Lifecycle já foi amplamente implementado e está em uso desde a Sprint 1 / Fase 6.0.1 — ver evidência abaixo — portanto reabri-lo seria retrabalho. A 6.0.3 foca no onboarding da equipe: convites, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais.
 
@@ -1200,13 +1200,13 @@ Phase 6.0.3 — Team Onboarding & Invitations
 - Tipos de domínio `TenantStatus`/`Tenant` — `domain/tenant/types.ts`
 
 **Escopo (definido pelo PO):**
-- [ ] Convite de profissionais (convite por email do gestor/owner)
-- [ ] Aceite de convite (fluxo do convidado)
-- [ ] Criação de credenciais (criação de conta do profissional)
-- [ ] Associação ao `tenant` (`staff` + `user_tenants`)
-- [ ] Conclusão do perfil do profissional
-- [ ] Permissões iniciais (papel baseado em `role_permissions`)
-- [ ] E2E do fluxo completo de convite → acesso
+- [x] Convite de profissionais (convite por email do gestor/owner)
+- [x] Aceite de convite (fluxo do convidado)
+- [x] Criação de credenciais (criação de conta do profissional)
+- [x] Associação ao `tenant` (`staff` + `user_tenants`)
+- [x] Conclusão do perfil do profissional
+- [x] Permissões iniciais (papel baseado em `role_permissions`)
+- [x] E2E do fluxo completo de convite → acesso
 
 **Critérios de Saída:**
 - Profissional convidado consegue aceitar, criar conta e acessar o tenant
@@ -1214,6 +1214,36 @@ Phase 6.0.3 — Team Onboarding & Invitations
 - E2E verde para o fluxo de convite → acesso
 
 **Dependência do ROADMAP:** remoção do item de "Tenant Lifecycle" da 6.0.3 (decisão PO). Gaps residuais de lifecycle (ex.: transições de billing via 6.0.4) migram para `PLATFORM_CERTIFICATION.md` como pendências, não como fase própria.
+
+**Certificação oficial (2026-08-06):**
+
+```
+STATUS:
+Phase 6.0.3 — COMPLETED
+
+Certification:
+APPROVED BY PO
+
+Build:
+PASS
+
+Tests:
+PASS (unit 659/659; E2E real 30/30 + 1 gated E2E_SIGNUP_UI)
+
+Edge Function invite-team-member:
+DEPLOYED (SMTP validado, APP_URL + allowlist configurados)
+
+Migrations:
+APPLIED (20260806000000 team_invitations + 20260806010000 fix accept_invite)
+
+Architecture:
+APPROVED
+
+Ready for:
+Phase 6.0.4 — Subscription/Billing Foundation
+```
+
+**Correção de bug (encontrada pelo E2E real):** `accept_invite` falhava com `column reference "tenant_id" is ambiguous` (42702 — OUT params do `RETURNS TABLE` colidiam com colunas na SELECT e no conflict target). Corrigido na migration `20260806010000_fix_accept_invite_tenant_id_ambiguity.sql` (SELECT qualificada com alias + `DELETE`+`INSERT` no lugar de `ON CONFLICT` em `user_tenants`). O bug só foi exposto por E2E ponta a ponta contra Supabase real, aceitando um convite de verdade.
 
 ### 6.1 CI/CD
 
