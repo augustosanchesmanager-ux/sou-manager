@@ -144,11 +144,11 @@ Congelada. Nenhuma alteração estrutural aceita.
 ### Fase 6 — Production Readiness 🔵
 
 ```
-6.0  SaaS Core Impl.    ██████████████░░░░░░  64%
+6.0  SaaS Core Impl.    ██████████████████░░░░  72%
 6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.3  Team Onboarding  ████████████████████ 100%  ✅ CERTIFICADA E2E (baseline v1.3.0)
-6.0.4  Billing Foundation ██████████████░░░░░░  55%  🔵 6.0.4.1 + 6.0.4.2 + 6.0.4.3 ✅ — 6.0.4.4 Billing Engine PRÓXIMA
+6.0.4  Billing Foundation ████████████████░░░░░░  80%  ✅ 6.0.4.1 + 6.0.4.2 + 6.0.4.3 + 6.0.4.4 Billing Engine (baseline v1.4.2)
 6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
 6.1  CI/CD                ░░░░░░░░░░░░░░░░░░░░   0%
 6.2  Observabilidade      ░░░░░░░░░░░░░░░░░░░░   0%
@@ -246,7 +246,7 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 + 6.0.3 concluídas — 6.0.4.1 + 6.0.4.2 + 6.0.4.3 concluídas (hardening RPC + lifecycle) — **6.0.4.4 Billing Engine (PRÓXIMA)** |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 + 6.0.3 concluídas — 6.0.4.1 + 6.0.4.2 + 6.0.4.3 concluídas (hardening RPC + lifecycle) — **6.0.4.4 Billing Engine CONCLUÍDA (baseline v1.4.2, E2E flow9/flow12 verdes)** |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
@@ -289,6 +289,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 6.0 | Fase 6.0.4.4 (Billing Engine) **CONCLUÍDA e CERTIFICADA (E2E real flow9 + flow12 verdes)**. Migration `20260806050000` aplicada (cancel_at_period_end; `cancel_subscription` vira pedido) + corretivas `20260806070000` (fix 7 RPCs com `column reference "id" is ambiguous` — OUT params de `RETURNS TABLE` colidindo com colunas) e `20260806080000` (enum `tenant_status`). `domain/billing/` engine TS puro (fonte da verdade, sem cron); `application/billing.ts` BillingService (runCycle/markPaid/handleFailure/issueInvoice). FinanceSubscriber/Provider estendidos (`create_receivable`). Flow9 onboarding→trial→active e flow12 cancelamento→efetivação passam no banco real. Unit 749/749, build OK, typecheck da fase zerado. Baseline `v1.4.2-billing-engine-6.0.4.4`. 6.0.5 Feature Flags PRÓXIMA. |
 | 2026-08-06 | 6.0 | Fase 6.0.4.3 (Billing Lifecycle) concluída: migration `20260806040000` — `complete_onboarding` passa a `draft → trial` invocando `start_trial` (F10/D5), guard alinhado a `current_is_tenant_manager_from_auth_uid` e grants conforme ADR-012. `application/tenantLifecycle.ts` — `TenantLifecycleService` (startTrial/activate/cancel/getStatus) centraliza a emissão dos eventos de billing; `onboarding.ts` delega os eventos de billing ao service. Docs: `TENANT_LIFECYCLE.md` (estado implementado) + `TAXONOMY.md` (8.1 Termos de Billing). Unit 699/699, build OK. Migration aplicada ao banco real via procedimento da `MIGRATION_EXCEPTION` (db query --linked + repair applied; grants anon/PUBLIC removidos). 6.0.4.4 Billing Engine PRÓXIMA. |
 | 2026-08-06 | 6.0 | Fase 6.0.4.2 (Billing Foundation) + hardening de autorização: migration `20260806030000` corrige ambiguidades do `start_trial`, adiciona guard `auth.uid()` no `record_billing_event` e aplica `REVOKE anon` em RPCs privilegiadas. **ADR-012** registra o contrato permanente de grants (REVOKE anon / GRANT authenticated). Backlog "Security Hardening — RPC Permission Audit" registrado. Baseline `v1.4.0-billing-foundation-6.0.4.2`. 6.0.4.3 Lifecycle PRÓXIMA. |
 | 2026-08-06 | 6.0 | Fase 6.0.3 (Team Onboarding & Invitations) ENCERRADA e CERTIFICADA. Edge Function `invite-team-member` deployada + SMTP/APP_URL/allowlist validados. E2E real 30/30 + 1 gated, unit 659/659, build OK. Bug `tenant_id is ambiguous` no `accept_invite` corrigido via migration `20260806010000`. Baseline `v1.3.0-team-onboarding-certified`. Branch `feature/phase-6.0.4-billing` criada. |

@@ -188,3 +188,15 @@ Decisão do PO (2026-08-05): **reestruturar a suíte principal de E2E para ser d
 - [ ] **E-mail para o fluxo real:** o domínio `soumanager.com.br` tem MX nulo e nunca será aceito pelo GoTrue — usar domínios entregáveis para testes reais de `signUp`.
 - [ ] **Limpeza de tenants órfãos:** os runs do flow6 criam tenants órfãos (sem `auth.users` após cleanup); limpeza via dashboard/SQL sob responsabilidade do operador.
 - [ ] **`approve_access_request()` e `close_order()`:** pendências de segurança do RPC audit (ver AGENTS.md, Fase 3.3) — não relacionadas a esta fase.
+
+### 9.5 Migrations da Fase 6.0.4.4 (Billing Engine) — Aplicadas por este Procedimento
+
+Três migrations da fase foram aplicadas manualmente pelo procedimento da MIGRATION_EXCEPTION (cópia sem BOM em temp + `db query --linked -f` + `migration repair applied`), pois o `supabase db push --linked` permanece bloqueado pelo bug supabase/cli#6036:
+
+| Migration | Conteúdo |
+|-----------|----------|
+| `20260806050000_phase_6_0_4_4_billing_engine.sql` | `cancel_at_period_end`; `cancel_subscription` vira pedido (acesso mantido) |
+| `20260806070000_fix_rpc_ambiguous_column_references.sql` | Fix `column reference "id" is ambiguous` em 7 RPCs (OUT params de `RETURNS TABLE` qualificados com alias) |
+| `20260806080000_fix_apply_subscription_transition_tenant_status_enum.sql` | `v_tenant_status public.tenant_status` (labels: draft/trial/active/past_due/suspended/cancelled/archived) |
+
+Corretivas (070000/080000) foram aplicadas **após** a principal por descoberta nos E2E reais flow9/flow12 — não houve reexecução de migration (orientação do projeto); cada correção entrou como nova migration. A trigger `sync_profile_to_user_tenants` já cria `user_tenants` via UPSERT — o seed do flow12 foi ajustado (removido insert manual) em vez de nova migration.

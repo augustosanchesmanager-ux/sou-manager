@@ -1089,7 +1089,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2 e 6.0.4.3 ENCERRADAS (baselines `v1.4.0-billing-foundation-6.0.4.2` e `v1.4.1-billing-lifecycle-6.0.4.3`).
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). Próxima: **6.0.5 Feature Flags**.
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
