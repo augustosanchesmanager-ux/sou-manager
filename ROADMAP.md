@@ -1089,7 +1089,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.2 e 6.0.3 ENCERRADAS e certificadas (E2E real; baselines `v1.2.0-onboarding-certified` e `v1.3.0-team-onboarding-certified`).
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2 e 6.0.4.3 ENCERRADAS (baselines `v1.4.0-billing-foundation-6.0.4.2` e `v1.4.1-billing-lifecycle-6.0.4.3`).
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
