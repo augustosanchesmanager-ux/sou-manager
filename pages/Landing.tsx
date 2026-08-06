@@ -78,7 +78,7 @@ const PRICING_PLANS = [
     highlight: true,
   },
   {
-    name: 'Elite',
+    name: 'Premium',
     monthlyPrice: '99,90',
     annualPrice: '999,00',
     desc: 'Tecnologia de ponta com Inteligência Artificial.',
@@ -90,7 +90,7 @@ const PRICING_PLANS = [
       'Gestão Multiloja Dashboard',
       'Suporte Prioritário VIP'
     ],
-    cta: 'Conhecer o Plano Elite',
+    cta: 'Conhecer o Plano Premium',
     highlight: false,
   },
 ];

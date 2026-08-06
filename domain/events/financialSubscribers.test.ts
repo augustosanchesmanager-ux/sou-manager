@@ -24,6 +24,10 @@ import type {
   SubscriptionCancelledEvent,
   CreditsDeductedEvent,
   CashClosingCompletedEvent,
+  TenantSubscriptionCancelledEvent,
+  TenantTrialStartedEvent,
+  InvoicePaidEvent,
+  PaymentSucceededEvent,
   EventMetadata,
 } from './types';
 
@@ -108,6 +112,80 @@ const buildCashClosingEvent = (
       difference: -5,
       extrasCount: 2,
       hasDiscrepancy: true,
+      ...overrides?.payload,
+    },
+    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
+    ...overrides,
+  });
+
+// ─── Billing events (Fase 6.0.4) — NUNCA confundir com ChefClub (R2) ──
+
+const buildTenantSubscriptionCancelledEvent = (
+  overrides?: Partial<TenantSubscriptionCancelledEvent>,
+): TenantSubscriptionCancelledEvent =>
+  createEvent<TenantSubscriptionCancelledEvent>({
+    eventType: 'TenantSubscriptionCancelled',
+    aggregateId: 'tenant-1',
+    aggregateType: 'tenant_subscription',
+    payload: {
+      subscriptionId: 'tenant-sub-1',
+      tenantId: 'tenant-1',
+      reason: 'user_cancelled',
+      canceledAt: '2026-08-06T12:00:00Z',
+      ...overrides?.payload,
+    },
+    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
+    ...overrides,
+  });
+
+const buildTenantTrialStartedEvent = (
+  overrides?: Partial<TenantTrialStartedEvent>,
+): TenantTrialStartedEvent =>
+  createEvent<TenantTrialStartedEvent>({
+    eventType: 'TenantTrialStarted',
+    aggregateId: 'tenant-1',
+    aggregateType: 'tenant_subscription',
+    payload: {
+      subscriptionId: 'tenant-sub-1',
+      tenantId: 'tenant-1',
+      trialStartedAt: '2026-08-06T00:00:00Z',
+      trialEndsAt: '2026-08-20T00:00:00Z',
+      ...overrides?.payload,
+    },
+    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
+    ...overrides,
+  });
+
+const buildInvoicePaidEvent = (
+  overrides?: Partial<InvoicePaidEvent>,
+): InvoicePaidEvent =>
+  createEvent<InvoicePaidEvent>({
+    eventType: 'InvoicePaid',
+    aggregateId: 'inv-1',
+    aggregateType: 'invoice',
+    payload: {
+      invoiceId: 'inv-1',
+      tenantId: 'tenant-1',
+      amount: 119.9,
+      paidAt: '2026-08-06T12:00:00Z',
+      ...overrides?.payload,
+    },
+    metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
+    ...overrides,
+  });
+
+const buildPaymentSucceededEvent = (
+  overrides?: Partial<PaymentSucceededEvent>,
+): PaymentSucceededEvent =>
+  createEvent<PaymentSucceededEvent>({
+    eventType: 'PaymentSucceeded',
+    aggregateId: 'pay-1',
+    aggregateType: 'payment',
+    payload: {
+      attemptId: 'pay-1',
+      invoiceId: 'inv-1',
+      tenantId: 'tenant-1',
+      provider: null,
       ...overrides?.payload,
     },
     metadata: defaultMetadata(overrides?.metadata as Partial<EventMetadata>),
@@ -649,6 +727,78 @@ describe('FinanceSubscriber', () => {
 
       const items = await outbox.find({ status: 'pending' });
       expect(items[0].metadata.causationId).toBe(event.eventId);
+    });
+  });
+
+  // ── Group B9: Billing Event Isolation (regressão R2) ─────────
+
+  describe('billing event isolation (R2 — não confundir com ChefClub)', () => {
+    it('should_ignore_tenant_subscription_cancelled', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildTenantSubscriptionCancelledEvent());
+
+      expect(strategy.mapSubscriptionCancelled).not.toHaveBeenCalled();
+      const count = await outbox.count('pending');
+      expect(count).toBe(0);
+    });
+
+    it('should_ignore_tenant_trial_started', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildTenantTrialStartedEvent());
+
+      const count = await outbox.count('pending');
+      expect(count).toBe(0);
+    });
+
+    it('should_ignore_invoice_paid', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildInvoicePaidEvent());
+
+      const count = await outbox.count('pending');
+      expect(count).toBe(0);
+    });
+
+    it('should_ignore_payment_succeeded', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildPaymentSucceededEvent());
+
+      const count = await outbox.count('pending');
+      expect(count).toBe(0);
+    });
+
+    it('should_handle_chef_club_subscription_cancelled_without_confusion', async () => {
+      // Controle: o evento ChefClub continua funcionando normalmente
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildSubscriptionCancelledEvent());
+
+      expect(strategy.mapSubscriptionCancelled).toHaveBeenCalledTimes(1);
+      const count = await outbox.count('pending');
+      expect(count).toBe(1);
     });
   });
 });

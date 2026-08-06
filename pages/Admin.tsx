@@ -238,7 +238,7 @@ const Admin: React.FC = () => {
                 <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Elite Access</span>
+                            <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Premium Access</span>
                             <span className="text-amber-500/50 text-[10px] font-bold uppercase tracking-widest">Protocolo SOU-99</span>
                         </div>
                         <h2 className="text-4xl font-black tracking-tighter text-white">Central de Comando SaaS</h2>
@@ -348,7 +348,7 @@ const Admin: React.FC = () => {
                                                 <p className="text-sm font-bold text-white truncate">{s.name}</p>
                                                 <p className="text-[10px] text-slate-500 font-bold">{s.owner} · {s.staff} colaboradores</p>
                                             </div>
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${s.plan === 'elite' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{s.plan}</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${s.plan === 'premium' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{s.plan}</span>
                                         </div>
                                     ))}
                                     <button onClick={() => setActiveTab('shops')} className="w-full mt-2 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] transition-all">
@@ -410,7 +410,7 @@ const Admin: React.FC = () => {
                                                 </td>
                                                 <td className="px-8 py-6 text-sm font-bold text-slate-400">{shop.owner}</td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${shop.plan === 'elite' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{shop.plan || 'free'}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${shop.plan === 'premium' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{shop.plan || 'free'}</span>
                                                 </td>
                                                 <td className="px-8 py-6 text-sm font-bold text-slate-400">{shop.staff} membros</td>
                                                 <td className="px-8 py-6 text-sm font-bold text-emerald-400">{fmt(shop.revenue)}</td>
@@ -778,27 +778,27 @@ const Admin: React.FC = () => {
                                             <th className="px-8 py-5">Funcionalidade</th>
                                             <th className="px-8 py-5 text-center">Free</th>
                                             <th className="px-8 py-5 text-center">Professional</th>
-                                            <th className="px-8 py-5 text-center text-amber-500">Elite</th>
+                                            <th className="px-8 py-5 text-center text-amber-500">Premium</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
                                         {[
-                                            { feature: 'Agendamentos Iniciais', free: true, pro: true, elite: true },
-                                            { feature: 'Cadastro de Clientes Premium', free: true, pro: true, elite: true },
-                                            { feature: 'Checkout / PDV Profissional', free: false, pro: true, elite: true },
-                                            { feature: 'Folha de Pagamento Auto', free: false, pro: true, elite: true },
-                                            { feature: 'Gestão de Recibos Digitais', free: false, pro: true, elite: true },
-                                            { feature: 'Motor de Retorno Inteligente', free: false, pro: false, elite: true },
-                                            { feature: 'IA Gemini: Insights Preditivos', free: false, pro: false, elite: true },
-                                            { feature: 'Totem / Kiosk Autoatendimento', free: false, pro: false, elite: true },
-                                            { feature: 'Gestão Multiloja (Dashboard)', free: false, pro: false, elite: true },
-                                            { feature: 'Suporte Prioritário VIP', free: false, pro: false, elite: true },
+                                            { feature: 'Agendamentos Iniciais', free: true, pro: true, premium: true },
+                                            { feature: 'Cadastro de Clientes Premium', free: true, pro: true, premium: true },
+                                            { feature: 'Checkout / PDV Profissional', free: false, pro: true, premium: true },
+                                            { feature: 'Folha de Pagamento Auto', free: false, pro: true, premium: true },
+                                            { feature: 'Gestão de Recibos Digitais', free: false, pro: true, premium: true },
+                                            { feature: 'Motor de Retorno Inteligente', free: false, pro: false, premium: true },
+                                            { feature: 'IA Gemini: Insights Preditivos', free: false, pro: false, premium: true },
+                                            { feature: 'Totem / Kiosk Autoatendimento', free: false, pro: false, premium: true },
+                                            { feature: 'Gestão Multiloja (Dashboard)', free: false, pro: false, premium: true },
+                                            { feature: 'Suporte Prioritário VIP', free: false, pro: false, premium: true },
                                         ].map((row, i) => (
                                             <tr key={i} className="hover:bg-white/[0.02] transition-colors">
                                                 <td className="px-8 py-4 text-sm font-bold text-white">{row.feature}</td>
                                                 <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
                                                 <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
-                                                <td className="px-8 py-4 text-center">{row.elite ? <span className="material-symbols-outlined text-amber-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.premium ? <span className="material-symbols-outlined text-amber-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -845,7 +845,7 @@ const Admin: React.FC = () => {
                                                 >
                                                     <option value="free">Free</option>
                                                     <option value="pro">Professional</option>
-                                                    <option value="elite">Elite</option>
+                                                    <option value="premium">Premium</option>
                                                 </select>
                                                 <button
                                                     onClick={async () => {
@@ -1061,7 +1061,7 @@ const Admin: React.FC = () => {
                             className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg p-3 text-sm text-white outline-none [color-scheme:dark]">
                             <option value="free">Free</option>
                             <option value="pro">Professional</option>
-                            <option value="elite">Elite</option>
+                            <option value="premium">Premium</option>
                         </select>
                     </div>
                     <div className="flex gap-3 pt-2">

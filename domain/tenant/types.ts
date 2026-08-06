@@ -5,7 +5,7 @@
  *
  * DESIGN:
  *   - TenantStatus uses PostgreSQL ENUM (tenant_status) — PO directive
- *   - Plan is TEXT for now (free/pro/elite), will become ENUM when Billing is added
+ *   - Plan is TEXT for now (free/pro/premium), will become ENUM when Billing is added
  *   - TenantSettings are in a separate table (operational data)
  *   - Company data (name, CNPJ, address) lives on tenants + tenant_settings
  */
@@ -23,7 +23,7 @@ export type TenantStatus =
 
 // ─── Plan ────────────────────────────────────────────────────────
 
-export type TenantPlan = 'free' | 'pro' | 'elite';
+export type TenantPlan = 'free' | 'pro' | 'premium';
 
 // ─── Entity ──────────────────────────────────────────────────────
 

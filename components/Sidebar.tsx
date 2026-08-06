@@ -267,12 +267,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     ? [
         { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agenda e Clientes', icon: 'bolt', color: 'slate' },
         { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Procedimentos, equipe e finalização', icon: 'auto_awesome', color: 'primary' },
-        { id: 'elite', name: 'Elite', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, retornos e gestão avançada', icon: 'workspace_premium', color: 'amber' },
+        { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, retornos e gestão avançada', icon: 'workspace_premium', color: 'amber' },
       ]
     : [
         { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agendamentos e Clientes', icon: 'bolt', color: 'slate' },
         { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
-        { id: 'elite', name: 'Elite', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
+        { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
       ];
   const isModuleAllowed = (moduleName?: AppModuleSlug) =>
     !moduleName || isAppModuleEnabled(appSlug, moduleName);
@@ -709,7 +709,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                     </div>
                   )}
                   <div className={`size-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110
-                    ${p.id === 'elite' ? 'bg-amber-500/10 text-amber-600' :
+                    ${p.id === 'premium' ? 'bg-amber-500/10 text-amber-600' :
                       p.id === 'pro' ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}
                   `}>
                     <span className="material-symbols-outlined text-3xl">{p.icon}</span>

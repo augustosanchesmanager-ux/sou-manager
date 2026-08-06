@@ -21,7 +21,7 @@ export class WelcomePage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.heading = page.getByRole('heading', { name: 'Bem-vindo ao SMG Barber!' });
-    this.planBadge = page.locator('header').getByText(/Plano (Free|Pro|Elite)/);
+    this.planBadge = page.locator('header').getByText(/Plano (Free|Pro|Premium)/);
     this.progressPercent = page.locator('div').filter({ hasText: /^Progresso/ }).locator('text=100%').last();
     this.startButton = page.getByRole('button', { name: /Começar/ });
     this.continueButton = page.getByRole('button', { name: /Continuar configuração/ });

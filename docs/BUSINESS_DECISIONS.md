@@ -39,7 +39,9 @@
 
 ## F3 — Trial
 
-> Trial de **14 dias** para planos pagos. Contado a partir do `complete_onboarding()`.
+> Trial de **14 dias** para planos pagos, contado a partir do **provisionamento do tenant** (início do trial registrado via `start_trial()`; NÃO a partir do `complete_onboarding()`).
+> `complete_onboarding()` apenas efetua a transição `draft → trial` — nunca altera diretamente para `active` (ver F10).
+> Ao fim do trial, seguem **5 dias de grace period** (F4) antes da suspensão.
 
 ## F4 — Grace Period
 

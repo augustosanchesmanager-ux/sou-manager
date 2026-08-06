@@ -8,7 +8,7 @@ import type { TenantSettings } from '../../domain/tenantSettings/types';
 const PLAN_LABELS: Record<string, string> = {
     free: 'Plano Free',
     pro: 'Plano Pro',
-    elite: 'Plano Elite',
+    premium: 'Plano Premium',
 };
 
 const STEP_KEYS = ['company', 'hours', 'services', 'team', 'finish'] as const;

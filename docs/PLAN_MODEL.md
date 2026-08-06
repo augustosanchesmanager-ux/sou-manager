@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.plans (
 | Regra | Descrição |
 |-------|-----------|
 | Plano padrão | `free` para novos tenants (via `provision_new_tenant`) |
-| Trial | 14 dias, contado a partir do `complete_onboarding()` |
+| Trial | 14 dias, contado a partir do **provisionamento do tenant** (F3/D3) |
 | Free | Sem trial (trial_days = 0) |
 | Upgrade | Imediato, faturamento pro-rata |
 | Downgrade | Fim do ciclo de faturamento atual |

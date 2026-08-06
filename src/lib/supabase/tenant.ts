@@ -32,7 +32,7 @@ export interface TenantRecord {
   name: string;
   slug: string | null;
   app_slug: AppSlug;
-  plan: 'free' | 'pro' | 'elite';
+  plan: 'free' | 'pro' | 'premium';
   status: TenantStatus;
   created_at?: string | null;
 }

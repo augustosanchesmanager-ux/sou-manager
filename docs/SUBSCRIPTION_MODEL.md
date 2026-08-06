@@ -75,7 +75,7 @@ stateDiagram-v2
 
 ### 3.1 Trial — **14 dias** (decisão do PO)
 
-- Inicia quando `complete_onboarding()` é chamado
+- Inicia no **provisionamento do tenant** (não no `complete_onboarding()`; ver D3/F3)
 - Duração: **14 dias** (plano `pro`/`premium` definem `trial_days`)
 - Durante o trial: todas as features do plano ativo
 - Ao expirar: `trial → active` se pagamento confirmado, senão `trial → past_due`

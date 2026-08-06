@@ -252,6 +252,196 @@ export interface StaffAcceptedEvent extends DomainEvent {
   };
 }
 
+// ─── Billing Events (Fase 6.0.4) ────────────────────────────────
+// Convenção aprovada pelo PO (2026-08-06): prefixo TenantSubscription* para
+// o estado do contrato e TenantTrial* / Invoice* / Payment* para o processo
+// de cobrança — mantém separação do domínio ChefClub (customer_subscriptions).
+// Aggregate types: 'tenant_subscription' | 'invoice' | 'payment'.
+
+export interface TenantSubscriptionCreatedEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionCreated';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    plan: 'free' | 'pro' | 'premium';
+    status: 'trialing' | 'active' | 'past_due' | 'cancelled';
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+  };
+}
+
+export interface TenantSubscriptionUpdatedEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionUpdated';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    plan: 'free' | 'pro' | 'premium';
+    status: 'trialing' | 'active' | 'past_due' | 'cancelled';
+  };
+}
+
+export interface TenantSubscriptionRenewedEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionRenewed';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  };
+}
+
+export interface TenantSubscriptionCancelledEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionCancelled';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    reason?: string;
+    canceledAt: string;
+  };
+}
+
+export interface TenantSubscriptionSuspendedEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionSuspended';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+  };
+}
+
+export interface TenantSubscriptionReactivatedEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionReactivated';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+  };
+}
+
+export interface TenantSubscriptionExpiredEvent extends DomainEvent {
+  readonly eventType: 'TenantSubscriptionExpired';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+  };
+}
+
+export interface TenantTrialStartedEvent extends DomainEvent {
+  readonly eventType: 'TenantTrialStarted';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    trialStartedAt: string;
+    trialEndsAt: string;
+  };
+}
+
+export interface TenantTrialEndingEvent extends DomainEvent {
+  readonly eventType: 'TenantTrialEnding';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+    trialEndsAt: string;
+    daysRemaining: number;
+  };
+}
+
+export interface TenantTrialEndedEvent extends DomainEvent {
+  readonly eventType: 'TenantTrialEnded';
+  readonly aggregateType: 'tenant_subscription';
+  readonly payload: {
+    subscriptionId: string;
+    tenantId: string;
+  };
+}
+
+export interface InvoiceCreatedEvent extends DomainEvent {
+  readonly eventType: 'InvoiceCreated';
+  readonly aggregateType: 'invoice';
+  readonly payload: {
+    invoiceId: string;
+    tenantId: string;
+    subscriptionId: string | null;
+    amount: number;
+    dueDate: string;
+    billingPeriodStart: string;
+    billingPeriodEnd: string;
+  };
+}
+
+export interface InvoicePaidEvent extends DomainEvent {
+  readonly eventType: 'InvoicePaid';
+  readonly aggregateType: 'invoice';
+  readonly payload: {
+    invoiceId: string;
+    tenantId: string;
+    amount: number;
+    paidAt: string;
+  };
+}
+
+export interface InvoiceOverdueEvent extends DomainEvent {
+  readonly eventType: 'InvoiceOverdue';
+  readonly aggregateType: 'invoice';
+  readonly payload: {
+    invoiceId: string;
+    tenantId: string;
+    amount: number;
+    dueDate: string;
+  };
+}
+
+export interface InvoiceCancelledEvent extends DomainEvent {
+  readonly eventType: 'InvoiceCancelled';
+  readonly aggregateType: 'invoice';
+  readonly payload: {
+    invoiceId: string;
+    tenantId: string;
+    reason?: string;
+  };
+}
+
+export interface PaymentSucceededEvent extends DomainEvent {
+  readonly eventType: 'PaymentSucceeded';
+  readonly aggregateType: 'payment';
+  readonly payload: {
+    attemptId: string;
+    invoiceId: string;
+    tenantId: string;
+    provider: string | null;
+  };
+}
+
+export interface PaymentFailedEvent extends DomainEvent {
+  readonly eventType: 'PaymentFailed';
+  readonly aggregateType: 'payment';
+  readonly payload: {
+    attemptId: string;
+    invoiceId: string;
+    tenantId: string;
+    provider: string | null;
+    error: string | null;
+  };
+}
+
+export interface PaymentRefundedEvent extends DomainEvent {
+  readonly eventType: 'PaymentRefunded';
+  readonly aggregateType: 'payment';
+  readonly payload: {
+    attemptId: string;
+    invoiceId: string;
+    tenantId: string;
+    provider: string | null;
+  };
+}
+
 // ─── Union Type ──────────────────────────────────────────────────
 
 export type SystemEvent =
@@ -270,7 +460,24 @@ export type SystemEvent =
   | TenantOnboardingCompletedEvent
   | TenantFirstAppointmentReachedEvent
   | StaffInvitedEvent
-  | StaffAcceptedEvent;
+  | StaffAcceptedEvent
+  | TenantSubscriptionCreatedEvent
+  | TenantSubscriptionUpdatedEvent
+  | TenantSubscriptionRenewedEvent
+  | TenantSubscriptionCancelledEvent
+  | TenantSubscriptionSuspendedEvent
+  | TenantSubscriptionReactivatedEvent
+  | TenantSubscriptionExpiredEvent
+  | TenantTrialStartedEvent
+  | TenantTrialEndingEvent
+  | TenantTrialEndedEvent
+  | InvoiceCreatedEvent
+  | InvoicePaidEvent
+  | InvoiceOverdueEvent
+  | InvoiceCancelledEvent
+  | PaymentSucceededEvent
+  | PaymentFailedEvent
+  | PaymentRefundedEvent;
 
 export type EventType = SystemEvent['eventType'];
 
