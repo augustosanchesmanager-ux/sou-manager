@@ -140,11 +140,13 @@ Catálogo de flags: matriz congelada de `FEATURE_FLAGS_MODEL.md` §5 (`free/pro/
 
 ## 6. Critérios de saída (certificação — PO)
 
-- [ ] Cobertura unitária completa do Estado Efetivo (níveis, combinações válidas/inválidas, flags por plano, avisos)
-- [ ] E2E cobrindo os cenários das D-6.0.5-1/2 (past_due read-only + aviso; cancelled somente leitura)
-- [ ] **Nenhuma** decisão de acesso baseada diretamente em `tenant.status`, `subscription.status` ou `plan` (verificação via grep em `App.tsx` e camada de autorização)
-- [ ] Documentação + ROADMAP atualizados (DIV-1 alinhado)
-- [ ] Nova baseline criada (padrão `v1.4.3-effective-state-6.0.5.1`)
+- [x] Cobertura unitária completa do Estado Efetivo (níveis, combinações válidas/inválidas, flags por plano, avisos) — 46 testes por matriz (795 total, PASS)
+- [x] E2E cobrindo os cenários das D-6.0.5-1/2 (past_due read-only + aviso; cancelled somente leitura) — flow13 (8/8 PASS, Supabase real). **Aviso na UI + enforcement de escrita = 6.0.5.3 (escopo §1.2)**; aviso validado em nível unitário (`getWarnings`)
+- [x] **Nenhuma** decisão de acesso baseada diretamente em `tenant.status`, `subscription.status` ou `plan` (verificação via grep em `App.tsx` e camada de autorização) — verificado 2026-08-06
+- [x] Documentação + ROADMAP atualizados (DIV-1 alinhado) — changelog 8.2/8.3/8.4
+- [x] Nova baseline criada (padrão `v1.4.3-effective-state-6.0.5.1`)
+
+> **CERTIFICAÇÃO (PO, 2026-08-06): ✅ CERTIFIED.** Itens explicitamente fora do escopo da 6.0.5.1 (6.0.5.3): banner visual de estado, enforcement read-only nas operações de escrita, gating visual por Feature Flags.
 
 ---
 
