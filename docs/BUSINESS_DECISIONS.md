@@ -188,6 +188,26 @@
 | D-6.0.5.6-3 | Gate de deploy | **Nenhuma migration de produção poderá ser aplicada sem `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = `READY`** (resultado obrigatório: `READY` ou `BLOCKED`) |
 | D-6.0.5.6-4 | Alvo da auditoria | Executada contra o **banco real dos tenants produtivos** (ex.: Sanchez Barber) antes da primeira aplicação das migrations SaaS da release |
 
+## Decisões 6.0.6 (D-6.0.6) — aprovadas em 2026-08-07
+
+> Fase 6.0.6 — **Compliance & Legal**. Registro formal do gate obrigatório de certificação da release v1.5. Fase **exclusivamente documental nesta etapa** (nenhuma migration, tabela, SQL, RPC, API ou componente React). Posicionada **após a conclusão da 6.0.5.x** (incluindo PCA 6.0.5.6 + janela única de deploy) e **antes da certificação final da Release v1.5**.
+
+| Código | Tema | Decisão |
+|--------|------|---------|
+| D-6.0.6-1 | Criação da fase | **6.0.6 — Compliance & Legal** é fase oficial da SMG Platform, registrada como **gate obrigatório de certificação da release v1.5** |
+| D-6.0.6-2 | Posição na release | Posicionada **após** 6.0.5.x (incluindo PCA 6.0.5.6 + janela única de deploy) e **antes** da certificação final da v1.5. O **gate da release** exige a 6.0.6 concluída para a v1.5 ser certificada |
+| D-6.0.6-3 | Natureza nesta etapa | **Somente documentação** — nenhum código, migration, tabela, SQL, RPC, API ou componente React será alterado nesta etapa. A definição de artefatos funcionais/visuais (Centro Jurídico UI) fica para fases posteriores, após decisão do PO |
+| D-6.0.6-4 | Documentos jurídicos | Escopo de documentos legais versionados: **Termos de Uso, Política de Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies** |
+| D-6.0.6-5 | Versionamento | Cada documento possui **versão, hash, data de publicação, flag obrigatório/opcional e histórico**; versões antigas nunca são substituídas nem apagadas |
+| D-6.0.6-6 | Aceite eletrônico | Registra **usuário, tenant, data/hora, IP, User-Agent e versão aceita**; histórico **imutável** (append-only) |
+| D-6.0.6-7 | Reaceite obrigatório | Documento alterado → **nova versão → login → reaceite → acesso**. Usuário sem reaceite fica bloqueado até aceitar a nova versão |
+| D-6.0.6-8 | Centro Jurídico | Centro administrativo com histórico de aceites, documentos vigentes, versões anteriores, download, auditoria e situação do tenant |
+| D-6.0.6-9 | Objetivos LGPD | Garantir **exportação** (direito à portabilidade), **retenção** conforme política, **exclusão** (direito ao esquecimento), **consentimentos registrados** e **auditoria** de aceites |
+| D-6.0.6-10 | Modelo de dados (proposta) | Tabelas propostas (apenas arquitetura — nenhuma migration): **`legal_documents`**, **`document_versions`**, **`accepted_documents`** |
+| D-6.0.6-11 | Fluxo oficial de onboarding | Aceite jurídico inserido no fluxo oficial entre **Onboarding** e **Criação do Tenant** |
+| D-6.0.6-12 | Critérios de entrada | Arquitetura 6.0.5 concluída · PCA `READY` · schema congelado · deploy aprovado · release candidata pronta |
+| D-6.0.6-13 | Gate da release v1.5 | **A v1.5 somente é considerada concluída com: documentos jurídicos existentes + aceite eletrônico + versionamento + auditoria de aceite + Centro Jurídico + checklist de compliance aprovado** |
+
 ---
 
 ## Autoridade

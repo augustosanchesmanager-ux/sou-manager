@@ -33,6 +33,7 @@
 - [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
 - [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan`, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado) — pendente
 - [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
+- [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
 
 ---
 
@@ -171,7 +172,25 @@
 
 ---
 
-## 11. Pendências de Qualidade / Segurança (backlog documentado)
+## 11. Fase 6.0.6 — Compliance & Legal (gate obrigatório de certificação)
+
+> **Registrada em 2026-08-07 (decisão do PO).** Posição na release: **após** 6.0.5.x (incluindo PCA 6.0.5.6) + janela única de deploy, e **antes** da certificação final da v1.5. Fase **exclusivamente documental nesta etapa** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`.
+> **Gate da release:** a v1.5 somente poderá ser considerada concluída quando **todos** os itens abaixo estiverem atendidos.
+
+- [ ] Todos os documentos jurídicos existirem (Termos de Uso, Política de Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies)
+- [ ] Aceite eletrônico implementado (usuário, tenant, data/hora, IP, User-Agent, versão aceita — histórico imutável)
+- [ ] Versionamento funcionando (versão, hash, data de publicação, obrigatório/opcional, histórico)
+- [ ] Auditoria de aceite funcionando
+- [ ] Centro Jurídico disponível (histórico de aceites, documentos vigentes, versões anteriores, download, auditoria, situação do tenant)
+- [ ] Checklist de compliance aprovado
+- [ ] Reaceite obrigatório funcionando (documento alterado → nova versão → login → reaceite → acesso)
+
+> **Critérios de entrada da 6.0.6:** arquitetura 6.0.5 concluída · PCA READY · schema congelado · deploy aprovado · release candidata pronta.
+> **Modelo de dados (proposta arquitetural — nenhuma migration):** `legal_documents` · `document_versions` · `accepted_documents`.
+
+---
+
+## 12. Pendências de Qualidade / Segurança (backlog documentado)
 
 - [ ] `approve_access_request()` — adicionar `auth.uid()` (legado, Security Audit 3.3)
 - [ ] `close_order()` — deprecar/fixar (legado)
@@ -180,12 +199,13 @@
 
 ---
 
-## 12. Aceite Final da Versão
+## 13. Aceite Final da Versão
 
 > Tudo abaixo deve estar marcado antes de declarar a v1.5.0 certificada.
 
 - [ ] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
 - [ ] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
+- [ ] **Fase 6.0.6 Compliance & Legal** — gate de certificação atendido (ver §11)
 - [ ] Todas as migrations da versão aplicadas no remoto (janela única)
 - [ ] Todos os critérios de saída de cada entry audit marcados
 - [ ] Suíte unitária verde + typecheck sem novos erros + build OK + `architecture:ci` verde

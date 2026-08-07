@@ -1093,7 +1093,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. **6.0.5.1 (Estado Efetivo / camada de autorização) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementada + E2E flow13 PASS (8/8) + baseline `v1.4.3-effective-state-6.0.5.1`. **6.0.5.2 (BillingService + Modelagem de Plans) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementação + review PO + **smoke E2E 10/10 PASS (48.4s, Supabase real)**; migration `plans/features/plan_features` idempotente + `PlanCatalog` (contrato único do PO) + `FEATURE_KEYS` 1:1 + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` + 819 testes verdes; **deploy ao remoto DEFERIDO pelo PO (janela apropriada — não empurrar junto a `20260806030000` pendente; chaves validadas — smoke real já executado)**. **6.0.5.3 (FeatureFlagService + enforcement) ✅ IMPLEMENTAÇÃO EM ANDAMENTO (PO aprovou início em 2026-08-07)** — backend + frontend implementados; **adapters DB em `domain/billing/`** (decisão PO — padrão `supabaseBillingRepository.ts`; guard intacto, violações 233 → 230); migration `20260807000000` **validada em Postgres 16 docker** (aplica 2×; cenários T1–T7 OK); unit 847/847, build OK, `architecture:ci` verde, **smoke E2E 10/10 PASS (46.7s, Supabase real)**; docs finais + commit semântico `b383222` (24 arquivos, +1928/−126) + push.** **6.0.5.4 (TenantLifecycleService + `suspended` aditivo) ✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-07, PO aprovou a entry audit e autorizou a implementação)** — migration `20260807010000` (CHECK aditivo `suspended`, coluna `grace_ends_at` + backfill, `apply_subscription_transition` fail-fast sem `ELSE→active`, `get_due_subscriptions` ampliada, RPCs `suspend_subscription`/`reactivate_subscription` superadmin) **validada em Postgres 16 docker (aplica 2×; T1–T7 OK)**; `TenantLifecycleService` (writer único de `tenants.status` — ADR-013 §3.1) + engine `suspend` (grace expirado, `_graceDays` ativado) + `markPaid` reativa `suspended→active`; eventos `TenantSubscriptionSuspended`/`Reactivated` publicados; unit **874/874** (+27), typecheck 125 baseline, build OK, `architecture:ci` verde; **E2E flow14 (spec) escrito e typecheck OK — EXECUÇÃO ADIADA pelo PO para a janela única de deploy** (nenhuma migration aplicada ao remoto; execução junto a `06030000`/`06090000`/`07000000` no runbook); commit semântico `5454c81` (22 arquivos, +1355/−109) + push. **6.0.5.6 (Production Compatibility Audit — PCA) ⏳ PLANNED (2026-08-07)** — etapa oficial obrigatória da release v1.5, entre 6.0.5.5 e o deploy (ver seção 6.0.5.6).
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. **6.0.5.1 (Estado Efetivo / camada de autorização) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementada + E2E flow13 PASS (8/8) + baseline `v1.4.3-effective-state-6.0.5.1`. **6.0.5.2 (BillingService + Modelagem de Plans) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementação + review PO + **smoke E2E 10/10 PASS (48.4s, Supabase real)**; migration `plans/features/plan_features` idempotente + `PlanCatalog` (contrato único do PO) + `FEATURE_KEYS` 1:1 + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` + 819 testes verdes; **deploy ao remoto DEFERIDO pelo PO (janela apropriada — não empurrar junto a `20260806030000` pendente; chaves validadas — smoke real já executado)**. **6.0.5.3 (FeatureFlagService + enforcement) ✅ IMPLEMENTAÇÃO EM ANDAMENTO (PO aprovou início em 2026-08-07)** — backend + frontend implementados; **adapters DB em `domain/billing/`** (decisão PO — padrão `supabaseBillingRepository.ts`; guard intacto, violações 233 → 230); migration `20260807000000` **validada em Postgres 16 docker** (aplica 2×; cenários T1–T7 OK); unit 847/847, build OK, `architecture:ci` verde, **smoke E2E 10/10 PASS (46.7s, Supabase real)**; docs finais + commit semântico `b383222` (24 arquivos, +1928/−126) + push.** **6.0.5.4 (TenantLifecycleService + `suspended` aditivo) ✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-07, PO aprovou a entry audit e autorizou a implementação)** — migration `20260807010000` (CHECK aditivo `suspended`, coluna `grace_ends_at` + backfill, `apply_subscription_transition` fail-fast sem `ELSE→active`, `get_due_subscriptions` ampliada, RPCs `suspend_subscription`/`reactivate_subscription` superadmin) **validada em Postgres 16 docker (aplica 2×; T1–T7 OK)**; `TenantLifecycleService` (writer único de `tenants.status` — ADR-013 §3.1) + engine `suspend` (grace expirado, `_graceDays` ativado) + `markPaid` reativa `suspended→active`; eventos `TenantSubscriptionSuspended`/`Reactivated` publicados; unit **874/874** (+27), typecheck 125 baseline, build OK, `architecture:ci` verde; **E2E flow14 (spec) escrito e typecheck OK — EXECUÇÃO ADIADA pelo PO para a janela única de deploy** (nenhuma migration aplicada ao remoto; execução junto a `06030000`/`06090000`/`07000000` no runbook); commit semântico `5454c81` (22 arquivos, +1355/−109) + push. **6.0.5.6 (Production Compatibility Audit — PCA) ⏳ PLANNED (2026-08-07)** — etapa oficial obrigatória da release v1.5, entre 6.0.5.5 e o deploy (ver seção 6.0.5.6). **6.0.6 (Compliance & Legal) ⏳ PLANNED (2026-08-07)** — nova fase **exclusivamente documental** aprovada pelo PO como **gate obrigatório de certificação** da release v1.5: gestão de documentos legais (Termos de Uso, Política de Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies) com versionamento (versão/hash/data/obrigatoriedade/histórico), aceite eletrônico (usuário/tenant/data/hora/IP/User-Agent/versão), reaceite obrigatório em documentos alterados, Centro Jurídico administrativo, objetivos LGPD (exportação/retenção/exclusão/consentimentos/auditoria) e proposta de modelo de dados `legal_documents`/`document_versions`/`accepted_documents` (apenas arquitetura — sem migrations); posicionada **após a conclusão da 6.0.5.x + PCA + janela única de deploy** e **antes da certificação final da Release v1.5** (ver seção 6.0.6).
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1116,6 +1116,7 @@ Para cada item:
 - [x] **6.0.5.1** Estado Efetivo / camada de autorização — ADR-013 §2.4: `domain/authorization/*` (AccessPolicy, FeatureAvailability resolver, EffectiveState VO) + `application/authorization/*` (EffectiveAccessService, AuthorizationService); eliminação dos gates diretos `App.tsx:158/162`; D-6.0.5-2 `cancelled` = somente leitura; testes por matriz + **E2E flow13 8/8 PASS** (baseline `v1.4.3-effective-state-6.0.5.1`) ✅ **CERTIFICADA PELO PO (2026-08-06)**
 - [x] **6.0.5.2** BillingService + **Modelagem de Plans** (D-6.0.5-5) — migration `20260806090000_phase_6_0_5_2_plans_catalog.sql` (`plans`/`features`/`plan_features`, seed idempotente, FK TEXT `tenants.plan`/`subscriptions.plan` → `plans(slug)`, drop CHECKs, RLS) + contrato único **`PlanCatalog`** (`domain/billing/planCatalog.ts` — `getPlan`/`getFeatures`/`hasFeature`/`getLimits`) + `FEATURE_KEYS` (`domain/billing/featureKey.ts`, 20, 1:1 BD) + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` (checksum determinístico, acréscimo do review) + resolver 6.0.5.1 passa a resolver via catálogo (zero SQL) + `limits.ts` marcado legacy ✅ **IMPLEMENTAÇÃO CONCLUÍDA + REVIEW PO (2026-08-06)** — **819 testes verdes (+24)**, typecheck sem novos erros (125 baseline), migration validada em Postgres local 2× (idempotente) + teste de cobertura total (igualdade bidirecional 100% BD↔TS). **Deploy ao remoto DEFERIDO pelo PO** (janela apropriada)
 - [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): ~~6.0.5.1 camada de autorização~~ (✅ concluída), ~~6.0.5.2 BillingService + Modelagem de Plans~~ (✅ concluída — deploy pendente), ~~6.0.5.3 FeatureFlagService~~ (✅ implementada + commit `b383222` + smoke 10/10 — deploy pendente), ~~6.0.5.4 TenantLifecycleService + `suspended` aditivo~~ (✅ implementada — unit 874/874, migration T1–T7 OK, flow14 E2E pendente da janela única — decisão PO), 6.0.5.5 transições RPCs, **6.0.5.6 Production Compatibility Audit (PCA) — ⏳ PLANNED, gate obrigatório pré-deploy da release v1.5 (ver seção 6.0.5.6)**
+- [ ] **6.0.6** Compliance & Legal — **gate obrigatório de certificação** da release v1.5 (decisão PO 2026-08-07): gestão de documentos legais versionados, aceite eletrônico, reaceite obrigatório, Centro Jurídico, objetivos LGPD e modelo de dados proposto (arquitetura) — **exclusivamente documental nesta etapa** (ver seção 6.0.6)
 
 #### 6.0.5.6 — Production Compatibility Audit (PCA) ⏳ PLANNED
 
@@ -1134,6 +1135,8 @@ Deploy Runbook
 Janela Única de Deploy
       ↓
 Smoke Pós-Deploy
+      ↓
+Fase 6.0.6 — Compliance & Legal (gate obrigatório de certificação)
       ↓
 Release v1.5 Certification
 ```
@@ -1184,6 +1187,78 @@ Release v1.5 Certification
 - **Integridade:** FK · índices críticos · dados órfãos.
 
 > **Referência (obrigatória):** Antes da janela única de deploy da Release v1.5 será **obrigatória** a execução da **Production Compatibility Audit** utilizando o **banco real dos tenants produtivos**.
+
+---
+
+#### 6.0.6 — Compliance & Legal ⏳ PLANNED
+
+> **Registrada em 2026-08-07 (decisão do PO) como fase oficial e gate obrigatório de certificação da Release v1.5.**
+> Documento de planejamento/entrada: `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`.
+> **Modo da fase:** **EXCLUSIVAMENTE DOCUMENTAL** — nenhum código, SQL, migration, tabela, RPC, API ou componente React é criado nesta etapa.
+
+**Posição na Release v1.5:**
+
+```
+Fase 6.0.5.x (concluída)
+      ↓
+Production Compatibility Audit (6.0.5.6)
+      ↓
+Deploy Runbook → Janela Única de Deploy → Smoke Pós-Deploy
+      ↓
+Fase 6.0.6 — Compliance & Legal  ⬅ GATE OBRIGATÓRIO DE CERTIFICAÇÃO
+      ↓
+Release v1.5 Certification
+```
+
+**Objetivo:** preparar juridicamente a plataforma para operação comercial como SaaS, garantindo que o produto possua, documente e audite os documentos legais exigidos.
+
+**Critérios de entrada** (a fase só pode iniciar quando):
+- [ ] Arquitetura 6.0.5 concluída (6.0.5.1–6.0.5.6)
+- [ ] Production Compatibility Audit concluída (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
+- [ ] Schema final da release congelado
+- [ ] Deploy da janela única aprovado e executado
+- [ ] Release candidata pronta
+
+**Escopo da fase (objetivos registrados):**
+
+1. **Gestão de documentos legais** — documentos versionados: Termos de Uso, Política de Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies (caso existam).
+2. **Versionamento** — todo documento possui: versão, hash, data de publicação, obrigatório/opcional e histórico. **Nunca substituir documentos antigos.**
+3. **Aceite eletrônico** — registro de: usuário, tenant, data, hora, IP, User-Agent e versão aceita. **Nunca apagar histórico.**
+4. **Reaceite obrigatório** — quando um documento obrigatório mudar: nova versão → login → reaceite obrigatório → acesso liberado.
+5. **Centro Jurídico** — módulo administrativo com: histórico de aceites, documentos vigentes, versões anteriores, download, auditoria e situação do tenant.
+6. **LGPD** — exportação de dados, retenção, exclusão, consentimentos e auditoria.
+7. **Modelo de dados (proposta arquitetural)** — a implementação deverá prever entidades como `legal_documents`, `document_versions` e `accepted_documents`. **Apenas como arquitetura — nenhuma migration nesta fase documental.**
+8. **Fluxo oficial** — o aceite jurídico integra o fluxo de criação:
+
+```
+Cadastro
+    ↓
+Provisionamento
+    ↓
+Onboarding
+    ↓
+Aceite Jurídico
+    ↓
+Criação do Tenant
+    ↓
+Dashboard
+```
+
+**Critérios de saída:**
+- [ ] Documentação completa da fase
+- [ ] Auditoria aprovada
+- [ ] Roadmap atualizado
+- [ ] Checklist atualizado
+- [ ] Fase pronta para implementação futura
+
+**Gate da Release v1.5:** a Release v1.5 somente poderá ser considerada concluída quando **todos** os itens abaixo estiverem atendidos:
+
+- [ ] Todos os documentos jurídicos existirem (Termos, Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies)
+- [ ] Aceite eletrônico implementado
+- [ ] Versionamento funcionando
+- [ ] Auditoria de aceite funcionando
+- [ ] Centro Jurídico disponível
+- [ ] Checklist de compliance aprovado
 
 ---
 
@@ -1855,6 +1930,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-07 | 8.11 | **6.0.6 — Compliance & Legal registrada como fase oficial (gate obrigatório de certificação da release v1.5, decisão PO 2026-08-07).** Nova fase **exclusivamente documental** posicionada **após a conclusão da 6.0.5.x** (incluindo PCA 6.0.5.6 + janela única de deploy) e **antes da certificação final da Release v1.5**. Escopo registrado: (1) gestão de documentos legais (Termos de Uso, Política de Privacidade, LGPD, Contrato SaaS, Consentimentos, Cookies); (2) versionamento (versão/hash/data de publicação/obrigatoriedade/histórico — nunca substituir antigos); (3) aceite eletrônico (usuário/tenant/data/hora/IP/User-Agent/versão — nunca apagar histórico); (4) reaceite obrigatório em documento alterado (nova versão → login → reaceite → acesso); (5) Centro Jurídico administrativo (histórico de aceites, documentos vigentes, versões anteriores, download, auditoria, situação do tenant); (6) objetivos LGPD (exportação, retenção, exclusão, consentimentos, auditoria); (7) modelo de dados proposto `legal_documents`/`document_versions`/`accepted_documents` — **apenas arquitetura, nenhuma migration**; (8) fluxo oficial com Aceite Jurídico entre Onboarding e Criação do Tenant; (9) **gate da release: v1.5 só concluída com documentos jurídicos existentes + aceite eletrônico + versionamento + auditoria de aceite + Centro Jurídico + checklist de compliance aprovado**. Critérios de entrada (arquitetura 6.0.5 concluída, PCA READY, schema congelado, deploy aprovado, release candidata pronta) e de saída (documentação completa, auditoria aprovada, roadmap/checklist atualizados, pronta para implementação futura) registrados. Criado `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md` e atualizados `PROJECT_STATUS.md`, `RELEASE_CHECKLIST_v1.5.md` e `BUSINESS_DECISIONS.md` (D-6.0.6). **Nenhum código, migration, tabela, SQL, RPC, API ou componente React foi alterado — somente documentação.** |
 | 2026-08-07 | 8.10 | **6.0.5.4 — TenantLifecycleService + `suspended` aditivo IMPLEMENTAÇÃO CONCLUÍDA.** Migration `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql`: CHECK aditivo `suspended` (sem `archived` — D-6.0.5-7); coluna `grace_ends_at` + backfill de `past_due` legadas (R6/D-6.0.5.4-5); `apply_subscription_transition` reescrita com map explícito completo + **`ELSE RAISE EXCEPTION`** (fim do bug latente `ELSE→active`, DIV-1) + `p_grace_ends_at`; `get_due_subscriptions` devolve `grace_ends_at` e inclui candidatas com grace expirado; RPCs **`suspend_subscription`/`reactivate_subscription`** (superadmin, D-6.0.5-4, grants ADR-012). **Migration validada em Postgres 16 docker: aplica 2× (idempotente) + cenários T1–T7 OK** (CHECK aceita `suspended`/rejeita `archived`/`expired`; grace gravada/limpa; espelho `tenants.status='suspended'`; fail-fast; `get_due_subscriptions` com grace; guarda superadmin negativa + positiva com eventos; grants). Domain: `SubscriptionStatus += 'suspended'`, `BillingSubscription += graceEndsAt`, ação `suspend` no engine (`_graceDays` ativado; `suspended → none`, reativação não é ação de ciclo) + **`TenantLifecycleService`** (`domain/tenant/` — writer único de `tenants.status`, ADR-013 §3.1, matriz congelada §5.2) + `TenantRepository.updateStatus`. Application: `runCycle` aplica `suspend` + publica `TenantSubscriptionSuspended`; `markPaid` reativa `suspended→active` + publica `TenantSubscriptionReactivated`. **Unit 874/874 (+27)**, typecheck 125 baseline, build OK, `architecture:ci` verde. **E2E flow14 (spec `flow14-tenant-suspend-reactivate.spec.ts`) escrito + typecheck OK; EXECUÇÃO ADIADA pelo PO para a janela única de deploy** — nenhuma migration aplicada ao remoto; flow14 rodará no runbook junto a `06030000`/`06090000`/`07000000` + smoke pós-deploy. |
 | 2026-08-07 | 8.9 | **6.0.5.6 — Production Compatibility Audit (PCA) registrada como etapa oficial da release v1.5 (somente documentação, decisão PO 2026-08-07).** Nova subfase 6.0.5.6 (status ⏳ PLANNED) posicionada entre 6.0.5.5 e o Deploy Runbook na janela única de deploy. Objetivo: auditoria **somente leitura** do banco real dos tenants produtivos antes da primeira aplicação das migrations SaaS (novo modelo de planos, Feature Flags, Tenant Lifecycle, Billing, limites, regras de acesso, novas relações). Regras: não altera dados, não aplica migrations, não corrige automaticamente, não cria registros, não executa repair — apenas analisa e gera relatório. Critérios de entrada: 6.0.5.1–6.0.5.3 ✅, 6.0.5.4/6.0.5.5 ⬜, schema final congelado ⬜, runbook aprovado ⬜. Critério de saída: `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY** ou **BLOCKED**; **gate de release: nenhuma migration de produção sem PCA = READY**. Escopo futuro registrado (Tenants, Plans, Subscriptions, Billing, Feature Flags, Limites, Chef Club, Segurança, Integridade — ex.: Sanchez Barber Pro 4/5 → OK). Também criados `docs/RELEASE_CHECKLIST_v1.5.md` (checklist vivo, com gate PCA) e atualização de `PROJECT_STATUS.md`/`BUSINESS_DECISIONS.md` (D-6.0.5.6). **Nenhum código, migration, teste ou query de banco foi executado.** |
 | 2026-08-07 | 8.8 | **6.0.5.3 — Implementação em andamento (PO aprovou início em 2026-08-07).** Backend: `domain/billing/featureFlagService.ts` (writer único, API congelada §2.5) + `domain/billing/planCatalogDb.ts` (PlanCatalog DB-backed com `CATALOG_FINGERPRINT`) + `domain/billing/featureOverrideStoreDb.ts` (overrides de `feature_flags`) + fim de `limits.ts`. **Decisão PO (2026-08-07): adapters DB em `domain/billing/`** (padrão `supabaseBillingRepository.ts`) — Repository Guard intacto, **violações 233 → 230** (redução de dívida, sem exceção no guard); entry audit atualizada (localização corrigida). Frontend: `useFeatureFlags` (src/hooks/, leitura via RPC `tenant_has_feature`) + `FeatureGuard` + `FeatureUnavailablePage` (components/billing/) + gates no `App.tsx`/`Sidebar.tsx`/`moduleRegistry.ts` (app ∧ feature). Migration `20260807000000_phase_6_0_5_3_feature_flags.sql` **validada em Postgres 16 docker** — aplica 2× sem duplicar; cenários funcionais T1–T7 OK (matriz free/pro/premium, override vence, suspensão derruba, RLS de escrita bloqueia authenticated); bug de sintaxe corrigido na validação (COMMENT com `\|\|` → string única). Unit 847/847, build OK, `architecture:ci` verde. Pendente: smoke E2E, docs finais, commit semântico + push. |
