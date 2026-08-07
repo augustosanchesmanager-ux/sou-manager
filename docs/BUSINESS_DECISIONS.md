@@ -141,6 +141,19 @@
 
 **Regras complementares congeladas (plano Free):** 1 profissional · 1 unidade · sem Chef Club · sem módulos Premium. Limites controlados **exclusivamente pelas Feature Flags** — nenhuma regra depende do nome do plano.
 
+## Decisões 6.0.5.3 (D-6.0.5.3) — aprovadas em 2026-08-07
+
+> Subfase 6.0.5.3 — FeatureFlagService + Enforcement. Aprovações do PO registradas na entrada (respostas à entry audit `PHASE_6_0_5_3_ENTRY_AUDIT.md`).
+
+| Código | Tema | Decisão |
+|--------|------|---------|
+| D-6.0.5.3-1 | Escopo da subfase | **Somente enforcement de Feature Flags + resolução de planos.** Fora do escopo: Billing Engine, Lifecycle, novas RPCs de transição, RLS, migrations de billing e suspensão automática |
+| D-6.0.5.3-2 | Upgrade/downgrade + bypass Admin | `change_tenant_plan` + evento `TenantSubscriptionUpdated` + correção do bypass `Admin.tsx:856` **realocados para 6.0.5.5** (transições RPCs) |
+| D-6.0.5.3-3 | Deploy da migration 6.0.5.3 | Procedimento `MIGRATION_EXCEPTION` (mesmo da 6.0.4.3): `supabase db query --linked -f <migration>` + `supabase migration repair --status applied <timestamp>` — aplica `06030000`, `06090000` e a migration 6.0.5.3 na janela de operação |
+| D-6.0.5.3-4 | RPCs protegidas com `tenant_has_feature` | **Fechamento de caixa, comissões, receivables/expenses.** Checkout NÃO entra nesta subfase |
+| D-6.0.5.3-5 | Comportamento de UI com feature desabilitada | **Híbrido**: esconder módulo no sidebar + página reutilizável `FeatureUnavailablePage`/`UpgradePrompt` parametrizada em rota direta (nunca 403/404 genérico); backend continua a camada de segurança via `tenant_has_feature` |
+| D-6.0.5.3-6 | Leitura de Feature Flags no frontend | **Somente via RPC `tenant_has_feature`** consumida pela camada `FeatureFlagService`. Nenhum SELECT direto em `feature_flags`/`plans`/`features`/`plan_features` para decisão de acesso. Otimizações futuras (cache, JWT claims, Edge Functions) ficam atrás da abstração |
+
 ---
 
 ## Autoridade
