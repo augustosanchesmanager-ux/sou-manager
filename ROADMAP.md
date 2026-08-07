@@ -1093,7 +1093,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. **6.0.5.1 (Estado Efetivo / camada de autorização) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementada + E2E flow13 PASS (8/8) + baseline `v1.4.3-effective-state-6.0.5.1`. **6.0.5.2 (BillingService + Modelagem de Plans) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementação + review PO + **smoke E2E 10/10 PASS (48.4s, Supabase real)**; migration `plans/features/plan_features` idempotente + `PlanCatalog` (contrato único do PO) + `FEATURE_KEYS` 1:1 + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` + 819 testes verdes; **deploy ao remoto DEFERIDO pelo PO (janela apropriada — não empurrar junto a `20260806030000` pendente; chaves validadas — smoke real já executado)**. **6.0.5.3 (FeatureFlagService + enforcement) ✅ IMPLEMENTAÇÃO EM ANDAMENTO (PO aprovou início em 2026-08-07)** — backend + frontend implementados; **adapters DB em `domain/billing/`** (decisão PO — padrão `supabaseBillingRepository.ts`; guard intacto, violações 233 → 230); migration `20260807000000` **validada em Postgres 16 docker** (aplica 2×; cenários T1–T7 OK); unit 847/847, build OK, `architecture:ci` verde. Pendente: smoke E2E + docs finais + commit/push.**
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. **6.0.5.1 (Estado Efetivo / camada de autorização) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementada + E2E flow13 PASS (8/8) + baseline `v1.4.3-effective-state-6.0.5.1`. **6.0.5.2 (BillingService + Modelagem de Plans) ✅ CERTIFICADA PELO PO (2026-08-06)** — implementação + review PO + **smoke E2E 10/10 PASS (48.4s, Supabase real)**; migration `plans/features/plan_features` idempotente + `PlanCatalog` (contrato único do PO) + `FEATURE_KEYS` 1:1 + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` + 819 testes verdes; **deploy ao remoto DEFERIDO pelo PO (janela apropriada — não empurrar junto a `20260806030000` pendente; chaves validadas — smoke real já executado)**. **6.0.5.3 (FeatureFlagService + enforcement) ✅ IMPLEMENTAÇÃO EM ANDAMENTO (PO aprovou início em 2026-08-07)** — backend + frontend implementados; **adapters DB em `domain/billing/`** (decisão PO — padrão `supabaseBillingRepository.ts`; guard intacto, violações 233 → 230); migration `20260807000000` **validada em Postgres 16 docker** (aplica 2×; cenários T1–T7 OK); unit 847/847, build OK, `architecture:ci` verde, **smoke E2E 10/10 PASS (46.7s, Supabase real)**; docs finais + commit semântico `b383222` (24 arquivos, +1928/−126) + push.** **6.0.5.4 (TenantLifecycleService + `suspended` aditivo) ⏳ ENTRY AUDIT SUBMETIDA (2026-08-07, docs only — commit `ff9f301`)** — 4 auditorias + API congelada; aguardando aprovação do PO. **6.0.5.6 (Production Compatibility Audit — PCA) ⏳ PLANNED (2026-08-07)** — etapa oficial obrigatória da release v1.5, entre 6.0.5.5 e o deploy (ver seção 6.0.5.6).
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1115,7 +1115,77 @@ Para cada item:
 - [x] **6.0.4** Subscription/Billing Foundation — Tabelas `subscriptions`/`invoices`/`billing_events`/`payment_attempts`, Billing Engine (`apply_subscription_transition`/`runCycle`), `cancel_at_period_end` (D-A) ✅ CERTIFICADA (baseline `v1.4.2-billing-engine-6.0.4.4`)
 - [x] **6.0.5.1** Estado Efetivo / camada de autorização — ADR-013 §2.4: `domain/authorization/*` (AccessPolicy, FeatureAvailability resolver, EffectiveState VO) + `application/authorization/*` (EffectiveAccessService, AuthorizationService); eliminação dos gates diretos `App.tsx:158/162`; D-6.0.5-2 `cancelled` = somente leitura; testes por matriz + **E2E flow13 8/8 PASS** (baseline `v1.4.3-effective-state-6.0.5.1`) ✅ **CERTIFICADA PELO PO (2026-08-06)**
 - [x] **6.0.5.2** BillingService + **Modelagem de Plans** (D-6.0.5-5) — migration `20260806090000_phase_6_0_5_2_plans_catalog.sql` (`plans`/`features`/`plan_features`, seed idempotente, FK TEXT `tenants.plan`/`subscriptions.plan` → `plans(slug)`, drop CHECKs, RLS) + contrato único **`PlanCatalog`** (`domain/billing/planCatalog.ts` — `getPlan`/`getFeatures`/`hasFeature`/`getLimits`) + `FEATURE_KEYS` (`domain/billing/featureKey.ts`, 20, 1:1 BD) + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` (checksum determinístico, acréscimo do review) + resolver 6.0.5.1 passa a resolver via catálogo (zero SQL) + `limits.ts` marcado legacy ✅ **IMPLEMENTAÇÃO CONCLUÍDA + REVIEW PO (2026-08-06)** — **819 testes verdes (+24)**, typecheck sem novos erros (125 baseline), migration validada em Postgres local 2× (idempotente) + teste de cobertura total (igualdade bidirecional 100% BD↔TS). **Deploy ao remoto DEFERIDO pelo PO** (janela apropriada)
-- [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): ~~6.0.5.1 camada de autorização~~ (✅ concluída), ~~6.0.5.2 BillingService + Modelagem de Plans~~ (✅ concluída — deploy pendente), ~~6.0.5.3 FeatureFlagService~~ (🔄 implementação em andamento — backend+frontend prontos, migration validada, unit 847/847, build OK; pendente smoke E2E + docs + commit), 6.0.5.4 TenantLifecycleService + `suspended` aditivo, 6.0.5.5 transições RPCs
+- [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): ~~6.0.5.1 camada de autorização~~ (✅ concluída), ~~6.0.5.2 BillingService + Modelagem de Plans~~ (✅ concluída — deploy pendente), ~~6.0.5.3 FeatureFlagService~~ (✅ implementada + commit `b383222` + smoke 10/10 — deploy pendente), 6.0.5.4 TenantLifecycleService + `suspended` aditivo (⏳ entry audit submetida 2026-08-07 — aguardando PO), 6.0.5.5 transições RPCs, **6.0.5.6 Production Compatibility Audit (PCA) — ⏳ PLANNED, gate obrigatório pré-deploy da release v1.5 (ver seção 6.0.5.6)**
+
+#### 6.0.5.6 — Production Compatibility Audit (PCA) ⏳ PLANNED
+
+> **Registrada em 2026-08-07 (decisão do PO) como etapa oficial da release v1.5.**
+> Documento de execução/resultado: `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md`.
+
+**Localização no fluxo da release v1.5:**
+
+```
+6.0.5.5
+      ↓
+Production Compatibility Audit (6.0.5.6)
+      ↓
+Deploy Runbook
+      ↓
+Janela Única de Deploy
+      ↓
+Smoke Pós-Deploy
+      ↓
+Release v1.5 Certification
+```
+
+**Objetivo:** Realizar auditoria **somente leitura** do ambiente produtivo **antes** da primeira aplicação das migrations SaaS da release v1.5. A auditoria deve garantir que os dados existentes dos tenants em produção são compatíveis com:
+
+- novo modelo de planos;
+- Feature Flags;
+- Tenant Lifecycle;
+- Billing;
+- limites por plano;
+- regras de acesso;
+- novas relações de banco.
+
+**Regras desta etapa:**
+
+- não altera dados;
+- não aplica migrations;
+- não corrige inconsistências automaticamente;
+- não cria registros;
+- não executa repair migration;
+- somente analisa e gera relatório.
+
+**Critérios de entrada** (a auditoria só pode iniciar quando):
+
+- [x] 6.0.5.1 concluída
+- [x] 6.0.5.2 concluída
+- [x] 6.0.5.3 concluída
+- [ ] 6.0.5.4 concluída
+- [ ] 6.0.5.5 concluída
+- [ ] Schema final da release congelado
+- [ ] Runbook de deploy aprovado
+
+**Critério de saída:** criar `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` com resultado obrigatório **`READY`** ou **`BLOCKED`**.
+
+> ⚠️ **Gate de release:** nenhuma migration de produção poderá ser aplicada sem `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`.
+
+**Escopo futuro da auditoria (a validar no banco real dos tenants produtivos):**
+
+- **Tenants:** tenants sem plano · planos inválidos · planos obsoletos (`elite`) · status inválidos · inconsistências de lifecycle;
+- **Plans:** validar `free` / `pro` / `premium` contra `plans` / `features` / `plan_features`;
+- **Subscriptions:** subscriptions órfãs · inexistentes · planos incompatíveis · estados inválidos;
+- **Billing:** `invoices` · `billing_events` · `payment_attempts`;
+- **Feature Flags:** feature keys existentes · overrides · inconsistências entre banco e catálogo;
+- **Limites:** Plano atual → Limite permitido → Uso real → Possível incompatibilidade (ex.: Sanchez Barber, plano Pro, 4 profissionais, limite 5 → **OK**);
+- **Chef Club:** utilização atual · compatibilidade com plano · possíveis conflitos após Feature Flags;
+- **Segurança:** RLS · policies · grants · RPC permissions · anon access;
+- **Integridade:** FK · índices críticos · dados órfãos.
+
+> **Referência (obrigatória):** Antes da janela única de deploy da Release v1.5 será **obrigatória** a execução da **Production Compatibility Audit** utilizando o **banco real dos tenants produtivos**.
+
+---
 
 #### 6.0.1 Tenant Creation ✅ APROVADA PELO PO (2026-08-01)
 
@@ -1785,6 +1855,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-07 | 8.9 | **6.0.5.6 — Production Compatibility Audit (PCA) registrada como etapa oficial da release v1.5 (somente documentação, decisão PO 2026-08-07).** Nova subfase 6.0.5.6 (status ⏳ PLANNED) posicionada entre 6.0.5.5 e o Deploy Runbook na janela única de deploy. Objetivo: auditoria **somente leitura** do banco real dos tenants produtivos antes da primeira aplicação das migrations SaaS (novo modelo de planos, Feature Flags, Tenant Lifecycle, Billing, limites, regras de acesso, novas relações). Regras: não altera dados, não aplica migrations, não corrige automaticamente, não cria registros, não executa repair — apenas analisa e gera relatório. Critérios de entrada: 6.0.5.1–6.0.5.3 ✅, 6.0.5.4/6.0.5.5 ⬜, schema final congelado ⬜, runbook aprovado ⬜. Critério de saída: `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY** ou **BLOCKED**; **gate de release: nenhuma migration de produção sem PCA = READY**. Escopo futuro registrado (Tenants, Plans, Subscriptions, Billing, Feature Flags, Limites, Chef Club, Segurança, Integridade — ex.: Sanchez Barber Pro 4/5 → OK). Também criados `docs/RELEASE_CHECKLIST_v1.5.md` (checklist vivo, com gate PCA) e atualização de `PROJECT_STATUS.md`/`BUSINESS_DECISIONS.md` (D-6.0.5.6). **Nenhum código, migration, teste ou query de banco foi executado.** |
 | 2026-08-07 | 8.8 | **6.0.5.3 — Implementação em andamento (PO aprovou início em 2026-08-07).** Backend: `domain/billing/featureFlagService.ts` (writer único, API congelada §2.5) + `domain/billing/planCatalogDb.ts` (PlanCatalog DB-backed com `CATALOG_FINGERPRINT`) + `domain/billing/featureOverrideStoreDb.ts` (overrides de `feature_flags`) + fim de `limits.ts`. **Decisão PO (2026-08-07): adapters DB em `domain/billing/`** (padrão `supabaseBillingRepository.ts`) — Repository Guard intacto, **violações 233 → 230** (redução de dívida, sem exceção no guard); entry audit atualizada (localização corrigida). Frontend: `useFeatureFlags` (src/hooks/, leitura via RPC `tenant_has_feature`) + `FeatureGuard` + `FeatureUnavailablePage` (components/billing/) + gates no `App.tsx`/`Sidebar.tsx`/`moduleRegistry.ts` (app ∧ feature). Migration `20260807000000_phase_6_0_5_3_feature_flags.sql` **validada em Postgres 16 docker** — aplica 2× sem duplicar; cenários funcionais T1–T7 OK (matriz free/pro/premium, override vence, suspensão derruba, RLS de escrita bloqueia authenticated); bug de sintaxe corrigido na validação (COMMENT com `\|\|` → string única). Unit 847/847, build OK, `architecture:ci` verde. Pendente: smoke E2E, docs finais, commit semântico + push. |
 | 2026-08-07 | 8.7 | **6.0.5.3 — Ajustes do PO incorporados à entry audit (somente documentação, decisão PO).** Revisão documental solicitada pelo PO (2026-08-07): escopo **delimitado** (D-6.0.5.3-1 — somente enforcement de Feature Flags + resolução de planos; fora: Billing Engine, Lifecycle, novas RPCs de transição, RLS, migrations de billing, suspensão automática); `change_tenant_plan` + `TenantSubscriptionUpdated` + correção `Admin.tsx:856` **realocados para 6.0.5.5** (D-6.0.5.3-2); **deploy via `MIGRATION_EXCEPTION`** (`db query --linked` + `migration repair`, aplicando `06030000`/`06090000`/6.0.5.3 na janela de operação — D-6.0.5.3-3); RPCs protegidas = **cash_closing, commissions, receivables, expenses** (checkout fora — D-6.0.5.3-4); UI **híbrida** com `FeatureUnavailablePage` reutilizável (D-6.0.5.3-5); leitura de flags **somente via RPC `tenant_has_feature`** (D-6.0.5.3-6). **API pública do `FeatureFlagService` congelada** (entry audit §2.5) + **legado/depreciação** (§2.6) + **testes ampliados** (matriz Free/Pro/Premium, upgrade/downgrade, consistência documental × código — §7) + **critérios de saída atualizados** (zero decisões diretas por plano, uso exclusivo do service, `limits.ts` fora do runtime, matriz sincronizada, smoke verde — §8). Decisões D-6.0.5.3-1..6 registradas em `BUSINESS_DECISIONS.md`; `FEATURE_FLAGS_MODEL.md` §4/§5/§6 alinhados. **Nenhum código/migration/teste alterado — commit restrito a documentação. Relatório final aguardando aprovação do PO.** |
 | 2026-08-07 | 8.6 | **6.0.5.2 CERTIFICADA PELO PO (2026-08-06) — smoke E2E 10/10 PASS (48.4s, Supabase real) + entry audit 6.0.5.3 submetida.** Smoke `core.spec.ts` (@smoke) rodou com chaves reais validadas (anon==publishable e service role válidas — auditoria de prontidão derrubou o diagnóstico "chaves inválidas"); teardown limpo (tenant removido, 4 users desta run deletados); 6 usuários `e2e-suite-*` órfãos são de runs de 05/08 (acúmulo pré-existente → housekeeping em janela separada). Achados de segurança pré-existentes registrados como **backlog** (não são regressões da 6.0.5.2 e NÃO serão corrigidos nesta etapa): (1) anon lê perfis superadmin via REST (`Superadmins can view all profiles` sem `TO authenticated`; confirmado `role:"superadmin"` sem auth); (2) `public_select_tenants` (kiosk legacy, `USING (true)`) — anon lê todos os tenants. **Entry audit `PHASE_6_0_5_3_ENTRY_AUDIT.md` submetida ao PO (2026-08-07)** — FeatureFlagService + `feature_flags` runtime + `tenant_has_feature` + `PlanCatalog` DB-backed + fim de `limits.ts`/SQL hardcoded + `change_tenant_plan`/`TenantSubscriptionUpdated` + correção `Admin.tsx:856` + unificação do gate `App.tsx`; 4 aprovações solicitadas (A1 deploy, A2 lista de RPCs, A3 comportamento UI, A4 grants). **Sem código 6.0.5.3 até aprovação do PO.** |

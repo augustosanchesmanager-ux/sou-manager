@@ -32,6 +32,7 @@
 - [ ] **6.0.5.3** FeatureFlagService + enforcement — 🔄 implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
 - [ ] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ⏳ entry audit submetida (2026-08-07)
 - [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan`, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado) — pendente
+- [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 
 ---
 
@@ -156,6 +157,9 @@
 
 ## 10. Deploy (janela única — aprovada em princípio)
 
+> **Gate obrigatório (PO 2026-08-07):** antes de qualquer item abaixo, `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` deve estar **`READY`** — a **Production Compatibility Audit (6.0.5.6)** é executada contra o **banco real dos tenants produtivos**, imediatamente antes da janela única de deploy.
+
+- [ ] **Production Compatibility Audit** (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
 - [ ] **Aprovação explícita do PO** para abrir a janela
 - [ ] Pré-flight (backup/PITR, `migration list`, dados de plano)
@@ -181,6 +185,7 @@
 > Tudo abaixo deve estar marcado antes de declarar a v1.5.0 certificada.
 
 - [ ] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
+- [ ] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
 - [ ] Todas as migrations da versão aplicadas no remoto (janela única)
 - [ ] Todos os critérios de saída de cada entry audit marcados
 - [ ] Suíte unitária verde + typecheck sem novos erros + build OK + `architecture:ci` verde

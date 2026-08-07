@@ -156,6 +156,19 @@
 
 ---
 
+## Decisões 6.0.5.6 (D-6.0.5.6) — registradas em 2026-08-07
+
+> Subfase 6.0.5.6 — **Production Compatibility Audit (PCA)**. Registro formal da etapa obrigatória da release v1.5 (planejamento — nenhuma execução até o critério de entrada ser atendido).
+
+| Código | Tema | Decisão |
+|--------|------|---------|
+| D-6.0.5.6-1 | Etapa obrigatória de release | **Production Compatibility Audit (PCA)** é etapa oficial da release v1.5, posicionada entre **6.0.5.5** e o **Deploy Runbook** (antes da Janela Única de Deploy) |
+| D-6.0.5.6-2 | Natureza da auditoria | **Somente leitura** — não altera dados, não aplica migrations, não corrige inconsistências automaticamente, não cria registros, não executa repair migration; somente analisa e gera relatório |
+| D-6.0.5.6-3 | Gate de deploy | **Nenhuma migration de produção poderá ser aplicada sem `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = `READY`** (resultado obrigatório: `READY` ou `BLOCKED`) |
+| D-6.0.5.6-4 | Alvo da auditoria | Executada contra o **banco real dos tenants produtivos** (ex.: Sanchez Barber) antes da primeira aplicação das migrations SaaS da release |
+
+---
+
 ## Autoridade
 
 Este documento é de **exclusiva responsabilidade do PO (Augusto)**. Alterações comerciais exigem revisão formal do PO antes de qualquer implementação.
