@@ -7,8 +7,8 @@
 > em banco remoto de produção exige **aprovação explícita do PO**.
 >
 > **Escopo do documento:** preparar uma **única janela de operação** para as
-> 3 migrations pendentes (`06030000`, `06090000`, `07000000`) e o smoke
-> pós-deploy. Este documento **não autoriza** execução — é o procedimento
+> 4 migrations pendentes (`06030000`, `06090000`, `07000000`, `07010000`) e o
+> smoke pós-deploy. Este documento **não autoriza** execução — é o procedimento
 > completo para revisão e aprovação do PO.
 
 ---
@@ -23,7 +23,7 @@ projeto **sou-manager**). Estado atual:
 | Status | Migrations |
 |---|---|
 | Aplicadas no remoto | Todas até `20260806020000` **e** `06040000`, `06050000`, `06070000`, `06080000` |
-| **Pendentes no remoto** | `20260806030000`, `20260806090000`, `20260807000000` |
+| **Pendentes no remoto** | `20260806030000`, `20260806090000`, `20260807000000`, `20260807010000` |
 
 > **Irregularidade topológica:** `20260806030000` (timestamp anterior) foi
 > **pulada** no remoto — as migrations posteriores `06040000/06050000/06070000/
@@ -51,8 +51,9 @@ executar **uma única janela operacional** com:
 4. Baseline final `v1.5.0-feature-flags-6.0.5` (após certificação).
 
 Isso reduz: downtime, necessidade de múltiplos rollbacks, sincronizações de
-ambiente e janelas de manutenção. **Se a 6.0.5.4/6.0.5.5 adicionarem migrations,
-apendá-las à seção correspondente deste runbook (§3.3) ANTES de executar.**
+ambiente e janelas de manutenção. **A 6.0.5.4 adicionou a migration `07010000`
+(Tenant Lifecycle) — apendada à §3.4. Se a 6.0.5.5 adicionar migrations,
+apendá-las da mesma forma ANTES de executar.**
 
 ---
 
@@ -65,7 +66,7 @@ apendá-las à seção correspondente deste runbook (§3.3) ANTES de executar.**
 - [ ] **Janela de baixo tráfego** (ex.: domingo de madrugada / pós-horário). Notificar equipe comercial — flags podem esconder módulos da UI (D-6.0.5.3-5).
 - [ ] **Sem deploys concorrentes** do time durante a janela (sem `db push` manual, sem alterações no SQL Editor por terceiros).
 - [ ] Todos os membros da equipe cientes: nenhuma operação de banco além deste runbook.
-- [ ] `supabase migration list --linked` mostrando **exatamente** 3 pendentes (06030000, 06090000, 07000000) — **qualquer diferença → abortar e investigar antes**.
+- [ ] `supabase migration list --linked` mostrando **exatamente** 4 pendentes (06030000, 06090000, 07000000, 07010000) — **qualquer diferença → abortar e investigar antes**.
 
 ### 2.1 Pré-flight de dados (verificar ANTES da primeira migration)
 
@@ -105,6 +106,7 @@ SELECT to_regclass('public.plans') AS plans,
 > 1. `06030000` — autorização (sem dependência das demais; base do `current_is_tenant_manager_from_auth_uid`).
 > 2. `06090000` — catálogo `plans`/`features`/`plan_features` (a 6.0.5.3 depende das tabelas).
 > 3. `07000000` — `feature_flags` + `tenant_has_feature` + guarda nos RPCs.
+> 4. `07010000` — Tenant Lifecycle: `suspended` no CHECK + `grace_ends_at` + RPCs `suspend_subscription`/`reactivate_subscription`.
 
 ### 3.1 MIGRATION 1 — `20260806030000_fix_auth_staff_id_to_profiles.sql`
 
@@ -149,11 +151,36 @@ supabase migration repair --status applied 20260807000000 --linked
 > A migration termina com `NOTIFY pgrst, 'reload schema';` (recarrega o cache de
 > schema do PostgREST).
 
-### 3.4 Extensão (SE 6.0.5.4 / 6.0.5.5 adicionarem migrations)
+### 3.4 MIGRATION 4 — `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql`
 
-- [ ] Listar os novos arquivos `supabase/migrations/` da fase.
-- [ ] Repetir o padrão: `supabase db query --linked -f <arquivo>` → verificação → `supabase migration repair --status applied <versão> --linked`.
-- [ ] Atualizar este runbook com a ordem exata antes de executar.
+> **Adicionada em 2026-08-07 (6.0.5.4).** Migration aditiva/idempotente, validada
+> em Postgres 16 docker (aplica 2× sem duplicar; cenários T1–T7 OK). Conteúdo:
+> CHECK `subscriptions.status` aditivo (`suspended` — sem `archived`, D-6.0.5-7);
+> coluna `grace_ends_at` (TIMESTAMPTZ) + backfill de `past_due` legadas (grace =
+> `current_period_end` + 5 dias); `apply_subscription_transition` reescrita com
+> **map explícito completo + `ELSE RAISE EXCEPTION`** (fim do `ELSE → active`) +
+> `p_grace_ends_at`; `get_due_subscriptions` devolve `grace_ends_at` e inclui
+> candidatas com grace expirado; RPCs **`suspend_subscription`/`reactivate_subscription`**
+> (superadmin — D-6.0.5-4; grants ADR-012).
+
+```powershell
+supabase db query --linked -f supabase/migrations/20260807010000_phase_6_0_5_4_tenant_lifecycle.sql
+```
+
+```powershell
+supabase migration repair --status applied 20260807010000 --linked
+```
+
+> **Dependência crítica:** a `07010000` reescreve `apply_subscription_transition`
+> (criada na `06050000`, corrigida nas `06070000`/`06080000`) — aplicar somente
+> após `06090000` e `07000000`. A migration termina com `NOTIFY pgrst, 'reload schema';`.
+
+> **⚠️ E2E flow14 na janela (decisão PO 2026-08-07):** o fluxo de suspensão/reativação
+> (`past_due → suspended → active`) só roda **após a aplicação da `07010000`** no
+> remoto — o spec `tests/e2e/flows/flow14-tenant-suspend-reactivate.spec.ts` está
+> escrito e typecheckado, mas a execução foi **adiada para esta janela única**
+> (nenhuma migration 6.0.5.4 foi aplicada ao remoto durante a implementação).
+> Rodar após a verificação §4.7 e antes do smoke §5.
 
 ---
 
@@ -165,9 +192,9 @@ supabase migration repair --status applied 20260807000000 --linked
 supabase migration list --linked
 ```
 
-> Esperado: as 3 versões `06030000`, `06090000`, `07000000` com status **aplicadas**
-> (coluna Remote preenchida). Sem "Local" pendente remanescente (exceto arquivos
-> não-migration como `MANIFEST.md`, que são ignorados).
+> Esperado: as 4 versões `06030000`, `06090000`, `07000000`, `07010000` com status
+> **aplicadas** (coluna Remote preenchida). Sem "Local" pendente remanescente
+> (exceto arquivos não-migration como `MANIFEST.md`, que são ignorados).
 
 ```sql
 SELECT version, name
@@ -364,6 +391,43 @@ SELECT public.generate_club_receivables('<tenant_id>');
 -- Se habilitada: executa a lógica normal (sem erro de guarda)
 ```
 
+### 4.8 Verificação da MIGRATION 4 (tenant lifecycle)
+
+```sql
+-- RPCs novas (grants ADR-012: REVOKE anon/PUBLIC + GRANT authenticated)
+SELECT proname, pg_get_function_result(oid)
+FROM pg_proc
+WHERE proname IN ('suspend_subscription', 'reactivate_subscription')
+ORDER BY proname;
+```
+
+```sql
+-- CHECK aditivo aceita `suspended` e rejeita `archived`/`expired`
+SELECT pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'public.subscriptions'::regclass
+  AND contype = 'c' AND conname = 'subscriptions_status_check';
+```
+
+```sql
+-- Coluna `grace_ends_at` presente e backfill de `past_due` com grace gravado
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'subscriptions'
+  AND column_name = 'grace_ends_at';
+
+SELECT count(*) AS past_due_sem_grace
+FROM public.subscriptions
+WHERE status = 'past_due' AND grace_ends_at IS NULL;
+-- Esperado: 0 (backfill R6 cobriu todas)
+```
+
+```sql
+-- Fail-fast: `apply_subscription_transition` rejeita combinação desconhecida
+-- (o corpo agora tem map explícito + ELSE RAISE EXCEPTION — sem `ELSE → active`)
+SELECT prosrc LIKE '%RAISE EXCEPTION%' AS tem_fail_fast
+FROM pg_proc WHERE proname = 'apply_subscription_transition';
+```
+
 ---
 
 ## 5. Smoke Pós-Deploy
@@ -378,6 +442,16 @@ npm run test:e2e:smoke
 **Critério de aceite:** **10/10 PASS** (login, schedule, clients, cash closing,
 commissions, chef club, dashboard + ausência de erros de console). Referência:
 46.7s na rodada de 2026-08-07 (pré-deploy).
+
+> **E2E flow14 (6.0.5.4) — nesta janela:** após a verificação §4.8, executar o
+> fluxo de suspensão/reativação contra o remoto (decisão PO 2026-08-07):
+>
+> ```powershell
+> npx playwright test tests/e2e/flows/flow14-tenant-suspend-reactivate.spec.ts
+> ```
+>
+> Critério: cenários `past_due → suspended → active` verdes (ativação reativa
+> `suspended → active` via `markPaid` + eventos publicados).
 
 Verificações manuais complementares (UI real pós-deploy):
 
@@ -434,22 +508,56 @@ supabase migration repair --status reverted 20260806090000 --linked
 ```
 
 > **Atenção:** reverter a 06090000 inviabiliza a 07000000 (`feature_flags`
-> referencia `features`). Reverter sempre em ordem reversa (07000000 → 06090000).
+> referencia `features`). Reverter sempre em ordem reversa (07010000 → 07000000 → 06090000).
 > **Se a 06030000 precisar de rollback**, as RPCs de billing/invite retornam às
 > versões da `20260806020000`/`20260806000000` (não há tabelas para dropar —
 > é só recriar funções/policies das versões anteriores).
 
-### 6.3 Rollback do frontend (Vercel)
+### 6.3 Rollback da 07010000 (tenant lifecycle)
+
+> **Ordem:** a `07010000` reescreve `apply_subscription_transition` e
+> `get_due_subscriptions` (criadas nas `06050000`/`06070000`/`06080000`).
+> Reverter para as versões anteriores significa **restaurar o corpo da função**
+> a partir dos arquivos de origem; não há tabelas novas para dropar (as RPCs
+> `suspend_subscription`/`reactivate_subscription` podem ser `DROP FUNCTION IF EXISTS`).
+
+```sql
+-- Reverter RPCs de suspensão/reativação (novas na 6.0.5.4)
+DROP FUNCTION IF EXISTS public.suspend_subscription;
+DROP FUNCTION IF EXISTS public.reactivate_subscription;
+
+-- Restaurar apply_subscription_transition / get_due_subscriptions às versões
+-- da 20260806080000 (fonte: arquivo original da 06080000).
+
+-- Opcional: remover a coluna grace_ends_at (backfill R6 é reversível — dados
+-- descartáveis; `current_period_end` permanece como fonte da janela de grace)
+ALTER TABLE public.subscriptions DROP COLUMN IF EXISTS grace_ends_at;
+
+-- Restaurar CHECK sem 'suspended' (versão da 20260806080000)
+ALTER TABLE public.subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_status_check
+  CHECK (status IN ('trialing', 'active', 'past_due', 'cancelled'));
+```
+
+```powershell
+supabase migration repair --status reverted 20260807010000 --linked
+```
+
+> **⚠️ O `suspended` deixa de ser gravável após o rollback** — tenants já em
+> `suspended` precisam de reativação manual via SQL antes de qualquer nova
+> transição (a 6.0.5.4 foi desenhada como aditiva; rollback é contingência).
+
+### 6.4 Rollback do frontend (Vercel)
 
 ```powershell
 # Dashboard: Deployments → último deployment estável → "Promote to Production"
 vercel rollback
 ```
 
-### 6.4 Checklist de rollback rápido
+### 6.5 Checklist de rollback rápido
 
 - [ ] 1. Identificar a migration que causou o problema (logs de erro + verificação).
-- [ ] 2. Reverter DB em ordem reversa (07000000 → 06090000 → 06030000) com `migration repair --status reverted`.
+- [ ] 2. Reverter DB em ordem reversa (07010000 → 07000000 → 06090000 → 06030000) com `migration repair --status reverted`.
 - [ ] 3. Reverter frontend via `vercel rollback` (para o deployment pré-6.0.5.3).
 - [ ] 4. Validar login → schedule → dashboard → checkout (fluxo P0).
 - [ ] 5. Confirmar `supabase migration list --linked` coerente com o estado revertido.
@@ -465,10 +573,12 @@ vercel rollback
 | MIGRATION 1 (06030000) | ~1–2 min (apply + repair) |
 | MIGRATION 2 (06090000) | ~1–2 min (apply + repair) |
 | MIGRATION 3 (07000000) | ~1–2 min (apply + repair) |
-| Verificações pós-deploy (§4) | ~10 min |
+| MIGRATION 4 (07010000) | ~1–2 min (apply + repair) |
+| Verificações pós-deploy (§4) | ~12 min |
+| E2E flow14 (§5) | ~3–5 min |
 | Smoke E2E (§5) | ~2–3 min |
 | Buffer / rollback improviso | ~15 min |
-| **Total da janela** | **~40–45 min** (sem imprevistos) |
+| **Total da janela** | **~50–55 min** (sem imprevistos) |
 
 ---
 
@@ -494,7 +604,7 @@ iniciado) quando ocorrer **qualquer um**:
 
 1. Backup/PITR não confirmado antes de iniciar.
 2. Pré-flight §2.1 aponta plano fora do catálogo (`free/pro/premium`).
-3. `supabase migration list --linked` mostrar pendências diferentes das 3 esperadas.
+3. `supabase migration list --linked` mostrar pendências diferentes das 4 esperadas.
 4. Qualquer `supabase db query --linked` retornar erro **não** coberto por idempotência (sem reaplicar às cegas).
 5. `supabase migration repair` falhar (histórico inconsistente) — **não** forçar.
 6. Verificação §4.2: `anon` com EXECUTE em RPCs de billing (falha de hardening).
@@ -509,8 +619,9 @@ iniciado) quando ocorrer **qualquer um**:
 
 Após o smoke verde e aprovação do PO:
 
-- [ ] `supabase migration list --linked` 100% coerente (3 versões aplicadas; nada pendente).
+- [ ] `supabase migration list --linked` 100% coerente (4 versões aplicadas; nada pendente).
 - [ ] Entry Audit 6.0.5.3 — critério de saída "Deploy ao remoto" **marcado**.
+- [ ] Entry Audit 6.0.5.4 — critério de saída "E2E flow14 na janela" **marcado**.
 - [ ] ROADMAP / PROJECT_STATUS / changelog atualizados com a janela concluída.
 - [ ] Baseline `v1.5.0-feature-flags-6.0.5` criada (commit semântico + tag anotada + push) — após certificação do PO.
 - [ ] Comunicação de encerramento à equipe.
@@ -532,9 +643,16 @@ supabase migration repair --status applied 20260806090000 --linked
 supabase db query --linked -f supabase/migrations/20260807000000_phase_6_0_5_3_feature_flags.sql
 supabase migration repair --status applied 20260807000000 --linked
 
-# 4) Verificação do histórico
+# 4) Tenant Lifecycle (6.0.5.4)
+supabase db query --linked -f supabase/migrations/20260807010000_phase_6_0_5_4_tenant_lifecycle.sql
+supabase migration repair --status applied 20260807010000 --linked
+
+# 5) Verificação do histórico
 supabase migration list --linked
 
-# 5) Smoke
+# 6) E2E flow14 (6.0.5.4 — após §4.8)
+npx playwright test tests/e2e/flows/flow14-tenant-suspend-reactivate.spec.ts
+
+# 7) Smoke
 npm run test:e2e:smoke
 ```

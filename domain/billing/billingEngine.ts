@@ -10,19 +10,22 @@
  *     em testes/E2E sem depender de relógio real
  *   - O banco NÃO contém regra de ciclo (apenas persistência fina via RPCs)
  *
- * TRANSIÇÕES (tabela aprovada):
+ * TRANSIÇÕES (tabela aprovada + aditivo 6.0.5.4):
  *
- * | Estado   | Condição                              | Ação                     |
- * |----------|---------------------------------------|--------------------------|
- * | trialing | trial_ends_at <= asOf && plano free   | activate_free            |
- * | trialing | trial_ends_at <= asOf && plano pago   | start_past_due           |
- * | active   | cancel_at_period_end set && <= asOf   | finalize_cancellation    |
- * | active   | current_period_end <= asOf            | renew (+ invoice p/ pago)|
- * | past_due | cancel_at_period_end set && <= asOf   | finalize_cancellation    |
- * | past_due | (demais)                              | none (grace; suspensão 6.0.5) |
- * | cancelled| (qualquer)                            | none                     |
+ * | Estado    | Condição                              | Ação                     |
+ * |-----------|---------------------------------------|--------------------------|
+ * | trialing  | trial_ends_at <= asOf && plano free   | activate_free            |
+ * | trialing  | trial_ends_at <= asOf && plano pago   | start_past_due (+ grace) |
+ * | active    | cancel_at_period_end set && <= asOf   | finalize_cancellation    |
+ * | active    | current_period_end <= asOf            | renew (+ invoice p/ pago)|
+ * | past_due  | cancel_at_period_end set && <= asOf   | finalize_cancellation    |
+ * | past_due  | grace_ends_at <= asOf                 | suspend (6.0.5.4)        |
+ * | past_due  | grace ainda vigente                   | none                     |
+ * | suspended | (qualquer)                            | none (ciclo NUNCA reativa)|
+ * | cancelled | (qualquer)                            | none                     |
  *
- * FORA DO ESCOPO (6.0.5+): suspensão, reativação, cron, gateway, dunning.
+ * FORA DO ESCOPO (6.0.5.5+): reativação manual no ciclo (D-6.0.5.4-2),
+ * cron, gateway, dunning.
  */
 
 import {
@@ -52,12 +55,15 @@ export function processSubscription(
   sub: BillingSubscription,
   asOfIso: string,
   periodDays: number = BILLING_PERIOD_DAYS,
-  _graceDays: number = GRACE_PERIOD_DAYS,
+  graceDays: number = GRACE_PERIOD_DAYS,
 ): BillingAction {
   const asOf = toEpoch(asOfIso);
 
   // Encerrado — nada a fazer.
   if (sub.status === 'cancelled') return { type: 'none' };
+
+  // D-6.0.5.4-2: ciclo NUNCA reativa. Reativação via markPaid ou RPC manual.
+  if (sub.status === 'suspended') return { type: 'none' };
 
   // Pedido de cancelamento efetivado (fim do período alcançado) — D-A.
   if (sub.cancelAtPeriodEnd && toEpoch(sub.cancelAtPeriodEnd) <= asOf) {
@@ -71,8 +77,12 @@ export function processSubscription(
         return { type: 'none' };
       }
       if (isPaidPlan(sub.plan)) {
-        // Sem gateway/ativação manual → entra em tolerância (grace 5d, D3).
-        return { type: 'start_past_due' };
+        // Sem gateway/ativação manual → tolerância: grace de `graceDays`
+        // contado do fim do trial (D3). Engine computa e grava (D-6.0.5.4-5).
+        return {
+          type: 'start_past_due',
+          graceEndsAt: addDays(sub.trialEndsAt ?? asOfIso, graceDays),
+        };
       }
       // Plano free: trial termina e o tenant segue ativo sem cobrança.
       return {
@@ -105,9 +115,18 @@ export function processSubscription(
       return { type: 'none' };
     }
 
-    case 'past_due':
-      // Tolerância sem gateway: permanece até decisão de suspensão (6.0.5).
+    case 'past_due': {
+      // D-6.0.5.4: grace_ends_at persiste no banco. Fallback determinístico
+      // para linhas legadas sem a coluna preenchida (current_period_end + grace).
+      const graceEnd = sub.graceEndsAt
+        ? toEpoch(sub.graceEndsAt)
+        : toEpoch(addDays(sub.currentPeriodEnd ?? asOfIso, graceDays));
+      if (graceEnd <= asOf) {
+        // Janela esgotada sem pagamento → retirada de acesso (D-6.0.5.4-1).
+        return { type: 'suspend' };
+      }
       return { type: 'none' };
+    }
 
     default:
       return { type: 'none' };

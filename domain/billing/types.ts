@@ -4,11 +4,12 @@
  * Tipos do domínio de billing (Lifecycle Billing 6.0.4.4).
  * Domínio puro — zero dependência de Supabase/React.
  *
- * DESCRIÇÃO DOS ESTADOS (D2, aprovado PO 2026-08-06):
- *   - trialing: trial em andamento (14 dias do provisionamento, D3)
- *   - active:   contrato ativo (pago ou free)
- *   - past_due: período de tolerância (grace de 5 dias, D3) — sem gateway,
- *               permanece aqui até decisão de suspensão (6.0.5)
+ * DESCRIÇÃO DOS ESTADOS (D2, aprovado PO 2026-08-06; aditivo 6.0.5.4):
+ *   - trialing:  trial em andamento (14 dias do provisionamento, D3)
+ *   - active:    contrato ativo (pago ou free)
+ *   - past_due:  período de tolerância (grace de 5 dias, D3) — sem gateway,
+ *                permanece até o fim da janela grace_ends_at
+ *   - suspended: retirada de acesso (grace expirado sem pagamento) — 6.0.5.4
  *   - cancelled: encerrado (via engine, após cancel_at_period_end)
  *
  * CICLO DE FATURAMENTO:
@@ -19,7 +20,7 @@
 
 export type TenantPlan = 'free' | 'pro' | 'premium';
 
-export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'cancelled';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'cancelled';
 
 /** Duração do período de renovação (1 mês). */
 export const BILLING_PERIOD_DAYS = 30;
@@ -40,6 +41,8 @@ export interface BillingSubscription {
   trialEndsAt: string | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  /** Fim da janela de grace (D-6.0.5.4-5): null quando fora de past_due. */
+  graceEndsAt: string | null;
   /** Pedido de cancelamento: encerrar no fim do período (D-A). */
   cancelAtPeriodEnd: string | null;
   canceledAt: string | null;
@@ -61,7 +64,8 @@ export interface InvoiceDraft {
 export type BillingAction =
   | { type: 'none' }
   | { type: 'activate_free'; newPeriodStart: string; newPeriodEnd: string }
-  | { type: 'start_past_due' }
+  | { type: 'start_past_due'; graceEndsAt: string }
+  | { type: 'suspend' }
   | { type: 'renew'; newPeriodStart: string; newPeriodEnd: string; issueInvoice: boolean }
   | { type: 'finalize_cancellation' };
 

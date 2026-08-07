@@ -36,6 +36,7 @@ const BASE = {
   trialEndsAt: null,
   currentPeriodStart: '2026-08-06T10:00:00.000Z',
   currentPeriodEnd: '2026-09-06T10:00:00.000Z',
+  graceEndsAt: null,
   cancelAtPeriodEnd: null,
   canceledAt: null,
   createdAt: '2026-08-06T10:00:00.000Z',
@@ -133,8 +134,55 @@ describe('BillingService.markPaid', () => {
 
     expect(paid.status).toBe('paid');
     expect(repo.__listSubscriptions()[0].status).toBe('active');
+    expect(repo.__listSubscriptions()[0].graceEndsAt).toBeNull(); // D-6.0.5.4-5
     expect(repo.__getTenantStatus('tenant-1')).toBe('active');
     expect(eventTypes().sort()).toEqual(['InvoicePaid', 'PaymentSucceeded', 'TenantSubscriptionUpdated']);
+  });
+
+  it('should_reactivate_suspended_to_active_and_publish_Reactivated', async () => {
+    const { repo, service } = makeService([
+      sub({ id: 'sub-susp', status: 'suspended', graceEndsAt: '2026-09-11T10:00:00.000Z' }),
+    ]);
+    const invoice = await repo.createInvoice({
+      subscriptionId: 'sub-susp',
+      tenantId: 'tenant-1',
+      amount: 0,
+      dueDate: '2026-10-06T10:00:00.000Z',
+      billingPeriodStart: '2026-09-06T10:00:00.000Z',
+      billingPeriodEnd: '2026-10-06T10:00:00.000Z',
+      idempotencyKey: 'cycle_sub-susp_suspended',
+    });
+
+    const { invoice: paid } = await service.markPaid(invoice.id);
+
+    expect(paid.status).toBe('paid');
+    const updated = repo.__listSubscriptions()[0];
+    expect(updated.status).toBe('active');
+    expect(updated.graceEndsAt).toBeNull(); // D-6.0.5.4-5: limpo ao sair de suspended
+    expect(repo.__getTenantStatus('tenant-1')).toBe('active');
+    expect(eventTypes().sort()).toEqual([
+      'InvoicePaid',
+      'PaymentSucceeded',
+      'TenantSubscriptionReactivated',
+    ]);
+  });
+
+  it('should_not_reactivate_cancelled_subscription (matriz congelada — R1)', async () => {
+    const { repo, service } = makeService([sub({ id: 'sub-cx', status: 'cancelled' })]);
+    const invoice = await repo.createInvoice({
+      subscriptionId: 'sub-cx',
+      tenantId: 'tenant-1',
+      amount: 0,
+      dueDate: '2026-10-06T10:00:00.000Z',
+      billingPeriodStart: '2026-09-06T10:00:00.000Z',
+      billingPeriodEnd: '2026-10-06T10:00:00.000Z',
+      idempotencyKey: 'cycle_sub-cx_cancelled',
+    });
+
+    await service.markPaid(invoice.id);
+
+    expect(repo.__listSubscriptions()[0].status).toBe('cancelled');
+    expect(eventTypes().sort()).toEqual(['InvoicePaid', 'PaymentSucceeded']);
   });
 });
 
@@ -187,10 +235,44 @@ describe('BillingService.runCycle', () => {
 
     await service.runCycle('2026-08-21T00:00:00.000Z');
 
-    expect(repo.__listSubscriptions()[0].status).toBe('past_due');
+    const updated = repo.__listSubscriptions()[0];
+    expect(updated.status).toBe('past_due');
+    // D-6.0.5.4-5: janela de grace persistida (trial_ends_at + 5 dias)
+    expect(updated.graceEndsAt).toBe('2026-08-25T10:00:00.000Z');
     expect(repo.__getTenantStatus('tenant-1')).toBe('past_due');
     expect(repo.__listInvoices()).toHaveLength(0); // trial não fatura
     expect(eventTypes().sort()).toEqual(['TenantSubscriptionUpdated', 'TenantTrialEnded']);
+  });
+
+  it('should_suspend_when_grace_expired', async () => {
+    const { repo, service } = makeService([
+      sub({
+        id: 'sub-grace',
+        plan: 'pro',
+        status: 'past_due',
+        graceEndsAt: '2026-08-25T10:00:00.000Z',
+      }),
+    ]);
+
+    const report = await service.runCycle('2026-08-26T00:00:00.000Z');
+
+    const updated = repo.__listSubscriptions()[0];
+    expect(updated.status).toBe('suspended');
+    expect(updated.graceEndsAt).toBeNull(); // janela encerrada (D-6.0.5.4-5)
+    expect(repo.__getTenantStatus('tenant-1')).toBe('suspended');
+    expect(report.transitions[0].action).toBe('suspend');
+    expect(eventTypes()).toEqual(['TenantSubscriptionSuspended']);
+  });
+
+  it('should_not_reactivate_suspended_via_runCycle (D-6.0.5.4-2)', async () => {
+    const { repo, service } = makeService([
+      sub({ id: 'sub-susp', status: 'suspended', currentPeriodEnd: '2026-09-06T10:00:00.000Z' }),
+    ]);
+
+    await service.runCycle('2026-12-01T00:00:00.000Z');
+
+    expect(repo.__listSubscriptions()[0].status).toBe('suspended');
+    expect(eventTypes()).toEqual([]);
   });
 
   it('should_renew_and_issue_invoice_for_paid_plan', async () => {

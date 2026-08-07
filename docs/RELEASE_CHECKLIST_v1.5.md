@@ -29,8 +29,8 @@
 - [x] **6.0.5.0** Subfase 0 — Alinhamento documental + ADR-013 Accepted + D-6.0.5-1..8 aprovadas (2026-08-06)
 - [x] **6.0.5.1** Estado Efetivo / camada de autorização — baseline `v1.4.3-effective-state-6.0.5.1` (✅ certificada PO)
 - [x] **6.0.5.2** BillingService + Modelagem de Plans (PlanCatalog + `plans/features/plan_features`) — ✅ implementada + review PO (deploy pendente)
-- [ ] **6.0.5.3** FeatureFlagService + enforcement — 🔄 implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
-- [ ] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ⏳ entry audit submetida (2026-08-07)
+- [x] **6.0.5.3** FeatureFlagService + enforcement — ✅ implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
+- [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
 - [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan`, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado) — pendente
 - [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 
@@ -54,7 +54,7 @@
 | `20260806080000_fix_apply_subscription_transition_tenant_status_enum.sql` | 6.0.4.4 | ✅ Aplicada | Atual: `ELSE → active` (a corrigir na 6.0.5.4) |
 | `20260806090000_phase_6_0_5_2_plans_catalog.sql` | 6.0.5.2 | ⏳ **Pendente** | `plans`/`features`/`plan_features` + FK aditiva |
 | `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ⏳ **Pendente** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
-| `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` *(planejada)* | 6.0.5.4 | ❌ Não criada | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor |
+| `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ⏳ **Pendente** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **criada + validada em docker T1–T7** |
 | `20260807020000_phase_6_0_5_5_transitions.sql` *(planejada)* | 6.0.5.5 | ❌ Não criada | `change_tenant_plan` + RPCs de transição |
 
 - [ ] Validar cada migration em Postgres 16 docker (aplica 2× sem duplicar) **antes** da janela.
@@ -76,7 +76,7 @@
 - [x] `PHASE_6_0_5_ENTRY_AUDIT.md` — auditoria de entrada da 6.0.5 (base do ADR-013)
 - [x] `PHASE_6_0_5_2_ENTRY_AUDIT.md` — ✅ APROVADA/IMPLEMENTADA
 - [x] `PHASE_6_0_5_3_ENTRY_AUDIT.md` — ✅ APROVADA + implementação concluída (critério "deploy" pendente)
-- [ ] `PHASE_6_0_5_4_ENTRY_AUDIT.md` — submetida em 2026-08-07; **aguardando aprovação do PO**
+- [x] `PHASE_6_0_5_4_ENTRY_AUDIT.md` — ✅ APROVADA + implementação concluída (E2E flow14 adiado à janela única)
 - [ ] `PHASE_6_0_5_5_ENTRY_AUDIT.md` — planejada
 
 ---
@@ -86,7 +86,7 @@
 - [x] **6.0.5.2** — smoke **10/10 PASS** (48.4s, 2026-08-06)
 - [x] **6.0.5.3** — smoke **10/10 PASS** (46.7s, 2026-08-07)
 - [ ] **Pós-janela de deploy** — smoke **10/10 PASS** (runbook §5)
-- [ ] **6.0.5.4** — smoke 10/10
+- [ ] **6.0.5.4** — smoke 10/10 (execução na janela única — decisão PO 2026-08-07)
 - [ ] **6.0.5.5** — smoke 10/10
 - [ ] **Smoke final de certificação** (baseline) — 10/10
 
@@ -107,7 +107,7 @@
 - [x] flow9 — Tenant lifecycle billing (P1)
 - [x] flow12 — Cancel at period end (P1)
 - [x] flow13 — Access-level navigation (Estado Efetivo, 8/8 PASS — 6.0.5.1)
-- [ ] **flow14** — Suspensão/reativação (`past_due → suspended → active`) — planejado para 6.0.5.4
+- [ ] **flow14** — Suspensão/reativação (`past_due → suspended → active`) — spec escrito (`flow14-tenant-suspend-reactivate.spec.ts`) + typecheck OK; **execução adiada à janela única de deploy** (decisão PO 2026-08-07)
 - [ ] **flow15** — Feature flags por plano (UI híbrida) — 6.0.5.3 (cobertura complementar)
 
 ---
@@ -117,11 +117,11 @@
 - [x] 6.0.5.1 → 795 verdes (46 por matriz de estados)
 - [x] 6.0.5.2 → 819 verdes (+24)
 - [x] 6.0.5.3 → **847/847 verdes** (40 test files)
-- [ ] 6.0.5.4 → suíte completa verde (baseline ≥ 847 + novos)
+- [x] 6.0.5.4 → **874/874 verdes** (+27)
 - [ ] 6.0.5.5 → suíte completa verde
 - [x] Typecheck — baseline **125 erros** (sem novos em cada subfase)
 - [x] Build — OK em todas as subfases (6.0.5.3: 10.80s)
-- [x] `architecture:ci` — verde (repositoryViolations 233 → 230 na 6.0.5.3)
+- [x] `architecture:ci` — verde (repositoryViolations 233 → 230 na 6.0.5.3; 230 na 6.0.5.4)
 
 ---
 
@@ -149,8 +149,8 @@
 - [x] `54284fb` — docs(billing): 6.0.5.3 PO adjustments (D-6.0.5.3-1..6)
 - [x] `b383222` — feat(billing): 6.0.5.3 feature flags enforcement (implementação)
 - [x] `f7f3620` — docs(billing): 6.0.5 deploy runbook (janela única)
-- [ ] Entry audit 6.0.5.4 + RELEASE_CHECKLIST (este documento) — commit pendente
-- [ ] feat(billing): 6.0.5.4 TenantLifecycleService + suspended
+- [x] `ff9f301` — docs(billing): 6.0.5.4 entry audit (4 auditorias + API congelada)
+- [ ] feat(billing): 6.0.5.4 TenantLifecycleService + suspended (commit pendente)
 - [ ] docs(billing): 6.0.5.5 + baseline v1.5.0
 
 ---
@@ -163,7 +163,7 @@
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
 - [ ] **Aprovação explícita do PO** para abrir a janela
 - [ ] Pré-flight (backup/PITR, `migration list`, dados de plano)
-- [ ] Aplicar `06030000` → `06090000` → `07000000` (+ migrations de 6.0.5.4/6.0.5.5 se houver)
+- [ ] Aplicar `06030000` → `06090000` → `07000000` → `07010000` (+ migrations de 6.0.5.5 se houver)
 - [ ] Verificações pós-deploy (histórico, RLS, RPCs, matriz `tenant_has_feature`)
 - [ ] Smoke 10/10 pós-deploy
 - [ ] Deploy do frontend (Vercel) — se fizer parte da mesma liberação

@@ -159,6 +159,8 @@
 ## Decisões 6.0.5.4 (D-6.0.5.4) — aprovadas em 2026-08-07
 
 > Subfase 6.0.5.4 — TenantLifecycleService + `suspended` aditivo. Aprovações do PO (2026-08-07) respondendo à entry audit `PHASE_6_0_5_4_ENTRY_AUDIT.md` — **5/5 aprovadas sem ajustes**; autorizada a implementação na sequência `migration → domain → application → RPCs → eventos → testes unitários → E2E flow14 → docs → baseline`.
+>
+> **✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-07):** migration `20260807010000` validada em Postgres 16 docker (T1–T7, idempotência 2×); `TenantLifecycleService` como writer único de `tenants.status` (ADR-013 §3.1); engine `suspend` + `markPaid` reativa `suspended→active`; eventos `TenantSubscriptionSuspended`/`Reactivated` publicados; unit **874/874**. **E2E flow14 (spec) escrito + typecheck OK — execução adiada para a janela única de deploy (decisão PO 2026-08-07); nenhuma migration aplicada ao remoto.**
 
 | Código | Tema | Decisão |
 |--------|------|---------|

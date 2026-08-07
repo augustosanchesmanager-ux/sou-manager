@@ -22,6 +22,7 @@ const BASE = {
   trialEndsAt: null,
   currentPeriodStart: '2026-08-06T10:00:00.000Z',
   currentPeriodEnd: '2026-09-06T10:00:00.000Z',
+  graceEndsAt: null,
   cancelAtPeriodEnd: null,
   canceledAt: null,
   createdAt: '2026-08-06T10:00:00.000Z',
@@ -91,6 +92,46 @@ describe('createInMemoryBillingRepository.applyTransition', () => {
 
     expect(repo.__listSubscriptions()[0].cancelAtPeriodEnd).toBeNull();
   });
+
+  it('should_mirror_tenant_status_for_suspended', async () => {
+    const repo = createInMemoryBillingRepository([sub({ status: 'past_due' })]);
+
+    await repo.applyTransition({
+      subscriptionId: 'sub-1',
+      status: 'suspended',
+      graceEndsAt: null,
+    });
+
+    expect(repo.__getTenantStatus('tenant-1')).toBe('suspended');
+    expect(repo.__listSubscriptions()[0].status).toBe('suspended');
+    expect(repo.__listSubscriptions()[0].graceEndsAt).toBeNull();
+  });
+
+  it('should_persist_grace_ends_at_on_start_past_due', async () => {
+    const repo = createInMemoryBillingRepository([sub({ status: 'trialing' })]);
+
+    await repo.applyTransition({
+      subscriptionId: 'sub-1',
+      status: 'past_due',
+      graceEndsAt: '2026-08-25T10:00:00.000Z',
+    });
+
+    expect(repo.__listSubscriptions()[0].graceEndsAt).toBe('2026-08-25T10:00:00.000Z');
+  });
+
+  it('should_clear_grace_ends_at_on_reactivation (espelho RPC: null limpa)', async () => {
+    const repo = createInMemoryBillingRepository([
+      sub({ status: 'suspended', graceEndsAt: '2026-08-25T10:00:00.000Z' }),
+    ]);
+
+    await repo.applyTransition({
+      subscriptionId: 'sub-1',
+      status: 'active',
+      graceEndsAt: null,
+    });
+
+    expect(repo.__listSubscriptions()[0].graceEndsAt).toBeNull();
+  });
 });
 
 describe('createInMemoryBillingRepository.findDueSubscriptions', () => {
@@ -118,6 +159,22 @@ describe('createInMemoryBillingRepository.findDueSubscriptions', () => {
 
   it('should_return_empty_when_nothing_due', async () => {
     const repo = createInMemoryBillingRepository([sub()]);
+    const due = await repo.findDueSubscriptions('2026-08-10T00:00:00.000Z');
+    expect(due).toHaveLength(0);
+  });
+
+  it('should_include_past_due_with_expired_grace_as_candidate (6.0.5.4)', async () => {
+    const repo = createInMemoryBillingRepository([
+      sub({ id: 'sub-grace', status: 'past_due', graceEndsAt: '2026-08-25T10:00:00.000Z' }),
+    ]);
+    const due = await repo.findDueSubscriptions('2026-08-26T00:00:00.000Z');
+    expect(due.map((s) => s.id)).toEqual(['sub-grace']);
+  });
+
+  it('should_not_return_past_due_within_grace', async () => {
+    const repo = createInMemoryBillingRepository([
+      sub({ id: 'sub-grace', status: 'past_due', graceEndsAt: '2026-08-25T10:00:00.000Z' }),
+    ]);
     const due = await repo.findDueSubscriptions('2026-08-10T00:00:00.000Z');
     expect(due).toHaveLength(0);
   });

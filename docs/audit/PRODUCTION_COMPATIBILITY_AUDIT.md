@@ -66,7 +66,7 @@ A auditoria só pode iniciar quando:
 - [x] 6.0.5.1 concluída
 - [x] 6.0.5.2 concluída
 - [x] 6.0.5.3 concluída
-- [ ] 6.0.5.4 concluída
+- [x] 6.0.5.4 concluída (implementação — unit 874/874 + migration `20260807010000` validada T1–T7 em docker; E2E flow14 adiado à janela única — decisão PO 2026-08-07)
 - [ ] 6.0.5.5 concluída
 - [ ] Schema final da release congelado
 - [ ] Runbook de deploy aprovado

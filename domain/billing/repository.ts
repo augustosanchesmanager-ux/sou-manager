@@ -27,6 +27,8 @@ export interface ApplyTransitionInput {
   currentPeriodEnd?: string | null;
   canceledAt?: string | null;
   clearCancelRequest?: boolean;
+  /** D-6.0.5.4-5: fim da janela de grace — null limpa ao sair de past_due/suspended. */
+  graceEndsAt?: string | null;
 }
 
 export interface Invoice {
@@ -106,6 +108,8 @@ export function createInMemoryBillingRepository(initial: BillingSubscription[] =
             toEpoch(s.trialEndsAt),
             toEpoch(s.currentPeriodEnd),
             toEpoch(s.cancelAtPeriodEnd),
+            // D-6.0.5.4: past_due com grace esgotado também é candidata (SQL espelha)
+            s.status === 'past_due' && s.graceEndsAt ? toEpoch(s.graceEndsAt) : Number.POSITIVE_INFINITY,
           ) <= new Date(asOf).getTime(),
       );
     },
@@ -130,6 +134,8 @@ export function createInMemoryBillingRepository(initial: BillingSubscription[] =
           input.canceledAt !== undefined ? input.canceledAt : current.canceledAt,
         cancelAtPeriodEnd:
           input.clearCancelRequest ? null : current.cancelAtPeriodEnd,
+        // Espelha a RPC: grace_ends_at recebe SEMPRE o valor explícito (null limpa).
+        graceEndsAt: input.graceEndsAt ?? null,
       };
       subscriptions = subscriptions.map((s) => (s.id === next.id ? next : s));
 
@@ -137,6 +143,7 @@ export function createInMemoryBillingRepository(initial: BillingSubscription[] =
         trialing: 'trial',
         active: 'active',
         past_due: 'past_due',
+        suspended: 'suspended',
         cancelled: 'cancelled',
       };
       tenantStatuses.set(next.tenantId, tenantStatus[next.status]);

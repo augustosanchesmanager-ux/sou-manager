@@ -80,12 +80,32 @@ class TenantRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'Erro ao verificar slug');
     }
   }
+
+  /**
+   * Aplica transição de status de tenant. Usado exclusivamente pelo
+   * TenantLifecycleService (writer único — ADR-013 §3.1).
+   */
+  async updateStatus(tenantId: string, status: Tenant['status']): Promise<Tenant> {
+    try {
+      const result = await this.from()
+        .update({ status })
+        .eq('id', tenantId)
+        .select('*')
+        .single();
+      const data = this.extractData(result, 'Erro ao atualizar status do tenant');
+      return toTenant(data as Record<string, unknown>);
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao atualizar status do tenant');
+    }
+  }
 }
 
 export interface TenantRepository {
   getById(id: string): Promise<Tenant | null>;
   getBySlug(slug: string): Promise<Tenant | null>;
   existsBySlug(slug: string): Promise<boolean>;
+  /** Transição de status — uso exclusivo do TenantLifecycleService (ADR-013 §3.1). */
+  updateStatus(tenantId: string, status: Tenant['status']): Promise<Tenant>;
 }
 
 export const tenantRepository: TenantRepository = new TenantRepositoryImpl();

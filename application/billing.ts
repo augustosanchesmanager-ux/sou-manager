@@ -21,7 +21,8 @@
  * D-A: cancel_at_period_end — efetivação do cancelamento acontece AQUI
  *      (finalize_cancellation), nunca na RPC cancel_subscription (pedido).
  *
- * FORA DO ESCOPO (6.0.5+): suspensão, reativação, cron, gateway, dunning.
+ * FORA DO ESCOPO (6.0.5.5+): reativação no ciclo (D-6.0.5.4-2), cron,
+ * gateway, dunning, upgrade/downgrade.
  *
  * GARANTIAS:
  *   - Engine decide; repositório apenas persiste (zero regra de negócio no banco)
@@ -38,7 +39,9 @@ import type {
   PaymentFailedEvent,
   PaymentSucceededEvent,
   TenantSubscriptionCancelledEvent,
+  TenantSubscriptionReactivatedEvent,
   TenantSubscriptionRenewedEvent,
+  TenantSubscriptionSuspendedEvent,
   TenantSubscriptionUpdatedEvent,
   TenantTrialEndedEvent,
 } from '../domain/events/types';
@@ -118,7 +121,8 @@ export class BillingService {
   /**
    * Confirmação manual de pagamento (sem gateway). Marca invoice paga,
    * registra tentativa 'success', publica InvoicePaid + PaymentSucceeded.
-   * Se a subscription estiver past_due, resolve para active.
+   * Se a subscription estiver past_due ou suspended, resolve para active
+   * (D-6.0.5.4-2; reativação NUNCA acontece via runCycle).
    */
   async markPaid(invoiceId: string): Promise<{ invoice: Invoice }> {
     const invoice = await this.repo.getInvoice(invoiceId);
@@ -165,29 +169,48 @@ export class BillingService {
       },
     }));
 
-    // past_due → active ao confirmar pagamento (sem gateway: confirmação manual)
+    // Reativação de subscription ao confirmar pagamento (sem gateway).
+    // D-6.0.5.4-2: past_due → active (Updated) e suspended → active (Reactivated).
+    // cancelled NUNCA reativa (matriz congelada ADR-013 §5.2 — R1).
     if (invoice.subscriptionId) {
       const sub = await this.repo.getSubscription(invoice.subscriptionId);
-      if (sub && sub.status === 'past_due') {
+      if (sub && (sub.status === 'past_due' || sub.status === 'suspended')) {
         await this.repo.applyTransition({
           subscriptionId: sub.id,
           status: 'active',
+          graceEndsAt: null, // D-6.0.5.4-5: limpo ao sair de past_due/suspended
         });
-        await this.bus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
-          eventType: 'TenantSubscriptionUpdated',
-          aggregateId: sub.id,
-          aggregateType: 'tenant_subscription',
-          payload: {
-            subscriptionId: sub.id,
-            tenantId: sub.tenantId,
-            plan: sub.plan,
-            status: 'active',
-          },
-          metadata: {
-            tenantId: sub.tenantId,
-            source: 'BillingService',
-          },
-        }));
+        if (sub.status === 'suspended') {
+          await this.bus.publish(createEvent<TenantSubscriptionReactivatedEvent>({
+            eventType: 'TenantSubscriptionReactivated',
+            aggregateId: sub.id,
+            aggregateType: 'tenant_subscription',
+            payload: {
+              subscriptionId: sub.id,
+              tenantId: sub.tenantId,
+            },
+            metadata: {
+              tenantId: sub.tenantId,
+              source: 'BillingService',
+            },
+          }));
+        } else {
+          await this.bus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
+            eventType: 'TenantSubscriptionUpdated',
+            aggregateId: sub.id,
+            aggregateType: 'tenant_subscription',
+            payload: {
+              subscriptionId: sub.id,
+              tenantId: sub.tenantId,
+              plan: sub.plan,
+              status: 'active',
+            },
+            metadata: {
+              tenantId: sub.tenantId,
+              source: 'BillingService',
+            },
+          }));
+        }
       }
     }
 
@@ -267,6 +290,7 @@ export class BillingService {
           await this.repo.applyTransition({
             subscriptionId: sub.id,
             status: 'past_due',
+            graceEndsAt: action.graceEndsAt, // D-6.0.5.4-5: janela persistida
           });
           await this.bus.publish(createEvent<TenantTrialEndedEvent>({
             eventType: 'TenantTrialEnded',
@@ -277,6 +301,24 @@ export class BillingService {
           }));
           await this.publishUpdated(sub, 'past_due');
           transitions.push({ subscriptionId: sub.id, tenantId: sub.tenantId, action: 'start_past_due' });
+          break;
+        }
+
+        case 'suspend': {
+          // D-6.0.5.4-1: grace expirado sem pagamento → retirada de acesso.
+          await this.repo.applyTransition({
+            subscriptionId: sub.id,
+            status: 'suspended',
+            graceEndsAt: null, // janela encerrada (D-6.0.5.4-5)
+          });
+          await this.bus.publish(createEvent<TenantSubscriptionSuspendedEvent>({
+            eventType: 'TenantSubscriptionSuspended',
+            aggregateId: sub.id,
+            aggregateType: 'tenant_subscription',
+            payload: { subscriptionId: sub.id, tenantId: sub.tenantId },
+            metadata: { tenantId: sub.tenantId, source: 'BillingService' },
+          }));
+          transitions.push({ subscriptionId: sub.id, tenantId: sub.tenantId, action: 'suspend' });
           break;
         }
 

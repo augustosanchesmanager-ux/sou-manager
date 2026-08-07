@@ -40,6 +40,7 @@ const toSubscription = (row: Record<string, unknown>): BillingSubscription => ({
   currentPeriodEnd: (row.current_period_end as string) ?? null,
   cancelAtPeriodEnd: (row.cancel_at_period_end as string) ?? null,
   canceledAt: (row.canceled_at as string) ?? null,
+  graceEndsAt: (row.grace_ends_at as string) ?? null,
   createdAt: row.created_at as string,
 });
 
@@ -120,6 +121,7 @@ class SupabaseBillingRepository extends SupabaseRepository implements BillingRep
         p_current_period_end: input.currentPeriodEnd ?? null,
         p_canceled_at: input.canceledAt ?? null,
         p_clear_cancel_request: input.clearCancelRequest ?? false,
+        p_grace_ends_at: input.graceEndsAt ?? null,
       });
       const row = firstRow(this.extractData(result, 'Erro ao aplicar transição'));
       if (!row) throw this.requireData(null as never, 'Erro ao aplicar transição');

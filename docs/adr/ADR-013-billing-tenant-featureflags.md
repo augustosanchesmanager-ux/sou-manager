@@ -1,6 +1,6 @@
 # ADR-013 — Billing, Tenant Lifecycle e Feature Flags: Três Contextos Desacoplados (Modelo de Domínio 6.0.5)
 
-**Status:** Accepted — aprovado pelo PO em 2026-08-06 com os acréscimos de **Estado Efetivo** (§2.4), **Single Writer Principle** (§3.1) e **proibição de string literals** (§4.11/§7). **Decisões de negócio D-6.0.5-1..8 aprovadas pelo PO em 2026-08-06** (ver §6) — etapa de definição funcional da 6.0.5 encerrada.
+**Status:** Accepted — aprovado pelo PO em 2026-08-06 com os acréscimos de **Estado Efetivo** (§2.4), **Single Writer Principle** (§3.1) e **proibição de string literals** (§4.11/§7). **Decisões de negócio D-6.0.5-1..8 aprovadas pelo PO em 2026-08-06** (ver §6) — etapa de definição funcional da 6.0.5 encerrada. **6.0.5.1 ✅ (2026-08-06, baseline `v1.4.3`), 6.0.5.2 ✅ (2026-08-06), 6.0.5.3 ✅ (2026-08-07, commit `b383222`), 6.0.5.4 ✅ IMPLEMENTADA (2026-08-07)** — §3.1 aplicado (desvio eliminado), invariante §4.7 implementada (`ELSE RAISE EXCEPTION`), `suspended` aditivo + `grace_ends_at` + RPCs `suspend_subscription`/`reactivate_subscription` (migration `20260807010000` validada T1–T7 em Postgres 16 docker; unit 874/874; E2E flow14 adiado à janela única — decisão PO).
 **Date:** 2026-08-06
 **Author:** Augusto (PO) + SMG Engineering
 **Baseado em:** `docs/audit/PHASE_6_0_5_ENTRY_AUDIT.md` (auditoria de entrada, 2026-08-06)
@@ -125,7 +125,7 @@ Qualquer alteração direta fora desses serviços constitui **violação arquite
 - O **Billing Engine decide** toda transição (é a única fonte de decisão do ciclo). Ele persiste `subscriptions` (writer único do contrato).
 - O lado de **`tenants.status`** é persistido exclusivamente pelo **TenantLifecycleService**, reagindo às decisões/efeitos do engine.
 - O **Transition Executor** (`apply_subscription_transition`) é a única função física de mutação, porém **pertence a dois writers lógicos**: a persistência de `subscriptions` (emitida pelo Billing Engine) e a persistência de `tenants.status` (emitida pelo TenantLifecycleService).
-- **Desvio conhecido a eliminar na 6.0.5.4:** na 6.0.4.x a chamada única ao `apply_subscription_transition` grava contrato e tenant juntos, sem distinguir o writer. A 6.0.5.4 divide essa responsabilidade para que `tenants.status` tenha **um único writer** (TenantLifecycleService), preservando a atomicidade via fronteira de transição.
+- **Desvio conhecido — ELIMINADO na 6.0.5.4 (2026-08-07):** na 6.0.4.x a chamada única ao `apply_subscription_transition` gravava contrato e tenant juntos, sem distinguir o writer. A 6.0.5.4 dividiu essa responsabilidade: o **Transition Executor** persiste o contrato (escrita emitida pelo Billing Engine) e o **TenantLifecycleService** (`domain/tenant/tenantLifecycleService.ts`) é o **writer único de `tenants.status`** (ADR-013 §3.1), preservando a atomicidade via fronteira de transição.
 
 ## 4. Regras permanentes (invariantes)
 

@@ -1,10 +1,12 @@
 /**
  * [SMG][DOMAIN][BILLING] billingEngine tests
  *
- * Cobre TODAS as transições aprovadas (tabela do PHASE_6_0_4_4 §3.2):
- *   trialing → activate_free (free) / start_past_due (pago)
+ * Cobre TODAS as transições aprovadas (tabela do PHASE_6_0_4_4 §3.2 +
+ * aditivo 6.0.5.4):
+ *   trialing → activate_free (free) / start_past_due (pago, + graceEndsAt)
  *   active   → finalize_cancellation / renew (+ invoice p/ pago) / none
- *   past_due → finalize_cancellation / none (grace)
+ *   past_due → finalize_cancellation / suspend (grace expirado) / none
+ *   suspended→ none (ciclo NUNCA reativa — D-6.0.5.4-2)
  *   cancelled→ none
  *
  * Convenções: AAA, should_<result>_when_<condition>.
@@ -21,6 +23,7 @@ const BASE = {
   trialEndsAt: '2026-08-20T10:00:00.000Z',
   currentPeriodStart: '2026-08-06T10:00:00.000Z',
   currentPeriodEnd: '2026-09-06T10:00:00.000Z',
+  graceEndsAt: null,
   cancelAtPeriodEnd: null,
   canceledAt: null,
   createdAt: '2026-08-06T10:00:00.000Z',
@@ -43,9 +46,13 @@ describe('processSubscription — trialing', () => {
     }
   });
 
-  it('should_start_past_due_when_trial_ends_for_paid_plan', () => {
+  it('should_start_past_due_with_grace_ends_at_when_trial_ends_for_paid_plan', () => {
     const action = processSubscription(sub({ plan: 'pro' }), '2026-08-21T00:00:00.000Z');
-    expect(action).toEqual({ type: 'start_past_due' });
+    // D-6.0.5.4-5: janela de grace = trial_ends_at + GRACE_PERIOD_DAYS (5 dias).
+    expect(action).toEqual({
+      type: 'start_past_due',
+      graceEndsAt: '2026-08-25T10:00:00.000Z',
+    });
   });
 
   it('should_do_nothing_when_trial_not_ended', () => {
@@ -113,9 +120,62 @@ describe('processSubscription — past_due', () => {
     expect(action).toEqual({ type: 'finalize_cancellation' });
   });
 
-  it('should_do_nothing_in_grace_without_gateway', () => {
-    const s = sub({ status: 'past_due', plan: 'pro' });
+  it('should_do_nothing_when_grace_not_expired', () => {
+    const s = sub({
+      status: 'past_due',
+      plan: 'pro',
+      graceEndsAt: '2026-09-11T10:00:00.000Z',
+    });
+    expect(processSubscription(s, '2026-09-10T00:00:00.000Z')).toEqual({ type: 'none' });
+  });
+
+  it('should_suspend_when_grace_expired', () => {
+    const s = sub({
+      status: 'past_due',
+      plan: 'pro',
+      graceEndsAt: '2026-09-11T10:00:00.000Z',
+    });
+    expect(processSubscription(s, '2026-09-11T10:00:00.000Z')).toEqual({ type: 'suspend' });
+  });
+
+  it('should_suspend_when_grace_expired_using_deterministic_fallback', () => {
+    // Sem graceEndsAt (linha legada pré-6.0.5.4): fallback determinístico
+    // current_period_end + 5 dias (D-6.0.5.4-5 / R6 da entry audit).
+    const s = sub({ status: 'past_due', plan: 'pro', graceEndsAt: null });
+    // current_period_end = 2026-09-06T10:00 → grace = 2026-09-11T10:00
+    expect(processSubscription(s, '2026-09-12T00:00:00.000Z')).toEqual({ type: 'suspend' });
+    // Dentro da janela de fallback ainda é tolerância
+    expect(processSubscription(s, '2026-09-11T09:00:00.000Z')).toEqual({ type: 'none' });
+  });
+
+  it('should_do_nothing_when_grace_period_in_future', () => {
+    const s = sub({
+      status: 'past_due',
+      plan: 'pro',
+      graceEndsAt: '2026-10-01T00:00:00.000Z',
+    });
     expect(processSubscription(s, '2026-09-20T00:00:00.000Z')).toEqual({ type: 'none' });
+  });
+});
+
+describe('processSubscription — suspended', () => {
+  it('should_do_nothing_when_suspended (ciclo NUNCA reativa — D-6.0.5.4-2)', () => {
+    const s = sub({
+      status: 'suspended',
+      plan: 'pro',
+      currentPeriodEnd: '2026-09-06T10:00:00.000Z',
+      cancelAtPeriodEnd: null,
+    });
+    expect(processSubscription(s, '2026-12-01T00:00:00.000Z')).toEqual({ type: 'none' });
+  });
+
+  it('should_do_nothing_even_with_cancel_pending_or_past_period', () => {
+    const s = sub({
+      status: 'suspended',
+      plan: 'pro',
+      cancelAtPeriodEnd: '2026-09-06T10:00:00.000Z',
+    });
+    expect(processSubscription(s, '2026-12-01T00:00:00.000Z')).toEqual({ type: 'none' });
   });
 });
 

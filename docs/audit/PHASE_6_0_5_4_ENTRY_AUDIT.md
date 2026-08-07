@@ -9,9 +9,11 @@
 
 ---
 
-## STATUS: ✅ APROVADA PELO PO (2026-08-07) — IMPLEMENTAÇÃO AUTORIZADA
+## STATUS: ✅ APROVADA PELO PO (2026-08-07) — IMPLEMENTAÇÃO CONCLUÍDA
 
 > **Aprovação do PO (2026-08-07):** as decisões **D-6.0.5.4-1..5 foram aprovadas sem ajustes** e a implementação foi autorizada na sequência `migration → domain → application → RPCs → eventos → testes unitários → E2E flow14 → docs → baseline`. Governança reforçada: (1) contrato de acesso intocado (Subscription + Tenant + Feature Availability = Effective State); (2) novo status só existe quando banco + domínio + testes + documentação o conhecem; (3) `runCycle` nunca reativa automaticamente. Registro oficial: `docs/BUSINESS_DECISIONS.md` (D-6.0.5.4-1..5).
+>
+> **✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-07):** migration `20260807010000` criada + validada em Postgres 16 docker (aplica 2×; T1–T7 OK); `TenantLifecycleService` (writer único de `tenants.status` — ADR-013 §3.1) + engine `suspend` + `markPaid` reativa `suspended→active`; eventos `TenantSubscriptionSuspended`/`Reactivated` publicados; unit **874/874 (+27)**, typecheck baseline 125, build OK, `architecture:ci` verde. **E2E flow14 (spec) escrito + typecheck OK — execução ADIADA para a janela única de deploy (decisão PO 2026-08-07)**; nenhuma migration aplicada ao remoto. Runbook atualizado (§3.4 + verificações §4.8 + flow14 §5).
 
 ---
 
@@ -243,15 +245,15 @@ export interface TenantLifecycleService {
 
 ## 8. Critérios de saída (certificação — atualizados pelo PO)
 
-- [ ] Aprovação explícita do PO da entry audit (D-6.0.5.4-1..5 registradas em `BUSINESS_DECISIONS.md`)
-- [ ] Migration validada em Postgres 16 docker (T1–T7, idempotência 2×)
-- [ ] Suíte unitária verde (≥ 847 + novos) · typecheck sem novos erros (baseline 125) · build OK · `architecture:ci` verde
-- [ ] **E2E flow14 PASS** (Supabase real) + smoke 10/10 regressivo
-- [ ] `TenantLifecycleService` = único writer de `tenants.status` (guard reforçado; grep sem escrita fora)
-- [ ] Eventos `TenantSubscriptionSuspended`/`Reactivated` publicados (não mais mortos)
-- [ ] Docs atualizadas: ROADMAP (Status + item 6.0.5.4 + changelog), PROJECT_STATUS, ADR-013 (§3.1/§4.6 marcados), RELEASE_CHECKLIST_v1.5.md, runbook (migration da 6.0.5.4 incluída na janela)
-- [ ] Commit semântico + push da branch (sem merge — merge só no fechamento da fase)
-- [ ] Migration da 6.0.5.4 agendada na **janela única** de deploy (D-6.0.5.3-3 + PO 2026-08-07)
+- [x] Aprovação explícita do PO da entry audit (D-6.0.5.4-1..5 registradas em `BUSINESS_DECISIONS.md`)
+- [x] Migration validada em Postgres 16 docker (T1–T7, idempotência 2×)
+- [x] Suíte unitária verde (**874/874** — 847 baseline + 27 novos) · typecheck sem novos erros (baseline 125) · build OK · `architecture:ci` verde
+- [ ] **E2E flow14 PASS** (Supabase real) + smoke 10/10 regressivo — **execução adiada para a janela única de deploy (decisão PO 2026-08-07)**; spec escrito (`flow14-tenant-suspend-reactivate.spec.ts`) + typecheck OK
+- [x] `TenantLifecycleService` = único writer de `tenants.status` (guard reforçado; grep sem escrita fora)
+- [x] Eventos `TenantSubscriptionSuspended`/`Reactivated` publicados (não mais mortos)
+- [x] Docs atualizadas: ROADMAP (Status + item 6.0.5.4 + changelog), PROJECT_STATUS, ADR-013 (§3.1/§4.6 marcados), RELEASE_CHECKLIST_v1.5.md, runbook (migration da 6.0.5.4 incluída na janela)
+- [ ] Commit semântico + push da branch (sem merge — merge só no fechamento da fase) — **pendente do commit desta sessão**
+- [x] Migration da 6.0.5.4 agendada na **janela única** de deploy (D-6.0.5.3-3 + PO 2026-08-07 — runbook §3.4)
 
 ---
 
@@ -272,7 +274,10 @@ export interface TenantLifecycleService {
 
 A **6.0.5.4** é a peça que fecha o **ciclo determinístico `past_due → suspended → active/cancelled`** previsto no ADR-013 e congelado na `PHASE_6_0_5_ENTRY_AUDIT.md` (linha 350). Corrige dois defeitos latentes conhecidos (CHECK sem `suspended` e `ELSE → active`) e ativa os eventos já tipados, com o `TenantLifecycleService` assumindo o papel de **writer único de `tenants.status`** (ADR-013 §3.1). Documentação 100% alinhada (sem divergências bloqueantes); frontend sem mudanças obrigatórias (Estado Efetivo + flags já cobrem `suspended`).
 
-**Pendências antes de implementar:**
-1. Aprovação desta entry audit pelo PO (com confirmação de D-6.0.5.4-1..5);
-2. Confirmação de que as RPCs manuais (`suspend_subscription`/`reactivate_subscription`) permanecem na 6.0.5.4 (escopo congelado) e o upgrade (`change_tenant_plan`) segue na 6.0.5.5 (D-6.0.5.3-2);
-3. Após a implementação: atualizar o runbook para incluir a migration 6.0.5.4 na janela única.
+**✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-07)** — todas as pendências resolvidas:
+
+1. Entry audit **aprovada pelo PO** (D-6.0.5.4-1..5 confirmadas e registradas em `BUSINESS_DECISIONS.md`);
+2. RPCs manuais `suspend_subscription`/`reactivate_subscription` **permanecem na 6.0.5.4** (escopo congelado) e o upgrade (`change_tenant_plan`) segue na 6.0.5.5 (D-6.0.5.3-2);
+3. Runbook **atualizado** com a migration 6.0.5.4 na janela única (§3.4 MIGRATION 4 + verificação §4.8 + flow14 §5 + rollback §6.3).
+
+**Única pendência operacional:** E2E flow14 + smoke pós-deploy, **adiados pelo PO para a janela única de deploy** — nenhuma migration foi aplicada ao remoto durante a implementação.
