@@ -149,7 +149,7 @@ Congelada. Nenhuma alteração estrutural aceita.
 6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
 6.0.3  Team Onboarding  ████████████████████ 100%  ✅ CERTIFICADA E2E (baseline v1.3.0)
 6.0.4  Billing Foundation ████████████████░░░░░░  80%  ✅ 6.0.4.1 + 6.0.4.2 + 6.0.4.3 + 6.0.4.4 Billing Engine (baseline v1.4.2)
-6.0.5  Feature Flags      ░░░░░░░░░░░░░░░░░░░░   0%
+6.0.5  Feature Flags      ████████████████████░░  50%  ✅ 6.0.5.1 CERTIFICADA (baseline v1.4.3) + 6.0.5.2 IMPLEMENTADA (deploy deferido)
 6.1  CI/CD                ░░░░░░░░░░░░░░░░░░░░   0%
 6.2  Observabilidade      ░░░░░░░░░░░░░░░░░░░░   0%
 6.3  Ambientes            ░░░░░░░░░░░░░░░░░░░░   0%
@@ -205,8 +205,8 @@ Migration Health
 
 ██████████ 100%
 
-103 arquivos SQL
-97 migrations timestamped
+104 arquivos SQL
+98 migrations timestamped
 6 utilitários / migrações legadas (sem timestamp)
 0 arquivo vazio (0 bytes)
 0 quebradas
@@ -216,7 +216,7 @@ Migration Health
 4 issues médios documentados
 4 issues baixos documentados
 
-Última auditoria: 06/08/2026 (Fase 6.0.3)
+Última auditoria: 06/08/2026 (Fase 6.0.5.2)
 ```
 
 ---
@@ -225,16 +225,16 @@ Migration Health
 
 | Métrica | Valor |
 |---------|-------|
-| Total de testes | 659 |
+| Total de testes | 819 |
 | Testes E2E | 31 |
-| Arquivos de teste | 24 |
-| Migrações SQL | 97 |
+| Arquivos de teste | 37 |
+| Migrações SQL | 98 |
 | Tabelas com RLS | 47 |
 | Eventos de domínio | 16 |
 | Subscribers | 8 |
 | Application Services | 5 |
 | Repositories | 14 |
-| ADRs | 12 |
+| ADRs | 13 |
 
 ---
 
@@ -246,7 +246,7 @@ Migration Health
 | Business Architecture | 5 | ✅ |
 | SaaS Core Architecture | 5.5 | ✅ |
 | Platform Certification | 5.6 | ✅ (com ressalvas) |
-| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 + 6.0.3 concluídas — 6.0.4.1 + 6.0.4.2 + 6.0.4.3 concluídas (hardening RPC + lifecycle) — **6.0.4.4 Billing Engine CONCLUÍDA (baseline v1.4.2, E2E flow9/flow12 verdes)** |
+| SaaS Core Implementation | 6.0 | 🔵 6.0.1 + 6.0.2 + 6.0.3 concluídas — 6.0.4.1 + 6.0.4.2 + 6.0.4.3 concluídas (hardening RPC + lifecycle) — **6.0.4.4 Billing Engine CONCLUÍDA (baseline v1.4.2, E2E flow9/flow12 verdes)** — **6.0.5.1 CERTIFICADA (baseline v1.4.3, E2E flow13 8/8)** — **6.0.5.2 IMPLEMENTADA (819 testes, deploy deferido pelo PO)** |
 | Production Ready | 6.13 | ⬜ |
 | Product Mature | 7.10 | ⬜ |
 | SaaS Certified | 8.11 | ⬜ |
@@ -289,6 +289,8 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 6.0 | Fase 6.0.5.2 (BillingService + Modelagem de Plans) **IMPLEMENTAÇÃO CONCLUÍDA + REVIEW PO**. Migration `20260806090000_phase_6_0_5_2_plans_catalog.sql` (`plans`/`features`/`plan_features`, seed idempotente free 14 / pro 15 / premium 20, FK TEXT `tenants.plan`/`subscriptions.plan` → `plans(slug)`, drop CHECKs, RLS) + contrato único **`PlanCatalog`** (`domain/billing/planCatalog.ts` — acréscimo obrigatório do PO) + `FEATURE_KEYS` 1:1 BD (`domain/billing/featureKey.ts`, 20) + `PLAN_CATALOG_VERSION`/`CATALOG_FINGERPRINT` (checksum determinístico, acréscimo do review) + cobertura total (igualdade bidirecional 100% BD↔TS) + resolver 6.0.5.1 passa a resolver via catálogo (zero SQL) + `limits.ts` marcado legacy. Unit **819/819 (+24)**, typecheck sem novos erros (125 baseline), build OK, migration validada em Postgres 16 docker (aplica 2× sem duplicar; FK rejeita `elite`). **Deploy ao remoto DEFERIDO pelo PO** (janela apropriada — não empurrar junto a `20260806030000` pendente; chaves Supabase inválidas a rotacionar antes de smoke real). Entry audit `PHASE_6_0_5_2_ENTRY_AUDIT.md` ✅ APROVADA/IMPLEMENTADA. Sem nova baseline (próxima `v1.5.0-feature-flags-6.0.5`). |
+| 2026-08-06 | 6.0 | Fase 6.0.5.1 (Estado Efetivo / camada de autorização) **CERTIFICADA** (baseline `v1.4.3-effective-state-6.0.5.1`, E2E real flow13 8/8). `AuthorizationService`/`EffectiveAccessService`/`effectiveState.ts` como fonte única; migration `20260806060000` (profile_status enum + coluna `staff.tenant_id`). Unit 795/795. |
 | 2026-08-06 | 6.0 | Fase 6.0.4.4 (Billing Engine) **CONCLUÍDA e CERTIFICADA (E2E real flow9 + flow12 verdes)**. Migration `20260806050000` aplicada (cancel_at_period_end; `cancel_subscription` vira pedido) + corretivas `20260806070000` (fix 7 RPCs com `column reference "id" is ambiguous` — OUT params de `RETURNS TABLE` colidindo com colunas) e `20260806080000` (enum `tenant_status`). `domain/billing/` engine TS puro (fonte da verdade, sem cron); `application/billing.ts` BillingService (runCycle/markPaid/handleFailure/issueInvoice). FinanceSubscriber/Provider estendidos (`create_receivable`). Flow9 onboarding→trial→active e flow12 cancelamento→efetivação passam no banco real. Unit 749/749, build OK, typecheck da fase zerado. Baseline `v1.4.2-billing-engine-6.0.4.4`. 6.0.5 Feature Flags PRÓXIMA. |
 | 2026-08-06 | 6.0 | Fase 6.0.4.3 (Billing Lifecycle) concluída: migration `20260806040000` — `complete_onboarding` passa a `draft → trial` invocando `start_trial` (F10/D5), guard alinhado a `current_is_tenant_manager_from_auth_uid` e grants conforme ADR-012. `application/tenantLifecycle.ts` — `TenantLifecycleService` (startTrial/activate/cancel/getStatus) centraliza a emissão dos eventos de billing; `onboarding.ts` delega os eventos de billing ao service. Docs: `TENANT_LIFECYCLE.md` (estado implementado) + `TAXONOMY.md` (8.1 Termos de Billing). Unit 699/699, build OK. Migration aplicada ao banco real via procedimento da `MIGRATION_EXCEPTION` (db query --linked + repair applied; grants anon/PUBLIC removidos). 6.0.4.4 Billing Engine PRÓXIMA. |
 | 2026-08-06 | 6.0 | Fase 6.0.4.2 (Billing Foundation) + hardening de autorização: migration `20260806030000` corrige ambiguidades do `start_trial`, adiciona guard `auth.uid()` no `record_billing_event` e aplica `REVOKE anon` em RPCs privilegiadas. **ADR-012** registra o contrato permanente de grants (REVOKE anon / GRANT authenticated). Backlog "Security Hardening — RPC Permission Audit" registrado. Baseline `v1.4.0-billing-foundation-6.0.4.2`. 6.0.4.3 Lifecycle PRÓXIMA. |

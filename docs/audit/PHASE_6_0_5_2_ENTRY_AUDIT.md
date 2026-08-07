@@ -9,9 +9,15 @@
 
 ---
 
-## STATUS: 🔍 EM AUDITORIA (aguardando aprovação do PO)
+## STATUS: ✅ APROVADA PELO PO — IMPLEMENTAÇÃO CONCLUÍDA (deploy na janela apropriada)
 
-> Critérios de entrada em avaliação. Nenhuma decisão de implementação é tomada nesta auditoria; o escopo proposto depende de **approval formal do PO**.
+> **Aprovação (2026-08-06):** o PO aprovou o escopo de §6 e adicionou a recomendação obrigatória de expor um **contrato único `PlanCatalog`** (`getPlan`, `getFeatures`, `hasFeature`, `getLimits`) para que Billing Engine, EffectiveAccessService e FeatureAvailability **nunca conheçam SQL**. A 6.0.5.3 troca apenas a implementação do catálogo (static → DB-backed) sem tocar consumidores.
+>
+> **Critérios adicionais do PO:** `limits.ts` permanece marcado **legacy** (remoção apenas na 6.0.5.3); nenhum código novo acessa `plan_features` fora do catálogo; todos os `FeatureKey` com correspondência 1:1 na BD; teste de regressão mantendo sincronizada a matriz BD ↔ matriz tipada.
+>
+> **Acréscimos do review (PO, 2026-08-06):** (1) teste de **cobertura total** — igualdade bidirecional 100% explícita (todo `FeatureKey` existe na migration E toda feature da migration é `FeatureKey`, features e matriz); (2) **versionamento/checksum** — `PLAN_CATALOG_VERSION = 1` + `CATALOG_FINGERPRINT` (`computeCatalogFingerprint`, determinístico) comparado com o fingerprint derivado do seed da migration no teste de sincronismo; (3) `limits.ts`: `throw`/remoção adiados para depois da 6.0.5.3 (mantém `@deprecated`).
+>
+> **Estado da implementação (2026-08-06):** código, testes (819 unitários, +24 novos), typecheck (sem novos erros — baseline 125), build e arquitetura verificados. Migration validada em Postgres local (docker): aplica 2× sem duplicar, FKs criadas, CHECKs removidos, RLS/grants corretos, FK rejeita slug `elite`. **Deploy ao remoto DEFERIDO** por decisão do PO (janela apropriada — evita empurrar junto a migration de segurança pendente `20260806030000`).
 
 ---
 
@@ -115,31 +121,35 @@ tenants.plan / subscriptions.plan (TEXT permanece, vira FK p/ plans.slug)
 
 ## 6. Escopo proposto (para aprovação do PO)
 
-| Entregável | Detalhe |
-|-----------|---------|
-| Migration `plans/features/plan_features` + seed idempotente | Padrão timestamped (`supabase/migrations/`), `ON CONFLICT DO NOTHING`, sem migration runner |
-| FK aditiva `tenants.plan`/`subscriptions.plan` → `plans(slug)` | Dropar CHECKs; nada de troca para `INT id` (não-aditivo) |
-| `plans.limits` (max_staff etc.) | Fonte persistida p/ 6.0.5.3 (substitui `limits.ts`) |
-| Alinhamento ADR-013 §2.4 | Citação 6.0.5.1 → 6.0.5.2 (DIV-D) |
-| Testes | Migração idempotente (re-run), seed = matriz §5, FKs válidas |
-| Docs + ROADMAP + changelog | Sem nova baseline (só no fim da 6.0.5.5 — `v1.5.0-feature-flags-6.0.5`) |
+| Entregável | Detalhe | Status |
+|-----------|---------|--------|
+| Migration `plans/features/plan_features` + seed idempotente | Padrão timestamped (`supabase/migrations/`), `ON CONFLICT DO NOTHING`, sem migration runner — `20260806090000_phase_6_0_5_2_plans_catalog.sql` | ✅ Implementada + validada (docker, 2×) |
+| FK aditiva `tenants.plan`/`subscriptions.plan` → `plans(slug)` | Dropar CHECKs; nada de troca para `INT id` (não-aditivo) | ✅ Implementada; FK rejeita `elite` |
+| `plans.limits` (max_staff etc.) | Fonte persistida p/ 6.0.5.3 (substitui `limits.ts`) | ✅ free=1 / pro=5 / premium=∞ |
+| **`PlanCatalog` (contrato único — acréscimo do PO)** | `domain/billing/planCatalog.ts`: `getPlan`/`getFeatures`/`hasFeature`/`getLimits`; `featureAvailability` passa a resolver via catálogo (zero SQL); `FEATURE_KEYS` em `domain/billing/featureKey.ts` | ✅ Implementado + tests |
+| **`PLAN_CATALOG_VERSION` + `CATALOG_FINGERPRINT` (acréscimo do review)** | Versionamento/checksum determinístico do catálogo; sync test compara com o fingerprint derivado do seed | ✅ Implementado + tests |
+| Alinhamento ADR-013 §3 | Citação 6.0.5.1 → 6.0.5.2 (DIV-D) | ✅ Corrigido |
+| Testes | Migração idempotente (re-run), seed = matriz §5, FKs válidas | ✅ 19 novos (814 total) + validação docker |
+| Docs + ROADMAP + changelog | Sem nova baseline (só no fim da 6.0.5.5 — `v1.5.0-feature-flags-6.0.5`) | ✅ |
 
 **Fora do escopo (proibido nesta subfase):**
 - ❌ Enforcement / leitura via `plans` no frontend (6.0.5.3 — FeatureFlagService + `tenant_has_feature` + substituir `limits.ts`)
 - ❌ Alterar `subscriptions.status` / `suspended` (6.0.5.4)
 - ❌ RPCs de transição / `apply_subscription_transition` (6.0.5.5)
-- ❌ Alterar `featureAvailability.ts` (resolver da 6.0.5.1 permanece)
+- ❌ Alterar o **comportamento** do resolver 6.0.5.1 (`featureAvailability` manteve a API; apenas passou a depender do catálogo, conforme recomendação obrigatória do PO)
 - ❌ `plans` como `INT id` (quebraria consumidores — viola o princípio aditivo)
 
 ---
 
 ## 7. Critérios de saída propostos (certificação)
 
-- [ ] Migration aplicada: tabelas `plans`/`features`/`plan_features` + seed idempotente (re-run não duplica)
-- [ ] Seed espelha exatamente `PLAN_FEATURES` (free 14 / pro 15 / premium 20) e `limits.ts`
-- [ ] `tenants.plan`/`subscriptions.plan` com FK → `plans(slug)`; CHECKs removidos; zero quebra em RPCs existentes
-- [ ] Regressão: suíte unitária (795) + smoke E2E (flow1-5, flow13) verdes
-- [ ] ADR-013 §2.4 corrigido (DIV-D); docs + ROADMAP atualizados
+- [x] Migration escrita e validada: tabelas `plans`/`features`/`plan_features` + seed idempotente (**re-run não duplica** — validado em Postgres 16 docker, 2×)
+- [x] Seed espelha exatamente `PLAN_FEATURES` (free 14 / pro 15 / premium 20) e `limits.ts` (free=1 / pro=5 / premium=∞) — teste `planCatalogMigrationSync.test.ts`
+- [x] `tenants.plan`/`subscriptions.plan` com FK → `plans(slug)`; CHECKs removidos; zero quebra em RPCs existentes (FK TEXT preserva slugs) — FK rejeita `elite` na validação docker
+- [x] `PlanCatalog` exposto (contrato único do PO); `featureAvailability` resolve via catálogo sem SQL; `limits.ts` marcado `@deprecated` legacy; `FEATURE_KEYS` 1:1 com `features`
+- [x] Regressão: suíte unitária **819 testes** verdes (795 baseline + 24 novos) + typecheck sem novos erros (baseline 125) + build OK
+- [x] ADR-013 §3 corrigido (DIV-D); docs + ROADMAP atualizados
+- [ ] **Migration aplicada ao remoto** (tabelas + seed no banco real) — **DEFERIDO**: deploy na janela apropriada por decisão do PO (2026-08-06), evitando empurrar a migration de segurança pendente `20260806030000` junto
 
 ---
 
@@ -156,4 +166,4 @@ tenants.plan / subscriptions.plan (TEXT permanece, vira FK p/ plans.slug)
 
 ## 9. Conclusão
 
-Os critérios de entrada da 6.0.5.2 estão **avaliados**: o modelo `plans + features + plan_features` é aditivo, não quebra consumidores e persiste a matriz já congelada e certificada (6.0.5.1). **Nenhum bloqueio conceitual** identificado além da confirmação formal do escopo em §6 e da correção de **DIV-D**. **STATUS: 🔍 EM AUDITORIA — aguardando decisão do PO.**
+A 6.0.5.2 foi **aprovada pelo PO** e sua implementação está **concluída** (2026-08-06): migration `plans + features + plan_features` idempotente e aditiva, FK TEXT por slug, `PlanCatalog` como contrato único (acréscimo obrigatório do PO) e `FEATURE_KEYS` 1:1 com a BD. Divergências DIV-A/DIV-B/DIV-D resolvidas conforme documentado. Suíte unitária **814 testes verdes**; migration validada em Postgres local (aplicação dupla sem duplicação + FK rejeitando `elite`). **Único pendente: deploy ao remoto, agendado pelo PO para a janela apropriada** (não empurrar junto a `20260806030000`, pendente de segurança). **STATUS: ✅ APROVADA — IMPLEMENTAÇÃO CONCLUÍDA.**

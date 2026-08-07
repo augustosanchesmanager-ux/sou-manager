@@ -1,6 +1,12 @@
 /**
  * [SMG][DOMAIN][BILLING] limits
  *
+ * @deprecated LEGACY — desde a 6.0.5.2 os limites vivem em `plans.limits`
+ * (persistido) e são lidos via `PlanCatalog.getLimits()`/`getPlan()` em
+ * `domain/billing/planCatalog.ts`. Este módulo permanece apenas para
+ * compatibilidade transitória e será ELIMINADO na 6.0.5.3 (ADR-013 §4.11).
+ * Nenhum código novo deve importá-lo.
+ *
  * Validação de limites por plano, reutilizando a lógica da 6.0.3
  * (RPC invite_team_member): free = 1, pro = 5, premium = ∞ (ilimitado).
  *

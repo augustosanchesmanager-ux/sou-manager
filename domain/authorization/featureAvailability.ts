@@ -4,13 +4,15 @@
  * RESPONSABILIDADE: resolver a disponibilidade de features (FeatureSet) a partir
  * de plano × estado do tenant/subscription. Responde "Está habilitada?".
  *
- * NÃO É CATÁLOGO: o catálogo (nomes, descrições, dependências) vive em
- * `docs/FEATURE_FLAGS_MODEL.md` (§3/§5). Aqui o código apenas RESOLVE.
- * Essa separação permite futuros addons, promoções, planos enterprise,
- * feature overrides e beta flags sem reescrever a AccessPolicy.
+ * NÃO É CATÁLOGO: o catálogo (definição de planos, features e limites) vive em
+ * `domain/billing/planCatalog.ts` (contrato único `PlanCatalog`, 6.0.5.2) e é
+ * persistido em `plans`/`features`/`plan_features` (migration
+ * 20260806090000_phase_6_0_5_2_plans_catalog.sql). Aqui o código apenas RESOLVE,
+ * consultando o catálogo — nunca SQL. A 6.0.5.3 troca a implementação do
+ * catálogo (static → DB-backed) sem alterar este resolver nem seus consumidores.
  *
  * FONTE CONGELADA (PO 2026-08-06):
- *   - Matriz por plano: `FEATURE_FLAGS_MODEL.md` §5 (free/pro/premium)
+ *   - Matriz por plano: `PLAN_FEATURES` (free/pro/premium) — §5
  *   - Override por status do tenant: ADR-013 §2.3/§5.3
  *       draft      → Nenhuma (pré-F10, onboarding)
  *       suspended  → "Suspensas" (vazio)
@@ -23,37 +25,13 @@
 
 import type { TenantPlan, SubscriptionStatus } from '../billing/types';
 import type { TenantStatus } from '../tenant/types';
+import { planCatalog } from '../billing/planCatalog';
+import { type FeatureKey, type FeatureSet } from '../billing/featureKey';
 
-// ─── FeatureKey (catálogo D4/P4 — FEATURE_FLAGS_MODEL §3) ─────────
+// ─── Re-exports (estabilidade de API p/ consumidores da 6.0.5.1) ──
 
-export type FeatureKey =
-  // Core
-  | 'appointments'
-  | 'pos'
-  | 'clients'
-  | 'services'
-  | 'products'
-  | 'team'
-  | 'dashboard'
-  // Financial
-  | 'finance'
-  | 'cash_closing'
-  | 'commissions'
-  | 'receivables'
-  | 'expenses'
-  // Engagement
-  | 'chef_club'
-  | 'vouchers'
-  | 'promotions'
-  // Integration
-  | 'api'
-  | 'whatsapp'
-  | 'marketplace'
-  // Admin
-  | 'multi_unit'
-  | 'bi';
-
-export type FeatureSet = readonly FeatureKey[];
+export type { FeatureKey, FeatureSet } from '../billing/featureKey';
+export { PLAN_FEATURES } from '../billing/planCatalog';
 
 // ─── Input do resolver ────────────────────────────────────────────
 
@@ -67,42 +45,6 @@ export interface FeatureAvailabilityInput {
 export interface FeatureAvailabilityResolver {
   resolve(input: FeatureAvailabilityInput): FeatureSet;
 }
-
-// ─── Matriz por plano (FEATURE_FLAGS_MODEL §5, congelada) ─────────
-
-const FREE_FEATURES: FeatureSet = [
-  'appointments',
-  'pos',
-  'clients',
-  'services',
-  'products',
-  'team',
-  'dashboard',
-  'finance',
-  'cash_closing',
-  'commissions',
-  'receivables',
-  'expenses',
-  'vouchers',
-  'promotions',
-];
-
-const PRO_FEATURES: FeatureSet = [...FREE_FEATURES, 'chef_club'];
-
-const PREMIUM_FEATURES: FeatureSet = [
-  ...PRO_FEATURES,
-  'bi',
-  'api',
-  'whatsapp',
-  'marketplace',
-  'multi_unit',
-];
-
-export const PLAN_FEATURES: Readonly<Record<TenantPlan, FeatureSet>> = {
-  free: FREE_FEATURES,
-  pro: PRO_FEATURES,
-  premium: PREMIUM_FEATURES,
-};
 
 // ─── Override por status do tenant (ADR-013 §2.3/§5.3) ────────────
 
@@ -120,14 +62,14 @@ const STATUS_OVERRIDES: Partial<Record<TenantStatus, FeatureSet>> = {
 /**
  * Resolve o FeatureSet de um tenant.
  * - Se o status do tenant tiver override (draft/suspended/archived) → vazio.
- * - Caso contrário → features do plano (matriz §5).
+ * - Caso contrário → features do plano (via PlanCatalog).
  * - cancelled/past_due/trial mantêm as features do plano: a RESTRIÇÃO de
  *   escrita é responsabilidade da AccessPolicy (níveis), não do resolver.
  */
 export function resolveFeatures(input: FeatureAvailabilityInput): FeatureSet {
   const override = input.tenantStatus ? STATUS_OVERRIDES[input.tenantStatus] : undefined;
   if (override) return override;
-  return PLAN_FEATURES[input.plan];
+  return planCatalog.getFeatures(input.plan);
 }
 
 export const featureAvailabilityResolver: FeatureAvailabilityResolver = {

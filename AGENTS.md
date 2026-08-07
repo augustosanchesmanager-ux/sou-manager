@@ -55,6 +55,56 @@ Antes de iniciar qualquer nova fase, executar:
 
 ---
 
+## Política Oficial de Versionamento e Fluxo Operacional (PO, 2026-08-06)
+
+> Decisão formal do PO. Padrão oficial do projeto. O OpenCode atua como **Tech Lead operacional**; o PO decide apenas estratégia, negócio, arquitetura (ADR), deploys e merges.
+
+### Fluxo operacional obrigatório (por subfase)
+
+```
+Implementação → Testes Unitários → Build → Typecheck → E2E → Auditoria
+    → Atualização da documentação → Commit semântico → Push da branch → Push das tags
+```
+
+Somente após essa sequência a subfase é considerada encerrada.
+
+### Sempre executar automaticamente (não perguntar ao PO)
+
+- Commit semântico
+- Atualização de `ROADMAP.md`
+- Atualização de `PROJECT_STATUS.md`
+- Atualização de ADRs
+- Atualização dos Entry Checks (`docs/audit/`)
+- Atualização dos documentos da fase
+- Atualização do changelog
+- `git push` da branch
+- `git push --tags` quando houver baseline/tag criada
+
+### Sempre exigir aprovação explícita do PO
+
+- Merge para `main`
+- Merge para `develop` (caso exista)
+- Deploy em produção
+- Aplicação de migrations no banco remoto de produção
+- Alterações arquiteturais que gerem novo ADR
+- Mudanças de regra de negócio
+- Operações destrutivas (rollback, exclusões, etc.)
+
+### Baselines
+
+Toda baseline certificada exige: commit semântico + tag anotada + push da branch + push da tag + ROADMAP atualizado + PROJECT_STATUS atualizado + documentação da fase atualizada. A baseline só é concluída com todos os itens.
+
+### Fluxo das fases
+
+```
+Auditoria → Plano → Implementação → Testes → Build → Typecheck → E2E
+    → Documentação → Commit → Push → Tag (quando aplicável) → Baseline
+```
+
+**Merge** acontece somente no encerramento da fase completa, nunca durante as subfases.
+
+---
+
 ## Glossário Oficial
 
 **Toda nomenclatura deve seguir `docs/TAXONOMY.md`.**

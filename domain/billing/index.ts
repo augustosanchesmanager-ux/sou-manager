@@ -6,6 +6,8 @@
  */
 
 export * from './types';
+export * from './featureKey';
+export * from './planCatalog';
 export * from './billingEngine';
 export * from './limits';
 export * from './repository';

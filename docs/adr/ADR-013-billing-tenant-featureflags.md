@@ -103,7 +103,7 @@ Estado Efetivo (acesso do tenant)
 | Faturamento / ciclo / vencimento | `subscriptions` | **Billing Engine** (via Transition Executor) |
 | Acesso ao sistema | `tenants.status` | **TenantLifecycleService** (writer único, §3.1; reage às decisões do engine) |
 | Funcionalidades disponíveis | Feature Flags (plano × status) | Camada de flags 6.0.5 (derivada, read-only) |
-| Limites do plano | Tabela `plans` (6.0.5.1) | Migrations/seed; leitura por RPCs de enforcement |
+| Limites do plano | Tabela `plans` (6.0.5.2) | Migrations/seed; leitura por RPCs de enforcement |
 | Pedido de cancelamento | `subscriptions.cancel_at_period_end` | RPC `cancel_subscription` (via Lifecycle Service) |
 
 **Invariante central:** nenhum componente escreve diretamente no estado de outro contexto, exceto o **Transition Executor** — a única fronteira de mutação de estado. O Transition Executor hoje é a RPC `apply_subscription_transition` (e as RPCs par `start_trial`/`activate_subscription`, orquestradas pelo Lifecycle Service); na 6.0.5 ganha suporte a `suspended`/`archived` e RPCs de suspensão/reativação/upgrade, sempre sob o contrato de grants do ADR-012.
@@ -117,7 +117,7 @@ Cada agregado possui **apenas um componente autorizado a alterar seu estado**. D
 | `subscriptions` | **Billing Engine** (`BillingService`) |
 | `tenants.status` | **TenantLifecycleService** |
 | Feature Flags | **FeatureFlagService** (novo, 6.0.5) |
-| `plans` | **BillingService** (catálogo/seed, 6.0.5.1) |
+| `plans` | **BillingService** (catálogo/seed, 6.0.5.2) |
 
 Qualquer alteração direta fora desses serviços constitui **violação arquitetural** (mesmo que funcione).
 
