@@ -182,14 +182,14 @@ Este documento define o checklist de certificação que valida se a plataforma e
 | 9.1 | Coluna `status` em `tenants` | ❌ | **Na época:** `active: boolean`. **Atual:** `tenants.status` ENUM (7 estados) — resolvido 6.0.3 |
 | 9.2 | Lifecycle 7 estados definidos | ❌ | **Na época:** não implementado. **Atual:** implementado (enum + engine 6.0.4; suspensão = 6.0.5.4) |
 | 9.3 | Transições de estado | ❌ | **Na época:** sem enum. **Atual:** `apply_subscription_transition` + `runCycle` (Billing Engine 6.0.4) |
-| 9.4 | Login bloqueado em suspended/cancelled | ❌ | **Na época:** sem verificação. **Atual:** `ProtectedRoute` bloqueia por `tenant.status` (6.0.3); na 6.0.5 passa à camada de autorização (Estado Efetivo — D-6.0.5-1/2) |
+| 9.4 | Login bloqueado em suspended/cancelled | ❌ | **Na época:** sem verificação. **Atual:** `ProtectedRoute` bloqueia por `tenant.status` (6.0.3); na 6.0.5 passa à camada de autorização (Estado Efetivo — níveis por D-6.0.5-1/2 aprovadas: `past_due`=read-only com aviso, `cancelled`=somente leitura) |
 | 9.5 | Notificações em transições | ⚠️ | `NotificationSubscriber` existe; eventos de transição do catálogo D2 (`TenantSubscription*`). Notificações completas = pendente |
 
 **Pendências (status atualizado):**
 - [x] Migration `tenants.status` (enum 7 estados) — resolvido 6.0.3
 - [x] Função de transição com validações — resolvido 6.0.4 (Billing Engine)
 - [x] Verificação de `tenant.status` em `ProtectedRoute` — resolvido 6.0.3
-- [ ] `suspended` aditivo no CHECK + transições `past_due → suspended` / `suspended → active` (6.0.5.4; D-6.0.5-1/2)
+- [ ] `suspended` aditivo no CHECK + transições `past_due → suspended` / `suspended → active` (6.0.5.4; D-6.0.5-1/2 aprovadas)
 
 ---
 

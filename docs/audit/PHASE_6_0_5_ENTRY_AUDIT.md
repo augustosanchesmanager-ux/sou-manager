@@ -75,11 +75,11 @@ Resumo das divergências que **impactam decisões da 6.0.5** (coluna "Resoluçã
 |---|------|-------|-------|---------------|----------------------|
 | D1 | Destino pós-grace | `SUBSCRIPTION_MODEL.md:51` → `cancelled` | Todos os demais → `suspended` | **CRÍTICO** — diagrama interno do próprio doc do modelo diverge da regra aprovada (D3/F4) | ✅ Resolvido (doc) |
 | D2 | Modelo de dados de flags | `plans+features+plan_features` (D4/P4, aprovado) | `plans.features TEXT[]` + `tenant_has_feature` (FEATURE_FLAGS_MODEL §6) | **ALTO** — três propostas concorrentes; precisa decisão única | ✅ Resolvido — ADR-013 §5.3 + D-6.0.5-5 (decisão registrada; docs alinhados) |
-| D3 | Limite Free de profissionais | 1 (F11/BUSINESS_DECISIONS) | ≤2 (ROADMAP 5.5.4 / SAAS_CORE) | **ALTO** — enforcement não sabe o valor | ⬜ Aberto (PO — D-6.0.5-3); docs alinhados ao fato (`free=1`) |
+| D3 | Limite Free de profissionais | 1 (F11/BUSINESS_DECISIONS) | ≤2 (ROADMAP 5.5.4 / SAAS_CORE) | **ALTO** — enforcement não sabe o valor | ✅ Resolvido — D-6.0.5-3: **1 profissional** (PO, 2026-08-06) |
 | D4 | Semântica de cancelamento | Imediato (`TENANT_LIFECYCLE.md:104`, `SUBSCRIPTION_MODEL`) | Fim do período (D-A, entregue 6.0.4.4) | **ALTO** — doc "oficial para condicionais" ensina contrato errado | ✅ Resolvido (doc) |
 | D5 | Nomes de tabelas billing | `platform_subscriptions/invoices/payments` (SAAS_CORE 5.5) | `subscriptions/invoices/payment_attempts` (entregue) | MÉDIO — consultas baseadas na 5.5 falham | ✅ Resolvido (doc) |
-| D6 | Acesso em `past_due` | "com restrições" (TENANT_LIFECYCLE) | `full` (LIFECYCLE_MODEL) · read-only por módulo (SAAS_CORE) | **ALTO** — guard da suspensão indefinido | ✅ Resolvido (doc) — unificado "depende da D-6.0.5-1" |
-| D7 | Acesso em `cancelled` | bloqueado (TENANT_LIFECYCLE/SAAS_CORE) | read-only (LIFECYCLE_MODEL) | MÉDIO — afeta reativação/export | ✅ Resolvido (doc) — unificado "depende da D-6.0.5-2" |
+| D6 | Acesso em `past_due` | "com restrições" (TENANT_LIFECYCLE) | `full` (LIFECYCLE_MODEL) · read-only por módulo (SAAS_CORE) | **ALTO** — guard da suspensão indefinido | ✅ Resolvido — D-6.0.5-1: **read-only com aviso** (PO, 2026-08-06) |
+| D7 | Acesso em `cancelled` | bloqueado (TENANT_LIFECYCLE/SAAS_CORE) | read-only (LIFECYCLE_MODEL) | MÉDIO — afeta reativação/export | ✅ Resolvido — D-6.0.5-2: **somente leitura** (PO, 2026-08-06) |
 | D8 | Âncora do trial | `tenants.created_at` (TAXONOMY/F3) | `now()` em `start_trial` (plano 6.0.4 §56) | MÉDIO — **o código usa `created_at`**; conflito é só do texto do plano | ✅ Resolvido (doc) |
 | D9 | Transições de `suspended` | `suspended→active` (SAAS_CORE/BUSINESS_ARCH/LIFECYCLE_MODEL/TENANT_MODEL) | **inexistente** (TENANT_LIFECYCLE) | **ALTO** — máquina de suspensão tem 3 fontes | ✅ Resolvido (doc) — ADR-013 §5 |
 | D10 | Nome da flag Chef Club | `chef_club` (FEATURE_FLAGS_MODEL) | `club_dos_chefes` (SAAS_CORE) | MÉDIO — catálogo de flags precisa normalizar | ✅ Resolvido (doc) — `chef_club` único |
@@ -248,7 +248,7 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 
 ## 6. Lista de inconsistências encontradas
 
-> **Status da Subfase 0 (2026-08-06, ADR-013 Accepted):** os conflitos **documentais** abaixo foram resolvidos por alinhamento exclusivo de docs (sem código). Itens que dependem de decisão do PO (**D-6.0.5-x**) ou de implementação (**6.0.5.x**) permanecem abertos e são indicados na coluna "Resolução".
+> **Status da Subfase 0 (2026-08-06, ADR-013 Accepted):** os conflitos **documentais** abaixo foram resolvidos por alinhamento exclusivo de docs (sem código). Itens que dependiam de decisão do PO (**D-6.0.5-x**) foram **aprovados em 2026-08-06** (ver §7); itens de implementação (**6.0.5.x**) permanecem abertos e são indicados na coluna "Resolução".
 
 ### Críticas (bloqueiam a modelagem da 6.0.5)
 
@@ -265,8 +265,8 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 
 | # | Achado | Evidência | Resolução |
 |---|--------|-----------|-----------|
-| H1 | Limite Free de profissionais: 1 vs ≤2 | `BUSINESS_DECISIONS.md:91` (F11) vs `ROADMAP.md:892`/`SAAS_CORE_ARCHITECTURE.md:314` | ⬜ **Aberto (PO)** — D-6.0.5-3. Docs alinhados ao fato real (`free=1`, `domain/billing/limits.ts`) |
-| H2 | Nível de acesso em `past_due` indefinido (3 versões) | `TENANT_LIFECYCLE.md:15,86` vs `LIFECYCLE_MODEL.md:124` vs `SAAS_CORE_ARCHITECTURE.md:134` | ✅ **Resolvido (doc)** — unificado em "depende da D-6.0.5-1" nos 3 docs |
+| H1 | Limite Free de profissionais: 1 vs ≤2 | `BUSINESS_DECISIONS.md:91` (F11) vs `ROADMAP.md:892`/`SAAS_CORE_ARCHITECTURE.md:314` | ✅ **Resolvido (decisão do PO)** — D-6.0.5-3 aprovada: **1 profissional** (confirma F11) |
+| H2 | Nível de acesso em `past_due` indefinido (3 versões) | `TENANT_LIFECYCLE.md:15,86` vs `LIFECYCLE_MODEL.md:124` vs `SAAS_CORE_ARCHITECTURE.md:134` | ✅ **Resolvido (decisão do PO)** — D-6.0.5-1 aprovada: **read-only com aviso**; os 3 docs unificados ao valor decidido |
 | H3 | Máquina de suspensão/reativação tem 3 fontes conflitantes | `SAAS_CORE_ARCHITECTURE.md:122-123`/`LIFECYCLE_MODEL.md:29`/`TENANT_MODEL.md:75-76` vs `TENANT_LIFECYCLE.md:23-56` (sem `suspended→active`) | ✅ **Resolvido (doc)** — todas as máquinas alinhadas ao ADR-013 §5 (inclui `suspended→active`; cancelamento=pedido) |
 | H4 | Sem `grace_ends_at` no schema → impossível selecionar candidatos à suspensão | schema audit §1/§3 | ⬜ **Aberto (código)** — coluna na **6.0.5.4** |
 | H5 | TTL 90 dias (remoção automática) contradiz F5 (nunca excluir) | `LIFECYCLE_MODEL.md:77` vs `BUSINESS_DECISIONS.md:55-58` | ✅ **Resolvido (doc)** — `LIFECYCLE_MODEL.md` corrigido para F5 (dados preservados) |
@@ -297,7 +297,7 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 | # | Achado | Resolução |
 |---|--------|-----------|
 | B1 | `elite`/`enterprise` residuais em docs oficiais pós-D1 | ✅ **Resolvido (doc)** — todos os docs alinhados a `free/pro/premium` |
-| B2 | Cadência anual sem decisão registrada (planos `price_yearly_cents` já modelados) | ⬜ **Aberto (PO)** — D-6.0.5-6 |
+| B2 | Cadência anual sem decisão registrada (planos `price_yearly_cents` já modelados) | ✅ **Resolvido (decisão do PO)** — D-6.0.5-6 aprovada: **mensal agora**; anual aditivo futuro |
 | B3 | Dunning 3×3d documentado sem base em runtime | ✅ **Resolvido (doc)** — `SUBSCRIPTION_MODEL.md` marca dunning como não implementado/obsoleto |
 | B4 | Auditoria 6.0.4 declarou modelos "consistente" sem detectar C1/H5/M9 | ✅ **Resolvido** — corrigido pela própria Entry Audit 6.0.5 + Subfase 0 |
 
@@ -309,22 +309,26 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 |----------------|----------|------|
 | Sem conflito entre decisões anteriores (6.0.4.x) | ✅ **Decisões 6.0.4.x consistentes entre si e com o schema.** Os conflitos são **documentais** (docs 5.x e MODEL docs legados) e textuais internos (C1) — não de decisão. | Alinhar docs em pré-requisito de doc (subfase 0), **não** como fase de código |
 | Sem mudança de contrato nas RPCs certificadas | ⚠️ **Nenhuma assinatura muda.** Contudo: (a) `subscriptions.status` CHECK ganha `'suspended'` (aditivo); (b) `apply_subscription_transition` muda o corpo (map) para corrigir `ELSE→active` e incluir `suspended` — **aditivo + correção de bug latente**, chamada só pelo engine; (c) novas RPCs internas (`reactivate_subscription`, upgrade). **RPCs de frontend intocadas.** | Registrar em ADR-013 que a mudança é aditiva e que RPCs públicas preservam contrato |
-| Desacoplamento Billing × Tenant × Flags completamente definido | ❌ **Não definido.** Precisa de ADR-013 (responsabilidades §2.1, estados §3, fontes §2.3, mapeamento explícito) + decisões D-6.0.5-x antes de código | ADR-013 como **entregável de entrada da 6.0.5** |
+| Desacoplamento Billing × Tenant × Flags completamente definido | ✅ **Definido** — ADR-013 Accepted (responsabilidades §2.1, estados §3, fontes §2.3, mapeamento explícito) + decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06) | ADR-013 como **entregável de entrada da 6.0.5** |
 
-**Conclusão: os critérios NÃO estão totalmente fechados** — a modelagem de suspensão, plans e flags exige o ADR-013 e 4 decisões do PO antes de qualquer linha de código (exatamente a diretriz do PO: resolver no plano e nos ADRs antes de codificar).
+**Conclusão: os critérios de entrada da 6.0.5 estão FECHADOS** — ADR-013 aprovado e as 8 decisões D-6.0.5 aprovadas pelo PO. Não há bloqueio conceitual para iniciar a 6.0.5.1 (Estado Efetivo).
 
-### Decisões requeridas do PO (D-6.0.5)
+### Decisões do PO (D-6.0.5) — ✅ APROVADAS em 2026-08-06
 
-| # | Decisão | Opções | Recomendação técnica |
-|---|---------|--------|----------------------|
-| D-6.0.5-1 | Acesso em `past_due` durante grace | (a) full (status quo) · (b) read-only · (c) leitura total + escrita de comandas ❌ | (b) read-only com aviso — alinha com suspensão progressiva |
-| D-6.0.5-2 | Acesso em `cancelled` | (a) bloqueado (status quo) · (b) read-only p/ export/retenção | (b) read-only facilita reativação e LGPD (F5) |
-| D-6.0.5-3 | Limite Free de profissionais | 1 · 2 · configurável | 1 (F11 é decisão mais recente do PO) — **confirmar** |
-| D-6.0.5-4 | Saída de `suspended`/`cancelled` por retenção | (a) retenção 30d→cancelled · (b) manual superadmin · (c) sem TTL (F5) | (b) sem TTL — F5 nunca exclui; `archived` via ação manual |
-| D-6.0.5-5 | Modelo de dados de flags | (a) `plans+features+plan_features` (D4/P4) · (b) `plans.features TEXT[]` · (c) `feature_flags` table | (a) — é o aprovado em D4/P4 |
-| D-6.0.5-6 | Cadência anual | mensal · mensal+anual | mensal agora; anual aditivo futuro (sem coluna removida) |
-| D-6.0.5-7 | `archived` no `subscriptions.status` | sim (contrato terminal) · não (só tenant) | não — `archived` é estado de tenant; contrato já está `cancelled` |
-| D-6.0.5-8 | Cron do `runCycle` | supabase cron · Edge Function · manual | Edge Function agendada (padrão Supabase) — **decisão de infra (PO)** |
+**Todas as decisões D-6.0.5-1..8 foram aprovadas pelo PO (Augusto) em 2026-08-06**, encerrando a etapa de definição funcional da 6.0.5. Registro oficial no ADR-013 §6 e em `BUSINESS_DECISIONS.md`.
+
+| # | Decisão | Opções | ✅ Decisão do PO |
+|---|---------|--------|------------------|
+| D-6.0.5-1 | Acesso em `past_due` durante grace | (a) full (status quo) · (b) read-only · (c) leitura total + escrita de comandas ❌ | **(b) Read-only com aviso** — login, dashboard, relatórios e exportações; sem clientes/comandas/agendamentos, movimentação financeira, estoque ou alterações cadastrais |
+| D-6.0.5-2 | Acesso em `cancelled` | (a) bloqueado (status quo) · (b) read-only p/ export/retenção | **(b) Somente leitura** — modo consulta permanente; nenhuma escrita após cancelamento |
+| D-6.0.5-3 | Limite Free de profissionais | 1 · 2 · configurável | **1 profissional** (confirma F11) |
+| D-6.0.5-4 | Saída de `suspended`/`cancelled` por retenção | (a) retenção 30d→cancelled · (b) manual superadmin · (c) sem TTL (F5) | **(b) Manual pelo superadmin, sem TTL** — F5 nunca exclui; `archived` é ação administrativa |
+| D-6.0.5-5 | Modelo de dados de flags | (a) `plans+features+plan_features` (D4/P4) · (b) `plans.features TEXT[]` · (c) `feature_flags` table | **(a) `plans + features + plan_features`** (D4/P4) |
+| D-6.0.5-6 | Cadência anual | mensal · mensal+anual | **Mensal agora**; anual aditivo futuro |
+| D-6.0.5-7 | `archived` no `subscriptions.status` | sim (contrato terminal) · não (só tenant) | **Não** — `archived` é estado exclusivo do Tenant |
+| D-6.0.5-8 | Cron do `runCycle` | supabase cron · Edge Function · manual | **Edge Function agendada** — só agenda/fornece `asOf`; nunca contém regras de negócio |
+
+**Regras complementares congeladas (plano Free):** 1 profissional · 1 unidade · sem Chef Club · sem módulos Premium. Limites controlados **exclusivamente pelas Feature Flags** — nenhuma regra depende do nome do plano.
 
 ---
 
@@ -332,7 +336,9 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 
 > **Pré-requisito (subfase 0 — sem código):** ADR-013 (modelo 6.0.5: responsabilidades/estados/mapeamento/grants) + decisões D-6.0.5 + alinhamento documental (C1, C6, D3, D4, D6, H2, H3, M1–M6, B1 — atualizar `SUBSCRIPTION_MODEL`, `TENANT_LIFECYCLE`, `LIFECYCLE_MODEL`, `SAAS_CORE`, `ROADMAP`).
 
-> **✅ Subfase 0 concluída (2026-08-06):** ADR-013 **Accepted** (`36935fa`). Alinhamento documental entregue — ver status de resolução na **§6**. Docs atualizados: `SUBSCRIPTION_MODEL.md`, `TENANT_LIFECYCLE.md`, `LIFECYCLE_MODEL.md`, `SAAS_CORE_ARCHITECTURE.md`, `BUSINESS_ARCHITECTURE.md`, `PLATFORM_CERTIFICATION.md`, `FEATURE_FLAGS_MODEL.md`, `ROADMAP.md`. **Zero código alterado.** Decisões D-6.0.5-1..8 permanecem **abertas** (PO) e bloqueiam a implementação.
+> **✅ Subfase 0 concluída (2026-08-06):** ADR-013 **Accepted** (`36935fa`). Alinhamento documental entregue — ver status de resolução na **§6**. Docs atualizados: `SUBSCRIPTION_MODEL.md`, `TENANT_LIFECYCLE.md`, `LIFECYCLE_MODEL.md`, `SAAS_CORE_ARCHITECTURE.md`, `BUSINESS_ARCHITECTURE.md`, `PLATFORM_CERTIFICATION.md`, `FEATURE_FLAGS_MODEL.md`, `ROADMAP.md`. **Zero código alterado.**
+
+> **✅ Decisões D-6.0.5-1..8 aprovadas pelo PO em 2026-08-06** (ver §7) — etapa de definição funcional da 6.0.5 encerrada. Nenhum bloqueio conceitual restante para iniciar a implementação 6.0.5.1.
 
 | Subfase | Escopo | Entregas-chave |
 |---------|--------|----------------|

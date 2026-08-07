@@ -49,12 +49,12 @@ stateDiagram-v2
 | `draft` | Tenant criado, onboarding pendente | ❌ Bloqueado | complete_onboarding |
 | `trial` | Período de avaliação (14d, âncora `tenants.created_at`) | ✅ Completo | pagamento, cancel |
 | `active` | Plano pago ou free | ✅ Completo | todas |
-| `past_due` | Período vencido — grace (5 dias) | 🔷 **Restrito** *(D-6.0.5-1)* | pagamento, cancel |
+| `past_due` | Período vencido — grace (5 dias) | 🔷 **Read-only com aviso** *(D-6.0.5-1)* | leitura, pagamento, cancel |
 | `suspended` | Grace expirado — dados preservados (F5) | ❌ Bloqueado *(D-6.0.5-2)* | pagamento, reactivate |
-| `cancelled` | Cancelado — `cancel_at_period_end` atingido | 🔷 Somente leitura *(D-6.0.5-2)* | — |
+| `cancelled` | Cancelado — `cancel_at_period_end` atingido | 🔷 **Somente leitura** *(D-6.0.5-2)* | leitura, exportação, relatórios |
 | `archived` | Arquivado — dados preservados (F5, nunca excluídos) | ❌ Nenhum | — |
 
-> **Acesso (ADR-013 §2.4):** a coluna "Acesso" é decisão de **Estado Efetivo** (Subscription + Tenant + Feature Flags), avaliada na camada de autorização. O acesso de `past_due`/`suspended`/`cancelled` depende das decisões D-6.0.5-1 e D-6.0.5-2. **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
+> **Acesso (ADR-013 §2.4):** a coluna "Acesso" é decisão de **Estado Efetivo** (Subscription + Tenant + Feature Flags), avaliada na camada de autorização. Níveis definidos pelas decisões **D-6.0.5-1** (`past_due` = read-only com aviso) e **D-6.0.5-2** (`cancelled` = somente leitura), aprovadas pelo PO em 2026-08-06. **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
 
 ---
 
@@ -82,16 +82,16 @@ stateDiagram-v2
 - **Nota:** o `subscriptions.status` não possui `suspended` hoje — será **aditivo** no CHECK na 6.0.5.4 (D-6.0.5-2)
 
 ### 3.4 `suspended → cancelled`
-- **Gatilho:** fim da retenção — **depende da D-6.0.5-4** (método e janela em aberto com o PO)
+- **Gatilho:** ação administrativa do **superadmin** (manual — D-6.0.5-4 aprovada: sem TTL, sem exclusão automática)
 - **Efeito:** Dados **preservados** (F5 — nunca excluídos automaticamente). Qualquer referência a TTL de exclusão é obsoleta
 
 ### 3.5 `suspended → active`
 - **Gatilho:** `markPaid` (pagamento confirmado) ou `reactivate` **[6.0.5.4]**
 - **Efeito:** subscription `active`, acesso restaurado
-- **Nota:** reativação **pós-cancelamento** (`cancelled → active`) **não existe** na máquina congelada — cancelado é terminal (ADR-013 §5); decisão D-6.0.5-2
+- **Nota:** reativação **pós-cancelamento** (`cancelled → active`) **não existe** na máquina congelada — cancelado é terminal (ADR-013 §5). Eventual reativação de `cancelled` só via **novo fluxo comercial futuro** (D-6.0.5-2)
 
 ### 3.6 `cancelled → archived`
-- **Gatilho:** ação administrativa ou retenção (D-6.0.5-4)
+- **Gatilho:** ação administrativa **manual** do superadmin (D-6.0.5-4 — sem TTL)
 - **Efeito:** Dados preservados (nunca excluídos automaticamente — F5), tenant removido de listagens ativas
 
 ---
@@ -123,22 +123,22 @@ const VALID_TRANSITIONS: Record<TenantStatus, TenantStatus[]> = {
 };
 ```
 
-> **Nota:** `suspended` e as transições de saída de `suspended` só entram em vigor com o CHECK aditivo da **6.0.5.4** e dependem de D-6.0.5-1/2. Hoje `tenants.status` já possui os 7 estados no ENUM, mas o `subscriptions.status` ainda não tem `suspended`.
+> **Nota:** `suspended` e as transições de saída de `suspended` só entram em vigor com o CHECK aditivo da **6.0.5.4** (D-6.0.5-2 aprovada). Hoje `tenants.status` já possui os 7 estados no ENUM, mas o `subscriptions.status` ainda não tem `suspended`.
 
 ---
 
 ## 5. Bloqueio de Acesso
 
-> **Atenção (ADR-013 §2.4):** a decisão de acesso é de **Estado Efetivo**, não exclusivamente de `tenant.status`. A tabela abaixo é o mapeamento legado de referência; a partir da 6.0.5 o gate real acontece na **camada de autorização** combinando os três contextos. Valores marcados dependem de decisões de negócio do PO (D-6.0.5-1/2).
+> **Atenção (ADR-013 §2.4):** a decisão de acesso é de **Estado Efetivo**, não exclusivamente de `tenant.status`. A tabela abaixo é o mapeamento legado de referência; a partir da 6.0.5 o gate real acontece na **camada de autorização** combinando os três contextos. Valores de `past_due`/`cancelled` definidos pelas decisões **D-6.0.5-1/2** (aprovadas pelo PO em 2026-08-06).
 
 ```typescript
 const ACCESS_BY_STATUS: Record<TenantStatus, 'full' | 'restricted' | 'readonly' | 'none'> = {
   draft:      'none',
   trial:      'full',
   active:     'full',
-  past_due:   'restricted',   // D-6.0.5-1 (grace: janela de 5 dias, não status)
-  suspended:  'none',         // D-6.0.5-2
-  cancelled:  'readonly',     // D-6.0.5-2
+  past_due:   'restricted',   // D-6.0.5-1: read-only com aviso (grace: janela de 5 dias, não status)
+  suspended:  'none',         // D-6.0.5-2: bloqueado
+  cancelled:  'readonly',     // D-6.0.5-2: somente leitura (exportação/retenção)
   archived:   'none',
 };
 ```
@@ -168,5 +168,5 @@ const ACCESS_BY_STATUS: Record<TenantStatus, 'full' | 'restricted' | 'readonly' 
 - [x] RPCs de billing: `start_trial()`, `activate_subscription()`, `cancel_subscription()` (pedido — D-A), `get_subscription()`
 - [x] Bloqueio de acesso por status no frontend (`App.tsx` → `ProtectedRoute`)
 - [ ] Validação de transições via CHECK/trigger — **não será via DB trigger**: a máquina de estados é o **Billing Engine** (`apply_subscription_transition`/`runCycle`), conforme ADR-013
-- [ ] `suspended` aditivo no CHECK de `subscriptions.status` + transições automáticas `past_due → suspended` e `suspended → active` (**6.0.5.4**; depende de D-6.0.5-1/2)
-- [ ] Acesso `past_due`/`cancelled` finalizado via camada de autorização (Estado Efetivo — **6.0.5.1/6.0.5.3**; depende de D-6.0.5-1/2)
+- [ ] `suspended` aditivo no CHECK de `subscriptions.status` + transições automáticas `past_due → suspended` e `suspended → active` (**6.0.5.4**; D-6.0.5-1/2 aprovadas)
+- [ ] Acesso `past_due`/`cancelled` finalizado via camada de autorização (Estado Efetivo — **6.0.5.1/6.0.5.3**; níveis definidos por D-6.0.5-1/2)

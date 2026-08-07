@@ -13,9 +13,9 @@
 | `draft` | Tenant recém-criado, aguardando onboarding | Nenhum — redirecionado para `/onboarding/shop-setup` |
 | `trial` | Onboarding concluído, período de avaliação | Total — funcionalidades liberadas |
 | `active` | Plano pago ativo | Total — funcionalidades liberadas |
-| `past_due` | Pagamento atrasado (janela de grace de 5 dias) | Nível **depende da D-6.0.5-1** (pendente do PO) — hoje "com restrições / lembretes" |
-| `suspended` | Suspenso por inadimplência (grace expirado) **[6.0.5]** | Nível **depende da D-6.0.5-2** (pendente do PO) — hoje "Nenhum, `/pending-approval`" |
-| `cancelled` | Assinatura efetivamente cancelada | Nível **depende da D-6.0.5-2** (pendente do PO) — hoje "Nenhum, `/pending-approval`" |
+| `past_due` | Pagamento atrasado (janela de grace de 5 dias) | **Read-only com aviso** (D-6.0.5-1) — login, dashboard, relatórios e exportações; sem criação de clientes/comandas/agendamentos, movimentação financeira, estoque ou alterações cadastrais |
+| `suspended` | Suspenso por inadimplência (grace expirado) **[6.0.5]** | **Nenhum** (D-6.0.5-2) — hoje "Nenhum, `/pending-approval`" |
+| `cancelled` | Assinatura efetivamente cancelada | **Somente leitura** (D-6.0.5-2) — login, consulta, exportação e relatórios; qualquer escrita bloqueada |
 | `archived` | Arquivado (terminal, F5 — dados preservados) | Nenhum — redirecionado para `/pending-approval` |
 
 > `grace` **não é estado** (janela temporal, ADR-013 §4.3). `cancel_pending` **não existe** (D-A, ADR-013 §4.2).
@@ -51,18 +51,18 @@ draft ──────────────► trial ───────�
 |----|------|---------|-------------|
 | `draft` | `trial` | Usuário completa onboarding — `complete_onboarding()` invoca `start_trial()` (F10) | `CompleteOnboardingService` + `TenantLifecycleService` |
 | `draft` | `cancelled` | Ação administrativa (sem RPC de cancelamento pré-onboarding) | SuperAdmin |
-| `draft` | `archived` | Onboarding não completado em X dias | Cron futuro (sujeito a F5/D-6.0.5-4) |
+| `draft` | `archived` | Onboarding não completado em X dias | Cron futuro (sujeito a F5) — ação manual (D-6.0.5-4) |
 | `trial` | `active` | `activate_subscription()` (manual, D-D; sem gateway na 6.0.4) | `TenantLifecycleService` |
 | `trial` | `past_due` | Trial expira com plano pago e sem pagamento (engine) | **Billing Engine** |
 | `trial` | `cancelled` | **`cancel_at_period_end` atingido** (engine) — pedido de cancelamento durante o trial não muda estado (D-A) | **Billing Engine** |
 | `active` | `past_due` | Vencimento sem pagamento (engine) | **Billing Engine** |
 | `active` | `cancelled` | **`cancel_at_period_end` atingido** (engine) — pedido do usuário não muda estado (D-A) | **Billing Engine** |
-| `active` | `archived` | Inatividade prolongada | Cron futuro (sujeito a F5/D-6.0.5-4) |
+| `active` | `archived` | Inatividade prolongada | Cron futuro (sujeito a F5) — ação manual (D-6.0.5-4) |
 | `past_due` | `active` | `markPaid` (pagamento confirmado) | **Billing Engine** |
 | `past_due` | `suspended` | Grace expirado (`asOf ≥ grace_ends_at`) **[6.0.5]** | **Billing Engine** |
-| `suspended` | `active` | Reativação: `markPaid` ou ação do manager/superadmin **[6.0.5]** (detalhe em D-6.0.5-4) | **Billing Engine** |
-| `suspended` | `cancelled` | Decisão de retenção **[6.0.5]** | **Depende da D-6.0.5-4** |
-| `cancelled` | `archived` | Retenção administrativa | **Depende da D-6.0.5-4** (F5: nunca excluir) |
+| `suspended` | `active` | Reativação: `markPaid` ou ação do manager/superadmin **[6.0.5]** | **Billing Engine** |
+| `suspended` | `cancelled` | Decisão de retenção **[6.0.5]** | SuperAdmin — ação manual (D-6.0.5-4) |
+| `cancelled` | `archived` | Retenção administrativa | SuperAdmin — ação manual (D-6.0.5-4; F5: nunca excluir) |
 | Qualquer | `archived` | Superadmin decide | SuperAdmin |
 
 > **Regra do PO (F10/D5):** `draft → trial → active` é **obrigatório**. **Nunca**
@@ -95,9 +95,9 @@ if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navi
 | `draft` | Redirecionado para onboarding | — | Total |
 | `trial` | Total | Total | Total |
 | `active` | Total | Total | Total |
-| `past_due` | Com restrições | Com restrições | Total |
+| `past_due` | Read-only com aviso (D-6.0.5-1) | Read-only com aviso | Total |
 | `suspended` | Bloqueado | Bloqueado | Total |
-| `cancelled` | Bloqueado | Bloqueado | Total |
+| `cancelled` | Somente leitura (D-6.0.5-2) | Somente leitura | Total |
 | `archived` | Bloqueado | Bloqueado | Total |
 
 ---

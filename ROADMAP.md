@@ -1093,7 +1093,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 (alinhamento documental) em progresso. Próxima: implementação 6.0.5.1.
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. Próxima: implementação 6.0.5.1.
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1784,6 +1784,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 | Data | Versão | Alteração |
 |------|--------|-----------|
 | 2026-08-06 | 8.0 | **Subfase 0 — 6.0.5 (Alinhamento Documental).** ADR-013 Accepted (3 contextos desacoplados + Estado Efetivo + Single Writer). 6.0.4 marcada como certificada (baseline `v1.4.2-billing-engine-6.0.4.4`). Escopo da 6.0.5 atualizado (6.0.5.1–6.0.5.5). Planos `free/pro/premium` (Elite obsoleto; CHECK `20260806020000`). Correção `draft → trial` (F10 — nunca `draft → active`). Dívida técnica D1/D2/D3 marcada como resolvida/parcial. Sem alteração de código. |
+| 2026-08-06 | 8.1 | **Decisões D-6.0.5-1..8 aprovadas pelo PO** — encerra a etapa de definição funcional da 6.0.5. `past_due` = read-only com aviso; `cancelled` = somente leitura; Free = 1 profissional; retenção manual sem TTL; flags = `plans+features+plan_features`; cadência mensal; `archived` só no Tenant; `runCycle` via Edge Function (determinística). Registro em `BUSINESS_DECISIONS.md` e ADR-013 §6/§6.1. Sem alteração de código. |
 | 2026-07-28 | 6.2 | Fase 5.5 CONCLUÍDA. 5 definições finais incorporadas: Grace Period, Retenção de Dados, Gateway (adapters), Notificações (camada própria), Auditoria (eventos existentes). Architecture Freeze v1.0 recomendado após Fase 5.6. |
 | 2026-07-28 | 6.1 | Decisões do PO incorporadas: onboarding (8 etapas), lifecycle (7 estados), billing (mensal, gateway desacoplado), planos (Free/Pro/Elite, limites configuráveis), hierarquia de papéis. Pendências reduzidas de 15 para 5 críticas. |
 | 2026-07-27 | 6.0 | Decisão do PO: Foco absoluto no SMG Barber. Produtos futuros classificados como "Evolução da Plataforma" (sem nomes, sem domínios, sem módulos). Arquitetura multi-tenant preservada. |

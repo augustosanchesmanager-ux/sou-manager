@@ -414,7 +414,7 @@ A documentação deve apenas garantir que a arquitetura suporta:
 
 ### 9.2 Estados Oficiais (Decisão do PO — 2026-07-28; máquina congelada — ADR-013 §5)
 
-> **Alinhamento 6.0.5:** cancelamento é **pedido** (`cancel_at_period_end`) — **não é transição**. Reativação é `suspended → active`, **nunca** `cancelled → active`. `suspended` e retenção dependem de D-6.0.5-1/2/4.
+> **Alinhamento 6.0.5:** cancelamento é **pedido** (`cancel_at_period_end`) — **não é transição**. Reativação é `suspended → active`, **nunca** `cancelled → active`. Níveis de acesso e retenção seguem as decisões aprovadas **D-6.0.5-1/2/4** (2026-08-06).
 
 ```
                      ┌─────────────┐
@@ -440,13 +440,13 @@ A documentação deve apenas garantir que a arquitetura suporta:
                      ┌─────────────┐
                      │  suspended  │ ← Acesso bloqueado [6.0.5]
                      └──────┬──────┘
-                            │ Pagamento confirmado → active
-                            │ Retenção (D-6.0.5-4)
-                            ▼
+                             │ Pagamento confirmado → active
+                             │ Retenção (ação manual superadmin, D-6.0.5-4)
+                             ▼
                      ┌─────────────┐
                      │  cancelled  │ ← cancel_at_period_end atingido (efetivação)
                      └──────┬──────┘
-                            │ Retenção administrativa (D-6.0.5-4)
+                            │ Retenção administrativa (ação manual superadmin, D-6.0.5-4)
                             ▼
                      ┌─────────────┐
                      │  archived   │ ← Tenant arquivado (dados preservados, F5)
@@ -465,9 +465,9 @@ A documentação deve apenas garantir que a arquitetura suporta:
 | past_due | active | Pagamento confirmado |
 | past_due | suspended | Grace expirado **[6.0.5.4]** |
 | suspended | active | Pagamento confirmado (reativação) **[6.0.5.4]** |
-| suspended | cancelled | Retenção encerrada *(D-6.0.5-4)* |
+| suspended | cancelled | Retenção — ação manual do superadmin *(D-6.0.5-4)* |
 | active | cancelled | `cancel_at_period_end` atingido (efetivação) |
-| cancelled | archived | Retenção administrativa *(D-6.0.5-4)* |
+| cancelled | archived | Retenção — ação manual do superadmin *(D-6.0.5-4)* |
 
 ### ⚠️ Pendências do Product Owner
 
@@ -476,8 +476,8 @@ A documentação deve apenas garantir que a arquitetura suporta:
 | 1 | Estados do lifecycle | ✅ Definido (draft, trial, active, past_due, suspended, cancelled, archived) |
 | 2 | Grace period padrão | ✅ Definido (**janela de 5 dias** após vencimento — nunca status) |
 | 3 | O que acontece com dados ao cancelar | ✅ Definido (dados **preservados** — F5; nunca excluídos automaticamente) |
-| 4 | Período de retenção de dados | ⬜ Pendente (D-6.0.5-4) |
-| 5 | Processo de reativação | ⬜ Pendente (reativação = `suspended → active`; `cancelled → active` não existe — D-6.0.5-2) |
+| 4 | Período de retenção de dados | ✅ Definido (sem TTL — ação manual do superadmin; F5 nunca exclui — D-6.0.5-4 aprovada) |
+| 5 | Processo de reativação | ✅ Definido (reativação = `suspended → active`; `cancelled → active` não existe na máquina congelada; reativação de `cancelled` só por novo fluxo comercial futuro — D-6.0.5-2) |
 
 ---
 

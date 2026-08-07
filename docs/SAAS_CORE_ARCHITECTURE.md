@@ -74,7 +74,7 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 
 ### Estados (Decisão do PO — 2026-07-28; máquina congelada — ADR-013 §5)
 
-> **Alinhamento 6.0.5:** cancelamento é **pedido** (grava `cancel_at_period_end`) — **não é transição**. Reativação acontece em `suspended → active`, **nunca** `cancelled → active` (cancelado é terminal na máquina congelada). `suspended` e a retenção dependem das decisões D-6.0.5-1/2/4.
+> **Alinhamento 6.0.5:** cancelamento é **pedido** (grava `cancel_at_period_end`) — **não é transição**. Reativação acontece em `suspended → active`, **nunca** `cancelled → active` (cancelado é terminal na máquina congelada). Níveis de acesso de `suspended`/`cancelled` e a retenção seguem as decisões aprovadas **D-6.0.5-1/2/4** (2026-08-06).
 
 ```
                      ┌──────────────┐
@@ -125,9 +125,9 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 | past_due | active | Pagamento confirmado | Reabilitar acesso |
 | past_due | suspended | Grace expirado **[6.0.5.4]** | Bloquear acesso, manter dados (F5) |
 | suspended | active | Pagamento confirmado (reativação) **[6.0.5.4]** | Reabilitar acesso |
-| suspended | cancelled | Retenção encerrada *(D-6.0.5-4)* | Encerrar contrato |
+| suspended | cancelled | Retenção — ação manual do superadmin *(D-6.0.5-4)* | Encerrar contrato |
 | active | cancelled | `cancel_at_period_end` atingido (efetivação) | Encerrar contrato no fim do período |
-| cancelled | archived | Retenção administrativa *(D-6.0.5-4)* | Arquivar dados |
+| cancelled | archived | Retenção — ação manual do superadmin *(D-6.0.5-4)* | Arquivar dados |
 
 ### Impacto por Estado
 
@@ -136,12 +136,12 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 | draft | ✅ | ❌ | ❌ | ❌ | ❌ |
 | trial | ✅ | ✅ | ✅ | ✅ | ✅ |
 | active | ✅ | ✅ | ✅ | ✅ | ✅ |
-| past_due | ⚠️ *(D-6.0.5-1)* | ⚠️ Read-only | ❌ | ⚠️ Read-only | ⚠️ Read-only |
-| suspended | ❌ *(D-6.0.5-2)* | ❌ | ❌ | ❌ | ❌ |
-| cancelled | ❌ *(D-6.0.5-2)* | ❌ | ❌ | ❌ | ❌ |
+| past_due | ✅ | ❌ | ❌ | ❌ | ✅ |
+| suspended | ❌ | ❌ | ❌ | ❌ | ❌ |
+| cancelled | ✅ | ❌ | ❌ | ❌ | ✅ |
 | archived | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-> **Alinhamento 6.0.5:** a coluna "Login" é decisão de **Estado Efetivo** (ADR-013 §2.4), avaliada na camada de autorização. Os valores de `past_due`/`suspended`/`cancelled` dependem das decisões D-6.0.5-1/2 do PO. **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
+> **Alinhamento 6.0.5:** a coluna "Login" é decisão de **Estado Efetivo** (ADR-013 §2.4), avaliada na camada de autorização. Valores por decisões **D-6.0.5-1/2 aprovadas pelo PO (2026-08-06):** `past_due` = **read-only com aviso** (login/relatórios/exportações permitidos; sem criação de clientes/comandas/agendamentos, movimentação financeira, estoque ou alterações cadastrais); `suspended` = **bloqueado**; `cancelled` = **somente leitura** (consulta/exportação/relatórios; nenhuma escrita). **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
 
 ### Notificações por Transição
 

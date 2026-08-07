@@ -186,7 +186,7 @@ const moduleRegistry = {
 
 ## 6. Implementação Futura
 
-> **Alinhamento (ADR-013):** a proposta abaixo é o modelo alvo da **6.0.5.3**, sujeita ao **modelo congelado** (contexto 3 — Feature Flags, writer único `FeatureFlagService`). Hoje **não existe** tabela `feature_flags` nem coluna `plans.features` (confirmado nas migrations). Qualquer implementação deve seguir o ADR-013 e as decisões D-6.0.5-1..8.
+> **Alinhamento (ADR-013):** a proposta abaixo é o modelo alvo da **6.0.5.3**, sujeita ao **modelo congelado** (contexto 3 — Feature Flags, writer único `FeatureFlagService`). Hoje **não existe** tabela `feature_flags` nem coluna `plans.features` (confirmado nas migrations). **Modelo de dados decidido (D-6.0.5-5 aprovada, 2026-08-06): `plans + features + plan_features`** (D4/P4) — a seção abaixo é a proposta histórica `plans.features TEXT[]`, **substituída** pela decisão. **Plano Free congelado (D-6.0.5-3):** 1 profissional, 1 unidade, sem Chef Club, sem módulos Premium — limites controlados exclusivamente pelas Feature Flags, nunca pelo nome do plano.
 
 ```sql
 -- Plans.features armazena o array de flags habilitadas

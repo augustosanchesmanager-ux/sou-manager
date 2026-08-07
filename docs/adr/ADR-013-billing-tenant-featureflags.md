@@ -1,6 +1,6 @@
 # ADR-013 — Billing, Tenant Lifecycle e Feature Flags: Três Contextos Desacoplados (Modelo de Domínio 6.0.5)
 
-**Status:** Accepted — aprovado pelo PO em 2026-08-06 com os acréscimos de **Estado Efetivo** (§2.4), **Single Writer Principle** (§3.1) e **proibição de string literals** (§4.11/§7). Itens comerciais D-6.0.5 (§6) permanecem abertos como decisões de negócio do PO.
+**Status:** Accepted — aprovado pelo PO em 2026-08-06 com os acréscimos de **Estado Efetivo** (§2.4), **Single Writer Principle** (§3.1) e **proibição de string literals** (§4.11/§7). **Decisões de negócio D-6.0.5-1..8 aprovadas pelo PO em 2026-08-06** (ver §6) — etapa de definição funcional da 6.0.5 encerrada.
 **Date:** 2026-08-06
 **Author:** Augusto (PO) + SMG Engineering
 **Baseado em:** `docs/audit/PHASE_6_0_5_ENTRY_AUDIT.md` (auditoria de entrada, 2026-08-06)
@@ -56,10 +56,10 @@ draft → trial → active → past_due → suspended → cancelled → archived
 - `draft`: pré-F10 (onboarding não concluído).
 - `trial`: F10 (trial ativo).
 - `active`: acesso pleno.
-- `past_due`: acesso de inadimplência (nível definido pela D-6.0.5-1).
-- `suspended`: acesso suspenso (nível definido pela D-6.0.5-2).
-- `cancelled`: organização encerrada (acesso definido pela D-6.0.5-2).
-- `archived`: estado terminal de retenção (F5 — nunca excluir dados).
+- `past_due`: acesso de inadimplência (grace) — **read-only com aviso** (D-6.0.5-1).
+- `suspended`: acesso suspenso — **bloqueado** (D-6.0.5-2).
+- `cancelled`: organização encerrada — **somente leitura** (D-6.0.5-2).
+- `archived`: estado terminal de retenção (F5 — nunca excluir dados; transição via ação manual do superadmin — D-6.0.5-4).
 
 **Congelado:** o enum de 7 valores é o contrato permanente. `grace` NÃO é estado. `cancel_pending` NÃO existe.
 
@@ -181,9 +181,9 @@ Qualquer alteração direta fora desses serviços constitui **violação arquite
 | — | `draft` | — | ✅ pré-F10 |
 | `trialing` | `trial` | Trial | ✅ |
 | `active` | `active` | Plano | ✅ |
-| `past_due` | `past_due` | Plano (restrito — D-6.0.5-1) | ✅ |
+| `past_due` | `past_due` | Plano (restrito — read-only com aviso, D-6.0.5-1) | ✅ |
 | `suspended` | `suspended` | Suspensas | ✅ (6.0.5) |
-| `cancelled` | `cancelled` | Nenhuma (D-6.0.5-2) | ✅ |
+| `cancelled` | `cancelled` | Somente leitura (D-6.0.5-2) | ✅ |
 | — | `archived` | Nenhuma | ✅ |
 
 **Proibidas (por construção):** `trialing/active/past_due` × `draft|archived`; `active` × `trial|past_due|suspended|cancelled`; `past_due` × `active`; `suspended` × `active|past_due`; `cancelled` × `active|past_due|trial|draft`.
@@ -201,24 +201,40 @@ Qualquer alteração direta fora desses serviços constitui **violação arquite
 | `→cancelled` (efetivação) | **Billing Engine** | `TenantSubscriptionCancelled` |
 | `→suspended` (grace expirado) | **Billing Engine** (6.0.5) | `TenantSubscriptionSuspended` |
 | `suspended→active` | **Billing Engine** (6.0.5) | `TenantSubscriptionReactivated` |
-| `suspended/cancelled→archived` | Ação administrativa (D-6.0.5-4) | — |
+| `suspended/cancelled→archived` | Ação administrativa manual (superadmin — D-6.0.5-4; sem TTL) | — |
 
-**Flags afetadas:** trial→Trial · active→Plano · suspended→Suspensas · cancelled/archived→Nenhuma. A alteração efetiva das flags é responsabilidade da camada de flags da 6.0.5 (derivada), nunca do Billing Engine.
+**Flags afetadas:** trial→Trial · active→Plano · past_due→Plano (read-only, D-6.0.5-1) · suspended→Suspensas · cancelled→Somente leitura (D-6.0.5-2) · archived→Nenhuma. A alteração efetiva das flags é responsabilidade da camada de flags da 6.0.5 (derivada), nunca do Billing Engine.
 
-## 6. Questões de negócio em aberto (decisões do PO)
+## 6. Questões de negócio — decisões do PO (aprovadas 2026-08-06)
 
-Aprovadas pela auditoria (ver `PHASE_6_0_5_ENTRY_AUDIT.md` §7). **Sem estas respostas, a implementação não começa.**
+**✅ Todas as decisões D-6.0.5-1..8 foram aprovadas pelo PO em 2026-08-06.** Com elas, a etapa de definição funcional da 6.0.5 está encerrada e a implementação (6.0.5.1+) não tem bloqueio conceitual.
 
-| # | Questão | Opções | Recomendação técnica (não decisória) |
-|---|---------|--------|---------------------------------------|
-| D-6.0.5-1 | Acesso durante `past_due` (grace) | full · read-only · read + bloqueio de escrita financeira | read-only com aviso |
-| D-6.0.5-2 | Acesso durante `cancelled` | bloqueado · read-only (export/retrocess) | read-only para reativação e LGPD (F5) |
-| D-6.0.5-3 | Limite do plano Free (profissionais) | 1 · 2 · configurável | 1 (F11 — decisão mais recente) |
-| D-6.0.5-4 | Política de suspensão/retenção | retenção 30d→cancelled · manual superadmin · sem TTL | manual, sem TTL (F5 nunca exclui) |
-| D-6.0.5-5 | Modelo de dados de flags | `plans+features+plan_features` (D4/P4) · `plans.features[]` · tabela `feature_flags` | `plans+features+plan_features` (aprovado em D4/P4) |
-| D-6.0.5-6 | Cadência de cobrança | mensal · mensal+anual | mensal agora; anual aditivo futuro |
-| D-6.0.5-7 | `archived` no `subscriptions.status` | sim · não (só tenant) | não — terminal de contrato é `cancelled` |
-| D-6.0.5-8 | Gatilho do `runCycle` (cron) | Supabase cron · Edge Function · manual | Edge Function agendada (decisão de infra — PO) |
+| # | Questão | Decisão (PO) |
+|---|---------|--------------|
+| D-6.0.5-1 | Acesso durante `past_due` (grace) | **(b) Read-only com aviso** — login, dashboard, relatórios e exportações permitidos; **sem** criação de clientes/comandas/agendamentos, movimentação financeira, estoque ou alterações cadastrais relevantes. Interface deve sinalizar acesso limitado por inadimplência |
+| D-6.0.5-2 | Acesso durante `cancelled` | **(b) Somente leitura (exportação/retenção)** — login, consulta, exportação e relatórios permitidos; **qualquer escrita bloqueada**. `cancelled` = modo consulta permanente até eventual reativação por novo fluxo comercial (futuro). Nenhuma escrita após cancelamento |
+| D-6.0.5-3 | Limite do plano Free (profissionais) | **1 profissional** (confirma F11) |
+| D-6.0.5-4 | Política de suspensão/retenção | **(b) Manual pelo superadmin, sem TTL** — nenhuma exclusão automática (F5). `archived` é sempre ação administrativa manual |
+| D-6.0.5-5 | Modelo de dados de flags | **(a) `plans + features + plan_features`** (D4/P4) |
+| D-6.0.5-6 | Cadência de cobrança | **Mensal agora**; anual fica para evolução futura aditiva (sem contaminar a implementação atual) |
+| D-6.0.5-7 | `archived` no `subscriptions.status` | **Não** — `archived` é estado exclusivo do Tenant; `subscriptions.status` nunca recebe `archived` (terminal do contrato é `cancelled`) |
+| D-6.0.5-8 | Gatilho do `runCycle` (cron) | **Edge Function agendada** — ver §6.1 |
+
+### 6.1 Regras complementares congeladas (PO, 2026-08-06)
+
+**Plano Free (congelado):** 1 profissional · 1 unidade · sem Chef Club · sem módulos Premium. Limites controlados **exclusivamente pelas Feature Flags** — nenhuma regra pode depender do nome do plano.
+
+**`runCycle` determinístico:**
+```
+Scheduler
+    ↓
+Edge Function   (apenas agenda a execução — fornece asOf e dispara; NUNCA contém regras de negócio)
+    ↓
+Billing Engine  (regras de negócio)
+    ↓
+Eventos
+```
+A Edge Function fornece o horário (`asOf`) e dispara a execução do Billing Engine. Ela nunca contém regras de negócio.
 
 ## 7. Anti-patterns proibidos
 

@@ -59,7 +59,7 @@ stateDiagram-v2
     past_due --> active: markPaid (pagamento confirmado)
     past_due --> suspended: grace expirado (asOf >= grace_ends_at) [6.0.5]
     suspended --> active: markPaid / reactivate [6.0.5]
-    suspended --> cancelled: retenção (D-6.0.5-4)
+    suspended --> cancelled: retenção (ação manual superadmin, D-6.0.5-4)
     trialing --> cancelled: cancel_at_period_end atingido (engine)
     active --> cancelled: cancel_at_period_end atingido (engine)
     past_due --> cancelled: cancel_at_period_end atingido (engine)
@@ -91,8 +91,8 @@ stateDiagram-v2
 
 | Intervalo | Descrição |
 |-----------|-----------|
-| `monthly` | Cobrança a cada 30 dias (`current_period_end = current_period_start + 30d`) |
-| `yearly` | **Pendente de decisão do PO (D-6.0.5-6)** — 2 meses grátis é modelo antigo; aditivo futuro, não implementar ainda |
+| `monthly` | Cobrança a cada 30 dias (`current_period_end = current_period_start + 30d`) — **cadência oficial (D-6.0.5-6 aprovada)** |
+| `yearly` | **Aditivo futuro** (D-6.0.5-6) — 2 meses grátis é modelo antigo; não implementar agora |
 
 ### 3.1 Trial — **14 dias** (decisão do PO)
 
@@ -145,6 +145,6 @@ enum InvoiceStatus {             // CHECK do schema
 | Trial | **14 dias** (F3); âncora `tenants.created_at` |
 | Grace period | Janela **temporal** de **5 dias** (não é status — ADR-013 §4.3); após `past_due`, `grace_ends_at` (coluna 6.0.5.4) = fim do período + 5d; expirado → `suspended` |
 | Cancelamento | **Pedido** (D-A): `cancel_at_period_end = timestamptz` (fim do período). Acesso mantido. Efetivação para `cancelled` pelo Billing Engine quando o fim do período é atingido. Não existe status `cancel_pending` |
-| Reativação | `suspended → active` via `markPaid` ou ação do manager/superadmin **[6.0.5]**; janela de reativação pós-cancelamento depende da **D-6.0.5-4** (retenção) — pendente do PO |
+| Reativação | `suspended → active` via `markPaid` ou ação do manager/superadmin **[6.0.5]** (D-6.0.5-4 aprovada). Reativação de `cancelled` não existe na máquina congelada — somente via novo fluxo comercial futuro (D-6.0.5-2) |
 | Retenção de dados | **NUNCA excluir dados automaticamente** (F5). `archived` preserva tudo; exclusão só por solicitação LGPD |
 | Dunning / retry | **Não implementado** na 6.0.4 (sem gateway; invoice `amount=0`; `ManualBillingProvider` no-op). Tentativas 3×3d documentadas em modelos antigos são obsoletas — regra real de retry/dunning é futura e fora do escopo 6.0.4/6.0.5 |
