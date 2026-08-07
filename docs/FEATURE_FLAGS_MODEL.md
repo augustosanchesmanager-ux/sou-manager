@@ -1,8 +1,10 @@
 # Feature Flags Model
 
 > **Fase:** 6.0.0 — SaaS Domain Consolidation
-> **Status:** ✅ REVISADO PELO PO — 2026-07-28
-> **Decisões:** Ver `BUSINESS_DECISIONS.md` (F7, F8)
+> **Status:** ✅ REVISADO PELO PO — 2026-07-28 · **ALINHADO AO ADR-013 — 2026-08-06** (Subfase 0)
+> **Decisões:** Ver `BUSINESS_DECISIONS.md` (F7, F8) e `docs/adr/ADR-013-billing-tenant-featureflags.md`
+>
+> **Papel no ADR-013:** as feature flags formam o **3º contexto desacoplado** (funcionalidade), junto com Subscription (contrato) e Tenant (acesso). O **Estado Efetivo** (§2.4) combina os três. **Writer único** das flags = `FeatureFlagService` (§3.1). Em caso de divergência, o ADR prevalece.
 
 ---
 
@@ -32,7 +34,7 @@ marketplace
 ### Regra 2 — Flags não sabem plano; plano conhece flags
 
 ```
-Pro
+pro
  │
  └── flags
       ├── finance    = true
@@ -41,6 +43,8 @@ Pro
 ```
 
 **Nunca** o contrário (flag não referencia plano).
+
+> **Alinhamento (ADR-013 §4.11):** string literals de planos/features **fora** de `domain/` são proibidas. O catálogo de flags deve viver no domínio, e a leitura passa pelo `FeatureFlagService`. Os planos oficiais são `free`, `pro`, `premium` (o nome comercial "Elite" é obsoleto — ver `SAAS_CORE_ARCHITECTURE.md` Bloco 4).
 
 ---
 
@@ -133,6 +137,8 @@ const { can } = useFeatureFlags();
 
 ### 4.2 Backend (RPCs)
 
+> **Alinhamento (ADR-013 §3.1):** o trecho abaixo é o **modelo alvo** (6.0.5.3). Hoje o enforcement real é `moduleRegistry.ts` (por app) + `PLAN_LIMITS` em `domain/billing/limits.ts` (staff: `free=1`, `pro=5`, `premium=∞`) + gate de `chef_club` por plano. O RPC `tenant_has_feature` **ainda não existe** — ver §6. A verificação oficial futura é via `FeatureFlagService`.
+
 Cada RPC crítico valida a flag antes de executar:
 
 ```sql
@@ -157,6 +163,8 @@ const moduleRegistry = {
 
 ## 5. Matriz de Acesso (por Plano)
 
+> **Alinhamento:** matriz alinhada aos planos oficiais (`free`/`pro`/`premium`) e ao catálogo D4/P4. Flags marcadas com "⚠️" habilitam com limites de plano (`max_staff` etc.). `chef_club` é a flag do módulo Club dos Chefes (presente em `moduleRegistry.ts` como AppModuleSlug).
+
 | Flag | free | pro | premium |
 |------|------|-----|---------|
 | `appointments` | ✅ | ✅ | ✅ |
@@ -172,11 +180,13 @@ const moduleRegistry = {
 | `marketplace` | ❌ | ❌ | ✅ |
 | `multi_unit` | ❌ | ❌ | ✅ |
 
-> ⚠️ = habilitada com limites de plano (`max_staff`, `max_clients`).
+> ⚠️ = habilitada com limites de plano (`max_staff` = `free:1`, `pro:5`, `premium:∞` — `domain/billing/limits.ts`).
 
 ---
 
 ## 6. Implementação Futura
+
+> **Alinhamento (ADR-013):** a proposta abaixo é o modelo alvo da **6.0.5.3**, sujeita ao **modelo congelado** (contexto 3 — Feature Flags, writer único `FeatureFlagService`). Hoje **não existe** tabela `feature_flags` nem coluna `plans.features` (confirmado nas migrations). Qualquer implementação deve seguir o ADR-013 e as decisões D-6.0.5-1..8.
 
 ```sql
 -- Plans.features armazena o array de flags habilitadas

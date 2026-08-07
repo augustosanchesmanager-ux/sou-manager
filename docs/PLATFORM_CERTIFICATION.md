@@ -6,7 +6,9 @@
 >
 > **Autor:** OpenCode (validação técnica) + Augusto (aprovação)
 >
-> **Última atualização:** 2026-07-28
+> **Última atualização:** 2026-08-06 · **ALINHADO AO ADR-013 — 2026-08-06** (Subfase 0)
+>
+> **Aviso (Subfase 0):** este documento é o **registro histórico** da certificação (2026-07-28). As pendências críticas registradas (onboarding, tenant lifecycle, billing, feature flags) foram **resolvidas nas Fases 6.0.1–6.0.4** — ver seções marcadas abaixo e `docs/audit/PHASE_6_0_5_ENTRY_AUDIT.md`. Onde a pendência da época conflitava com a arquitetura congelada, o **ADR-013** prevalece.
 
 ---
 
@@ -154,38 +156,40 @@ Este documento define o checklist de certificação que valida se a plataforma e
 
 ---
 
-### 8. Billing Consistente — ⚠️
+### 8. Billing Consistente — ⚠️ *(snapshot 2026-07-28; billing implementado na 6.0.4)*
 
 | # | Verificação | Status | Evidência |
 |---|-------------|--------|-----------|
-| 8.1 | Modelo de cobrança definido | ✅ | Recorrência mensal, gateway desacoplado via adapters (SAAS_CORE_ARCHITECTURE.md §3) |
-| 8.2 | Planos definidos | ✅ | Free (trial), Pro (recomendado), Elite (premium) — sem preços documentados, limites configuráveis |
-| 8.3 | Feature flags implementadas | ⚠️ | **Não implementadas no código.** SAAS_CORE_ARCHITECTURE.md §4 descreve arquitetura mas não há tabela `feature_flags` nem código de verificação |
-| 8.4 | Limites por plano respeitados | ❌ | **Sem enforcement.** Sem verificação de limites (número de barbeiros, agendamentos, etc.) em nenhuma rota |
+| 8.1 | Modelo de cobrança definido | ✅ | Recorrência mensal, gateway desacoplado (**futuro**; hoje Billing Engine + RPCs — ADR-013 §3.2) |
+| 8.2 | Planos definidos | ✅ | `free` (trial), `pro` (recomendado), `premium` — **"Elite" é obsoleto** (CHECK real `('free','pro','premium')`); sem preços documentados, limites configuráveis |
+| 8.3 | Feature flags implementadas | ⚠️ | **Na época:** não implementadas. **Atual (6.0.4/6.0.5):** enforcement parcial via `moduleRegistry` + `PLAN_LIMITS` + gate `chef_club`; persistência é proposta da **6.0.5.3** (writer único `FeatureFlagService` — ADR-013 §3.1). Não há tabela `feature_flags` |
+| 8.4 | Limites por plano respeitados | ❌ | **Na época:** sem enforcement. **Atual (6.0.3):** `max_staff` implementado (`domain/billing/limits.ts` — free=1/pro=5/premium=∞, RPC `invite_team_member`) |
 | 8.5 | Upgrade prompt aparece | ❌ | **Sem componente de upgrade.** Nenhum `UpgradePrompt` ou bloqueio de funcionalidade por plano |
 
-**Pendências:**
-- Feature flags e enforcement são scopes do Fase 6 (Production Readiness) — documentar como pendência aceita
-- Criar `feature_flags` table e middleware de verificação
-- Criar componente `UpgradePrompt` para UI
+**Pendências (status atualizado):**
+- [x] Feature flags e enforcement — scope 6.0.4/6.0.5 (parcialmente entregue; persistência = 6.0.5.3)
+- [ ] Criar tabela/middleware de verificação de flags (6.0.5.3 — modelo ADR-013 §3.1)
+- [ ] Criar componente `UpgradePrompt` para UI
 
 ---
 
-### 9. Tenant Consistente — ❌
+### 9. Tenant Consistente — ❌ *(snapshot 2026-07-28; resolvido na 6.0.3)*
+
+> **Situação atual (2026-08-06):** os itens 9.1–9.5 foram **resolvidos na Fase 6.0.3** — `tenants.status` (ENUM `tenant_status`, 7 valores) existe (migration `20260728000000_sprint1_tenant_lifecycle.sql`), as RPCs de transição foram implementadas e `ProtectedRoute` redireciona por status. A máquina congelada é o **ADR-013 §5** (ver `TENANT_LIFECYCLE.md`). As evidências abaixo refletem o estado **da época** da certificação.
 
 | # | Verificação | Status | Evidência |
 |---|-------------|--------|-----------|
-| 9.1 | Coluna `status` em `tenants` | ❌ | **Tabela `tenants` usa `active: boolean`** (ou equivalente). Sem coluna `status` com 7 estados do lifecycle |
-| 9.2 | Lifecycle 7 estados definidos | ❌ | SAAS_CORE_ARCHITECTURE.md §2 define: draft → trial → active → past_due → suspended → cancelled → archived. **Não implementado no banco** |
-| 9.3 | Transições de estado | ❌ | **Sem enum de estados.** Sem função de transição. `tenants.active` é boolean toggle |
-| 9.4 | Login bloqueado em suspended/cancelled | ❌ | **Sem verificação.** `ProtectedRoute` apenas verifica se há sessão, não verifica estado do tenant |
-| 9.5 | Notificações em transições | ⚠️ | `NotificationSubscriber` existe para eventos mas não dispara notificações de mudança de estado do tenant (pois o estado não existe) |
+| 9.1 | Coluna `status` em `tenants` | ❌ | **Na época:** `active: boolean`. **Atual:** `tenants.status` ENUM (7 estados) — resolvido 6.0.3 |
+| 9.2 | Lifecycle 7 estados definidos | ❌ | **Na época:** não implementado. **Atual:** implementado (enum + engine 6.0.4; suspensão = 6.0.5.4) |
+| 9.3 | Transições de estado | ❌ | **Na época:** sem enum. **Atual:** `apply_subscription_transition` + `runCycle` (Billing Engine 6.0.4) |
+| 9.4 | Login bloqueado em suspended/cancelled | ❌ | **Na época:** sem verificação. **Atual:** `ProtectedRoute` bloqueia por `tenant.status` (6.0.3); na 6.0.5 passa à camada de autorização (Estado Efetivo — D-6.0.5-1/2) |
+| 9.5 | Notificações em transições | ⚠️ | `NotificationSubscriber` existe; eventos de transição do catálogo D2 (`TenantSubscription*`). Notificações completas = pendente |
 
-**Pendências:**
-- Criar migration para adicionar coluna `status` na tabela `tenants` (enum com 7 estados)
-- Criar função de transição de estado com validações
-- Adicionar verificação de `tenant.status` em `ProtectedRoute`
-- Notificações em transições são scope do Fase 6
+**Pendências (status atualizado):**
+- [x] Migration `tenants.status` (enum 7 estados) — resolvido 6.0.3
+- [x] Função de transição com validações — resolvido 6.0.4 (Billing Engine)
+- [x] Verificação de `tenant.status` em `ProtectedRoute` — resolvido 6.0.3
+- [ ] `suspended` aditivo no CHECK + transições `past_due → suspended` / `suspended → active` (6.0.5.4; D-6.0.5-1/2)
 
 ---
 
@@ -193,13 +197,15 @@ Este documento define o checklist de certificação que valida se a plataforma e
 
 ### Críticas (bloqueiam Fase 6) — Documentadas para Fase 6.0
 
-| # | Pendência | Item | Scope Fase 6 |
-|---|-----------|------|-------------|
-| C1 | Criar migration `tenants.status` (enum 7 estados) | 9 | 6.0.3 Tenant Lifecycle |
-| C2 | Implementar criação de tenant no onboarding | 7 | 6.0.1 Tenant Creation |
-| C3 | Implementar vínculo `user_tenants` | 7 | 6.0.1 Tenant Creation |
-| C4 | Implementar criação automática de `staff` (owner) | 7 | 6.0.2 Provisioning Engine |
-| C5 | Adicionar verificação de `tenant.status` em `ProtectedRoute` | 9 | 6.0.3 Tenant Lifecycle |
+> **Situação atual (2026-08-06):** todas resolvidas nas Fases 6.0.1–6.0.4. Registro histórico preservado.
+
+| # | Pendência | Item | Scope Fase 6 | Situação |
+|---|-----------|------|-------------|----------|
+| C1 | Criar migration `tenants.status` (enum 7 estados) | 9 | 6.0.3 Tenant Lifecycle | ✅ Resolvido 6.0.3 |
+| C2 | Implementar criação de tenant no onboarding | 7 | 6.0.1 Tenant Creation | ✅ Resolvido 6.0.1 |
+| C3 | Implementar vínculo `user_tenants` | 7 | 6.0.1 Tenant Creation | ✅ Resolvido 6.0.1 |
+| C4 | Implementar criação automática de `staff` (owner) | 7 | 6.0.2 Provisioning Engine | ✅ Resolvido 6.0.2 |
+| C5 | Adicionar verificação de `tenant.status` em `ProtectedRoute` | 9 | 6.0.3 Tenant Lifecycle | ✅ Resolvido 6.0.3 |
 
 ### Menores — Resolvidas
 
@@ -216,12 +222,14 @@ Este documento define o checklist de certificação que valida se a plataforma e
 | M4 | Alinhar numeração de fases entre ROADMAP.md e PROJECT_STATUS.md | 2 | Baixo |
 | M5 | Documentar padrão vertical slice (não módulos) | 4 | ✅ Documentado em ARCHITECTURE.md |
 | M6 | Decidir padrão de papéis (arquivos dedicados vs implícito) | 5 | Baixo |
-| M7 | Implementar feature flags e enforcement | 8 | 6.0.5 Feature Flags |
+| M7 | Implementar feature flags e enforcement | 8 | ⚠️ Parcial (moduleRegistry/PLAN_LIMITS/chef_club); persistência = 6.0.5.3 (ADR-013 §3.1) |
 | M8 | Criar componente `UpgradePrompt` | 8 | Médio |
 
 ---
 
 ## Decisões do PO (2026-07-28)
+
+> **Situação atual (2026-08-06):** as decisões abaixo foram executadas nas Fases 6.0.1–6.0.5 (onboarding 6.0.1, lifecycle 6.0.3, billing 6.0.4, flags 6.0.5). Registro histórico preservado.
 
 ### Pergunta 1: Onboarding — NÃO implementar agora
 
@@ -248,10 +256,13 @@ Este documento define o checklist de certificação que valida se a plataforma e
 
 ## Referências
 
+- **Arquitetura oficial (congelada):** `docs/adr/ADR-013-billing-tenant-featureflags.md` (Accepted, 2026-08-06)
 - `docs/BUSINESS_ARCHITECTURE.md` — Fase 5
 - `docs/SAAS_CORE_ARCHITECTURE.md` — Fase 5.5 (§2 Tenant Lifecycle, §3 Billing, §4 Feature Flags, §7 Onboarding)
+- `docs/TENANT_LIFECYCLE.md` / `docs/SUBSCRIPTION_MODEL.md` / `docs/FEATURE_FLAGS_MODEL.md` — Estado atual (6.0.3–6.0.5)
+- `docs/audit/PHASE_6_0_5_ENTRY_AUDIT.md` — Auditoria de entrada da 6.0.5
 - `docs/TAXONOMY.md` — Glossário oficial
-- `ARCHITECTURE.md` — Arquitetura técnica (desatualizado)
+- `ARCHITECTURE.md` — Arquitetura técnica
 - `ROADMAP.md` — Roadmap oficial
 - `src/pages/onboarding/ShopSetup.tsx` — UI de onboarding (sem persistência)
 - `src/pages/Register.tsx` — Cadastro de usuário
@@ -264,6 +275,7 @@ Este documento define o checklist de certificação que valida se a plataforma e
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 3.0 | **Subfase 0 (ADR-013).** Marcado como registro histórico (snapshot 2026-07-28). Pendências críticas C1–C5 marcadas como resolvidas (6.0.1–6.0.3). Itens 8/9 atualizados com "situação atual": planos `free/pro/premium` (Elite obsoleto), billing implementado na 6.0.4 (engine), flags parciais (persistência = 6.0.5.3), `tenants.status` enum. Referência ao ADR-013 adicionada. Sem alteração de código. |
 | 2026-07-28 | 2.0 | Fase 5.6 CONCLUÍDA COM RESSALVAS. 7/9 itens aprovados. Taxonomia corrigida (60 ocorrências). ARCHITECTURE.md atualizado. Decisões do PO registradas (onboarding/lifecycle/billing para Fase 6.0). Dívida técnica documentada. |
 | 2026-07-28 | 1.1 | Itens 8 (billing) e 9 (tenant) atualizados para refletir decisões do PO |
 | 2026-07-27 | 1.0 | Criação do documento |

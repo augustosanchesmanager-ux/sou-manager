@@ -1,6 +1,8 @@
 # Tenant Lifecycle
 
-> Estado e transições permitidas do tenant. **Fonte oficial para condicionais no código.**
+> Estado e transições permitidas do **tenant (contexto de ACESSO)**. **Fonte oficial para condicionais no código.**
+>
+> **Alinhado ao ADR-013 (2026-08-06, Subfase 0).** Este documento descreve apenas o contexto **Tenant**. O contexto **Subscription** (contrato comercial) vive em `SUBSCRIPTION_MODEL.md`; o contexto **Feature Flags** em `FEATURE_FLAGS_MODEL.md`; e o **Estado Efetivo** (acesso resultante da combinação dos três) no ADR-013 §2.4.
 
 ---
 
@@ -11,48 +13,56 @@
 | `draft` | Tenant recém-criado, aguardando onboarding | Nenhum — redirecionado para `/onboarding/shop-setup` |
 | `trial` | Onboarding concluído, período de avaliação | Total — funcionalidades liberadas |
 | `active` | Plano pago ativo | Total — funcionalidades liberadas |
-| `past_due` | Pagamento atrasado | Total com restrições — lembretes de pagamento |
-| `suspended` | Suspenso por inadimplência | Nenhum — redirecionado para `/pending-approval` |
-| `cancelled` | Assinatura cancelada pelo usuário | Nenhum — redirecionado para `/pending-approval` |
-| `archived` | Arquivado (inativo há muito tempo) | Nenhum — redirecionado para `/pending-approval` |
+| `past_due` | Pagamento atrasado (janela de grace de 5 dias) | Nível **depende da D-6.0.5-1** (pendente do PO) — hoje "com restrições / lembretes" |
+| `suspended` | Suspenso por inadimplência (grace expirado) **[6.0.5]** | Nível **depende da D-6.0.5-2** (pendente do PO) — hoje "Nenhum, `/pending-approval`" |
+| `cancelled` | Assinatura efetivamente cancelada | Nível **depende da D-6.0.5-2** (pendente do PO) — hoje "Nenhum, `/pending-approval`" |
+| `archived` | Arquivado (terminal, F5 — dados preservados) | Nenhum — redirecionado para `/pending-approval` |
+
+> `grace` **não é estado** (janela temporal, ADR-013 §4.3). `cancel_pending` **não existe** (D-A, ADR-013 §4.2).
 
 ---
 
 ## Transições Permitidas
 
+Diagrama da máquina completa (tenant). Transições marcadas **[engine]** são decididas pelo Billing Engine e **persistidas pelo TenantLifecycleService** (Single Writer — ADR-013 §3.1). Pedido de cancelamento **não muda estado** (D-A).
+
 ```
 draft ──────────────► trial ───────────► active ────────► past_due
   │                    │                    │               │
-  │                    │                    │               ├──► active (pagou)
+  │                    │                    │               ├──► active (pagou, markPaid)
   │                    │                    │               │
-  │                    │                    │               └──► suspended
+  │                    │                    │               └──► suspended [engine, 6.0.5]
   │                    │                    │                      │
-  │                    │                    │                      └──► cancelled
+  │                    │                    │                      ├──► active (reativação) [engine, 6.0.5]
+  │                    │                    │                      │
+  │                    │                    │                      └──► cancelled (retenção — D-6.0.5-4)
   │                    │                    │                             │
   │                    │                    │                             └──► archived
   │                    │                    │
   │                    ├──► cancelled       └──► cancelled
+  │                    │  [engine: cancel_at_period_end atingido]
   │                    │
-  └──► cancelled
+  └──► cancelled (ação administrativa)
 ```
 
 ### Detalhamento
 
 | De | Para | Trigger | Quem decide |
 |----|------|---------|-------------|
-| `draft` | `trial` | Usuário completa onboarding (ShopSetup) — `complete_onboarding()` invoca `start_trial()` | `CompleteOnboardingService` + `TenantLifecycleService` |
-| `draft` | `cancelled` | Usuário cancela antes de completar onboarding | Usuário |
-| `draft` | `archived` | Onboarding não completado em X dias | Cron job futuro |
-| `trial` | `active` | Pagamento confirmado / ativação manual — `activate_subscription()` | Billing (sem gateway na 6.0.4) |
-| `trial` | `cancelled` | Usuário cancela durante o trial — `cancel_subscription()` | Usuário |
-| `trial` | `past_due` | Pagamento falha ao fim do trial | Billing |
-| `active` | `past_due` | Pagamento falha | Billing |
-| `active` | `cancelled` | Usuário cancela assinatura | Usuário |
-| `active` | `archived` | Inatividade prolongada | Cron job futuro |
-| `past_due` | `active` | Pagamento confirmado | Billing |
-| `past_due` | `suspended` | Inadimplência prolongada (grace 5 dias) | Billing |
-| `suspended` | `cancelled` | Suspensão prolongada | Cron job futuro |
-| `cancelled` | `archived` | Após período de retenção | Cron job futuro |
+| `draft` | `trial` | Usuário completa onboarding — `complete_onboarding()` invoca `start_trial()` (F10) | `CompleteOnboardingService` + `TenantLifecycleService` |
+| `draft` | `cancelled` | Ação administrativa (sem RPC de cancelamento pré-onboarding) | SuperAdmin |
+| `draft` | `archived` | Onboarding não completado em X dias | Cron futuro (sujeito a F5/D-6.0.5-4) |
+| `trial` | `active` | `activate_subscription()` (manual, D-D; sem gateway na 6.0.4) | `TenantLifecycleService` |
+| `trial` | `past_due` | Trial expira com plano pago e sem pagamento (engine) | **Billing Engine** |
+| `trial` | `cancelled` | **`cancel_at_period_end` atingido** (engine) — pedido de cancelamento durante o trial não muda estado (D-A) | **Billing Engine** |
+| `active` | `past_due` | Vencimento sem pagamento (engine) | **Billing Engine** |
+| `active` | `cancelled` | **`cancel_at_period_end` atingido** (engine) — pedido do usuário não muda estado (D-A) | **Billing Engine** |
+| `active` | `archived` | Inatividade prolongada | Cron futuro (sujeito a F5/D-6.0.5-4) |
+| `past_due` | `active` | `markPaid` (pagamento confirmado) | **Billing Engine** |
+| `past_due` | `suspended` | Grace expirado (`asOf ≥ grace_ends_at`) **[6.0.5]** | **Billing Engine** |
+| `suspended` | `active` | Reativação: `markPaid` ou ação do manager/superadmin **[6.0.5]** (detalhe em D-6.0.5-4) | **Billing Engine** |
+| `suspended` | `cancelled` | Decisão de retenção **[6.0.5]** | **Depende da D-6.0.5-4** |
+| `cancelled` | `archived` | Retenção administrativa | **Depende da D-6.0.5-4** (F5: nunca excluir) |
 | Qualquer | `archived` | Superadmin decide | SuperAdmin |
 
 > **Regra do PO (F10/D5):** `draft → trial → active` é **obrigatório**. **Nunca**
@@ -76,6 +86,8 @@ if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navi
 // trial, active, past_due → liberado
 ```
 
+> ⚠️ **Estado Efetivo (ADR-013 §2.4):** o snippet acima reflete a implementação atual (gate por `tenant.status`). A partir da 6.0.5, toda decisão de acesso passa pela **camada de autorização** (estado efetivo = Subscription + Tenant + Feature Flags), e é **proibido** decidir acesso apenas com `if (tenant.status === 'active')` (ou variantes). O `tenant.status` deixa de ser o espelho do contrato e passa a ser escrito **apenas pelo TenantLifecycleService** (Single Writer — ADR-013 §3.1).
+
 ### Resumo
 
 | Status | Usuário comum | Manager | SuperAdmin |
@@ -92,16 +104,25 @@ if (['suspended', 'cancelled', 'archived'].includes(tenant.status)) return <Navi
 
 ## Implementação
 
-- **ENUM type**: `tenant_status` (PostgreSQL)
+- **ENUM type**: `tenant_status` (PostgreSQL) — 7 valores: `draft, trial, active, past_due, suspended, cancelled, archived`
 - **Coluna**: `tenants.status` (replaces `active` BOOLEAN)
 - **Migração**: `20260728000000_sprint1_tenant_lifecycle.sql`
 - **Domain**: `domain/tenant/types.ts` — `TenantStatus`
-- **Guard**: `App.tsx` → `ProtectedRoute` — redireciona baseado em `tenant.status`
+- **Guard**: `App.tsx` → `ProtectedRoute` — redireciona baseado em `tenant.status` (6.0.5: passa para a camada de autorização — Estado Efetivo)
 - **RPC**: `provision_new_tenant()` — cria tenant com status `draft`
 - **RPC**: `complete_onboarding()` — transição `draft → trial` (invoca `start_trial()`); guard via `current_is_tenant_manager_from_auth_uid` (6.0.4.3)
 - **RPC**: `start_trial()` — cria subscription `trialing` e transiciona `draft → trial` (idempotente; trial 14 dias do provisionamento)
 - **RPC**: `activate_subscription()` — transição `trial → active`
-- **RPC**: `cancel_subscription()` — transição `trialing/active/past_due → cancelled`
+- **RPC**: `cancel_subscription()` — **pedido** (D-A): grava `cancel_at_period_end`; **não altera** `tenants.status` nem `subscriptions.status`. Efetivação via engine (`runCycle`)
 - **RPC**: `get_subscription()` — leitura da assinatura do tenant do chamador
 - **Service**: `application/tenantLifecycle.ts` — `TenantLifecycleService` (startTrial/activate/cancel/getStatus) centraliza a emissão dos eventos de billing
-- **Eventos**: `TenantSubscriptionCreated`, `TenantTrialStarted`, `TenantSubscriptionUpdated`, `TenantSubscriptionCancelled` (catálogo `domain/events/types.ts`)
+- **Writer de `tenants.status` (Single Writer — ADR-013 §3.1):** exclusivamente `TenantLifecycleService` (hoje via `start_trial`/`activate_subscription`/`apply_subscription_transition`; na 6.0.5.4 a responsabilidade é dividida para garantir writer único — o `apply_subscription_transition` deixa de gravar o espelho de tenant)
+- **Eventos**: `TenantSubscriptionCreated`, `TenantTrialStarted`, `TenantSubscriptionUpdated`, `TenantSubscriptionCancelled`, `TenantSubscriptionSuspended`/`Reactivated` **[6.0.5]** (catálogo `domain/events/types.ts`)
+
+---
+
+## Referências
+
+- **Arquitetura oficial (congelada):** `docs/adr/ADR-013-billing-tenant-featureflags.md` (Accepted, 2026-08-06)
+- **Contrato comercial:** `docs/SUBSCRIPTION_MODEL.md`
+- **Funcionalidades/limites:** `docs/FEATURE_FLAGS_MODEL.md`

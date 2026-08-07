@@ -567,6 +567,8 @@ Nenhuma nova fase poderá ser criada. Nenhuma fase poderá ser reorganizada. Som
 
 **Resultado:** Migration `20260724000000_add_plan_to_tenants.sql` criada. Coluna `plan` adicionada com CHECK constraint (`free`, `pro`, `elite`). `TenantRecord` atualizado.
 
+> **Alinhamento 6.0.5:** este CHECK foi **substituído** pela migration `20260806020000` — o CHECK atual é `('free', 'pro', 'premium')`. "Elite" é obsoleto.
+
 #### 4.7.4 Infrastructure Decoupling ✅
 
 **Objetivo:** Toda comunicação com Supabase fica exclusivamente na camada Infrastructure (Repositories). Nenhum Application Service poderá conhecer `supabase.from()`, `supabase.rpc()`, `supabase.storage` ou imports do cliente Supabase.
@@ -882,14 +884,16 @@ Quando alguém compra o SMG Barber — o que acontece?
 - [ ] Feature flags por módulo (módulo habilitado/desabilitado por plano)
 - [ ] Feature flags por tenant (override manual para clientes especiais)
 
-**Exemplo de mapeamento:**
+> **Alinhamento 6.0.5 (Subfase 0):** a matriz abaixo usava os nomes comerciais **Free/Pro/Elite**. Os planos oficiais são `free`/`pro`/`premium` (Elite **obsoleto** — CHECK `('free','pro','premium')` na migration `20260806020000`). O catálogo de flags e a matriz atualizados vivem em `docs/FEATURE_FLAGS_MODEL.md` (§3/§5). O único limite numérico implementado é `max_staff` (free=1/pro=5/premium=∞). "Verificação em runtime / bloqueio / upgrade prompt / flags por módulo/tenant" = **6.0.5.3** (modelo ADR-013 §3.1).
 
-| Feature | Free | Pro | Elite |
-|---------|:----:|:---:|:-----:|
+**Exemplo de mapeamento (referência conceitual — Fase 5.5):**
+
+| Feature | free | pro | premium |
+|---------|:----:|:---:|:-------:|
 | Agendamento básico | ✅ | ✅ | ✅ |
 | Club dos Chefes | ❌ | ✅ | ✅ |
 | Relatórios avançados | ❌ | ❌ | ✅ |
-| Multi-profissional | ≤2 | ≤10 | ∞ |
+| Multi-profissional | ≤1 | ≤5 | ∞ |
 | Dashboard BI | ❌ | ❌ | ✅ |
 | Agenda Online | ❌ | ✅ | ✅ |
 | API pública | ❌ | ❌ | ✅ |
@@ -932,7 +936,7 @@ SMG Platform
 │         │   └── Administração
 │         ├── Features (por módulo)
 │         ├── Permissões (por role)
-│         ├── Planos (free/pro/elite)
+│         ├── Planos (free/pro/premium)
 │         └── Dependências
 │
 └── Evolução da Plataforma
@@ -1089,7 +1093,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). Próxima: **6.0.5 Feature Flags**.
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 (alinhamento documental) em progresso. Próxima: implementação 6.0.5.1.
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1108,8 +1112,8 @@ Para cada item:
 - [x] **6.0.1** Tenant Creation — Criação de tenant no fluxo de registro/onboarding ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [x] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [x] **6.0.3** Team Onboarding & Invitations — Convites de profissionais, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais (decisão PO 2026-08-05 — ver seção 6.0.3) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-06)
-- [ ] **6.0.4** Subscription/Billing Foundation — Tabela `subscriptions`, gateway adapters, cobrança recorrente
-- [ ] **6.0.5** Feature Flags — Tabela `feature_flags`, middleware de verificação, enforcement de limites por plano
+- [x] **6.0.4** Subscription/Billing Foundation — Tabelas `subscriptions`/`invoices`/`billing_events`/`payment_attempts`, Billing Engine (`apply_subscription_transition`/`runCycle`), `cancel_at_period_end` (D-A) ✅ CERTIFICADA (baseline `v1.4.2-billing-engine-6.0.4.4`)
+- [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): 6.0.5.1 camada de autorização, 6.0.5.2 BillingService, 6.0.5.3 FeatureFlagService, 6.0.5.4 TenantLifecycleService + `suspended` aditivo, 6.0.5.5 transições RPCs
 
 #### 6.0.1 Tenant Creation ✅ APROVADA PELO PO (2026-08-01)
 
@@ -1195,7 +1199,7 @@ Phase 6.0.3 — Team Onboarding & Invitations
 **Já implementado (não é escopo — evidência):**
 - Enum `tenant_status` (7 estados) — `supabase/migrations/20260728000000_sprint1_tenant_lifecycle.sql`
 - Coluna `tenants.status` substituindo `active` (booleano) — mesma migration
-- Transição `draft → active` via RPC `complete_onboarding` — `application/onboarding.ts`
+- Transição `draft → trial` via RPC `complete_onboarding` — `application/onboarding.ts` (F10: `draft → trial → active` é obrigatório — **nunca** `draft → active`; `trial → active` via `activate_subscription`/engine)
 - Verificação de `tenant.status` em `ProtectedRoute` (bloqueia `cancelled`/`archived`/`suspended`; redireciona `draft` para onboarding) — `App.tsx:157-162`
 - Tipos de domínio `TenantStatus`/`Tenant` — `domain/tenant/types.ts`
 
@@ -1751,13 +1755,15 @@ Phase 6.0.4 — Subscription/Billing Foundation
 
 Itens identificados na Fase 5.6 (Platform Certification), documentados para implementação na Fase 6.0.
 
-| # | Item | Descrição | Scope |
-|---|------|-----------|-------|
-| D1 | Onboarding incompleto | Sem criação de tenant no fluxo de registro. `ShopSetup.tsx` é UI sem persistência | Fase 6.0.1 |
-| D2 | Tenant Lifecycle | Usa `active: boolean`, não enum de 7 estados (draft/trial/active/past_due/suspended/cancelled/archived) | Fase 6.0.3 |
-| D3 | Billing sem enforcement | Sem feature flags, sem verificação de limites por plano, sem upgrade prompt | Fase 6.0.4 + 6.0.5 |
-| D4 | Papéis parcialmente implementados | Apenas 2 de 6 papéis da matriz têm arquivos dedicados (owner, admin). Demais são implícitos | Fase 7 |
-| D5 | Taxonomia restante | "Club" sem "dos Chefes" em nomes de arquivo e rotas (`/chefclub/`, `ChefClub*.tsx`) — aceitável como interno | N/A (intencional) |
+> **Situação atual (2026-08-06):** D1, D2 e D3 (parcial) foram resolvidos nas Fases 6.0.1–6.0.4. Registro histórico preservado.
+
+| # | Item | Descrição | Scope | Situação |
+|---|------|-----------|-------|----------|
+| D1 | Onboarding incompleto | Sem criação de tenant no fluxo de registro. `ShopSetup.tsx` é UI sem persistência | Fase 6.0.1 | ✅ Resolvido 6.0.1/6.0.2 |
+| D2 | Tenant Lifecycle | Usa `active: boolean`, não enum de 7 estados (draft/trial/active/past_due/suspended/cancelled/archived) | Fase 6.0.3 | ✅ Resolvido 6.0.3 (`tenants.status` enum) |
+| D3 | Billing sem enforcement | Sem feature flags, sem verificação de limites por plano, sem upgrade prompt | Fase 6.0.4 + 6.0.5 | ⚠️ Parcial (engine 6.0.4, `max_staff` 6.0.3); flags/persistência = 6.0.5.3 (ADR-013 §3.1) |
+| D4 | Papéis parcialmente implementados | Apenas 2 de 6 papéis da matriz têm arquivos dedicados (owner, admin). Demais são implícitos | Fase 7 | ⬜ |
+| D5 | Taxonomia restante | "Club" sem "dos Chefes" em nomes de arquivo e rotas (`/chefclub/`, `ChefClub*.tsx`) — aceitável como interno | N/A (intencional) | ✅ Mantido |
 
 ---
 
@@ -1777,7 +1783,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
-| 2026-07-28 | 7.0 | Fase 5.6 CONCLUÍDA com ressalvas. Taxonomia corrigida (60 ocorrências). Dívida técnica registrada (5 itens). Fase 6 reestruturada com 6.0 SaaS Core Implementation (5 subfases). |
+| 2026-08-06 | 8.0 | **Subfase 0 — 6.0.5 (Alinhamento Documental).** ADR-013 Accepted (3 contextos desacoplados + Estado Efetivo + Single Writer). 6.0.4 marcada como certificada (baseline `v1.4.2-billing-engine-6.0.4.4`). Escopo da 6.0.5 atualizado (6.0.5.1–6.0.5.5). Planos `free/pro/premium` (Elite obsoleto; CHECK `20260806020000`). Correção `draft → trial` (F10 — nunca `draft → active`). Dívida técnica D1/D2/D3 marcada como resolvida/parcial. Sem alteração de código. |
 | 2026-07-28 | 6.2 | Fase 5.5 CONCLUÍDA. 5 definições finais incorporadas: Grace Period, Retenção de Dados, Gateway (adapters), Notificações (camada própria), Auditoria (eventos existentes). Architecture Freeze v1.0 recomendado após Fase 5.6. |
 | 2026-07-28 | 6.1 | Decisões do PO incorporadas: onboarding (8 etapas), lifecycle (7 estados), billing (mensal, gateway desacoplado), planos (Free/Pro/Elite, limites configuráveis), hierarquia de papéis. Pendências reduzidas de 15 para 5 críticas. |
 | 2026-07-27 | 6.0 | Decisão do PO: Foco absoluto no SMG Barber. Produtos futuros classificados como "Evolução da Plataforma" (sem nomes, sem domínios, sem módulos). Arquitetura multi-tenant preservada. |

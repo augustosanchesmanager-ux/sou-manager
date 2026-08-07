@@ -1,8 +1,10 @@
 # Tenant Lifecycle Model
 
 > **Fase:** 6.0.0 — SaaS Domain Consolidation
-> **Status:** ✅ REVISADO PELO PO — 2026-07-28
-> **Decisões:** Ver `BUSINESS_DECISIONS.md` (F3, F4, F5, F10)
+> **Status:** ✅ REVISADO PELO PO — 2026-07-28 · **ALINHADO AO ADR-013 — 2026-08-06** (Subfase 0)
+> **Decisões:** Ver `BUSINESS_DECISIONS.md` (F3, F4, F5, F10) e `docs/adr/ADR-013-billing-tenant-featureflags.md`
+>
+> Este documento é o modelo **conceitual** do ciclo de vida do tenant. O contrato operacional (RPCs, eventos, writer) está em `TENANT_LIFECYCLE.md`; o contrato comercial em `SUBSCRIPTION_MODEL.md`. A máquina congelada é a do **ADR-013 §5** — em caso de divergência, o ADR prevalece.
 
 ---
 
@@ -11,29 +13,32 @@
 ```mermaid
 stateDiagram-v2
     [*] --> draft: register
-    draft --> trial: complete_onboarding
-    draft --> cancelled: user_cancels_before_onboarding
+    draft --> trial: complete_onboarding (F10)
+    draft --> cancelled: ação administrativa
 
-    trial --> active: payment_succeeded
-    trial --> past_due: payment_failed
-    trial --> cancelled: user_cancels_during_trial
+    trial --> active: activate_subscription / trial expirado (free)
+    trial --> past_due: trial expirado (plano pago, sem pagamento)
+    trial --> cancelled: cancel_at_period_end atingido (engine)
 
-    active --> past_due: payment_failed
-    active --> cancelled: user_cancels
-    active --> draft: admin_reset
+    active --> past_due: vencimento sem pagamento
+    active --> cancelled: cancel_at_period_end atingido (engine)
 
-    past_due --> active: payment_recovered
-    past_due --> suspended: grace_period_expired (5 dias)
-    past_due --> cancelled: user_cancels
+    past_due --> active: markPaid (pagamento confirmado)
+    past_due --> suspended: grace_period_expired (5 dias) [6.0.5]
+    past_due --> cancelled: cancel_at_period_end atingido (engine)
 
-    suspended --> active: payment_recovered
-    suspended --> cancelled: retention_period_expired
+    suspended --> active: markPaid / reactivate [6.0.5]
+    suspended --> cancelled: retenção (D-6.0.5-4)
 
-    cancelled --> active: reactivation
-    cancelled --> archived: retention_period_expired
+    cancelled --> archived: retenção administrativa (D-6.0.5-4)
 ```
 
 **Regra do PO:** `draft → trial → active` é obrigatório. **Nunca** `draft → active` direto, mesmo com trial de zero dias — mantém o fluxo consistente (F10).
+
+**Notas (ADR-013):**
+- Pedido de cancelamento **não é transição** — apenas grava `cancel_at_period_end` (D-A). Todas as setas para `cancelled` acima são **efetivações** feitas pelo Billing Engine quando o fim do período é atingido.
+- Não existe `active → draft` (admin_reset) — removido da máquina congelada.
+- Não existe `cancelled → active` na máquina congelada; reativação é `suspended → active` (D-6.0.5-2/4).
 
 ---
 
@@ -42,12 +47,14 @@ stateDiagram-v2
 | Estado | Descrição | Acesso | Ações permitidas |
 |--------|-----------|--------|------------------|
 | `draft` | Tenant criado, onboarding pendente | ❌ Bloqueado | complete_onboarding |
-| `trial` | Período de avaliação | ✅ Completo | upgrade, cancel |
+| `trial` | Período de avaliação (14d, âncora `tenants.created_at`) | ✅ Completo | pagamento, cancel |
 | `active` | Plano pago ou free | ✅ Completo | todas |
-| `past_due` | Pagamento atrasado | ✅ Completo | pagamento, cancel |
-| `suspended` | Atraso prolongado | ❌ Bloqueado | pagamento |
-| `cancelled` | Cancelado (retention window) | 🔷 Somente leitura | reativar (30d) |
-| `archived` | Definitivamente removido | ❌ Nenhum | — |
+| `past_due` | Período vencido — grace (5 dias) | 🔷 **Restrito** *(D-6.0.5-1)* | pagamento, cancel |
+| `suspended` | Grace expirado — dados preservados (F5) | ❌ Bloqueado *(D-6.0.5-2)* | pagamento, reactivate |
+| `cancelled` | Cancelado — `cancel_at_period_end` atingido | 🔷 Somente leitura *(D-6.0.5-2)* | — |
+| `archived` | Arquivado — dados preservados (F5, nunca excluídos) | ❌ Nenhum | — |
+
+> **Acesso (ADR-013 §2.4):** a coluna "Acesso" é decisão de **Estado Efetivo** (Subscription + Tenant + Feature Flags), avaliada na camada de autorização. O acesso de `past_due`/`suspended`/`cancelled` depende das decisões D-6.0.5-1 e D-6.0.5-2. **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
 
 ---
 
@@ -59,31 +66,33 @@ stateDiagram-v2
 - **Side effects:**
   - tenant_settings criado
   - `profiles.onboarding_completed = true`
-  - Evento: `OnboardingCompleted`
-  - subscription `trialing` (sempre — mesmo trial zero dias)
-  - Se `plan.trial_days = 0` (free): subscription é `trialing` com `trial_end = now()`, transição imediata para `active`
+  - subscription `trialing` criada (trial 14 dias, âncora `tenants.created_at`)
+  - Evento: `TenantSubscriptionCreated` + `TenantTrialStarted` (D2)
+  - Plano `free`: no fim do trial, a engine efetiva `trialing → active` (não existe `trial_days = 0` no schema)
 
 ### 3.2 `active → past_due`
-- **Gatilho:** Falha no pagamento (webhook do gateway)
-- **Validação:** Tentativas de cobrança exauridas (3 tentativas, 3 dias intervalo)
-- **Side effects:** Dunning iniciado, notificação ao usuário
+- **Gatilho:** Vencimento (`current_period_end`) sem pagamento confirmado — avaliação pelo Billing Engine (ciclo `runCycle`)
+- **Validação:** `current_period_end < now()` e nenhum pagamento registrado
+- **Side effects:** grace de 5 dias inicia (janela temporal, **nunca** status), notificação ao usuário
+- **Nota:** **sem gateway de pagamento** e **sem dunning** implementados — a cobrança é registrada via RPCs de pagamento. A ausência de gateway é um risco conhecido (ver Entry Audit 6.0.5, H4/B2)
 
 ### 3.3 `past_due → suspended`
-- **Gatilho:** `grace_period_expired` (**5 dias** após past_due)
-- **Efeito:** Acesso bloqueado, dados preservados, notificação enviada
+- **Gatilho:** `grace_period_expired` (**5 dias** após o vencimento) — engine `runCycle` **[6.0.5.4]**
+- **Efeito:** Acesso bloqueado, dados preservados (F5), notificação enviada
+- **Nota:** o `subscriptions.status` não possui `suspended` hoje — será **aditivo** no CHECK na 6.0.5.4 (D-6.0.5-2)
 
 ### 3.4 `suspended → cancelled`
-- **Gatilho:** `retention_period_expired` (30 dias após suspended)
-- **Efeito:** Dados marcados para remoção (TTL de 90 dias)
+- **Gatilho:** fim da retenção — **depende da D-6.0.5-4** (método e janela em aberto com o PO)
+- **Efeito:** Dados **preservados** (F5 — nunca excluídos automaticamente). Qualquer referência a TTL de exclusão é obsoleta
 
-### 3.5 `cancelled → active`
-- **Gatilho:** Reativação via pagamento
-- **Janela:** Até 30 dias após cancelled
-- **Efeito:** subscription reativada, tenant → active
+### 3.5 `suspended → active`
+- **Gatilho:** `markPaid` (pagamento confirmado) ou `reactivate` **[6.0.5.4]**
+- **Efeito:** subscription `active`, acesso restaurado
+- **Nota:** reativação **pós-cancelamento** (`cancelled → active`) **não existe** na máquina congelada — cancelado é terminal (ADR-013 §5); decisão D-6.0.5-2
 
 ### 3.6 `cancelled → archived`
-- **Gatilho:** `retention_period_expired` (meses após cancelled)
-- **Efeito:** Dados preservados (nunca excluídos automaticamente), tenant removido de listagens ativas
+- **Gatilho:** ação administrativa ou retenção (D-6.0.5-4)
+- **Efeito:** Dados preservados (nunca excluídos automaticamente — F5), tenant removido de listagens ativas
 
 ---
 
@@ -100,30 +109,36 @@ interface TenantLifecycleService {
 
 ### 4.1 Transições Válidas
 
+> Alinhado à matriz congelada do **ADR-013 §5.2**. As transições são efetivadas pelo **Billing Engine** (`apply_subscription_transition` / `runCycle`) e aplicadas ao tenant por **writer único** (TenantLifecycleService — ADR-013 §3.1). Na 6.0.5.4 a responsabilidade é dividida para garantir o Single Writer.
+
 ```typescript
 const VALID_TRANSITIONS: Record<TenantStatus, TenantStatus[]> = {
   draft:      ['trial', 'cancelled'],
   trial:      ['active', 'past_due', 'cancelled'],
-  active:     ['past_due', 'cancelled', 'draft'],
+  active:     ['past_due', 'cancelled'],
   past_due:   ['active', 'suspended', 'cancelled'],
-  suspended:  ['active', 'cancelled'],
-  cancelled:  ['active', 'archived'],
+  suspended:  ['active', 'cancelled'],   // 6.0.5
+  cancelled:  ['archived'],               // terminal na máquina congelada
   archived:   [],
 };
 ```
+
+> **Nota:** `suspended` e as transições de saída de `suspended` só entram em vigor com o CHECK aditivo da **6.0.5.4** e dependem de D-6.0.5-1/2. Hoje `tenants.status` já possui os 7 estados no ENUM, mas o `subscriptions.status` ainda não tem `suspended`.
 
 ---
 
 ## 5. Bloqueio de Acesso
 
+> **Atenção (ADR-013 §2.4):** a decisão de acesso é de **Estado Efetivo**, não exclusivamente de `tenant.status`. A tabela abaixo é o mapeamento legado de referência; a partir da 6.0.5 o gate real acontece na **camada de autorização** combinando os três contextos. Valores marcados dependem de decisões de negócio do PO (D-6.0.5-1/2).
+
 ```typescript
-const ACCESS_BY_STATUS: Record<TenantStatus, 'full' | 'readonly' | 'none'> = {
+const ACCESS_BY_STATUS: Record<TenantStatus, 'full' | 'restricted' | 'readonly' | 'none'> = {
   draft:      'none',
   trial:      'full',
   active:     'full',
-  past_due:   'full',    // Permite acesso durante grace period
-  suspended:  'none',
-  cancelled:  'readonly',
+  past_due:   'restricted',   // D-6.0.5-1 (grace: janela de 5 dias, não status)
+  suspended:  'none',         // D-6.0.5-2
+  cancelled:  'readonly',     // D-6.0.5-2
   archived:   'none',
 };
 ```
@@ -132,22 +147,26 @@ const ACCESS_BY_STATUS: Record<TenantStatus, 'full' | 'readonly' | 'none'> = {
 
 ## 6. Eventos de Ciclo de Vida
 
+> **Alinhamento (ADR-013 §5.1, D2):** o catálogo oficial de eventos de billing é o **D2** — `TenantSubscriptionCreated`, `TenantTrialStarted`, `TenantSubscriptionUpdated`, `TenantSubscriptionCancelled` (+ `TenantSubscriptionSuspended`/`Reactivated` na **6.0.5**), publicados pelo Billing Engine. Eventos do tipo `TenantStatusChanged`/`TenantSuspended`/`TenantArchived` não existem no catálogo atual de `domain/events/types.ts` — transições de status de tenant **não são eventos de domínio hoje** (exigiriam ADR para serem criados).
+
 | Evento | Descrição | Consumer |
 |--------|-----------|----------|
-| `TenantStatusChanged` | Transição de status | LifecycleService, BillingService |
-| `TenantSuspended` | Acesso bloqueado | NotificationSubscriber |
-| `TenantCancelled` | Cancelamento solicitado | FinanceSubscriber |
-| `TenantArchived` | Tenant arquivado (dados preservados) | AuditSubscriber |
-| `TenantReactivated` | Reativação pós-cancelamento | BillingService |
+| `TenantSubscriptionCreated` | Assinatura criada (draft → trial) | AuditSubscriber |
+| `TenantTrialStarted` | Trial iniciado | AuditSubscriber |
+| `TenantSubscriptionUpdated` | Mudança de plano/status | AuditSubscriber |
+| `TenantSubscriptionCancelled` | `cancel_at_period_end` atingido (efetivação) | FinanceSubscriber, NotificationSubscriber |
+| `TenantSubscriptionSuspended` **[6.0.5]** | Grace expirado | NotificationSubscriber |
+| `TenantSubscriptionReactivated` **[6.0.5]** | Reativação | BillingService |
 
 ---
 
 ## 7. Migração Pendente
 
-A migration atual (`20260728000000`) criou o ENUM e a coluna `status` mas não implementou:
+> Situação atualizada em 2026-08-06 (alinhamento ADR-013). O checklist original (6.0.0) foi resolvido em grande parte pelas fases 6.0.1–6.0.4 e pela entrada na 6.0.5:
 
-- [ ] Validação de transições via CHECK constraint ou trigger
-- [ ] Transição automática `past_due → suspended` (scheduled job)
-- [ ] Transição automática `cancelled → archived` (scheduled job)
-- [ ] RPC `transition_tenant_status()`
-- [ ] Bloqueio de acesso por status em middleware/guards
+- [x] RPC `complete_onboarding()` → `draft → trial` (cria subscription `trialing`)
+- [x] RPCs de billing: `start_trial()`, `activate_subscription()`, `cancel_subscription()` (pedido — D-A), `get_subscription()`
+- [x] Bloqueio de acesso por status no frontend (`App.tsx` → `ProtectedRoute`)
+- [ ] Validação de transições via CHECK/trigger — **não será via DB trigger**: a máquina de estados é o **Billing Engine** (`apply_subscription_transition`/`runCycle`), conforme ADR-013
+- [ ] `suspended` aditivo no CHECK de `subscriptions.status` + transições automáticas `past_due → suspended` e `suspended → active` (**6.0.5.4**; depende de D-6.0.5-1/2)
+- [ ] Acesso `past_due`/`cancelled` finalizado via camada de autorização (Estado Efetivo — **6.0.5.1/6.0.5.3**; depende de D-6.0.5-1/2)

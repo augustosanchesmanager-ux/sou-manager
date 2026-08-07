@@ -69,25 +69,25 @@ Transições **novas** para a 6.0.5 (ver matriz completa §3 e fluxograma §4):
 
 ### 1.2 Conflitos documentais (detalhados na §6)
 
-Resumo das divergências que **impactam decisões da 6.0.5**:
+Resumo das divergências que **impactam decisões da 6.0.5** (coluna "Resolução" = status após a **Subfase 0**, 2026-08-06):
 
-| # | Tema | Doc A | Doc B | Impacto 6.0.5 |
-|---|------|-------|-------|---------------|
-| D1 | Destino pós-grace | `SUBSCRIPTION_MODEL.md:51` → `cancelled` | Todos os demais → `suspended` | **CRÍTICO** — diagrama interno do próprio doc do modelo diverge da regra aprovada (D3/F4) |
-| D2 | Modelo de dados de flags | `plans+features+plan_features` (D4/P4, aprovado) | `plans.features TEXT[]` + `tenant_has_feature` (FEATURE_FLAGS_MODEL §6) | **ALTO** — três propostas concorrentes; precisa decisão única |
-| D3 | Limite Free de profissionais | 1 (F11/BUSINESS_DECISIONS) | ≤2 (ROADMAP 5.5.4 / SAAS_CORE) | **ALTO** — enforcement não sabe o valor |
-| D4 | Semântica de cancelamento | Imediato (`TENANT_LIFECYCLE.md:104`, `SUBSCRIPTION_MODEL`) | Fim do período (D-A, entregue 6.0.4.4) | **ALTO** — doc "oficial para condicionais" ensina contrato errado |
-| D5 | Nomes de tabelas billing | `platform_subscriptions/invoices/payments` (SAAS_CORE 5.5) | `subscriptions/invoices/payment_attempts` (entregue) | MÉDIO — consultas baseadas na 5.5 falham |
-| D6 | Acesso em `past_due` | "com restrições" (TENANT_LIFECYCLE) | `full` (LIFECYCLE_MODEL) · read-only por módulo (SAAS_CORE) | **ALTO** — guard da suspensão indefinido |
-| D7 | Acesso em `cancelled` | bloqueado (TENANT_LIFECYCLE/SAAS_CORE) | read-only (LIFECYCLE_MODEL) | MÉDIO — afeta reativação/export |
-| D8 | Âncora do trial | `tenants.created_at` (TAXONOMY/F3) | `now()` em `start_trial` (plano 6.0.4 §56) | MÉDIO — **o código usa `created_at`**; conflito é só do texto do plano |
-| D9 | Transições de `suspended` | `suspended→active` (SAAS_CORE/BUSINESS_ARCH/LIFECYCLE_MODEL/TENANT_MODEL) | **inexistente** (TENANT_LIFECYCLE) | **ALTO** — máquina de suspensão tem 3 fontes |
-| D10 | Nome da flag Chef Club | `chef_club` (FEATURE_FLAGS_MODEL) | `club_dos_chefes` (SAAS_CORE) | MÉDIO — catálogo de flags precisa normalizar |
-| D11 | Status de invoice | `pending/paid/overdue/cancelled/refunded` (SUBSCRIPTION_MODEL) | `draft/issued/paid/overdue/failed/void` (schema real) | MÉDIO — regras de dunning citam status inexistentes |
-| D12 | `elite` residual | decisão P1/D1: `elite→premium` | ainda presente em ROADMAP/SAAS_CORE/BUSINESS_ARCH/PLATFORM_CERT | MÉDIO — seed da tabela `plans` não pode repetir `elite` |
-| D13 | Eventos de lifecycle | `TenantSubscription*` (D2/TAXONOMY) | `TenantStatusChanged/Suspended/...` (LIFECYCLE_MODEL) · `Subscription*` sem prefixo (SUBSCRIPTION_MODEL) | MÉDIO — subscriber pode escutar nome que nunca é publicado |
-| D14 | `cancel_at_period_end` tipo | `boolean` (SUBSCRIPTION_MODEL:22) | `timestamptz` (schema real) | MÉDIO — consumidores do modelo antigo quebram |
-| D15 | TTL 90 dias | `LIFECYCLE_MODEL:77` (remoção automática) | F5 (nunca excluir; LGPD manual) | **ALTO** — contradiz política de retenção |
+| # | Tema | Doc A | Doc B | Impacto 6.0.5 | Resolução (Subfase 0) |
+|---|------|-------|-------|---------------|----------------------|
+| D1 | Destino pós-grace | `SUBSCRIPTION_MODEL.md:51` → `cancelled` | Todos os demais → `suspended` | **CRÍTICO** — diagrama interno do próprio doc do modelo diverge da regra aprovada (D3/F4) | ✅ Resolvido (doc) |
+| D2 | Modelo de dados de flags | `plans+features+plan_features` (D4/P4, aprovado) | `plans.features TEXT[]` + `tenant_has_feature` (FEATURE_FLAGS_MODEL §6) | **ALTO** — três propostas concorrentes; precisa decisão única | ✅ Resolvido — ADR-013 §5.3 + D-6.0.5-5 (decisão registrada; docs alinhados) |
+| D3 | Limite Free de profissionais | 1 (F11/BUSINESS_DECISIONS) | ≤2 (ROADMAP 5.5.4 / SAAS_CORE) | **ALTO** — enforcement não sabe o valor | ⬜ Aberto (PO — D-6.0.5-3); docs alinhados ao fato (`free=1`) |
+| D4 | Semântica de cancelamento | Imediato (`TENANT_LIFECYCLE.md:104`, `SUBSCRIPTION_MODEL`) | Fim do período (D-A, entregue 6.0.4.4) | **ALTO** — doc "oficial para condicionais" ensina contrato errado | ✅ Resolvido (doc) |
+| D5 | Nomes de tabelas billing | `platform_subscriptions/invoices/payments` (SAAS_CORE 5.5) | `subscriptions/invoices/payment_attempts` (entregue) | MÉDIO — consultas baseadas na 5.5 falham | ✅ Resolvido (doc) |
+| D6 | Acesso em `past_due` | "com restrições" (TENANT_LIFECYCLE) | `full` (LIFECYCLE_MODEL) · read-only por módulo (SAAS_CORE) | **ALTO** — guard da suspensão indefinido | ✅ Resolvido (doc) — unificado "depende da D-6.0.5-1" |
+| D7 | Acesso em `cancelled` | bloqueado (TENANT_LIFECYCLE/SAAS_CORE) | read-only (LIFECYCLE_MODEL) | MÉDIO — afeta reativação/export | ✅ Resolvido (doc) — unificado "depende da D-6.0.5-2" |
+| D8 | Âncora do trial | `tenants.created_at` (TAXONOMY/F3) | `now()` em `start_trial` (plano 6.0.4 §56) | MÉDIO — **o código usa `created_at`**; conflito é só do texto do plano | ✅ Resolvido (doc) |
+| D9 | Transições de `suspended` | `suspended→active` (SAAS_CORE/BUSINESS_ARCH/LIFECYCLE_MODEL/TENANT_MODEL) | **inexistente** (TENANT_LIFECYCLE) | **ALTO** — máquina de suspensão tem 3 fontes | ✅ Resolvido (doc) — ADR-013 §5 |
+| D10 | Nome da flag Chef Club | `chef_club` (FEATURE_FLAGS_MODEL) | `club_dos_chefes` (SAAS_CORE) | MÉDIO — catálogo de flags precisa normalizar | ✅ Resolvido (doc) — `chef_club` único |
+| D11 | Status de invoice | `pending/paid/overdue/cancelled/refunded` (SUBSCRIPTION_MODEL) | `draft/issued/paid/overdue/failed/void` (schema real) | MÉDIO — regras de dunning citam status inexistentes | ✅ Resolvido (doc) |
+| D12 | `elite` residual | decisão P1/D1: `elite→premium` | ainda presente em ROADMAP/SAAS_CORE/BUSINESS_ARCH/PLATFORM_CERT | MÉDIO — seed da tabela `plans` não pode repetir `elite` | ✅ Resolvido (doc) |
+| D13 | Eventos de lifecycle | `TenantSubscription*` (D2/TAXONOMY) | `TenantStatusChanged/Suspended/...` (LIFECYCLE_MODEL) · `Subscription*` sem prefixo (SUBSCRIPTION_MODEL) | MÉDIO — subscriber pode escutar nome que nunca é publicado | ✅ Resolvido (doc) — catálogo D2 |
+| D14 | `cancel_at_period_end` tipo | `boolean` (SUBSCRIPTION_MODEL:22) | `timestamptz` (schema real) | MÉDIO — consumidores do modelo antigo quebram | ✅ Resolvido (doc) |
+| D15 | TTL 90 dias | `LIFECYCLE_MODEL:77` (remoção automática) | F5 (nunca excluir; LGPD manual) | **ALTO** — contradiz política de retenção | ✅ Resolvido (doc) — F5 |
 
 ### 1.3 Docs que **já propõem** o desacoplamento da 6.0.5 (base para o ADR-013)
 
@@ -248,56 +248,58 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 
 ## 6. Lista de inconsistências encontradas
 
+> **Status da Subfase 0 (2026-08-06, ADR-013 Accepted):** os conflitos **documentais** abaixo foram resolvidos por alinhamento exclusivo de docs (sem código). Itens que dependem de decisão do PO (**D-6.0.5-x**) ou de implementação (**6.0.5.x**) permanecem abertos e são indicados na coluna "Resolução".
+
 ### Críticas (bloqueiam a modelagem da 6.0.5)
 
-| # | Achado | Evidência | Impacto |
-|---|--------|-----------|---------|
-| C1 | Destino pós-grace diverge dentro do próprio `SUBSCRIPTION_MODEL` (diagrama → `cancelled`; regra → `suspended`) | `SUBSCRIPTION_MODEL.md:51` vs `:119` vs F4/D3 | Tenant inadimplente seria encerrado em vez de suspenso (perda de receita recuperável) |
-| C2 | `subscriptions.status` CHECK **não aceita `suspended`** → suspensão sem estado de contrato representável | `20260806020000` (`CHECK status IN ('trialing','active','past_due','cancelled')`) | Núcleo da 6.0.5 sem suporte de schema |
-| C3 | `apply_subscription_transition` mapeia desconhecido para `ELSE→active` (e não tem branch `suspended`/`archived`) | `20260806080000:63-83` | Qualquer status novo corrompe `tenants.status` para `active` — risco de invasão de acesso |
-| C4 | Três propostas concorrentes de modelo de dados para flags | D4/P4 (`plans+features+plan_features`) vs `FEATURE_FLAGS_MODEL` §6 (`plans.features TEXT[]`) vs `ROADMAP:1112` (`feature_flags` table) | Sem decisão única, retrabalho na fase seguinte |
-| C5 | `tenants.plan` editado direto em `pages/Admin.tsx:856` (fora do engine) | `pages/Admin.tsx:856` | Divergência `tenants.plan` × `subscriptions.plan`; plano muda sem evento/outbox |
-| C6 | `TENANT_LIFECYCLE.md` ("fonte oficial para condicionais") documenta cancelamento **imediato** — contrato já alterado pela D-A | `TENANT_LIFECYCLE.md:34,47,104` vs `PHASE_6_0_4_4_EXECUTION_PLAN.md:18,31-32` | Implementador da 6.0.5 seguirá contrato errado (D-A é restrição de arquitetura) |
+| # | Achado | Evidência | Impacto | Resolução |
+|---|--------|-----------|---------|-----------|
+| C1 | Destino pós-grace diverge dentro do próprio `SUBSCRIPTION_MODEL` (diagrama → `cancelled`; regra → `suspended`) | `SUBSCRIPTION_MODEL.md:51` vs `:119` vs F4/D3 | Tenant inadimplente seria encerrado em vez de suspenso (perda de receita recuperável) | ✅ **Resolvido (doc)** — `SUBSCRIPTION_MODEL.md` alinhado: diagrama e regra agora convergem para `suspended` |
+| C2 | `subscriptions.status` CHECK **não aceita `suspended`** → suspensão sem estado de contrato representável | `20260806020000` (`CHECK status IN ('trialing','active','past_due','cancelled')`) | Núcleo da 6.0.5 sem suporte de schema | ⬜ **Aberto (código)** — CHECK aditivo na **6.0.5.4** (registrado no ADR-013) |
+| C3 | `apply_subscription_transition` mapeia desconhecido para `ELSE→active` (e não tem branch `suspended`/`archived`) | `20260806080000:63-83` | Qualquer status novo corrompe `tenants.status` para `active` — risco de invasão de acesso | ⬜ **Aberto (código)** — correção fail-fast na **6.0.5.4** (ADR-013 §3/§4.6) |
+| C4 | Três propostas concorrentes de modelo de dados para flags | D4/P4 (`plans+features+plan_features`) vs `FEATURE_FLAGS_MODEL` §6 (`plans.features TEXT[]`) vs `ROADMAP:1112` (`feature_flags` table) | Sem decisão única, retrabalho na fase seguinte | ✅ **Resolvido (decisão registrada)** — ADR-013 §5.3 + D-6.0.5-5: modelo D4/P4 (`plans+features+plan_features`); docs alinhados |
+| C5 | `tenants.plan` editado direto em `pages/Admin.tsx:856` (fora do engine) | `pages/Admin.tsx:856` | Divergência `tenants.plan` × `subscriptions.plan`; plano muda sem evento/outbox | ⬜ **Aberto (código)** — corrigir na **6.0.5.3** (anti-pattern P5 do ADR-013 §4.11) |
+| C6 | `TENANT_LIFECYCLE.md` ("fonte oficial para condicionais") documenta cancelamento **imediato** — contrato já alterado pela D-A | `TENANT_LIFECYCLE.md:34,47,104` vs `PHASE_6_0_4_4_EXECUTION_PLAN.md:18,31-32` | Implementador da 6.0.5 seguirá contrato errado (D-A é restrição de arquitetura) | ✅ **Resolvido (doc)** — `TENANT_LIFECYCLE.md` alinhado à D-A (pedido → `cancel_at_period_end`; efetivação via engine) |
 
 ### Altas
 
-| # | Achado | Evidência |
-|---|--------|-----------|
-| H1 | Limite Free de profissionais: 1 vs ≤2 | `BUSINESS_DECISIONS.md:91` (F11) vs `ROADMAP.md:892`/`SAAS_CORE_ARCHITECTURE.md:314` |
-| H2 | Nível de acesso em `past_due` indefinido (3 versões) | `TENANT_LIFECYCLE.md:15,86` vs `LIFECYCLE_MODEL.md:124` vs `SAAS_CORE_ARCHITECTURE.md:134` |
-| H3 | Máquina de suspensão/reativação tem 3 fontes conflitantes | `SAAS_CORE_ARCHITECTURE.md:122-123`/`LIFECYCLE_MODEL.md:29`/`TENANT_MODEL.md:75-76` vs `TENANT_LIFECYCLE.md:23-56` (sem `suspended→active`) |
-| H4 | Sem `grace_ends_at` no schema → impossível selecionar candidatos à suspensão | schema audit §1/§3 |
-| H5 | TTL 90 dias (remoção automática) contradiz F5 (nunca excluir) | `LIFECYCLE_MODEL.md:77` vs `BUSINESS_DECISIONS.md:55-58` |
-| H6 | Sem camada de feature flags nem enforcement (confirmado no código) | `PLATFORM_CERTIFICATION.md:163-164` (8.3/8.4 ❌) — gap esperado da 6.0.5 |
-| H7 | `limits.ts` órfão (não conectado) + enforcement só hardcoded no SQL | `domain/billing/limits.ts` vs `invite_team_member` |
-| H8 | Dois gates paralelos de acesso sem hierarquia (profile × tenant) | `App.tsx:154-158` |
+| # | Achado | Evidência | Resolução |
+|---|--------|-----------|-----------|
+| H1 | Limite Free de profissionais: 1 vs ≤2 | `BUSINESS_DECISIONS.md:91` (F11) vs `ROADMAP.md:892`/`SAAS_CORE_ARCHITECTURE.md:314` | ⬜ **Aberto (PO)** — D-6.0.5-3. Docs alinhados ao fato real (`free=1`, `domain/billing/limits.ts`) |
+| H2 | Nível de acesso em `past_due` indefinido (3 versões) | `TENANT_LIFECYCLE.md:15,86` vs `LIFECYCLE_MODEL.md:124` vs `SAAS_CORE_ARCHITECTURE.md:134` | ✅ **Resolvido (doc)** — unificado em "depende da D-6.0.5-1" nos 3 docs |
+| H3 | Máquina de suspensão/reativação tem 3 fontes conflitantes | `SAAS_CORE_ARCHITECTURE.md:122-123`/`LIFECYCLE_MODEL.md:29`/`TENANT_MODEL.md:75-76` vs `TENANT_LIFECYCLE.md:23-56` (sem `suspended→active`) | ✅ **Resolvido (doc)** — todas as máquinas alinhadas ao ADR-013 §5 (inclui `suspended→active`; cancelamento=pedido) |
+| H4 | Sem `grace_ends_at` no schema → impossível selecionar candidatos à suspensão | schema audit §1/§3 | ⬜ **Aberto (código)** — coluna na **6.0.5.4** |
+| H5 | TTL 90 dias (remoção automática) contradiz F5 (nunca excluir) | `LIFECYCLE_MODEL.md:77` vs `BUSINESS_DECISIONS.md:55-58` | ✅ **Resolvido (doc)** — `LIFECYCLE_MODEL.md` corrigido para F5 (dados preservados) |
+| H6 | Sem camada de feature flags nem enforcement (confirmado no código) | `PLATFORM_CERTIFICATION.md:163-164` (8.3/8.4 ❌) — gap esperado da 6.0.5 | ⬜ **Aberto (código)** — **6.0.5.1/6.0.5.2/6.0.5.3** |
+| H7 | `limits.ts` órfão (não conectado) + enforcement só hardcoded no SQL | `domain/billing/limits.ts` vs `invite_team_member` | ⬜ **Aberto (código)** — **6.0.5.3** |
+| H8 | Dois gates paralelos de acesso sem hierarquia (profile × tenant) | `App.tsx:154-158` | ⬜ **Aberto (código)** — unificar gate na **6.0.5.3** (Estado Efetivo) |
 
 ### Médias
 
-| # | Achado |
-|---|--------|
-| M1 | Nomes de tabelas billing divergem da doc 5.5 (`platform_*` vs reais) |
-| M2 | Status de invoice: enum antigo vs CHECK real |
-| M3 | Catálogo de flags: `chef_club` vs `club_dos_chefes`; mapa feature↔flag da 5.5.4 incompleto ("Agenda Online"/"Relatórios avançados" sem flag) |
-| M4 | Eventos de lifecycle: prefixos divergentes em docs legados |
-| M5 | `cancel_at_period_end` boolean (doc) vs timestamptz (schema) |
-| M6 | Âncora do trial: doc do plano diz `now()`, código usa `created_at` (código correto; alinhar doc) |
-| M7 | `get_due_subscriptions`/`get_subscription()` divergem do padrão by-id; `save_onboarding_step` usa guard legado `role='manager'` |
-| M8 | Subscriptions criada no provisionamento vs no `start_trial` (evento `TenantSubscriptionCreated` em momento ambíguo) |
-| M9 | ADR-011/ROADMAP citam `draft→active` já corrigido p/ `draft→trial` |
-| M10 | Colisão de numeração ADR-001 (dois arquivos) + README do `docs/adr/` incompleto |
-| M11 | Trigger `sync_profile_to_user_tenants` existe só no banco vivo (drift de migration) |
-| M12 | Tabelas de billing sem triggers de audit (audit attach pré-data as tabelas) |
-| M13 | `ROADMAP:1111` checkbox 6.0.4 `[ ]` + escopo cita "cobrança recorrente/gateway" inexistente (invoice amount=0) |
+| # | Achado | Resolução |
+|---|--------|-----------|
+| M1 | Nomes de tabelas billing divergem da doc 5.5 (`platform_*` vs reais) | ✅ **Resolvido (doc)** — `SAAS_CORE_ARCHITECTURE.md` corrigido para `subscriptions`/`invoices`/`billing_events`/`payment_attempts` |
+| M2 | Status de invoice: enum antigo vs CHECK real | ✅ **Resolvido (doc)** — `SUBSCRIPTION_MODEL.md` documenta o CHECK real (`draft/issued/paid/overdue/failed/void`) |
+| M3 | Catálogo de flags: `chef_club` vs `club_dos_chefes`; mapa feature↔flag da 5.5.4 incompleto ("Agenda Online"/"Relatórios avançados" sem flag) | ✅ **Resolvido (doc)** — catálogo único em `FEATURE_FLAGS_MODEL.md` (`chef_club`); `SAAS_CORE`/`ROADMAP` delegados ao modelo |
+| M4 | Eventos de lifecycle: prefixos divergentes em docs legados | ✅ **Resolvido (doc)** — catálogo D2 (`TenantSubscription*`) nos docs; legados marcados obsoletos |
+| M5 | `cancel_at_period_end` boolean (doc) vs timestamptz (schema) | ✅ **Resolvido (doc)** — `SUBSCRIPTION_MODEL.md` documenta `timestamptz` |
+| M6 | Âncora do trial: doc do plano diz `now()`, código usa `created_at` (código correto; alinhar doc) | ✅ **Resolvido (doc)** — todos os docs alinhados a `tenants.created_at + 14d` |
+| M7 | `get_due_subscriptions`/`get_subscription()` divergem do padrão by-id; `save_onboarding_step` usa guard legado `role='manager'` | ⬜ **Aberto (código)** — **6.0.5.5** |
+| M8 | Subscriptions criada no provisionamento vs no `start_trial` (evento `TenantSubscriptionCreated` em momento ambíguo) | ⬜ **Aberto (código)** — **6.0.5.x** (definir momento único) |
+| M9 | ADR-011/ROADMAP citam `draft→active` já corrigido p/ `draft→trial` | ✅ **Resolvido (doc)** — ROADMAP corrigido; ADR-011 é registro histórico (não alterado) |
+| M10 | Colisão de numeração ADR-001 (dois arquivos) + README do `docs/adr/` incompleto | ⬜ **Aberto (infra docs)** — renomear ADR-001 conflitante (fora da Subfase 0) |
+| M11 | Trigger `sync_profile_to_user_tenants` existe só no banco vivo (drift de migration) | ⬜ **Aberto (código)** — **6.0.5.5** |
+| M12 | Tabelas de billing sem triggers de audit (audit attach pré-data as tabelas) | ⬜ **Aberto (código)** — **6.0.5.5** |
+| M13 | `ROADMAP:1111` checkbox 6.0.4 `[ ]` + escopo cita "cobrança recorrente/gateway" inexistente (invoice amount=0) | ✅ **Resolvido (doc)** — ROADMAP marca 6.0.4 certificada e escopo real (engine, sem gateway) |
 
 ### Baixas
 
-| # | Achado |
-|---|--------|
-| B1 | `elite`/`enterprise` residuais em docs oficiais pós-D1 |
-| B2 | Cadência anual sem decisão registrada (planos `price_yearly_cents` já modelados) |
-| B3 | Dunning 3×3d documentado sem base em runtime |
-| B4 | Auditoria 6.0.4 declarou modelos "consistente" sem detectar C1/H5/M9 |
+| # | Achado | Resolução |
+|---|--------|-----------|
+| B1 | `elite`/`enterprise` residuais em docs oficiais pós-D1 | ✅ **Resolvido (doc)** — todos os docs alinhados a `free/pro/premium` |
+| B2 | Cadência anual sem decisão registrada (planos `price_yearly_cents` já modelados) | ⬜ **Aberto (PO)** — D-6.0.5-6 |
+| B3 | Dunning 3×3d documentado sem base em runtime | ✅ **Resolvido (doc)** — `SUBSCRIPTION_MODEL.md` marca dunning como não implementado/obsoleto |
+| B4 | Auditoria 6.0.4 declarou modelos "consistente" sem detectar C1/H5/M9 | ✅ **Resolvido** — corrigido pela própria Entry Audit 6.0.5 + Subfase 0 |
 
 ---
 
@@ -329,6 +331,8 @@ Legenda flags: **Trial** (flag de trial) · **Plano** (flags do plano ativo) · 
 ## 8. Plano de implementação proposto (subfases)
 
 > **Pré-requisito (subfase 0 — sem código):** ADR-013 (modelo 6.0.5: responsabilidades/estados/mapeamento/grants) + decisões D-6.0.5 + alinhamento documental (C1, C6, D3, D4, D6, H2, H3, M1–M6, B1 — atualizar `SUBSCRIPTION_MODEL`, `TENANT_LIFECYCLE`, `LIFECYCLE_MODEL`, `SAAS_CORE`, `ROADMAP`).
+
+> **✅ Subfase 0 concluída (2026-08-06):** ADR-013 **Accepted** (`36935fa`). Alinhamento documental entregue — ver status de resolução na **§6**. Docs atualizados: `SUBSCRIPTION_MODEL.md`, `TENANT_LIFECYCLE.md`, `LIFECYCLE_MODEL.md`, `SAAS_CORE_ARCHITECTURE.md`, `BUSINESS_ARCHITECTURE.md`, `PLATFORM_CERTIFICATION.md`, `FEATURE_FLAGS_MODEL.md`, `ROADMAP.md`. **Zero código alterado.** Decisões D-6.0.5-1..8 permanecem **abertas** (PO) e bloqueiam a implementação.
 
 | Subfase | Escopo | Entregas-chave |
 |---------|--------|----------------|

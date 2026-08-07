@@ -2,11 +2,13 @@
 
 > **Fase 5.5 — SaaS Core Architecture**
 >
-> Status: ✅ Concluída (Documentação + Design)
+> Status: ✅ Concluída (Documentação + Design) · **ALINHADO AO ADR-013 — 2026-08-06** (Subfase 0)
 >
 > **Autor:** Augusto (Product Owner) + OpenCode (formatação e validação técnica)
 >
-> **Última atualização:** 2026-07-28
+> **Última atualização:** 2026-08-06
+>
+> **Aviso (Subfase 0):** este documento é a visão **conceitual/comercial** da plataforma (Fase 5.5). Divergências estruturais foram alinhadas ao **ADR-013** (referência única da arquitetura 6.0.5). Detalhes operacionais (RPCs, schema, eventos) vivem em `TENANT_LIFECYCLE.md`, `SUBSCRIPTION_MODEL.md` e `FEATURE_FLAGS_MODEL.md`. Em caso de divergência, o ADR prevalece.
 
 ---
 
@@ -70,59 +72,62 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 
 ## Bloco 2 — Tenant Lifecycle (Como Funciona um Tenant)
 
-### Estados (Decisão do PO — 2026-07-28)
+### Estados (Decisão do PO — 2026-07-28; máquina congelada — ADR-013 §5)
+
+> **Alinhamento 6.0.5:** cancelamento é **pedido** (grava `cancel_at_period_end`) — **não é transição**. Reativação acontece em `suspended → active`, **nunca** `cancelled → active` (cancelado é terminal na máquina congelada). `suspended` e a retenção dependem das decisões D-6.0.5-1/2/4.
 
 ```
                      ┌──────────────┐
                      │    draft     │ ← Tenant criado durante o onboarding
                      └──────┬───────┘
-                            │ Onboarding completo
+                            │ Onboarding completo (F10)
                             ▼
                      ┌──────────────┐
-                     │    trial     │ ← Período de avaliação da plataforma
+                     │    trial     │ ← Período de avaliação (14d)
                      └──────┬───────┘
-                            │ Assinatura ativada
+                            │ Assinatura ativada (engine)
                             ▼
                      ┌──────────────┐
-              ┌──────│    active    │ ← Assinatura ativa e funcionamento normal
-              │      └──────┬───────┘
-              │             │
-       Reativação    Pagamento vencido
-              │             │
-              │             ▼
-              │      ┌──────────────┐
-              │      │  past_due    │ ← Pagamento pendente
-              │      └──────┬───────┘
-              │             │ Grace period expirado
-              │             ▼
-              │      ┌──────────────┐
-              │      │  suspended   │ ← Acesso temporariamente bloqueado
-              │      └──────┬───────┘
-              │             │ Cancelamento ou inatividade
-              │             ▼
-              │      ┌──────────────┐
-              └──────│  cancelled   │ ← Assinatura encerrada
+                     │    active    │ ← Assinatura ativa e funcionamento normal
                      └──────┬───────┘
-                            │ Período de retenção expirado
+                            │ Vencimento sem pagamento (engine)
                             ▼
                      ┌──────────────┐
-                     │  archived    │ ← Tenant arquivado
+                     │  past_due    │ ← Pagamento pendente — grace (5 dias, janela)
+                     └──────┬───────┘
+                            │ Grace expirado [6.0.5]
+                            ▼
+                     ┌──────────────┐
+                     │  suspended   │ ← Acesso bloqueado [6.0.5]
+                     └──────┬───────┘
+                            │ Pagamento confirmado → active
+                            │ Retenção (D-6.0.5-4)
+                            ▼
+                     ┌──────────────┐
+                     │  cancelled   │ ← cancel_at_period_end atingido (efetivação)
+                     └──────┬───────┘
+                            │ Retenção administrativa (D-6.0.5-4)
+                            ▼
+                     ┌──────────────┐
+                     │  archived    │ ← Tenant arquivado (dados preservados, F5)
                      └──────────────┘
 ```
 
 ### Transições de Estado
 
+> **Alinhamento 6.0.5:** as transições de contrato são efetivadas pelo **Billing Engine** (`apply_subscription_transition`/`runCycle`) e aplicadas ao tenant por **writer único** (TenantLifecycleService — ADR-013 §3.1). "Cancelamento solicitado" não é transição.
+
 | De | Para | Evento | Ação |
 |----|------|--------|------|
 | draft | trial | Onboarding completo | Iniciar período de avaliação |
-| trial | active | Assinatura ativada | Habilitar acesso total |
-| active | past_due | Pagamento vencido | Notificar, iniciar grace period |
+| trial | active | Assinatura ativada / trial expirado (free) | Habilitar acesso total |
+| active | past_due | Vencimento sem pagamento | Notificar, iniciar grace (janela de 5 dias) |
 | past_due | active | Pagamento confirmado | Reabilitar acesso |
-| past_due | suspended | Grace period expirado | Bloquear acesso, manter dados |
-| suspended | active | Pagamento confirmado | Reabilitar acesso (reativação) |
-| suspended | cancelled | Cancelamento solicitado | Iniciar retenção de dados |
-| active | cancelled | Cancelamento solicitado (sem pagamento pendente) | Iniciar retenção de dados |
-| cancelled | archived | Período de retenção expirado | Arquivar dados |
+| past_due | suspended | Grace expirado **[6.0.5.4]** | Bloquear acesso, manter dados (F5) |
+| suspended | active | Pagamento confirmado (reativação) **[6.0.5.4]** | Reabilitar acesso |
+| suspended | cancelled | Retenção encerrada *(D-6.0.5-4)* | Encerrar contrato |
+| active | cancelled | `cancel_at_period_end` atingido (efetivação) | Encerrar contrato no fim do período |
+| cancelled | archived | Retenção administrativa *(D-6.0.5-4)* | Arquivar dados |
 
 ### Impacto por Estado
 
@@ -131,10 +136,12 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 | draft | ✅ | ❌ | ❌ | ❌ | ❌ |
 | trial | ✅ | ✅ | ✅ | ✅ | ✅ |
 | active | ✅ | ✅ | ✅ | ✅ | ✅ |
-| past_due | ✅ | ⚠️ Read-only | ❌ | ⚠️ Read-only | ⚠️ Read-only |
-| suspended | ❌ | ❌ | ❌ | ❌ | ❌ |
-| cancelled | ❌ | ❌ | ❌ | ❌ | ❌ |
+| past_due | ⚠️ *(D-6.0.5-1)* | ⚠️ Read-only | ❌ | ⚠️ Read-only | ⚠️ Read-only |
+| suspended | ❌ *(D-6.0.5-2)* | ❌ | ❌ | ❌ | ❌ |
+| cancelled | ❌ *(D-6.0.5-2)* | ❌ | ❌ | ❌ | ❌ |
 | archived | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+> **Alinhamento 6.0.5:** a coluna "Login" é decisão de **Estado Efetivo** (ADR-013 §2.4), avaliada na camada de autorização. Os valores de `past_due`/`suspended`/`cancelled` dependem das decisões D-6.0.5-1/2 do PO. **Proibido** decidir acesso com `if (tenant.status === 'active')` ou variantes.
 
 ### Notificações por Transição
 
@@ -153,9 +160,9 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 | # | Item | Status |
 |---|------|--------|
 | 1 | Estados do lifecycle | ✅ Definido (draft, trial, active, past_due, suspended, cancelled, archived) |
-| 2 | Grace period | ✅ Definido (tolerância após falha de pagamento, configurável) |
-| 3 | Retenção de dados | ✅ Definido (tenant arquivado por período recuperável, exclusão conforme LGPD) |
-| 4 | Auditoria de transições | ✅ Definido (eventos críticos registrados via infraestrutura de eventos) |
+| 2 | Grace period | ✅ Definido (**janela temporal** de 5 dias após vencimento — **nunca** status; suspensão na 6.0.5.4) |
+| 3 | Retenção de dados | ✅ Definido (dados **preservados** — F5; **nunca** excluídos automaticamente; exclusão só por demanda LGPD) |
+| 4 | Auditoria de transições | ✅ Definido (eventos críticos registrados via infraestrutura de eventos — catálogo D2) |
 
 ---
 
@@ -164,6 +171,8 @@ Este documento define **como a plataforma SaaS funciona** — os mecanismos que 
 ### Decisão do PO (2026-07-28)
 
 A plataforma utilizará **cobrança recorrente mensal**. A arquitetura permanece **desacoplada do gateway de pagamento**. O gateway definitivo será escolhido futuramente. A estrutura deve suportar expansão para diferentes meios de pagamento sem alteração arquitetural.
+
+> **Alinhamento 6.0.5:** **não há gateway de pagamento implementado** — a cobrança é registrada via RPCs de pagamento e o **Billing Engine** (`runCycle`) avalia vencimentos (`current_period_end`), grace (5 dias) e transições. O desacoplamento hoje é do **engine** (ciclo temporal), não de adapters de gateway (H4/B2 — Entry Audit 6.0.5).
 
 **Exemplos futuros (não definidos):** Cartão, PIX, Boleto, outros gateways.
 
@@ -178,23 +187,22 @@ A plataforma utilizará **cobrança recorrente mensal**. A arquitetura permanece
 
 ### Ciclo de Faturamento
 
+> **Alinhamento 6.0.5:** o fluxo abaixo é o **conceitual** (gateway futuro). Na implementação atual, o ciclo é dirigido pelo **Billing Engine** por tempo (`current_period_end` vencido), sem gateway nem dunning. Invoices são emitidas **somente** para planos pagos (`pro`/`premium`) em renovação (D-C).
+
 ```
-Dia do vencimento → Gerar cobrança → Enviar ao gateway → Aguardar pagamento
-                                                            ↓
-                                                  ┌─────────┴─────────┐
-                                                  │                   │
-                                             Pago OK            Pagamento falhou
-                                                  │                   │
-                                                  ▼                   ▼
-                                            Ativar créditos    Grace period
-                                                                  │
-                                                            ┌─────┴─────┐
-                                                            │           │
-                                                       Pago OK    Expirou
-                                                            │           │
-                                                            ▼           ▼
-                                                      Ativar       Suspender
+Dia do vencimento → Gerar cobrança → Registrar pagamento → Atualizar período
+                                                    ↓
+                                       Pagamento não confirmado (vencimento)
+                                                    ↓
+                                        Grace period (5 dias, janela)
+                                          /                \
+                                  Pago OK              Expirou
+                                      │                    │
+                                      ▼                    ▼
+                                 Ativar           Suspender [6.0.5]
 ```
+
+> **Nota (alinhamento):** "Enviar ao gateway → Aguardar pagamento" do diagrama original é **futuro** (gateway não implementado). A suspensão por grace expirado é a **6.0.5.4**.
 
 ### Notificações de Pagamento
 
@@ -212,7 +220,7 @@ Dia do vencimento → Gerar cobrança → Enviar ao gateway → Aguardar pagamen
 | # | Item | Status |
 |---|------|--------|
 | 1 | Modelo de cobrança | ✅ Definido (recorrência mensal) |
-| 2 | Gateway de pagamento | ✅ Definido (arquitetura desacoplada via adapters, substituição futura sem impacto) |
+| 2 | Gateway de pagamento | ✅ Definido (desacoplado — **futuro**; hoje engine + RPCs de pagamento, sem gateway) |
 | 3 | Meios de pagamento aceitos | ✅ Definido (expansão futura via adapters) |
 | 4 | NFe | ⬜ Pendente |
 | 5 | Política de reembolso | ⬜ Pendente |
@@ -278,78 +286,42 @@ Toda alteração crítica do tenant deverá permanecer auditável. Eventos como 
 
 ### Conceito
 
-Feature flags são a ponte entre **planos comerciais** e **comportamento do código**.
+Feature flags são a ponte entre **planos comerciais** e **comportamento do código** (3º contexto do ADR-013 — funcionalidade).
 
 ```
-Plano Free → Feature Flag: club_dos_chefes = false → Botão "Club" não aparece
-Plano Pro → Feature Flag: club_dos_chefes = true → Botão "Club" aparece
+Plano Free    → Flag: chef_club = false → Botão "Club" não aparece
+Plano Pro     → Flag: chef_club = true  → Botão "Club" aparece
 ```
 
-### Catálogo de Features
+> **Alinhamento 6.0.5 (Subfase 0):** o catálogo completo de flags, a matriz por plano e o enforcement vivem em **`docs/FEATURE_FLAGS_MODEL.md`** (fonte oficial). Abaixo, apenas o resumo conceitual da Fase 5.5.
 
-#### Por Módulo
+### Catálogo de Features (resumo conceitual — Fase 5.5)
 
-| Módulo | Feature | Free | Pro | Elite |
-|--------|---------|:----:|:---:|:-----:|
-| **Agenda** | Agendamento básico | ✅ | ✅ | ✅ |
-| | Agendamento recorrente | ❌ | ✅ | ✅ |
-| | Bloqueio de horário | ❌ | ✅ | ✅ |
-| | Lista de espera | ❌ | ❌ | ✅ |
-| **Clientes** | Cadastro de clientes | ✅ | ✅ | ✅ |
-| | Histórico de visitas | ✅ | ✅ | ✅ |
-| | Ficha completa | ❌ | ✅ | ✅ |
-| | Importação em lote | ❌ | ❌ | ✅ |
-| **Financeiro** | Abertura/fechamento de caixa | ✅ | ✅ | ✅ |
-| | Sangria/Suprimento | ✅ | ✅ | ✅ |
-| | Relatório financeiro básico | ✅ | ✅ | ✅ |
-| | Relatório financeiro avançado | ❌ | ❌ | ✅ |
-| **Comissões** | Cálculo de comissão | ✅ | ✅ | ✅ |
-| | Relatório de comissões | ❌ | ✅ | ✅ |
-| **Club dos Chefes** | Planos e assinaturas | ❌ | ✅ | ✅ |
-| | Sistema de créditos | ❌ | ✅ | ✅ |
-| | Dashboard Club | ❌ | ❌ | ✅ |
-| **Relatórios** | Dashboard básico | ✅ | ✅ | ✅ |
-| | Relatórios por período | ❌ | ✅ | ✅ |
-| | BI e analytics | ❌ | ❌ | ✅ |
-| **Equipe** | Cadastro de profissionais | ≤2 | ≤10 | ∞ |
-| | Escala de horários | ❌ | ✅ | ✅ |
-| **Estoque** | Controle básico | ❌ | ✅ | ✅ |
-| | Relatório de estoque | ❌ | ❌ | ✅ |
-| **Admin** | Configurações básicas | ✅ | ✅ | ✅ |
-| | Multi-unidade | ❌ | ❌ | ✅ |
-| | API pública | ❌ | ❌ | ✅ |
+A matriz original deste bloco usava os planos comerciais **Free / Pro / Elite**. **Alinhamento:** os planos oficiais são `free` / `pro` / `premium` (Elite é **obsoleto** — ver ADR-013 §4.11 e `domain/billing/limits.ts`). A matriz conceitual abaixo foi **substituída** pelo catálogo de `FEATURE_FLAGS_MODEL.md` (§3, §5), que usa chaves simples (`chef_club`, `bi`, `api`, `finance` etc.).
 
 #### Limites Numéricos
 
-**Decisão do PO (2026-07-28):** A documentação **não deve** definir valores numéricos. Limites são configuráveis por plano e administrados pelo catálogo comercial. A arquitetura deve apenas suportar:
+**Decisão do PO (2026-07-28):** a documentação **não deve** definir valores numéricos. Limites são configuráveis por plano e administrados pelo catálogo comercial. A arquitetura deve apenas suportar:
 
 - habilitação/desabilitação de funcionalidades;
 - limites configuráveis por plano;
 - expansão futura sem alteração estrutural.
 
-| Limite | Free | Pro | Elite |
-|--------|:----:|:---:|:-----:|
-| Profissionais | Configurável | Configurável | Configurável |
-| Clientes cadastrados | Configurável | Configurável | Configurável |
-| Agendamentos/mês | Configurável | Configurável | Configurável |
-| Serviços | Configurável | Configurável | Configurável |
-| Produtos | Configurável | Configurável | Configurável |
-| Storage | Configurável | Configurável | Configurável |
-| Relatórios/mês | Configurável | Configurável | Configurável |
+> **Alinhamento (fato atual):** o único limite implementado hoje é o de **profissionais** (`domain/billing/limits.ts`): `free=1`, `pro=5`, `premium=∞`. Não há limites numéricos para clientes, agendamentos, serviços, produtos, storage ou relatórios — qualquer valor numérico nessas linhas da matriz antiga é **futuro/configurável**, sem compromisso atual.
 
 ### Implementação Técnica
 
 ```typescript
-// Exemplo de uso no código
+// Exemplo de uso no código (modelo alvo — 6.0.5.3; hoje: moduleRegistry + PLAN_LIMITS)
 const { hasFeature, getLimit } = useFeatureFlags();
 
 // Verificar se feature está habilitada
-if (hasFeature('club_dos_chefes')) {
+if (hasFeature('chef_club')) {
   // Mostrar módulo Club dos Chefes
 }
 
 // Verificar limite
-const limit = getLimit('max_professionals');
+const limit = getLimit('max_staff');
 if (currentStaff >= limit) {
   // Mostrar upgrade prompt
 }
@@ -359,8 +331,8 @@ if (currentStaff >= limit) {
 
 | # | Item | Status |
 |---|------|--------|
-| 1 | Lista de features por plano | ✅ Definido (catálogo acima) |
-| 2 | Limites numéricos por plano | ✅ Definido (configurável, sem valores fixos) |
+| 1 | Lista de features por plano | ✅ Definido (catálogo em `FEATURE_FLAGS_MODEL.md` §3/§5) |
+| 2 | Limites numéricos por plano | ✅ Definido (configurável, sem valores fixos; único implementado: `max_staff` free=1/pro=5/premium=∞) |
 | 3 | Comportamento ao atingir limite | ⬜ Pendente |
 | 4 | Override de feature flags por tenant | ⬜ Pendente |
 
@@ -730,10 +702,12 @@ Owner (dono do tenant)
 | Tabela | Descrição |
 |--------|-----------|
 | `profiles` | Usuários (auth) |
-| `tenants` | Tenants (estabelecimentos) |
+| `tenants` | Tenants (estabelecimentos) — inclui `status` (7 estados) e `plan` (`free/pro/premium`) |
 | `user_tenants` | Vínculo user→tenant |
 | `plans` | Planos da plataforma |
 | `audit_logs` | Logs de auditoria globais |
+
+> **Alinhamento:** `tenants.plan` é um **espelho comercial** para o frontend — o contrato oficial vive em `subscriptions.plan` (escrito pelo Billing Engine). A UI **não deve** alterar `tenants.plan` diretamente (ADR-013 §4.11, anti-pattern P5).
 
 ### Tabelas por Tenant (barber schema)
 
@@ -758,21 +732,24 @@ Owner (dono do tenant)
 
 ### Tabelas de Billing
 
+> **Alinhamento:** os nomes reais (migrations `20260806020000` e `20260806050000`) são **sem** prefixo `platform_`. As tabelas `platform_subscriptions`/`platform_invoices`/`platform_payments` da versão original **não existem**.
+
 | Tabela | Descrição |
 |--------|-----------|
-| `platform_subscriptions` | Assinaturas da plataforma (tenant↔plano) |
-| `platform_invoices` | Faturas da plataforma |
-| `platform_payments` | Pagamentos da plataforma |
-| `processed_operations` | Operações processadas (idempotência) |
+| `subscriptions` | Assinaturas da plataforma (tenant↔plano; status `trialing/active/past_due/cancelled`, +`suspended` na 6.0.5.4) |
+| `invoices` | Faturas da plataforma (`draft/issued/paid/overdue/failed/void`) |
+| `billing_events` | Eventos internos do Billing Engine (auditoria do ciclo) |
+| `payment_attempts` | Tentativas de pagamento registradas (sem gateway — registro manual/RPC) |
+| `processed_operations` | Operações processadas (idempotência — FinanceProvider) |
 
 ### Tabelas de Controle
 
 | Tabela | Descrição |
 |--------|-----------|
-| `feature_flags` | Feature flags por tenant/plano |
-| `usage_limits` | Limites de uso por tenant |
 | `event_store` | Eventos de domínio |
-| `outbox` | Fila de eventos |
+| `outbox` | Fila de eventos (via Outbox pattern — `domain/events/outbox/`) |
+
+> **Alinhamento:** **não existem** tabelas `feature_flags` nem `usage_limits` (confirmado nas migrations). Flags e limites hoje são avaliados em código (`moduleRegistry.ts`, `domain/billing/limits.ts`); a persistência é proposta na **6.0.5.3** (ADR-013 §3.1 — writer único `FeatureFlagService`).
 
 ---
 
@@ -783,13 +760,13 @@ Owner (dono do tenant)
 | # | Bloco | Decisão |
 |---|-------|---------|
 | 1 | 1 | Fluxo de onboarding: 8 etapas, sem dados operacionais automáticos |
-| 2 | 2 | Lifecycle: draft → trial → active → past_due → suspended → cancelled → archived |
-| 3 | 2 | Grace period: tolerância após falha de pagamento, configurável |
-| 4 | 2 | Retenção de dados: tenant arquivado por período recuperável, exclusão conforme LGPD |
-| 5 | 2 | Auditoria: eventos críticos registrados via infraestrutura de eventos existente |
-| 6 | 3 | Cobrança: recorrência mensal, gateway desacoplado via adapters |
+| 2 | 2 | Lifecycle: draft → trial → active → past_due → suspended → cancelled → archived (máquina congelada — ADR-013 §5; suspensão/retenção = 6.0.5/D-6.0.5-4) |
+| 3 | 2 | Grace period: **janela temporal** de 5 dias após vencimento — nunca status (D-A) |
+| 4 | 2 | Retenção de dados: dados **preservados** (F5, nunca excluídos automaticamente); exclusão só por demanda LGPD |
+| 5 | 2 | Auditoria: eventos críticos registrados via infraestrutura de eventos existente (catálogo D2) |
+| 6 | 3 | Cobrança: recorrência mensal, gateway desacoplado (**futuro**; hoje engine + RPCs sem gateway) |
 | 7 | 3.5 | Notificações: camada própria, canais configuráveis, provedor desacoplado |
-| 8 | 4 | Planos: Free, Pro, Elite. Limites configuráveis, sem valores fixos |
+| 8 | 4 | Planos: `free`/`pro`/`premium` (Elite **obsoleto**). Limites configuráveis; único implementado: `max_staff` (free=1/pro=5/premium=∞) |
 | 9 | 5 | Provisionamento: fluxo 8 etapas, sem criação automática de dados |
 | 10 | 8 | Hierarquia: Owner → Admin → Gerente → Recepcionista → Barbeiro → Caixa |
 | 11 | 8 | Matriz de permissões definida |
@@ -828,7 +805,11 @@ Owner (dono do tenant)
 
 ## Referências
 
+- **Arquitetura oficial (congelada):** `docs/adr/ADR-013-billing-tenant-featureflags.md` (Accepted, 2026-08-06)
 - `docs/BUSINESS_ARCHITECTURE.md` — Fase 5 (produtos, módulos, taxonomia)
+- `docs/SUBSCRIPTION_MODEL.md` — Contrato comercial
+- `docs/TENANT_LIFECYCLE.md` / `docs/LIFECYCLE_MODEL.md` — Ciclo de vida
+- `docs/FEATURE_FLAGS_MODEL.md` — Catálogo e matriz de flags
 - `docs/TAXONOMY.md` — Glossário oficial
 - `docs/REGRA_DE_NEGOCIO_SMG_BARBER.md` — Regras de negócio
 - `src/lib/permissions/definitions.ts` — 55 permissões definidas
@@ -843,6 +824,7 @@ Owner (dono do tenant)
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 4.0 | **Subfase 0 (ADR-013).** Alinhamento do documento ao ADR-013: máquina congelada (cancelamento=pedido; reativação=suspended→active), tabelas de billing reais (`subscriptions`/`invoices`/`billing_events`/`payment_attempts` — sem prefixo `platform_`), planos `free/pro/premium` (Elite obsoleto), catálogo de flags delegado a `FEATURE_FLAGS_MODEL.md`, gateway marcado como futuro (sem implementação), retenção = dados preservados (F5), dependências D-6.0.5 explícitas. Sem alteração de código. |
 | 2026-07-28 | 3.0 | Fase 5.5 CONCLUÍDA. 5 definições finais incorporadas: Grace Period, Retenção de Dados, Gateway (adapters), Notificações (camada própria), Auditoria (eventos existentes). Pendências críticas: 0. |
 | 2026-07-28 | 2.0 | Decisões do PO incorporadas: onboarding (8 etapas), lifecycle (7 estados), billing (mensal, gateway desacoplado), planos (Free/Pro/Elite, limites configuráveis), hierarquia de papéis. Pendências reduzidas de 15 para 5 críticas. |
 | 2026-07-27 | 1.0 | Criação do documento |
