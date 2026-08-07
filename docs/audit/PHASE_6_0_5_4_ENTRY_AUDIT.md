@@ -252,7 +252,7 @@ export interface TenantLifecycleService {
 - [x] `TenantLifecycleService` = único writer de `tenants.status` (guard reforçado; grep sem escrita fora)
 - [x] Eventos `TenantSubscriptionSuspended`/`Reactivated` publicados (não mais mortos)
 - [x] Docs atualizadas: ROADMAP (Status + item 6.0.5.4 + changelog), PROJECT_STATUS, ADR-013 (§3.1/§4.6 marcados), RELEASE_CHECKLIST_v1.5.md, runbook (migration da 6.0.5.4 incluída na janela)
-- [ ] Commit semântico + push da branch (sem merge — merge só no fechamento da fase) — **pendente do commit desta sessão**
+- [x] Commit semântico + push da branch (sem merge — merge só no fechamento da fase) — **`5454c81` (2026-08-07, 22 arquivos, +1355/−109)**
 - [x] Migration da 6.0.5.4 agendada na **janela única** de deploy (D-6.0.5.3-3 + PO 2026-08-07 — runbook §3.4)
 
 ---

@@ -150,7 +150,7 @@
 - [x] `b383222` — feat(billing): 6.0.5.3 feature flags enforcement (implementação)
 - [x] `f7f3620` — docs(billing): 6.0.5 deploy runbook (janela única)
 - [x] `ff9f301` — docs(billing): 6.0.5.4 entry audit (4 auditorias + API congelada)
-- [ ] feat(billing): 6.0.5.4 TenantLifecycleService + suspended (commit pendente)
+- [x] `5454c81` — feat(billing): 6.0.5.4 TenantLifecycleService + suspended (implementação; flow14 E2E adiado à janela única)
 - [ ] docs(billing): 6.0.5.5 + baseline v1.5.0
 
 ---
