@@ -1093,7 +1093,7 @@ Para cada item:
 
 **Objetivo:** Preparar o sistema para operação em produção com confiabilidade, monitoramento e recuperação.
 
-**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. Próxima: implementação 6.0.5.1.
+**Status:** ✅ Em andamento — Fase 6.0.4.1, 6.0.4.2, 6.0.4.3 e **6.0.4.4 ENCERRADAS** (baselines `v1.4.0-billing-foundation-6.0.4.2`, `v1.4.1-billing-lifecycle-6.0.4.3` e `v1.4.2-billing-engine-6.0.4.4`). **6.0.5 em andamento** — ADR-013 Accepted (2026-08-06), Subfase 0 concluída, **decisões D-6.0.5-1..8 aprovadas pelo PO (2026-08-06)**. **6.0.5.1 (Estado Efetivo / camada de autorização) implementada** — baseline `v1.4.3-effective-state-6.0.5.1`. Próxima: 6.0.5.2 (BillingService + Modelagem de Plans).
 
 > **⚠ BASELINE CONGELADA (decisão PO, 2026-08-06):** Antes das fases de monetização (Billing/Trial, Feature Flags, Planos), **nenhuma refatoração estrutural** será feita. Apenas correções críticas são aceitas. Mudanças arquiteturais continuam exigindo ADR.
 
@@ -1113,7 +1113,8 @@ Para cada item:
 - [x] **6.0.2** Onboarding Completo — Checklist inicial, configuração da loja, configurações obrigatórias e wizard final (escopo redefinido pelo PO em 2026-08-05) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-05)
 - [x] **6.0.3** Team Onboarding & Invitations — Convites de profissionais, aceite, credenciais, vínculo ao tenant, perfil e permissões iniciais (decisão PO 2026-08-05 — ver seção 6.0.3) ✅ APROVADA PELO PO + CERTIFICADA (E2E real, 2026-08-06)
 - [x] **6.0.4** Subscription/Billing Foundation — Tabelas `subscriptions`/`invoices`/`billing_events`/`payment_attempts`, Billing Engine (`apply_subscription_transition`/`runCycle`), `cancel_at_period_end` (D-A) ✅ CERTIFICADA (baseline `v1.4.2-billing-engine-6.0.4.4`)
-- [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): 6.0.5.1 camada de autorização, 6.0.5.2 BillingService, 6.0.5.3 FeatureFlagService, 6.0.5.4 TenantLifecycleService + `suspended` aditivo, 6.0.5.5 transições RPCs
+- [x] **6.0.5.1** Estado Efetivo / camada de autorização — ADR-013 §2.4: `domain/authorization/*` (AccessPolicy, FeatureAvailability resolver, EffectiveState VO) + `application/authorization/*` (EffectiveAccessService, AuthorizationService); eliminação dos gates diretos `App.tsx:158/162`; D-6.0.5-2 `cancelled` = somente leitura; testes por matriz ✅ IMPLEMENTADA (baseline `v1.4.3-effective-state-6.0.5.1`)
+- [ ] **6.0.5** Billing/Tenant/Feature Flags — Arquitetura congelada pelo **ADR-013** (3 contextos desacoplados + Estado Efetivo): ~~6.0.5.1 camada de autorização~~ (✅ concluída), 6.0.5.2 BillingService + **Modelagem de Plans** (D-6.0.5-5 — realocada de "6.0.5.1" conforme DIV-1), 6.0.5.3 FeatureFlagService, 6.0.5.4 TenantLifecycleService + `suspended` aditivo, 6.0.5.5 transições RPCs
 
 #### 6.0.1 Tenant Creation ✅ APROVADA PELO PO (2026-08-01)
 
@@ -1783,6 +1784,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-08-06 | 8.2 | **6.0.5.1 — Estado Efetivo / camada de autorização (baseline `v1.4.3-effective-state-6.0.5.1`).** ADR-013 §2.4 implementado: `domain/authorization/*` (AccessPolicy com níveis `onboarding/full/restricted/readonly/none` + 8 ações `system.*`, FeatureAvailability resolver não-catálogo, EffectiveState VO) + `application/authorization/*` (EffectiveAccessService com DI, AuthorizationService `getNavigationState`/`resolveRoute`). Refactor `App.tsx:158/162` — fim das decisões de acesso diretas por `tenant.status`; D-6.0.5-2 `cancelled` passa a permitir login somente leitura (não redireciona mais). 46 testes por matriz (795 no total). DIV-1 alinhado: Modelagem de Plans realocada para 6.0.5.2. |
 | 2026-08-06 | 8.0 | **Subfase 0 — 6.0.5 (Alinhamento Documental).** ADR-013 Accepted (3 contextos desacoplados + Estado Efetivo + Single Writer). 6.0.4 marcada como certificada (baseline `v1.4.2-billing-engine-6.0.4.4`). Escopo da 6.0.5 atualizado (6.0.5.1–6.0.5.5). Planos `free/pro/premium` (Elite obsoleto; CHECK `20260806020000`). Correção `draft → trial` (F10 — nunca `draft → active`). Dívida técnica D1/D2/D3 marcada como resolvida/parcial. Sem alteração de código. |
 | 2026-08-06 | 8.1 | **Decisões D-6.0.5-1..8 aprovadas pelo PO** — encerra a etapa de definição funcional da 6.0.5. `past_due` = read-only com aviso; `cancelled` = somente leitura; Free = 1 profissional; retenção manual sem TTL; flags = `plans+features+plan_features`; cadência mensal; `archived` só no Tenant; `runCycle` via Edge Function (determinística). Registro em `BUSINESS_DECISIONS.md` e ADR-013 §6/§6.1. Sem alteração de código. |
 | 2026-07-28 | 6.2 | Fase 5.5 CONCLUÍDA. 5 definições finais incorporadas: Grace Period, Retenção de Dados, Gateway (adapters), Notificações (camada própria), Auditoria (eventos existentes). Architecture Freeze v1.0 recomendado após Fase 5.6. |

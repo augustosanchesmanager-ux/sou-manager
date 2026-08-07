@@ -8,6 +8,7 @@ import { isAppModuleEnabled } from './src/lib/apps/modules';
 import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
+import { authorizationService } from './application/authorization';
 import { useObservability } from './src/lib/observability/useObservability';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
 
@@ -155,12 +156,15 @@ const ProtectedRoute: React.FC = () => {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  if (!isSuperAdmin && tenant && (tenant.status === 'cancelled' || tenant.status === 'archived' || tenant.status === 'suspended')) {
-    return <Navigate to="/pending-approval" replace />;
-  }
+  const navigation = authorizationService.getNavigationState({
+    tenantStatus: tenant?.status ?? null,
+    plan: tenant?.plan ?? null,
+    pathname: location.pathname,
+    isSuperAdmin,
+  });
 
-  if (!isSuperAdmin && tenant && tenant.status === 'draft' && !['/onboarding/welcome', '/onboarding/shop-setup', '/onboarding/operational-setup'].includes(location.pathname)) {
-    return <Navigate to="/onboarding/welcome" replace />;
+  if (navigation.redirectTo) {
+    return <Navigate to={navigation.redirectTo} replace />;
   }
 
   return (
