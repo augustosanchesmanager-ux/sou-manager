@@ -52,7 +52,7 @@
 | `20260806040000_fix_complete_onboarding_trial.sql` | 6.0.4 | ✅ Aplicada | — |
 | `20260806050000_phase_6_0_4_4_billing_engine.sql` | 6.0.4.4 | ✅ Aplicada | `apply_subscription_transition`, `get_due_subscriptions` |
 | `20260806070000_fix_rpc_ambiguous_column_references.sql` | 6.0.4.4 | ✅ Aplicada | — |
-| `20260806080000_fix_apply_subscription_transition_tenant_status_enum.sql` | 6.0.4.4 | ✅ Aplicada | Atual: `ELSE → active` (a corrigir na 6.0.5.4) |
+| `20260806080000_fix_apply_subscription_transition_tenant_status_enum.sql` | 6.0.4.4 | ✅ Aplicada | Corrigido pela migration `20260807010000` (6.0.5.4): fail-fast implementado, sem fallback `ELSE → active` |
 | `20260806090000_phase_6_0_5_2_plans_catalog.sql` | 6.0.5.2 | ⏳ **Pendente** | `plans`/`features`/`plan_features` + FK aditiva |
 | `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ⏳ **Pendente** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
 | `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ⏳ **Pendente** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **criada + validada em docker T1–T7** |
