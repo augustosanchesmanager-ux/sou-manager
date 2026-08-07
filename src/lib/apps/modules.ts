@@ -10,6 +10,7 @@ import {
 } from './moduleRegistry';
 
 export { APP_BLOCKED_MODULES, APP_ENABLED_MODULES };
+export { getFeatureForModule, MODULE_FEATURES } from './moduleRegistry';
 
 const resolveAppSlug = (appSlug?: string | null): AppSlug =>
   isAppSlug(appSlug) ? appSlug : DEFAULT_APP_SLUG;

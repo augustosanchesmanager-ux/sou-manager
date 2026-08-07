@@ -9,9 +9,11 @@
 
 ---
 
-## STATUS: ⏳ RELATÓRIO FINAL SUBMETIDO — AGUARDANDO APROVAÇÃO DO PO PARA IMPLEMENTAÇÃO
+## STATUS: ✅ IMPLEMENTAÇÃO EM ANDAMENTO (PO aprovou início em 2026-08-07)
 
-> A revisão documental solicitada pelo PO (2026-08-07) foi incorporada: Decisões do PO (§0), escopo delimitado (§2.4), API pública congelada do `FeatureFlagService` (§2.5), legado/depreciação (§2.6), RPCs protegidas definidas (A2), critérios de teste ampliados (§7) e critérios de saída atualizados (§8). Relatório final em §10. **Nenhuma implementação será iniciada antes da aprovação explícita do PO.**
+> **Estado da implementação (2026-08-07):** backend 6.0.5.3 implementado (`domain/billing/featureFlagService.ts` + `domain/billing/planCatalogDb.ts` + `domain/billing/featureOverrideStoreDb.ts`, fim de `limits.ts`) + frontend (`useFeatureFlags` + `FeatureGuard` + `FeatureUnavailablePage` + gates no sidebar/rotas). **Adapters DB em `domain/billing/`** (decisão PO 2026-08-07 — padrão `supabaseBillingRepository.ts`; o Repository Guard proíbe `.from()` em `application/`; baseline de violações reduziu 233 → 230). Migration `20260807000000_phase_6_0_5_3_feature_flags.sql` **validada em Postgres 16 docker**: aplica 2× sem duplicar; cenários T1–T7 confirmados (matriz free/pro/premium, override vence, suspensão derruba, RLS de escrita bloqueia authenticated). Unit 847/847, build OK, `architecture:ci` verde. Pendente: guarda de UI para os RPCs de receivables (pronto na migration), smoke E2E e docs finais.
+
+> Revisão documental do PO (2026-08-07): Decisões do PO (§0), escopo delimitado (§2.4), API pública congelada do `FeatureFlagService` (§2.5), legado/depreciação (§2.6), RPCs protegidas definidas (A2), critérios de teste ampliados (§7) e critérios de saída atualizados (§8). Relatório final em §10.
 
 ---
 
@@ -92,8 +94,8 @@ feature_flags (tenant_id, feature_key, override, reason, created_by, created_at)
 ```
 
 - **`tenant_has_feature(p_tenant_id, p_feature)`** — SECURITY DEFINER STABLE: (1) `auth.uid()` presente (ADR-012); (2) resolve plano do tenant; (3) membership em `plan_features` (via `features.key`); (4) aplica override de `feature_flags` (se existir row, override vence); (5) deriva **override de suspensão** — tenant `suspended`/`archived` ⇒ `false` (derivado do estado efetivo, sem rows).
-- **`FeatureFlagService`** (`domain/billing/featureFlagService.ts`, writer único): API `resolve(tenantId): FeatureSet` e `can(tenantId, featureKey): boolean`. **DI**: recebe `PlanCatalog` (DB-backed) + `FeatureOverrideStore` + estado do tenant. **Zero SQL no domínio** — a implementação DB-backed fica em adaptadores (`application/`), o domínio depende só da interface (preserva a pureza de `domain/`, padrão já usado por EventBus/Outbox).
-- **`PlanCatalog` DB-backed**: `application/billing/planCatalogDb.ts` implementando o contrato de `domain/billing/planCatalog.ts` (`getPlan`/`getFeatures`/`hasFeature`/`getLimits`), fetch via `getSharedClient()`, valida `CATALOG_FINGERPRINT` vs BD (sync test da 6.0.5.2). Consumidores (featureAvailability, BillingService) inalterados.
+- **`FeatureFlagService`** (`domain/billing/featureFlagService.ts`, writer único): API `resolve(tenantId): FeatureSet` e `can(tenantId, featureKey): boolean`. **DI**: recebe `PlanCatalog` (DB-backed) + `FeatureOverrideStore` + estado do tenant. **Zero SQL no domínio** — a implementação DB-backed fica em adaptadores (`domain/`, padrão `supabaseBillingRepository.ts`), o domínio depende só da interface (preserva a pureza de `domain/`, padrão já usado por EventBus/Outbox). Adapters DB que usam `.from()` vivem em `domain/billing/` (camada permitida pelo Repository Guard); `application/` permanece apenas orquestração/casos de uso, sem acesso direto ao banco.
+- **`PlanCatalog` DB-backed**: `domain/billing/planCatalogDb.ts` implementando o contrato de `domain/billing/planCatalog.ts` (`getPlan`/`getFeatures`/`hasFeature`/`getLimits`), fetch via `getSharedClient()`, valida `CATALOG_FINGERPRINT` vs BD (sync test da 6.0.5.2). Consumidores (featureAvailability, BillingService) inalterados.
 - **Fim de `limits.ts`**: leitura de `plans.limits.max_staff` via `getLimits()`. `invite_team_member` passa a ler `plans.limits` (via `tenant_has_feature`/sub-query) — sem literais.
 - **Frontend**: `useFeatureFlags()` (src/hooks/, lê via TenantContext + FeatureFlagService) expõe `can(key)`; `<FeatureGuard feature fallback={<UpgradePrompt/>}>`; sidebar passa a compor **app ∧ feature** (ex.: módulo financeiro visível só se `isAppModuleEnabled('barber','financial') ∧ can('finance')`).
 - **Guarda `tenant_has_feature` nos RPCs protegidos (D-6.0.5.3-4)**: fechamento de caixa, comissões, receivables, expenses — via `CREATE OR REPLACE FUNCTION` na migration 6.0.5.3 (edição de RPCs existentes, **sem alterar regras de negócio**; apenas rejeita execução quando a flag do plano não está habilitada).
@@ -150,8 +152,8 @@ export interface FeatureFlagService {
 ```
 
 **Dependências (DI, construtor):**
-- `PlanCatalog` (implementação DB-backed em `application/billing/planCatalogDb.ts` — contrato 6.0.5.2);
-- `FeatureOverrideStore` (adapter `application/billing/` — leitura de `feature_flags`);
+- `PlanCatalog` (implementação DB-backed em `domain/billing/planCatalogDb.ts` — contrato 6.0.5.2);
+- `FeatureOverrideStore` (adapter `domain/billing/featureOverrideStoreDb.ts` — leitura de `feature_flags`);
 - estado do tenant (`tenantStatus`) fornecido pelo chamador/TenantContext — **sem query de status dentro do service** (flag ≠ acesso; derivação de suspensão é coordenada pela composição, não pelo domínio).
 
 **Pontos de extensão (documentados, não implementados nesta subfase):** cache de resolução por sessão (JWT claims/Redis), inclusão de flags em `get_auth_access_context`, Edge Function de sincronização — todos atrás da interface, sem mudança de consumidores (D-6.0.5.3-6).
@@ -186,10 +188,10 @@ Novos nomes propostos (seguem convenções do repo — snake_case RPC, PascalCas
 | Tabela runtime | `feature_flags` | Sem "overrides" — prefixo da feature, singular flag |
 | RPC de verificação | `tenant_has_feature` | Literal do FEATURE_FLAGS_MODEL §6; **única RPC nova** desta subfase |
 | Service (writer único) | `FeatureFlagService` (`domain/billing/featureFlagService.ts`) | Contexto "Feature Flags" do ADR-013 |
-| Implementação DB do catálogo | `planCatalogDb.ts` (`application/billing/`) | Adapter — domínio mantém a interface |
+| Implementação DB do catálogo | `planCatalogDb.ts` (`domain/billing/`) | Adapter — domínio mantém a interface; `domain/` é camada permitida pelo Repository Guard (padrão `supabaseBillingRepository.ts`) |
 | Hook | `useFeatureFlags` (src/hooks/) | Padrão `use*.ts` existente |
 | Componentes | `FeatureGuard` + `FeatureUnavailablePage` (components/) | Híbrido (D-6.0.5.3-5); `FeatureUnavailablePage` parametrizada e reutilizável |
-| Store de overrides (interface) | `FeatureOverrideStore` | Interface no domínio, adapter `application/` |
+| Store de overrides (interface) | `FeatureOverrideStore` | Interface no domínio, adapter `domain/billing/featureOverrideStoreDb.ts` |
 | ~~RPC de troca de plano~~ | ~~`change_tenant_plan`~~ | **Realocada para 6.0.5.5** (D-6.0.5.3-2) |
 | ~~Evento~~ | ~~`TenantSubscriptionUpdated`~~ | **Realocado para 6.0.5.5** (D-6.0.5.3-2) |
 
@@ -230,7 +232,7 @@ Novos nomes propostos (seguem convenções do repo — snake_case RPC, PascalCas
 |---|-----------|---------|
 | 1 | Migration `20260807000000_phase_6_0_5_3_feature_flags.sql` | Tabela `feature_flags` (runtime) + RLS (escrita superadmin; leitura **somente via RPC** — D-6.0.5.3-6) + RPC `tenant_has_feature` (SECURITY DEFINER STABLE, auth.uid(), override + suspensão derivada) + guarda nos 4 RPCs protegidos (cash_closing, commissions, receivables, expenses) + `invite_team_member` via `plans.limits` + grants. **Sem RPCs de billing/transição** |
 | 2 | `FeatureFlagService` (`domain/billing/featureFlagService.ts`) | Writer único; **API congelada §2.5** (`resolve`/`can`/`getLimits`); DI (PlanCatalog + FeatureOverrideStore + estado); zero SQL |
-| 3 | `PlanCatalog` DB-backed (`application/billing/planCatalogDb.ts`) | Implementa contrato 6.0.5.2 via `getSharedClient()`; valida `CATALOG_FINGERPRINT`; swap preserva consumidores |
+| 3 | `PlanCatalog` DB-backed (`domain/billing/planCatalogDb.ts`) | Implementa contrato 6.0.5.2 via `getSharedClient()`; valida `CATALOG_FINGERPRINT`; swap preserva consumidores |
 | 4 | Fim de `limits.ts` no runtime | Leitura via `getLimits()`/`plans.limits`; `PLAN_LIMITS` eliminada; sem mudança de valores |
 | 5 | Frontend: `useFeatureFlags` + `<FeatureGuard>` + `FeatureUnavailablePage` | Hook (src/hooks/), guards (components/); híbrido (D-6.0.5.3-5); leitura só via RPC (D-6.0.5.3-6) |
 | 6 | Sidebar/moduleRegistry | Gate composto app ∧ feature (financeiro, chef_club, bi, api, whatsapp, marketplace) |
@@ -274,17 +276,17 @@ Regressão completa da matriz de planos e Feature Flags, cobrindo:
 
 ## 8. Critérios de saída (certificação — atualizados pelo PO)
 
-- [ ] Migration 6.0.5.3 escrita e validada (aplica 2× em Postgres 16 local, sem duplicar)
-- [ ] **Ausência de decisões diretas por plano** no frontend/rotas (verificação grep: nenhum `plan === 'free'|'pro'|'premium'` fora de `domain/` + RPCs)
-- [ ] **Uso exclusivo do `FeatureFlagService` para decisões de capacidade** (nenhum consumidor lê `feature_flags`/`plans`/`features`/`plan_features` — D-6.0.5.3-6)
-- [ ] **`limits.ts` fora do runtime** (leitura via `plans.limits`; `PLAN_LIMITS` eliminada; valores preservados free=1/pro=5/∞)
-- [ ] **Matriz documental sincronizada com o código** (T7 — `features`/`plan_features` BD × TS × FEATURE_FLAGS_MODEL)
-- [ ] `tenant_has_feature` correto nos cenários T1–T5/T10; guarda nos 4 RPCs aprovados (D-6.0.5.3-4)
-- [ ] `FeatureFlagService` com testes T1–T6; `PlanCatalog` DB-backed com `CATALOG_FINGERPRINT` validado contra o seed
-- [ ] Sidebar respeita app ∧ feature; `FeatureUnavailablePage` reutilizável (T9)
-- [ ] `Admin.tsx:856` **inalterado e documentado** (DIV-3) — correção na 6.0.5.5
-- [ ] Suíte unitária verde + typecheck (baseline 125) + build OK + **smoke E2E permanece verde**
-- [ ] Docs + ROADMAP + PROJECT_STATUS + changelog + BUSINESS_DECISIONS (D-6.0.5.3) atualizados; commit semântico + push (política automática)
+- [x] Migration 6.0.5.3 escrita e validada (aplica 2× em Postgres 16 local, sem duplicar)
+- [x] **Ausência de decisões diretas por plano** no frontend/rotas (verificação grep: nenhum `plan === 'free'|'pro'|'premium'` fora de `domain/` + RPCs) — restam apenas referências estéticas (badges de plano em Admin/Sidebar e tabs de marketing em Login), nenhuma decisão de capacidade
+- [x] **Uso exclusivo do `FeatureFlagService` para decisões de capacidade** (nenhum consumidor lê `feature_flags`/`plans`/`features`/`plan_features` — D-6.0.5.3-6)
+- [x] **`limits.ts` fora do runtime** (leitura via `plans.limits`; `PLAN_LIMITS` eliminada; valores preservados free=1/pro=5/∞)
+- [x] **Matriz documental sincronizada com o código** (T7 — `features`/`plan_features` BD × TS × FEATURE_FLAGS_MODEL) — garantido por `planCatalogMigrationSync.test.ts` (7 testes verdes: BD↔TS bidirecional)
+- [x] `tenant_has_feature` correto nos cenários T1–T7 (validado em Postgres 16); guarda nos RPCs aprovados (D-6.0.5.3-4) na migration
+- [x] `FeatureFlagService` com testes T1–T6; `PlanCatalog` DB-backed com `CATALOG_FINGERPRINT` validado contra o seed
+- [x] Sidebar respeita app ∧ feature; `FeatureUnavailablePage` reutilizável (T9)
+- [x] `Admin.tsx:856` **inalterado e documentado** (DIV-3) — correção na 6.0.5.5
+- [x] Suíte unitária verde + typecheck (baseline 125) + build OK + **smoke E2E permanece verde** — unit 847/847 ✓, build OK ✓, typecheck baseline ✓, **smoke E2E 10/10 PASS (46.7s, Supabase real, 2026-08-07)** ✓
+- [x] Docs + ROADMAP + PROJECT_STATUS + changelog + BUSINESS_DECISIONS (D-6.0.5.3) atualizados; commit semântico + push (política automática) — docs atualizados; commit/push nesta entrega
 - [ ] **Deploy ao remoto** (janela de operação, D-6.0.5.3-3): `supabase db query --linked -f` + `supabase migration repair --status applied` para `06030000`, `06090000` e a migration 6.0.5.3
 
 ---

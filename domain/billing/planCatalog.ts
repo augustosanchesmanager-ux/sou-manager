@@ -9,7 +9,8 @@
  *
  * Fonte congelada (6.0.5.1 certificada, commit 622a891):
  *   - Matriz por plano: PLAN_FEATURES (free 14 / pro 15 / premium 20)
- *   - Limites: domain/billing/limits.ts (free=1 / pro=5 / premium=∞)
+ *   - Limites: plans.limits (free=1 / pro=5 / premium=∞); `limits.ts`
+ *     eliminado do runtime na 6.0.5.3 (D-6.0.5.3)
  *
  * A persistência (tabelas plans/features/plan_features, seed idempotente)
  * vive na migration 20260806090000_phase_6_0_5_2_plans_catalog.sql.

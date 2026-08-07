@@ -7,6 +7,7 @@ import {
   resolveSchemaForApp,
   SHARED_SCHEMA,
 } from './schemas';
+import { planCatalog } from '../../../domain/billing/planCatalog';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
@@ -1506,6 +1507,19 @@ const client = {
           profile_status: 'active',
           is_super_admin: false,
         }, null);
+      }
+
+      // 6.0.5.3 — gate de plano em modo demo (matriz tipada do plano do tenant).
+      if (fn === 'tenant_has_feature' && isLocalDemoEnabled()) {
+        const pFeature = params?.p_feature;
+        const pTenantId = params?.p_tenant_id;
+        if (typeof pFeature !== 'string' || pTenantId !== LOCAL_DEMO_TENANT_ID) {
+          return createRpcResult(false, null);
+        }
+        return createRpcResult(
+          planCatalog.hasFeature('free', pFeature as Parameters<typeof planCatalog.hasFeature>[1]),
+          null,
+        );
       }
 
       if (fn === 'get_notification_preferences' && isLocalDemoEnabled()) {

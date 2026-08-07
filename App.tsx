@@ -10,7 +10,9 @@ import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
 import { authorizationService } from './application/authorization';
 import { useObservability } from './src/lib/observability/useObservability';
+import FeatureGuard from './components/billing/FeatureGuard';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
+import type { FeatureKey } from './domain/billing/featureKey';
 
 const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
@@ -204,6 +206,16 @@ const ModuleRoute: React.FC<{ moduleName: AppModuleSlug; children: React.ReactNo
   return <>{children}</>;
 };
 
+// Gate de plano (6.0.5.3) — resolve a flag EFETIVA do tenant via
+// useFeatureFlags (RPC tenant_has_feature + base tipada). Desabilitada →
+// FeatureUnavailablePage (nunca 403 genérico). Compõe com ModuleRoute (app).
+const FeatureRoute: React.FC<{ feature: FeatureKey; children: React.ReactNode }> = ({
+  feature,
+  children,
+}) => {
+  return <FeatureGuard feature={feature}>{children}</FeatureGuard>;
+};
+
 const EsteticaBlockedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { appSlug } = useAuth();
 
@@ -271,23 +283,23 @@ const AppRoutes: React.FC = () => {
             <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
-            <Route path="/bi" element={<ManagerRoute><BusinessIntelligence /></ManagerRoute>} />
+            <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
-            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></ModuleRoute>} />
-            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></FeatureRoute></ModuleRoute>} />
 
             <Route path="/financial" element={<Navigate to="/financial-overview" replace />} />
-            <Route path="/financial-overview" element={<ManagerRoute><FinancialOverview /></ManagerRoute>} />
-            <Route path="/cashflow" element={<ManagerRoute><Cashflow /></ManagerRoute>} />
-            <Route path="/cash-closing" element={<ManagerRoute><CashClosingPage /></ManagerRoute>} />
-            <Route path="/expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
-            <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><Receipts /></ManagerRoute></EsteticaBlockedRoute>} />
-            <Route path="/accounts-receivable" element={<ManagerRoute><AccountsReceivable /></ManagerRoute>} />
+            <Route path="/financial-overview" element={<ManagerRoute><FeatureRoute feature="finance"><FinancialOverview /></FeatureRoute></ManagerRoute>} />
+            <Route path="/cashflow" element={<ManagerRoute><FeatureRoute feature="finance"><Cashflow /></FeatureRoute></ManagerRoute>} />
+            <Route path="/cash-closing" element={<ManagerRoute><FeatureRoute feature="cash_closing"><CashClosingPage /></FeatureRoute></ManagerRoute>} />
+            <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
+            <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
+            <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
-            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><ManagerRoute><Commissions /></ManagerRoute></ModuleRoute>} />
+            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />

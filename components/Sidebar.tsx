@@ -6,7 +6,8 @@ import Logo from './Logo';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
-import { isAppModuleEnabled } from '../src/lib/apps/modules';
+import { isAppModuleEnabled, getFeatureForModule } from '../src/lib/apps/modules';
+import { useFeatureFlags } from '../src/hooks/useFeatureFlags';
 import type { AppModuleSlug } from '../domain/shared/app';
 
 interface SidebarProps {
@@ -53,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   const navigate = useNavigate();
   const { signOut, user, accessRole, canAccessSuperAdmin, appSlug } = useAuth();
   const labels = getBusinessLabels(appSlug);
+  const { can } = useFeatureFlags();
   const isEsteticaApp = appSlug === 'estetica';
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -274,8 +276,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
         { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
       ];
-  const isModuleAllowed = (moduleName?: AppModuleSlug) =>
-    !moduleName || isAppModuleEnabled(appSlug, moduleName);
+  const isModuleAllowed = (moduleName?: AppModuleSlug) => {
+    if (!moduleName) return true;
+    if (!isAppModuleEnabled(appSlug, moduleName)) return false;
+
+    // 6.0.5.3 — gate de plano: módulo com feature correspondente só aparece
+    // quando a flag EFETIVA do tenant está habilitada.
+    const feature = getFeatureForModule(moduleName);
+    return feature ? can(feature) : true;
+  };
   const isMenuItemVisible = (item: MenuItem | ChildItem) =>
     !(isEsteticaApp && item.hideFromEsteticaMenu);
   const isChildAllowed = (child: ChildOrSubGroup): boolean => {

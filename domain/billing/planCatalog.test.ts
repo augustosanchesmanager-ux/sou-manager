@@ -3,8 +3,8 @@
  *
  * Contrato único `PlanCatalog` (6.0.5.2 — D-6.0.5-5):
  * getPlan / getFeatures / hasFeature / getLimits — zero SQL.
- * Matriz congelada (6.0.5.1, commit 622a891) + consistência com o legacy
- * `limits.ts` (a eliminar apenas na 6.0.5.3).
+ * Matriz congelada (6.0.5.1, commit 622a891). `limits.ts` eliminado do
+ * runtime na 6.0.5.3 (D-6.0.5.3 — fonte única: plans.limits).
  *
  * Convenções: AAA, should_<result>_when_<condition>.
  */
@@ -20,7 +20,6 @@ import {
   type PlanCatalog,
 } from './planCatalog';
 import { FEATURE_KEYS, type FeatureKey } from './featureKey';
-import { PLAN_LIMITS } from './limits';
 import type { TenantPlan } from './types';
 
 const PLANS: readonly TenantPlan[] = ['free', 'pro', 'premium'];
@@ -110,12 +109,15 @@ describe('planCatalog.hasFeature — gate por plano', () => {
 });
 
 describe('planCatalog.getLimits — limites do plano', () => {
-  it('should_match_legacy_limits_ts (free=1, pro=5, premium=∞)', () => {
+  it('should_match_plans_limits_seed (free=1, pro=5, premium=∞)', () => {
+    // 6.0.5.3: limits.ts eliminado do runtime (D-6.0.5.3) — fonte = plans.limits
+    const expected: Record<TenantPlan, number | null> = {
+      free: 1,
+      pro: 5,
+      premium: null,
+    };
     for (const plan of PLANS) {
-      const viaCatalog = planCatalog.getLimits(plan).maxStaff;
-      const viaLegacy = PLAN_LIMITS[plan];
-      const expected = Number.isFinite(viaLegacy) ? viaLegacy : null;
-      expect(viaCatalog).toBe(expected);
+      expect(planCatalog.getLimits(plan).maxStaff).toBe(expected[plan]);
     }
   });
 });
