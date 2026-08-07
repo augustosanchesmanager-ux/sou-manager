@@ -9,9 +9,9 @@
 
 ---
 
-## STATUS: ⏳ SUBMETIDA — AGUARDANDO APROVAÇÃO DO PO
+## STATUS: ✅ APROVADA PELO PO (2026-08-07) — IMPLEMENTAÇÃO AUTORIZADA
 
-> Esta entry audit define a **proposta de implementação da 6.0.5.4** (escopo, API congelada, migration, testes e critérios de saída) para aprovação explícita do PO. **Nenhuma implementação começa antes da aprovação.**
+> **Aprovação do PO (2026-08-07):** as decisões **D-6.0.5.4-1..5 foram aprovadas sem ajustes** e a implementação foi autorizada na sequência `migration → domain → application → RPCs → eventos → testes unitários → E2E flow14 → docs → baseline`. Governança reforçada: (1) contrato de acesso intocado (Subscription + Tenant + Feature Availability = Effective State); (2) novo status só existe quando banco + domínio + testes + documentação o conhecem; (3) `runCycle` nunca reativa automaticamente. Registro oficial: `docs/BUSINESS_DECISIONS.md` (D-6.0.5.4-1..5).
 
 ---
 

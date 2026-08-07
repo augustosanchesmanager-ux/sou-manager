@@ -156,6 +156,25 @@
 
 ---
 
+## Decisões 6.0.5.4 (D-6.0.5.4) — aprovadas em 2026-08-07
+
+> Subfase 6.0.5.4 — TenantLifecycleService + `suspended` aditivo. Aprovações do PO (2026-08-07) respondendo à entry audit `PHASE_6_0_5_4_ENTRY_AUDIT.md` — **5/5 aprovadas sem ajustes**; autorizada a implementação na sequência `migration → domain → application → RPCs → eventos → testes unitários → E2E flow14 → docs → baseline`.
+
+| Código | Tema | Decisão |
+|--------|------|---------|
+| D-6.0.5.4-1 | Escopo da subfase | **Somente a máquina de suspensão/reativação do contrato** (CHECK aditivo `suspended`, coluna `grace_ends_at`, engine `suspend`, fix fail-fast do `apply_subscription_transition`, `get_due_subscriptions`, `TenantLifecycleService`, RPCs manuais, eventos, `markPaid`). **Fora:** upgrade/downgrade (`change_tenant_plan`, `Admin.tsx:856` → 6.0.5.5), banner de estado (6.0.5.5), gateway/preços/dunning (PO) |
+| D-6.0.5.4-2 | Reativação de `suspended` | **Somente** via `markPaid` (pagamento confirmado) **ou** RPC manual autorizada `reactivate_subscription` (superadmin/manager). **`runCycle` nunca reativa** — reativação exige evento explícito |
+| D-6.0.5.4-3 | `archived` no contrato | **Não** — `archived` permanece exclusivo de `tenants.status` (D-6.0.5-7); `suspended/cancelled → archived` é ação administrativa, nunca `subscriptions.status` |
+| D-6.0.5.4-4 | Fail-fast no `apply_subscription_transition` | Remover o comportamento silencioso `ELSE → active`; **qualquer estado desconhecido → `RAISE EXCEPTION`** (falha cedo, impede liberação de acesso indevido) |
+| D-6.0.5.4-5 | Persistência de `grace_ends_at` | Gravada na entrada em `past_due` (`current_period_end + GRACE_PERIOD_DAYS` = 5 dias) e **limpa ao sair de `past_due`/`suspended`** |
+
+**Governança reforçada pelo PO (2026-08-07) — aplicar na implementação:**
+1. **Contrato de acesso intocado:** `subscriptions.status` controla o contrato; `tenants.status` controla o ciclo do tenant; `FeatureFlagService` controla disponibilidade — **Effective State** (Subscription + Tenant + Feature Availability). Sem retorno ao acoplamento antigo.
+2. **Novo status só existe quando banco + domínio + testes + documentação o conhecem.**
+3. **`runCycle`:** avaliar prazo → gerar transição → suspender quando necessário; **nunca** reativar automaticamente por pagamento.
+
+---
+
 ## Decisões 6.0.5.6 (D-6.0.5.6) — registradas em 2026-08-07
 
 > Subfase 6.0.5.6 — **Production Compatibility Audit (PCA)**. Registro formal da etapa obrigatória da release v1.5 (planejamento — nenhuma execução até o critério de entrada ser atendido).
