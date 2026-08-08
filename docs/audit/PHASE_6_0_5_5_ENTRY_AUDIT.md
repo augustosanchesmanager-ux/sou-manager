@@ -9,11 +9,11 @@
 
 ---
 
-## STATUS: ⏳ PLANNED — ENTRY AUDIT SUBMETIDA (2026-08-07)
+## STATUS: ✅ APROVADA PELO PO (2026-08-07) — IMPLEMENTAÇÃO AUTORIZADA
 
-> **Gate "Schema Freeze Candidate" incluído a pedido do PO (2026-08-07)** — ver §3. Veredito preliminar: **SCHEMA FREEZE = NO** (1 objeto novo a fechar). A implementação da 6.0.5.5 **só pode iniciar após a confirmação do escopo (D-6.0.5.5-1..5)** pelo PO.
+> **Aprovação do PO (2026-08-07):** escopo D-6.0.5.5-1..5 **aprovado sem ajustes**. **D-6.0.5.5-4** (hardening M7/M11/M12 + E2E flow11) = **ADIADO para o backlog pós-v1.5** (default da entry audit, confirmado pelo PO). Implementação autorizada na sequência `migration → application (changePlan) → RPCs → Admin.tsx → UI (UpgradePrompt + StatusBanner) → depreciação featureAvailability → testes → docs`. Registro oficial: `docs/BUSINESS_DECISIONS.md` (D-6.0.5.5-1..5).
 >
-> **Última implementação funcional da série 6.0.5.** Ao encerrar, o schema está praticamente congelado → habilita a **6.0.5.6 (PCA)** e a **6.0.6 (Compliance & Legal — critério de entrada "schema congelado")**.
+> **Gate "Schema Freeze Candidate" (§3) aprovado pelo PO** — veredito preliminar **`SCHEMA FREEZE = NO`** (somente a RPC `change_tenant_plan`); reexecução obrigatória no fechamento com o diff real → **`SCHEMA FREEZE = YES`** antes da PCA (6.0.5.6).
 
 ---
 
@@ -101,7 +101,7 @@ A **6.0.5.5** é a **camada de operação** da série: fecha o ciclo funcional d
 | **D-6.0.5.5-1** | **Gate "Schema Freeze Candidate"** obrigatório (PO 2026-08-07) — §3; reexecutado no fechamento |
 | **D-6.0.5.5-2** | Escopo: **transições de plano** (`change_tenant_plan` upgrade/downgrade + `TenantSubscriptionUpdated` + correção `Admin.tsx:856`) + banner de estado + `UpgradePrompt` + depreciação `featureAvailability.ts`. **Fora:** preços/gateway/dunning (PO); Billing Engine; novas RPCs de billing |
 | **D-6.0.5.5-3** | `tenants.plan` deixa de ser escrito por UI → **derivado/espelho de `subscriptions.plan`** (single writer, ADR-013 §3.1); UI passa a ler o Estado Efetivo |
-| **D-6.0.5.5-4** | Hardening opcionais do audit 6.0.5 (`M7` guard legado `save_onboarding_step`; `M11` trigger drift; `M12` audit triggers em billing) + E2E flow11: **decisão do PO no fechamento** — podem ser adiados para o backlog pós-v1.5 |
+| **D-6.0.5.5-4** | Hardening opcionais do audit 6.0.5 (`M7` guard legado `save_onboarding_step`; `M11` trigger drift; `M12` audit triggers em billing) + E2E flow11: **ADIADO para o backlog pós-v1.5 (aprovado pelo PO 2026-08-07 — default confirmado)** |
 | **D-6.0.5.5-5** | **Sem novas tabelas, colunas, FKs ou policies** — somente a RPC `change_tenant_plan` (fecha o schema; verifica §3) |
 
 > **Confirmação explícita do PO necessária no fechamento desta entry audit** (registro em `BUSINESS_DECISIONS.md`).
@@ -258,4 +258,4 @@ A **6.0.5.5** fecha o **ciclo funcional de Billing/Lifecycle** com a operação 
 - **Veredito preliminar: `SCHEMA FREEZE = NO`** — o schema ainda mudará em **1 objeto** (nova RPC `change_tenant_plan`).
 - No **fechamento** da 6.0.5.5, o gate é **reexecutado** e deve produzir **`SCHEMA FREEZE = YES`**, registrado antes de liberar a PCA.
 
-**Aguardando:** confirmação do PO sobre o escopo (D-6.0.5.5-1..5) e sobre a inclusão/adiamento do hardening M7/M11/M12 + E2E flow11 (D-6.0.5.5-4).
+**Aguardando:** ~~confirmação do PO sobre o escopo (D-6.0.5.5-1..5) e sobre a inclusão/adiamento do hardening M7/M11/M12 + E2E flow11 (D-6.0.5.5-4).~~ → **✅ APROVADO (2026-08-07):** escopo D-6.0.5.5-1..5 aprovado; hardening M7/M11/M12 + E2E flow11 **adiados para o backlog pós-v1.5**. Implementação autorizada.
