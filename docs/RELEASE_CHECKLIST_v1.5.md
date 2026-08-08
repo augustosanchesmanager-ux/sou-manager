@@ -54,15 +54,16 @@
 | `20260806050000_phase_6_0_4_4_billing_engine.sql` | 6.0.4.4 | ✅ Aplicada | `apply_subscription_transition`, `get_due_subscriptions` |
 | `20260806070000_fix_rpc_ambiguous_column_references.sql` | 6.0.4.4 | ✅ Aplicada | — |
 | `20260806080000_fix_apply_subscription_transition_tenant_status_enum.sql` | 6.0.4.4 | ✅ Aplicada | Corrigido pela migration `20260807010000` (6.0.5.4): fail-fast implementado, sem fallback `ELSE → active` |
-| `20260806090000_phase_6_0_5_2_plans_catalog.sql` | 6.0.5.2 | ⏳ **Pendente** | `plans`/`features`/`plan_features` + FK aditiva |
-| `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ⏳ **Pendente** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
-| `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ⏳ **Pendente** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **criada + validada em docker T1–T7** |
-| `20260807020000_phase_6_0_5_5_transitions.sql` | 6.0.5.5 | ⏳ **Pendente (criada)** | `change_tenant_plan` (espelho `tenants.plan`, grants ADR-012) — **criada + validada em docker T1–T12 + idempotência 2×** |
-| `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql` | Hardening 6.0.5.5 | ⏳ **Pendente (criada)** | Fix aditivo das RPCs irmãs `create_invoice`/`record_payment_attempt` (ON CONFLICT DO NOTHING + `RETURNING a.id`) — **criada + validada em docker S1–S16 + G1 PASS + idempotência 2×** |
+| `20260806090000_phase_6_0_5_2_plans_catalog.sql` | 6.0.5.2 | ✅ **Aplicada (janela 2026-08-08)** | `plans`/`features`/`plan_features` + FK aditiva |
+| `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ✅ **Aplicada (janela 2026-08-08)** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
+| `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ✅ **Aplicada (janela 2026-08-08)** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **validada em docker T1–T7** |
+| `20260807020000_phase_6_0_5_5_transitions.sql` | 6.0.5.5 | ✅ **Aplicada (janela 2026-08-08)** | `change_tenant_plan` (espelho `tenants.plan`, grants ADR-012) — **validada em docker T1–T12 + idempotência 2×** |
+| `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql` | Hardening 6.0.5.5 | ✅ **Aplicada (janela 2026-08-08)** | Fix aditivo das RPCs irmãs `create_invoice`/`record_payment_attempt` (ON CONFLICT DO NOTHING + `RETURNING a.id`) — **validada em docker S1–S16 + G1 PASS + idempotência 2×** |
+| `20260808110000_revoke_anon_rpc_execute.sql` | Hardening (PO D-6.0.5.8) | ✅ **Aplicada (janela 2026-08-08)** | 55× `REVOKE EXECUTE FROM anon` (débito 6.0.4.2); exceções públicas: `get_invite_by_token`, `kiosk_get_staff` |
 
-- [ ] Validar cada migration em Postgres 16 docker (aplica 2× sem duplicar) **antes** da janela.
-- [ ] Aplicar via `MIGRATION_EXCEPTION` (`db query --linked -f` + `migration repair --status applied`) na janela única.
-- [ ] `supabase migration list --linked` 100% coerente após a janela.
+- [x] Validar cada migration em Postgres docker (aplica 2× sem duplicar) **antes** da janela.
+- [x] Aplicar via `MIGRATION_EXCEPTION` (`db query --linked -f` + `migration repair --status applied`) na janela única.
+- [x] `supabase migration list --linked` 100% coerente após a janela.
 
 ---
 
@@ -88,9 +89,8 @@
 
 - [x] **6.0.5.2** — smoke **10/10 PASS** (48.4s, 2026-08-06)
 - [x] **6.0.5.3** — smoke **10/10 PASS** (46.7s, 2026-08-07)
-- [ ] **Pós-janela de deploy** — smoke **10/10 PASS** (runbook §5)
-- [ ] **6.0.5.4** — smoke 10/10 (execução na janela única — decisão PO 2026-08-07)
-- [ ] **6.0.5.5** — smoke 10/10
+- [x] **Pós-janela de deploy** — smoke **10/10 PASS** (42.0s, 2026-08-08 — runbook §5)
+- [x] **6.0.5.4 / 6.0.5.5** — smoke 10/10 (executado na janela única, 2026-08-08)
 - [ ] **Smoke final de certificação** (baseline) — 10/10
 
 ---
@@ -109,8 +109,8 @@
 - [x] flow8 — Team invitations (P1)
 - [x] flow9 — Tenant lifecycle billing (P1)
 - [x] flow12 — Cancel at period end (P1)
-- [x] flow13 — Access-level navigation (Estado Efetivo, 8/8 PASS — 6.0.5.1)
-- [ ] **flow14** — Suspensão/reativação (`past_due → suspended → active`) — spec escrito (`flow14-tenant-suspend-reactivate.spec.ts`) + typecheck OK; **execução adiada à janela única de deploy** (decisão PO 2026-08-07)
+- [x] flow13 — Access-level navigation (Estado Efetivo, 8/8 PASS — 6.0.5.1; reexecutado 8/8 na janela, 2026-08-08)
+- [x] **flow14** — Suspensão/reativação (`past_due → suspended → active`) — **1/1 PASS** (16.4s, 2026-08-08, janela única, `E2E_PROVISIONING=1`)
 - [ ] **flow15** — Feature flags por plano (UI híbrida) — 6.0.5.3 (cobertura complementar)
 
 ---
@@ -155,23 +155,28 @@
 - [x] `ff9f301` — docs(billing): 6.0.5.4 entry audit (4 auditorias + API congelada)
 - [x] `5454c81` — feat(billing): 6.0.5.4 TenantLifecycleService + suspended (implementação; flow14 E2E adiado à janela única)
 - [x] `6ca3788` — feat(billing): 6.0.5.5 plan transitions (`change_tenant_plan` + `changePlan` + `Admin.tsx` single writer + `UpgradePrompt` + `StatusBanner`; migration `20260807020000` T1–T12 OK; SCHEMA FREEZE = YES)
+- [x] `65bd0cb` — docs(billing): 6.0.5.6 Production Compatibility Audit READY (PCA)
+- [x] `fafeb98` — docs(billing): janela de deploy — backup lógico D-6.0.5.7 + runbook §2.2 + deploy log (pré-exec)
+- [x] `0ca60a2` — fix(billing): hardening janela — migration `20260808110000` REVOKE anon (D-6.0.5.8) + deploy log + decisões
 
 ---
 
-## 10. Deploy (janela única — aprovada em princípio)
+## 10. Deploy (janela única — ✅ EXECUTADA 2026-08-08)
 
 > **Gate obrigatório (PO 2026-08-07):** antes de qualquer item abaixo, `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` deve estar **`READY`** — a **Production Compatibility Audit (6.0.5.6)** é executada contra o **banco real dos tenants produtivos**, imediatamente antes da janela única de deploy.
 >
 > **Pré-requisito da PCA — Schema Freeze (PO 2026-08-07):** o gate **"Schema Freeze Candidate"** (6.0.5.5) deve estar com veredito final **`SCHEMA FREEZE = YES`** (ver `PHASE_6_0_5_5_ENTRY_AUDIT.md` §12.3) antes de liberar a PCA. **✅ `SCHEMA FREEZE = YES` (2026-08-08)** — delta real = somente a RPC `change_tenant_plan` (prevista na entrada).
+>
+> **Resultado da janela:** 6 migrations aplicadas (`06090000`, `07000000`, `07010000`, `07020000`, `08000000`, `20260808110000`), pós-deploy 7/7 verdes, Flow14 1/1, Flow13 8/8, Smoke 10/10. Detalhes em `docs/DEPLOY_LOG_FASE_6_0_5.md`.
 
 - [x] **Schema Freeze = YES** registrado no fechamento da 6.0.5.5 (gate §12.3 reexecutado com o diff real — 2026-08-08)
-- [ ] **Production Compatibility Audit** (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
+- [x] **Production Compatibility Audit** (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
-- [ ] **Aprovação explícita do PO** para abrir a janela
-- [ ] Pré-flight (backup/PITR, `migration list`, dados de plano)
-- [ ] Aplicar `06090000` → `07000000` → `07010000` → `07020000` (6.0.5.5) + `08000000` (hardening) — ver runbook §3.2–§3.6. **`06030000` já reparada como aplicada (2026-08-08, D-6.0.5.6-5) — não aplicar**
-- [ ] Verificações pós-deploy (histórico, RLS, RPCs, matriz `tenant_has_feature`)
-- [ ] Smoke 10/10 pós-deploy
+- [x] **Aprovação explícita do PO** para abrir a janela
+- [x] Pré-flight (backup lógico D-6.0.5.7 + restore test, `migration list`, dados de plano)
+- [x] Aplicar `06090000` → `07000000` → `07010000` → `07020000` (6.0.5.5) + `08000000` (hardening) + `20260808110000` (fix anon D-6.0.5.8) — ver runbook §3.2–§3.6. **`06030000` já reparada como aplicada (2026-08-08, D-6.0.5.6-5) — não aplicar**
+- [x] Verificações pós-deploy (histórico, RLS, RPCs, matriz `tenant_has_feature`) — 7/7
+- [x] Smoke 10/10 pós-deploy
 - [ ] Deploy do frontend (Vercel) — se fizer parte da mesma liberação
 - [ ] Rollback definido e testado conceitualmente (DB ordem reversa + Vercel juntos)
 
@@ -208,14 +213,14 @@
 
 > Tudo abaixo deve estar marcado antes de declarar a v1.5.0 certificada.
 
-- [ ] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
-- [ ] **Gate "Schema Freeze Candidate" (6.0.5.5)** — veredito final **`SCHEMA FREEZE = YES`** registrado (pré-requisito da PCA)
-- [ ] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
+- [x] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
+- [x] **Gate "Schema Freeze Candidate" (6.0.5.5)** — veredito final **`SCHEMA FREEZE = YES`** registrado (pré-requisito da PCA)
+- [x] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
 - [ ] **Fase 6.0.6 Compliance & Legal** — gate de certificação atendido (ver §11)
-- [ ] Todas as migrations da versão aplicadas no remoto (janela única)
+- [x] Todas as migrations da versão aplicadas no remoto (janela única) — 6 aplicadas + `06030000` reparada
 - [ ] Todos os critérios de saída de cada entry audit marcados
 - [ ] Suíte unitária verde + typecheck sem novos erros + build OK + `architecture:ci` verde
-- [ ] Smoke E2E 10/10 (pós-janela) + flows P0/P1 verdes
+- [x] Smoke E2E 10/10 (pós-janela) + flows P0/P1 verdes — flow14 1/1 + flow13 8/8 + smoke 10/10
 - [ ] Baseline `v1.5.0-feature-flags-6.0.5` criada (commit + tag anotada + push)
 - [ ] ROADMAP / PROJECT_STATUS / changelog atualizados
 - [ ] **Aprovação explícita do PO** para certificação da versão

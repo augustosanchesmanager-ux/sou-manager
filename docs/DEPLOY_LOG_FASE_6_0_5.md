@@ -221,10 +221,17 @@ event_store                            0   ✅
 
 | Suite | Resultado |
 |-------|-----------|
-| Flow14 (execução real) | ⏳ |
-| Flow13 (regressão 8/8) | ⏳ |
-| Smoke E2E (10/10) | ⏳ |
+| Flow14 (execução real) | ✅ 1/1 passed (16.4s) — `past_due → suspended → active` contra o remoto (E2E_PROVISIONING=1) |
+| Flow13 (regressão 8/8) | ✅ 8/8 passed (38.6s) — navegação por estado efetivo + resolução de features em free |
+| Smoke E2E (10/10) | ✅ 10/10 passed (42.0s) — referência pré-deploy ~46.7s |
 
 ## Resultado final da janela
 
-**Status:** ⏳ EM ANDAMENTO
+**Status:** ✅ **EXECUTADA COM SUCESSO** (2026-08-08)
+
+- **6 migrations aplicadas:** `06090000` → `07000000` → `07010000` → `07020000` → `08000000` → `20260808110000` (fix hardening D-6.0.5.8); `06030000` reparada pré-janela (D-6.0.5.6-5). **Zero pendentes no histórico remoto.**
+- **Pós-deploy validation:** 7/7 áreas verdes (histórico, schema/FKs, RLS/policies/grants após fix D-6.0.5.8, RPCs, feature flags, planos/limites, tenants).
+- **Dados preservados:** contagens idênticas ao snapshot pré-deploy.
+- **E2E:** Flow14 ✅, Flow13 8/8 ✅, Smoke 10/10 ✅.
+- **Backup D-6.0.5.7:** válido e restaurável (evidência acima); container de teste local pode ser removido.
+- **Sem merge; sem deploy de frontend; sem baseline.** Próximos gates: homologação Sanchez Barber → 6.0.6 → certificação final → v1.5.0.
