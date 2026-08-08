@@ -168,3 +168,31 @@ and (confirmation_token is null or recovery_token is null
 - Usuário descartável criado durante o diagnóstico (`throwaway-*@example.com`) **removido** via Admin API (`deleteUser`) após a validação.
 - Nenhuma outra alteração em `auth.*`/`public.*` além das linhas documentadas acima.
 - Evidências brutas das queries: diretório temporário do OpenCode (`snapshot_sanchez`), **fora** do repositório.
+
+---
+
+## 7. ETAPA B — execução (validação local no frontend, 2026-08-08)
+
+> **Escopo (§8.1#3):** repro `Invalid Refresh Token` → logout/login → conferir `auth.uid()`, resolução de tenant (`get_auth_access_context`), Dashboard e Comissões.
+> **Como:** app local (`npm run dev`, porta 3000) com `.env.local` apontando para o Supabase real `ushsnmlbeurfvlkieiln`; navegação automatizada via Playwright (headless Chromium). **Validação local autorizada (D-HOM-11), sem deploy de produção.**
+
+### 7.1 Resultados
+
+| Verificação | Resultado | Evidência |
+|-------------|-----------|-----------|
+| Demo mode ativo? | **NÃO** (`VITE_SUPABASE_URL` presente → Supabase real) | UI sem caixa "Acesso de teste local" |
+| Login UI (`/#/login`, e-mail/senha) | ✅ redirecionou para `/#/dashboard` | URL pós-login |
+| Redirect indevido (`pending-approval`/`onboarding`/`Invalid Refresh Token`) | ✅ **Nenhum** | URL + console |
+| Resolução de tenant | ✅ Comissões exibiu **dados reais da Sanchez** (HERON, valores do período) | conteúdo da página |
+| Dashboard | ✅ carregou (navegação + KPIs) | screenshot |
+| Comissões (`/#/commissions`) | ✅ **renderizou com dados reais** — "COMISSÃO CONFIRMADA R$ 305,00", "PENDENTE R$ 215,00", "VENDAS VÁLIDAS R$ 1.040,00", destaque HERON R$ 520,00 (20 lançamentos), taxa média 50.0% | screenshot + dump de texto |
+| Erros de console (React) | ✅ **0** | Playwright |
+| Erros HTTP Supabase (4xx/5xx, incl. PostgREST 400 do bug de comissões) | ✅ **0** | Playwright |
+
+### 7.2 Achado (não bloqueante — P3, cosmético)
+
+| ID | Severidade | Descrição | Origem | Impacto | Ação |
+|----|-----------|-----------|--------|---------|------|
+| EB-1 | **P3** | Header/sidebar exibem **"Minha Barbearia"** e **"PLANO FREE"** para a conta de homologação, embora o tenant seja `pro` | `components/Layout.tsx:26-27` deriva `displayName` e `displayPlan` de **`user.user_metadata`** (`shop_name`/`first_name`/`plan`) em vez do registro `tenants`. A conta via SQL tem `user_metadata` mínimo (`{"full_name": ...}`) → fallbacks | **Nenhum funcional**: autorização/feature flags usam a RPC `tenant_has_feature` (ADR-013) sobre `tenants.plan` — as comissões (feature `pro`) renderizaram corretamente. Afeta apenas contas com metadata não preenchido (ex.: criadas via SQL) ou metadata desatualizado | Registrado para o PO (regra de homologação: achado P0/P1/P2/P3 → **registrar, não corrigir automaticamente**). Correção proposta futura: derivar plano/nome de `tenants` via `TenantContext` |
+
+> **Interpretação:** o achado **EB-1 não invalida a resolução de tenant** — as comissões exibidas são da Sanchez (HERON e valores reais), comprovando `get_auth_access_context` → `b716e290...`. "PLANO FREE" é apenas rótulo cosmético do header.
