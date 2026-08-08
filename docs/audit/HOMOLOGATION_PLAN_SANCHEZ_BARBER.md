@@ -7,12 +7,14 @@
 > **Branch:** `feature/phase-6.0.4-billing`
 > **Fonte de autoridade:** decisão do PO (2026-08-08) + `ROADMAP.md` (seção 6.0.5/6.0.6) + `RELEASE_CHECKLIST_v1.5.md` + `docs/DEPLOY_LOG_FASE_6_0_5.md`.
 > **Atualização 2026-08-08 (D-HOM-9):** adicionado o **Gate H-8 — Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend). Auditoria read-only executada pelo OpenCode em 2026-08-08 → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; produção `718f6f9` defasada). **Nenhuma alteração remota na Vercel.**
+> **Atualização 2026-08-08 (D-HOM-10):** decisão do PO após a auditoria — **a homologação NÃO está encerrada**; a produção atende o frontend `718f6f9` (sem 6.0.1–6.0.5 e sem o fix `68acda4`), portanto o **H-8 é formalizado como BLOQUEADOR** da homologação. Criado o **bloco de "Hardening da Homologação / Vercel" (§8.1)** com 8 etapas obrigatórias. **Proibido até nova ordem do PO:** merge para `main`, deploy de produção v1.5, abertura da 6.0.6 e qualquer alteração remota na Vercel.
 
 ---
 
-## STATUS: 🟡 PLANO SUBMETIDO PARA APROVAÇÃO DO PO (2026-08-08)
+## STATUS: 🟡 PLANO SUBMETIDO PARA APROVAÇÃO DO PO (2026-08-08) — 🔴 H-8 BLOQUEADOR ATIVO
 
 > **Regra da release (PO):** **6.0.6 não começa enquanto a homologação não estiver formalmente `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, aprovada pelo PO.** Nenhuma execução será iniciada antes da aprovação explícita deste plano.
+> **🔴 Bloqueio ativo (D-HOM-10):** produção atende o frontend `718f6f9` (sem 6.0.1–6.0.5 e sem o fix `68acda4`) + duplicidade Vercel (`smg-barber` × `sou-manager`). Homologar contra o frontend de produção atual **não valida a release v1.5** — a resolução do **bloco de Hardening (§8.1)** é pré-requisito para o fechamento de H-8 e para o veredito final.
 
 ---
 
@@ -55,6 +57,7 @@ Validar, no **tenant produtivo Sanchez Barber** (ambiente real `ushsnmlbeurfvlki
 - ❌ Nenhuma correção automática de dados;
 - ❌ Merge para `main`/`develop`;
 - ❌ Deploy de frontend (Vercel);
+- ❌ Qualquer alteração remota na Vercel (delete, desativar projeto/domínio, desvincular git, alterar env);
 - ❌ Baseline/tag da v1.5.0;
 - ❌ Início da Fase 6.0.6 (requer veredito + aprovação do PO).
 
@@ -70,6 +73,7 @@ Validar, no **tenant produtivo Sanchez Barber** (ambiente real `ushsnmlbeurfvlki
 | E-6 | Backup lógico validado (D-6.0.5.7) | ✅ |
 | E-7 | Fix hardening RPCs anon aplicado (D-6.0.5.8) | ✅ |
 | E-8 | **Aprovação formal deste plano pelo PO** | ⏳ |
+| E-9 | **Bloco de Hardening da Homologação / Vercel (§8.1) — origem oficial única + preview oficial `68acda4` + ETAPA B auth validada (D-HOM-10)** | ⏳ |
 
 ## 4. Dependências
 
@@ -212,18 +216,36 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 | H8-6 | Nenhuma credencial sensível no env do projeto oficial de frontend | API Vercel env (keys) | Zero `POSTGRES_*`/`SERVICE_ROLE`/`JWT_SECRET` no oficial | OpenCode | 2026-08-08 | ✅ Verificado | Secretas só no `sou-manager` (legado) |
 | H8-7 | **Deploy de produção da release v1.5** (merge + build + smoke pós-deploy) planejado e registrado | Runbook | Produção atualizada além de `718f6f9`; smoke pós-deploy verde | OpenCode | ⏳ | ⏳ | Produção atual defasada (sem 6.0.1–6.0.5 e sem fix `68acda4`) — **decisão PO** |
 
+### 8.1 Bloco de Hardening da Homologação / Vercel (decisão do PO, 2026-08-08 — D-HOM-10)
+
+> **Regra do PO:** a homologação **não está encerrada** e **não deve ser considerada concluída** enquanto a produção atender um frontend que não é a release v1.5. O H-8 é formalizado como **🔴 BLOQUEADOR**. A sequência de fechamento passa obrigatoriamente por este bloco.
+
+| # | Etapa | Ação | Status | Decisão do PO necessária |
+|---|-------|------|--------|---------------------------|
+| 1 | Consolidar origem oficial | Fixar `smg-barber`/`barber.soumanager.com` como **única origem oficial** do frontend de produção do SMG Barber | ✅ Auditado (2026-08-08) | — |
+| 2 | Destino do legado `sou-manager` | Definir destino (desativar git link / desvincular deploy / desativar domínio) — **nada é deletado** sem autorização | ⏳ | ✅ SIM — **aguardando decisão do PO** |
+| 3 | Auth / TenantContext (ETAPA B) | Repro do `Invalid Refresh Token` no frontend oficial → logout/limpeza de sessão → login → conferir `auth.uid()`, resolução de tenant (`get_auth_access_context`), Dashboard e Comissões; se `TenantContext` seguir falhando → registrar P1/P0 (independente do fix de comissões) | ⏳ | Validação autorizada |
+| 4 | Preview oficial contém o fix | Garantir que o preview do **projeto oficial** (`smg-barber`) contenha o `68acda4` (build real, `buildSkipped=false`, env coerente) | ✅ Verificado (2026-08-08, `dpl_HDbTSiquDSC12Jod1MAiBji1cTib`) | — |
+| 5 | Re-teste de Comissões | Testar Comissões da Sanchez Barber **sobre o preview oficial** (`smg-barber`), nunca sobre o preview do legado | ⏳ | Validação autorizada |
+| 6 | Continuidade dos testes de homologação | Executar os testes remanescentes dos gates H-1 a H-7 (~45 testes) | ⏳ | — |
+| 7 | Registro de achados | Registrar P0/P1/P2 encontrados (sem correção automática) | ⏳ | — |
+| 8 | Fechamento dos gates | Somente após 1–7: fechar H-1…H-8 e atribuir veredito 🟢/🟡/🔴 | ⏳ | Aprovação do veredito |
+
+> **Proibido até nova ordem do PO:** merge para `main`; deploy de produção v1.5; abertura da Fase 6.0.6; qualquer alteração remota na Vercel (delete, desativar, desvincular git, alterar env).
+
 ---
 
 ## 9. Estratégia de execução (após aprovação do PO)
 
-1. **Preparação:** snapshot/contagem SQL do tenant Sanchez Barber (estado pré-homologação) para conferência.
-2. **Automação:** executar suítes E2E já existentes que cobrem os gates (Flow14, Flow13, Smoke, flows P0/P1) contra o ambiente real com `E2E_PROVISIONING` conforme necessário.
-3. **Validação manual/SQL:** testes que exigem inspeção de dados (integridade, quadratura, RLS/grants) executados via consultas individuais no runner Management API.
-4. **Operação real (H7):** agendar com a equipe da Sanchez Barber um ciclo real de trabalho acompanhado.
-5. **Topologia Vercel (H8):** executar/confirmar os itens H8-1 a H8-7 — auditoria read-only (já executada), reconciliação de duplicidade/env e **planejamento do deploy de produção da release v1.5** (decisões do PO).
-6. **Registro:** preencher este documento com evidência (responsável, data, resultado, observação) para cada teste.
-7. **Veredito:** atribuir 🟢 / 🟡 / 🔴 e submeter à aprovação formal do PO.
-8. **Atualização dos docs da release** (RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP, BUSINESS_DECISIONS se aplicável) e commit semântico + push.
+1. **Hardening da Homologação / Vercel (§8.1):** executar as 8 etapas do bloco — consolidação da origem oficial, destino do legado (decisão PO), ETAPA B auth/tenant, preview oficial `68acda4`, re-teste de Comissões, continuidade dos testes H-1..H-7, registro de achados e fechamento dos gates.
+2. **Preparação:** snapshot/contagem SQL do tenant Sanchez Barber (estado pré-homologação) para conferência.
+3. **Automação:** executar suítes E2E já existentes que cobrem os gates (Flow14, Flow13, Smoke, flows P0/P1) contra o ambiente real com `E2E_PROVISIONING` conforme necessário.
+4. **Validação manual/SQL:** testes que exigem inspeção de dados (integridade, quadratura, RLS/grants) executados via consultas individuais no runner Management API.
+5. **Operação real (H7):** agendar com a equipe da Sanchez Barber um ciclo real de trabalho acompanhado.
+6. **Topologia Vercel (H8):** confirmar H8-1 a H8-7 — auditoria read-only (já executada), reconciliação de duplicidade/env e **deploy de produção da release v1.5 (H8-7) apenas após decisão do PO**.
+7. **Registro:** preencher este documento com evidência (responsável, data, resultado, observação) para cada teste.
+8. **Veredito:** atribuir 🟢 / 🟡 / 🔴 e submeter à aprovação formal do PO.
+9. **Atualização dos docs da release** (RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP, BUSINESS_DECISIONS se aplicável) e commit semântico + push.
 
 ## 10. Riscos
 
@@ -234,8 +256,9 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 | Vazamento de acesso entre tenants detectado | Registro P0 → bloqueio; revalidação de RLS |
 | Frontend consultando `feature_flags` diretamente | Inspeção grep (H5-8) → violação registrada e corrigida |
 | Indisponibilidade do tenant em horário de operação real (H7) | Agendamento prévio com a operação; janela curta de acompanhamento |
-| **Duplicidade Vercel (`smg-barber` × `sou-manager`) e double-deploy em merge para `main` (H8)** | Auditoria read-only executada (ver `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`); reconciliação e destino do legado = **decisão do PO** antes de qualquer merge |
-| **Produção defasada (`718f6f9`) — homologar frontend que não é a release v1.5** | **H8-7**: deploy de produção da release v1.5 planejado e registrado como etapa explícita da homologação (decisão do PO) |
+| **Duplicidade Vercel (`smg-barber` × `sou-manager`) e double-deploy em merge para `main` (H8)** | Auditoria read-only executada (ver `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`); **H-8 formalizado como BLOQUEADOR (D-HOM-10)**; reconciliação e destino do legado = **decisão do PO** antes de qualquer merge |
+| **Produção defasada (`718f6f9`) — homologar frontend que não é a release v1.5** | **H8-7**: deploy de produção da release v1.5 planejado e registrado como etapa explícita da homologação, **após decisão do PO**; enquanto pendente, o **H-8 permanece BLOQUEADOR** |
+| **Sessão inválida / `Invalid Refresh Token` no frontend oficial (ETAPA B, §8.1#3)** | Repro em produção; logout/limpeza de sessão e novo login; validar `get_auth_access_context` e resolução de tenant; **tratar isoladamente** — não atribuir como causa do bug de comissões (400) já corrigido |
 
 ## 11. Responsável
 
@@ -244,9 +267,10 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 
 ## 12. Próxima Etapa
 
-1. PO aprova este plano (ou solicita ajustes).
-2. OpenCode executa a homologação conforme §9.
-3. Veredito 🟢/🟡 → **abertura da Fase 6.0.6 (Compliance & Legal)**.
-4. Veredito 🔴 → retorno à correção (nenhuma fase avança).
+1. PO decide o destino do legado `sou-manager` e autoriza a execução do bloco de **Hardening (§8.1)**.
+2. OpenCode executa as 8 etapas do bloco (ETAPA B auth/tenant, preview oficial, re-teste de Comissões, testes H-1..H-7, registro de achados).
+3. PO decide o deploy de produção da release v1.5 (H8-7) — único caminho para produção sair de `718f6f9`.
+4. Veredito 🟢/🟡 → **abertura da Fase 6.0.6 (Compliance & Legal)**.
+5. Veredito 🔴 → retorno à correção (nenhuma fase avança).
 
 > **Regra da release:** **6.0.6 não começa enquanto a homologação não estiver `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS` formalmente aprovada pelo PO.**

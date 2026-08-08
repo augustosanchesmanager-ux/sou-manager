@@ -187,6 +187,7 @@
 > **Gate formal de homologação** posicionado **após a janela única de deploy (executada)** e **antes da Fase 6.0.6**. Regra do PO: **6.0.6 não começa enquanto a homologação não estiver `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, formalmente aprovada pelo PO.**
 > Plano completo: `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1 a H-8, evidência por teste, vereditos 🟢/🟡/🔴).
 > **Atualização 2026-08-08 (D-HOM-9):** adicionado o **gate H-8 — Infraestrutura Vercel / Deployment Topology**. Auditoria read-only executada → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; produção `718f6f9` defasada).
+> **Atualização 2026-08-08 (D-HOM-10):** decisão do PO — **homologação NÃO encerrada; H-8 formalizado como BLOQUEADOR**. Produção atende frontend `718f6f9` (sem 6.0.1–6.0.5 e sem fix `68acda4`) → **bloco de Hardening da Homologação / Vercel (§8.1 do plano)** pré-requisito: origem oficial única, destino do legado (PO), ETAPA B auth/tenant, preview oficial `68acda4`, re-teste de Comissões, testes H-1..H-7, registro de achados e fechamento dos gates. **Proibido até nova ordem do PO:** merge `main`, deploy v1.5, abertura 6.0.6, alterações remotas na Vercel.
 
 - [ ] **Aprovação formal do plano de homologação pelo PO** (D-HOM-6)
 - [ ] H-1 Integridade operacional (login/permissões, tenant, equipe, clientes, agenda, serviços/produtos, dados históricos preservados)
@@ -196,7 +197,8 @@
 - [ ] H-5 Feature Flags (free/pro/premium, habilitada/desabilitada, UpgradePrompt, FeatureUnavailablePage, acesso direto à rota, zero leitura direta de `feature_flags`)
 - [ ] H-6 Segurança (RPCs protegidas, anon/authenticated, papéis, RLS, isolamento e acesso cruzado entre tenants)
 - [ ] H-7 Operação real (ciclo completo acompanhado: agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência)
-- [ ] **H-8 Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend, domínio/branch/env/Supabase vinculados, sem double-deploy; **deploy de produção da release v1.5 planejado** — produção atual `718f6f9` defasada) — auditoria read-only ✅ em `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`
+- [ ] **H-8 Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend, domínio/branch/env/Supabase vinculados, sem double-deploy; **deploy de produção da release v1.5 planejado** — produção atual `718f6f9` defasada) — auditoria read-only ✅ em `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`; **🔴 BLOQUEADOR ativo (D-HOM-10) — aguarda bloco de Hardening (§8.1) + decisões do PO**
+- [ ] **Bloco de Hardening da Homologação / Vercel (D-HOM-10):** origem oficial única ✅ · destino do legado `sou-manager` (PO) · ETAPA B auth/tenant validada · preview oficial `68acda4` ✅ · re-teste de Comissões · testes H-1..H-7 · registro de achados P0/P1/P2 · fechamento H-1…H-8
 - [ ] **Veredito final** 🟢 HOMOLOGADO / 🟡 HOMOLOGADO COM RESSALVAS / 🔴 BLOQUEADO — aprovado pelo PO
 - [ ] Atualizar docs da release (log de homologação, RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP) + commit semântico + push
 
