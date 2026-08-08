@@ -197,8 +197,8 @@
 - [ ] H-5 Feature Flags (free/pro/premium, habilitada/desabilitada, UpgradePrompt, FeatureUnavailablePage, acesso direto à rota, zero leitura direta de `feature_flags`)
 - [ ] H-6 Segurança (RPCs protegidas, anon/authenticated, papéis, RLS, isolamento e acesso cruzado entre tenants)
 - [ ] H-7 Operação real (ciclo completo acompanhado: agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência)
-- [ ] **H-8 Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend, domínio/branch/env/Supabase vinculados, sem double-deploy; **deploy de produção da release v1.5 planejado** — produção atual `718f6f9` defasada) — auditoria read-only ✅ em `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`; **🔴 BLOQUEADOR ativo (D-HOM-10) — aguarda bloco de Hardening (§8.1) + decisões do PO**
-- [ ] **Bloco de Hardening da Homologação / Vercel (D-HOM-10):** origem oficial única ✅ · destino do legado `sou-manager` (PO) · ETAPA B auth/tenant validada · preview oficial `68acda4` ✅ · re-teste de Comissões · testes H-1..H-7 · registro de achados P0/P1/P2 · fechamento H-1…H-8
+- [ ] **H-8 Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend, domínio/branch/env/Supabase vinculados, sem double-deploy; **deploy de produção da release v1.5 planejado** — produção atual `718f6f9` defasada) — auditoria read-only ✅ em `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`; **double-deploy ELIMINADO (D-HOM-11: git link do `sou-manager` desconectado)**; **🔴 BLOQUEADOR ativo (D-HOM-10) — aguarda bloco de Hardening (§8.1) + decisões do PO**
+- [ ] **Bloco de Hardening da Homologação / Vercel (D-HOM-10/11):** origem oficial única ✅ · destino do legado `sou-manager` — git link desconectado ✅ (destino final = PO) · ETAPA B auth/tenant validada (conta de homologação) · preview oficial `68acda4` ✅ · re-teste de Comissões · testes H-1..H-7 · registro de achados P0/P1/P2 · fechamento H-1…H-8
 - [ ] **Veredito final** 🟢 HOMOLOGADO / 🟡 HOMOLOGADO COM RESSALVAS / 🔴 BLOQUEADO — aprovado pelo PO
 - [ ] Atualizar docs da release (log de homologação, RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP) + commit semântico + push
 
