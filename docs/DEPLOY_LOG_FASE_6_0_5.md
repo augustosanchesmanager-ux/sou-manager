@@ -112,47 +112,56 @@ event_store                            0   ✅
 
 ## Execução (preencher a cada etapa)
 
+> Janela aberta em 2026-08-08 após aprovação explícita do PO (backup D-6.0.5.7 validado).
+> Regra: **qualquer falha → ABORTAR** (execução pausada em verificação §4.9 — ver
+> seção **Desvio de hardening detectado** abaixo).
+
 ### MIGRATION 1 — `20260806090000_phase_6_0_5_2_plans_catalog.sql`
 
 | Campo | Valor |
 |-------|-------|
-| Status | ⏳ |
-| Início (UTC) | — |
-| Fim (UTC) | — |
-| Resultado | — |
-| Verificação | — |
+| Status | ✅ aplicada |
+| Início (UTC) | 2026-08-08 12:44:49 |
+| Fim (UTC) | 2026-08-08 12:44:53 |
+| Resultado | `db query --linked -f` exit=0; repair `[20260806090000] => applied` |
+| Verificação | `plans`(3: free/pro/premium), `features`(20), `plan_features`(49) criadas |
 
 ### MIGRATION 2 — `20260807000000_phase_6_0_5_3_feature_flags.sql`
 
 | Campo | Valor |
 |-------|-------|
-| Status | ⏳ |
-| Resultado | — |
-| Verificação | — |
+| Status | ✅ aplicada |
+| Resultado | `db query --linked -f` exit=0; repair `[20260807000000] => applied` |
+| Verificação | `feature_flags` criada; RPC `tenant_has_feature(uuid,text)` presente; histórico ok |
 
 ### MIGRATION 3 — `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql`
 
 | Campo | Valor |
 |-------|-------|
-| Status | ⏳ |
-| Resultado | — |
-| Verificação | — |
+| Status | ✅ aplicada |
+| Resultado | `db query --linked -f` exit=0; repair `[20260807010000] => applied` |
+| Verificação | RPCs `suspend_subscription(uuid)`/`reactivate_subscription(uuid)` presentes; `apply_subscription_transition(uuid,text,timestamptz,timestamptz,timestamptz,boolean,timestamptz)` (7 args, com `p_grace_ends_at`) |
 
 ### MIGRATION 4 — `20260807020000_phase_6_0_5_5_transitions.sql`
 
 | Campo | Valor |
 |-------|-------|
-| Status | ⏳ |
-| Resultado | — |
-| Verificação | — |
+| Status | ✅ aplicada |
+| Resultado | `db query --linked -f` exit=0; repair `[20260807020000] => applied` |
+| Verificação | RPC `change_tenant_plan(uuid,text,text)` presente |
 
 ### MIGRATION 5 — `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql`
 
 | Campo | Valor |
 |-------|-------|
-| Status | ⏳ |
-| Resultado | — |
-| Verificação | — |
+| Status | ✅ aplicada |
+| Resultado | `db query --linked -f` exit=0; repair `[20260808000000] => applied` |
+| Verificação | `create_invoice` → `ON CONFLICT DO NOTHING` = true; `record_payment_attempt` → `RETURNING a.id` = true |
+
+### Migration history (pós-janela)
+
+`supabase_migrations.schema_migrations >= '20260806090000'` → **5 rows**; `migration list --linked`
+→ **zero pendentes** (`06030000`, `06090000`, `07000000`, `07010000`, `07020000`, `08000000` aplicadas).
 
 ---
 
@@ -160,13 +169,53 @@ event_store                            0   ✅
 
 | Área | Resultado | Evidência |
 |------|-----------|-----------|
-| Migration history | ⏳ | — |
-| Schema/FKs | ⏳ | — |
-| RLS/policies/grants | ⏳ | — |
-| RPCs | ⏳ | — |
-| Feature Flags | ⏳ | — |
-| Planos/limites | ⏳ | — |
-| Estado dos tenants | ⏳ | — |
+| Migration history | ✅ | 6 versões aplicadas (`06030000` + as 5 da janela); zero pendentes |
+| Schema/FKs | ✅ | `tenants_plan_fkey` + `subscriptions_plan_fkey` presentes; CHECK `subscriptions_status_check` aceita `suspended`; coluna `grace_ends_at` (timestamptz) presente; backfill `past_due` sem grace = 0 |
+| RLS/policies/grants | ✅ resolvido | RLS ativo em `plans`/`features`/`plan_features`/`feature_flags`; `feature_flags` com 1 policy (superadmin ALL); `start_trial` sem `anon`; **fix D-6.0.5.8 aplicado: `anon_restantes = 0`** (exceções públicas preservadas) |
+| RPCs | ✅ | 11 do contrato 6.0.4.3 presentes; `tenant_has_feature`/`generate_club_receivables`/`refresh_club_receivable_statuses`/`pay_club_receivable`/`suspend_subscription`/`reactivate_subscription`/`change_tenant_plan(uuid,text,text)` presentes; `apply_subscription_transition` com fail-fast (`RAISE EXCEPTION`); corpos `create_invoice`/`record_payment_attempt` desambiguados |
+| Feature Flags | ✅ | Matriz `plan_features` = free 14 / pro 15 / premium 20 |
+| Planos/limites | ✅ | 3 plans; RLS catálogo; FKs aditivas |
+| Estado dos tenants | ✅ | Contagens pós-deploy iguais ao snapshot pré-deploy: tenants 45, staff 42, profiles 8, subscriptions 1, customer_subscriptions 15, receivables 42, role_permissions 4901, feature_flags 0 (nova, vazia — esperado) |
+
+> **Migrations aplicadas na janela: 6** — as 5 originais (`06090000`→`08000000`) **+**
+> `20260808110000_revoke_anon_rpc_execute.sql` (fix hardening D-6.0.5.8, aprovado pelo PO
+> durante a janela).
+
+### Desvio de hardening detectado (verificação §4.9 — execução PAUSADA)
+
+**Fato:** verificação §4.9 do runbook detectou `anon` com `EXECUTE` em `create_invoice` e
+`record_payment_attempt` — runbook: **"`anon` ou `PUBLIC` presentes → falha de hardening → abortar."**
+
+**Análise:**
+- O levantamento completo (`aclexplode(pg_proc.proacl)`) mostrou **~60 RPCs** com `EXECUTE`
+  para `anon` no remoto, incluindo RPCs de billing (`create_invoice`, `record_payment_attempt`,
+  `mark_invoice_paid`, `change_tenant_plan`, `suspend_subscription`, `reactivate_subscription`,
+  `tenant_has_feature`, `apply_subscription_transition`, financeiras, etc.).
+- **Pré-existente** — documentado em `docs/security/SECURITY_AUDIT_RPC.md` (linhas 166–181):
+  o Supabase **auto-concede `EXECUTE` a `anon`** em funções novas; RPCs históricas (pré-hardening)
+  permanecem anon-executáveis. Item pendente da auditoria da **Fase 6.0.4.2** (checklist):
+  "Aplicar `REVOKE EXECUTE FROM anon` + `GRANT EXECUTE TO authenticated` onde não há justificativa de público."
+- **Não foi introduzido pela janela:** nenhuma das 5 migrations concede a `anon`; a `08000000`
+  removeu `PUBLIC` das duas RPCs (estado melhorado). O grant direto a `anon` é da criação
+  original das funções.
+- **Mitigação funcional:** as RPCs são `SECURITY DEFINER` e rejeitam chamada sem sessão na
+  primeira linha (`create_invoice`: `IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authentication required'`).
+  Chamador `anon` (sem JWT) → `auth.uid()` = null → rejeitado. Risco prático baixo, porém o
+  padrão ADR-012 exige `REVOKE FROM anon` (defense-in-depth).
+- **Exceções legítimas (intencionalmente públicas):** `get_invite_by_token` e `kiosk_get_staff`
+  (GRANT `TO anon, authenticated` explícito nas migrations 20260806000000).
+
+**Decisão:** aguardando aprovação explícita do PO (fix de hardening é alteração fora do runbook).
+
+### Resolução (D-6.0.5.8 — PO aprovou o fix em 2026-08-08)
+
+- **Fix aplicado:** `REVOKE EXECUTE ON FUNCTION ... FROM anon` em **55 RPCs** (transação
+  atômica), preservando `get_invite_by_token` e `kiosk_get_staff` (públicas por design).
+- **Registrado como migration** `20260808110000_revoke_anon_rpc_execute.sql` (idempotente)
+  + `migration repair --status applied 20260808110000` → histórico alinhado repo/remoto.
+- **Re-validação §4.9:** `create_invoice` e `record_payment_attempt` → apenas
+  `authenticated`/`service_role`/`postgres` (sem `anon`, sem `PUBLIC`). ✅
+- **Universo total:** `anon_restantes = 0` (excluídas as 2 exceções públicas). ✅
 
 ## Validação E2E
 
