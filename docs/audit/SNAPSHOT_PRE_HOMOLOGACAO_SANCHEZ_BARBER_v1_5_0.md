@@ -162,9 +162,10 @@ Não há tabela persistente de comissões (comissão é domínio teórico; calcu
 
 ## 9. Acesso e usuários (H-1-4/H-1-5, ETAPA B)
 
-- `profiles` (8 global): **Sanchez tem apenas 1** — `828175b0-ac50-444f-bd90-51b9a399c28c` = **"Administrador"** (superadmin). Demais 7 são E2E (E2E Manager/Barber/Cashier) + Demo Estética.
+- `profiles` (8 global): **Sanchez tinha apenas 1** — `828175b0-ac50-444f-bd90-51b9a399c28c` = **"Administrador"** (superadmin). Demais 7 são E2E (E2E Manager/Barber/Cashier) + Demo Estética.
 - `user_tenants`: Sanchez → somente `828175b0...`.
-- **Os 5 staff do tenant (RUBENS, HERON, HEBERTON, AUGUSTO, LUCAS) NÃO possuem `profiles`/usuários de app** (confirmado: 5/5 sem vínculo). **Não existe conta de homologação** → ETAPA B permanece adiada.
+- **Os 5 staff do tenant (RUBENS, HERON, HEBERTON, AUGUSTO, LUCAS) NÃO possuem `profiles`/usuários de app** (confirmado: 5/5 sem vínculo). **Não existia conta de homologação** → ETAPA B permanecia adiada.
+- **Atualização pós-snapshot (D-HOM-12, 2026-08-08):** criada a **conta de homologação** `homolog.sanchez@barber.soumanager.com` (id `189053ab-f76b-4e91-90fc-998bb693711d`, manager/active, membership primária, staff auto-criado pelo trigger) — **ETAPA B desbloqueada**. Ver `docs/audit/HOMOLOG_ACCOUNT_PROVISIONING.md`.
 
 ---
 
@@ -189,7 +190,7 @@ Não há tabela persistente de comissões (comissão é domínio teórico; calcu
 | S5 | P3 | 9 comandas sem `client_id` (não órfãs) |
 | S6 | P3 | `price_cents = 0` no catálogo `plans` (precificação não configurada) + `tenant_settings` ausente para Sanchez |
 | S7 | Info | `tenants.updated_at` = hoje 12:07 (atividade) + comandas criadas 21:20/21:21 durante coleta → **tenant LIVE**; contagens são instantâneas |
-| S8 | Info | Nenhum usuário de app além do superadmin → **ETAPA B continua adiada** (depende de conta de homologação) |
+| S8 | Info | ~~Nenhum usuário de app além do superadmin → **ETAPA B continua adiada**~~ → **SUPERSEDED pelo D-HOM-12 (2026-08-08): conta de homologação criada e validada (`homolog.sanchez@barber.soumanager.com`) — ETAPA B desbloqueada** |
 
 ---
 

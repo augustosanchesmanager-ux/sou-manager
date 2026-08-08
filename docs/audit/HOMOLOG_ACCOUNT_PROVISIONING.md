@@ -1,0 +1,170 @@
+# HOMOLOG ACCOUNT PROVISIONING — Sanchez Barber (ETAPA B, §8.1#3)
+
+> **Data da execução:** 2026-08-08 (noite)
+> **Autorização:** D-HOM-11 (PO, 2026-08-08) — ETAPA B autorizada com **conta de homologação** no tenant Sanchez Barber (validação local, sem deploy de produção).
+> **Ambiente:** banco real `ushsnmlbeurfvlkieiln` (Sanchez Barber), via `supabase db query --linked`.
+> **Natureza:** provisionamento de **dados operacionais** (usuário de homologação) — **não** é migration de schema. Regra do plano: nenhuma migration nova fora do já deployado; este procedimento não altera schema/RLS/RPCs.
+> **Relacionado:** `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` §8.1#3 + §8.2 · `docs/audit/SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` §9/S8.
+
+---
+
+## 1. Resultado
+
+Conta de homologação **criada e validada de ponta a ponta** no tenant produtivo da Sanchez Barber:
+
+| Campo | Valor |
+|-------|-------|
+| User ID (`auth.users`) | `189053ab-f76b-4e91-90fc-998bb693711d` |
+| E-mail | `homolog.sanchez@barber.soumanager.com` |
+| Tenant | `b716e290-f7f6-4449-b790-5ae9dcdadcab` (Barbearia Principal / `sanchez`, plano `pro`, `active`) |
+| Perfil (`public.profiles`) | `manager` / `active` / `onboarding_completed=true` |
+| Membership (`public.user_tenants`) | `manager` / `is_primary=true` |
+| Staff (trigger automático) | `36f1705b-02c2-4309-ae55-b92de6f87549` — "Conta Homologacao v1.5", Manager, `active`, e-mail vinculado |
+| E-mail confirmado | ✅ (`email_confirmed_at` + `confirmed_at` preenchidos) |
+| Login GoTrue (`grant_type=password`) | ✅ 200 OK (token de acesso emitido) |
+| RLS (`GET /rest/v1/profiles`) | ✅ lê o próprio profile |
+| RPC `get_auth_access_context` | ✅ `tenant_id=b716e290…`, `access_role=manager`, `profile_status=active`, `is_super_admin=false` |
+
+> **Credenciais:** a senha foi definida com hash bcrypt e **não é registrada em texto em nenhum documento versionado**. A custódia da senha segue com o OpenCode/PO (fora do repositório).
+
+---
+
+## 2. Procedimento executado
+
+### 2.1 Passo 1 — Criação do usuário + vínculo (uma transação CTE)
+
+```sql
+WITH nova_conta AS (
+  INSERT INTO auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    gen_random_uuid(),
+    'authenticated', 'authenticated',
+    'homolog.sanchez@barber.soumanager.com',
+    extensions.crypt('<SENHA>', extensions.gen_salt('bf', 10)),
+    now(),
+    '{"provider":"email","providers":["email"]}',
+    '{"full_name":"Conta Homologacao v1.5"}',
+    now(), now()
+  )
+  RETURNING id, email
+),
+nova_conta_profile AS (
+  INSERT INTO public.profiles (id, tenant_id, full_name, role, status, onboarding_completed)
+  SELECT id, 'b716e290-f7f6-4449-b790-5ae9dcdadcab', 'Conta Homologacao v1.5', 'manager', 'active', true
+  FROM nova_conta
+  RETURNING id, role, status
+),
+nova_conta_membership AS (
+  INSERT INTO public.user_tenants (user_id, tenant_id, role, is_primary)
+  SELECT id, 'b716e290-f7f6-4449-b790-5ae9dcdadcab', 'manager', true
+  FROM nova_conta
+  RETURNING user_id
+)
+SELECT u.id, u.email, p.role, p.status, m.user_id AS membership_user_id
+FROM nova_conta u
+JOIN nova_conta_profile p ON p.id = u.id
+JOIN nova_conta_membership m ON m.user_id = u.id;
+```
+
+> O **trigger de backfill de staff** (`20260226052610_fix_manager_trigger_and_backfill_staff.sql`) criou automaticamente a linha em `public.staff` (Manager) a partir do profile manager primário — verificado na validação.
+
+### 2.2 Passo 2 — Correção: linha ausente em `auth.identities`
+
+O login falhava porque o usuário inserido via SQL **não possuía** a identidade `email` em `auth.identities` (0 identidades vs. 1 nos usuários criados pela Admin API). Inserida a identity no mesmo shape usado pelo GoTrue:
+
+```sql
+INSERT INTO auth.identities (
+  id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at
+) VALUES (
+  gen_random_uuid(),
+  '189053ab-f76b-4e91-90fc-998bb693711d',
+  '189053ab-f76b-4e91-90fc-998bb693711d',
+  'email',
+  jsonb_build_object(
+    'email','homolog.sanchez@barber.soumanager.com',
+    'email_verified',false, 'phone_verified',false,
+    'sub','189053ab-f76b-4e91-90fc-998bb693711d'
+  ),
+  now(), now(), now()
+)
+ON CONFLICT DO NOTHING;
+```
+
+> ⚠️ `auth.identities.email` é **coluna gerada** — não pode ser informada no INSERT (erro `428C9`).
+
+### 2.3 Passo 3 — Correção: colunas de token com `NULL` (causa raiz do 500)
+
+O login seguia com erro GoTrue `500 "Database error querying schema"` / `unexpected_failure`. Causa raiz (documentada no Supabase troubleshooting): **colunas de token do `auth.users` devem conter string (`''`), não `NULL`** — `confirmation_token`, `recovery_token`, `email_change`, `email_change_token_new`, `email_change_token_current` (e demais `*_token`). Inserções diretas em `auth.users` deixam essas colunas `NULL` por padrão.
+
+```sql
+UPDATE auth.users
+SET confirmation_token     = coalesce(confirmation_token, ''),
+    recovery_token         = coalesce(recovery_token, ''),
+    email_change           = coalesce(email_change, ''),
+    email_change_token_new = coalesce(email_change_token_new, ''),
+    email_change_token_current = coalesce(email_change_token_current, ''),
+    phone_change_token     = coalesce(phone_change_token, ''),
+    reauthentication_token = coalesce(reauthentication_token, '')
+WHERE id = '189053ab-f76b-4e91-90fc-998bb693711d';
+```
+
+> A senha foi também regenerada com custo bcrypt **10** (padrão GoTrue; o `gen_salt('bf')` sem argumento gera custo 6):
+> `UPDATE auth.users SET encrypted_password = extensions.crypt('<SENHA>', extensions.gen_salt('bf', 10)) WHERE id = '…';`
+
+---
+
+## 3. Validação (evidência)
+
+| # | Verificação | Comando | Resultado |
+|---|-------------|---------|-----------|
+| V-1 | Linha de auth + profile + membership + staff | `SELECT` de conferência (ver §4) | 4/4 com valores esperados |
+| V-2 | Login GoTrue | `POST /auth/v1/token?grant_type=password` (apikey anon) | `200 OK`, `user.id=189053ab…`, token emitido |
+| V-3 | RLS — leitura do próprio profile | `GET /rest/v1/profiles?select=id,role,status&id=eq.<uid>` (Bearer access token) | `[{id, role:"manager", status:"active"}]` |
+| V-4 | Resolução de tenant | `POST /rest/v1/rpc/get_auth_access_context` (Bearer access token) | `tenant_id=b716e290…`, `access_role=manager`, `profile_status=active`, `is_super_admin=false` |
+
+---
+
+## 4. Queries de conferência (read-only)
+
+```sql
+-- auth + profile + membership + staff
+select 'auth_user' as q, id::text, email, email_confirmed_at::text
+from auth.users where id = '189053ab-f76b-4e91-90fc-998bb693711d'
+union all
+select 'profile', id::text, role || '/' || status, tenant_id::text
+from public.profiles where id = '189053ab-f76b-4e91-90fc-998bb693711d'
+union all
+select 'membership', user_id::text, role || '/' || is_primary::text, tenant_id::text
+from public.user_tenants where user_id = '189053ab-f76b-4e91-90fc-998bb693711d'
+union all
+select 'staff_trigger', s.id::text, s.role || '/' || s.status, s.email
+from public.staff s where s.email = 'homolog.sanchez@barber.soumanager.com';
+
+-- diagnóstico de colunas de token (deve retornar 0 linhas com NULL)
+select confirmation_token, recovery_token, email_change, email_change_token_new
+from auth.users where id = '189053ab-f76b-4e91-90fc-998bb693711d'
+and (confirmation_token is null or recovery_token is null
+  or email_change is null or email_change_token_new is null);
+```
+
+---
+
+## 5. Pitfalls / lições para reprodução
+
+1. **NUNCA inserir usuários em `auth.users` sem as colunas de token em `''`** → GoTrue responde `500 Database error querying schema` no login (Scan error: converting NULL to string is unsupported). Correção: `coalesce(..., '')` nas colunas `*_token`, `email_change`.
+2. **Todo usuário de login precisa de linha em `auth.identities`** (provider `email`, `provider_id` = user id, `identity_data` com `sub`/`email`). Usuários via SQL nascem sem identity; usuários via Admin API ganham automaticamente.
+3. **`auth.identities.email` é generated column** — não inserir (erro `428C9`).
+4. **Custo bcrypt:** usar `extensions.gen_salt('bf', 10)` para alinhar ao padrão GoTrue (default do `gen_salt('bf')` = 6).
+5. **Caminho oficial alternativo:** a Admin API (`admin.auth.admin.createUser` com `email_confirm: true`) gera o usuário com todas as colunas e identities corretas — preferida para usuários novos (padrão E2E `tests/e2e/helpers/supabaseAdmin.ts`). O SQL direto foi usado para **vincular a conta a um tenant existente** com role/status específicos.
+
+---
+
+## 6. Cleanup
+
+- Usuário descartável criado durante o diagnóstico (`throwaway-*@example.com`) **removido** via Admin API (`deleteUser`) após a validação.
+- Nenhuma outra alteração em `auth.*`/`public.*` além das linhas documentadas acima.
+- Evidências brutas das queries: diretório temporário do OpenCode (`snapshot_sanchez`), **fora** do repositório.
