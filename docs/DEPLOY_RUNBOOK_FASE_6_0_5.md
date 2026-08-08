@@ -64,7 +64,7 @@ irmãs — §3.6). Apendá-las da mesma forma ANTES de executar.**
 - [ ] **Aprovação explícita do PO** para abrir a janela de operação.
 - [ ] Branch `feature/phase-6.0.4-billing` atualizada (`git fetch` + `git status` limpo ou consistente).
 - [ ] CLI Supabase instalado (`supabase --version`) e projeto vinculado (`supabase/.temp/linked-project.json` existe — confirmado).
-- [ ] **Backup confirmado**: `Settings > Database > Backups` com backup automático + PITR ativo. **Abrir aborta se não confirmado.**
+- [ ] **Backup confirmado**: o projeto está no **plano Free** (sem backup automático nem PITR). Conforme **D-6.0.5.7**, o requisito de recuperação é substituído por **backup lógico completo + teste de restauração** (§2.2). **Abrir aborta se o backup não estiver validado.**
 - [ ] **Janela de baixo tráfego** (ex.: domingo de madrugada / pós-horário). Notificar equipe comercial — flags podem esconder módulos da UI (D-6.0.5.3-5).
 - [ ] **Sem deploys concorrentes** do time durante a janela (sem `db push` manual, sem alterações no SQL Editor por terceiros).
 - [ ] Todos os membros da equipe cientes: nenhuma operação de banco além deste runbook.
@@ -99,6 +99,40 @@ SELECT to_regclass('public.plans') AS plans,
        to_regclass('public.plan_features') AS plan_features,
        to_regclass('public.feature_flags') AS feature_flags;
 ```
+
+### 2.2 Backup lógico + teste de restauração (plano Free — D-6.0.5.7)
+
+> **Decisão PO D-6.0.5.7 (2026-08-08):** o projeto está no plano **Free** — backup
+> automático e PITR **não estão disponíveis**. O requisito de recuperação do pré-flight
+> é substituído por:
+> 1. **Backup lógico completo** do banco remoto via `supabase db dump` (somente leitura);
+> 2. **Validação** de integridade, tamanho, timestamp e hash SHA-256;
+> 3. **Cópia de custódia** fora do banco/projeto Supabase;
+> 4. **Teste de restauração** em Postgres local/temporário ANTES da janela.
+
+**Procedimento executado em 2026-08-08** (evidência registrada em `docs/DEPLOY_LOG_FASE_6_0_5.md`):
+
+```powershell
+# 1. Artefatos do backup lógico (dump oficial do CLI, somente leitura):
+supabase db dump --linked --role-only --file <dir>\20260808_roles.sql
+supabase db dump --linked --file <dir>\20260808_schema.sql
+supabase db dump --linked --data-only --use-copy --file <dir>\20260808_data.sql
+# 2. Backup de aplicação (exclui auth.* e storage.* — infra gerenciada pelo Supabase,
+#    sem schema restaurável em Postgres puro; os dados de auth/storage ficam no data.sql
+#    como referência):
+supabase db dump --linked --data-only --use-copy --exclude <auth.*,storage.* list> --file <dir>\20260808_data_app.sql
+# 3. Hash/validação:
+Get-FileHash <arquivo> -Algorithm SHA256
+# 4. Cópia de custódia fora do projeto (repositório) — ex.: C:\Users\admsm\Backups\SMG_BARBER\...
+# 5. Teste de restauração: container Postgres 17.6 (mesma versão do remoto),
+#    psql -f roles → schema → data_app, depois conferir contagens vs. snapshot pré-deploy.
+```
+
+> **Requisitos do teste de restauração:** versão do Postgres local = versão do remoto (17.6);
+> conferir contagens de tabelas-chave (tenants, staff, profiles, subscriptions,
+> customer_subscriptions, receivables, role_permissions etc.) iguais ao snapshot pré-deploy.
+> O `--data-only --use-copy` do CLI já inicia com `SET session_replication_role = replica;`,
+> neutralizando as FKs circulares de `comanda_items`/`customer_plan_credit_usages`.
 
 ---
 
