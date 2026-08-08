@@ -6,6 +6,7 @@
 > **Baseline de referência:** 6.0.5.x **DEPLOYADA E VALIDADA** no banco real (`ushsnmlbeurfvlkieiln`) — ver `docs/DEPLOY_LOG_FASE_6_0_5.md`.
 > **Branch:** `feature/phase-6.0.4-billing`
 > **Fonte de autoridade:** decisão do PO (2026-08-08) + `ROADMAP.md` (seção 6.0.5/6.0.6) + `RELEASE_CHECKLIST_v1.5.md` + `docs/DEPLOY_LOG_FASE_6_0_5.md`.
+> **Atualização 2026-08-08 (D-HOM-9):** adicionado o **Gate H-8 — Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend). Auditoria read-only executada pelo OpenCode em 2026-08-08 → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; produção `718f6f9` defasada). **Nenhuma alteração remota na Vercel.**
 
 ---
 
@@ -33,14 +34,15 @@ Validar, no **tenant produtivo Sanchez Barber** (ambiente real `ushsnmlbeurfvlki
 - **H-4** Billing / Tenant Lifecycle (todos os estados do ciclo);
 - **H-5** Feature Flags (por plano, com/sem recurso, prompts e páginas de bloqueio);
 - **H-6** Segurança (RLS, grants, papéis, isolamento entre tenants);
-- **H-7** Operação real (um ciclo completo de trabalho acompanhado).
+- **H-7** Operação real (um ciclo completo de trabalho acompanhado);
+- **H-8** Infraestrutura Vercel / Deployment Topology (origem oficial única do frontend, domínio, branch, variáveis e Supabase corretamente vinculados).
 
 ## 2. Escopo
 
 ### 2.1 Inclui
 
 - Execução de testes (E2E automatizados, consultas SQL de verificação e validações manuais) **exclusivamente contra o tenant Sanchez Barber** e dados reais de produção;
-- Validação de todos os fluxos listados nos gates H-1 a H-7;
+- Validação de todos os fluxos listados nos gates H-1 a H-8;
 - Registro de evidência para **cada teste** (responsável, data, resultado, observação);
 - Veredito final único em um dos 3 estados oficiais (ver §6);
 - Atualização dos documentos da release ao final (log de homologação, RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP).
@@ -78,7 +80,7 @@ Validar, no **tenant produtivo Sanchez Barber** (ambiente real `ushsnmlbeurfvlki
 
 ## 5. Critérios de Saída
 
-Todos os testes de H-1 a H-7 executados, com evidência registrada, **e** veredito final atribuído (ver §6).
+Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredito final atribuído (ver §6).
 
 ## 6. Veredito final (estados oficiais)
 
@@ -195,6 +197,21 @@ Todos os testes de H-1 a H-7 executados, com evidência registrada, **e** veredi
 
 > **Ressalva de dados:** H7 pode operar sobre dados reais do tenant conforme regra do PO (dados reais de faturamento da operação). Caso o PO prefira ambiente isolado, o ciclo é repetido com dados de teste e contagem real conferida via SQL.
 
+### Gate H-8 — Infraestrutura Vercel / Deployment Topology
+
+> **Adicionado por decisão do PO (2026-08-08, D-HOM-9)** após a detecção de que o mesmo commit `68acda4` foi implantado (preview) em **dois projetos Vercel** (`smg-barber` e `sou-manager`). Garantir que exista **uma única origem oficial** para o frontend de produção do SMG Barber, com domínio, branch, variáveis e Supabase corretamente vinculados — sem homologar um projeto enquanto o domínio real apontar para outro.
+> **Auditoria read-only já executada em 2026-08-08:** `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (veredito: oficial = `smg-barber`/`barber.soumanager.com`; legado = `sou-manager`; produção atual `718f6f9` defasada; sem alterações remotas).
+
+| ID | Teste | Método | Critério de aceite | Responsável | Data | Resultado | Observação |
+|----|-------|--------|--------------------|-------------|------|-----------|------------|
+| H8-1 | Auditoria read-only da topologia Vercel (`smg-barber` × `sou-manager`): repo, branch, domínio, env, Supabase | API Vercel (GET) + CLI read-only | Topologia documentada; origem oficial única identificada | OpenCode | 2026-08-08 | ✅ Executado | Ver `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` |
+| H8-2 | Domínio oficial `barber.soumanager.com` atende o projeto oficial (`smg-barber`), sem redirect/erro | HTTP + API | Domínio → projeto oficial; Supabase `ushsnmlbeurfvlkieiln` | OpenCode | 2026-08-08 | ✅ Verificado | Bundles de produção apontam `ushsnmlbeurfvlkieiln` |
+| H8-3 | Merge para `main` não gera deploy duplicado em 2 projetos | Inspeção de config | Mecanismo único de deploy definido (double-deploy eliminado) | OpenCode | ⏳ | ⏳ | **Pendência de decisão do PO** (desligar git do legado ou mitigação) |
+| H8-4 | Env do projeto oficial coerente (Supabase URL, anon key, `MULTI_SCHEMA_ENABLED`) | API Vercel env + bundle | Env = ambiente de homologação; sem divergência de schema routing | OpenCode | 2026-08-08 | ✅ Divergência detectada | `sou-manager` tem `MULTI_SCHEMA_ENABLED=true`; `smg-barber` não → **reconciliar** (decisão PO) |
+| H8-5 | Config de build/root/output corretos e coerentes com o repositório | API Vercel | Build Vite correto; output `dist`/`.` | OpenCode | 2026-08-08 | ✅ Verificado | Config divergente entre projetos; ambos servem o mesmo app |
+| H8-6 | Nenhuma credencial sensível no env do projeto oficial de frontend | API Vercel env (keys) | Zero `POSTGRES_*`/`SERVICE_ROLE`/`JWT_SECRET` no oficial | OpenCode | 2026-08-08 | ✅ Verificado | Secretas só no `sou-manager` (legado) |
+| H8-7 | **Deploy de produção da release v1.5** (merge + build + smoke pós-deploy) planejado e registrado | Runbook | Produção atualizada além de `718f6f9`; smoke pós-deploy verde | OpenCode | ⏳ | ⏳ | Produção atual defasada (sem 6.0.1–6.0.5 e sem fix `68acda4`) — **decisão PO** |
+
 ---
 
 ## 9. Estratégia de execução (após aprovação do PO)
@@ -203,9 +220,10 @@ Todos os testes de H-1 a H-7 executados, com evidência registrada, **e** veredi
 2. **Automação:** executar suítes E2E já existentes que cobrem os gates (Flow14, Flow13, Smoke, flows P0/P1) contra o ambiente real com `E2E_PROVISIONING` conforme necessário.
 3. **Validação manual/SQL:** testes que exigem inspeção de dados (integridade, quadratura, RLS/grants) executados via consultas individuais no runner Management API.
 4. **Operação real (H7):** agendar com a equipe da Sanchez Barber um ciclo real de trabalho acompanhado.
-5. **Registro:** preencher este documento com evidência (responsável, data, resultado, observação) para cada teste.
-6. **Veredito:** atribuir 🟢 / 🟡 / 🔴 e submeter à aprovação formal do PO.
-7. **Atualização dos docs da release** (RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP, BUSINESS_DECISIONS se aplicável) e commit semântico + push.
+5. **Topologia Vercel (H8):** executar/confirmar os itens H8-1 a H8-7 — auditoria read-only (já executada), reconciliação de duplicidade/env e **planejamento do deploy de produção da release v1.5** (decisões do PO).
+6. **Registro:** preencher este documento com evidência (responsável, data, resultado, observação) para cada teste.
+7. **Veredito:** atribuir 🟢 / 🟡 / 🔴 e submeter à aprovação formal do PO.
+8. **Atualização dos docs da release** (RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP, BUSINESS_DECISIONS se aplicável) e commit semântico + push.
 
 ## 10. Riscos
 
@@ -216,6 +234,8 @@ Todos os testes de H-1 a H-7 executados, com evidência registrada, **e** veredi
 | Vazamento de acesso entre tenants detectado | Registro P0 → bloqueio; revalidação de RLS |
 | Frontend consultando `feature_flags` diretamente | Inspeção grep (H5-8) → violação registrada e corrigida |
 | Indisponibilidade do tenant em horário de operação real (H7) | Agendamento prévio com a operação; janela curta de acompanhamento |
+| **Duplicidade Vercel (`smg-barber` × `sou-manager`) e double-deploy em merge para `main` (H8)** | Auditoria read-only executada (ver `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`); reconciliação e destino do legado = **decisão do PO** antes de qualquer merge |
+| **Produção defasada (`718f6f9`) — homologar frontend que não é a release v1.5** | **H8-7**: deploy de produção da release v1.5 planejado e registrado como etapa explícita da homologação (decisão do PO) |
 
 ## 11. Responsável
 

@@ -233,6 +233,7 @@
 | D-HOM-6 | Modo do plano | Plano elaborado **exclusivamente documental** em 2026-08-08: nenhuma execução de teste, alteração de código ou banco até **aprovação formal do PO** |
 | D-HOM-7 | Fora do escopo da homologação | Sem merge, sem baseline/tag v1.5.0, sem deploy de frontend, sem migrations novas, sem início da 6.0.6 — decisões posteriores do PO |
 | D-HOM-8 | Operação real (H-7) | Ciclo real de trabalho da Sanchez Barber acompanhado (agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência financeira); uso de dados reais conforme regra do PO |
+| D-HOM-9 | **Gate H-8 — Infraestrutura Vercel / Deployment Topology** (2026-08-08) | Adicionado após detecção de que o mesmo commit (`68acda4`) foi implantado (preview) em **dois projetos Vercel** (`smg-barber` e `sou-manager`). Exige **origem oficial única** do frontend de produção do SMG Barber (domínio, branch, env e Supabase vinculados) e **deploy de produção da release v1.5 planejado** (produção atual `718f6f9` defasada). **Auditoria somente leitura executada pelo OpenCode em 2026-08-08** → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; riscos: double-deploy em merge, divergência de `MULTI_SCHEMA_ENABLED`, credenciais legadas no env do `sou-manager`). **Nenhuma alteração remota na Vercel — reconciliação e destino do legado são decisão do PO** |
 
 ## Decisões 6.0.6 (D-6.0.6) — aprovadas em 2026-08-07
 

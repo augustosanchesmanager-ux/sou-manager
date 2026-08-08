@@ -185,7 +185,8 @@
 ## 10.1 Homologação Sanchez Barber — gate formal da v1.5 (D-HOM, 2026-08-08)
 
 > **Gate formal de homologação** posicionado **após a janela única de deploy (executada)** e **antes da Fase 6.0.6**. Regra do PO: **6.0.6 não começa enquanto a homologação não estiver `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, formalmente aprovada pelo PO.**
-> Plano completo: `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1 a H-7, evidência por teste, vereditos 🟢/🟡/🔴).
+> Plano completo: `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1 a H-8, evidência por teste, vereditos 🟢/🟡/🔴).
+> **Atualização 2026-08-08 (D-HOM-9):** adicionado o **gate H-8 — Infraestrutura Vercel / Deployment Topology**. Auditoria read-only executada → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; produção `718f6f9` defasada).
 
 - [ ] **Aprovação formal do plano de homologação pelo PO** (D-HOM-6)
 - [ ] H-1 Integridade operacional (login/permissões, tenant, equipe, clientes, agenda, serviços/produtos, dados históricos preservados)
@@ -195,6 +196,7 @@
 - [ ] H-5 Feature Flags (free/pro/premium, habilitada/desabilitada, UpgradePrompt, FeatureUnavailablePage, acesso direto à rota, zero leitura direta de `feature_flags`)
 - [ ] H-6 Segurança (RPCs protegidas, anon/authenticated, papéis, RLS, isolamento e acesso cruzado entre tenants)
 - [ ] H-7 Operação real (ciclo completo acompanhado: agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência)
+- [ ] **H-8 Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend, domínio/branch/env/Supabase vinculados, sem double-deploy; **deploy de produção da release v1.5 planejado** — produção atual `718f6f9` defasada) — auditoria read-only ✅ em `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md`
 - [ ] **Veredito final** 🟢 HOMOLOGADO / 🟡 HOMOLOGADO COM RESSALVAS / 🔴 BLOQUEADO — aprovado pelo PO
 - [ ] Atualizar docs da release (log de homologação, RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP) + commit semântico + push
 
