@@ -31,7 +31,7 @@
 - [x] **6.0.5.2** BillingService + Modelagem de Plans (PlanCatalog + `plans/features/plan_features`) — ✅ implementada + review PO (deploy pendente)
 - [x] **6.0.5.3** FeatureFlagService + enforcement — ✅ implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
 - [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
-- [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan`, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado) — pendente
+- [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan` upgrade/downgrade, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado, `UpgradePrompt`, depreciação `featureAvailability.ts`) — ⏳ **PLANNED**; entry audit submetida (`docs/audit/PHASE_6_0_5_5_ENTRY_AUDIT.md`) com o **gate "Schema Freeze Candidate"** (PO 2026-08-07)
 - [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 - [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
 
@@ -159,7 +159,10 @@
 ## 10. Deploy (janela única — aprovada em princípio)
 
 > **Gate obrigatório (PO 2026-08-07):** antes de qualquer item abaixo, `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` deve estar **`READY`** — a **Production Compatibility Audit (6.0.5.6)** é executada contra o **banco real dos tenants produtivos**, imediatamente antes da janela única de deploy.
+>
+> **Pré-requisito da PCA — Schema Freeze (PO 2026-08-07):** o gate **"Schema Freeze Candidate"** (6.0.5.5) deve estar com veredito final **`SCHEMA FREEZE = YES`** (ver `PHASE_6_0_5_5_ENTRY_AUDIT.md` §3) antes de liberar a PCA. Veredito preliminar atual: **NO** (somente a RPC `change_tenant_plan` como novo objeto de schema).
 
+- [ ] **Schema Freeze = YES** registrado no fechamento da 6.0.5.5 (gate §3 reexecutado com o diff real)
 - [ ] **Production Compatibility Audit** (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
 - [ ] **Aprovação explícita do PO** para abrir a janela
@@ -204,6 +207,7 @@
 > Tudo abaixo deve estar marcado antes de declarar a v1.5.0 certificada.
 
 - [ ] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
+- [ ] **Gate "Schema Freeze Candidate" (6.0.5.5)** — veredito final **`SCHEMA FREEZE = YES`** registrado (pré-requisito da PCA)
 - [ ] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
 - [ ] **Fase 6.0.6 Compliance & Legal** — gate de certificação atendido (ver §11)
 - [ ] Todas as migrations da versão aplicadas no remoto (janela única)
