@@ -18,6 +18,7 @@ import {
   isCommissionStatusFilter,
 } from '../shared/status/commission';
 import type { CommissionStatusFilter } from '../shared/status/commission';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface StaffMember {
     id: string;
@@ -242,6 +243,95 @@ const isServiceItem = (item: any) => {
     return Boolean(item.service_id) || type === 'service' || type === 'servico' || type === 'serviço';
 };
 
+const COMMISSIONS_IN_BATCH_SIZE = 120;
+const COMMISSIONS_PAGE_SIZE = 1000;
+
+const fetchAllPages = async <T,>(
+    queryBuilder: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: any }>,
+    pageSize: number,
+): Promise<{ data: T[] | null; error: any }> => {
+    const allData: T[] = [];
+    let from = 0;
+    let pageError: any = null;
+    while (true) {
+        const to = from + pageSize - 1;
+        const pageResult = await queryBuilder(from, to);
+        if (pageResult.error) {
+            pageError = pageResult.error;
+            break;
+        }
+        const pageData = (pageResult.data || []) as T[];
+        allData.push(...pageData);
+        if (pageData.length < pageSize) break;
+        from = to + 1;
+    }
+    return { data: allData, error: pageError };
+};
+
+const fetchInChunks = async <T,>(
+    client: SupabaseClient,
+    table: string,
+    column: string,
+    ids: string[],
+    options: { select?: string; tenantId?: string } = {},
+): Promise<T[]> => {
+    const allData: T[] = [];
+    for (let i = 0; i < ids.length; i += COMMISSIONS_IN_BATCH_SIZE) {
+        const batch = ids.slice(i, i + COMMISSIONS_IN_BATCH_SIZE);
+        let query = client.from(table).select(options.select || '*').in(column, batch);
+        if (options.tenantId) query = query.eq('tenant_id', options.tenantId);
+        const { data, error } = await query;
+        if (error) throw error;
+        allData.push(...((data || []) as T[]));
+    }
+    return allData;
+};
+
+const fetchComandasInPeriod = async (
+    client: SupabaseClient,
+    tenantId: string,
+    statuses: string[],
+    rangeStartIso: string,
+    rangeEndIso: string,
+    appointmentIds: string[],
+): Promise<ComandaRow[]> => {
+    const collected: ComandaRow[] = [];
+    const seen = new Set<string>();
+
+    const runQuery = async (dateOr: string) => {
+        const res = await fetchAllPages(
+            (from, to) =>
+                client
+                    .from('comandas')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .in('status', statuses)
+                    .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
+                    .or(dateOr)
+                    .range(from, to),
+            COMMISSIONS_PAGE_SIZE,
+        );
+        if (res.error) throw res.error;
+        for (const comanda of (res.data || []) as ComandaRow[]) {
+            if (comanda.id && !seen.has(comanda.id)) {
+                seen.add(comanda.id);
+                collected.push(comanda);
+            }
+        }
+    };
+
+    await runQuery(
+        `and(created_at.gte.${rangeStartIso},created_at.lte.${rangeEndIso}),and(closed_at.gte.${rangeStartIso},closed_at.lte.${rangeEndIso})`,
+    );
+
+    for (let i = 0; i < appointmentIds.length; i += COMMISSIONS_IN_BATCH_SIZE) {
+        const batch = appointmentIds.slice(i, i + COMMISSIONS_IN_BATCH_SIZE);
+        await runQuery(`and(appointment_id.in.(${batch.join(',')}))`);
+    }
+
+    return collected;
+};
+
 const getPaymentMethodLabel = (comanda: ComandaRow) => {
     if (comanda.closure_mode === 'legacy_membership' || comanda.financial_effect === false) {
         return 'Club dos Chefes';
@@ -426,41 +516,52 @@ const Commissions: React.FC = () => {
         startOfRange.setHours(0, 0, 0, 0);
         const endOfRange = new Date(endDate);
         endOfRange.setHours(23, 59, 59, 999);
+        const rangeStartIso = startOfRange.toISOString();
+        const rangeEndIso = endOfRange.toISOString();
 
-        const [staffRes, comandasRes] = await Promise.all([
-            client
-                .from('staff')
-                .select('id, name, role, avatar, commission_rate')
-                .eq('tenant_id', tenantId),
-            client
-                .from('comandas')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .in('status', ['open', 'paid', 'blocked', 'cancelled'])
-                .or('hidden_from_financial.is.null,hidden_from_financial.eq.false'),
-        ]);
-
+        const staffRes = await client
+            .from('staff')
+            .select('id, name, role, avatar, commission_rate')
+            .eq('tenant_id', tenantId);
         if (staffRes.error) throw staffRes.error;
-        if (comandasRes.error) throw comandasRes.error;
+
+        const appointmentsInRangeRes = await fetchAllPages(
+            (from, to) =>
+                client
+                    .from('appointments')
+                    .select('id, start_time')
+                    .eq('tenant_id', tenantId)
+                    .gte('start_time', rangeStartIso)
+                    .lte('start_time', rangeEndIso)
+                    .range(from, to),
+            COMMISSIONS_PAGE_SIZE,
+        );
+        if (appointmentsInRangeRes.error) throw appointmentsInRangeRes.error;
+
+        const appointmentIdsInRange = ((appointmentsInRangeRes.data || []) as AppointmentRow[]).map(
+            (appointment) => appointment.id,
+        );
+
+        const comandas = await fetchComandasInPeriod(
+            client,
+            tenantId,
+            ['open', 'paid', 'blocked', 'cancelled'],
+            rangeStartIso,
+            rangeEndIso,
+            appointmentIdsInRange,
+        );
 
         const staffList = (staffRes.data || []) as StaffMember[];
         const staffById = staffList.reduce((acc, staff) => {
             acc[staff.id] = staff;
             return acc;
         }, {} as Record<string, StaffMember>);
-        const comandas = (comandasRes.data || []) as ComandaRow[];
         const appointmentIds = Array.from(new Set(comandas.map((comanda) => comanda.appointment_id).filter((id): id is string => Boolean(id))));
-        const { data: appointments, error: appointmentsError } = appointmentIds.length > 0
-            ? await client
-                .from('appointments')
-                .select('id, start_time')
-                .eq('tenant_id', tenantId)
-                .in('id', appointmentIds)
-            : { data: [] as AppointmentRow[], error: null };
+        const appointments = appointmentIds.length > 0
+            ? await fetchInChunks<AppointmentRow>(client, 'appointments', 'id', appointmentIds, { select: 'id, start_time', tenantId })
+            : [];
 
-        if (appointmentsError) throw appointmentsError;
-
-        const appointmentById = ((appointments || []) as AppointmentRow[]).reduce((acc, appointment) => {
+        const appointmentById = appointments.reduce((acc, appointment) => {
             acc[appointment.id] = appointment;
             return acc;
         }, {} as Record<string, AppointmentRow>);
@@ -472,27 +573,16 @@ const Commissions: React.FC = () => {
         const comandaIds = comandasInProductionRange.map((comanda) => comanda.id);
         const clientIds = Array.from(new Set(comandasInProductionRange.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
 
-        const [itemsRes, clientsRes] = await Promise.all([
+        const [itemsData, clientsData] = await Promise.all([
             comandaIds.length > 0
-                ? client
-                    .from('comanda_items')
-                    .select('*')
-                    .eq('tenant_id', tenantId)
-                    .in('comanda_id', comandaIds)
-                : Promise.resolve({ data: [] as any[], error: null }),
+                ? fetchInChunks<any>(client, 'comanda_items', 'comanda_id', comandaIds, { tenantId })
+                : Promise.resolve([] as any[]),
             clientIds.length > 0
-                ? client
-                    .from('clients')
-                    .select('id, name')
-                    .eq('tenant_id', tenantId)
-                    .in('id', clientIds)
-                : Promise.resolve({ data: [] as any[], error: null }),
+                ? fetchInChunks<any>(client, 'clients', 'id', clientIds, { select: 'id, name', tenantId })
+                : Promise.resolve([] as any[]),
         ]);
 
-        if (itemsRes.error) throw itemsRes.error;
-        if (clientsRes.error) throw clientsRes.error;
-
-        const rawServiceItems = ((itemsRes.data || []) as any[]).filter(isServiceItem);
+        const rawServiceItems = (itemsData as any[]).filter(isServiceItem);
         const serviceItems = Array.from(
             rawServiceItems.reduce((acc, item) => {
                 if (item.id && !acc.has(item.id)) acc.set(item.id, item);
@@ -500,17 +590,11 @@ const Commissions: React.FC = () => {
             }, new Map<string, any>()).values(),
         ) as any[];
         const itemIds = serviceItems.map((item) => item.id).filter(Boolean);
-        const { data: participants, error: participantsError } = itemIds.length > 0
-            ? await client
-                .from('service_execution_participants')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .in('comanda_item_id', itemIds)
-            : { data: [] as ParticipantRow[], error: null };
+        const participants = itemIds.length > 0
+            ? await fetchInChunks<ParticipantRow>(client, 'service_execution_participants', 'comanda_item_id', itemIds, { tenantId })
+            : [];
 
-        if (participantsError) throw participantsError;
-
-        const clientById = ((clientsRes.data || []) as any[]).reduce((acc, currentClient) => {
+        const clientById = (clientsData as any[]).reduce((acc, currentClient) => {
             acc[currentClient.id] = currentClient.name;
             return acc;
         }, {} as Record<string, string>);
@@ -518,7 +602,7 @@ const Commissions: React.FC = () => {
             acc[comanda.id] = comanda;
             return acc;
         }, {} as Record<string, ComandaRow>);
-        const participantsByItem = ((participants || []) as ParticipantRow[]).reduce((acc, participant) => {
+        const participantsByItem = participants.reduce((acc, participant) => {
             if (!acc[participant.comanda_item_id]) acc[participant.comanda_item_id] = [];
             acc[participant.comanda_item_id].push(participant);
             return acc;
