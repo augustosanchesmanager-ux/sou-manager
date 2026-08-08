@@ -182,6 +182,24 @@
 
 ---
 
+## 10.1 Homologação Sanchez Barber — gate formal da v1.5 (D-HOM, 2026-08-08)
+
+> **Gate formal de homologação** posicionado **após a janela única de deploy (executada)** e **antes da Fase 6.0.6**. Regra do PO: **6.0.6 não começa enquanto a homologação não estiver `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, formalmente aprovada pelo PO.**
+> Plano completo: `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1 a H-7, evidência por teste, vereditos 🟢/🟡/🔴).
+
+- [ ] **Aprovação formal do plano de homologação pelo PO** (D-HOM-6)
+- [ ] H-1 Integridade operacional (login/permissões, tenant, equipe, clientes, agenda, serviços/produtos, dados históricos preservados)
+- [ ] H-2 Fluxo financeiro P0 (atendimento → checkout, formas de pagamento, fechamento de caixa, por profissional, comissões, receitas/despesas, conferência)
+- [ ] H-3 Chef Club (adesão, benefícios, regras de plano, reflexos financeiros, permissões)
+- [ ] H-4 Billing/Lifecycle (active, past_due, suspended, reativação, cancelamento, transição de plano, limites, feature indisponível)
+- [ ] H-5 Feature Flags (free/pro/premium, habilitada/desabilitada, UpgradePrompt, FeatureUnavailablePage, acesso direto à rota, zero leitura direta de `feature_flags`)
+- [ ] H-6 Segurança (RPCs protegidas, anon/authenticated, papéis, RLS, isolamento e acesso cruzado entre tenants)
+- [ ] H-7 Operação real (ciclo completo acompanhado: agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência)
+- [ ] **Veredito final** 🟢 HOMOLOGADO / 🟡 HOMOLOGADO COM RESSALVAS / 🔴 BLOQUEADO — aprovado pelo PO
+- [ ] Atualizar docs da release (log de homologação, RELEASE_CHECKLIST, PROJECT_STATUS, ROADMAP) + commit semântico + push
+
+---
+
 ## 11. Fase 6.0.6 — Compliance & Legal (gate obrigatório de certificação)
 
 > **Registrada em 2026-08-07 (decisão do PO).** Posição na release: **após** 6.0.5.x (incluindo PCA 6.0.5.6) + janela única de deploy, e **antes** da certificação final da v1.5. Fase **exclusivamente documental nesta etapa** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`.
@@ -195,7 +213,7 @@
 - [ ] Checklist de compliance aprovado
 - [ ] Reaceite obrigatório funcionando (documento alterado → nova versão → login → reaceite → acesso)
 
-> **Critérios de entrada da 6.0.6:** arquitetura 6.0.5 concluída · PCA READY · schema congelado · deploy aprovado · release candidata pronta.
+> **Critérios de entrada da 6.0.6:** arquitetura 6.0.5 concluída · PCA READY · schema congelado · deploy aprovado · **homologação Sanchez Barber aprovada (D-HOM)** · release candidata pronta.
 > **Modelo de dados (proposta arquitetural — nenhuma migration):** `legal_documents` · `document_versions` · `accepted_documents`.
 
 ---
@@ -216,6 +234,7 @@
 - [x] Todas as subfases 6.0.5.1–6.0.5.5 concluídas
 - [x] **Gate "Schema Freeze Candidate" (6.0.5.5)** — veredito final **`SCHEMA FREEZE = YES`** registrado (pré-requisito da PCA)
 - [x] **Production Compatibility Audit** executada contra o banco real dos tenants produtivos — `PRODUCTION_COMPATIBILITY_AUDIT.md = READY`
+- [ ] **Homologação Sanchez Barber** — gate formal aprovado pelo PO (🟢/🟡 — ver §10.1)
 - [ ] **Fase 6.0.6 Compliance & Legal** — gate de certificação atendido (ver §11)
 - [x] Todas as migrations da versão aplicadas no remoto (janela única) — 6 aplicadas + `06030000` reparada
 - [ ] Todos os critérios de saída de cada entry audit marcados

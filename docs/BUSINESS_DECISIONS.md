@@ -219,6 +219,21 @@
 | D-6.0.5.8-2 | Escopo do fix | `REVOKE EXECUTE ON FUNCTION ... FROM anon` nas RPCs **sem exceção pública**, preservando `get_invite_by_token` e `kiosk_get_staff` (intencionalmente públicas). Aplicado via transação atômica + registrado como migration **`20260808110000_revoke_anon_rpc_execute.sql`** (idempotente) no histórico remoto. **Executado pelo OpenCode em 2026-08-08**; re-validação: `anon_restantes = 0` |
 | D-6.0.5.8-3 | Mitigação funcional verificada | RPCs são `SECURITY DEFINER` e rejeitam chamada sem sessão na 1ª linha (`IF auth.uid() IS NULL THEN RAISE EXCEPTION`); o fix é **defense-in-depth** (padrão ADR-012) |
 
+## Decisões de Homologação (D-HOM) — aprovadas em 2026-08-08
+
+> **Gate formal de homologação da Sanchez Barber** como tenant produtivo real — posicionado **após a janela única de deploy (6.0.5 aplicada e validada no banco real)** e **antes da Fase 6.0.6**. A homologação transforma a validação técnica em prova operacional e integra a **trilha de certificação da v1.5.0**.
+
+| Código | Tema | Decisão |
+|--------|------|---------|
+| D-HOM-1 | Criação do gate | A **homologação da Sanchez Barber** é um **gate formal da release v1.5**, não uma lista informal de testes. Plano registrado em `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` |
+| D-HOM-2 | Posição na release | Posicionada **após** 6.0.5 deployada/validada no banco real e **antes** da 6.0.6. **6.0.6 não começa enquanto a homologação não estiver formalmente `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, aprovada pelo PO** |
+| D-HOM-3 | Escopo dos gates | 7 gates: **H-1** Integridade operacional · **H-2** Fluxo financeiro P0 · **H-3** Chef Club · **H-4** Billing/Lifecycle · **H-5** Feature Flags · **H-6** Segurança · **H-7** Operação real (ciclo completo acompanhado) |
+| D-HOM-4 | Vereditos oficiais | 🟢 **HOMOLOGADO** · 🟡 **HOMOLOGADO COM RESSALVAS** (somente não bloqueantes, com plano de ação) · 🔴 **BLOQUEADO** (falha P0/P1 ou risco de integridade) |
+| D-HOM-5 | Evidência obrigatória | Cada teste exige **responsável, data, resultado e observação** — a homologação integra a trilha de certificação da v1.5.0 |
+| D-HOM-6 | Modo do plano | Plano elaborado **exclusivamente documental** em 2026-08-08: nenhuma execução de teste, alteração de código ou banco até **aprovação formal do PO** |
+| D-HOM-7 | Fora do escopo da homologação | Sem merge, sem baseline/tag v1.5.0, sem deploy de frontend, sem migrations novas, sem início da 6.0.6 — decisões posteriores do PO |
+| D-HOM-8 | Operação real (H-7) | Ciclo real de trabalho da Sanchez Barber acompanhado (agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência financeira); uso de dados reais conforme regra do PO |
+
 ## Decisões 6.0.6 (D-6.0.6) — aprovadas em 2026-08-07
 
 > Fase 6.0.6 — **Compliance & Legal**. Registro formal do gate obrigatório de certificação da release v1.5. Fase **exclusivamente documental nesta etapa** (nenhuma migration, tabela, SQL, RPC, API ou componente React). Posicionada **após a conclusão da 6.0.5.x** (incluindo PCA 6.0.5.6 + janela única de deploy) e **antes da certificação final da Release v1.5**.
