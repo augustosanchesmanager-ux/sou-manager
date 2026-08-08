@@ -9,13 +9,15 @@
 > **Atualização 2026-08-08 (D-HOM-9):** adicionado o **Gate H-8 — Infraestrutura Vercel / Deployment Topology** (origem oficial única do frontend). Auditoria read-only executada pelo OpenCode em 2026-08-08 → `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` (oficial: `smg-barber`/`barber.soumanager.com`; legado: `sou-manager`; produção `718f6f9` defasada). **Nenhuma alteração remota na Vercel.**
 > **Atualização 2026-08-08 (D-HOM-10):** decisão do PO após a auditoria — **a homologação NÃO está encerrada**; a produção atende o frontend `718f6f9` (sem 6.0.1–6.0.5 e sem o fix `68acda4`), portanto o **H-8 é formalizado como BLOQUEADOR** da homologação. Criado o **bloco de "Hardening da Homologação / Vercel" (§8.1)** com 8 etapas obrigatórias. **Proibido até nova ordem do PO:** merge para `main`, deploy de produção v1.5, abertura da 6.0.6 e qualquer alteração remota na Vercel.
 > **Atualização 2026-08-08 (D-HOM-11):** com aprovação explícita do PO, o **git link do projeto legado `sou-manager` foi DESCONECTADO** (double-deploy eliminado; projeto/domínios/env/histórico intactos; reversível via `vercel git connect`). Detalhes: `docs/audit/VERCEL_DEPLOYMENT_TOPOLOGY_AUDIT.md` §8. ETAPA B autorizada com **conta de homologação** no tenant Sanchez Barber (validação local, sem deploy de produção).
+> **Atualização 2026-08-08 (Pré-homologação autorizada pelo PO):** **baseline do snapshot** registrado em `docs/audit/SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` (contagens read-only do tenant `b716e290...` = Barbearia Principal/`sanchez`, achados S1–S8, **tenant LIVE**) e **especificação de execução dos gates H-1..H-7** adicionada na **§8.2** (pré-condição, procedimento, resultado esperado, evidência, severidade e critério de aprovação/bloqueio por gate). Critério H3-6 corrigido para **16 assinaturas**. **ETAPA B permanece adiada** (5 staff sem usuário de app; apenas o superadmin existe — confirmado no snapshot §9).
 
 ---
 
-## STATUS: 🟡 PLANO SUBMETIDO PARA APROVAÇÃO DO PO (2026-08-08) — 🔴 H-8 BLOQUEADOR ATIVO
+## STATUS: 🟡 PLANO SUBMETIDO PARA APROVAÇÃO DO PO (2026-08-08) — 🔴 H-8 BLOQUEADOR ATIVO — 🟢 PRÉ-HOMOLOGAÇÃO (SNAPSHOT + GATES H-1..H-7) PREPARADA
 
 > **Regra da release (PO):** **6.0.6 não começa enquanto a homologação não estiver formalmente `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS`, aprovada pelo PO.** Nenhuma execução será iniciada antes da aprovação explícita deste plano.
 > **🔴 Bloqueio ativo (D-HOM-10):** produção atende o frontend `718f6f9` (sem 6.0.1–6.0.5 e sem o fix `68acda4`) + duplicidade Vercel (`smg-barber` × `sou-manager`). Homologar contra o frontend de produção atual **não valida a release v1.5** — a resolução do **bloco de Hardening (§8.1)** é pré-requisito para o fechamento de H-8 e para o veredito final.
+> **🟢 Pré-homologação (autorizada 2026-08-08):** baseline `SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` ✅ + especificação de execução H-1..H-7 (pré-condição/procedimento/resultado/evidência/severidade/critério) na §8.2 ✅. **Aguardando:** conta de homologação no tenant (ETAPA B) + decisões do PO (destino do legado, deploy v1.5) para iniciar H-1..H-7.
 
 ---
 
@@ -150,7 +152,7 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 | H3-3 | Regras de plano do Chef Club respeitadas | E2E | Limites/regras vigentes | OpenCode | ⏳ | ⏳ | |
 | H3-4 | Reflexos financeiros (créditos, receivables) | SQL | Crédito debitado; receivable criado | OpenCode | ⏳ | ⏳ | |
 | H3-5 | Permissões (quem cadastra/utiliza) | E2E | Roles controlam acesso | OpenCode | ⏳ | ⏳ | |
-| H3-6 | Assinaturas Chef Club existentes preservadas | SQL | Igual ao snapshot (15) | OpenCode | ⏳ | ⏳ | |
+| H3-6 | Assinaturas Chef Club existentes preservadas | SQL | Igual ao snapshot (16: 13 ativas, 3 canceladas) | OpenCode | ⏳ | ⏳ | Ver `SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` |
 
 ### Gate H-4 — Billing / Tenant Lifecycle
 
@@ -234,6 +236,24 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 
 > **Proibido até nova ordem do PO:** merge para `main`; deploy de produção v1.5; abertura da Fase 6.0.6; qualquer alteração remota na Vercel (delete, desativar, desvincular git, alterar env).
 
+### 8.2 Especificação de execução dos gates H-1..H-7 (pré-homologação, autorizada 2026-08-08)
+
+> **Baseline de conferência:** `docs/audit/SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` (contagens instantâneas de 2026-08-08 — o tenant é LIVE e as contagens podem variar durante a operação).
+> **Regra PO:** qualquer achado P0/P1 durante a execução → **registrar e apresentar ao PO**; nunca corrigir automaticamente.
+> **Pré-condição global:** conta de homologação no tenant Sanchez Barber (ETAPA B) + re-teste de Comissões sobre o preview oficial `smg-barber` (§8.1#4/#5) — **pendentes** (ETAPA B adiada).
+
+| Gate | Pré-condição | Procedimento | Resultado esperado | Evidência | Severidade | Critério de aprovação/bloqueio |
+|------|--------------|--------------|--------------------|-----------|-----------|-------------------------------|
+| **H-1** Integridade operacional | Conta de homologação ativa no tenant | H1-1/H1-2 login real (sucesso/erro); H1-3 domínio → tenant `b716e290...`; H1-4/H1-5 perfis/roles via SQL+UI; H1-6/H1-7/H1-8/H1-9 conferência de contagens contra snapshot §3/§4/§5 | Acesso sem redirect indevido; tenant correto em todas as queries; contagens coerentes com o snapshot (variação permitida = operação live) | Saída do teste + query SQL + captura de tela | P0: perda de dados/redirect quebra login | 🟢 todas as contagens ≥ baseline (sem regressão) · 🔴 perda de dados ou conta não resolve o tenant |
+| **H-2** Fluxo financeiro P0 | H-1 aprovado | H2-1/H2-2 checkout com as formas de pagamento do tenant (pix, dinheiro, crédito, Chef Club); H2-3 fechamento de caixa; H2-4 fechamento por profissional; H2-5 comissões (ADR-001); H2-6 receitas/despesas; H2-7 quadratura caixa×comissões×comandas; H2-8 cancelamento/reversão | Valores do checkout == transações == comissões; quadratura (§4 como baseline); reversão sem duplicidade | JSON das operações + query de quadratura | P0: valor errado persistido | 🟢 quadratura ok + reversão consistente · 🔴 divergência financeira persistente |
+| **H-3** Chef Club | H-1 aprovado | H3-1 adesão; H3-2 benefício no checkout; H3-3 regras do plano; H3-4 créditos/receivables via SQL; H3-5 permissões por role; H3-6 conferência de 16 assinaturas (S1: 13 ativas/3 canceladas) | Desconto aplicado; crédito debitado; receivable criado; **10 overdue + 6 pending investigados (S3)** | SQL + E2E + captura | P1: crédito debitado sem reflexo financeiro | 🟢 16 assinaturas preservadas + reflexos financeiros íntegros · 🔴 perda de assinatura/débito sem lançamento |
+| **H-4** Billing/Lifecycle | H-1 aprovado | H4-1..H4-6 matriz de estados (active/past_due/suspended/reativação/cancelamento/transição) + H4-7 limites por plano + H4-8 feature indisponível + H4-9 `runCycle` (ADR-013) — **em tenant de teste E2E, NÃO no tenant real** | Estados e transições conforme ADR-013; `tenants.plan` refletido | SQL + E2E (Flow13) | P0: tenant real afetado | 🟢 matriz completa válida · 🔴 qualquer mutação no tenant real |
+| **H-5** Feature Flags | H-4 aprovado | H5-1/H5-2/H5-3 matrizes free/pro/premium (14/15/20) via RPC `tenant_has_feature`; H5-4..H5-7 acesso/rota direta; H5-8 grep frontend (zero acesso direto a `feature_flags`); H5-9 override superadmin | Flags = matriz do plano; bloqueios corretos; override vence matriz | SQL + E2E + grep | P1: flag errada para o plano | 🟢 matriz pro (15) correta para Sanchez · 🔴 feature indisponível aparecendo/feature paga liberada |
+| **H-6** Segurança | H-5 aprovado | H6-1 RPCs rejeitam acesso indevido; H6-2 `anon` bloqueado; H6-3 grants ADR-012; H6-4 matriz de papéis (Flow13 8/8); H6-5/H6-6 isolamento cross-tenant; H6-7 RLS nas tabelas de catálogo | Zero acesso indevido; queries cross-tenant vazias; RLS ativo (já verificado no snapshot §10) | SQL + E2E | P0: vazamento cross-tenant | 🟢 RLS+grants íntegros · 🔴 vazamento de dados entre tenants |
+| **H-7** Operação real | H-2 aprovado + agendamento com a equipe | Acompanhar um ciclo real: agenda → atendimento → comanda → pagamento → comissão → fechamento do profissional → fechamento do caixa → conferência financeira | Ciclo completo sem erro; valores quadram; dados persistidos (§4 como baseline) | Registro do ciclo + conferência SQL pós-operação | P1: valor divergente na operação real | 🟢 ciclo completo e quadratura ok · 🔴 erro no ciclo real com impacto financeiro |
+
+> **Sequência obrigatória:** H-1 → H-2 → H-3 → H-4 → H-5 → H-6 → H-7. Cada gate só inicia após o anterior aprovado. O **H-8 permanece BLOQUEADOR** independente do resultado de H-1..H-7 (produção ainda em `718f6f9`).
+
 ---
 
 ## 9. Estratégia de execução (após aprovação do PO)
@@ -269,9 +289,10 @@ Todos os testes de H-1 a H-8 executados, com evidência registrada, **e** veredi
 ## 12. Próxima Etapa
 
 1. PO decide o destino do legado `sou-manager` e autoriza a execução do bloco de **Hardening (§8.1)**.
-2. OpenCode executa as 8 etapas do bloco (ETAPA B auth/tenant, preview oficial, re-teste de Comissões, testes H-1..H-7, registro de achados).
-3. PO decide o deploy de produção da release v1.5 (H8-7) — único caminho para produção sair de `718f6f9`.
-4. Veredito 🟢/🟡 → **abertura da Fase 6.0.6 (Compliance & Legal)**.
-5. Veredito 🔴 → retorno à correção (nenhuma fase avança).
+2. **Pré-homologação (autorizada 2026-08-08):** snapshot/baseline concluído (`SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md`) + especificação de execução H-1..H-7 (§8.2) pronta; ETAPA B permanece **adiada** até existir conta de homologação no tenant.
+3. OpenCode executa as etapas restantes do bloco (re-teste de Comissões, testes H-1..H-7, registro de achados).
+4. PO decide o deploy de produção da release v1.5 (H8-7) — único caminho para produção sair de `718f6f9`.
+5. Veredito 🟢/🟡 → **abertura da Fase 6.0.6 (Compliance & Legal)**.
+6. Veredito 🔴 → retorno à correção (nenhuma fase avança).
 
 > **Regra da release:** **6.0.6 não começa enquanto a homologação não estiver `HOMOLOGADO` ou `HOMOLOGADO COM RESSALVAS` formalmente aprovada pelo PO.**
