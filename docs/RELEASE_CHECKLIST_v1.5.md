@@ -152,7 +152,7 @@
 - [x] `f7f3620` — docs(billing): 6.0.5 deploy runbook (janela única)
 - [x] `ff9f301` — docs(billing): 6.0.5.4 entry audit (4 auditorias + API congelada)
 - [x] `5454c81` — feat(billing): 6.0.5.4 TenantLifecycleService + suspended (implementação; flow14 E2E adiado à janela única)
-- [ ] docs(billing): 6.0.5.5 + baseline v1.5.0
+- [x] `6ca3788` — feat(billing): 6.0.5.5 plan transitions (`change_tenant_plan` + `changePlan` + `Admin.tsx` single writer + `UpgradePrompt` + `StatusBanner`; migration `20260807020000` T1–T12 OK; SCHEMA FREEZE = YES)
 
 ---
 
