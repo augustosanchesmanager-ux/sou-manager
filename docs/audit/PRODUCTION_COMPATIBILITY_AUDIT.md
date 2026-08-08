@@ -67,7 +67,7 @@ A auditoria só pode iniciar quando:
 - [x] 6.0.5.2 concluída
 - [x] 6.0.5.3 concluída
 - [x] 6.0.5.4 concluída (implementação — unit 874/874 + migration `20260807010000` validada T1–T7 em docker; E2E flow14 adiado à janela única — decisão PO 2026-08-07)
-- [ ] 6.0.5.5 concluída
+- [x] 6.0.5.5 concluída (implementação — unit 883/883 + migration `20260807020000` validada T1–T12 em docker; **SCHEMA FREEZE = YES** em 2026-08-08; E2E flow11 adiado à janela única — decisão PO)
 - [ ] Schema final da release congelado
 - [ ] Runbook de deploy aprovado
 
@@ -138,7 +138,8 @@ Validar para cada tenant: **Plano atual → Limite permitido → Uso real → Po
 - [ ] policies;
 - [ ] grants;
 - [ ] RPC permissions;
-- [ ] anon access.
+- [ ] anon access;
+- [ ] **RPC runtime smoke (descoberta 6.0.5.5 §12.5):** executar cada RPC de billing/lifecycle irmã (`start_trial`, `activate_subscription`, `cancel_subscription`, `apply_subscription_transition`, `suspend_subscription`, `reactivate_subscription`, `get_subscription`, billing engine) — compartilham o padrão de referência de coluna não qualificada que pode disparar `column reference ... is ambiguous` no primeiro uso (nunca executadas em Postgres real). Detalhes e fix recomendado: `DEPLOY_RUNBOOK_FASE_6_0_5.md` §3.5.
 
 ### 9. Integridade
 

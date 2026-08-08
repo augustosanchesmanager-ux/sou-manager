@@ -82,7 +82,16 @@ const PREMIUM_FEATURES: FeatureSet = [
   'multi_unit',
 ];
 
-/** Matriz por plano (FEATURE_FLAGS_MODEL §5) — fonte tipada do seed. */
+/**
+ * Matriz por plano (FEATURE_FLAGS_MODEL §5) — fonte tipada do seed.
+ *
+ * @deprecated 6.0.5.5 (D-6.0.5.5-2 / D-6.0.5.3-6) — matriz estática FORA do
+ * runtime: o consumo de flags em produção é EXCLUSIVO via RPC `tenant_has_feature`
+ * (FeatureFlagService) e do catálogo DB-backed (`plans`/`plan_features`,
+ * migration 20260806090000). Mantida SOMENTE como fonte tipada do seed e para
+ * testes de compatibilidade (matriz tipada vira n para testes — entry audit
+ * 6.0.5.3). Não criar novos consumidores de runtime a partir dela.
+ */
 export const PLAN_FEATURES: Readonly<Record<TenantPlan, FeatureSet>> = {
   free: FREE_FEATURES,
   pro: PRO_FEATURES,

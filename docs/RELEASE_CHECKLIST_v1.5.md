@@ -31,7 +31,7 @@
 - [x] **6.0.5.2** BillingService + Modelagem de Plans (PlanCatalog + `plans/features/plan_features`) — ✅ implementada + review PO (deploy pendente)
 - [x] **6.0.5.3** FeatureFlagService + enforcement — ✅ implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
 - [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
-- [ ] **6.0.5.5** Transições RPCs (`change_tenant_plan` upgrade/downgrade, `TenantSubscriptionUpdated`, correção `Admin.tsx:856`, banner estado, `UpgradePrompt`, depreciação `featureAvailability.ts`) — ⏳ **PLANNED**; entry audit submetida (`docs/audit/PHASE_6_0_5_5_ENTRY_AUDIT.md`) com o **gate "Schema Freeze Candidate"** (PO 2026-08-07)
+- [x] **6.0.5.5** Transições RPCs (`change_tenant_plan` upgrade/downgrade, `TenantSubscriptionUpdated`, correção `Admin.tsx` escrita direta, banner estado, `UpgradePrompt`, depreciação `featureAvailability.ts`) — ✅ **IMPLEMENTADA (2026-08-08)**: unit 883/883, migration `20260807020000` validada em docker T1–T12 + idempotência 2×, **SCHEMA FREEZE = YES** (§12.3 entry audit); E2E flow11 adiado à janela única (decisão PO)
 - [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 - [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
 
@@ -56,7 +56,7 @@
 | `20260806090000_phase_6_0_5_2_plans_catalog.sql` | 6.0.5.2 | ⏳ **Pendente** | `plans`/`features`/`plan_features` + FK aditiva |
 | `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ⏳ **Pendente** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
 | `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ⏳ **Pendente** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **criada + validada em docker T1–T7** |
-| `20260807020000_phase_6_0_5_5_transitions.sql` *(planejada)* | 6.0.5.5 | ❌ Não criada | `change_tenant_plan` + RPCs de transição |
+| `20260807020000_phase_6_0_5_5_transitions.sql` | 6.0.5.5 | ⏳ **Pendente (criada)** | `change_tenant_plan` (espelho `tenants.plan`, grants ADR-012) — **criada + validada em docker T1–T12 + idempotência 2×** |
 
 - [ ] Validar cada migration em Postgres 16 docker (aplica 2× sem duplicar) **antes** da janela.
 - [ ] Aplicar via `MIGRATION_EXCEPTION` (`db query --linked -f` + `migration repair --status applied`) na janela única.
@@ -160,14 +160,14 @@
 
 > **Gate obrigatório (PO 2026-08-07):** antes de qualquer item abaixo, `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` deve estar **`READY`** — a **Production Compatibility Audit (6.0.5.6)** é executada contra o **banco real dos tenants produtivos**, imediatamente antes da janela única de deploy.
 >
-> **Pré-requisito da PCA — Schema Freeze (PO 2026-08-07):** o gate **"Schema Freeze Candidate"** (6.0.5.5) deve estar com veredito final **`SCHEMA FREEZE = YES`** (ver `PHASE_6_0_5_5_ENTRY_AUDIT.md` §3) antes de liberar a PCA. Veredito preliminar atual: **NO** (somente a RPC `change_tenant_plan` como novo objeto de schema).
+> **Pré-requisito da PCA — Schema Freeze (PO 2026-08-07):** o gate **"Schema Freeze Candidate"** (6.0.5.5) deve estar com veredito final **`SCHEMA FREEZE = YES`** (ver `PHASE_6_0_5_5_ENTRY_AUDIT.md` §12.3) antes de liberar a PCA. **✅ `SCHEMA FREEZE = YES` (2026-08-08)** — delta real = somente a RPC `change_tenant_plan` (prevista na entrada).
 
-- [ ] **Schema Freeze = YES** registrado no fechamento da 6.0.5.5 (gate §3 reexecutado com o diff real)
+- [x] **Schema Freeze = YES** registrado no fechamento da 6.0.5.5 (gate §12.3 reexecutado com o diff real — 2026-08-08)
 - [ ] **Production Compatibility Audit** (`PRODUCTION_COMPATIBILITY_AUDIT.md = READY`)
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
 - [ ] **Aprovação explícita do PO** para abrir a janela
 - [ ] Pré-flight (backup/PITR, `migration list`, dados de plano)
-- [ ] Aplicar `06030000` → `06090000` → `07000000` → `07010000` (+ migrations de 6.0.5.5 se houver)
+- [ ] Aplicar `06030000` → `06090000` → `07000000` → `07010000` → `07020000` (6.0.5.5) — ver runbook §3.5
 - [ ] Verificações pós-deploy (histórico, RLS, RPCs, matriz `tenant_has_feature`)
 - [ ] Smoke 10/10 pós-deploy
 - [ ] Deploy do frontend (Vercel) — se fizer parte da mesma liberação

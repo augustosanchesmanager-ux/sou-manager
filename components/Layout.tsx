@@ -10,6 +10,7 @@ import SupportWidget from './SupportWidget';
 import MobileBottomNav, { isMobileBottomNavRoute } from './MobileBottomNav';
 import { useNotifications } from '../src/hooks/useNotifications';
 import OfflineStatusBanner from '../src/components/offline/OfflineStatusBanner';
+import StatusBanner from './billing/StatusBanner';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -133,6 +134,7 @@ const Layout: React.FC = () => {
         </header>
 
         <OfflineStatusBanner />
+        <StatusBanner />
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content ${showMobileBottomNav ? 'pb-24 md:pb-24 lg:pb-8' : ''}`}>
           <Outlet />

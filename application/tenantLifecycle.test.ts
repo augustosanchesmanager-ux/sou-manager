@@ -317,3 +317,113 @@ describe('TenantLifecycleService.getStatus', () => {
     );
   });
 });
+
+describe('TenantLifecycleService.changePlan', () => {
+  const proRow = fakeTrialingRow({
+    status: 'active',
+    plan: 'pro',
+    current_period_start: '2026-08-06T10:00:00.000Z',
+    current_period_end: '2026-09-06T10:00:00.000Z',
+  });
+
+  beforeEach(() => {
+    mockRpcClient.rpcSingle.mockReset();
+    mockRpcClient.rpc.mockReset();
+    mockRpcClient.rpc.mockReturnValue({ single: mockRpcClient.rpcSingle });
+    mockEventBus.publish.mockReset();
+    mockRpcClient.rpcSingle.mockResolvedValue({ data: proRow, error: null });
+  });
+
+  it('rejeita tenantId vazio', async () => {
+    await expect(service.changePlan('', 'pro')).rejects.toThrow('tenantId é obrigatório');
+    expect(mockRpcClient.rpc).not.toHaveBeenCalled();
+    expect(mockEventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('rejeita plano inválido', async () => {
+    await expect(service.changePlan('tenant-1', 'ultra' as any)).rejects.toThrow(
+      'Plano inválido',
+    );
+    expect(mockRpcClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('chama RPC change_tenant_plan com os parâmetros corretos (incl. reason)', async () => {
+    await service.changePlan('tenant-1', 'premium', 'solicitado pelo cliente');
+
+    expect(mockRpcClient.rpc).toHaveBeenCalledWith('change_tenant_plan', {
+      p_tenant_id: 'tenant-1',
+      p_plan: 'premium',
+      p_reason: 'solicitado pelo cliente',
+    });
+  });
+
+  it('usa p_reason null quando reason não informada', async () => {
+    await service.changePlan('tenant-1', 'pro');
+
+    expect(mockRpcClient.rpc).toHaveBeenCalledWith('change_tenant_plan', {
+      p_tenant_id: 'tenant-1',
+      p_plan: 'pro',
+      p_reason: null,
+    });
+  });
+
+  it('retorna a view da subscription após a mudança', async () => {
+    const result = await service.changePlan('tenant-1', 'pro');
+
+    expect(result.plan).toBe('pro');
+    expect(result.status).toBe('active');
+    expect(result.tenantId).toBe('tenant-1');
+  });
+
+  it('publica TenantSubscriptionUpdated no path de plano (6.0.5.5)', async () => {
+    await service.changePlan('tenant-1', 'pro');
+
+    expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
+    const event = mockEventBus.publish.mock.calls[0][0];
+    expect(event.eventType).toBe('TenantSubscriptionUpdated');
+    expect(event.aggregateId).toBe('sub-1');
+    expect(event.aggregateType).toBe('tenant_subscription');
+    expect(event.payload).toEqual({
+      subscriptionId: 'sub-1',
+      tenantId: 'tenant-1',
+      plan: 'pro',
+      status: 'active',
+    });
+    expect(event.metadata).toMatchObject({
+      tenantId: 'tenant-1',
+      source: 'TenantLifecycleService',
+    });
+  });
+
+  it('propaga erro da RPC (ex.: superadmin obrigatório) sem publicar evento', async () => {
+    mockRpcClient.rpcSingle.mockResolvedValue({
+      data: null,
+      error: { message: 'Insufficient permissions: superadmin required to change tenant plan' },
+    });
+
+    await expect(service.changePlan('tenant-1', 'pro')).rejects.toThrow(
+      'Erro ao alterar plano: Insufficient permissions: superadmin required to change tenant plan',
+    );
+    expect(mockEventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('rejeita resultado inválido da RPC', async () => {
+    mockRpcClient.rpcSingle.mockResolvedValue({ data: null, error: null });
+
+    await expect(service.changePlan('tenant-1', 'pro')).rejects.toThrow(
+      'RPC change_tenant_plan retornou resultado inválido',
+    );
+    expect(mockEventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('mantém a subscription corrente quando a RPC é idempotente (mesmo plano)', async () => {
+    const freeRow = fakeTrialingRow({ status: 'active', plan: 'free' });
+    mockRpcClient.rpcSingle.mockResolvedValue({ data: freeRow, error: null });
+
+    const result = await service.changePlan('tenant-1', 'free');
+
+    expect(result.plan).toBe('free');
+    // O serviço apenas espelha o retorno da RPC — a idempotência é responsabilidade da RPC
+    expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
+  });
+});

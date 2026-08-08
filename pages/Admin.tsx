@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { tenantLifecycleService } from '../application/tenantLifecycle';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 
@@ -853,15 +854,16 @@ const Admin: React.FC = () => {
                                                         const newPlan = select.value;
 
                                                         setIsLoadingData(true);
-                                                        const { error } = await supabase.from('tenants').update({ plan: newPlan }).eq('id', shop.tenant_id);
-
-                                                        if (!error) {
+                                                        try {
+                                                            // 6.0.5.5: escrita direta de tenants.plan ELIMINADA (D-6.0.5.5-3).
+                                                            // Única fronteira = RPC change_tenant_plan via changePlan (single writer, ADR-013 §3.1).
+                                                            await tenantLifecycleService.changePlan(shop.tenant_id, newPlan as any);
                                                             // Update local state immediately
                                                             setShops(prev => prev.map(s => s.id === shop.id ? { ...s, plan: newPlan } : s));
                                                             showToast(`Plano de "${shop.name}" atualizado para ${newPlan.toUpperCase()}!`);
-                                                        } else {
-                                                            console.error('Update plan error:', error);
-                                                            showToast(`Erro ao salvar: ${error.message}`, 'error');
+                                                        } catch (err: any) {
+                                                            console.error('Update plan error:', err);
+                                                            showToast(`Erro ao salvar: ${err?.message || 'Erro desconhecido'}`, 'error');
                                                         }
                                                         setIsLoadingData(false);
                                                     }}

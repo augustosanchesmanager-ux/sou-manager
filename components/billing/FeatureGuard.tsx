@@ -2,8 +2,8 @@
  * [SMG][COMPONENT] FeatureGuard — gate de plano (6.0.5.3) para rotas e UI.
  *
  * Decide pela flag EFETIVA do tenant (`can(feature)` via useFeatureFlags):
- * habilitada → renderiza o conteúdo; desabilitada → `FeatureUnavailablePage`
- * (nunca 403 genérico, D-6.0.5.3-5).
+ * habilitada → renderiza o conteúdo; desabilitada → `UpgradePrompt`
+ * (D-6.0.5.3-5 / D-6.0.5.5-2 — nunca 403 genérico, sempre orienta o upgrade).
  *
  * Composição no App.tsx: ProtectedRoute (perfil) → ModuleRoute (app) →
  * FeatureGuard (plano). O enforcement real permanece no backend (RPCs com
@@ -13,7 +13,7 @@
 import React from 'react';
 import { useFeatureFlags } from '../../src/hooks/useFeatureFlags';
 import type { FeatureKey } from '../../domain/billing/featureKey';
-import FeatureUnavailablePage from './FeatureUnavailablePage';
+import UpgradePrompt from './UpgradePrompt';
 
 interface FeatureGuardProps {
   feature: FeatureKey;
@@ -24,7 +24,7 @@ const FeatureGuard: React.FC<FeatureGuardProps> = ({ feature, children }) => {
   const { can } = useFeatureFlags();
 
   if (!can(feature)) {
-    return <FeatureUnavailablePage feature={feature} />;
+    return <UpgradePrompt feature={feature} />;
   }
 
   return <>{children}</>;

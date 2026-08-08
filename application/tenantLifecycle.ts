@@ -18,6 +18,9 @@
  *   cancel     : valida → RPC cancel_subscription (pedido: cancel_at_period_end)
  *                → publica TenantSubscriptionUpdated (acesso mantido)
  *                → efetivação (cancelled) via BillingService.runCycle (6.0.4.4)
+ *   changePlan : valida → RPC change_tenant_plan (upgrade/downgrade 6.0.5.5;
+ *                superadmin; grava subscriptions.plan + espelho tenants.plan)
+ *                → publica TenantSubscriptionUpdated (path de plano — 6.0.5.5)
  *   getStatus  : RPC get_subscription (leitura do tenant resolvido do chamador)
  *
  * NÃO FAZ:
@@ -276,6 +279,62 @@ export class TenantLifecycleServiceImpl {
     }
 
     return data ? toSubscriptionView(data as SubscriptionRow) : null;
+  }
+
+  /**
+   * Muda o plano da assinatura do tenant (upgrade/downgrade — 6.0.5.5).
+   *
+   * D-6.0.5.5-3 (single writer, ADR-013 §3.1): NENHUM componente escreve
+   * `tenants.plan` diretamente — a única fronteira é a RPC `change_tenant_plan`
+   * (persistência fina), que grava `subscriptions.plan` E o espelho
+   * `tenants.plan` no mesmo UPDATE transacional. Operação manual/superadmin
+   * (sem gateway); falha fail-fast para chamadores sem permissão.
+   *
+   * Idempotente: mesmo plano = a RPC devolve a subscription atual sem mudança.
+   * Publica TenantSubscriptionUpdated apenas após sucesso transacional.
+   */
+  async changePlan(
+    tenantId: string,
+    plan: TenantPlan,
+    reason?: string,
+  ): Promise<TenantSubscriptionView> {
+    validateTenantId(tenantId);
+    validatePlan(plan);
+
+    const { data, error } = await this.getClient()
+      .rpc('change_tenant_plan', {
+        p_tenant_id: tenantId,
+        p_plan: plan,
+        p_reason: reason ?? null,
+      })
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao alterar plano: ${error.message}`);
+    }
+    if (!data) {
+      throw new Error('RPC change_tenant_plan retornou resultado inválido');
+    }
+
+    const view = toSubscriptionView(data as SubscriptionRow);
+
+    await appEventBus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
+      eventType: 'TenantSubscriptionUpdated',
+      aggregateId: view.id,
+      aggregateType: 'tenant_subscription',
+      payload: {
+        subscriptionId: view.id,
+        tenantId: view.tenantId,
+        plan: view.plan,
+        status: view.status,
+      },
+      metadata: {
+        tenantId: view.tenantId,
+        source: 'TenantLifecycleService',
+      },
+    }));
+
+    return view;
   }
 }
 

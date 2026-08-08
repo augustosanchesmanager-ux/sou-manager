@@ -259,3 +259,69 @@ A **6.0.5.5** fecha o **ciclo funcional de Billing/Lifecycle** com a operação 
 - No **fechamento** da 6.0.5.5, o gate é **reexecutado** e deve produzir **`SCHEMA FREEZE = YES`**, registrado antes de liberar a PCA.
 
 **Aguardando:** ~~confirmação do PO sobre o escopo (D-6.0.5.5-1..5) e sobre a inclusão/adiamento do hardening M7/M11/M12 + E2E flow11 (D-6.0.5.5-4).~~ → **✅ APROVADO (2026-08-07):** escopo D-6.0.5.5-1..5 aprovado; hardening M7/M11/M12 + E2E flow11 **adiados para o backlog pós-v1.5**. Implementação autorizada.
+
+---
+
+## 12. Fechamento da implementação (2026-08-08)
+
+### 12.1 Entrega real (diff verificado)
+
+| Item | Entregue | Evidência |
+|------|----------|-----------|
+| Migration `20260807020000_phase_6_0_5_5_transitions.sql` | ✅ RPC `change_tenant_plan(uuid, text, text)` SECURITY DEFINER superadmin + espelho transacional `subscriptions.plan`/`tenants.plan` + `TenantPlanChanged` via `record_billing_event` + grants ADR-012 | Validação docker (abaixo) |
+| `application/tenantLifecycle.ts` | ✅ `changePlan(tenantId, plan, reason?)` (valida → RPC → publica `TenantSubscriptionUpdated`); idempotência (mesmo plano = no-op); mapeamento `past_due/suspended` preservado | `tenantLifecycle.test.ts` |
+| `pages/Admin.tsx` | ✅ Escrita direta de `tenants.plan` **removida** → `changePlan` | Grep: zero `from('tenants').update({plan})` |
+| `components/billing/UpgradePrompt.tsx` | ✅ Novo fallback do `FeatureGuard` (D-6.0.5.3-5) | Integrado + página `FeatureUnavailablePage` |
+| `components/billing/StatusBanner.tsx` | ✅ Novo banner global de estado (trial/past_due/suspended/cancelled) | Integrado no `Layout` |
+| `domain/authorization/featureAvailability.ts` | ✅ Deprecada (fora do runtime; consumida só por testes de compatibilidade) | `@deprecated` + imports ajustados |
+| `domain/billing/planCatalog.ts` | ✅ `getUpgradeTarget`/`isDowngrade` (apoio ao `UpgradePrompt`) | Unit tests |
+
+### 12.2 Validação em Postgres (docker) — migration idempotente + T1–T12
+
+A migration foi validada em **Postgres 16 (docker)** em banco isolado reproduzindo fielmente os pré-requisitos das migrations de dependência (`tenants`/`subscriptions` com CHECK aditivo `suspended` + `grace_ends_at`/`billing_events`/`record_billing_event`/`current_is_super_admin_from_auth_uid`/`auth.uid()` via GUC):
+
+- **Idempotência:** aplicada 2× sem erro (CREATE FUNCTION + REVOKE + GRANT estáveis).
+- **T1** grants ADR-012: PUBLIC sem EXECUTE; `authenticated` com EXECUTE.
+- **T2–T5** upgrade `free→pro`, downgrade `pro→free`, upgrade `pro→premium`, downgrade `premium→pro` — `subscriptions.plan` **e** espelho `tenants.plan` atualizados no mesmo UPDATE transacional + `billing_events` `TenantPlanChanged` com `previous_plan`/`new_plan`/`reason`.
+- **T6** plano inválido (`ultra`) → `Invalid plan`.
+- **T7** idempotência: mesmo plano = no-op (sem novo evento, planos inalterados).
+- **T8** não-superadmin → `Insufficient permissions`.
+- **T9** tenant sem subscription → `No subscription found`.
+- **T10** tenant inexistente → `Tenant not found`.
+- **T11** sem sessão → `Authentication required`.
+- **T12** ordem fail-fast: tenant inexistente é validado antes da permissão.
+
+### 12.3 Gate "Schema Freeze Candidate" — REEXECUÇÃO (fechamento) → **SCHEMA FREEZE = YES**
+
+As mesmas 7 perguntas (§3) reexecutadas sobre o **diff real** da migration:
+
+| # | Pergunta | Resposta (diff real) |
+|---|----------|----------------------|
+| Q1 | Novas tabelas? | **NÃO** |
+| Q2 | Novas colunas? | **NÃO** |
+| Q3 | Novas FKs? | **NÃO** |
+| Q4 | Novas policies? | **NÃO** |
+| Q5 | Novas RPCs? | **SIM** — `change_tenant_plan` (único objeto de schema novo, previsto) |
+| Q6 | Novas funções públicas? | **SIM** — a mesma RPC (nenhuma função auxiliar pública extra) |
+| Q7 | Contratos existentes alterados? | **NÃO (schema)** — apenas semântica de escrita de `tenants.plan` (espelho), já prevista na Q7 da entrada |
+
+> ### **SCHEMA FREEZE = YES** ✅ (2026-08-08)
+>
+> Delta real = **exatamente** o previsto (1 RPC). Nenhuma tabela/coluna/FK/policy adicional. Registrado também no `RELEASE_CHECKLIST_v1.5.md`. **Pré-requisito da PCA (6.0.5.6) atendido.**
+
+### 12.4 Suíte
+
+- Unit **883/883** (874 baseline + 9 novos `changePlan`); typecheck **sem novos erros** (baseline 125 preservado); `npm run build` OK.
+- **E2E flow11/flow14: NÃO executados** — adiados para a janela única de deploy (D-6.0.5.5-4 / decisão PO). Nenhuma migration aplicada ao remoto.
+
+### 12.5 ⚠️ DESCOBERTA IMPORTANTE — bug latente nas RPCs 6.0.4/6.0.5.4 (fora do escopo desta subfase)
+
+Durante a validação docker, a RPC `change_tenant_plan` falhou no **primeiro** uso com `column reference "id" is ambiguous` — o `RETURNS TABLE(...)` (OUT params `id`, `status`, etc.) conflita com referências de coluna **não qualificadas** (`WHERE id = ...`). Corrigido nesta migration (todas as referências qualificadas com alias). Verificado empiricamente que o erro ocorre tanto em **PG15** quanto em **PG16** (não é específico de versão).
+
+**As RPCs irmãs das migrations `20260806020000`/`20260806050000`/`20260807010000` usam o MESMO padrão** (ex.: `start_trial` linha 261 `WHERE id = p_tenant_id` com OUT `id`; `activate_subscription` linhas 366/388/392; `cancel_subscription`; `apply_subscription_transition`; `mark_invoice_paid`; `get_invoice`; `get_subscription_by_id`; `record_payment_attempt`). **Estas RPCs nunca foram executadas contra um Postgres real** (o banco local não possui nem a tabela `subscriptions`) → **provavelmente falham no primeiro uso em runtime**.
+
+> **Recomendação (fora do escopo 6.0.5.5):** incluir no runbook/janela única um **fix aditivo** qualificando as referências nas RPCs irmãs, ou um teste de execução por RPC antes do deploy. Requer decisão do PO (alteração de migrations certificadas). Impacta a **PCA (6.0.5.6)** e o **runbook de deploy**.
+
+### 12.6 Docs atualizadas
+
+`ROADMAP.md` · `PROJECT_STATUS.md` · `RELEASE_CHECKLIST_v1.5.md` (SCHEMA FREEZE = YES) · `BUSINESS_DECISIONS.md` (confirmação D-6.0.5.5-1..5) · `DEPLOY_RUNBOOK_FASE_6_0_5.md` (migration 5 pendente `20260807020000`) · `PRODUCTION_COMPATIBILITY_AUDIT.md` (inventário de RPCs + veredito do gate). Commit semântico + push da branch (sem merge — merge só no fechamento da fase).

@@ -180,6 +180,8 @@
 ## Decisões 6.0.5.5 (D-6.0.5.5) — aprovadas em 2026-08-07
 
 > Subfase 6.0.5.5 — **Transições RPCs (`change_tenant_plan` + banner + `UpgradePrompt` + correção `Admin.tsx`)**. Última implementação funcional da série 6.0.5. Entry audit submetida em `docs/audit/PHASE_6_0_5_5_ENTRY_AUDIT.md`. **D-6.0.5.5-1..5 APROVADAS pelo PO em 2026-08-07 — implementação autorizada.** D-6.0.5.5-4: hardening M7/M11/M12 + E2E flow11 **adiados para o backlog pós-v1.5** (default da entry audit confirmado).
+>
+> **✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-08)** — migration `20260807020000` validada em docker (T1–T12 + idempotência 2×); unit 883/883; **gate Schema Freeze REEXECUTADO → `SCHEMA FREEZE = YES`** (D-6.0.5.5-1 cumprida); Single Writer aplicado (D-6.0.5.5-3 — `Admin.tsx` sem escrita direta); escopo entregue conforme D-6.0.5.5-2/5. **⚠️ Descoberta em validação (fora do escopo):** RPCs irmãs 6.0.4/6.0.5.4 compartilham o mesmo padrão de referência ambígua e nunca foram executadas em Postgres real — fix aditivo recomendado no runbook (requer decisão PO).
 
 | Código | Tema | Decisão |
 |--------|------|---------|

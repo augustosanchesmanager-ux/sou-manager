@@ -7,7 +7,7 @@
 > em banco remoto de produção exige **aprovação explícita do PO**.
 >
 > **Escopo do documento:** preparar uma **única janela de operação** para as
-> 4 migrations pendentes (`06030000`, `06090000`, `07000000`, `07010000`) e o
+> 5 migrations pendentes (`06030000`, `06090000`, `07000000`, `07010000`, `07020000`) e o
 > smoke pós-deploy. Este documento **não autoriza** execução — é o procedimento
 > completo para revisão e aprovação do PO.
 
@@ -107,6 +107,7 @@ SELECT to_regclass('public.plans') AS plans,
 > 2. `06090000` — catálogo `plans`/`features`/`plan_features` (a 6.0.5.3 depende das tabelas).
 > 3. `07000000` — `feature_flags` + `tenant_has_feature` + guarda nos RPCs.
 > 4. `07010000` — Tenant Lifecycle: `suspended` no CHECK + `grace_ends_at` + RPCs `suspend_subscription`/`reactivate_subscription`.
+> 5. `07020000` — 6.0.5.5: RPC `change_tenant_plan` (transições de plano + espelho `tenants.plan`).
 
 ### 3.1 MIGRATION 1 — `20260806030000_fix_auth_staff_id_to_profiles.sql`
 
@@ -182,6 +183,42 @@ supabase migration repair --status applied 20260807010000 --linked
 > (nenhuma migration 6.0.5.4 foi aplicada ao remoto durante a implementação).
 > Rodar após a verificação §4.7 e antes do smoke §5.
 
+### 3.5 MIGRATION 5 — `20260807020000_phase_6_0_5_5_transitions.sql`
+
+> **Adicionada em 2026-08-08 (6.0.5.5).** Migration aditiva/idempotente, validada
+> em Postgres 16 docker (aplica 2× sem duplicar; cenários T1–T12 OK). Conteúdo:
+> RPC **`change_tenant_plan(p_tenant_id uuid, p_plan text, p_reason text DEFAULT NULL)`**
+> (SECURITY DEFINER, superadmin obrigatório; grants ADR-012 — REVOKE PUBLIC +
+> GRANT authenticated) — upgrade/downgrade transacional gravando `subscriptions.plan`
+> **e o espelho `tenants.plan`** no mesmo UPDATE (Single Writer ADR-013 §3.1) +
+> evento `TenantPlanChanged` via `record_billing_event`. Validações fail-fast:
+> sessão (`Authentication required`), tenant (`Tenant not found`), superadmin
+> (`Insufficient permissions`), plano (`Invalid plan`), subscription
+> (`No subscription found`); idempotência: mesmo plano = no-op sem evento.
+
+```powershell
+supabase db query --linked -f supabase/migrations/20260807020000_phase_6_0_5_5_transitions.sql
+```
+
+```powershell
+supabase migration repair --status applied 20260807020000 --linked
+```
+
+> **Dependência crítica:** a `07020000` referencia `public.tenants`, `public.subscriptions`
+> (com CHECK `suspended` da `07010000`), `public.record_billing_event` e
+> `public.current_is_super_admin_from_auth_uid` — aplicar **somente após** a `07010000`.
+>
+> **⚠️ Descoberta de validação (6.0.5.5, §12.5 da entry audit):** RPCs irmãs das
+> migrations `20260806020000`/`20260806050000`/`20260807010000` compartilham o mesmo
+> padrão de referência de coluna **não qualificada** conflitando com OUT params de
+> `RETURNS TABLE` (`column reference "id" is ambiguous`) e **nunca foram executadas em
+> Postgres real** (o banco local não possui a tabela `subscriptions`). **Antes da janela,
+> executar um smoke de cada RPC irmã (`start_trial`/`activate_subscription`/`cancel_subscription`/
+> `suspend_subscription`/`reactivate_subscription`/`apply_subscription_transition`/billing engine)
+> no remoto** — se falhar, aplicar o **fix aditivo de qualificação de referências**
+> (mesmo padrão desta migration) em janela própria, **após decisão do PO**
+> (alteração de migrations certificadas).
+
 ---
 
 ## 4. Verificações Pós-Deploy
@@ -192,7 +229,7 @@ supabase migration repair --status applied 20260807010000 --linked
 supabase migration list --linked
 ```
 
-> Esperado: as 4 versões `06030000`, `06090000`, `07000000`, `07010000` com status
+> Esperado: as 5 versões `06030000`, `06090000`, `07000000`, `07010000`, `07020000` com status
 > **aplicadas** (coluna Remote preenchida). Sem "Local" pendente remanescente
 > (exceto arquivos não-migration como `MANIFEST.md`, que são ignorados).
 

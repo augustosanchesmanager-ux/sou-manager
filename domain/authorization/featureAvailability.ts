@@ -21,6 +21,13 @@
  *   - D-6.0.5-3 Free congelado: sem Chef Club, sem módulos Premium
  *
  * Domínio puro — zero dependência de Supabase/React.
+ *
+ * 6.0.5.5 (D-6.0.5.5-2 / D-6.0.5.3-6): a MATRIZ ESTÁTICA (`PLAN_FEATURES`,
+ * re-exportada abaixo) está DEPRECADA e fora do runtime — consumo de flags em
+ * produção é EXCLUSIVO via RPC `tenant_has_feature` (FeatureFlagService) e do
+ * catálogo DB-backed. Este RESOLVER permanece ativo (consumido pelo
+ * EffectiveAccessService 6.0.5.1 / AuthorizationService) consumindo o catálogo
+ * `PlanCatalog` (6.0.5.2) — a matriz tipada é mantida apenas como seed + testes.
  */
 
 import type { TenantPlan, SubscriptionStatus } from '../billing/types';
@@ -31,6 +38,10 @@ import { type FeatureKey, type FeatureSet } from '../billing/featureKey';
 // ─── Re-exports (estabilidade de API p/ consumidores da 6.0.5.1) ──
 
 export type { FeatureKey, FeatureSet } from '../billing/featureKey';
+/**
+ * @deprecated 6.0.5.5 — matriz estática fora do runtime (D-6.0.5.3-6);
+ * consumo produtivo exclusivo via RPC `tenant_has_feature`. Mantida p/ testes.
+ */
 export { PLAN_FEATURES } from '../billing/planCatalog';
 
 // ─── Input do resolver ────────────────────────────────────────────
