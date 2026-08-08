@@ -181,7 +181,9 @@
 
 > Subfase 6.0.5.5 — **Transições RPCs (`change_tenant_plan` + banner + `UpgradePrompt` + correção `Admin.tsx`)**. Última implementação funcional da série 6.0.5. Entry audit submetida em `docs/audit/PHASE_6_0_5_5_ENTRY_AUDIT.md`. **D-6.0.5.5-1..5 APROVADAS pelo PO em 2026-08-07 — implementação autorizada.** D-6.0.5.5-4: hardening M7/M11/M12 + E2E flow11 **adiados para o backlog pós-v1.5** (default da entry audit confirmado).
 >
-> **✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-08)** — migration `20260807020000` validada em docker (T1–T12 + idempotência 2×); unit 883/883; **gate Schema Freeze REEXECUTADO → `SCHEMA FREEZE = YES`** (D-6.0.5.5-1 cumprida); Single Writer aplicado (D-6.0.5.5-3 — `Admin.tsx` sem escrita direta); escopo entregue conforme D-6.0.5.5-2/5. **⚠️ Descoberta em validação (fora do escopo):** RPCs irmãs 6.0.4/6.0.5.4 compartilham o mesmo padrão de referência ambígua e nunca foram executadas em Postgres real — fix aditivo recomendado no runbook (requer decisão PO).
+> **✅ IMPLEMENTAÇÃO CONCLUÍDA (2026-08-08)** — migration `20260807020000` validada em docker (T1–T12 + idempotência 2×); unit 883/883; **gate Schema Freeze REEXECUTADO → `SCHEMA FREEZE = YES`** (D-6.0.5.5-1 cumprida); Single Writer aplicado (D-6.0.5.5-3 — `Admin.tsx` sem escrita direta); escopo entregue conforme D-6.0.5.5-2/5.
+>
+> **✅ HARDENING DE RPCs IRMÃS CONCLUÍDO (2026-08-08 — decisão PO, D-6.0.5.5-6..8):** a validação empírica (PG16 docker, suite S1–S16 + G1) confirmou que a `20260806070000` já corrigiu 7 RPCs, mas **2 permaneciam quebradas** (`create_invoice`/`record_payment_attempt` — declaradas "limpas" incorretamente). Fix aditivo na migration **`20260808000000`** (additiva, sem mudança de regra/contrato/escopo) + validação da suite completa **S1–S16 + G1 PASS** + idempotência 2×. Aplicação na janela única de deploy (runbook §3.6, verificação §4.9).
 
 | Código | Tema | Decisão |
 |--------|------|---------|
@@ -190,6 +192,9 @@
 | D-6.0.5.5-3 | Single Writer do plano | `tenants.plan` deixa de ser escrito pela UI → **derivado/espelho de `subscriptions.plan`** (ADR-013 §3.1); única fronteira = RPC `change_tenant_plan` orquestrada por `changePlan` (`application/tenantLifecycle.ts`) |
 | D-6.0.5.5-4 | Hardening opcional | M7 (guard legado `save_onboarding_step`) / M11 (trigger drift) / M12 (audit triggers em billing) + E2E flow11 — **ADIADO para o backlog pós-v1.5 (aprovado pelo PO 2026-08-07)** |
 | D-6.0.5.5-5 | Contenção de schema | **Sem novas tabelas, colunas, FKs ou policies** — somente a RPC `change_tenant_plan` (fecha o schema da release v1.5) |
+| D-6.0.5.5-6 | **Hardening obrigatório das RPCs irmãs (2026-08-08)** | Auditoria de estado efetivo + validação empírica em PG real + correção **aditiva** das RPCs irmãs do ciclo de billing antes da PCA. **Aprovado pelo PO** após descoberta na validação da 6.0.5.5 |
+| D-6.0.5.5-7 | Escopo do hardening | **Sem alteração de regra, contrato ou escopo** — somente `CREATE OR REPLACE` qualificando referências de coluna ambíguas (`create_invoice`, `record_payment_attempt`) + grants ADR-012 reafirmados. Migration **`20260808000000`** aditiva/idempotente (2×) |
+| D-6.0.5.5-8 | Validação do hardening | Suite SQL/integration **S1–S16 + G1** (PG16 docker): todas as 13 RPCs irmãs executadas em caminho de sucesso + autorização fail-fast + grants ADR-012. **TODOS PASS** pós-fix |
 
 ## Decisões 6.0.5.6 (D-6.0.5.6) — registradas em 2026-08-07
 

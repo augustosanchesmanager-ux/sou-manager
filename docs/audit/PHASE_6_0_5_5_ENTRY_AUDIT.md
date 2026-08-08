@@ -318,10 +318,33 @@ As mesmas 7 perguntas (§3) reexecutadas sobre o **diff real** da migration:
 
 Durante a validação docker, a RPC `change_tenant_plan` falhou no **primeiro** uso com `column reference "id" is ambiguous` — o `RETURNS TABLE(...)` (OUT params `id`, `status`, etc.) conflita com referências de coluna **não qualificadas** (`WHERE id = ...`). Corrigido nesta migration (todas as referências qualificadas com alias). Verificado empiricamente que o erro ocorre tanto em **PG15** quanto em **PG16** (não é específico de versão).
 
-**As RPCs irmãs das migrations `20260806020000`/`20260806050000`/`20260807010000` usam o MESMO padrão** (ex.: `start_trial` linha 261 `WHERE id = p_tenant_id` com OUT `id`; `activate_subscription` linhas 366/388/392; `cancel_subscription`; `apply_subscription_transition`; `mark_invoice_paid`; `get_invoice`; `get_subscription_by_id`; `record_payment_attempt`). **Estas RPCs nunca foram executadas contra um Postgres real** (o banco local não possui nem a tabela `subscriptions`) → **provavelmente falham no primeiro uso em runtime**.
+As RPCs irmãs das migrations `20260806020000`/`20260806050000`/`20260807010000` **nunca foram executadas contra um Postgres real** (o banco local não possui nem a tabela `subscriptions`) → risco real de falha em runtime.
 
-> **Recomendação (fora do escopo 6.0.5.5):** incluir no runbook/janela única um **fix aditivo** qualificando as referências nas RPCs irmãs, ou um teste de execução por RPC antes do deploy. Requer decisão do PO (alteração de migrations certificadas). Impacta a **PCA (6.0.5.6)** e o **runbook de deploy**.
+> **Encaminhamento (decisão PO 2026-08-08):** **hardening obrigatório antes da PCA** — auditoria de estado efetivo + validação empírica em PG real + correção aditiva. Executado (§12.7) com descobertas **parciais confirmadas**: a migration `20260806070000` já corrigiu 7 RPCs; **2 RPCs permaneciam quebradas** (`create_invoice`, `record_payment_attempt` — declaradas "limpas" incorretamente) e foram corrigidas na migration `20260808000000`.
+
+### 12.7 Hardening das RPCs irmãs (decisão PO 2026-08-08) — concluído ✅
+
+**Escopo (aprovado pelo PO):** auditoria de estado efetivo + validação empírica em PostgreSQL real + fix aditivo mínimo; testes SQL/integration por RPC; sem alteração de regra/contrato/escopo.
+
+**Auditoria estática (estado efetivo — última definição de cada função):**
+
+| RPC | Última definição | Ambiguidade? |
+|-----|------------------|--------------|
+| `start_trial` / `activate_subscription` / `cancel_subscription` / `mark_invoice_paid` / `get_invoice` / `get_subscription_by_id` | `20260806070000` | ✅ corrigidas (aliases) |
+| `apply_subscription_transition` / `get_due_subscriptions` / `suspend_subscription` / `reactivate_subscription` | `20260807010000` | ✅ limpas (aliases desde a origem) |
+| `get_subscription()` | `20260806020000` | ✅ limpa (alias `s`) |
+| `record_billing_event` | `20260806030000` | ✅ limpa (RETURNS void) |
+| `create_invoice` | `20260806050000` | ❌ **AMBÍGUA** — `ON CONFLICT (tenant_id, idempotency_key)` colide com OUT param `tenant_id` |
+| `record_payment_attempt` | `20260806050000` | ❌ **AMBÍGUA** — `RETURNING id` colide com OUT param `id` |
+
+**Validação empírica (PG16 docker, suite S1–S16 + G1):** as 13 RPCs do ciclo foram executadas em caminho de sucesso com asserts de estado (`subscriptions`/`tenants`/`invoices`/`payment_attempts`/`billing_events`), autorização (fail-fast) e grants ADR-012. **2 falharam em runtime reproduzindo o bug:** `create_invoice` (`column reference "tenant_id" is ambiguous`) e `record_payment_attempt` (`column reference "id" is ambiguous`) — confirmando que o header da `06070000` ("já estão limpas") estava **incorreto**.
+
+**Correção — migration `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql` (aditiva):**
+- `create_invoice`: `ON CONFLICT DO NOTHING` (o target `(tenant_id, idempotency_key)` não aceita qualificação por alias em runtime; a única unique constraint de negócio é a idempotência — comportamento preservado e verificado).
+- `record_payment_attempt`: alias `a` no `INSERT` + `RETURNING a.id` (desambiguação padrão).
+
+**Resultado pós-fix (PG16 docker):** aplicada a migration de fix sobre as versões originais → suite completa **S1–S16 + G1 TODOS PASS** (ciclo completo: trial→active→cancel→invoice→paid→attempt→past_due→suspend→reactivate + leituras com escopo por tenant + fail-fast auth/permission + grants). **Idempotência da fix:** aplicada 2× sem erro. **Nenhuma alteração de regra/contrato/escopo.**
 
 ### 12.6 Docs atualizadas
 
-`ROADMAP.md` · `PROJECT_STATUS.md` · `RELEASE_CHECKLIST_v1.5.md` (SCHEMA FREEZE = YES) · `BUSINESS_DECISIONS.md` (confirmação D-6.0.5.5-1..5) · `DEPLOY_RUNBOOK_FASE_6_0_5.md` (migration 5 pendente `20260807020000`) · `PRODUCTION_COMPATIBILITY_AUDIT.md` (inventário de RPCs + veredito do gate). Commit semântico + push da branch (sem merge — merge só no fechamento da fase).
+`ROADMAP.md` · `PROJECT_STATUS.md` · `RELEASE_CHECKLIST_v1.5.md` (SCHEMA FREEZE = YES + hardening) · `BUSINESS_DECISIONS.md` (confirmação D-6.0.5.5-1..5 + D-6.0.5.5-6..8) · `DEPLOY_RUNBOOK_FASE_6_0_5.md` (migration 5 pendente `20260807020000` + **migration 6 `20260808000000`** §3.6) · `PRODUCTION_COMPATIBILITY_AUDIT.md` (inventário de RPCs + veredito do gate + hardening). Commit semântico + push da branch (sem merge — merge só no fechamento da fase).

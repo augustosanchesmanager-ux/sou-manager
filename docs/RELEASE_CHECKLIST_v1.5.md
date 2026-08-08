@@ -32,6 +32,7 @@
 - [x] **6.0.5.3** FeatureFlagService + enforcement — ✅ implementada (commit `b383222`), smoke 10/10, aguardando janela de deploy
 - [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
 - [x] **6.0.5.5** Transições RPCs (`change_tenant_plan` upgrade/downgrade, `TenantSubscriptionUpdated`, correção `Admin.tsx` escrita direta, banner estado, `UpgradePrompt`, depreciação `featureAvailability.ts`) — ✅ **IMPLEMENTADA (2026-08-08)**: unit 883/883, migration `20260807020000` validada em docker T1–T12 + idempotência 2×, **SCHEMA FREEZE = YES** (§12.3 entry audit); E2E flow11 adiado à janela única (decisão PO)
+- [x] **Hardening RPCs irmãs (2026-08-08, decisão PO D-6.0.5.5-6..8)** — ✅ **CONCLUÍDO**: auditoria de estado efetivo + validação empírica PG16 (suite S1–S16 + G1) revelou **2 RPCs quebradas** (`create_invoice`/`record_payment_attempt` — declaradas "limpas" incorretamente na `06070000`); fix aditivo **`20260808000000`** validado **S1–S16 + G1 PASS** + idempotência 2×; sem mudança de regra/contrato/escopo (D-6.0.5.5-7)
 - [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ⏳ **PLANNED** (2026-08-07); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 - [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
 
@@ -57,6 +58,7 @@
 | `20260807000000_phase_6_0_5_3_feature_flags.sql` | 6.0.5.3 | ⏳ **Pendente** | `feature_flags` + `tenant_has_feature` + guarda RPCs |
 | `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql` | 6.0.5.4 | ⏳ **Pendente** | `suspended` no CHECK + `grace_ends_at` + divisão do Transition Executor — **criada + validada em docker T1–T7** |
 | `20260807020000_phase_6_0_5_5_transitions.sql` | 6.0.5.5 | ⏳ **Pendente (criada)** | `change_tenant_plan` (espelho `tenants.plan`, grants ADR-012) — **criada + validada em docker T1–T12 + idempotência 2×** |
+| `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql` | Hardening 6.0.5.5 | ⏳ **Pendente (criada)** | Fix aditivo das RPCs irmãs `create_invoice`/`record_payment_attempt` (ON CONFLICT DO NOTHING + `RETURNING a.id`) — **criada + validada em docker S1–S16 + G1 PASS + idempotência 2×** |
 
 - [ ] Validar cada migration em Postgres 16 docker (aplica 2× sem duplicar) **antes** da janela.
 - [ ] Aplicar via `MIGRATION_EXCEPTION` (`db query --linked -f` + `migration repair --status applied`) na janela única.
