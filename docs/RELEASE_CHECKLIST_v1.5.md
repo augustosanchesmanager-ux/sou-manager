@@ -33,7 +33,7 @@
 - [x] **6.0.5.4** TenantLifecycleService + `suspended` aditivo — ✅ implementada (unit 874/874, migration `20260807010000` validada T1–T7; flow14 E2E adiado à janela única — decisão PO)
 - [x] **6.0.5.5** Transições RPCs (`change_tenant_plan` upgrade/downgrade, `TenantSubscriptionUpdated`, correção `Admin.tsx` escrita direta, banner estado, `UpgradePrompt`, depreciação `featureAvailability.ts`) — ✅ **IMPLEMENTADA (2026-08-08)**: unit 883/883, migration `20260807020000` validada em docker T1–T12 + idempotência 2×, **SCHEMA FREEZE = YES** (§12.3 entry audit); E2E flow11 adiado à janela única (decisão PO)
 - [x] **Hardening RPCs irmãs (2026-08-08, decisão PO D-6.0.5.5-6..8)** — ✅ **CONCLUÍDO**: auditoria de estado efetivo + validação empírica PG16 (suite S1–S16 + G1) revelou **2 RPCs quebradas** (`create_invoice`/`record_payment_attempt` — declaradas "limpas" incorretamente na `06070000`); fix aditivo **`20260808000000`** validado **S1–S16 + G1 PASS** + idempotência 2×; sem mudança de regra/contrato/escopo (D-6.0.5.5-7)
-- [ ] **6.0.5.6** **Production Compatibility Audit (PCA)** — ❌ **BLOCKED** (executada 2026-08-08, somente leitura); **gate obrigatório pré-deploy** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY** para liberar a janela única. **Bloqueio crítico:** migration `20260806030000` pulada no remoto → `CREATE OR REPLACE cancel_subscription` (5 colunas) incompatível com a função atual de 11 colunas (`06050000`/`06070000` já aplicadas) → erro garantido; **recomendado `supabase migration repair --status applied 20260806030000` (decisão do PO)**. **Dados:** 3 tenants excedem `max_staff=1` do plano `free` (Barbearia Principal produtivo com 4 staff, Loja Demo Varejo com 3, SMG Estética com 2) — decisão de negócio do PO. Demais seções compatíveis.
+- [x] **6.0.5.6** **Production Compatibility Audit (PCA)** — ✅ **`READY`** (executada 2026-08-08; inicialmente `BLOCKED` → correções PO D-6.0.5.6-5/6: `migration repair --status applied 20260806030000` + upgrade `free→pro` dos 3 tenants; re-auditoria OK) — **gate pré-deploy LIBERADO** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 - [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
 
 ---
@@ -49,7 +49,7 @@
 | `20260806000000_phase_6_0_3_team_invitations_and_role_normalization.sql` | 6.0.3 | ✅ Aplicada | — |
 | `20260806010000_fix_accept_invite_tenant_id_ambiguity.sql` | 6.0.3 | ✅ Aplicada | — |
 | `20260806020000_phase_6_0_4_billing.sql` | 6.0.4 | ✅ Aplicada | CHECK `subscriptions.status` sem `suspended` |
-| `20260806030000_fix_auth_staff_id_to_profiles.sql` | 6.0.4.3 | ⏳ **PENDENTE — PULADA no remoto** | **BLOCKER da PCA 6.0.5.6:** `CREATE OR REPLACE cancel_subscription` (5 colunas) incompatível com a função atual de 11 colunas já aplicada (`06050000`/`06070000`). Autorização que adiciona **já está no remoto** via `06070000`. Correção recomendada: `migration repair --status applied` (decisão do PO) |
+| `20260806030000_fix_auth_staff_id_to_profiles.sql` | 6.0.4.3 | ✅ **Aplicada (repair 2026-08-08 — PO D-6.0.5.6-5)** | Foi **pulada** no remoto; `cancel_subscription` (5 colunas) era incompatível com as 11 colunas já aplicadas. Corrigida via `supabase migration repair --status applied` (a autorização já existia via `06070000`). **Não executada no remoto** |
 | `20260806040000_fix_complete_onboarding_trial.sql` | 6.0.4 | ✅ Aplicada | — |
 | `20260806050000_phase_6_0_4_4_billing_engine.sql` | 6.0.4.4 | ✅ Aplicada | `apply_subscription_transition`, `get_due_subscriptions` |
 | `20260806070000_fix_rpc_ambiguous_column_references.sql` | 6.0.4.4 | ✅ Aplicada | — |
@@ -169,7 +169,7 @@
 - [x] Runbook versionado: `docs/DEPLOY_RUNBOOK_FASE_6_0_5.md` (commit `f7f3620`)
 - [ ] **Aprovação explícita do PO** para abrir a janela
 - [ ] Pré-flight (backup/PITR, `migration list`, dados de plano)
-- [ ] Aplicar `06030000` → `06090000` → `07000000` → `07010000` → `07020000` (6.0.5.5) — ver runbook §3.5
+- [ ] Aplicar `06090000` → `07000000` → `07010000` → `07020000` (6.0.5.5) + `08000000` (hardening) — ver runbook §3.2–§3.6. **`06030000` já reparada como aplicada (2026-08-08, D-6.0.5.6-5) — não aplicar**
 - [ ] Verificações pós-deploy (histórico, RLS, RPCs, matriz `tenant_has_feature`)
 - [ ] Smoke 10/10 pós-deploy
 - [ ] Deploy do frontend (Vercel) — se fizer parte da mesma liberação

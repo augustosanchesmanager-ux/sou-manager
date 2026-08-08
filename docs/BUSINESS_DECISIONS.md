@@ -199,6 +199,8 @@
 ## Decisões 6.0.5.6 (D-6.0.5.6) — registradas em 2026-08-07
 
 > Subfase 6.0.5.6 — **Production Compatibility Audit (PCA)**. Registro formal da etapa obrigatória da release v1.5 (planejamento — nenhuma execução até o critério de entrada ser atendido).
+>
+> **✅ EXECUTADA (2026-08-08, somente leitura) → ❌ `BLOCKED` inicial.** Auditoria do banco real (project ref `ushsnmlbeurfvlkieiln` — Sanchez Barber) revelou 1 incompatibilidade crítica de migration + 3 excedências de limite. **Correções aprovadas pelo PO (2026-08-08, D-6.0.5.6-5..7) e executadas → re-auditoria parcial → ✅ `READY`.**
 
 | Código | Tema | Decisão |
 |--------|------|---------|
@@ -206,6 +208,9 @@
 | D-6.0.5.6-2 | Natureza da auditoria | **Somente leitura** — não altera dados, não aplica migrations, não corrige inconsistências automaticamente, não cria registros, não executa repair migration; somente analisa e gera relatório |
 | D-6.0.5.6-3 | Gate de deploy | **Nenhuma migration de produção poderá ser aplicada sem `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = `READY`** (resultado obrigatório: `READY` ou `BLOCKED`) |
 | D-6.0.5.6-4 | Alvo da auditoria | Executada contra o **banco real dos tenants produtivos** (ex.: Sanchez Barber) antes da primeira aplicação das migrations SaaS da release |
+| D-6.0.5.6-5 | **Correção da migration `20260806030000` (2026-08-08)** | **`supabase migration repair --status applied 20260806030000`** (opção 1 recomendada pela PCA). A migration foi **pulada no remoto** e seu `cancel_subscription` (5 colunas) é incompatível com a função aplicada (11 colunas, `06050000`/`06070000`). A autorização que ela adiciona **já está no remoto** via `06070000` (`current_is_tenant_manager_from_auth_uid`). **Repair executado pelo OpenCode em 2026-08-08** — `20260806030000` agora consta como aplicada no histórico remoto |
+| D-6.0.5.6-6 | **Plano dos tenants com limite excedido (2026-08-08)** | **Upgrade `free → pro` nos 3 tenants** que excediam `max_staff=1`: **Barbearia Principal** (produtivo real, 4 staff → OK em `pro` com limite 5), **Loja Demo Varejo** (3 staff) e **SMG Estética Demo** (2 staff). **Executado pelo OpenCode em 2026-08-08** via UPDATE direto em `tenants.plan` (o RPC `change_tenant_plan` ainda não está aplicado no remoto — janela única). Re-auditoria confirma `limit_check = OK` em 100% dos tenants |
+| D-6.0.5.6-7 | Re-auditoria parcial pós-correção | Após as correções D-6.0.5.6-5/6, a PCA foi re-executada parcialmente (topologia de migrations + limites): **veredito final `READY`** — gate de release liberado para a janela única de deploy |
 
 ## Decisões 6.0.6 (D-6.0.6) — aprovadas em 2026-08-07
 

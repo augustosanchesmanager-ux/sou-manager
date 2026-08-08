@@ -1,9 +1,9 @@
 # PRODUCTION COMPATIBILITY AUDIT — Release v1.5
 
 > **Fase:** 6.0.5.6 — Production Compatibility Audit (PCA)
-> **Status:** ❌ **BLOCKED** (executada em 2026-08-08 — somente leitura)
-> **Resultado:** ❌ **`BLOCKED`** — 1 incompatibilidade crítica de migration + 3 incompatibilidades de dados
-> **Modo:** **Somente leitura** — nenhuma alteração de dados, migrations, correções automáticas, criação de registros ou repair migration.
+> **Status:** ✅ **READY** (executada em 2026-08-08 — somente leitura; re-auditoria parcial pós-correções em 2026-08-08)
+> **Resultado:** ✅ **`READY`** — após correções aprovadas pelo PO (D-6.0.5.6-5..7), nenhuma incompatibilidade remanescente
+> **Modo:** **Somente leitura** — nenhuma alteração de dados, migrations, correções automáticas, criação de registros ou repair migration **durante a auditoria**. Correções de incompatibilidades executadas **após** o veredito `BLOCKED`, mediante decisão explícita do PO (D-6.0.5.6-5/6), seguidas de re-auditoria parcial.
 > **Documento de referência:** `ROADMAP.md` (seção 6.0.5.6)
 
 ---
@@ -74,9 +74,10 @@ A auditoria só pode iniciar quando:
 
 ## Critérios de Saída
 
-- [x] `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` atualizado com resultado **`BLOCKED`**;
-- [x] lista de incompatibilidades encontradas e tenants afetados (ver Resultado Final);
-- [ ] (se `READY`) liberação formal para a Janela Única de Deploy — **pendente** (correções pré-deploy necessárias).
+- [x] `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` atualizado com resultado **`READY`** (inicialmente **`BLOCKED`** em 2026-08-08);
+- [x] lista de incompatibilidades encontradas e tenants afetados (ver Resultado Final) + correções aplicadas (D-6.0.5.6-5/6);
+- [x] **re-auditoria parcial pós-correção** (topologia de migrations + limites por plano) — **0 incompatibilidades remanescentes**;
+- [x] liberação formal para a Janela Única de Deploy — **RELEASE LIBERADA (PCA = READY)**.
 
 ---
 
@@ -159,15 +160,17 @@ Validar para cada tenant: **Plano atual → Limite permitido → Uso real → Po
 | Data da execução | 2026-08-08 |
 | Auditor responsável | OpenCode (Tech Lead operacional) |
 | Ambiente auditado | Supabase produtivo — project ref `ushsnmlbeurfvlkieiln` (Sanchez Barber) |
-| **Resultado** | ❌ **BLOCKED** |
-| Incompatibilidades críticas | 1 (migration `20260806030000` vs schema real) + 3 (limites por plano) |
-| Ação subsequente | Correções pré-deploy (ver abaixo) + nova PCA parcial após correção |
+| **Resultado** | ✅ **READY** |
+| Incompatibilidades encontradas | 1 (migration `20260806030000` vs schema real) + 3 (limites por plano) |
+| Correções aplicadas (PO, D-6.0.5.6-5/6) | `supabase migration repair --status applied 20260806030000` + upgrade `free→pro` nos 3 tenants |
+| Re-auditoria parcial pós-correção | ✅ 2026-08-08 — topologia de migrations OK + `limit_check = OK` em 100% dos tenants |
+| Ação subsequente | **RELEASE LIBERADA para a Janela Única de Deploy** (gate PCA = READY) |
 
 ---
 
-## 🔴 Veredito: BLOCKED
+## 🔴→✅ Veredito: BLOCKED (inicial) → READY (pós-correção)
 
-### BLOQUEIO CRÍTICO — MIGRATION `20260806030000` IMPOSSÍVEL DE APLICAR NO REMOTO
+### BLOQUEIO CRÍTICO — MIGRATION `20260806030000` IMPOSSÍVEL DE APLICAR NO REMOTO (RESOLVIDO)
 
 **Causa raiz:** a migration `20260806030000_fix_auth_staff_id_to_profiles.sql` foi **pulada** no remoto (irregularidade topológica já conhecida), enquanto as migrations **subsequentes** `20260806050000` (6.0.4.4 billing engine) e `20260806070000` (fix ambiguidade de coluna) **já foram aplicadas**.
 
@@ -177,26 +180,26 @@ Validar para cada tenant: **Plano atual → Limite permitido → Uso real → Po
 | Semântica de cancelamento | **Pedido** (seta `cancel_at_period_end`, mantém acesso — BillingEngine 6.0.4.4) | **Efetivo** (seta `status='cancelled'` + `tenants.status='cancelled'`) | ❌ **Regressão funcional** do BillingEngine aprovado em 6.0.4.4 |
 | Autorização (objetivo da `06030000`) | **Já presente** via `06070000` — usa `current_is_tenant_manager_from_auth_uid()` | `current_is_tenant_manager_from_auth_uid()` | ✅ Redundante no remoto — o fix de autorização já foi absorvido pelas subsequentes |
 
-**Por que falha na ordem do remoto:** o Supabase CLI aplica pendentes em ordem de timestamp. No remoto, `06050000`/`06070000` (timestamps posteriores) já rodaram, então a `06030000` (timestamp anterior, pulada) seria executada **depois** delas — invertendo a ordem do ambiente local onde foi validada. O `CREATE OR REPLACE` com retorno diferente é um erro garantido.
+**Por que falhava na ordem do remoto:** o Supabase CLI aplica pendentes em ordem de timestamp. No remoto, `06050000`/`06070000` (timestamps posteriores) já rodaram, então a `06030000` (timestamp anterior, pulada) seria executada **depois** delas — invertendo a ordem do ambiente local onde foi validada. O `CREATE OR REPLACE` com retorno diferente é um erro garantido.
 
-**Opções de correção (decisão do PO — fora do escopo da PCA, somente leitura):**
-1. `supabase migration repair --status applied 20260806030000` — marca como aplicada **sem executar** (seguro: as policies/RPCs que ela criaria já existem no remoto, e a autorização já está no lugar via `06070000`). **Requer aprovação explícita do PO** (operação no histórico de migrations do banco remoto).
-2. Nova migration corretiva que faça `DROP FUNCTION` prévio + recrie `cancel_subscription` com a assinatura correta (manter semântica de pedido). Mais código, mesmo resultado.
-3. Manter `06030000` no histórico local sem aplicá-la no remoto (desvio documentado no runbook).
+**✅ Correção aplicada (2026-08-08, decisão PO D-6.0.5.6-5 — opção 1):** `supabase migration repair --status applied 20260806030000`. A migration foi marcada como **aplicada sem executar** (as policies/RPCs que ela criaria já existem no remoto, e a autorização já está no lugar via `06070000`). **Validado em `supabase migration list --linked`:** `20260806030000` agora consta como aplicada no histórico remoto — não é mais pendente, não abortará a janela única.
 
-> ⚠️ **Não executar** `supabase db push`/`migration up` na janela única antes desta correção — a primeira migration pendente (`06030000`) abortaria o batch com erro garantido.
+> **As 3 opções consideradas** (registro para auditoria):
+> 1. `supabase migration repair --status applied 20260806030000` — marca como aplicada **sem executar** (seguro: as policies/RPCs que ela criaria já existem no remoto, e a autorização já está no lugar via `06070000`). **Requer aprovação explícita do PO** (operação no histórico de migrations do banco remoto). ✅ **APROVADA e EXECUTADA**
+> 2. Nova migration corretiva que faça `DROP FUNCTION` prévio + recrie `cancel_subscription` com a assinatura correta (manter semântica de pedido). Mais código, mesmo resultado. — Não utilizada
+> 3. Manter `06030000` no histórico local sem aplicá-la no remoto (desvio documentado no runbook). — Não utilizada
 
-### INCOMPATIBILIDADES DE DADOS — LIMITES POR PLANO (§6)
+### INCOMPATIBILIDADES DE DADOS — LIMITES POR PLANO (§6) — RESOLVIDAS
 
-Após a migration `20260806090000` (plans catalog), `plans.limits.max_staff` passa a ser a fonte de verdade para limites. Três tenants **já excedem** o limite do plano atual:
+Após a migration `20260806090000` (plans catalog), `plans.limits.max_staff` passa a ser a fonte de verdade para limites. Três tenants **já excediam** o limite do plano atual:
 
-| Tenant | Plano atual | Staff ativos | Limite (`max_staff`) | Veredito |
-|--------|-------------|--------------|----------------------|----------|
-| **Barbearia Principal** (produtivo real) | `free` | **4** | 1 | ❌ **Excede** |
-| Loja Demo Varejo | `free` | **3** | 1 | ❌ Excede |
-| SMG Estética Demo | `free` | **2** | 1 | ❌ Excede |
+| Tenant | Plano anterior | Staff ativos | Limite (`max_staff` free) | Veredito inicial | Plano novo | Limite (`max_staff` pro) | Re-auditoria |
+|--------|-------------|--------------|------|----------|------|------|------|
+| **Barbearia Principal** (produtivo real) | `free` | **4** | 1 | ❌ **Excede** | `pro` | 5 | ✅ **OK** |
+| Loja Demo Varejo | `free` | **3** | 1 | ❌ Excede | `pro` | 5 | ✅ **OK** |
+| SMG Estética Demo | `free` | **2** | 1 | ❌ Excede | `pro` | 5 | ✅ **OK** |
 
-> **Impacto:** nenhuma migração pendente quebra por isso (o limite é lido em `invite_team_member` na `07000000`, que bloqueia **novos** convites, não staff existente). Porém, o tenant produtivo real ficaria "acima do plano" após o upgrade de regra — **decisão de negócio do PO** (upgrade para `pro` antes/depois da janela, ou manutenção de situação legada).
+> **Impacto:** nenhuma migration pendente quebra por isso (o limite é lido em `invite_team_member` na `07000000`, que bloqueia **novos** convites, não staff existente). **Correção executada (2026-08-08, decisão PO D-6.0.5.6-6):** upgrade `free → pro` nos 3 tenants via UPDATE direto em `tenants.plan` (o RPC `change_tenant_plan` ainda não está aplicado no remoto — será o caminho oficial após a janela única). **Re-auditoria confirmou `limit_check = OK` em 100% dos 45 tenants.**
 
 ### ACHADOS SEM IMPACTO (compatíveis)
 
@@ -210,10 +213,11 @@ Após a migration `20260806090000` (plans catalog), `plans.limits.max_staff` pas
 
 ---
 
-## Ação subsequente (proposta)
+## Ação subsequente
 
-1. **PO decide** a correção topológica da `06030000` (opção 1 — `migration repair` — é a mais limpa e alinhada ao fato de a autorização já estar no remoto).
-2. **PO decide** o plano do tenant produtivo (Barbearia Principal): upgrade para `pro` ou aceite da situação legada.
-3. Executar correções + nova PCA parcial (reverificação somente da `06030000` e do limite do tenant produtivo) → `READY` → Janela Única de Deploy.
+1. ✅ **PO decidiu** a correção topológica da `06030000` (**opção 1 — `migration repair`**) — **D-6.0.5.6-5, executada em 2026-08-08**.
+2. ✅ **PO decidiu** o plano dos 3 tenants acima do limite (`free → pro`) — **D-6.0.5.6-6, executada em 2026-08-08**.
+3. ✅ **Re-auditoria parcial executada** (topologia de migrations + limites por plano) — **0 incompatibilidades remanescentes → `READY`**.
+4. ▶️ **Próximo passo:** Janela Única de Deploy (runbook §3.2–§3.6) — migrations pendentes `06090000`, `07000000`, `07010000`, `07020000`, `08000000` (a `06030000` não é mais pendente).**
 
-> *Enquanto `BLOCKED`, nenhuma migration de produção pode ser aplicada.*
+> ✅ **Gate PCA = `READY`** — a Janela Única de Deploy está liberada.

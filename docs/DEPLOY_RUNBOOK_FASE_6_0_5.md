@@ -7,9 +7,8 @@
 > em banco remoto de produção exige **aprovação explícita do PO**.
 >
 > **Escopo do documento:** preparar uma **única janela de operação** para as
-> 6 migrations pendentes (`06030000`, `06090000`, `07000000`, `07010000`, `07020000`, `08000000`) e o
-> smoke pós-deploy. Este documento **não autoriza** execução — é o procedimento
-> completo para revisão e aprovação do PO.
+> 5 migrations pendentes (`06090000`, `07000000`, `07010000`, `07020000`, `08000000`) e o
+> smoke pós-deploy. **A `06030000` foi resolvida em 2026-08-08 (PO D-6.0.5.6-5) — não é mais pendente (ver §3.1).** Este documento **não autoriza** execução — é o procedimento completo para revisão e aprovação do PO.
 
 ---
 
@@ -22,16 +21,17 @@ projeto **sou-manager**). Estado atual:
 
 | Status | Migrations |
 |---|---|
-| Aplicadas no remoto | Todas até `20260806020000` **e** `06040000`, `06050000`, `06070000`, `06080000` |
-| **Pendentes no remoto** | `20260806030000`, `20260806090000`, `20260807000000`, `20260807010000`, `20260807020000` |
+| Aplicadas no remoto | Todas até `20260806020000` **e** `06040000`, `06050000`, `06070000`, `06080000`, **`06030000` (repair 2026-08-08 — D-6.0.5.6-5)** |
+| **Pendentes no remoto** | `20260806090000`, `20260807000000`, `20260807010000`, `20260807020000` |
 | **Na janela (adicional)** | `20260808000000` (fix de RPCs irmãs — hardening 2026-08-08, §3.6) |
 
-> **Irregularidade topológica:** `20260806030000` (timestamp anterior) foi
-> **pulada** no remoto — as migrations posteriores `06040000/06050000/06070000/
-> 06080000` já estão aplicadas. Por isso o procedimento padrão `db push` NÃO é
-> aplicável: ele tentaria aplicar a `06030000` por cima de um histórico onde ela
-> seria "reordenada", gerando conflito de versão no `schema_migrations`. É exatamente
-> o cenário do **`MIGRATION_EXCEPTION`** aprovado no **D-6.0.5.3-3**.
+> **Irregularidade topológica RESOLVIDA (2026-08-08):** a `20260806030000` (timestamp
+> anterior) havia sido **pulada** no remoto — as migrations posteriores `06040000/06050000/06070000/
+> 06080000` já estavam aplicadas. A PCA 6.0.5.6 (somente leitura) detectou que aplicá-la
+> agora abortaria a janela (seu `cancel_subscription` de 5 colunas colide com a função
+> de 11 colunas já aplicada). **Decisão PO D-6.0.5.6-5:** `supabase migration repair --status applied 20260806030000`
+> — marcada como aplicada **sem executar** (a autorização que ela adicionaria já está
+> no remoto via `06070000`). **A `06030000` NÃO é mais pendente e NÃO deve ser aplicada.**
 
 ### 1.2 Decisões vigentes (D-6.0.5.3)
 
@@ -68,7 +68,7 @@ irmãs — §3.6). Apendá-las da mesma forma ANTES de executar.**
 - [ ] **Janela de baixo tráfego** (ex.: domingo de madrugada / pós-horário). Notificar equipe comercial — flags podem esconder módulos da UI (D-6.0.5.3-5).
 - [ ] **Sem deploys concorrentes** do time durante a janela (sem `db push` manual, sem alterações no SQL Editor por terceiros).
 - [ ] Todos os membros da equipe cientes: nenhuma operação de banco além deste runbook.
-- [ ] `supabase migration list --linked` mostrando **exatamente** 5 pendentes (06030000, 06090000, 07000000, 07010000, 07020000) — **qualquer diferença → abortar e investigar antes**. (A `08000000` será aplicada na mesma janela, **antes** do `repair` — ver §3.6.)
+- [ ] `supabase migration list --linked` mostrando **exatamente** 4 pendentes (06090000, 07000000, 07010000, 07020000) — **qualquer diferença → abortar e investigar antes**. (A `08000000` será aplicada na mesma janela, **antes** do `repair` — ver §3.6. A `06030000` já consta como **aplicada** via repair 2026-08-08 — D-6.0.5.6-5.)
 
 ### 2.1 Pré-flight de dados (verificar ANTES da primeira migration)
 
@@ -105,30 +105,29 @@ SELECT to_regclass('public.plans') AS plans,
 ## 3. Ordem Exata de Aplicação
 
 > **Ordem obrigatória** (dependências):
-> 1. `06030000` — autorização (sem dependência das demais; base do `current_is_tenant_manager_from_auth_uid`).
-> 2. `06090000` — catálogo `plans`/`features`/`plan_features` (a 6.0.5.3 depende das tabelas).
-> 3. `07000000` — `feature_flags` + `tenant_has_feature` + guarda nos RPCs.
-> 4. `07010000` — Tenant Lifecycle: `suspended` no CHECK + `grace_ends_at` + RPCs `suspend_subscription`/`reactivate_subscription`.
-> 5. `07020000` — 6.0.5.5: RPC `change_tenant_plan` (transições de plano + espelho `tenants.plan`).
+> 1. `06090000` — catálogo `plans`/`features`/`plan_features` (a 6.0.5.3 depende das tabelas).
+> 2. `07000000` — `feature_flags` + `tenant_has_feature` + guarda nos RPCs.
+> 3. `07010000` — Tenant Lifecycle: `suspended` no CHECK + `grace_ends_at` + RPCs `suspend_subscription`/`reactivate_subscription`.
+> 4. `07020000` — 6.0.5.5: RPC `change_tenant_plan` (transições de plano + espelho `tenants.plan`).
+>
+> > **A `06030000` NÃO faz mais parte da janela** — reparada como aplicada em 2026-08-08 (PO D-6.0.5.6-5). Ver §3.1.
 
-### 3.1 MIGRATION 1 — `20260806030000_fix_auth_staff_id_to_profiles.sql`
+### 3.1 MIGRATION 1 — ~~`20260806030000_fix_auth_staff_id_to_profiles.sql`~~ (RESOLVIDA — NÃO EXECUTAR)
 
-Aplicar o SQL (via Management API, sem tocar no histórico):
-
-```powershell
-supabase db query --linked -f supabase/migrations/20260806030000_fix_auth_staff_id_to_profiles.sql
-```
-
-Registrar a versão como aplicada (reconcilia o histórico):
+> **Estado (2026-08-08, decisão PO D-6.0.5.6-5):** aplicada via `supabase migration repair --status applied 20260806030000 --linked`.
+> A migration foi **marcada como aplicada sem executar** — seu `CREATE OR REPLACE cancel_subscription`
+> (5 colunas) colide com a função já aplicada (11 colunas, `06050000`/`06070000`), e a autorização
+> que ela adicionaria **já existe no remoto** via `06070000`. **Nenhum comando de aplicação é executado nesta janela.**
 
 ```powershell
-supabase migration repair --status applied 20260806030000 --linked
+# SOMENTE VERIFICAÇÃO — NÃO aplicar:
+supabase migration list --linked   # esperado: 06030000 consta como aplicada
 ```
 
-> **Nota de idempotência:** o arquivo é `DROP IF EXISTS / CREATE OR REPLACE` —
-> em caso de erro de rede/parcial, pode ser reaplicado sem duplicar objetos.
+> **Atenção:** não rodar `supabase db query --linked -f supabase/migrations/20260806030000_fix_auth_staff_id_to_profiles.sql`
+> — falharia com `cannot change return type of existing function`.
 
-### 3.2 MIGRATION 2 — `20260806090000_phase_6_0_5_2_plans_catalog.sql`
+### 3.2 MIGRATION 1 — `20260806090000_phase_6_0_5_2_plans_catalog.sql`
 
 ```powershell
 supabase db query --linked -f supabase/migrations/20260806090000_phase_6_0_5_2_plans_catalog.sql
@@ -141,7 +140,7 @@ supabase migration repair --status applied 20260806090000 --linked
 > **Dependência crítica:** a `07000000` referencia `public.features(key)` via FK.
 > `06090000` **precisa** estar aplicada antes.
 
-### 3.3 MIGRATION 3 — `20260807000000_phase_6_0_5_3_feature_flags.sql`
+### 3.3 MIGRATION 2 — `20260807000000_phase_6_0_5_3_feature_flags.sql`
 
 ```powershell
 supabase db query --linked -f supabase/migrations/20260807000000_phase_6_0_5_3_feature_flags.sql
@@ -154,7 +153,7 @@ supabase migration repair --status applied 20260807000000 --linked
 > A migration termina com `NOTIFY pgrst, 'reload schema';` (recarrega o cache de
 > schema do PostgREST).
 
-### 3.4 MIGRATION 4 — `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql`
+### 3.4 MIGRATION 3 — `20260807010000_phase_6_0_5_4_tenant_lifecycle.sql`
 
 > **Adicionada em 2026-08-07 (6.0.5.4).** Migration aditiva/idempotente, validada
 > em Postgres 16 docker (aplica 2× sem duplicar; cenários T1–T7 OK). Conteúdo:
@@ -185,7 +184,7 @@ supabase migration repair --status applied 20260807010000 --linked
 > (nenhuma migration 6.0.5.4 foi aplicada ao remoto durante a implementação).
 > Rodar após a verificação §4.7 e antes do smoke §5.
 
-### 3.5 MIGRATION 5 — `20260807020000_phase_6_0_5_5_transitions.sql`
+### 3.5 MIGRATION 4 — `20260807020000_phase_6_0_5_5_transitions.sql`
 
 > **Adicionada em 2026-08-08 (6.0.5.5).** Migration aditiva/idempotente, validada
 > em Postgres 16 docker (aplica 2× sem duplicar; cenários T1–T12 OK). Conteúdo:
@@ -218,7 +217,7 @@ supabase migration repair --status applied 20260807020000 --linked
 > completa **S1–S16 + G1 PASS** + idempotência 2×. **Aplicar na mesma janela, logo
 > após a `07020000`, antes de qualquer execução do Billing Engine no remoto.**
 
-### 3.6 MIGRATION 6 — `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql`
+### 3.6 MIGRATION 5 — `20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql`
 
 > **Adicionada em 2026-08-08 (hardening de RPCs irmãs — decisão PO).** Migration
 > **aditiva/idempotente**, validada em Postgres 16 docker (aplica 2× sem duplicar;
@@ -265,7 +264,10 @@ WHERE version >= '20260806030000'
 ORDER BY version;
 ```
 
-### 4.2 Verificação da MIGRATION 1 (autorização)
+### 4.2 Verificação da MIGRATION 0 (autorização — `06030000` reparada, estado pré-existente)
+
+> A `06030000` foi **reparada como aplicada** (2026-08-08, D-6.0.5.6-5) sem executar. Estas
+> verificações confirmam que o estado da autorização já existe no remoto (não exigem a migration).
 
 ```sql
 -- Helpers e RPCs do contrato 6.0.4.3
@@ -302,7 +304,7 @@ ORDER BY g.grantee;
 
 > Esperado: `authenticated` (e possivelmente `service_role`). **`anon` presente → falha de hardening → abortar.**
 
-### 4.3 Verificação da MIGRATION 2 (plans catalog)
+### 4.3 Verificação da MIGRATION 1 (plans catalog)
 
 ```sql
 SELECT to_regclass('public.plans')    AS plans,
@@ -338,7 +340,7 @@ FROM pg_class
 WHERE relname IN ('plans', 'features', 'plan_features');
 ```
 
-### 4.4 Verificação da MIGRATION 3 (feature flags)
+### 4.4 Verificação da MIGRATION 2 (feature flags)
 
 ```sql
 SELECT to_regclass('public.feature_flags') AS feature_flags;
@@ -453,7 +455,7 @@ SELECT public.generate_club_receivables('<tenant_id>');
 -- Se habilitada: executa a lógica normal (sem erro de guarda)
 ```
 
-### 4.8 Verificação da MIGRATION 4 (tenant lifecycle)
+### 4.8 Verificação da MIGRATION 3 (tenant lifecycle)
 
 ```sql
 -- RPCs novas (grants ADR-012: REVOKE anon/PUBLIC + GRANT authenticated)
@@ -490,7 +492,7 @@ SELECT prosrc LIKE '%RAISE EXCEPTION%' AS tem_fail_fast
 FROM pg_proc WHERE proname = 'apply_subscription_transition';
 ```
 
-### 4.9 Verificação da MIGRATION 6 (fix de RPCs irmãs)
+### 4.9 Verificação da MIGRATION 5 (fix de RPCs irmãs)
 
 ```sql
 -- Corpos corrigidos: create_invoice sem `ON CONFLICT (tenant_id, idempotency_key)`
@@ -601,9 +603,8 @@ supabase migration repair --status reverted 20260806090000 --linked
 
 > **Atenção:** reverter a 06090000 inviabiliza a 07000000 (`feature_flags`
 > referencia `features`). Reverter sempre em ordem reversa (07010000 → 07000000 → 06090000).
-> **Se a 06030000 precisar de rollback**, as RPCs de billing/invite retornam às
-> versões da `20260806020000`/`20260806000000` (não há tabelas para dropar —
-> é só recriar funções/policies das versões anteriores).
+> **A `06030000` não entra no rollback** — ela foi reparada como aplicada sem executar
+> (D-6.0.5.6-5) e seu conteúdo já existe no remoto via `06020000`/`06070000`.
 
 ### 6.3 Rollback da 07010000 (tenant lifecycle)
 
@@ -665,7 +666,7 @@ vercel rollback
 ### 6.6 Checklist de rollback rápido
 
 - [ ] 1. Identificar a migration que causou o problema (logs de erro + verificação).
-- [ ] 2. Reverter DB em ordem reversa (08000000 → 07020000 → 07010000 → 07000000 → 06090000 → 06030000) com `migration repair --status reverted`.
+- [ ] 2. Reverter DB em ordem reversa (08000000 → 07020000 → 07010000 → 07000000 → 06090000) com `migration repair --status reverted`. **A `06030000` não se reverte** (reparada como aplicada sem executar).
 - [ ] 3. Reverter frontend via `vercel rollback` (para o deployment pré-6.0.5.3).
 - [ ] 4. Validar login → schedule → dashboard → checkout (fluxo P0).
 - [ ] 5. Confirmar `supabase migration list --linked` coerente com o estado revertido.
@@ -678,12 +679,12 @@ vercel rollback
 | Etapa | Tempo |
 |---|---|
 | Pré-flight + backup + coordenação | 10 min |
-| MIGRATION 1 (06030000) | ~1–2 min (apply + repair) |
-| MIGRATION 2 (06090000) | ~1–2 min (apply + repair) |
-| MIGRATION 3 (07000000) | ~1–2 min (apply + repair) |
-| MIGRATION 4 (07010000) | ~1–2 min (apply + repair) |
-| MIGRATION 5 (07020000) | ~1–2 min (apply + repair) |
-| MIGRATION 6 (08000000) | ~1–2 min (apply + repair) |
+| MIGRATION 0 (06030000 — já reparada, verificação apenas) | ~1 min |
+| MIGRATION 1 (06090000) | ~1–2 min (apply + repair) |
+| MIGRATION 2 (07000000) | ~1–2 min (apply + repair) |
+| MIGRATION 3 (07010000) | ~1–2 min (apply + repair) |
+| MIGRATION 4 (07020000) | ~1–2 min (apply + repair) |
+| MIGRATION 5 (08000000) | ~1–2 min (apply + repair) |
 | Verificações pós-deploy (§4) | ~14 min |
 | E2E flow14 (§5) | ~3–5 min |
 | Smoke E2E (§5) | ~2–3 min |
@@ -716,7 +717,7 @@ iniciado) quando ocorrer **qualquer um**:
 
 1. Backup/PITR não confirmado antes de iniciar.
 2. Pré-flight §2.1 aponta plano fora do catálogo (`free/pro/premium`).
-3. `supabase migration list --linked` mostrar pendências diferentes das 5 esperadas (06030000, 06090000, 07000000, 07010000, 07020000) — a `08000000` é aplicada na janela (antes do `repair`).
+3. `supabase migration list --linked` mostrar pendências diferentes das 4 esperadas (06090000, 07000000, 07010000, 07020000) — a `08000000` é aplicada na janela (antes do `repair`); a `06030000` deve constar como **aplicada** (repair 2026-08-08).
 4. Qualquer `supabase db query --linked` retornar erro **não** coberto por idempotência (sem reaplicar às cegas).
 5. `supabase migration repair` falhar (histórico inconsistente) — **não** forçar.
 6. Verificação §4.2: `anon` com EXECUTE em RPCs de billing (falha de hardening).
@@ -732,7 +733,7 @@ iniciado) quando ocorrer **qualquer um**:
 
 Após o smoke verde e aprovação do PO:
 
-- [ ] `supabase migration list --linked` 100% coerente (6 versões aplicadas; nada pendente).
+- [ ] `supabase migration list --linked` 100% coerente (5 versões aplicadas na janela; nada pendente).
 - [ ] Entry Audit 6.0.5.3 — critério de saída "Deploy ao remoto" **marcado**.
 - [ ] Entry Audit 6.0.5.4 — critério de saída "E2E flow14 na janela" **marcado**.
 - [ ] Entry Audit 6.0.5.5 (§12.7) — hardening de RPCs irmãs **validado no remoto** (verificação §4.9).
@@ -745,21 +746,24 @@ Após o smoke verde e aprovação do PO:
 ## 11. Comandos Resumo (copiar/colar na janela)
 
 ```powershell
-# 1) Autorização (6.0.4.3)
-supabase db query --linked -f supabase/migrations/20260806030000_fix_auth_staff_id_to_profiles.sql
-supabase migration repair --status applied 20260806030000 --linked
+# 0) Verificação — 06030000 (já reparada em 2026-08-08 — D-6.0.5.6-5; NÃO aplicar)
+supabase migration list --linked   # 06030000 deve constar como aplicada
 
-# 2) Plans Catalog (6.0.5.2)
+# 1) Plans Catalog (6.0.5.2)
 supabase db query --linked -f supabase/migrations/20260806090000_phase_6_0_5_2_plans_catalog.sql
 supabase migration repair --status applied 20260806090000 --linked
 
-# 3) Feature Flags (6.0.5.3)
+# 2) Feature Flags (6.0.5.3)
 supabase db query --linked -f supabase/migrations/20260807000000_phase_6_0_5_3_feature_flags.sql
 supabase migration repair --status applied 20260807000000 --linked
 
-# 4) Tenant Lifecycle (6.0.5.4)
+# 3) Tenant Lifecycle (6.0.5.4)
 supabase db query --linked -f supabase/migrations/20260807010000_phase_6_0_5_4_tenant_lifecycle.sql
 supabase migration repair --status applied 20260807010000 --linked
+
+# 4) Transições de plano (6.0.5.5)
+supabase db query --linked -f supabase/migrations/20260807020000_phase_6_0_5_5_transitions.sql
+supabase migration repair --status applied 20260807020000 --linked
 
 # 5) Fix de RPCs irmãs (hardening 2026-08-08)
 supabase db query --linked -f supabase/migrations/20260808000000_fix_create_invoice_record_payment_attempt_ambiguity.sql
