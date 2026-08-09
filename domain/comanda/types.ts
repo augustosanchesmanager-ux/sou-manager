@@ -8,14 +8,17 @@ export interface Comanda {
   id: string;
   tenant_id: string;
   client_id: string | null;
-  client_name: string | null;
+  /** Denormalized — NOT present in comandas select. Resolve via clients when needed. */
+  client_name?: string | null;
   appointment_id: string | null;
   staff_id: string | null;
   status: string;
   total: number;
-  paid_amount: number;
+  /** NOT a comandas column. Use total or transactions for effective paid amount. */
+  paid_amount?: number;
   payment_method: string | null;
-  notes: string | null;
+  /** NOT a comandas column. Notes live on transactions/closure_note. */
+  notes?: string | null;
   created_at: string;
   closed_at: string | null;
 }
@@ -36,9 +39,7 @@ export interface ComandaItem {
 export interface UpdateComandaInput {
   status?: string;
   total?: number;
-  paid_amount?: number;
   payment_method?: string | null;
-  notes?: string | null;
   staff_id?: string | null;
   closed_at?: string | null;
 }

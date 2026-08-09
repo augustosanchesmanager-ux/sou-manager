@@ -28,21 +28,21 @@ import type { AppSlug } from '../shared/app';
 
 export { RepositoryError } from '../shared/errors';
 
-/** Explicit column list for comandas — matches toComanda() mapping (13 of 29 cols). */
-const COMANDA_COLUMNS = 'id, tenant_id, client_id, client_name, appointment_id, staff_id, status, total, paid_amount, payment_method, notes, created_at, closed_at';
+/** Explicit column list for comandas — only REAL schema columns (no client_name/paid_amount/notes). */
+const COMANDA_COLUMNS = 'id, tenant_id, client_id, appointment_id, staff_id, status, total, payment_method, created_at, closed_at';
 
 const toComanda = (row: Record<string, unknown>): Comanda => ({
   id: row.id as string,
   tenant_id: row.tenant_id as string,
   client_id: (row.client_id as string) || null,
-  client_name: (row.client_name as string) || null,
+  client_name: row.client_name ? (row.client_name as string) : null,
   appointment_id: (row.appointment_id as string) || null,
   staff_id: (row.staff_id as string) || null,
   status: (row.status as string) || 'open',
   total: (row.total as number) || 0,
-  paid_amount: (row.paid_amount as number) || 0,
+  paid_amount: typeof row.paid_amount === 'number' ? (row.paid_amount as number) : 0,
   payment_method: (row.payment_method as string) || null,
-  notes: (row.notes as string) || null,
+  notes: row.notes ? (row.notes as string) : null,
   created_at: (row.created_at as string) || '',
   closed_at: (row.closed_at as string) || null,
 });
