@@ -194,7 +194,7 @@
 
 - [ ] **Aprovação formal do plano de homologação pelo PO** (D-HOM-6)
 - [ ] H-1 Integridade operacional (login/permissões, tenant, equipe, clientes, agenda, serviços/produtos, dados históricos preservados)
-- [ ] H-2 Fluxo financeiro P0 (atendimento → checkout, formas de pagamento, fechamento de caixa, por profissional, comissões, receitas/despesas, conferência)
+- [x] **H-2 Fluxo financeiro P0 — 🟢 APROVADO (D-HOM-14, 2026-08-09):** Cash Closing + Comissões validados funcionalmente no preview oficial com a conta de homologação (dados reais), sem `comandas.client_name`, console limpo; **EB-2 encerrado**; evidência SQL formal da quadratura registrada no H-7
 - [ ] H-3 Chef Club (adesão, benefícios, regras de plano, reflexos financeiros, permissões)
 - [ ] H-4 Billing/Lifecycle (active, past_due, suspended, reativação, cancelamento, transição de plano, limites, feature indisponível)
 - [ ] H-5 Feature Flags (free/pro/premium, habilitada/desabilitada, UpgradePrompt, FeatureUnavailablePage, acesso direto à rota, zero leitura direta de `feature_flags`)
