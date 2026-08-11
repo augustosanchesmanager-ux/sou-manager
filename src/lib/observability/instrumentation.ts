@@ -64,6 +64,7 @@ export type ServiceInstrumentationMap<T> = {
 export function withObservability<TArgs extends unknown[], TResult>(
   fn: (...args: TArgs) => Promise<TResult>,
   config: ObservabilityConfig,
+  thisArg?: unknown,
 ): (...args: TArgs) => Promise<TResult> {
   return async (...args: TArgs): Promise<TResult> => {
     const requestId = createRequestId();
@@ -80,7 +81,7 @@ export function withObservability<TArgs extends unknown[], TResult>(
     metrics.increment('operation_count', 1, { operation: config.operation });
 
     try {
-      const result = await fn(...args);
+      const result = await fn.apply(thisArg, args);
       const duration = performance.now() - startTime;
 
       logger.business(`${config.operation}_completed`, {
@@ -131,6 +132,7 @@ export function withObservability<TArgs extends unknown[], TResult>(
 export function withObservabilitySync<TArgs extends unknown[], TResult>(
   fn: (...args: TArgs) => TResult,
   config: ObservabilityConfig,
+  thisArg?: unknown,
 ): (...args: TArgs) => TResult {
   return (...args: TArgs): TResult => {
     const startTime = performance.now();
@@ -138,7 +140,7 @@ export function withObservabilitySync<TArgs extends unknown[], TResult>(
     const tags = config.tags || {};
 
     try {
-      const result = fn(...args);
+      const result = fn.apply(thisArg, args);
       const duration = performance.now() - startTime;
 
       logger.business(`${config.operation}_completed`, {
@@ -177,6 +179,8 @@ export function withObservabilitySync<TArgs extends unknown[], TResult>(
 /**
  * Instrument all methods of a service class instance declaratively.
  * Mutates the instance in place (wraps methods).
+ * Async methods are wrapped with `withObservability`; sync methods with
+ * `withObservabilitySync`, preserving both `this` and return-synchronicity.
  *
  * Usage:
  *   instrumentService(checkoutApplicationService, {
@@ -194,10 +198,19 @@ export function instrumentService<T extends Record<string, unknown>>(
     const original = (service as Record<string, unknown>)[method];
     if (typeof original !== 'function') continue;
 
-    const wrapped = withObservability(
-      original as (...args: unknown[]) => Promise<unknown>,
-      config as ObservabilityConfig,
-    );
+    const isAsync = original.constructor.name === 'AsyncFunction';
+
+    const wrapped = isAsync
+      ? withObservability(
+          original as (...args: unknown[]) => Promise<unknown>,
+          config as ObservabilityConfig,
+          service,
+        )
+      : withObservabilitySync(
+          original as (...args: unknown[]) => unknown,
+          config as ObservabilityConfig,
+          service,
+        );
 
     (service as Record<string, unknown>)[method] = wrapped;
   }

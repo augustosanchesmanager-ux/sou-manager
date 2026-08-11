@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 // ─── Mocks (topo do arquivo) ──────────────────────────────────────
 const mockUpdate = vi.fn();
@@ -81,6 +81,9 @@ import {
   makeIdempotencyScenario,
   buildMockFromImplementation,
 } from '../../../tests/scenarios/checkout.scenario';
+
+// ─── Observability (regression) ───────────────────────────────────
+import { instrumentService } from '../../src/lib/observability/instrumentation';
 
 // ═══════════════════════════════════════════════════════════════════
 // CheckoutApplicationService.finish()
@@ -539,5 +542,86 @@ describe('CheckoutApplicationService', () => {
 
       expect(result.comandaId).toBe('existing-idem-comanda');
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Grupo F — Observability Regression
+//
+// Reproduz o bug de produção: a instrumentação (Fase 3.5) embrulhava os
+// métodos do serviço e quebrava o `this`, fazendo `finish()` lançar
+// "Cannot read properties of undefined (reading 'validateFinishRequest')".
+//
+// Este grupo instrumenta o singleton como em produção (App.tsx →
+// useObservability → initializeInstrumentation) e reexecuta os fluxos
+// críticos para provar que o wrapper preserva `this` e a sincronicidade.
+// ═══════════════════════════════════════════════════════════════════
+describe('CheckoutApplicationService — Observability Regression', () => {
+  const CHECKOUT_CONFIG = {
+    finish: { operation: 'Checkout.finish', businessEvent: 'CHECKOUT_COMPLETED', metric: 'checkout_duration_ms' },
+    validateFinishRequest: { operation: 'Checkout.validate', metric: 'checkout_validate_duration_ms' },
+    syncComanda: { operation: 'Checkout.syncComanda', metric: 'checkout_sync_comanda_duration_ms' },
+    syncItemsWithCompensation: { operation: 'Checkout.syncItems', metric: 'checkout_sync_items_duration_ms' },
+    settleComanda: { operation: 'Checkout.settle', metric: 'checkout_settle_duration_ms' },
+  };
+
+  beforeAll(() => {
+    instrumentService(checkoutApplicationService as any, CHECKOUT_CONFIG as any);
+  });
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('should_keep_validateFinishRequest_synchronous_when_instrumented', () => {
+    const errors = checkoutApplicationService.validateFinishRequest(makeFinishRequest()) as any;
+    expect(Array.isArray(errors)).toBe(true);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should_still_return_validation_errors_synchronously_when_instrumented', () => {
+    const errors = checkoutApplicationService.validateFinishRequest(makeFinishRequest({ cart: [] })) as any;
+    expect(Array.isArray(errors)).toBe(true);
+    expect(errors).toContain('Pelo menos um item é obrigatório.');
+  });
+
+  it('should_complete_finish_without_losing_this_when_instrumented', async () => {
+    const scenario = makeSuccessfulPaidScenario();
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+    mockInsertWithIdempotency.mockResolvedValue('comanda-instrumented-1');
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.comandaId).toBe('comanda-instrumented-1');
+    expect(result.paymentStatus).toBe('paid');
+    expect(mockSettleCheckoutComanda).toHaveBeenCalledTimes(1);
+  });
+
+  it('should_throw_validation_error_through_wrapper_when_instrumented', async () => {
+    await expect(
+      checkoutApplicationService.finish(makeFinishRequest({ cart: [] }), 'idem-instrumented'),
+    ).rejects.toThrow('Pelo menos um item é obrigatório.');
+  });
+
+  it('should_complete_zero_close_through_wrapper_when_instrumented', async () => {
+    const scenario = makeZeroCloseScenario('house_courtesy');
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockCloseZeroAmountComanda.mockResolvedValue({ success: true });
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.paymentStatus).toBe('paid');
+    expect(mockCloseZeroAmountComanda).toHaveBeenCalledTimes(1);
+  });
+
+  it('should_complete_legacy_settlement_through_wrapper_when_instrumented', async () => {
+    const scenario = makeLegacyClubScenario();
+    mockList.mockResolvedValue([]);
+    mockUpdate.mockResolvedValue(undefined);
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.isLegacyClubSettlement).toBe(true);
+    expect(mockSettleCheckoutComanda).not.toHaveBeenCalled();
   });
 });
