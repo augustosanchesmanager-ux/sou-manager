@@ -956,6 +956,7 @@ describe('ChefClubApplicationService', () => {
 
         it('should_resolve_membership_context_when_active_and_paid', async () => {
             const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const pastDate = new Date(Date.now() - 86400000 * 10).toISOString();
             const now = new Date().toISOString();
 
             const subChain = makeChainable({ data: null, error: null });
@@ -994,7 +995,10 @@ describe('ChefClubApplicationService', () => {
                     .mockReturnValueOnce(creditsChain),
             });
 
-            mockReceivableList.mockResolvedValueOnce([buildReceivable()]);
+            mockReceivableList.mockResolvedValueOnce([buildReceivable({
+                billing_cycle_start: pastDate,
+                billing_cycle_end: futureDate,
+            })]);
 
             const ctx = await resolveMembershipContext('tenant-1', 'client-1');
 
@@ -1060,6 +1064,125 @@ describe('ChefClubApplicationService', () => {
                     .mockReturnValueOnce(subChain)
                     .mockReturnValueOnce(recChain),
             });
+
+            const ctx = await resolveMembershipContext('tenant-1', 'client-1');
+
+            expect(ctx.hasMembership).toBe(false);
+            expect(ctx.validationErrors).toContain('Nenhum pagamento confirmado para o ciclo atual.');
+        });
+
+        it('should_resolve_membership_context_when_paid_receivable_has_past_due_date_but_active_cycle', async () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const pastCycleStart = new Date(Date.now() - 86400000 * 10).toISOString();
+            const pastDueDate = new Date(Date.now() - 86400000 * 2).toISOString();
+            const now = new Date().toISOString();
+
+            const subChain = makeChainable({ data: null, error: null });
+            subChain.maybeSingle.mockResolvedValue({
+                data: {
+                    id: 'sub-1', plan_id: 'plan-1',
+                    cycle_start: pastCycleStart, cycle_end: futureDate,
+                    next_billing_date: futureDate, created_at: now,
+                },
+                error: null,
+            });
+
+            const planChain = makeChainable({ data: null, error: null });
+            planChain.maybeSingle.mockResolvedValue({
+                data: { name: 'Plano Gold' },
+                error: null,
+            });
+
+            const creditsChain = makeChainable({ data: null, error: null });
+            creditsChain.maybeSingle.mockResolvedValue({
+                data: {
+                    available_credits: 8, used_credits: 2,
+                    service_balance_map: [
+                        { service_id: 'svc-1', service_name: 'Corte', available: 5, used: 1 },
+                    ],
+                    period_end: futureDate,
+                },
+                error: null,
+            });
+
+            mockScopedClient.mockReturnValue({
+                rpc: vi.fn(),
+                from: vi.fn()
+                    .mockReturnValueOnce(subChain)
+                    .mockReturnValueOnce(planChain)
+                    .mockReturnValueOnce(creditsChain),
+            });
+
+            mockReceivableList.mockResolvedValueOnce([buildReceivable({
+                billing_cycle_start: pastCycleStart,
+                billing_cycle_end: futureDate,
+                due_date: pastDueDate,
+            })]);
+
+            const ctx = await resolveMembershipContext('tenant-1', 'client-1');
+
+            expect(ctx.hasMembership).toBe(true);
+            expect(ctx.canUseCredits).toBe(true);
+            expect(ctx.creditsRemaining).toBe(5);
+            expect(ctx.validationErrors).toEqual([]);
+        });
+
+        it('should_resolve_membership_context_error_when_paid_receivable_cycle_expired', async () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const expiredCycleEnd = new Date(Date.now() - 86400000 * 2).toISOString();
+            const pastCycleStart = new Date(Date.now() - 86400000 * 40).toISOString();
+            const now = new Date().toISOString();
+
+            const subChain = makeChainable({ data: null, error: null });
+            subChain.maybeSingle.mockResolvedValue({
+                data: {
+                    id: 'sub-1', plan_id: 'plan-1',
+                    cycle_start: pastCycleStart, cycle_end: futureDate,
+                    next_billing_date: futureDate, created_at: now,
+                },
+                error: null,
+            });
+
+            mockScopedClient.mockReturnValue({
+                rpc: vi.fn(),
+                from: vi.fn().mockReturnValueOnce(subChain),
+            });
+
+            mockReceivableList.mockResolvedValueOnce([buildReceivable({
+                billing_cycle_start: pastCycleStart,
+                billing_cycle_end: expiredCycleEnd,
+            })]);
+
+            const ctx = await resolveMembershipContext('tenant-1', 'client-1');
+
+            expect(ctx.hasMembership).toBe(false);
+            expect(ctx.validationErrors).toContain('Nenhum pagamento confirmado para o ciclo atual.');
+        });
+
+        it('should_resolve_membership_context_error_when_paid_receivable_cycle_not_started', async () => {
+            const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+            const cycleStartsLater = new Date(Date.now() + 86400000 * 5).toISOString();
+            const now = new Date().toISOString();
+
+            const subChain = makeChainable({ data: null, error: null });
+            subChain.maybeSingle.mockResolvedValue({
+                data: {
+                    id: 'sub-1', plan_id: 'plan-1',
+                    cycle_start: now, cycle_end: futureDate,
+                    next_billing_date: futureDate, created_at: now,
+                },
+                error: null,
+            });
+
+            mockScopedClient.mockReturnValue({
+                rpc: vi.fn(),
+                from: vi.fn().mockReturnValueOnce(subChain),
+            });
+
+            mockReceivableList.mockResolvedValueOnce([buildReceivable({
+                billing_cycle_start: cycleStartsLater,
+                billing_cycle_end: new Date(Date.now() + 86400000 * 35).toISOString(),
+            })]);
 
             const ctx = await resolveMembershipContext('tenant-1', 'client-1');
 

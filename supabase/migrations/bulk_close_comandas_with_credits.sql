@@ -83,7 +83,7 @@ BEGIN
 
                         v_current_service := COALESCE(
                             (v_credits_by_service -> v_service_key)::jsonb,
-                            '{"service_id": "' || v_service_key || '", "consumed": 0}'::jsonb
+                            ('{"service_id": "' || v_service_key || '", "consumed": 0}')::jsonb
                         );
 
                         v_current_service := jsonb_set(
@@ -96,7 +96,7 @@ BEGIN
                             v_credits_by_service,
                             ARRAY[v_service_key],
                             v_current_service,
-                            false
+                            true
                         );
 
                         v_credits_consumed := v_credits_consumed || jsonb_build_object(

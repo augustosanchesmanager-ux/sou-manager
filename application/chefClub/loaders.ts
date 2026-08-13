@@ -389,8 +389,6 @@ export const resolveMembershipContext = async (
     tenantId: string,
     clientId: string,
 ): Promise<MembershipContext> => {
-    const nowIso = new Date().toISOString();
-
     const empty: MembershipContext = {
         subscriptionId: '',
         planName: '',
@@ -411,15 +409,25 @@ export const resolveMembershipContext = async (
         return { ...empty, validationErrors: ['Ciclo de cobrança expirado.'] };
     }
 
-    // 3. Check that a paid receivable exists for current cycle
+    // 3. Check that a paid receivable exists for the current billing cycle
     const receivables = await receivableRepository.list(tenantId, {
         statuses: ['paid'],
         subscriptionId: sub.id,
-        dateFrom: nowIso,
-        dateTo: nowIso,
     });
 
-    if (receivables.length === 0) {
+    const nowMs = Date.now();
+    const paidForCurrentCycle = receivables.some((receivable) => {
+        const cycleStart = new Date(receivable.billing_cycle_start).getTime();
+        const cycleEnd = new Date(receivable.billing_cycle_end).getTime();
+        return (
+            !Number.isNaN(cycleStart) &&
+            !Number.isNaN(cycleEnd) &&
+            cycleStart <= nowMs &&
+            cycleEnd >= nowMs
+        );
+    });
+
+    if (!paidForCurrentCycle) {
         return { ...empty, validationErrors: ['Nenhum pagamento confirmado para o ciclo atual.'] };
     }
 
