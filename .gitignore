@@ -34,3 +34,5 @@ playwright-report/
 
 # Homologation helper scripts (contain test account credentials - never versioned, D-HOM-12)
 h3_*.cjs
+h4_*.cjs
+h4_*.json
