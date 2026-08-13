@@ -5,7 +5,7 @@
 > **Ambiente:** Supabase real (project `ushsnmlbeurfvlkieiln`) — **tenant E2E isolado e identificável** (D-HOM-19); **NÃO** usou o tenant Sanchez Barber
 > **Responsável:** OpenCode (Tech Lead operacional)
 > **Execução:** E2E Playwright (Chromium) — `tests/e2e/homologation/h5-feature-flags.spec.ts` com `E2E_PROVISIONING=1` + inspeção de código (grep) para H5-8
-> **Veredito técnico:** ✅ **matriz H5-1..H5-9 — 5/5 testes E2E PASS + H5-8 PASS (inspeção grep)** — veredito formal do PO pendente
+> **Veredito:** 🟢 **APROVADO (D-HOM-22, PO 2026-08-13)** — 5/5 testes E2E PASS + H5-8 PASS (inspeção grep)
 
 ---
 
@@ -97,12 +97,13 @@ O frontend **não consulta `feature_flags`/`plans`/`features`/`plan_features` di
 
 ## 8. Conclusão
 
-**Gate H-5 = ✅ VALIDADO (matriz H5-1..H5-9: 5/5 testes E2E PASS + H5-8 PASS por inspeção grep).**
+**Gate H-5 = 🟢 APROVADO (D-HOM-22, PO 2026-08-13).**
 
+- Matriz H5-1..H5-9 **5/5 testes E2E PASS + H5-8 PASS por inspeção grep** — veredito formal do PO proferido (D-HOM-22).
 - Matriz free 14 / pro 15 / premium 20 **coerente** com o seed SQL e com o espelho TS (testes `planCatalog*` verdes).
 - Enforcement de UI confirmado: feature habilitada libera; desabilitada → `FeatureUnavailablePage`/`UpgradePrompt` (**nunca 403**), inclusive por **URL direta**; **override por tenant vence a matriz nos dois sentidos** (premium+false bloqueia; free+true libera).
 - **H5-8 PASS:** zero leitura direta de `feature_flags` no frontend em runtime; decisão de acesso exclusiva via RPC `tenant_has_feature`.
 - Execução em **tenant E2E isolado** (dados de teste), teardown completo (feature_flags, billing_events, subscriptions, staff, user_tenants, tenant_settings, tenants, usuários) — nenhuma mutação no tenant Sanchez Barber.
 - **Sem alteração de código de produção, sem migration, sem merge/tag/deploy.**
 - **H-3 permanece 🟡** (H3-1..H3-4, H3-6 ✅; H3-5 🟡 c/ ressalva) e **H-8 permanece 🔴 BLOQUEADOR** (produção `718f6f9` + topologia Vercel) — o PASS do H-5 não altera esses status.
-- **Próximo gate:** H-6 — Segurança.
+- **Próximo gate:** H-6 — Segurança (execução em separado, conforme decisão do PO).
