@@ -153,7 +153,7 @@ test.describe('H6.5 — Probes de segurança fail-closed (REST, tenants isolados
     const ticketB = await admin.from('support_tickets').insert({ tenant_id: tenantB, user_id: ub, subject: 'Ticket B', status: 'open' }).select('id').single();
     if (ticketB.error || !ticketB.data) throw new Error(`seed ticketB failed: ${ticketB.error?.message}`);
     ticketBId = (ticketB.data as { id: string }).id;
-    const msgB = await admin.from('ticket_messages').insert({ ticket_id: ticketBId, user_id: ub, message: 'Mensagem sensível do tenant B' }).select('id').single();
+    const msgB = await admin.from('ticket_messages').insert({ ticket_id: ticketBId, sender_id: ub, message: 'Mensagem sensível do tenant B' }).select('id').single();
     if (msgB.error) throw new Error(`seed ticket_messages failed: ${msgB.error?.message}`);
 
     managerA = await signInAsUser(emails.managerA, PASSWORD);
@@ -276,7 +276,7 @@ test.describe('H6.5 — Probes de segurança fail-closed (REST, tenants isolados
     expect(msgs.error, `ticket_messages tenantB via managerA: ${msgs.error?.message}`).toBeNull();
     expect(msgs.data ?? []).toHaveLength(0);
 
-    const hijackMsg = await a().from('ticket_messages').insert({ ticket_id: ticketBId, user_id: (await a().auth.getUser()).data.user?.id, message: 'Invasão' });
+    const hijackMsg = await a().from('ticket_messages').insert({ ticket_id: ticketBId, sender_id: (await a().auth.getUser()).data.user?.id, message: 'Invasão' });
     expect(hijackMsg.error, `insert ticket_messages em ticket de B deveria falhar: ${JSON.stringify(hijackMsg)}`).not.toBeNull();
   });
 
