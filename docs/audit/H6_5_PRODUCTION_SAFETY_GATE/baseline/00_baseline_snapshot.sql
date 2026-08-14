@@ -178,7 +178,6 @@ SELECT
   (SELECT count(*) FROM public.appointments WHERE tenant_id = 'b716e290-f7f6-4449-b790-5ae9dcdadcab') AS appointments,
   (SELECT count(*) FROM public.comandas WHERE tenant_id = 'b716e290-f7f6-4449-b790-5ae9dcdadcab') AS comandas,
   (SELECT count(*) FROM public.transactions WHERE tenant_id = 'b716e290-f7f6-4449-b790-5ae9dcdadcab') AS transactions,
-  (SELECT count(*) FROM public.commissions WHERE tenant_id = 'b716e290-f7f6-4449-b790-5ae9dcdadcab') AS commissions,
   (SELECT count(*) FROM public.cash_closings WHERE tenant_id = 'b716e290-f7f6-4449-b790-5ae9dcdadcab') AS cash_closings;
 
 -- ------------------------------------------------------------------------------
