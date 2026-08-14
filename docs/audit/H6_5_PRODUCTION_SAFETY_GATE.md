@@ -324,7 +324,38 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 
 **Notas de execução:**
 - Aplicação item a item via `supabase db query --linked --file supabase/migrations/20260813130000_h6_fix_f6_a_public_select_tenants_services.sql` (exit=0) — mesma via da M1. **Não** registradas em `supabase_migrations.schema_migrations` (mesma convenção da M1; tratar em futura `supabase db push` — registrar para o PO).
+- **Reconciliação de tracking (2026-08-14, autorizada pelo PO):** registradas as 6 migrations aplicadas M1–M6 via `supabase migration repair --linked --status applied` (fluxo oficial do CLI; **nenhum DDL reexecutado**, apenas INSERT em `supabase_migrations.schema_migrations`). Versões: `20260813120000`, `20260813120100`, `20260813120200`, `20260813120300`, `20260813120400`, `20260813130000`. Ver §12.1.
 - **Canário corrigido (somente a spec, autorizado pelo PO):** `h6-5-security-probes.spec.ts` inseria em `ticket_messages` com `user_id` (linhas 156/279); o schema real usa `sender_id` (cf. `h6-security.spec.ts:204`). Correção de teste apenas — desbloqueou o seed da suite de probes.
 - **Gate B-8 (pré-M6, auditado 2026-08-14, read-only):** **1 usuário da Sanchez perderia acesso REST após `120400`.** `tiodon2d@gmail.com` (`fdbbdba4-40ed-4127-b404-6194ea425826`, barber, criado 2026-07-16, `last_sign_in_at` 2026-07-24, não banido) possui `staff.status='inactive'`, **zero profiles**, e hoje resolve o tenant `b716e290` via `COALESCE(profiles, staff)` sem checagem de status. Após `120400`, o helper exige `status='active'` → resolve `NULL` → **perde acesso REST**. B-8.1 vazio (nenhum profile não-ativo); B-8.2: apenas esta 1 linha; B-8.3: 1 usuário; B-8.4: vazio. **Decisão do PO (D-HOM-27):** o usuário foi **desligado da empresa** — a perda de acesso é **intencional e esperada** da nova regra (F6-8). **NÃO alterar o staff; deixar `120400` fazer o bloqueio. C-1 APROVADO → M6 autorizada.** Validação pós-M6 obrigatória: usuários ativos continuam acessando · desligado não acessa · nenhum outro usuário legítimo perdeu acesso · tenant isolation mantida · queries B-8/C-1 dentro do esperado.
 - **Grants pré-M2:** `authenticated` possui SELECT próprio em `tenants`/`services` — o `REVOKE ALL ... FROM PUBLIC` da M2 **não** afeta leituras autenticadas (confirmado por `role_table_grants` e pela regressão 14/14).
 - Próximos itens autorizáveis (aguardando veredito do PO sobre M6): `120500` (F6-1) → `130100` (F6-B) → `130200` (F6-2) → `130300` (F6-6) → reauditoria H-6.
+
+---
+
+## 12.1 Reconciliação de tracking `schema_migrations` (M1–M6)
+
+> **Data:** 2026-08-14 · **Decisão do PO:** 🟢 autorizar `supabase migration repair --linked --status applied` para M1–M6 · 🔴 **não** executar `db push --include-all` · 🔴 **não** aplicar M7 (`120500`) · 🟢 auditoria pós-reconciliação obrigatória antes de continuar H-6.
+> **Regra do PO mantida:** se o CLI pedisse credencial de banco indisponível → parar e reportar (não improvisar com SQL manual). O `repair --linked` conectou via pooler (login role), sem exigir `SUPABASE_DB_PASSWORD`.
+
+**Contexto:** as migrations M1–M6 foram aplicadas item a item via `supabase db query --linked --file` (fora do CLI de migrations), portanto os **objetos existiam** mas o **tracking** (`supabase_migrations.schema_migrations`) não registrava as versões — `db push` futuro as reexecutaria.
+
+**Auditoria read-only prévia (evidência):**
+- Estrutura do tracking: `version text PK` · `statements text[]` · `name text` · `created_by text` · `idempotency_key text UNIQUE` · `rollback text[]`. Sem triggers; índices apenas das 2 constraints.
+- O CLI v2.105 decide push **somente por `version`** (`SELECT version FROM ... ORDER BY version`); **não há checksum** — nenhuma validação de conteúdo no push.
+- INSERT canônico do CLI: `INSERT INTO supabase_migrations.schema_migrations(version, name, statements) VALUES($1,$2,$3)`; `idempotency_key`/`created_by`/`rollback` permanecem NULL (igual aos registros CLI recentes, ex.: `20260808110000`).
+- Fluxo nativo de reconciliação confirmado no binário ("Found local migration files to be inserted before the last migration on remote database... repair the entire migration history table").
+
+**Execução:** `supabase migration repair --linked --status applied 20260813120000 20260813120100 20260813120200 20260813120300 20260813120400 20260813130000` → `Repaired migration history: [20260813120000 ... 20260813130000] => applied`.
+
+**Pós-check (obrigatório, executado):**
+
+| Check | Evidência | Resultado |
+|-------|-----------|-----------|
+| Tracking contém M1–M6 | `SELECT ... WHERE version LIKE '20260813%'` → 6 versões, `name` correto, `statements` fiéis ao arquivo local (2/2/5/10/2/12 statements) | ✅ |
+| Nenhum DDL reexecutado | Repair só escreve em `schema_migrations` (INSERT/DELETE do CLI) | ✅ |
+| Objetos intactos pós-repair | `pg_get_functiondef`: M1 fail-closed `suspended` + SECURITY DEFINER · M3 guarda superadmin/ownership · M4 policies `superadmin can view/insert plan requests` · M5 `kiosk_addons_select/insert/update` scoped | ✅ |
+| M7 (`120500`) **não** registrado | `SELECT ... WHERE version='20260813120500'` → `rows: []` | ✅ |
+| Git limpo | `git status --short` → vazio | ✅ |
+| Sem `db push` | Não executado | ✅ |
+
+**Legado não reconciliado (intencional, decisão do PO):** M7 (`120500` F6-1) **continua bloqueada** — efeito já existente no banco (grants desde backup 2026-07-28), mas sem prova de execução histórica da migration; tratar como dívida P3 (`approve_access_request` guard `auth.uid()`). As pendentes legítimas seguem: `130100` (F6-B), `130200` (F6-2), `130300` (F6-6).
