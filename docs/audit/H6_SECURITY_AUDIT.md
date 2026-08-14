@@ -171,3 +171,23 @@ A suspensão **real** de tenant (`suspend_subscription`, `20260807010000`) alter
 2. **Re-execução da suite E2E H-6** (`E2E_PROVISIONING=1 npx playwright test tests/e2e/homologation/h6-security.spec.ts`) — os 9 probes devem transicionar para **PASS** (fail-closed).
 3. **Decisão de produto** (pendente): booking anon do kiosk (`clients`/`appointments` sem policies anon desde 20260308) e mismatch `duration_minutes`/`is_active` em `services` (ver §9.3) — validar se o fluxo público deve ser restaurado com camada segura (padrão D5/kiosk) ou se o kiosk passa a operar apenas com fluxo autenticado.
 4. Com H-6 remediado e reauditado, **H-7 pode ser liberado** pelo PO.
+
+### 9.6 H-6.5 — Production Safety Gate (2026-08-14, pré-aplicação em produção)
+
+> **Objetivo:** gate formal que precede a aplicação das 10 migrations no banco remoto de produção `ushsnmlbeurfvlkieiln` (Sanchez Barber). **Nenhuma migration foi aplicada nesta execução** (regra AGENTS.md — migrations remotas = decisão + execução do PO).
+>
+> **Artefatos entregues:**
+>
+> | Artefato | Caminho |
+> |----------|---------|
+> | Relatório do gate (matriz de risco + impacto individual + plano incremental + critérios) | `docs/audit/H6_5_PRODUCTION_SAFETY_GATE.md` |
+> | Baseline READ-ONLY (pré-aplicação) | `docs/audit/H6_5_PRODUCTION_SAFETY_GATE/baseline/00_baseline_snapshot.sql` |
+> | Rollback individual (10 migrations) | `docs/audit/H6_5_PRODUCTION_SAFETY_GATE/rollback/rollback_*.sql` |
+> | Suite de regressão Sanchez (read-only) | `tests/e2e/homologation/h6-5-sanchez-regression.spec.ts` |
+> | Probes de segurança fail-closed (7) | `tests/e2e/homologation/h6-5-security-probes.spec.ts` |
+>
+> **Resumo da matriz de risco (10/10 migrations):** 🟢 baixo para frontend em todas (revisão de call sites + H3/H4/H5 já validados); 🟡 médio em 3 pontos de verificação do PO — (1) `120400` F6-8 exige baseline B-8 limpa (nenhum usuário ativo com `status ≠ 'active'`), (2) `120300` anon perde leitura de `kiosk_addons` (tabela órfã — confirmar nenhum consumidor externo), (3) `130000` F6-A reduz exposição anon de `tenants`/`services` a colunas públicas (kiosk/portal continuam resolvendo por slug; produto-bug `duration_minutes`/`is_active` já documentado §9.3, fora do escopo). 🔴 nenhum risco alto.
+>
+> **Critérios objetivos para autorizar a aplicação (C-1..C-9):** ver §9 do gate — baseline B-8 limpa · reauditoria E2E H-6 com 0 achados · regressão Sanchez verde · probes fail-closed 7/7 PASS · build/tsc/unit sem regressões · rollback testado em tenant E2E (recomendado).
+>
+> **Status:** 🟡 **AGUARDANDO APROVAÇÃO DO PO** para aplicação incremental (item a item, D-HOM-24) + reauditoria.
