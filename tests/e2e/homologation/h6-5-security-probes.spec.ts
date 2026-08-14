@@ -205,9 +205,16 @@ test.describe('H6.5 — Probes de segurança fail-closed (REST, tenants isolados
   // P-2 — Anon: NÃO lê profiles; lê apenas subconjunto público
   // ---------------------------------------------------------------------------
   test('P-2 anon: não lê profiles; leitura pública limitada', async () => {
+    // Pós-M8 (130100 F6-B), anon possui ZERO grants em profiles: a query é
+    // bloqueada ANTES da avaliação de RLS (42501 permission denied). Esse é o
+    // comportamento fail-closed desejado — mais restritivo que "0 linhas via RLS".
     const profilesAnon = await anonC().from('profiles').select('id');
-    expect(profilesAnon.error).toBeNull();
-    expect(profilesAnon.data ?? []).toHaveLength(0);
+    if (profilesAnon.error) {
+      expect(profilesAnon.error.message, `anon profiles: ${profilesAnon.error.message}`).toContain('permission denied');
+      expect((profilesAnon.error as { code?: string }).code).toBe('42501');
+    } else {
+      expect(profilesAnon.data ?? []).toHaveLength(0);
+    }
 
     // Anon deve enxergar APENAS tenants ativos/trial e APENAS colunas públicas.
     const tenantsAnon = await anonC().from('tenants').select('id, name, slug, status, plan').eq('slug', `e2e-h65-a-${runId}`);
