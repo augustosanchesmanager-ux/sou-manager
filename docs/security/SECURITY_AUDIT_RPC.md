@@ -95,9 +95,9 @@ All helper functions use `SECURITY DEFINER` and are correct:
 
 | Function | Issue | Risk |
 |---|---|---|
-| `approve_access_request()` | **NO auth.uid() check, NO tenant validation** | Any authenticated user can approve access requests |
+| `approve_access_request()` | **NO auth.uid() check, NO tenant validation** (guarda pendente — dívida P3) | Any authenticated user can approve access requests |
 
-**Recommendation:** Add `ASSERT current_is_super_admin_from_auth_uid(), 'Not authorized';` at the start of the function.
+**Status (H6 remediação, D-HOM-24, 2026-08-13):** `REVOKE EXECUTE` de `anon`/`PUBLIC` + `GRANT` a `authenticated` aplicados via migration `20260813120500_h6_revoke_anon_approve_access_request.sql` (hardening, sem alteração de lógica). **Guarda `ASSERT current_is_super_admin_from_auth_uid()` registrada como dívida P3** — revisão em etapa posterior.
 
 ### ❌ HIGH
 
@@ -105,7 +105,7 @@ All helper functions use `SECURITY DEFINER` and are correct:
 |---|---|---|
 | `close_order()` | **NO auth check, NO tenant validation** | Any user can close any order |
 
-**Recommendation:** This appears to be a legacy function superseded by `finance_settle_comanda()`. Either add proper validation or deprecate/remove it.
+**Status (H6, D-HOM-24, 2026-08-13):** achado F6-2 (P1). Função legada **sem call site no frontend** (superseded por `finance_settle_comanda()`). Correção P0/P1 **em proposta para aprovação do PO** — opção recomendada: `REVOKE EXECUTE ... FROM anon, authenticated` (desativação total) ou guards `auth.uid()` + validação de tenant. **Pendente de decisão do PO.**
 
 ### ⚠️ MEDIUM
 

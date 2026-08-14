@@ -6,7 +6,7 @@
 > **Responsável:** OpenCode (Tech Lead operacional)
 > **Execução:** E2E Playwright (Chromium) — `tests/e2e/homologation/h6-security.spec.ts` com `E2E_PROVISIONING=1` (REST via service role + sessões reais autenticadas + cliente anon) + revisão estática das migrations de RLS/RPC
 > **Modo:** Auditoria **read-only** (regra PO) — **nenhum fix automático**; cada probe registra PASS (controle confirmado) ou ACHADO (F6-x, com evidência)
-> **Veredito preliminar (OpenCode):** 🔴 **BLOQUEADO** — exposição de dados reais de produção (anon) + escrita cross-tenant confirmada. **Veredito formal do PO pendente.**
+> **Veredito preliminar (OpenCode):** 🔴 **BLOQUEADO** — exposição de dados reais de produção (anon) + escrita cross-tenant confirmada. **Veredito formal do PO: 🔴 BLOQUEADO (D-HOM-24, 2026-08-13) — janela de remediação autorizada, execução item a item (lote NÃO autorizado); H-7 permanece bloqueado. P2 (F6-3/4/5/7/8) + F6-1 (P3) APROVADOS e executados (6 migrations `20260813120000`..`20260813120500`); P0/P1 (F6-A/F6-B/F6-2/F6-6) com proposta detalhada aguardando aprovação individual. Aplicação no banco remoto requer aprovação explícita do PO.**
 
 ---
 
@@ -122,3 +122,39 @@ Auditar adversarialmente o backend Supabase do Sou Manager (RLS + RPC + grants) 
 - **Sem alteração de código de produção, sem migration, sem fix, sem merge/tag/deploy.**
 - **H-3 permanece 🟡** (ressalva H3-5), **H-5 🟢 APROVADO**, **H-8 permanece 🔴 BLOQUEADOR** — o resultado do H-6 não altera esses status.
 - **Decisão requerida do PO (D-HOM-23):** veredito formal do H-6 + aprovação da janela de remediação dos achados (com ou sem ADR). **H-7 (operação real) e remediação não são iniciados sem essa decisão.**
+
+---
+
+## 9. Remediação (D-HOM-24, 2026-08-13)
+
+> **Veredito formal do PO:** H-6 **🔴 BLOQUEADO (formal)** · janela de remediação **autorizada** · execução **item a item** (**lote NÃO autorizado**) · **H-7 permanece bloqueado** até remediação aprovada. Classificação: **P0/P1** = F6-A, F6-B, F6-2, F6-6 (correção obrigatória antes de H-7, aprovação individual) · **P2** = F6-3, F6-4, F6-5, F6-7, F6-8 (**APROVADOS**) · **F6-1 (P3)** = revoke agora + dívida.
+
+### 9.1 Executado (aprovado — P2 + F6-1/P3)
+
+| Achado | Correção | Migration |
+|--------|----------|-----------|
+| **F6-3** | `tenant_has_feature` fail-closed: consulta passa a exigir `p_tenant_id` do chamador (`current_tenant_id_from_auth_uid()`) **ou** superadmin; caso contrário `false` | `20260813120000_h6_fix_f6_3_tenant_has_feature_guard.sql` |
+| **F6-4** | `get_role_permissions` guarda no padrão do `upsert_role_permissions`: chamador do `p_tenant_id` (ativo) ou superadmin; senão `RAISE 'Insufficient permissions to read role_permissions'` | `20260813120100_h6_fix_f6_4_get_role_permissions_guard.sql` |
+| **F6-5** | `plan_change_requests`: SELECT e INSERT restritos a superadmin (`current_is_super_admin_from_auth_uid()`); único consumidor no app é `SuperAdmin.tsx` | `20260813120200_h6_fix_f6_5_plan_change_requests_policies.sql` |
+| **F6-7** | `kiosk_addons`: policies SELECT/INSERT/UPDATE com tenant-scope (`tenant_id = current_tenant_id_from_auth_uid()` ou superadmin) + `REVOKE` de anon/PUBLIC + grants a authenticated | `20260813120300_h6_fix_f6_7_kiosk_addons_policies.sql` |
+| **F6-8** | `current_tenant_id_from_auth_uid()` exige `status='active'` em `profiles` e `staff` (suspenso/pendente → NULL → RLS fail-closed). Todos os fluxos legítimos criam perfil `active` (provisioning/accept-invite) | `20260813120400_h6_fix_f6_8_current_tenant_status.sql` |
+| **F6-1 (P3)** | `approve_access_request`: `REVOKE EXECUTE` de anon/PUBLIC + `GRANT` a authenticated (hardening; **lógica NÃO alterada**); guarda `auth.uid()`/superadmin registrada como **dívida P3** | `20260813120500_h6_revoke_anon_approve_access_request.sql` |
+
+**Verificação:** build OK (`npm run build` ✓); revisão estática dos call sites (todos passam tenant do contexto ou superadmin); **aplicação no banco remoto de produção e re-execução da suite H6 (`E2E_PROVISIONING=1`) pendem de aprovação explícita do PO** (regra AGENTS.md). Após aplicação, os probes F6-3/4/5/7/8 e F6-1 devem transicionar para PASS (o spec `h6-security.spec.ts` já valida o comportamento fail-closed).
+
+### 9.2 Pendente (P0/P1 — proposta detalhada por item aguardando aprovação individual do PO)
+
+| Achado | Correção proposta (resumo) | Dependência |
+|--------|---------------------------|-------------|
+| **F6-A** | `DROP POLICY "public_select_tenants"` (+ decisão sobre policies irmãs do mesmo root cause — ver §9.3) | aprovação do PO |
+| **F6-B** | `DROP POLICY "Superadmins can view all profiles"` + recriar `FOR SELECT TO authenticated` (superadmin via `current_is_super_admin_from_auth_uid()`; demais: próprio id ou próprio tenant) | aprovação do PO |
+| **F6-2** | `close_order` (sem call site no app): `REVOKE EXECUTE ... FROM anon, authenticated` (desativação) **ou** guards `auth.uid()` + tenant | aprovação do PO |
+| **F6-6** | `ticket_messages`: policies com isolamento via JOIN `support_tickets` (`st.tenant_id = current_tenant_id_from_auth_uid()`) para SELECT e INSERT | aprovação do PO |
+
+### 9.3 Observação de escopo para o PO (fora dos 9 achados — mesmo root cause de F6-A)
+
+O root cause de **F6-A** (`20260305050000_kiosk_rls_fix.sql`) criou **5 policies irmãs `TO public` nunca revogadas nas migrations**: `public_select_services`, `public_select_clients`, `public_insert_clients`, `public_select_appointments`, `public_insert_appointments` (apenas `public_select_staff` e `public_select_tenant_addons` foram revogadas depois — D5). A suite H6 **não testou** `services`/`appointments` no matrix anon. **Decisão do PO:** incluir o `DROP` das policies irmãs no fix de F6-A (recomendado, alinhado ao padrão D5/kiosk seguro) **ou** tratá-las em etapa separada (kiosk público).
+
+### 9.4 Observação adicional (fora dos 9 achados)
+
+A suspensão **real** de tenant (`suspend_subscription`, `20260807010000`) altera apenas `subscriptions.status`/`tenants.status` — **não** `profiles.status`. O fix de F6-8 bloqueia usuários com perfil suspenso; **usuários de tenant suspenso continuam lendo via REST**. Decisão de política (bloquear por `tenants.status` no helper) fica para o PO.
