@@ -105,7 +105,7 @@ All helper functions use `SECURITY DEFINER` and are correct:
 |---|---|---|
 | `close_order()` | **NO auth check, NO tenant validation** | Any user can close any order |
 
-**Status (H6, D-HOM-24, 2026-08-13):** achado F6-2 (P1). Função legada **sem call site no frontend** (superseded por `finance_settle_comanda()`). Correção P0/P1 **em proposta para aprovação do PO** — opção recomendada: `REVOKE EXECUTE ... FROM anon, authenticated` (desativação total) ou guards `auth.uid()` + validação de tenant. **Pendente de decisão do PO.**
+**Status (H6, D-HOM-24/D-HOM-25, 2026-08-13):** achado F6-2 (P1) **remediado** — `REVOKE EXECUTE` de `anon`, `authenticated` e `PUBLIC` + `GRANT EXECUTE` a `service_role` aplicados via migration `20260813130200_h6_fix_f6_2_close_order_deactivation.sql` (desativação; função sem call site no frontend, superseded por `finance_settle_comanda()` — `close_order_with_chef_club` SECURITY DEFINER owner postgres chama internamente e não é afetada).
 
 ### ⚠️ MEDIUM
 

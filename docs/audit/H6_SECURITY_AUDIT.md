@@ -6,7 +6,7 @@
 > **Responsável:** OpenCode (Tech Lead operacional)
 > **Execução:** E2E Playwright (Chromium) — `tests/e2e/homologation/h6-security.spec.ts` com `E2E_PROVISIONING=1` (REST via service role + sessões reais autenticadas + cliente anon) + revisão estática das migrations de RLS/RPC
 > **Modo:** Auditoria **read-only** (regra PO) — **nenhum fix automático**; cada probe registra PASS (controle confirmado) ou ACHADO (F6-x, com evidência)
-> **Veredito preliminar (OpenCode):** 🔴 **BLOQUEADO** — exposição de dados reais de produção (anon) + escrita cross-tenant confirmada. **Veredito formal do PO: 🔴 BLOQUEADO (D-HOM-24, 2026-08-13) — janela de remediação autorizada, execução item a item (lote NÃO autorizado); H-7 permanece bloqueado. P2 (F6-3/4/5/7/8) + F6-1 (P3) APROVADOS e executados (6 migrations `20260813120000`..`20260813120500`); P0/P1 (F6-A/F6-B/F6-2/F6-6) com proposta detalhada aguardando aprovação individual. Aplicação no banco remoto requer aprovação explícita do PO.**
+> **Veredito preliminar (OpenCode):** 🔴 **BLOQUEADO** — exposição de dados reais de produção (anon) + escrita cross-tenant confirmada. **Veredito formal do PO: 🔴 BLOQUEADO (D-HOM-24, 2026-08-13) — janela de remediação autorizada, execução item a item (lote NÃO autorizado); H-7 permanece bloqueado. TODOS os 9 achados REMEDIADOS via migration (F6-3/4/5/7/8 + F6-1 em `20260813120000`..`20260813120500`; F6-A/F6-B/F6-2/F6-6 em `20260813130000`..`20260813130300`). Aplicação no banco remoto de produção + re-execução da suite E2E H6 pendem de aprovação explícita do PO.**
 
 ---
 
@@ -127,7 +127,7 @@ Auditar adversarialmente o backend Supabase do Sou Manager (RLS + RPC + grants) 
 
 ## 9. Remediação (D-HOM-24, 2026-08-13)
 
-> **Veredito formal do PO:** H-6 **🔴 BLOQUEADO (formal)** · janela de remediação **autorizada** · execução **item a item** (**lote NÃO autorizado**) · **H-7 permanece bloqueado** até remediação aprovada. Classificação: **P0/P1** = F6-A, F6-B, F6-2, F6-6 (correção obrigatória antes de H-7, aprovação individual) · **P2** = F6-3, F6-4, F6-5, F6-7, F6-8 (**APROVADOS**) · **F6-1 (P3)** = revoke agora + dívida.
+> **Veredito formal do PO:** H-6 **🔴 BLOQUEADO (formal)** · janela de remediação **autorizada** · execução **item a item** (**lote NÃO autorizado**) · **H-7 permanece bloqueado** até remediação aprovada. Classificação: **P0/P1** = F6-A, F6-B, F6-2, F6-6 (correção obrigatória antes de H-7) · **P2** = F6-3, F6-4, F6-5, F6-7, F6-8 · **F6-1 (P3)** = revoke agora + dívida. **Status: 10/10 itens executados como migrations** (§9.1 e §9.2).
 
 ### 9.1 Executado (aprovado — P2 + F6-1/P3)
 
@@ -142,19 +142,32 @@ Auditar adversarialmente o backend Supabase do Sou Manager (RLS + RPC + grants) 
 
 **Verificação:** build OK (`npm run build` ✓); revisão estática dos call sites (todos passam tenant do contexto ou superadmin); **aplicação no banco remoto de produção e re-execução da suite H6 (`E2E_PROVISIONING=1`) pendem de aprovação explícita do PO** (regra AGENTS.md). Após aplicação, os probes F6-3/4/5/7/8 e F6-1 devem transicionar para PASS (o spec `h6-security.spec.ts` já valida o comportamento fail-closed).
 
-### 9.2 Pendente (P0/P1 — proposta detalhada por item aguardando aprovação individual do PO)
+### 9.2 Executado (P0/P1 — aprovados pelo PO, least-privilege)
 
-| Achado | Correção proposta (resumo) | Dependência |
-|--------|---------------------------|-------------|
-| **F6-A** | `DROP POLICY "public_select_tenants"` (+ decisão sobre policies irmãs do mesmo root cause — ver §9.3) | aprovação do PO |
-| **F6-B** | `DROP POLICY "Superadmins can view all profiles"` + recriar `FOR SELECT TO authenticated` (superadmin via `current_is_super_admin_from_auth_uid()`; demais: próprio id ou próprio tenant) | aprovação do PO |
-| **F6-2** | `close_order` (sem call site no app): `REVOKE EXECUTE ... FROM anon, authenticated` (desativação) **ou** guards `auth.uid()` + tenant | aprovação do PO |
-| **F6-6** | `ticket_messages`: policies com isolamento via JOIN `support_tickets` (`st.tenant_id = current_tenant_id_from_auth_uid()`) para SELECT e INSERT | aprovação do PO |
+> **Decisões do PO (D-HOM-25):** F6-A com **least-privilege** (não DROP total) porque kiosk/portal são fluxos **anônimos por design** que resolvem `tenants` por slug e listam serviços públicos; F6-2 por **desativação** (sem call site no app). Todos os 4 itens executados como migration própria.
+
+| Achado | Correção | Migration |
+|--------|----------|-----------|
+| **F6-A** | `DROP public_select_tenants` + `DROP public_select_services`; políticas anon scoped por `tenants.status IN ('active','trial')` (`anon_select_active_tenants` / `anon_select_services_active_tenant` via `EXISTS`); **column grants mínimos** ao anon — `tenants (id,name,slug,status)`, `services (id,tenant_id,name,price,duration,active,category)`; `REVOKE ALL` anon/PUBLIC + re-grant seletivo. Autenticados intactos (`tenant_isolation_tenants_select`, `n_v2`) | `20260813130000_h6_fix_f6_a_public_select_tenants_services.sql` |
+| **F6-B** | `DROP "Superadmins can view all profiles"` + recriar `FOR SELECT TO authenticated USING (current_is_super_admin_from_auth_uid())` (helper SECURITY DEFINER da central fix — anon nunca mais lê perfis); `REVOKE ALL` anon/PUBLIC em `profiles` + grants a authenticated | `20260813130100_h6_fix_f6_b_profiles_superadmin_policy.sql` |
+| **F6-2** | `close_order(uuid)`: `REVOKE EXECUTE` de **anon, authenticated e PUBLIC** + `GRANT EXECUTE` a service_role (desativação; fluxo real usa `finance_settle_comanda`; `close_order_with_chef_club` SECURITY DEFINER chama internamente e não é afetada) | `20260813130200_h6_fix_f6_2_close_order_deactivation.sql` |
+| **F6-6** | `ticket_messages`: policies `ticket_messages_select_v2`/`ticket_messages_insert_v2` **TO authenticated** com JOIN em `support_tickets` (superadmin OU `st.tenant_id = current_tenant_id_from_auth_uid()` OU `st.user_id = auth.uid()`); drop de `Users can insert tickets` (WITH CHECK true) em `support_tickets` (INSERT coberto por `tenant_ticket_isolation_v2`); `REVOKE ALL` anon/PUBLIC em `ticket_messages` e `support_tickets` + grants a authenticated | `20260813130300_h6_fix_f6_6_ticket_messages_policies.sql` |
+
+**Verificação:** revisão estática contra `docs/backups/backup_pre_migration_20260728_152717.sql` (nomes exatos de policies, grants e colunas) e contra as migrations que definem `tenant_isolation_tenants_select`/`n_v2`/`tenant_ticket_isolation_v2` (confirma que autenticados e superadmin permanecem cobertos após os DROPs). Validação funcional **somente após aplicação remota** via probes F6-A/F6-B/F6-2/F6-6 do spec `h6-security.spec.ts` (reauditoria E2E H-6).
 
 ### 9.3 Observação de escopo para o PO (fora dos 9 achados — mesmo root cause de F6-A)
 
-O root cause de **F6-A** (`20260305050000_kiosk_rls_fix.sql`) criou **5 policies irmãs `TO public` nunca revogadas nas migrations**: `public_select_services`, `public_select_clients`, `public_insert_clients`, `public_select_appointments`, `public_insert_appointments` (apenas `public_select_staff` e `public_select_tenant_addons` foram revogadas depois — D5). A suite H6 **não testou** `services`/`appointments` no matrix anon. **Decisão do PO:** incluir o `DROP` das policies irmãs no fix de F6-A (recomendado, alinhado ao padrão D5/kiosk seguro) **ou** tratá-las em etapa separada (kiosk público).
+**Correção de imprecisão:** a §9.3 original listava **5 policies irmãs** do root cause `20260305050000_kiosk_rls_fix.sql`. Verificação no backup de produção (2026-07-28) confirma que as **4 policies de `clients`/`appointments` já foram dropadas** pelo DO-loop de `20260308_multitenant_hotfix.sql` — no backup **sobrevivem apenas `public_select_tenants` e `public_select_services`** (ambas tratadas no fix F6-A). O DO-loop que dropou as irmãs é o mesmo que criou os helpers SECURITY DEFINER; portanto **não há policies públicas de `clients`/`appointments` a tratar**.
+
+**Registro de produto-bug (fora do escopo da remediação):** com as policies anon de `clients`/`appointments` já dropadas desde 20260308, o **booking anônimo do kiosk provavelmente já está bloqueado em produção** (kiosk identifica/agenda cliente anon via `KioskIdentify`/`KioskSchedule`). Além disso, `KioskSchedule.tsx:56` e `PortalSchedule.tsx:95` consultam `services` com as colunas `duration_minutes`/`is_active`, que **não existem** em `public.services` (colunas reais: `duration`/`active`) nem na view `barber.services`. Ambas as divergências ficam registradas para decisão de produto/validação na reauditoria; os grants de `duration_minutes`/`is_active` no fix F6-A são adicionados com guarda `IF EXISTS` para compatibilidade futura.
 
 ### 9.4 Observação adicional (fora dos 9 achados)
 
 A suspensão **real** de tenant (`suspend_subscription`, `20260807010000`) altera apenas `subscriptions.status`/`tenants.status` — **não** `profiles.status`. O fix de F6-8 bloqueia usuários com perfil suspenso; **usuários de tenant suspenso continuam lendo via REST**. Decisão de política (bloquear por `tenants.status` no helper) fica para o PO.
+
+### 9.5 Próximos passos (aguardam aprovação explícita do PO)
+
+1. **Aplicar no banco remoto de produção** as 10 migrations (`20260813120000`..`20260813120500` + `20260813130000`..`20260813130300`) — operação que exige aprovação explícita do PO (AGENTS.md).
+2. **Re-execução da suite E2E H-6** (`E2E_PROVISIONING=1 npx playwright test tests/e2e/homologation/h6-security.spec.ts`) — os 9 probes devem transicionar para **PASS** (fail-closed).
+3. **Decisão de produto** (pendente): booking anon do kiosk (`clients`/`appointments` sem policies anon desde 20260308) e mismatch `duration_minutes`/`is_active` em `services` (ver §9.3) — validar se o fluxo público deve ser restaurado com camada segura (padrão D5/kiosk) ou se o kiosk passa a operar apenas com fluxo autenticado.
+4. Com H-6 remediado e reauditado, **H-7 pode ser liberado** pelo PO.
