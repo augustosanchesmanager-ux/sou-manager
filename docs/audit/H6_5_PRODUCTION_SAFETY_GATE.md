@@ -339,8 +339,8 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 - **Grants pré-M2:** `authenticated` possui SELECT próprio em `tenants`/`services` — o `REVOKE ALL ... FROM PUBLIC` da M2 **não** afeta leituras autenticadas (confirmado por `role_table_grants` e pela regressão 14/14).
 - **Tracking pós-M8:** `20260813130100` (M8) aplicada via `db query --linked --file` (exit=0), seguindo o procedimento da janela H-6 (aplicação item a item + validação + regressão). A reconciliação de tracking (§12.1) registrou M1–M6; **M8 ainda não registrada em `schema_migrations`** — registrar via `migration repair --linked --status applied 20260813130100` no próximo repair de tracking (ou aguardar nova decisão do PO).
 - **Tracking pós-M9:** `20260813130200` (M9) aplicada via `db query --linked --file` (exit=0), mesmo procedimento. **Decisão do PO:** reconciliar M8+M9+M10 em **uma única operação** de `migration repair` após as três validadas (evitar alternância aplicar→reparar).
-- **Tracking pós-M10:** `20260813130300` (M10) aplicada via `db query --linked --file` (exit=0), mesmo procedimento. **Janela H-6 completa (9/10 aplicadas; M7 bloqueada).** Reauditoria H-6 e reconciliação M8–M10 **aguardando nova decisão do PO** (sem merge/tag/deploy).
-- Próximos itens autorizáveis (aguardando veredito do PO sobre M6): `120500` (F6-1) → `130100` (F6-B) → `130200` (F6-2) → `130300` (F6-6) → reauditoria H-6.
+- **Tracking pós-M10:** `20260813130300` (M10) aplicada via `db query --linked --file` (exit=0), mesmo procedimento. **Janela H-6 completa (9/10 aplicadas; M7 bloqueada).**
+- **Reconciliação M8–M10 + reauditoria final:** ver §12.2.
 
 ---
 
@@ -371,3 +371,44 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 | Sem `db push` | Não executado | ✅ |
 
 **Legado não reconciliado (intencional, decisão do PO):** M7 (`120500` F6-1) **continua bloqueada** — efeito já existente no banco (grants desde backup 2026-07-28), mas sem prova de execução histórica da migration; tratar como dívida P3 (`approve_access_request` guard `auth.uid()`). As pendentes legítimas seguem: `130100` (F6-B), `130200` (F6-2), `130300` (F6-6).
+
+---
+
+## 12.2 Reconciliação tracking M8–M10 e reauditoria final H-6
+
+> **Data:** 2026-08-14 · **Decisão do PO:** 🟢 reconciliar M8–M10 via `migration repair --linked --status applied` (uma única operação) → 🟢 reauditoria final (P1–P7 + Sanchez F1–F14) → 🟢 relatório de veredito H-6 · 🔴 sem `db push`/`db push --include-all` · 🔴 sem merge/tag/deploy · 🔴 M7 não aplicar · 🔴 qualquer P0/P1 real ou regressão Sanchez = PARAR.
+
+### Reconciliação de tracking M8–M10
+
+`supabase migration repair --linked --status applied 20260813130100 20260813130200 20260813130300` → `Repaired migration history: [20260813130100 20260813130200 20260813130300] => applied`.
+
+**Pós-check (executado):**
+
+| Check | Evidência | Resultado |
+|-------|-----------|-----------|
+| Versões presentes | `SELECT ... WHERE version IN (130100/130200/130300)` → 3 versões, `name` correto | ✅ |
+| `statements` fiéis aos arquivos locais | `cardinality`: M8=6 · M9=5 · M10=12 | ✅ |
+| M7 (`120500`) ausente | `rows: []` | ✅ |
+| Nenhum DDL executado | Repair só grava em `schema_migrations` | ✅ |
+| Tracking ordenado | 10 versões H-6 em ordem crescente; `20260808110000` logo abaixo | ✅ |
+| Git limpo | `git status --short` → vazio | ✅ |
+
+### Reauditoria final (P1–P7 + Sanchez F1–F14)
+
+> **Nota de canário (autorizado pelo PO):** o probe **P-2** esperava `error null + 0 linhas` (grant mantido, RLS filtra). A M8 (`130100`) é **mais restritiva**: `REVOKE ALL` de anon/PUBLIC → anon bloqueado com `42501 permission denied` **antes** da RLS. Confirmado read-only (zero grants anon/PUBLIC em `profiles`; policy superadmin `TO authenticated`; demais policies intactas). **Sem rollback da M8** — comportamento fail-closed desejado. A expectativa do canário P-2 foi corrigida (spec apenas, commit `aebbadf`) para aceitar `42501` como bloqueio válido. **Reauditoria = 🟡 INCOMPLETA → após fix = 🟢 COMPLETA.**
+
+| Controle | Resultado | Evidência |
+|----------|-----------|-----------|
+| P-1 cross-tenant | ✅ PASS | managerA não lê clientes/serviços de tenantB |
+| P-2 anon profiles | ✅ PASS (pós-fix canário) | 42501 permission denied (REVOKE M8) — fail-closed antes da RLS |
+| P-3 autenticado | ✅ PASS | managerA lê clientes da própria tenant |
+| P-4 RPC protegida | ✅ PASS | `tenant_has_feature(tenantB)`=false; `get_role_permissions(tenantB)` erro |
+| P-5 manipulação tenant_id | ✅ PASS | INSERT cross-tenant bloqueado por RLS |
+| P-6 ticket_messages | ✅ PASS | managerA não lê/insere mensagens de tenantB |
+| P-7 close_order | ✅ PASS | desativado p/ authenticated/anon |
+| **Suite P1–P7** | ✅ **7/7 PASS (34.8s)** | `E2E_PROVISIONING=1` |
+| **Sanchez F1–F14** | ✅ **14/14 PASS (45.3s)** | `E2E_SANCHEZ_REGRESSION=1` |
+| Baseline pós-H6 | ✅ (ver §5 baseline pré-aplicação; pós-H6 = estado dos poschecks M1–M10) | — |
+| P0/P1 | **zero** | — |
+
+**Veredito técnico H-6:** **9/10 remediações aplicadas e validadas** (M1–M6, M8–M10); **M7 formalmente bloqueada por redundância de estado e por não corrigir o vetor real** (guard `auth.uid()` em `approve_access_request` — dívida P3). Canário Sanchez verde em todas as etapas. **Veredito formal D-HOM-26 e abertura do H-7: aguardando decisão do PO.**
