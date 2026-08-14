@@ -174,7 +174,7 @@ A suspensão **real** de tenant (`suspend_subscription`, `20260807010000`) alter
 
 ### 9.6 H-6.5 — Production Safety Gate (2026-08-14, pré-aplicação em produção)
 
-> **Objetivo:** gate formal que precede a aplicação das 10 migrations no banco remoto de produção `ushsnmlbeurfvlkieiln` (Sanchez Barber). **Nenhuma migration foi aplicada nesta execução** (regra AGENTS.md — migrations remotas = decisão + execução do PO).
+> **Objetivo:** gate formal que precede a aplicação das 10 migrations no banco remoto de produção `ushsnmlbeurfvlkieiln` (Sanchez Barber). **Aplicação incremental iniciada (item a item — D-HOM-24), autorizada pelo PO por item.**
 >
 > **Artefatos entregues:**
 >
@@ -191,5 +191,7 @@ A suspensão **real** de tenant (`suspend_subscription`, `20260807010000`) alter
 > **Critérios objetivos para autorizar a aplicação (C-1..C-9):** ver §9 do gate — baseline B-8 limpa · reauditoria E2E H-6 com 0 achados · regressão Sanchez verde · probes fail-closed 7/7 PASS · build/tsc/unit sem regressões · rollback testado em tenant E2E (recomendado).
 >
 > **Status:** 🟡 **AGUARDANDO APROVAÇÃO DO PO** para aplicação incremental (item a item, D-HOM-24) + reauditoria.
+>
+> **Atualização 2026-08-14 (aplicação incremental M1+M2):** **M1 (`20260813120000`, F6-3)** aplicada e confirmada (corpo de `tenant_has_feature` exige `p_tenant_id = current_tenant_id_from_auth_uid()` OR superadmin; fail-closed `false`). **M2 (`20260813130000`, F6-A)** aplicada e confirmada: `public_select_services` dropada; `anon_select_active_tenants`/`anon_select_services_active_tenant` (scoped por status); column grants mínimos ao anon; `authenticated` intacto (SELECT próprio — regressão confirmada). **Probe P-1 PASS** (managerA não lê `services` do tenantB) e **regressão Sanchez F1–F14 14/14 PASS** pós-M2. **Canário corrigido (só spec):** `ticket_messages` usa `sender_id`, não `user_id`. Sem impacto funcional no app da Sanchez. Aguardando veredito do PO para os próximos itens (`120100`..`130300`). Registro completo: `H6_5_PRODUCTION_SAFETY_GATE.md` §12.
 >
 > **Atualização 2026-08-14 (baseline de regressão EXECUTADO):** suite `h6-5-sanchez-regression.spec.ts` **14/14 PASS (54.9s)** em pré-aplicação, com a conta de homologação recuperada (senha redefinida via GoTrue Admin API; login validado; `E2E_SANCHEZ_PASSWORD` em `.env.local` gitignored). **F13 (Financeiro — Visão Geral) = falso negativo do canário corrigido:** locator esperava `'Visão Geral Financeira'` (acentuado) mas a página renderiza `'Visao Geral Financeira'` sem acento (`pages/FinancialOverview.tsx:109`) → correção apenas na spec, alinhada ao texto real (sem `data-testid`); página renderizou com dados reais e zero page errors. **Nenhuma alteração de código de produção, banco, migration ou configuração.** Detalhes e registro completo: `H6_5_PRODUCTION_SAFETY_GATE.md` §5.2.

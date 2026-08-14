@@ -293,6 +293,25 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 - [x] Probes de segurança fail-closed
 - [x] Plano de aplicação incremental + comandos PO + critérios de autorização
 - [x] **Baseline de regressão Sanchez executado (14/14 PASS, 2026-08-14)** — pré-aplicação; F13 corrigido como falso negativo do canário (somente a spec; ver §5.2)
-- [ ] **APLICAÇÃO NO BANCO REMOTO — aguarda aprovação explícita do PO (NÃO executada)**
-- [ ] Reauditoria E2E H-6 (0 achados) — pós-aplicação
-- [ ] Regressão Sanchez — pós-aplicação
+- [x] **APLICAÇÃO INCREMENTAL EM ANDAMENTO (item a item — D-HOM-24, autorizada pelo PO por item):** M1 (`120000`) e M2 (`130000`) aplicadas e validadas — ver §12
+- [ ] Reauditoria E2E H-6 (0 achados) — pós-todas as migrations
+- [ ] Regressão Sanchez — pós-todas as migrations
+
+---
+
+## 12. Registro de aplicação incremental (execução real)
+
+> **Protocolo do PO (janela H-6):** `migration → controle que ela corrige → regressão Sanchez → evidência → próxima migration`. A suite `h6-5-security-probes.spec.ts` é uma suite de **estado final** (pós-10 migrations); falhas de probes ligadas a migrations ainda não aplicadas NÃO devem ser interpretadas como regressão da migration em validação (ex.: P-1 falhou antes da M2 porque `public_select_services` é o próprio achado F6-A pré-existente — não regressão da M1).
+
+| Data | Migration | Fix | Validação | Resultado |
+|------|-----------|-----|-----------|-----------|
+| 2026-08-14 | `20260813120000` (M1) | F6-3 `tenant_has_feature` fail-closed | `pg_get_functiondef`: corpo exige `p_tenant_id = current_tenant_id_from_auth_uid()` OR superadmin; fail-closed `false` | ✅ Aplicada e confirmada |
+| 2026-08-14 | `20260813130000` (M2) | F6-A least-privilege anon (`tenants`/`services`) | pós: `public_select_services` dropada; `anon_select_active_tenants`/`anon_select_services_active_tenant` criadas (scoped por status); authenticated intacto; column grants anon — tenants `(id,name,slug,status)`, services `(id,tenant_id,name,price,duration,active,category)` | ✅ Aplicada e confirmada |
+| 2026-08-14 | — (controle M2) | probe **P-1** cross-tenant services | `--grep "P-1"` (`E2E_PROVISIONING=1`) | ✅ **PASS** — managerA não lê `services` do tenantB (28.8s) |
+| 2026-08-14 | — (regressão M2) | **F1–F14** regressão Sanchez read-only | `E2E_SANCHEZ_REGRESSION=1` (conta homolog) | ✅ **14/14 PASS (48.4s)** — sem impacto funcional |
+
+**Notas de execução:**
+- Aplicação item a item via `supabase db query --linked --file supabase/migrations/20260813130000_h6_fix_f6_a_public_select_tenants_services.sql` (exit=0) — mesma via da M1. **Não** registradas em `supabase_migrations.schema_migrations` (mesma convenção da M1; tratar em futura `supabase db push` — registrar para o PO).
+- **Canário corrigido (somente a spec, autorizado pelo PO):** `h6-5-security-probes.spec.ts` inseria em `ticket_messages` com `user_id` (linhas 156/279); o schema real usa `sender_id` (cf. `h6-security.spec.ts:204`). Correção de teste apenas — desbloqueou o seed da suite de probes.
+- **Grants pré-M2:** `authenticated` possui SELECT próprio em `tenants`/`services` — o `REVOKE ALL ... FROM PUBLIC` da M2 **não** afeta leituras autenticadas (confirmado por `role_table_grants` e pela regressão 14/14).
+- Próximos itens autorizáveis (aguardando veredito do PO sobre M1/M2): `120100` (F6-4) → `120200` (F6-5) → `120300` (F6-7) → `120400` (F6-8, baseline B-8 limpa) → `120500` (F6-1) → `130100` (F6-B) → `130200` (F6-2) → `130300` (F6-6) → reauditoria H-6.
