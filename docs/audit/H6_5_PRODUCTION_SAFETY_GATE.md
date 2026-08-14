@@ -293,7 +293,7 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 - [x] Probes de segurança fail-closed
 - [x] Plano de aplicação incremental + comandos PO + critérios de autorização
 - [x] **Baseline de regressão Sanchez executado (14/14 PASS, 2026-08-14)** — pré-aplicação; F13 corrigido como falso negativo do canário (somente a spec; ver §5.2)
-- [x] **APLICAÇÃO INCREMENTAL EM ANDAMENTO (item a item — D-HOM-24, autorizada pelo PO por item):** M1 (`120000`), M2 (`130000`), M3 (`120100`) e M4 (`120200`) aplicadas e validadas — ver §12
+- [x] **APLICAÇÃO INCREMENTAL EM ANDAMENTO (item a item — D-HOM-24, autorizada pelo PO por item):** M1 (`120000`), M2 (`130000`), M3 (`120100`), M4 (`120200`) e M5 (`120300`) aplicadas e validadas — ver §12
 - [ ] Reauditoria E2E H-6 (0 achados) — pós-todas as migrations
 - [ ] Regressão Sanchez — pós-todas as migrations
 
@@ -315,9 +315,12 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 | 2026-08-14 | `20260813120200` (M4) | F6-5 `plan_change_requests` restrito a superadmin | pré: policies legadas abertas (`Admins can view plan requests` SELECT qual=true / `Anyone can insert plan requests` INSERT with_check=true, TO public); pós: somente `superadmin can view/insert plan requests` (SELECT/INSERT TO authenticated, USING/WITH CHECK `current_is_super_admin_from_auth_uid()`). Grants inalterados (B-2.1) | ✅ Aplicada e confirmada |
 | 2026-08-14 | — (controle M4) | F6-5 REST com conta homolog (não-superadmin) | SELECT: **1 linha → 0 linhas** (row `0c92a237...` plan `premium` deixa de ser visível); INSERT: RLS rejeita (`new row violates row-level security policy`) | ✅ **PASS** — SELECT bloqueado + INSERT bloqueado |
 | 2026-08-14 | — (regressão M4) | **F1–F14** regressão Sanchez read-only | `E2E_SANCHEZ_REGRESSION=1` (conta homolog) | ✅ **14/14 PASS (45.4s)** — sem impacto funcional |
+| 2026-08-14 | `20260813120300` (M5) | F6-7 `kiosk_addons` tenant-scope + revoke anon | pré: policies `kiosk_addons_select/insert/update` TO public (`true`); grants anon totais. pós: policies SELECT/INSERT/UPDATE `TO authenticated` com `tenant_id = current_tenant_id_from_auth_uid() OR superadmin`; `REVOKE ALL` anon/PUBLIC (anon **sem grants**); `GRANT SELECT,INSERT,UPDATE TO authenticated`. Baseline B-1.4/B-2.1 | ✅ Aplicada e confirmada |
+| 2026-08-14 | — (controle M5) | F6-7 REST (anon + manager homolog + cross-tenant) | pré: anon lê 1 linha (vazamento F6-7). pós: anon **`permission denied`**; manager mantém 1 linha (própria); INSERT cross-tenant (tenant_id estrangeiro) **rejeitado por RLS**, 0 linhas criadas | ✅ **PASS** — anon negado + tenant-scope efetivo |
+| 2026-08-14 | — (regressão M5) | **F1–F14** regressão Sanchez read-only | `E2E_SANCHEZ_REGRESSION=1` (conta homolog) | ✅ **14/14 PASS (51.3s)** — sem impacto funcional |
 
 **Notas de execução:**
 - Aplicação item a item via `supabase db query --linked --file supabase/migrations/20260813130000_h6_fix_f6_a_public_select_tenants_services.sql` (exit=0) — mesma via da M1. **Não** registradas em `supabase_migrations.schema_migrations` (mesma convenção da M1; tratar em futura `supabase db push` — registrar para o PO).
 - **Canário corrigido (somente a spec, autorizado pelo PO):** `h6-5-security-probes.spec.ts` inseria em `ticket_messages` com `user_id` (linhas 156/279); o schema real usa `sender_id` (cf. `h6-security.spec.ts:204`). Correção de teste apenas — desbloqueou o seed da suite de probes.
 - **Grants pré-M2:** `authenticated` possui SELECT próprio em `tenants`/`services` — o `REVOKE ALL ... FROM PUBLIC` da M2 **não** afeta leituras autenticadas (confirmado por `role_table_grants` e pela regressão 14/14).
-- Próximos itens autorizáveis (aguardando veredito do PO sobre M4): `120300` (F6-7) → `120400` (F6-8, baseline B-8 limpa) → `120500` (F6-1) → `130100` (F6-B) → `130200` (F6-2) → `130300` (F6-6) → reauditoria H-6.
+- Próximos itens autorizáveis (aguardando veredito do PO sobre M5): `120400` (F6-8, baseline B-8 limpa) → `120500` (F6-1) → `130100` (F6-B) → `130200` (F6-2) → `130300` (F6-6) → reauditoria H-6.
