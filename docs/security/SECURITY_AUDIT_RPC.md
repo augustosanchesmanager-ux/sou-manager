@@ -99,6 +99,8 @@ All helper functions use `SECURITY DEFINER` and are correct:
 
 **Status (H6 remediação, D-HOM-24, 2026-08-13):** `REVOKE EXECUTE` de `anon`/`PUBLIC` + `GRANT` a `authenticated` aplicados via migration `20260813120500_h6_revoke_anon_approve_access_request.sql` (hardening, sem alteração de lógica). **Guarda `ASSERT current_is_super_admin_from_auth_uid()` registrada como dívida P3** — revisão em etapa posterior.
 
+> **Dívida P3 formal (D-HOM-26, 2026-08-14):** registrada como **item separado**, fora da remediação H-6. **M7 (`20260813120500`) formalmente BLOQUEADA** — o efeito (revoke anon/PUBLIC) já existia no banco desde o backup `20260728`; a migration não corrige o vetor real. **Correção pendente (etapa posterior, item próprio):** adicionar guarda `auth.uid()`/superadmin em `approve_access_request` (`IF NOT current_is_super_admin_from_auth_uid() THEN RAISE EXCEPTION ... END IF;`) + teste dedicado (RPC com usuário authenticated não-superadmin → erro; superadmin → sucesso). **Não resolvida na M7** por decisão do PO (não corrigir lógica na janela de remediação).
+
 ### ❌ HIGH
 
 | Function | Issue | Risk |
