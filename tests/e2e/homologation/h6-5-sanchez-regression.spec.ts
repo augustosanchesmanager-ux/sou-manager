@@ -145,7 +145,7 @@ test.describe('H6.5 — Regressão Sanchez Barber (read-only)', () => {
 
   test('Financeiro — Visão Geral renderiza', async () => {
     const { errors } = await loadRoute('/#/financial-overview');
-    await expect(page.locator('h2', { hasText: 'Visão Geral Financeira' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('h2', { hasText: 'Visao Geral Financeira' })).toBeVisible({ timeout: 30_000 });
     expect(errors.filter((e) => !e.startsWith('console.error')).length, `page errors: ${errors.join(' | ')}`).toBe(0);
   });
 

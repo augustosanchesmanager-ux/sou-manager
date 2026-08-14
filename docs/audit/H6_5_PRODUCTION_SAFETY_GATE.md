@@ -160,6 +160,16 @@ Criar o **gate de segurança de produção** que precede a aplicação das 10 mi
 | B-9 | **Kiosk/portal:** existência das colunas `services.duration_minutes`/`is_active` | documentar produto-bug §9.3 e validar guarda IF EXISTS |
 | B-10 | **Eventos:** `event_store` e `processed_operations` contagens (Fase 4) | garantir que migrations não afetam Fase 4 |
 
+### 5.2 Baseline de regressão Sanchez — EXECUTADO (pré-aplicação, 2026-08-14)
+
+> **Suite:** `tests/e2e/homologation/h6-5-sanchez-regression.spec.ts` (read-only — sem operações de escrita; dados reais do tenant Sanchez Barber).
+> **Comando:** `E2E_SANCHEZ_REGRESSION=1 npx playwright test tests/e2e/homologation/h6-5-sanchez-regression.spec.ts`
+> **Resultado:** **14/14 PASS (54.9s)** — F1 Login (conta de homologação recuperada valida), F2 Dashboard, F3 Clientes, F4 Serviços, F5 Agenda, F6 Comanda, F7 Checkout, F8-F10 Chef Club (Planos/Assinaturas/Recebimentos), F11 Fechamento de Caixa, F12 Comissões, F13 Financeiro — Visão Geral, F14 Relatórios. Sem page errors.
+>
+> **F13 — FALSO NEGATIVO DO CANÁRIO, CORRIGIDO (2026-08-14):** a primeira execução falhou em F13 por **defeito do locator do teste**, não por regressão do app — a spec esperava `h2` `'Visão Geral Financeira'` (acentuado), mas a página renderiza `'Visao Geral Financeira'` **sem acento** (`pages/FinancialOverview.tsx:109`); `hasText` do Playwright é sensível a acentos. Snapshot de acessibilidade confirmou a página renderizada com dados reais (Entradas R$ 5.135,00 / 88 registros, Saídas R$ 0,00, Saldo R$ 5.135,00, Ticket médio R$ 58,35) e zero page errors. **Correção aplicada somente na spec** (locator alinhado ao texto real renderizado pela aplicação — não há `data-testid` no heading). **Nenhuma alteração de código de produção, banco, migration ou configuração.** Após a correção, F13 PASS. Nota operacional: F13 executado isolado (`--grep`) não autentica (login ocorre apenas no teste 1, suite serial) — a validação válida é a suite completa.
+>
+> **Dado de acesso:** conta de homologação `homolog.sanchez@barber.soumanager.com` redefinida via GoTrue Admin API e login validado (ver `docs/audit/HOMOLOG_ACCOUNT_PROVISIONING.md`/D-HOM-11). Credenciais em `.env.local` (gitignored).
+
 ---
 
 ## 6. Plano de aplicação incremental
@@ -282,6 +292,7 @@ O PO deve ter **todos** os itens a seguir verificados **antes** de autorizar a a
 - [x] Suite de regressão Sanchez
 - [x] Probes de segurança fail-closed
 - [x] Plano de aplicação incremental + comandos PO + critérios de autorização
+- [x] **Baseline de regressão Sanchez executado (14/14 PASS, 2026-08-14)** — pré-aplicação; F13 corrigido como falso negativo do canário (somente a spec; ver §5.2)
 - [ ] **APLICAÇÃO NO BANCO REMOTO — aguarda aprovação explícita do PO (NÃO executada)**
 - [ ] Reauditoria E2E H-6 (0 achados) — pós-aplicação
 - [ ] Regressão Sanchez — pós-aplicação
