@@ -54,6 +54,8 @@ Ao disparar a parada:
 
 > Tenant: Sanchez Barber (`b716e290...`, `sanchez`) · Banco remoto de produção: `ushsnmlbeurfvlkieiln` · Referência instantânea de 2026-08-08: `SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md`. O tenant é LIVE — contagens podem variar durante a operação.
 
+> **✅ BASELINE CAPTURADO (2026-08-16, janela ~20:25–20:35):** `docs/audit/H7_BASELINE_READONLY.md`. Read-only, zero escritas. Resumo: clients 302 · services 17 · products 18 (estoque 68) · appointments 1.447 · comandas 1.384 · transactions 736 · credits 16 (77 disponíveis ativas / 3 usadas) · cash_closings 3 `draft` (nenhum confirmado) · barber_closings 0 · participantes 377 · receivables 47 (paid 30/R$ 6.440 · overdue 10/R$ 2.340 · pending 7/R$ 1.360). **Pendente:** Fase 2 — Ciclo H7-1 (depende da janela acompanhada + equipe, decisão do PO).
+
 Capturar (somente leitura) antes do ciclo:
 
 | # | Domínio | Contagem/Medida esperada | Query de referência |
