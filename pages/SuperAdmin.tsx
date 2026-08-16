@@ -16,7 +16,7 @@ import Button from '../components/ui/Button';
 import { supabase } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
 
-type TenantRow = { id: string; name: string; slug: string; active: boolean; created_at: string };
+type TenantRow = { id: string; name: string; slug: string; status: string; created_at: string };
 type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; role: string | null; created_at: string; updated_at?: string | null };
 type PlanRow = { id: string; user_id: string; current_plan: string | null; requested_plan: string | null; status: string; created_at: string };
 type TicketRow = { id: string; user_id: string; subject: string; description: string | null; status: string; priority: string; created_at: string };
@@ -104,7 +104,7 @@ const SuperAdmin: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const results = await Promise.allSettled([
-      supabase.from('tenants').select('id, name, slug, active, created_at').order('created_at', { ascending: false }),
+      supabase.from('tenants').select('id, name, slug, status, created_at').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, tenant_id, full_name, role, created_at, updated_at').order('created_at', { ascending: false }),
       supabase.from('plan_change_requests').select('id, user_id, current_plan, requested_plan, status, created_at').order('created_at', { ascending: false }).limit(100),
       supabase.from('support_tickets').select('id, user_id, subject, description, status, priority, created_at').order('created_at', { ascending: false }).limit(100),
