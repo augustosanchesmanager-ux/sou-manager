@@ -128,6 +128,7 @@ PLAYWRIGHT_BASE_URL=https://barber.soumanager.com npx playwright test --grep "@s
 | ~19:45 | Validação estática do bundle (SuperAdmin + tenant.ts) |
 | 19:49–19:50 | Smoke E2E contra produção — **10/10 passaram** |
 | ~19:52 | Commit docs `0ca20f4` → `main`; rebuild Vercel `dpl_3LTjCbaPhkk4CVR6ZcC63sCK7erL` Ready (bundle idêntico) |
+| ~19:55 | Commit evidência `95e617b` → `main`; rebuild `dpl_X88oDRwznSVaaRYiLaEspB8VLDts` Ready — produção final HTTP 200 |
 
 ---
 
@@ -136,6 +137,7 @@ PLAYWRIGHT_BASE_URL=https://barber.soumanager.com npx playwright test --grep "@s
 - Commit `0ca20f4` (docs, 3 arquivos) adicionado à branch e pushed para `main` via fast-forward (`c44ca6d..0ca20f4`).
 - Disparou rebuild automático do Vercel: `dpl_3LTjCbaPhkk4CVR6ZcC63sCK7erL` (Ready) assumiu `barber.soumanager.com`.
 - Bundle de código idêntico confirmado (`index-BCZW83Hs.js`, `SuperAdmin-DUqljjxV.js` com `status` e sem `active`) — docs-only, zero mudança de código no bundle.
+- Commit final da evidência `95e617b` → `main`; rebuild `dpl_X88oDRwznSVaaRYiLaEspB8VLDts` (Ready) assumiu `barber.soumanager.com` (HTTP 200, `index-BCZW83Hs.js`). Estado final: `origin/main = origin/feature/phase-6.0.4-billing = 95e617b`.
 
 ---
 
