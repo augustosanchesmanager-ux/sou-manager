@@ -140,11 +140,13 @@ Evidenciar no H-7 a quadratura SQL formal da matriz de cancelamento/reversão:
 
 ### 7.2 H3-4 — Reflexo no receivable (crédito Chef Club consumido)
 
-- Conferir que o **receivable do ciclo** (crédito Chef Club consumido no H3-4) foi criado/refletido corretamente (pendência registrada: reflexo no receivable). Sem `42703`, sem duplicidade, sem perda de crédito.
+- ✅ **FECHADO (2026-08-16, read-only):** receivable do ciclo H3-4 (HOMOLOG H3 TESTE, `8b1cdee8…`) **pago via Pix** R$ 160,00 em 2026-08-11, notes `HOMOLOGACAO H3 - baixa do ciclo de teste`; crédito debitado (`available 4 / used 1`); próximo ciclo `pending` (due 09-10). **Sem `42703`, sem duplicidade, sem perda de crédito.** Evidência: `docs/audit/H7_1_INVESTIGACAO_S3_READONLY_20260816.md` (§3).
 
-### 7.3 S3 — Investigação (10 overdue + 6 pending)
+### 7.3 S3 — Investigação (10 overdue + 7 pending)
 
-- Investigar os **10 receivables `overdue` (R$ 2.340) + 6 `pending` (R$ 1.200)** com assinaturas ativas (S3, snapshot §9). Conclusão: **causa raiz + classificação (achado P1/P2 ou comportamento esperado)** → registrar e apresentar ao PO.
+- 🔴 **ACHADO S3-1 (P1) registrado (2026-08-16, read-only):** **receivable duplicado — RIOS - AMIGO**, ciclo 2026-06-15, R$ 260,00. Mesma `due_date`, `billing_cycle_start` idêntico ao receivable **já pago** (`0c1ee064…`, pago 06-06, tx `cb41ed2c`), mas `billing_cycle_end` divergente (08-14 vs 07-15) → o `ON CONFLICT (subscription_id, billing_cycle_start, billing_cycle_end)` **não disparou**; o duplicado (`d561a4c3…`, `overdue`, sem `transaction_id`) foi criado em **2026-08-06 18:45**. **S3 inflado em R$ 260,00** (sem impacto de caixa). **Sem correção — decisão de tratamento = PO.**
+- Demais overdue: 2 pertencem a subs `canceled` (PIETRO, K11 — dívida órfã); várias subs `active` com `next_billing_date` parado e **1 único receivable** (LEONE, LUKAS, THIAGO, DAVI) — hipótese de ciclo de billing não avançar em subs sem pagamento registrado (validar na janela acompanhada).
+- Evidência completa: `docs/audit/H7_1_INVESTIGACAO_S3_READONLY_20260816.md`.
 
 ### 7.4 Comissão com dados reais
 

@@ -66,7 +66,9 @@
 | `pending` | **7** | **R$ 1.360,00** |
 | **Total** | **47** | **R$ 10.140,00** |
 
-> **S3 (do snapshot):** 10 `overdue` + 6 `pending` → hoje **10 `overdue` + 7 `pending`** (+1 `pending` desde o snapshot). A investigação da quadratura S3 permanece pendente de execução (fase de ciclo do H-7).
+> **S3 (do snapshot):** 10 `overdue` + 6 `pending` → hoje **10 `overdue` + 7 `pending`** (+1 `pending` desde o snapshot).
+>
+> **🔴 Achado S3-1 (P1) — investigação read-only (2026-08-16):** o receivable `overdue` de **RIOS - AMIGO** (ciclo 2026-06-15, R$ 260,00, `d561a4c3…`) é **duplicado** de um receivable **já pago** (`0c1ee064…`, pago 06-06, tx `cb41ed2c`) — mesmo `billing_cycle_start`, `billing_cycle_end` divergente (08-14 vs 07-15) → `ON CONFLICT` não disparou. **S3 inflado em R$ 260,00** (sem impacto de caixa). Registro e análise completos: `docs/audit/H7_1_INVESTIGACAO_S3_READONLY_20260816.md`. **Sem correção — decisão de tratamento = PO.**
 
 ---
 
