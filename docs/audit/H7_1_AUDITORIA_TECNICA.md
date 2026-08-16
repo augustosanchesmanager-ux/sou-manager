@@ -1,6 +1,7 @@
 # H-7.1 — Auditoria Técnica Formal do Ciclo H7-1 (Investigação Read-Only)
 
-> **Status:** ⏳ INVESTIGAÇÃO CONCLUÍDA — SEM CAUSA RAIZ CONFIRMADA PARA O INCIDENTE ORIGINAL — **OPERAÇÃO PARADA — NENHUMA CORREÇÃO APLICADA**.
+> **Status:** ✅ **CAUSA RAIZ DO INCIDENTE ORIGINAL CONFIRMADA** — frontend de produção `718f6f9` defasado em relação ao schema vigente (migration `20260728000000` removeu `tenants.active`; produção consulta `active` → `42703` → `[TenantContext] Failed to resolve tenant context` → Comissões falham). **Ver Trilha A:** `docs/audit/H7_1_TRILHA_A_REPRODUCAO.md` (2026-08-16). **OPERAÇÃO PARADA — NENHUMA CORREÇÃO APLICADA.**
+> **Atualização 2026-08-16:** este relatório registra a investigação documental do H7-1 (financeiro íntegro, comissão esperada inexistente, ciclo operado pelo owner no preview `78604c6`). A **causa raiz do incidente original** foi confirmada posteriormente na **Trilha A** (`H7_1_TRILHA_A_REPRODUCAO.md`), sem alterar os vereditos financeiros aqui documentados.
 > **Referência:** `docs/audit/H7_OPERACAO_REAL_ROTEIRO.md` (D-HOM-27) · `docs/audit/H7_BASELINE_READONLY.md` (2026-08-16) · `docs/BUSINESS_DECISIONS.md` (D-HOM-26, D-HOM-27)
 > **Data da auditoria:** 2026-08-16 · **Responsável:** OpenCode · **PO:** Augusto
 > **Método:** consultas **read-only** (`supabase db query --linked -o json`) + leitura de código. **Nenhuma escrita, DDL, DML ou mutação remota.**
@@ -535,6 +536,8 @@ Essa segunda trilha **não deve ser misturada com a correção do incidente H7-1
 ## 16. Veredito da auditoria
 
 **Status do H7-1: INVESTIGAÇÃO CONCLUÍDA — SEM CAUSA RAIZ CONFIRMADA PARA O INCIDENTE ORIGINAL.**
+
+> **Atualização 2026-08-16 (Trilha A):** a causa raiz do incidente original foi **CONFIRMADA** — frontend de produção `718f6f9` consulta `tenants.active`, coluna removida pela migration `20260728000000` aplicada no remoto → `42703` → `[TenantContext] Failed to resolve tenant context` → Comissões falham. Evidência e cadeia causal: `docs/audit/H7_1_TRILHA_A_REPRODUCAO.md`. **Nenhuma correção aplicada; operação permanece parada.**
 
 **Financeiro:** ✅ íntegro
 **Comissão:** ✅ comportamento esperado
