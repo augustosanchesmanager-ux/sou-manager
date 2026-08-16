@@ -127,6 +127,15 @@ PLAYWRIGHT_BASE_URL=https://barber.soumanager.com npx playwright test --grep "@s
 | ~19:43 | Confirmação aliases de produção → novo deploy |
 | ~19:45 | Validação estática do bundle (SuperAdmin + tenant.ts) |
 | 19:49–19:50 | Smoke E2E contra produção — **10/10 passaram** |
+| ~19:52 | Commit docs `0ca20f4` → `main`; rebuild Vercel `dpl_3LTjCbaPhkk4CVR6ZcC63sCK7erL` Ready (bundle idêntico) |
+
+---
+
+## 6.1 Commit de documentação do release (pós-deploy)
+
+- Commit `0ca20f4` (docs, 3 arquivos) adicionado à branch e pushed para `main` via fast-forward (`c44ca6d..0ca20f4`).
+- Disparou rebuild automático do Vercel: `dpl_3LTjCbaPhkk4CVR6ZcC63sCK7erL` (Ready) assumiu `barber.soumanager.com`.
+- Bundle de código idêntico confirmado (`index-BCZW83Hs.js`, `SuperAdmin-DUqljjxV.js` com `status` e sem `active`) — docs-only, zero mudança de código no bundle.
 
 ---
 
@@ -150,5 +159,5 @@ O incidente `tenants.active` (coluna inexistente — padrão 42703 da Trilha A, 
 | Arquivo | Mudança |
 |---------|---------|
 | `docs/audit/H9_RELEASE_FIX_SUPERADMIN_20260816.md` | Novo (esta evidência) |
-| `ROADMAP.md` | Linha de registro do release (a ser confirmada) |
-| `PROJECT_STATUS.md` | Linha de registro do release (a ser confirmada) |
+| `ROADMAP.md` | Linha 8.27 adicionada |
+| `PROJECT_STATUS.md` | Linha do release adicionada |
