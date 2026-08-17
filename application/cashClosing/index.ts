@@ -93,6 +93,7 @@ class CashClosingApplicationServiceImpl {
 }
 
 export const cashClosingApplicationService = new CashClosingApplicationServiceImpl();
+export { validate } from './summary';
 
 export { CashClosingError } from './types';
 export type {

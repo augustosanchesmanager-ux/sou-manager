@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { cashClosingApplicationService } from '@/application/cashClosing';
+import { cashClosingApplicationService, validate } from '@/application/cashClosing';
 import { normalizePercentage } from '@/shared/numbers/normalize';
 import {
     CashCloseFilters,
@@ -95,7 +95,9 @@ interface UseCashClosingReturn {
     entradasCount: number;
     saidasCount: number;
     totalExpected: number;
-    totalReceived: number;
+    countedCash: number | null;
+    setCountedCash: (value: number | null) => void;
+    operatorValidation: CashCloseValidation;
     validation: CashCloseValidation;
     paymentRows: PaymentMethodRow[];
     paymentMethodBreakdown: [string, { entradas: number; saidas: number; count: number }][];
@@ -154,6 +156,7 @@ export function useCashClosing(
 
     const [extras, setExtras] = useState<SangriaSuprimento[]>([]);
     const [observations, setObservations] = useState('');
+    const [countedCash, setCountedCash] = useState<number | null>(null);
 
     const [cashClosingRecord, setCashClosingRecord] = useState<CashClosingRecord | null>(null);
     const [barberClosingRecords, setBarberClosingRecords] = useState<BarberClosingRecord[]>([]);
@@ -376,11 +379,14 @@ export function useCashClosing(
     const totalExtrasSuprimento = totals.totalExtrasSuprimento;
     const totalExtrasSangria = totals.totalExtrasSangria;
     const totalExpected = totals.totalExpected;
-    const totalReceived = totals.totalReceived;
     const entradasCount = totals.entradasCount;
     const saidasCount = totals.saidasCount;
     const totalReversals = totals.totalReversals;
     const reversalCount = totals.reversalCount;
+
+    const operatorValidation = countedCash !== null
+        ? validate(totalExpected, countedCash)
+        : validation;
 
     const paymentRows = useMemo(() => buildPaymentMethodRows(filteredEntries, extras), [filteredEntries, extras]);
 
@@ -419,10 +425,9 @@ export function useCashClosing(
                     totalExtrasSuprimento,
                     totalExtrasSangria,
                     totalExpected,
-                    totalReceived,
                 },
-                totalReceived,
-                difference: validation.difference,
+                totalReceived: countedCash ?? totalExpected,
+                difference: operatorValidation.difference,
                 agendaSummary,
                 paymentMethodBreakdown: paymentMethodBreakdown.map(([method, data]) => ({
                     method,
@@ -440,7 +445,7 @@ export function useCashClosing(
         } finally {
             setSaving(false);
         }
-    }, [tenantId, filterDate, user?.id, totalEntradas, totalSaidas, saldoAtual, totalReceived, validation.difference, agendaSummary, entradasCount, saidasCount, paymentMethodBreakdown, extras, observations, totalExpected, filters, barberSummaries, totalExtrasSangria, totalExtrasSuprimento]);
+    }, [tenantId, filterDate, user?.id, totalEntradas, totalSaidas, saldoAtual, countedCash, operatorValidation.difference, agendaSummary, entradasCount, saidasCount, paymentMethodBreakdown, extras, observations, totalExpected, filters, barberSummaries, totalExtrasSangria, totalExtrasSuprimento]);
 
     // TODO [FASE]: Adicionar campo `needs_reconciliation BOOLEAN DEFAULT false`
     // na tabela cash_closings para permitir retry/identificação de fechamentos
@@ -454,6 +459,7 @@ export function useCashClosing(
                 tenantId,
                 date: filterDate,
                 userId: user?.id || '',
+                countedCash: countedCash ?? totalExpected,
                 extras,
                 totals: {
                     totalEntradas,
@@ -462,7 +468,6 @@ export function useCashClosing(
                     totalExtrasSuprimento,
                     totalExtrasSangria,
                     totalExpected,
-                    totalReceived,
                 },
                 agendaSummary,
                 barberSummaries,
@@ -476,7 +481,7 @@ export function useCashClosing(
         } finally {
             setClosing(false);
         }
-    }, [tenantId, filterDate, user?.id, extras, totalEntradas, totalSaidas, saldoAtual, totalReceived, validation.difference, agendaSummary, paymentMethodBreakdown, observations, totalExpected, filters, barberSummaries, totalExtrasSangria, totalExtrasSuprimento, indicators, timeline, dailyAudit]);
+    }, [tenantId, filterDate, user?.id, extras, countedCash, totalEntradas, totalSaidas, saldoAtual, agendaSummary, paymentMethodBreakdown, observations, totalExpected, filters, barberSummaries, totalExtrasSangria, totalExtrasSuprimento, indicators, timeline, dailyAudit]);
 
     const closeBarberCash = useCallback(async (barberStaffId: string, conference: { countedCash: number; justification: string }) => {
         if (!tenantId || !cashClosingRecord) return;
@@ -597,7 +602,9 @@ export function useCashClosing(
         entradasCount,
         saidasCount,
         totalExpected,
-        totalReceived,
+        countedCash,
+        setCountedCash,
+        operatorValidation,
         validation,
         paymentRows,
         paymentMethodBreakdown,

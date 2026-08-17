@@ -51,8 +51,7 @@ export function calculateTotals(
         .filter(e => e.type === 'sangria')
         .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
-    const totalExpected = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
-    const totalReceived = totalExpected;
+    const totalExpected = saldoAtual + totalExtrasSuprimento - totalExtrasSangria;
 
     return {
         totalEntradas,
@@ -61,7 +60,6 @@ export function calculateTotals(
         totalExtrasSuprimento,
         totalExtrasSangria,
         totalExpected,
-        totalReceived,
     };
 }
 
@@ -93,14 +91,13 @@ export function computeDaySummary(params: {
     const saldoAtual = totalEntradas - totalSaidas;
     const totalExtrasSuprimento = extras.filter(e => e.type === 'suprimento').reduce((s, e) => s + e.value, 0);
     const totalExtrasSangria = extras.filter(e => e.type === 'sangria').reduce((s, e) => s + e.value, 0);
-    const totalExpected = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
-    const totalReceived = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
+    const totalExpected = saldoAtual + totalExtrasSuprimento - totalExtrasSangria;
     const entradasCount = filteredEntries.filter(e => e.type === 'entrada').length;
     const saidasCount = filteredEntries.filter(e => e.type === 'saida').length;
     const totalReversals = reversalEntries.reduce((sum, e) => sum + e.value, 0);
     const reversalCount = reversalEntries.length;
 
-    const validation = validateCashClose(totalExpected, totalReceived);
+    const validation = validateCashClose(totalExpected, totalExpected);
 
     // ── Payment Method Breakdown ──
     const paymentMap: Record<string, { entradas: number; saidas: number; count: number }> = {};
@@ -337,7 +334,6 @@ export function computeDaySummary(params: {
             totalExtrasSuprimento,
             totalExtrasSangria,
             totalExpected,
-            totalReceived,
             entradasCount,
             saidasCount,
             totalReversals,

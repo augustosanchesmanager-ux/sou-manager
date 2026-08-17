@@ -117,58 +117,11 @@ describe('computeDaySummary', () => {
       filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
     });
     expect(result.totals.totalExpected).toBe(45);
-    expect(result.totals.totalReceived).toBe(45);
     expect(result.validation.difference).toBe(0);
     expect(result.validation.isValid).toBe(true);
   });
 
-  it('entrada R$80 + saida R$35 → totalExpected = R$80', () => {
-    const result = computeDaySummary({
-      ...emptyParams,
-      filteredEntries: [
-        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
-        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
-        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
-      ],
-    });
-    expect(result.totals.totalEntradas).toBe(80);
-    expect(result.totals.totalSaidas).toBe(35);
-    expect(result.totals.totalExpected).toBe(80);
-    expect(result.totals.totalReceived).toBe(80);
-    expect(result.validation.difference).toBe(0);
-  });
-
-  it('entrada + suprimento → totalExpected = entrada + suprimento', () => {
-    const result = computeDaySummary({
-      ...emptyParams,
-      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
-      extras: [makeSuprimento({ value: 200 })],
-    });
-    expect(result.totals.totalExpected).toBe(700);
-    expect(result.totals.totalReceived).toBe(700);
-  });
-
-  it('entrada + sangria → totalExpected = entrada − sangria', () => {
-    const result = computeDaySummary({
-      ...emptyParams,
-      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
-      extras: [makeSangria({ value: 50 })],
-    });
-    expect(result.totals.totalExpected).toBe(450);
-    expect(result.totals.totalReceived).toBe(450);
-  });
-
-  it('entrada + suprimento − sangria → formula correspondente', () => {
-    const result = computeDaySummary({
-      ...emptyParams,
-      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
-      extras: [makeSuprimento({ value: 200 }), makeSangria({ value: 50 })],
-    });
-    expect(result.totals.totalExpected).toBe(650);
-    expect(result.totals.totalReceived).toBe(650);
-  });
-
-  it('cenario H7: entrada R$80 com saida R$35 → totalExpected = R$80, difference = 0', () => {
+  it('entrada R$80 + saida R$35 → totalExpected = R$45 (saldo devedor, não receita bruta)', () => {
     const result = computeDaySummary({
       ...emptyParams,
       filteredEntries: [
@@ -180,10 +133,49 @@ describe('computeDaySummary', () => {
     expect(result.totals.totalEntradas).toBe(80);
     expect(result.totals.totalSaidas).toBe(35);
     expect(result.totals.saldoAtual).toBe(45);
-    expect(result.totals.totalExpected).toBe(80);
-    expect(result.totals.totalReceived).toBe(80);
-    expect(result.validation.difference).toBe(0);
-    expect(result.validation.isValid).toBe(true);
+    expect(result.totals.totalExpected).toBe(45);
+  });
+
+  it('entrada + suprimento → totalExpected = saldoAtual + suprimento', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSuprimento({ value: 200 })],
+    });
+    expect(result.totals.totalExpected).toBe(700);
+  });
+
+  it('entrada + sangria → totalExpected = entrada − sangria', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSangria({ value: 50 })],
+    });
+    expect(result.totals.totalExpected).toBe(450);
+  });
+
+  it('entrada + suprimento − sangria → formula correspondente', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSuprimento({ value: 200 }), makeSangria({ value: 50 })],
+    });
+    expect(result.totals.totalExpected).toBe(650);
+  });
+
+  it('cenario H7: entrada R$80 com saida R$35 → totalExpected = R$45 (saldo devedor)', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.saldoAtual).toBe(45);
+    expect(result.totals.totalExpected).toBe(45);
   });
 
   it('totalExpected matches calculateTotals for same inputs', () => {
@@ -199,6 +191,89 @@ describe('computeDaySummary', () => {
 
     expect(summaryResult.totals.totalExpected).toBe(totalsResult.totalExpected);
     expect(summaryResult.totals.totalExpected).toBe(650);
+  });
+
+  // ── Contrato H7: totalExpected = saldo devedor ──────────────
+
+  it('contrato H7: saida reduz totalExpected (saldo devedor, não receita bruta)', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.saldoAtual).toBe(45);
+    expect(result.totals.totalExpected).toBe(45);
+  });
+
+  it('contrato H7: entrada + suprimento + saida → saldo devedor correto', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 100 }),
+        makeEntry({ type: 'saida', value: 35 }),
+      ],
+      extras: [makeSuprimento({ value: 20 })],
+    });
+    expect(result.totals.saldoAtual).toBe(65);
+    expect(result.totals.totalExpected).toBe(85);
+  });
+
+  // ── reversalEntries: cálculo de totalExpected ───────────────
+
+  it('reversalEntries R$35 NÃO altera totalExpected quando já está em filteredEntries como saida', () => {
+    const reversalEntry = makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' });
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        reversalEntry,
+      ],
+      reversalEntries: [reversalEntry],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.saldoAtual).toBe(45);
+    expect(result.totals.totalExpected).toBe(45);
+    expect(result.totals.totalReversals).toBe(35);
+    expect(result.totals.reversalCount).toBe(1);
+  });
+
+  it('reversalEntries vazio + saida → totalExpected usa saldo devedor', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+      reversalEntries: [],
+    });
+    expect(result.totals.totalExpected).toBe(10);
+    expect(result.totals.totalReversals).toBe(0);
+  });
+
+  it('cenario H7 completo: R$45 Pix + R$35 saida → totalExpected = R$45', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+      reversalEntries: [
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.saldoAtual).toBe(45);
+    expect(result.totals.totalExpected).toBe(45);
+    expect(result.totals.totalReversals).toBe(35);
   });
 });
 
@@ -231,5 +306,57 @@ describe('validate — divergencia real com cenario H7', () => {
   it('esperado R$80, contado R$80.02 → fora da tolerancia, isValid = false', () => {
     const result = validate(80, 80.02);
     expect(result.isValid).toBe(false);
+  });
+});
+
+// ─── validate — contrato H7: counted como input independente ────
+
+describe('validate — contrato H7: counted como input do operador', () => {
+  it('expected R$45, counted R$45 → difference 0, isValid true', () => {
+    const result = validate(45, 45);
+    expect(result.difference).toBe(0);
+    expect(result.isValid).toBe(true);
+    expect(result.totalExpected).toBe(45);
+    expect(result.totalReceived).toBe(45);
+  });
+
+  it('expected R$45, counted R$44 → difference -1, isValid false', () => {
+    const result = validate(45, 44);
+    expect(result.difference).toBe(-1);
+    expect(result.isValid).toBe(false);
+    expect(result.totalExpected).toBe(45);
+    expect(result.totalReceived).toBe(44);
+  });
+
+  it('expected R$45, counted R$46 → difference +1, isValid false', () => {
+    const result = validate(45, 46);
+    expect(result.difference).toBe(1);
+    expect(result.isValid).toBe(false);
+    expect(result.totalExpected).toBe(45);
+    expect(result.totalReceived).toBe(46);
+  });
+
+  it('expected R$45, counted R$0 → difference -45, isValid false (caixa vazio)', () => {
+    const result = validate(45, 0);
+    expect(result.difference).toBe(-45);
+    expect(result.isValid).toBe(false);
+  });
+
+  it('expected R$45, counted R$90 → difference +45, isValid false (dobro)', () => {
+    const result = validate(45, 90);
+    expect(result.difference).toBe(45);
+    expect(result.isValid).toBe(false);
+  });
+
+  it('expected R$75, counted R$74.999 → dentro tolerancia, isValid true', () => {
+    const result = validate(75, 74.999);
+    expect(result.isValid).toBe(true);
+    expect(result.difference).toBeCloseTo(-0.001, 3);
+  });
+
+  it('expected R$75, counted R$75.02 → fora tolerancia, isValid false', () => {
+    const result = validate(75, 75.02);
+    expect(result.isValid).toBe(false);
+    expect(result.difference).toBeCloseTo(0.02, 2);
   });
 });

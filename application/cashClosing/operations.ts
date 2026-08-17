@@ -64,7 +64,7 @@ export async function openCashRegister(params: OpenCashParams): Promise<void> {
 // ─── closeCashRegister ───────────────────────────────────────────
 
 export async function closeCashRegister(params: CloseCashParams): Promise<void> {
-    const { tenantId, date, userId, extras, totals, agendaSummary, indicators } = params;
+    const { tenantId, date, userId, countedCash, extras, totals, agendaSummary, indicators } = params;
 
     if (extras.length > 0) {
         const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR');
@@ -100,10 +100,10 @@ export async function closeCashRegister(params: CloseCashParams): Promise<void> 
             expected_income: totals.totalEntradas,
             expected_expense: totals.totalSaidas,
             expected_balance: totals.totalExpected,
-            total_counted: totals.totalReceived,
+            total_counted: countedCash,
             total_sangrias: totals.totalExtrasSangria,
             total_suprimentos: totals.totalExtrasSuprimento,
-            total_difference: totals.totalReceived - totals.totalExpected,
+            total_difference: countedCash - totals.totalExpected,
             financial_summary: indicators as any,
             appointments_summary: agendaSummary as any,
         } as any);
@@ -117,7 +117,7 @@ export async function closeCashRegister(params: CloseCashParams): Promise<void> 
         event_type: 'closing',
         event_time: new Date().toISOString(),
         label: 'Caixa fechado',
-        detail: `Caixa fechado por ${userId}. Total: R$ ${totals.totalReceived.toFixed(2)}`,
+        detail: `Caixa fechado por ${userId}. Total: R$ ${countedCash.toFixed(2)}`,
         metadata: {},
         created_by_user_id: userId,
     });
@@ -132,10 +132,10 @@ export async function closeCashRegister(params: CloseCashParams): Promise<void> 
             businessDate: date,
             closedBy: userId,
             expectedBalance: totals.totalExpected,
-            countedBalance: totals.totalReceived,
-            difference: totals.totalReceived - totals.totalExpected,
+            countedBalance: countedCash,
+            difference: countedCash - totals.totalExpected,
             extrasCount: extras.length,
-            hasDiscrepancy: Math.abs(totals.totalReceived - totals.totalExpected) > 0.01,
+            hasDiscrepancy: Math.abs(countedCash - totals.totalExpected) > 0.01,
         },
         metadata: {
             tenantId,

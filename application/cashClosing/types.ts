@@ -119,13 +119,13 @@ export interface TotalsData {
     totalExtrasSuprimento: number;
     totalExtrasSangria: number;
     totalExpected: number;
-    totalReceived: number;
 }
 
 export interface CloseCashParams {
     tenantId: string;
     date: string;
     userId: string;
+    countedCash: number;
     extras: SangriaSuprimento[];
     totals: TotalsData;
     agendaSummary: AgendaSummary;
@@ -192,7 +192,6 @@ export interface DaySummaryTotals {
     totalExtrasSuprimento: number;
     totalExtrasSangria: number;
     totalExpected: number;
-    totalReceived: number;
     entradasCount: number;
     saidasCount: number;
     totalReversals: number;

@@ -87,7 +87,6 @@ const makeTotals = (overrides: Partial<TotalsData> = {}): TotalsData => ({
   totalExtrasSuprimento: 200,
   totalExtrasSangria: 50,
   totalExpected: 650,
-  totalReceived: 650,
   ...overrides,
 });
 
@@ -162,6 +161,7 @@ const makeCloseCashParams = (overrides: Partial<CloseCashParams> = {}): CloseCas
   date: '2026-07-23',
   userId: 'user-1',
   extras: [],
+  countedCash: 650,
   totals: makeTotals(),
   agendaSummary: makeAgendaSummary(),
   barberSummaries: [makeBarberSummary()],

@@ -137,10 +137,10 @@ const CashClosingPage: React.FC = () => {
 
         addSection('RESUMO GERAL');
         addText(`Total Esperado:    ${formatCurrency(closing.validation.totalExpected)}`);
-        addText(`Total Recebido:    ${formatCurrency(closing.validation.totalReceived)}`);
-        addText(`Diferenca:         ${formatCurrency(closing.validation.difference)}`);
-        addText(`Situacao:          ${closing.validation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`, {
-            color: closing.validation.isValid ? [0, 128, 0] : [255, 0, 0]
+        addText(`Total Recebido:    ${formatCurrency(closing.operatorValidation.totalReceived)}`);
+        addText(`Diferenca:         ${formatCurrency(closing.operatorValidation.difference)}`);
+        addText(`Situacao:          ${closing.operatorValidation.isValid ? 'CONFERIDO OK' : 'DIVERGENTE'}`, {
+            color: closing.operatorValidation.isValid ? [0, 128, 0] : [255, 0, 0]
         });
         y += 2;
 
@@ -502,9 +502,9 @@ const CashClosingPage: React.FC = () => {
 
             {/* ETAPA 4: Physical Conference */}
             <PhysicalConference
-                validation={closing.validation}
+                validation={closing.operatorValidation}
                 totalExpected={closing.totalExpected}
-                totalReceived={closing.totalReceived}
+                onCountedCashChange={closing.setCountedCash}
                 loading={closing.loading}
             />
 
@@ -543,7 +543,7 @@ const CashClosingPage: React.FC = () => {
             />
 
             {/* Divergence Warning */}
-            {!closing.loading && !closing.validation.isValid && closing.observations.trim() === '' && (
+            {!closing.loading && !closing.operatorValidation.isValid && closing.observations.trim() === '' && (
                 <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
                     <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <div>
@@ -559,7 +559,7 @@ const CashClosingPage: React.FC = () => {
                 saving={closing.saving}
                 closing={closing.closing}
                 hasTenantContext={hasTenantContext}
-                validationValid={closing.validation.isValid}
+                validationValid={closing.operatorValidation.isValid}
                 hasObservations={closing.observations.trim() !== ''}
                 onSave={() => setShowSaveConfirm(true)}
                 onClose={() => setShowCloseConfirm(true)}
@@ -611,8 +611,8 @@ const CashClosingPage: React.FC = () => {
                         <div className="space-y-1 text-xs">
                             <p>Data: <strong>{formattedFilterDate}</strong></p>
                             <p>Esperado: <strong>{formatCurrency(closing.totalExpected)}</strong></p>
-                            <p>Recebido: <strong>{formatCurrency(closing.totalReceived)}</strong></p>
-                            <p>Diferenca: <strong className={closing.validation.isValid ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(closing.validation.difference)}</strong></p>
+                            <p>Recebido: <strong>{formatCurrency(closing.countedCash ?? closing.totalExpected)}</strong></p>
+                            <p>Diferenca: <strong className={closing.operatorValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(closing.operatorValidation.difference)}</strong></p>
                             <p>Sangrias: <strong className="text-rose-600">{closing.extras.filter(e => e.type === 'sangria').length} ({formatCurrency(closing.extras.filter(e => e.type === 'sangria').reduce((s, e) => s + e.value, 0))})</strong></p>
                             <p>Suprimentos: <strong className="text-emerald-600">{closing.extras.filter(e => e.type === 'suprimento').length} ({formatCurrency(closing.extras.filter(e => e.type === 'suprimento').reduce((s, e) => s + e.value, 0))})</strong></p>
                         </div>

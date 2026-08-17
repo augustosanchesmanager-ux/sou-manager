@@ -6,14 +6,14 @@ import type { CashCloseValidation } from '../cashCloseUtils';
 interface PhysicalConferenceProps {
     validation: CashCloseValidation;
     totalExpected: number;
-    totalReceived: number;
+    onCountedCashChange: (value: number) => void;
     loading: boolean;
 }
 
 const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
     validation,
     totalExpected,
-    totalReceived,
+    onCountedCashChange,
     loading,
 }) => {
     const [countedCash, setCountedCash] = useState('');
@@ -24,7 +24,7 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
 
     const countedValue = parseFloat(countedCash) || 0;
     const cashDifference = countedValue - totalExpected;
-    const hasDifference = Math.abs(cashDifference) > 0.01;
+    const hasDifference = countedValue > 0 && Math.abs(cashDifference) > 0.01;
 
     return (
         <div className="rounded-xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-4 shadow-[0_4px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
@@ -32,15 +32,15 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
                 <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     Conferencia Fisica
                 </h3>
-                {validation.isValid ? (
+                {!hasDifference && countedValue > 0 ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
                         <CheckCircle size={10} /> Conferido
                     </span>
-                ) : (
+                ) : hasDifference ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-rose-700 dark:text-rose-300">
                         <AlertTriangle size={10} /> Divergencia
                     </span>
-                )}
+                ) : null}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -65,7 +65,10 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
                             min="0"
                             placeholder="0,00"
                             value={countedCash}
-                            onChange={e => setCountedCash(e.target.value)}
+                            onChange={e => {
+                                setCountedCash(e.target.value);
+                                onCountedCashChange(parseFloat(e.target.value) || 0);
+                            }}
                             className="w-full rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark pl-8 pr-3 py-1.5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                         />
                     </div>
@@ -76,7 +79,7 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
                         Diferenca
                     </p>
                     <p className={`mt-1 text-lg font-extrabold ${hasDifference ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {formatCurrency(hasDifference ? cashDifference : validation.difference)}
+                        {formatCurrency(hasDifference ? cashDifference : 0)}
                     </p>
                 </div>
             </div>

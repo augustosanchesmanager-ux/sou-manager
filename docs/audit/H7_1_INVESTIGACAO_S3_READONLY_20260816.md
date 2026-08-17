@@ -108,3 +108,146 @@ Cliente **HOMOLOG H3 TESTE 2026-08-11** (`394dc685…`), subscription `7b92c958�
 - ⏳ **Ciclo H7-1 NÃO executado** — aguarda janela acompanhada (dia/horário + equipe, decisão do PO).
 
 > **Estado H-7:** H-6 🟢 → **H-7 ⏳ (baseline pronto; S3 com achado S3-1 a decidir)** → H-8 🔴.
+
+---
+
+## 7. Investigação S3-3 — Origem do ciclo inconsistente (read-only)
+
+> **Data:** 2026-08-16 · **Modo:** somente leitura · **Objetivo:** localizar exatamente de onde veio a chamada que criou o receivable `d561a4c3` (ciclo 06-15→08-14, end 00:00).
+
+### 7.1 Inventário de caminhos de criação
+
+**Única função que aceita `billing_cycle_start/end` como parâmetros de entrada:** `ensure_club_receivable_for_cycle` (4 params, todos opcionais com DEFAULT NULL).
+
+| # | Função pai | Migration | Args passados | Ciclo explícito? | Ativo? |
+|---|-----------|-----------|---------------|-----------------|--------|
+| 1 | `generate_club_receivables` (original) | `…0817:41` | `sub.id` apenas | NULL (defaults de sub) | ❌ Substituído por #5 |
+| 2 | `pay_club_receivable` (original) | `…0818:208` | 4 explícitos | Computado do receivable atual | ❌ Substituído por #6 |
+| 3 | `create_chef_club_subscription` | `…0819:186` | 4 explícitos | Da sub recém-criada | ✅ |
+| 4 | Backfill `DO $$` | `…0820:263` | `sub.id` apenas | NULL (defaults de sub) | ✅ One-shot |
+| 5 | `generate_club_receivables` (6.0.5.3) | `…0807:174` | `sub.id` apenas | NULL (defaults de sub) | ✅ **Atual** |
+| 6 | `pay_club_receivable` (6.0.5.3) | `…0807:441` | 4 explícitos | Computado do receivable atual | ✅ **Atual** |
+
+**Edge functions:** Nenhuma lida com recebíveis. **INSERT direto no frontend:** Zero. **UI com parâmetros customizados:** Nenhuma — o frontend não expõe `billing_cycle_start/end`.
+
+### 7.2 Traçamento do ciclo impossível
+
+O receivable `d561a4c3` tem: `start=06-15 12:00`, `end=08-14 00:00`, `due=06-15`, `created_at=08-06 18:45`.
+
+**Nenhum caminho padrão produz essa combinação:**
+
+| Caminho | Resultado esperado | Conflito | Produce d561a4c3? |
+|---------|-------------------|----------|-------------------|
+| `generate` (Call #5) com sub.cycle_start=06-15, cycle_end=07-15 | (06-15→07-15) | Com `0c1ee064` → UPDATE | ❌ |
+| `pay` (Call #6) após `0c1ee064` (end=07-15) | (07-15→08-15) | Cria `b3bdec3f` | ❌ |
+| `pay` (Call #6) após `b3bdec3f` (end=08-15) | (08-15→09-15) | Cria `2039bd97` | ❌ |
+| `create_subscription` (Call #3) | start=now(), end=next_billing+12h | Não produz start=06-15 | ❌ |
+
+### 7.3 Evidência-chave: 00:00 vs 12:00
+
+| Campo | `d561a4c3` (anômalo) | Receivables normais |
+|-------|----------------------|---------------------|
+| `billing_cycle_end` | **00:00:00** (meia-noite) | **12:00:00** (meio-dia) |
+
+- Receivables normais têm `end` às 12:00 porque `create_chef_club_subscription` usa `p_next_billing_date + time '12:00'`.
+- O `end=08-14 00:00` indica conversão `DATE → timestamptz` (meia-noite) — consistente com input manual de uma data `'2026-08-14'` sem componente horário.
+
+### 7.4 Auditoria de audit_logs
+
+```sql
+SELECT count(*) FROM public.audit_logs
+WHERE tenant_id = 'b716e290-...';  → 0 rows
+```
+
+**Tabela `audit_logs` está vazia para este tenant.** Sem trilha de auditoria para a criação de `d561a4c3`.
+
+### 7.5 updated_at anômalo
+
+`d561a4c3` tem `updated_at=2026-08-06 22:13:51` — ~3.5h após criação (18:45) e ~2min antes do pagamento de `b3bdec3f` (22:14). Nenhum fluxo padrão explica esse UPDATE:
+- `generate` não atingiria `d561a4c3` (conflito seria com `0c1ee064` ou `b3bdec3f`)
+- `pay` atualiza o receivable sendo pago (status→paid), mas `d561a4c3` continua `overdue`
+- Trigger existente: apenas `set_updated_at_timestamp()` em UPDATE (não INSERT)
+
+**Hipótese:** intervenção manual direta (SQL dashboard ou Table Editor) tanto para INSERT quanto para UPDATE posterior.
+
+### 7.6 Conclusão S3-3
+
+| Afirmação | Status |
+|-----------|--------|
+| O receivable `d561a4c3` **não foi criado** por nenhum fluxo padrão do código | ✅ **Confirmado** |
+| A origem é **intervenção manual** (SQL dashboard, Table Editor, ou client library com params explícitos) | ✅ **Hipótese forte** (evidência: end 00:00, sem trilha de auditoria, nenhum caminho de código produce) |
+| A constraint `ON CONFLICT (sub, start, end)` **não impediu** a inserção | ✅ Confirmado — o conflito só existe se os 3 campos coincidirem |
+| Não há edge function, cron, ou trigger INSERT que possa ter criado o registro | ✅ Confirmado |
+| A `audit_logs` não fornece trilha para this tenant | ✅ Confirmado — tabela vazia |
+
+### 7.7 Implicação para decisão do PO
+
+O S3-1 é **dado histórico de intervenção manual**, não bug de código em produção. Isso muda o escopo da correção:
+
+- **Correção de código (constraint/guard)** → previne intervenções manuais futuras, mas não é "correção de bug"
+- **Tratamento do registro** → `d561a4c3` é um insert manual inválido; o registro deve ser marcado como cancelado/duplicado
+- **Root cause real** → alguém (operador/admin) inseriu o registro diretamente no banco, provavelmente copiando dados de `0c1ee064` com uma data de cycle_end incorreta (08-14 ao invés de 07-15)
+
+---
+
+## 8. Tratamento S3-4 — Cancelamento do `d561a4c3` (executado, 2026-08-16)
+
+> **Modo:** escrita (única operação write nesta investigação) · **Aprovação:** PO (D-HOM-27 §4) · **Critério:** tratamento mínimo — registro isolado, sem impacto de caixa
+
+### 8.1 Pré-operação
+
+| Campo | Valor |
+|-------|-------|
+| `id` | `d561a4c3-05ce-4722-b2bf-3816fec34aa1` |
+| `status` | `overdue` |
+| `amount` | R$ 260,00 |
+| `transaction_id` | null |
+| `paid_at` / `payment_method` / `paid_by` | null / null / null |
+| `payment_attempts` | 0 registros |
+| `notes` | null |
+| `created_at` | 2026-08-06 18:45:34 |
+| `updated_at` | 2026-08-06 22:13:51 |
+
+**S3 pré:** overdue=10 (R$2.340) · paid=30 (R$6.440) · pending=7 (R$1.360) · **total=47 (R$10.140)**
+
+### 8.2 Operação
+
+```sql
+UPDATE public.customer_subscription_receivables
+SET status = 'cancelled',
+    notes = '[S3-4] Cancelado em 2026-08-16 por OpenCode (S3-1/S3-3). Registro duplicado identificado...',
+    updated_at = now()
+WHERE id = 'd561a4c3-...'
+  AND status = 'overdue';
+```
+
+### 8.3 Pós-operação
+
+| Métrica | Pré | Pós | Delta |
+|---------|-----|-----|-------|
+| overdue | 10 (R$2.340) | 9 (R$2.080) | **-1 (-R$260)** |
+| cancelled | 0 | 1 (R$260) | **+1 (+R$260)** |
+| paid | 30 (R$6.440) | 30 (R$6.440) | 0 |
+| pending | 7 (R$1.360) | 7 (R$1.360) | 0 |
+| **Total** | **47 (R$10.140)** | **47 (R$10.140)** | **0** |
+
+### 8.4 Verificação de integridade
+
+- ✅ Total de receivables inalterado (47)
+- ✅ Soma total inalterada (R$10.140)
+- ✅ Subscription RIOS inalterada (active, cycle 07-15→08-15)
+- ✅ Nenhum outro receivable afetado
+- ✅ `cancelled` é status válido no tipo `ReceivableStatus` (label "Cancelado", ícone `block`)
+- ✅ Sem efeito financeiro (sem transaction_id, sem payment_attempts, sem comissões)
+
+### 8.5 Conclusão S3-1 → FECHADO
+
+**S3-1 (P1) — FECHADO.** O receivable duplicado `d561a4c3` foi cancelado com sucesso. A investigação S3 completa (S3-1/S3-2/S3-3/S3-4) confirmou:
+
+1. **1 caso isolado** de duplicidade (RIOS, R$260)
+2. **Origem:** intervenção manual (não bug de código)
+3. **Tratamento:** cancelamento pontual (registro preservado com status `cancelled`)
+4. **Impacto:** zero (sem caixa, sem integridade financeira)
+5. **Prevenção futura:** opcional — reforçar constraint ou guarda no `ensure` (melhoria, não correção)
+
+> **S3 está limpo para prosseguir com H-7.**
