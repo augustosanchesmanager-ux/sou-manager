@@ -87,6 +87,7 @@ const makeTotals = (overrides: Partial<TotalsData> = {}): TotalsData => ({
   totalExtrasSuprimento: 200,
   totalExtrasSangria: 50,
   totalExpected: 650,
+  totalReceived: 650,
   ...overrides,
 });
 

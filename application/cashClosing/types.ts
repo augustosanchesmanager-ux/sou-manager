@@ -119,6 +119,7 @@ export interface TotalsData {
     totalExtrasSuprimento: number;
     totalExtrasSangria: number;
     totalExpected: number;
+    totalReceived: number;
 }
 
 export interface CloseCashParams {

@@ -52,6 +52,7 @@ export function calculateTotals(
         .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
     const totalExpected = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
+    const totalReceived = totalExpected;
 
     return {
         totalEntradas,
@@ -60,6 +61,7 @@ export function calculateTotals(
         totalExtrasSuprimento,
         totalExtrasSangria,
         totalExpected,
+        totalReceived,
     };
 }
 
@@ -91,7 +93,7 @@ export function computeDaySummary(params: {
     const saldoAtual = totalEntradas - totalSaidas;
     const totalExtrasSuprimento = extras.filter(e => e.type === 'suprimento').reduce((s, e) => s + e.value, 0);
     const totalExtrasSangria = extras.filter(e => e.type === 'sangria').reduce((s, e) => s + e.value, 0);
-    const totalExpected = saldoAtual;
+    const totalExpected = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
     const totalReceived = totalEntradas + totalExtrasSuprimento - totalExtrasSangria;
     const entradasCount = filteredEntries.filter(e => e.type === 'entrada').length;
     const saidasCount = filteredEntries.filter(e => e.type === 'saida').length;

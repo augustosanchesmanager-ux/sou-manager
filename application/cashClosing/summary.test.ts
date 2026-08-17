@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTotals, validate } from './summary';
+import { calculateTotals, validate, computeDaySummary } from './summary';
 
 const makeEntry = (overrides: Record<string, unknown> = {}) => ({
   id: 'e1',
@@ -95,5 +95,141 @@ describe('validate', () => {
     const result = validate(200, 150);
     expect(result.isValid).toBe(false);
     expect(result.difference).toBe(-50);
+  });
+});
+
+// ─── computeDaySummary ────────────────────────────────────────────
+
+describe('computeDaySummary', () => {
+  const emptyParams = {
+    filteredEntries: [],
+    extras: [],
+    comandas: [],
+    appointments: [],
+    filteredComandaDetails: [],
+    barberSummaries: [],
+    reversalEntries: [],
+  };
+
+  it('entrada R$45 sem saida → totalExpected = R$45', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
+    });
+    expect(result.totals.totalExpected).toBe(45);
+    expect(result.totals.totalReceived).toBe(45);
+    expect(result.validation.difference).toBe(0);
+    expect(result.validation.isValid).toBe(true);
+  });
+
+  it('entrada R$80 + saida R$35 → totalExpected = R$80', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.totalExpected).toBe(80);
+    expect(result.totals.totalReceived).toBe(80);
+    expect(result.validation.difference).toBe(0);
+  });
+
+  it('entrada + suprimento → totalExpected = entrada + suprimento', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSuprimento({ value: 200 })],
+    });
+    expect(result.totals.totalExpected).toBe(700);
+    expect(result.totals.totalReceived).toBe(700);
+  });
+
+  it('entrada + sangria → totalExpected = entrada − sangria', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSangria({ value: 50 })],
+    });
+    expect(result.totals.totalExpected).toBe(450);
+    expect(result.totals.totalReceived).toBe(450);
+  });
+
+  it('entrada + suprimento − sangria → formula correspondente', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 500 })],
+      extras: [makeSuprimento({ value: 200 }), makeSangria({ value: 50 })],
+    });
+    expect(result.totals.totalExpected).toBe(650);
+    expect(result.totals.totalReceived).toBe(650);
+  });
+
+  it('cenario H7: entrada R$80 com saida R$35 → totalExpected = R$80, difference = 0', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [
+        makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' }),
+        makeEntry({ type: 'entrada', value: 35, paymentMethod: 'other' }),
+        makeEntry({ type: 'saida', value: 35, paymentMethod: 'other' }),
+      ],
+    });
+    expect(result.totals.totalEntradas).toBe(80);
+    expect(result.totals.totalSaidas).toBe(35);
+    expect(result.totals.saldoAtual).toBe(45);
+    expect(result.totals.totalExpected).toBe(80);
+    expect(result.totals.totalReceived).toBe(80);
+    expect(result.validation.difference).toBe(0);
+    expect(result.validation.isValid).toBe(true);
+  });
+
+  it('totalExpected matches calculateTotals for same inputs', () => {
+    const entries = [makeEntry({ type: 'entrada', value: 500 })];
+    const extras = [makeSuprimento({ value: 200 }), makeSangria({ value: 50 })];
+
+    const totalsResult = calculateTotals(entries, extras);
+    const summaryResult = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: entries,
+      extras,
+    });
+
+    expect(summaryResult.totals.totalExpected).toBe(totalsResult.totalExpected);
+    expect(summaryResult.totals.totalExpected).toBe(650);
+  });
+});
+
+// ─── validate — divergencia real (H7 numbers) ────────────────────
+
+describe('validate — divergencia real com cenario H7', () => {
+  it('esperado R$80, contado R$79 → difference = -1, isValid = false', () => {
+    const result = validate(80, 79);
+    expect(result.difference).toBe(-1);
+    expect(result.isValid).toBe(false);
+  });
+
+  it('esperado R$80, contado R$81 → difference = +1, isValid = false', () => {
+    const result = validate(80, 81);
+    expect(result.difference).toBe(1);
+    expect(result.isValid).toBe(false);
+  });
+
+  it('esperado R$80, contado R$80 → difference = 0, isValid = true', () => {
+    const result = validate(80, 80);
+    expect(result.difference).toBe(0);
+    expect(result.isValid).toBe(true);
+  });
+
+  it('esperado R$80, contado R$79.995 → dentro da tolerancia, isValid = true', () => {
+    const result = validate(80, 79.995);
+    expect(result.isValid).toBe(true);
+  });
+
+  it('esperado R$80, contado R$80.02 → fora da tolerancia, isValid = false', () => {
+    const result = validate(80, 80.02);
+    expect(result.isValid).toBe(false);
   });
 });
