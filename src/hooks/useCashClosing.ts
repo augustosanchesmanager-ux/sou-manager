@@ -359,8 +359,9 @@ export function useCashClosing(
             filteredComandaDetails,
             barberSummaries,
             reversalEntries,
+            barberClosingRecords,
         });
-    }, [filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries]);
+    }, [filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries, barberClosingRecords]);
 
     const {
         totals,

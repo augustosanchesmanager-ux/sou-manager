@@ -163,6 +163,107 @@ describe('computeDaySummary', () => {
     expect(result.totals.totalExpected).toBe(650);
   });
 
+  // ── BUG-02A: barberClosingRecords status sync ───────────────────
+
+  it('BUG-02A: barberClosingRecords com status closed → barberClosingDetails.status = closed', () => {
+    const barberSummaries = [{
+      staffId: 'staff-heron',
+      staffName: 'Heron',
+      role: 'barber',
+      commissionRate: 0.5,
+      totalReceived: 45,
+      comandaCount: 1,
+      comandas: [{
+        comandaId: 'c1',
+        staffId: 'staff-heron',
+        staffName: 'Heron',
+        total: 45,
+        status: 'paid',
+        paymentMethod: 'pix',
+        clientName: 'Cliente',
+        appointmentId: null,
+        items: [{ staffId: 'staff-heron', serviceName: 'Corte', quantity: 1, unitPrice: 45 }],
+      }],
+      openComandaCount: 0,
+      openTotal: 0,
+      openComandas: [],
+    }] as any[];
+
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
+      barberSummaries,
+      barberClosingRecords: [{ id: 'bc-1', cash_closing_id: 'cc-1', staff_id: 'staff-heron', status: 'closed' }],
+    });
+
+    const heron = result.barberClosingDetails.find(b => b.staffId === 'staff-heron');
+    expect(heron).toBeDefined();
+    expect(heron!.status).toBe('closed');
+    expect(heron!.checklist.conferenceDone).toBe(true);
+  });
+
+  it('BUG-02A: barberClosingRecords vazio → barberClosingDetails.status = open (default)', () => {
+    const barberSummaries = [{
+      staffId: 'staff-heron',
+      staffName: 'Heron',
+      role: 'barber',
+      commissionRate: 0.5,
+      totalReceived: 45,
+      comandaCount: 1,
+      comandas: [{
+        comandaId: 'c1',
+        staffId: 'staff-heron',
+        staffName: 'Heron',
+        total: 45,
+        status: 'paid',
+        paymentMethod: 'pix',
+        clientName: 'Cliente',
+        appointmentId: null,
+        items: [{ staffId: 'staff-heron', serviceName: 'Corte', quantity: 1, unitPrice: 45 }],
+      }],
+      openComandaCount: 0,
+      openTotal: 0,
+      openComandas: [],
+    }] as any[];
+
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
+      barberSummaries,
+      barberClosingRecords: [],
+    });
+
+    const heron = result.barberClosingDetails.find(b => b.staffId === 'staff-heron');
+    expect(heron).toBeDefined();
+    expect(heron!.status).toBe('open');
+    expect(heron!.checklist.conferenceDone).toBe(false);
+  });
+
+  it('BUG-02A: sem barberClosingRecords (param omitido) → mantém behavior legado (open)', () => {
+    const barberSummaries = [{
+      staffId: 'staff-heron',
+      staffName: 'Heron',
+      role: 'barber',
+      commissionRate: 0.5,
+      totalReceived: 45,
+      comandaCount: 1,
+      comandas: [],
+      openComandaCount: 0,
+      openTotal: 0,
+      openComandas: [],
+    }] as any[];
+
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
+      barberSummaries,
+    });
+
+    const heron = result.barberClosingDetails.find(b => b.staffId === 'staff-heron');
+    expect(heron!.status).toBe('open');
+    expect(heron!.checklist.conferenceDone).toBe(false);
+  });
+
   it('cenario H7: entrada R$80 com saida R$35 → totalExpected = R$45 (saldo devedor)', () => {
     const result = computeDaySummary({
       ...emptyParams,

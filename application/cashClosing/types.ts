@@ -99,6 +99,7 @@ export interface BarberClosingSnapshotRecord {
     id: string;
     cash_closing_id: string;
     staff_id: string;
+    status?: 'open' | 'closed' | 'discrepancy';
 }
 
 export interface ReversalSnapshot {

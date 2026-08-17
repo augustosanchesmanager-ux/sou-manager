@@ -53,6 +53,7 @@ class CashClosingApplicationServiceImpl {
         filteredComandaDetails: import('../../components/financial/cashCloseUtils').ComandaDetail[];
         barberSummaries: import('../../components/financial/cashCloseUtils').BarberSummary[];
         reversalEntries: CashClosingEntryExtended[];
+        barberClosingRecords?: Array<{ staff_id: string; status?: string }>;
     }): DaySummaryResult {
         return _computeDaySummary(params);
     }

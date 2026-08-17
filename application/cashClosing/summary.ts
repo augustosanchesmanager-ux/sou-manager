@@ -82,8 +82,9 @@ export function computeDaySummary(params: {
     filteredComandaDetails: ComandaDetail[];
     barberSummaries: BarberSummary[];
     reversalEntries: CashClosingEntryExtended[];
+    barberClosingRecords?: Array<{ staff_id: string; status?: string }>;
 }): DaySummaryResult {
-    const { filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries } = params;
+    const { filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries, barberClosingRecords = [] } = params;
 
     // ── Totals ──
     const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
@@ -228,6 +229,9 @@ export function computeDaySummary(params: {
     };
 
     // ── Barber Closing Details ──
+    const barberClosingByStaff = new Map<string, { staff_id: string; status?: string }>();
+    barberClosingRecords.forEach(r => barberClosingByStaff.set(r.staff_id, r));
+
     const barberClosingDetails: BarberClosingDetail[] = barberSummaries.map(barber => {
         const barberComandas = barber.comandas;
         const barberOpenComandas = barber.openComandas;
@@ -286,11 +290,15 @@ export function computeDaySummary(params: {
             }
         }
 
+        const closingRecord = barberClosingByStaff.get(barber.staffId);
+        const recordStatus = closingRecord?.status;
+        const isClosed = recordStatus === 'closed';
+
         return {
             staffId: barber.staffId,
             staffName: barber.staffName,
             role: barber.role,
-            status: 'open' as const,
+            status: isClosed ? 'closed' as const : 'open' as const,
             totalProduced: barber.totalReceived,
             totalReceived: barber.totalReceived,
             commission: commissionServices + commissionProducts,
@@ -320,7 +328,7 @@ export function computeDaySummary(params: {
                 noPendingReversals: true,
                 noOpenCommands: barberOpenComandas.length === 0,
                 noInconsistentCommissions: true,
-                conferenceDone: false,
+                conferenceDone: isClosed,
             },
             timeline: barberTimeline,
         };
