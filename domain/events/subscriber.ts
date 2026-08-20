@@ -41,8 +41,8 @@ export interface DomainSubscriber<T extends SystemEvent = SystemEvent> {
   /** Description of what this subscriber does */
   readonly description: string;
 
-  /** The event type this subscriber listens to */
-  readonly eventType: T['eventType'];
+  /** The event type this subscriber listens to (or '*' for all events) */
+  readonly eventType: T['eventType'] | '*';
 
   /**
    * Handle the event. Must be read-only — no side effects on business state.
@@ -124,7 +124,7 @@ export class SubscriberRegistry {
         continue;
       }
 
-      const unsub = this.bus.subscribe(subscriber.eventType, async (event) => {
+      const unsub = this.bus.subscribe(subscriber.eventType as SystemEvent['eventType'], async (event) => {
         try {
           await subscriber.handle(event as any);
         } catch (error) {

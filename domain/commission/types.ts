@@ -8,10 +8,53 @@
 export type CommissionTypeFilter = 'all' | 'solo' | 'shared';
 export type ProductionDateSource = 'appointment_start' | 'comanda_closed_at' | 'comanda_created_at';
 
+/**
+ * FIX-001 R2: Controlled enumeration for why commission is zero.
+ * Used for audit trail and reporting — never guess, always detect from evidence.
+ */
+export type ZeroCommissionReason =
+  | 'clube_do_chefe'
+  | 'cortesia'
+  | 'desconto_integral'
+  | 'comanda_nao_paga'
+  | 'estorno_integral'
+  | 'estorno_parcial'
+  | 'outro';
+
 export interface CommissionBaseChoice {
   value: number;
   field: string;
   reason: string;
+}
+
+export interface FinancialBaseInput {
+  /** Item with unit_price, price, amount, quantity */
+  item: Record<string, unknown>;
+  /** Discount applied to this item (absolute value) */
+  discount?: number;
+  /** Amount effectively paid for this item */
+  paidAmount?: number;
+  /** Item quantity (defaults to 1) */
+  quantity?: number;
+}
+
+export interface FinancialBaseResult {
+  /** Gross value before discount (unit_price × quantity) */
+  grossValue: number;
+  /** Discount applied (capped at grossValue) */
+  discount: number;
+  /** Net value after discount (grossValue - discount) */
+  netValue: number;
+  /** Effective value received (min(netValue, paidAmount)) */
+  receivedValue: number;
+  /** Item quantity */
+  quantity: number;
+  /** Which field was used to resolve gross value */
+  source: string;
+  /** Reason for the chosen source */
+  reason: string;
+  /** FIX-001 R2: Why commission is zero (null when commission > 0) */
+  zeroReason: ZeroCommissionReason | null;
 }
 
 export interface CommissionAuditLine {
@@ -65,6 +108,8 @@ export interface CommissionLine {
   audit: CommissionAuditLine;
   dateSource: ProductionDateSource;
   discountAmount: number;
+  /** FIX-001 R2: Why commission is zero (null when commission > 0) */
+  zeroReason: ZeroCommissionReason | null;
 }
 
 export interface CommissionRow {

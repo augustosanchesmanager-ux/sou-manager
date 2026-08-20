@@ -8,9 +8,9 @@ import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
 import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
 import { normalizePercentage } from '../shared/numbers/normalize';
-import { calculateParticipantBaseValue, resolveCommissionBase, isCommissionEligible } from '../domain/commission/calculate';
+import { calculateParticipantBaseValue, resolveCommissionBase, resolveFinancialBase, isCommissionEligible } from '../domain/commission/calculate';
 import { formatParticipantPayout } from '../domain/commission/format';
-import type { ParticipantRow as DomainParticipantRow, CommissionBaseChoice as DomainCommissionBaseChoice } from '../domain/commission/types';
+import type { ParticipantRow as DomainParticipantRow, CommissionBaseChoice as DomainCommissionBaseChoice, ZeroCommissionReason } from '../domain/commission/types';
 import {
   commissionStatusLabels,
   getCommissionStatus,
@@ -139,6 +139,7 @@ interface CommissionLine {
     audit: CommissionAuditLine;
     dateSource: ProductionDateSource;
     discountAmount: number;
+    zeroReason: ZeroCommissionReason | null;
 }
 
 interface CommissionRow {
@@ -654,15 +655,9 @@ const Commissions: React.FC = () => {
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
                         : null;
-                    const commissionBase = participant.payout_type === 'fixed'
-                        ? toNumber(participant.payout_value)
-                        : itemValue * Number(participationRate || 0);
-                    const commissionRate = getEffectiveCommissionRate(staff);
-                    const commissionValue = commissionBase * commissionRate;
                     const payoutType = participant.payout_type || '';
                     const payoutValue = participant.payout_value == null ? null : toNumber(participant.payout_value);
                     const payoutValueNormalized = participant.payout_type === 'percentage' ? normalizePercentage(participant.payout_value) : null;
-                    const sharedValue = isShared ? commissionBase : 0;
                     const participantNames = isShared
                         ? Object.entries(sharedParticipantNamesByStaffId)
                             .filter(([participantStaffId]) => participantStaffId !== staffId)
@@ -673,6 +668,24 @@ const Commissions: React.FC = () => {
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
                     const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
                     const discountAmount = toNumber(item.discount ?? comanda.discount);
+
+                    const financialBase = resolveFinancialBase({
+                        item,
+                        discount: discountAmount,
+                        paidAmount: comanda.status === 'paid'
+                            ? toNumber(comanda.paid_amount ?? comanda.amount_paid ?? comanda.total)
+                            : 0,
+                        quantity,
+                    });
+                    const receivedValue = financialBase.receivedValue;
+                    const zeroReason = financialBase.zeroReason;
+
+                    const commissionBase = participant.payout_type === 'fixed'
+                        ? toNumber(participant.payout_value)
+                        : receivedValue * Number(participationRate || 0);
+                    const commissionRate = getEffectiveCommissionRate(staff);
+                    const commissionValue = commissionBase * commissionRate;
+                    const sharedValue = isShared ? commissionBase : 0;
 
                     return [{
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
@@ -707,6 +720,7 @@ const Commissions: React.FC = () => {
                         paymentMethod: getPaymentMethodLabel(comanda),
                         dateSource,
                         discountAmount,
+                        zeroReason,
                         audit: {
                             comanda_id: comanda.id,
                             client_name: clientName,

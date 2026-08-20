@@ -8,7 +8,17 @@ const makeEntry = (overrides: Record<string, unknown> = {}) => ({
   type: 'entrada' as const,
   value: 100,
   paymentMethod: 'Dinheiro',
-  status: 'confirmado',
+  status: 'realizado' as const,
+  description: 'Teste',
+  category: 'Servicos',
+  accountId: 'acc-1',
+  costCenter: 'cc-1',
+  accountName: 'Caixa Principal',
+  runningBalance: 0,
+  sourceType: 'comanda',
+  sourceId: 'c1',
+  isReversalTransaction: false,
+  reversalSource: null,
   ...overrides,
 });
 
@@ -17,6 +27,7 @@ const makeSangria = (overrides: Record<string, unknown> = {}) => ({
   tenant_id: 't1',
   type: 'sangria' as const,
   value: 50,
+  description: 'Sangria teste',
   createdAt: '2026-07-23T12:00:00Z',
   ...overrides,
 });
@@ -26,6 +37,7 @@ const makeSuprimento = (overrides: Record<string, unknown> = {}) => ({
   tenant_id: 't1',
   type: 'suprimento' as const,
   value: 200,
+  description: 'Suprimento teste',
   createdAt: '2026-07-23T12:00:00Z',
   ...overrides,
 });
@@ -193,7 +205,7 @@ describe('computeDaySummary', () => {
       ...emptyParams,
       filteredEntries: [makeEntry({ type: 'entrada', value: 45, paymentMethod: 'pix' })],
       barberSummaries,
-      barberClosingRecords: [{ id: 'bc-1', cash_closing_id: 'cc-1', staff_id: 'staff-heron', status: 'closed' }],
+      barberClosingRecords: [{ staff_id: 'staff-heron', status: 'closed' }],
     });
 
     const heron = result.barberClosingDetails.find(b => b.staffId === 'staff-heron');

@@ -622,4 +622,55 @@ describe('CommissionApplicationService', () => {
       expect(result).toContain('Barbeiro 1 / Barbeiro 2');
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // QAT-C05 — Shared Split: Rubens 70% + Heron 30%
+  // ═══════════════════════════════════════════════════════════════
+  describe('QAT-C05 — Shared Split', () => {
+    it('should_split_commission_70_30_between_two_participants', async () => {
+      mockStaffResult = [
+        makeStaff({ id: 'staff-rubens', name: 'Rubens', role: 'barber', commission_rate: 0.5 }),
+        makeStaff({ id: 'staff-heron', name: 'Heron', role: 'barber', commission_rate: 0.5 }),
+      ];
+      mockComandasResult = [makeComanda({ staff_id: 'staff-rubens' })];
+      mockItemsResult = [makeItem({ staff_id: 'staff-rubens', unit_price: 100 })];
+      mockClientsResult = [makeClient()];
+      mockParticipantsResult = [
+        {
+          id: 'part-rubens',
+          comanda_item_id: 'item-1',
+          staff_id: 'staff-rubens',
+          professional_id: 'staff-rubens',
+          role: 'primary',
+          payout_type: 'percentage',
+          payout_value: 70,
+          affects_commission: true,
+        },
+        {
+          id: 'part-heron',
+          comanda_item_id: 'item-1',
+          staff_id: 'staff-heron',
+          professional_id: 'staff-heron',
+          role: 'secondary',
+          payout_type: 'percentage',
+          payout_value: 30,
+          affects_commission: true,
+        },
+      ];
+
+      const result = await commissionApplicationService.loadCommissionLines({
+        tenantId: 't-1', startDate: '2026-07-01', endDate: '2026-07-31',
+      });
+
+      expect(result).toHaveLength(2);
+
+      const rubensLine = result.find(l => l.professionalId === 'staff-rubens');
+      const heronLine = result.find(l => l.professionalId === 'staff-heron');
+
+      expect(rubensLine).toBeDefined();
+      expect(heronLine).toBeDefined();
+      expect(rubensLine!.isShared).toBe(true);
+      expect(heronLine!.isShared).toBe(true);
+    });
+  });
 });

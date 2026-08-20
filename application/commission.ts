@@ -30,8 +30,10 @@ import {
 } from '../shared/status/commission';
 import {
     resolveCommissionBase,
+    resolveFinancialBase,
     calculateCommissionValue,
 } from '../domain/commission/calculate';
+import type { ZeroCommissionReason } from '../domain/commission/types';
 import {
     normalizeCommissionParticipants,
 } from '../domain/commission/participants';
@@ -70,6 +72,8 @@ export interface ComandaRow {
     status: string;
     total?: number;
     discount?: number;
+    paid_amount?: number | null;
+    amount_paid?: number | null;
     payment_method?: string;
     closure_mode?: string;
     financial_effect?: boolean;
@@ -135,6 +139,7 @@ export interface CommissionLine {
     professionalAvatar: string;
     participationRole: string;
     discountAmount: number;
+    zeroReason: ZeroCommissionReason | null;
 }
 
 export interface CommissionRow {
@@ -341,9 +346,26 @@ class CommissionApplicationServiceImpl {
                         ? normalizePercentage(participant.payout_value)
                         : null;
 
+                    const clientName = normalizeClientName(
+                        comanda.client_id ? clientNameMap[comanda.client_id] : null
+                    );
+
+                    const discountAmount = toNumber(item.discount ?? comanda.discount);
+
+                    const financialBase = resolveFinancialBase({
+                        item: item as unknown as Record<string, unknown>,
+                        discount: discountAmount,
+                        paidAmount: comanda.status === 'paid'
+                            ? toNumber(comanda.paid_amount ?? comanda.amount_paid ?? comanda.total)
+                            : 0,
+                        quantity,
+                    });
+                    const receivedValue = financialBase.receivedValue;
+                    const zeroReason = financialBase.zeroReason;
+
                     const commissionBase = participant.payout_type === 'fixed'
                         ? toNumber(participant.payout_value)
-                        : itemValue * Number(participationRate || 0);
+                        : receivedValue * Number(participationRate || 0);
 
                     const commissionRate = getEffectiveCommissionRate(staff);
                     const commissionValue = commissionBase * commissionRate;
@@ -356,12 +378,6 @@ class CommissionApplicationServiceImpl {
                             .filter(Boolean)
                             .join(' / ')
                         : '';
-
-                    const clientName = normalizeClientName(
-                        comanda.client_id ? clientNameMap[comanda.client_id] : null
-                    );
-
-                    const discountAmount = toNumber(item.discount ?? comanda.discount);
 
                     return [{
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
@@ -388,6 +404,7 @@ class CommissionApplicationServiceImpl {
                         professionalAvatar: staff?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(staff?.name || 'Profissional')}`,
                         participationRole: formatParticipationRole(participant.role),
                         discountAmount,
+                        zeroReason,
                     }];
                 });
         });

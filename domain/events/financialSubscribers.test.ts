@@ -21,6 +21,7 @@ import type { OutboxRepository } from './outbox/outboxRepository';
 import { InMemoryOutbox } from './outbox/inMemoryOutbox';
 import type {
   CheckoutCompletedEvent,
+  CheckoutRevertedEvent,
   SubscriptionCancelledEvent,
   CreditsDeductedEvent,
   CashClosingCompletedEvent,
@@ -61,6 +62,29 @@ const buildCheckoutEvent = (
       itemCount: 3,
       hasClubCredit: false,
       financialEffect: true,
+      ...overrides?.payload,
+    },
+    metadata: defaultMetadata(overrides?.metadata),
+  });
+
+const buildCheckoutRevertedEvent = (
+  overrides?: {
+    payload?: Partial<CheckoutRevertedEvent['payload']>;
+    metadata?: Partial<EventMetadata>;
+  },
+): CheckoutRevertedEvent =>
+  createEvent<CheckoutRevertedEvent>({
+    eventType: 'CheckoutReverted',
+    aggregateId: 'comanda-1',
+    aggregateType: 'comanda',
+    payload: {
+      comandaId: 'comanda-1',
+      reason: 'customer_request',
+      reversedBy: 'user-1',
+      originalTotal: 150,
+      reversedAmount: 150,
+      originalCommission: 22.5,
+      originalReceivedValue: 150,
       ...overrides?.payload,
     },
     metadata: defaultMetadata(overrides?.metadata),
@@ -221,6 +245,7 @@ const buildFailingCalculator = (): CommissionCalculator => ({
 const buildMockStrategy = (
   overrides?: {
     checkout?: FinanceOperation[];
+    checkoutReverted?: FinanceOperation[];
     subscriptionCancelled?: FinanceOperation[];
     creditsDeducted?: FinanceOperation[];
     cashClosing?: FinanceOperation[];
@@ -228,6 +253,9 @@ const buildMockStrategy = (
 ): FinanceStrategy => ({
   mapCheckoutCompleted: vi.fn().mockReturnValue(overrides?.checkout ?? [
     { type: 'create_transaction', data: { amount: 150, method: 'pix' } },
+  ]),
+  mapCheckoutReverted: vi.fn().mockReturnValue(overrides?.checkoutReverted ?? [
+    { type: 'reverse_commission', data: { comandaId: 'comanda-1', reversedAmount: 150 } },
   ]),
   mapSubscriptionCancelled: vi.fn().mockReturnValue(overrides?.subscriptionCancelled ?? [
     { type: 'reverse_revenue', data: { subscriptionId: 'sub-1' } },
@@ -607,6 +635,108 @@ describe('FinanceSubscriber', () => {
       expect(strategy.mapCashClosingCompleted).toHaveBeenCalledTimes(1);
       const count = await outbox.count('pending');
       expect(count).toBe(1);
+    });
+  });
+
+  // ── QAT-C07: CheckoutReverted Handling ──────────────────────
+
+  describe('CheckoutReverted handling', () => {
+    it('should_enqueue_reversal_operation_for_reverted_checkout', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildCheckoutRevertedEvent());
+
+      expect(strategy.mapCheckoutReverted).toHaveBeenCalledTimes(1);
+      const count = await outbox.count('pending');
+      expect(count).toBe(1);
+    });
+
+    it('should_set_correct_event_type_in_outbox', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildCheckoutRevertedEvent());
+
+      const items = await outbox.find({ status: 'pending' });
+      expect(items[0].eventType).toBe('CheckoutReverted');
+    });
+
+    it('should_propagate_reversed_amount', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildCheckoutRevertedEvent({
+        payload: { reversedAmount: 75, originalTotal: 150 },
+      }));
+
+      expect(strategy.mapCheckoutReverted).toHaveBeenCalledTimes(1);
+      const items = await outbox.find({ status: 'pending' });
+      expect(items[0].payload.operationType).toBe('reverse_commission');
+    });
+
+    it('should_set_idempotency_key_for_reversal', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      const event = buildCheckoutRevertedEvent();
+      await bus.publish(event);
+
+      const items = await outbox.find({ status: 'pending' });
+      expect(items[0].payload.idempotencyKey).toBe(
+        `${event.eventId}_reverse_commission`,
+      );
+    });
+  });
+
+  // ── QAT-C03: Idempotency ──────────────────────────────────
+
+  describe('idempotency', () => {
+    it('should_generate_unique_idempotency_key_per_operation_type', async () => {
+      const strategy = buildMockStrategy({
+        checkout: [
+          { type: 'create_transaction', data: { amount: 100 } },
+          { type: 'create_commission_record', data: { staffId: 'staff-1' } },
+        ],
+      });
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      await bus.publish(buildCheckoutEvent());
+
+      const items = await outbox.find({ status: 'pending' });
+      expect(items.length).toBe(2);
+      expect(items[0].payload.idempotencyKey).not.toBe(items[1].payload.idempotencyKey);
+      expect(items[0].payload.idempotencyKey).toContain('create_transaction');
+      expect(items[1].payload.idempotencyKey).toContain('create_commission_record');
+    });
+
+    it('should_use_eventId_as_base_for_idempotency_key', async () => {
+      const strategy = buildMockStrategy();
+      const sub = createFinanceSubscriber(outbox, strategy);
+      const registry = new SubscriberRegistry(bus);
+      registry.register(sub);
+      registry.initialize();
+
+      const event = buildCheckoutEvent();
+      await bus.publish(event);
+
+      const items = await outbox.find({ status: 'pending' });
+      expect(items[0].payload.idempotencyKey).toMatch(new RegExp(`^${event.eventId}_`));
     });
   });
 

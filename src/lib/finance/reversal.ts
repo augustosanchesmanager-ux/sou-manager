@@ -1,4 +1,7 @@
 import { logSupabaseError } from '../supabase/errors';
+import { appEventBus } from '../../../domain/events/app-bus';
+import { createEvent } from '../../../domain/events/types';
+import type { CheckoutRevertedEvent } from '../../../domain/events/types';
 
 const REVERSAL_ERROR_MESSAGE =
   'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
@@ -118,6 +121,109 @@ export const reverseFinancialTransaction = async ({
       amount,
     });
     throw new Error(REVERSAL_ERROR_MESSAGE);
+  }
+
+  // FIX-001 G3: Publish CheckoutReverted event for commission reversal
+  try {
+    const { data: originalTx } = await supabase
+      .from('transactions')
+      .select('source_id, amount, source_type')
+      .eq('id', originalTransactionId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (originalTx?.source_type === 'comanda' && originalTx?.source_id) {
+      const comandaId = originalTx.source_id;
+      const originalTotal = Number(originalTx.amount || 0);
+
+      const { data: comandaData } = await supabase
+        .from('comandas')
+        .select('id, discount, payment_method, payment_amount, status')
+        .eq('id', comandaId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (comandaData) {
+        const { data: items } = await supabase
+          .from('comanda_items')
+          .select('unit_price, quantity, discount, staff_id')
+          .eq('comanda_id', comandaId)
+          .eq('tenant_id', tenantId);
+
+        let originalCommission = 0;
+        let originalReceivedValue = originalTotal;
+
+        if (items && items.length > 0) {
+          const { resolveFinancialBase } = await import('../../../domain/commission/calculate');
+
+          const totalGross = items.reduce(
+            (sum: number, item: any) => sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
+            0
+          );
+          const discountAmount = Number(comandaData.discount || 0);
+          originalReceivedValue = Math.max(0, totalGross - discountAmount);
+
+          const staffIds = [...new Set(items.map((i: any) => i.staff_id).filter(Boolean))];
+          if (staffIds.length > 0) {
+            const { data: participants } = await supabase
+              .from('commission_participants')
+              .select('staff_id, affects_commission, payout_type, payout_value')
+              .eq('tenant_id', tenantId)
+              .in('staff_id', staffIds);
+
+            if (participants && participants.length > 0) {
+              for (const item of items) {
+                const participant = participants.find((p: any) => p.staff_id === item.staff_id);
+                if (!participant?.affects_commission) continue;
+
+                const financialBase = resolveFinancialBase({
+                  item: {
+                    unit_price: Number(item.unit_price || 0),
+                    quantity: Number(item.quantity || 1),
+                    discount: Number(item.discount || 0),
+                  },
+                  discount: 0,
+                  paidAmount: Number(comandaData.payment_amount || 0),
+                });
+
+                if (financialBase.receivedValue > 0) {
+                  const rate = Number(participant.payout_value || 0) / 100;
+                  originalCommission += financialBase.receivedValue * rate;
+                }
+              }
+            }
+          }
+        }
+
+        await appEventBus.publish(createEvent<CheckoutRevertedEvent>({
+          eventType: 'CheckoutReverted',
+          aggregateId: comandaId,
+          aggregateType: 'comanda',
+          payload: {
+            comandaId,
+            reason: reasonType,
+            reversedBy: 'system',
+            originalTotal,
+            reversedAmount: amount,
+            originalCommission,
+            originalReceivedValue,
+          },
+          metadata: {
+            tenantId,
+            source: 'reverseFinancialTransaction',
+            correlationId: key,
+          },
+        }));
+
+        console.info('[reversal] CheckoutReverted event published for comanda:', comandaId, {
+          originalCommission,
+          originalReceivedValue,
+        });
+      }
+    }
+  } catch (eventError) {
+    // Event publishing failure should not block the reversal
+    console.warn('[reversal] Failed to publish CheckoutReverted event:', eventError);
   }
 
   return {

@@ -38,6 +38,7 @@
 import type { DomainSubscriber } from '../subscriber';
 import type {
   CheckoutCompletedEvent,
+  CheckoutRevertedEvent,
   SubscriptionCancelledEvent,
   CreditsDeductedEvent,
   CashClosingCompletedEvent,
@@ -53,6 +54,7 @@ export type FinanceOperationType =
   | 'create_transaction'
   | 'create_commission_record'
   | 'reverse_revenue'
+  | 'reverse_commission'
   | 'deduct_credits'
   | 'close_daily_cash';
 
@@ -78,6 +80,12 @@ export interface FinanceStrategy {
    * Typically: create_transaction + create_commission_record
    */
   mapCheckoutCompleted(event: CheckoutCompletedEvent): FinanceOperation[];
+
+  /**
+   * FIX-001 R6: Map a CheckoutReverted event to finance operations.
+   * Typically: reverse_commission (proportional)
+   */
+  mapCheckoutReverted(event: CheckoutRevertedEvent): FinanceOperation[];
 
   /**
    * Map a SubscriptionCancelled event to finance operations.
@@ -125,6 +133,9 @@ export const createFinanceSubscriber = (
     switch (eventType) {
       case 'CheckoutCompleted':
         operations = strategy.mapCheckoutCompleted(event as CheckoutCompletedEvent);
+        break;
+      case 'CheckoutReverted':
+        operations = strategy.mapCheckoutReverted(event as CheckoutRevertedEvent);
         break;
       case 'SubscriptionCancelled':
         operations = strategy.mapSubscriptionCancelled(event as SubscriptionCancelledEvent);

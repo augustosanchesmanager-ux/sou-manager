@@ -68,6 +68,12 @@ export interface CheckoutRevertedEvent extends DomainEvent {
     reason: string;
     reversedBy: string;
     originalTotal: number;
+    /** FIX-001 R6: Financial amount reversed (for proportional commission calculation) */
+    reversedAmount: number;
+    /** FIX-001 G3: Original commission amount before reversal */
+    originalCommission: number;
+    /** FIX-001 G3: Original received value used for commission calculation */
+    originalReceivedValue: number;
   };
 }
 
