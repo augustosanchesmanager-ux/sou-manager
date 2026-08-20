@@ -525,6 +525,32 @@ describe('AppointmentApplicationService', () => {
         ).resolves.toBeUndefined();
       });
 
+      it('should_include_comandaCancelFailed_in_event_when_comanda_cancel_fails', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([{ id: 'com-1' }]);
+        mockComandaUpdate.mockRejectedValue(new Error('db error'));
+
+        const published: unknown[] = [];
+        const unsub = appEventBus.subscribeAll((event) => { published.push(event); });
+        try {
+          await cancelAppointment({
+            tenantId: 'tenant-1',
+            appointmentId: 'apt-1',
+            cancellationType: 'client_request',
+            userId: 'user-1',
+          });
+
+          const cancelEvent = published.find(
+            (e: any) => e.eventType === 'AppointmentCancelled',
+          ) as any;
+          expect(cancelEvent).toBeDefined();
+          expect(cancelEvent.payload.comandaCancelFailed).toBe(true);
+          expect(cancelEvent.payload.failedComandaIds).toEqual(['com-1']);
+        } finally {
+          unsub();
+        }
+      });
+
       it('should_include_cancellation_reason_in_payload', async () => {
         mockAppointmentCancel.mockResolvedValue(undefined);
         mockComandaList.mockResolvedValue([]);

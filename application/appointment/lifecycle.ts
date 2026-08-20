@@ -231,6 +231,8 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         status: 'open',
     });
 
+    const failedComandas: string[] = [];
+
     for (const comanda of comandas) {
         try {
             await comandaRepository.update(comanda.id, {
@@ -242,6 +244,7 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
                 appointmentId,
                 error: err,
             });
+            failedComandas.push(comanda.id);
         }
     }
 
@@ -257,6 +260,8 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
             reason: cancellationReason,
             hadComanda: comandas.length > 0,
             comandaId: comandas[0]?.id,
+            comandaCancelFailed: failedComandas.length > 0,
+            failedComandaIds: failedComandas.length > 0 ? failedComandas : undefined,
         },
         metadata: {
             tenantId,

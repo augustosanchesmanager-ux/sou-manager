@@ -3,6 +3,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { getClientForTable, requireTenantContext, supabase } from '../../../../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import { logSupabaseError } from '../../../../domain/shared/errors';
+import { appointmentApplicationService } from '../../../../application/appointment';
 import type {
   BusyState,
   DashboardClient,
@@ -60,7 +61,7 @@ const normalizeQuickAppointmentResult = (value: any): QuickAppointmentResult => 
 };
 
 export const useDashboardActions = () => {
-  const { appSlug, schema, tenantId } = useAuth();
+  const { appSlug, schema, tenantId, user } = useAuth();
   const [busyState, setBusyState] = useState<BusyState>(INITIAL_BUSY_STATE);
   const quickAppointmentLockRef = useRef(false);
   const quickAppointmentIdempotencyKeyRef = useRef<string | null>(null);
@@ -287,9 +288,23 @@ export const useDashboardActions = () => {
 
   const cancelAppointment = useCallback(
     async (id: string) => {
-      await updateAppointmentStatus(id, 'cancelled');
+      if (!tenantId) {
+        throw new Error('Tenant invalido para cancelar agendamento.');
+      }
+
+      setBusyState((current) => ({ ...current, appointmentUpdateId: id }));
+      try {
+        await appointmentApplicationService.cancelAppointment({
+          tenantId,
+          appointmentId: id,
+          cancellationType: 'client_request',
+          userId: user?.id ?? '',
+        });
+      } finally {
+        setBusyState((current) => ({ ...current, appointmentUpdateId: null }));
+      }
     },
-    [updateAppointmentStatus],
+    [tenantId, user?.id],
   );
 
   return {

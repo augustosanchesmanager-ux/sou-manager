@@ -99,6 +99,8 @@ export interface AppointmentCancelledEvent extends DomainEvent {
     reason?: string;
     hadComanda: boolean;
     comandaId?: string;
+    comandaCancelFailed?: boolean;
+    failedComandaIds?: string[];
   };
 }
 
