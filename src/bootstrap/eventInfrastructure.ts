@@ -1,15 +1,18 @@
 /**
  * [SMG][PLATFORM][EVENTS][BOOTSTRAP] eventInfrastructure
  *
- * TD-001 B1: Read-only event infrastructure bootstrap.
+ * TD-001 B1+B2: Event infrastructure bootstrap.
  *
- * Initializes SubscriberRegistry with 6 read-only subscribers.
- * No financial operations, no Outbox, no Dispatcher.
+ * B1: SubscriberRegistry with 6 read-only subscribers.
+ * B2: InMemoryOutbox + InMemoryDispatcher with dispatch loop.
+ *
+ * No financial operations (FinanceSubscriber, FinanceProvider).
+ * No EventStore, no ReplayEngine.
  *
  * LIFECYCLE:
  *   initializeEventInfrastructure()  → creates and registers
  *   getEventInfrastructure()         → returns current instance
- *   disposeEventInfrastructure()     → deactivates and clears
+ *   disposeEventInfrastructure()     → deactivates, stops loop, clears
  *
  * HMR PROTECTION:
  *   Global singleton prevents duplicate initialization.
@@ -24,11 +27,20 @@ import { notificationSubscriber } from '../../domain/events/subscribers/notifica
 import { reminderSubscriber } from '../../domain/events/subscribers/reminderSubscriber';
 import { marketingSubscriber } from '../../domain/events/subscribers/marketingSubscriber';
 import { biSubscriber } from '../../domain/events/subscribers/biSubscriber';
+import { createOutbox } from '../../domain/events/outbox/inMemoryOutbox';
+import { createDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
+import { consoleProvider } from '../../domain/events/outbox/providers/consoleProvider';
+import type { InMemoryOutbox } from '../../domain/events/outbox/inMemoryOutbox';
+import type { InMemoryDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 
 const GLOBAL_KEY = '__soumanager_event_infrastructure__';
+const DISPATCH_INTERVAL_MS = 5_000;
 
 export interface EventInfrastructure {
   registry: SubscriberRegistry;
+  outbox: InMemoryOutbox;
+  dispatcher: InMemoryDispatcher;
+  stopDispatchLoop: () => void;
   isInitialized: boolean;
 }
 
@@ -43,6 +55,7 @@ export function initializeEventInfrastructure(): EventInfrastructure {
     return existing as EventInfrastructure;
   }
 
+  // B1: SubscriberRegistry + 6 read-only subscribers
   const registry = new SubscriberRegistry(appEventBus);
 
   registry.register(analyticsSubscriber);
@@ -54,8 +67,28 @@ export function initializeEventInfrastructure(): EventInfrastructure {
 
   registry.initialize();
 
+  // B2: Outbox + Dispatcher + dispatch loop
+  const outbox = createOutbox();
+  const dispatcher = createDispatcher(outbox);
+
+  dispatcher.registerProvider(consoleProvider);
+
+  let dispatching = false;
+  const dispatchLoop = setInterval(async () => {
+    if (dispatching) return;
+    dispatching = true;
+    try {
+      await dispatcher.dispatchAll();
+    } finally {
+      dispatching = false;
+    }
+  }, DISPATCH_INTERVAL_MS);
+
   const infra: EventInfrastructure = {
     registry,
+    outbox,
+    dispatcher,
+    stopDispatchLoop: () => clearInterval(dispatchLoop),
     isInitialized: true,
   };
 
@@ -75,7 +108,7 @@ export function getEventInfrastructure(): EventInfrastructure | null {
 }
 
 /**
- * Dispose infrastructure: deactivate subscribers and clear singleton.
+ * Dispose infrastructure: deactivate subscribers, stop dispatch loop, clear singleton.
  * After dispose, next initializeEventInfrastructure() creates a fresh instance.
  */
 export function disposeEventInfrastructure(): void {
@@ -83,6 +116,7 @@ export function disposeEventInfrastructure(): void {
   if (existing && typeof existing === 'object') {
     const infra = existing as EventInfrastructure;
     infra.registry.deactivate();
+    infra.stopDispatchLoop();
     infra.isInitialized = false;
     delete (globalThis as Record<string, unknown>)[GLOBAL_KEY];
   }
