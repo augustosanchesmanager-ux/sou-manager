@@ -10,6 +10,7 @@ import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
 import { authorizationService } from './application/authorization';
 import { useObservability } from './src/lib/observability/useObservability';
+import { useEventInfrastructure } from './src/hooks/useEventInfrastructure';
 import FeatureGuard from './components/billing/FeatureGuard';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
 import type { FeatureKey } from './domain/billing/featureKey';
@@ -324,6 +325,7 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   useObservability();
+  useEventInfrastructure();
 
   return (
     <ThemeProvider>
