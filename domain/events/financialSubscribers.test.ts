@@ -852,7 +852,7 @@ describe('FinanceSubscriber', () => {
       await bus.publish(buildCheckoutEvent());
 
       const items = await outbox.find({ status: 'pending' });
-      expect(items[0].targets).toEqual([{ provider: 'finance', config: {} }]);
+      expect(items[0].targets).toEqual([{ provider: 'console', config: {} }]);
     });
 
     it('should_set_causation_id_to_source_event', async () => {

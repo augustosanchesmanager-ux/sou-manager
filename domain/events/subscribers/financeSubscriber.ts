@@ -119,7 +119,7 @@ export interface FinanceStrategy {
 export const createFinanceSubscriber = (
   outbox: OutboxRepository,
   strategy: FinanceStrategy,
-  defaultTarget: DispatchTarget = { provider: 'finance', config: {} },
+  defaultTarget: DispatchTarget = { provider: 'console', config: {} },
 ): DomainSubscriber<SystemEvent> => ({
   name: 'FinanceSubscriber',
   description: 'Enqueues financial operations to the Outbox for reliable processing',

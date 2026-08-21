@@ -1,13 +1,13 @@
 /**
  * [SMG][PLATFORM][EVENTS][BOOTSTRAP] eventInfrastructure
  *
- * TD-001 B1+B2: Event infrastructure bootstrap.
+ * TD-001 B1+B2+B3.3: Event infrastructure bootstrap.
  *
  * B1: SubscriberRegistry with 6 read-only subscribers.
  * B2: InMemoryOutbox + InMemoryDispatcher with dispatch loop.
+ * B3.3: FinanceSubscriber wired with DefaultFinanceStrategy.
  *
- * No financial operations (FinanceSubscriber, FinanceProvider).
- * No EventStore, no ReplayEngine.
+ * No FinanceProvider (B3.4). No EventStore, no ReplayEngine.
  *
  * LIFECYCLE:
  *   initializeEventInfrastructure()  → creates and registers
@@ -27,6 +27,8 @@ import { notificationSubscriber } from '../../domain/events/subscribers/notifica
 import { reminderSubscriber } from '../../domain/events/subscribers/reminderSubscriber';
 import { marketingSubscriber } from '../../domain/events/subscribers/marketingSubscriber';
 import { biSubscriber } from '../../domain/events/subscribers/biSubscriber';
+import { createFinanceSubscriber } from '../../domain/events/subscribers/financeSubscriber';
+import { createDefaultFinanceStrategy } from '../../domain/events/subscribers/defaultFinanceStrategy';
 import { createOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import { createDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import { consoleProvider } from '../../domain/events/outbox/providers/consoleProvider';
@@ -65,14 +67,20 @@ export function initializeEventInfrastructure(): EventInfrastructure {
   registry.register(marketingSubscriber);
   registry.register(biSubscriber);
 
-  registry.initialize();
-
-  // B2: Outbox + Dispatcher + dispatch loop
+  // B2: Outbox + Dispatcher
   const outbox = createOutbox();
   const dispatcher = createDispatcher(outbox);
 
+  // B3.3: FinanceSubscriber — enqueues financial operations to Outbox
+  const financeStrategy = createDefaultFinanceStrategy();
+  const financeSub = createFinanceSubscriber(outbox, financeStrategy);
+  registry.register(financeSub);
+
+  registry.initialize();
+
   dispatcher.registerProvider(consoleProvider);
 
+  // B2: Dispatch loop
   let dispatching = false;
   const dispatchLoop = setInterval(async () => {
     if (dispatching) return;
