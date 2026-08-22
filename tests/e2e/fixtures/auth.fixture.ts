@@ -1,5 +1,26 @@
 import { test as base, type Page } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getFixtureState, type E2EUserState } from '../data/fixtureState';
+
+/**
+ * Vercel Deployment Protection bypass (Preview only).
+ * Applied per-request to same-origin URLs only, so the header never leaks
+ * to third-party origins (fonts.gstatic.com etc.) causing CORS failures.
+ */
+function loadBypassSecret(): string | undefined {
+  const filePath = path.resolve(process.cwd(), '.env.local');
+  const raw = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
+  for (const line of raw.split(/\r?\n/)) {
+    if (line.startsWith('VERCEL_AUTOMATION_BYPASS_SECRET=')) {
+      return line.slice('VERCEL_AUTOMATION_BYPASS_SECRET='.length).trim().replace(/^"(.*)"$/, '$1');
+    }
+  }
+  return undefined;
+}
+
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || loadBypassSecret();
+const targetOrigin = process.env.PLAYWRIGHT_BASE_URL ? new URL(process.env.PLAYWRIGHT_BASE_URL).origin : null;
 
 /**
  * Auth fixtures for E2E tests
@@ -48,6 +69,19 @@ export const test = base.extend<{
   loggedBarber2: Page;
   loggedCashier: Page;
 }>({
+  page: async ({ page }, use) => {
+    if (bypassSecret && targetOrigin) {
+      await page.route(`${targetOrigin}/**`, async (route) => {
+        const headers = {
+          ...route.request().headers(),
+          'x-vercel-protection-bypass': bypassSecret,
+        };
+        await route.continue({ headers });
+      });
+    }
+    await use(page);
+  },
+
   loggedAdmin: async ({ page }, use) => {
     await loginAsUser(page, getFixtureState().users.manager);
     await use(page);
