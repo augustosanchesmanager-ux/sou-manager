@@ -1,13 +1,14 @@
 /**
  * [SMG][PLATFORM][EVENTS][BOOTSTRAP] eventInfrastructure
  *
- * TD-001 B1+B2+B3.3: Event infrastructure bootstrap.
+ * TD-001 B1+B2+B3.3+B3.4-D: Event infrastructure bootstrap.
  *
  * B1: SubscriberRegistry with 6 read-only subscribers.
  * B2: InMemoryOutbox + InMemoryDispatcher with dispatch loop.
  * B3.3: FinanceSubscriber wired with DefaultFinanceStrategy.
+ * B3.4-D: FinanceProvider with real commission handlers (created, NOT dispatched).
  *
- * No FinanceProvider (B3.4). No EventStore, no ReplayEngine.
+ * No EventStore, no ReplayEngine.
  *
  * LIFECYCLE:
  *   initializeEventInfrastructure()  → creates and registers
@@ -32,8 +33,17 @@ import { createDefaultFinanceStrategy } from '../../domain/events/subscribers/de
 import { createOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import { createDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import { consoleProvider } from '../../domain/events/outbox/providers/consoleProvider';
+import { createFinanceProvider } from '../../domain/events/outbox/providers/financeProvider';
+import { createCommissionRecordHandler } from '../../domain/events/outbox/providers/createCommissionRecordHandler';
+import { createReverseCommissionHandler } from '../../domain/events/outbox/providers/reverseCommissionHandler';
+import { commissionRecordRepository } from '../../domain/commission/commissionRecordRepository';
+import { comandaItemRepository } from '../../domain/comanda/item-repository';
+import { serviceExecutionParticipantRepository } from '../../domain/comanda/participant-repository';
+import { staffRepository } from '../../domain/staff/repository';
+import { comandaRepository } from '../../domain/comanda/repository';
 import type { InMemoryOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import type { InMemoryDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
+import type { DispatcherProvider } from '../../domain/events/outbox/dispatcher';
 
 const GLOBAL_KEY = '__soumanager_event_infrastructure__';
 const DISPATCH_INTERVAL_MS = 5_000;
@@ -42,6 +52,7 @@ export interface EventInfrastructure {
   registry: SubscriberRegistry;
   outbox: InMemoryOutbox;
   dispatcher: InMemoryDispatcher;
+  financeProvider: DispatcherProvider;
   stopDispatchLoop: () => void;
   isInitialized: boolean;
 }
@@ -80,6 +91,24 @@ export function initializeEventInfrastructure(): EventInfrastructure {
 
   dispatcher.registerProvider(consoleProvider);
 
+  // B3.4-D: FinanceProvider with real commission handlers
+  // NOT registered with dispatcher yet — B3.4-E will wire and validate.
+  // FinanceSubscriber still sends to console provider.
+  const financeProvider = createFinanceProvider({
+    handlers: {
+      create_commission_record: createCommissionRecordHandler({
+        comandaRepository,
+        comandaItemRepository,
+        participantRepository: serviceExecutionParticipantRepository,
+        staffRepository,
+        commissionRecordRepository,
+      }),
+      reverse_commission: createReverseCommissionHandler({
+        commissionRecordRepository,
+      }),
+    },
+  });
+
   // B2: Dispatch loop
   let dispatching = false;
   const dispatchLoop = setInterval(async () => {
@@ -96,6 +125,7 @@ export function initializeEventInfrastructure(): EventInfrastructure {
     registry,
     outbox,
     dispatcher,
+    financeProvider,
     stopDispatchLoop: () => clearInterval(dispatchLoop),
     isInitialized: true,
   };
