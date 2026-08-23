@@ -245,21 +245,30 @@ export const createCommissionRecordHandler = (
             ? normalizePercentage(participant.payout_value)
             : 1.0;
 
-        // Check idempotency — skip if record already exists
+        // Idempotency check (Case A): skip if record already exists
+        let alreadyExists: boolean;
         try {
-          const alreadyExists = await deps.commissionRecordRepository.existsByStaffComanda(
+          alreadyExists = await deps.commissionRecordRepository.existsByStaffComanda(
             staffId,
             comandaId,
             tenantId,
           );
-          if (alreadyExists) {
-            console.log(
-              `[COMMISSION_RECORD_HANDLER] Record already exists for staff ${staffId} + comanda ${comandaId} — skipping`,
-            );
-            continue;
-          }
-        } catch {
-          // If check fails (e.g., table doesn't exist), proceed with insert
+        } catch (error) {
+          // Persistence error while checking idempotency (Case D):
+          // fail so the dispatcher retries when the DB recovers.
+          const errorMsg =
+            error instanceof Error ? error.message : String(error);
+          console.error(
+            `[COMMISSION_RECORD_HANDLER] Idempotency check failed for staff ${staffId} + comanda ${comandaId}:`,
+            errorMsg,
+          );
+          return { success: false, error: `Idempotency check failed: ${errorMsg}` };
+        }
+        if (alreadyExists) {
+          console.log(
+            `[COMMISSION_RECORD_HANDLER] Record already exists for staff ${staffId} + comanda ${comandaId} — skipping`,
+          );
+          continue;
         }
 
         // Create commission record
@@ -291,13 +300,16 @@ export const createCommissionRecordHandler = (
             `[COMMISSION_RECORD_HANDLER] Created commission record: staff=${staffId}, comanda=${comandaId}, value=${commissionValue.toFixed(2)}`,
           );
         } catch (error) {
+          // Persistence error creating the record (Case D): fail so the
+          // dispatcher retries. Retry is safe — existing records are
+          // skipped via existsByStaffComanda + unique partial index.
           const errorMsg =
             error instanceof Error ? error.message : String(error);
           console.error(
             `[COMMISSION_RECORD_HANDLER] Failed to create record for staff ${staffId} + comanda ${comandaId}:`,
             errorMsg,
           );
-          // Continue processing other participants — don't fail the whole operation
+          return { success: false, error: `Failed to create record for staff ${staffId}: ${errorMsg}` };
         }
       }
     }

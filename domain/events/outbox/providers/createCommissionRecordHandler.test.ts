@@ -288,7 +288,7 @@ describe('createCommissionRecordHandler — Idempotency', () => {
     expect(deps.commissionRecordRepository.create).not.toHaveBeenCalled();
   });
 
-  it('should_proceed_when_exists_check_fails', async () => {
+  it('should_fail_when_exists_check_fails_b34g_case_d', async () => {
     const deps = makeDeps({
       commissionRecordRepository: {
         create: vi.fn().mockResolvedValue({ id: 'rec-new' }),
@@ -303,8 +303,11 @@ describe('createCommissionRecordHandler — Idempotency', () => {
       makeContext(),
     );
 
-    expect(result.success).toBe(true);
-    expect(deps.commissionRecordRepository.create).toHaveBeenCalled();
+    // B3.4-G hardening: persistence error checking idempotency (Case D)
+    // must NOT be masked as success — dispatcher retries when DB recovers.
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Idempotency check failed');
+    expect(deps.commissionRecordRepository.create).not.toHaveBeenCalled();
   });
 });
 
@@ -372,7 +375,7 @@ describe('createCommissionRecordHandler — Edge Cases', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('createCommissionRecordHandler — Error Handling', () => {
-  it('should_continue_when_one_record_fails_and_process_others', async () => {
+  it('should_fail_fast_when_one_record_fails_so_retry_covers_remaining_b34g', async () => {
     const p1 = makeParticipant({ id: 'p1', staff_id: 'staff-1', professional_id: 'staff-1' });
     const p2 = makeParticipant({ id: 'p2', staff_id: 'staff-2', professional_id: 'staff-2' });
     const s1 = makeStaff({ id: 'staff-1' });
@@ -403,11 +406,15 @@ describe('createCommissionRecordHandler — Error Handling', () => {
       makeContext(),
     );
 
-    expect(result.success).toBe(true);
-    expect(deps.commissionRecordRepository.create).toHaveBeenCalledTimes(2);
+    // B3.4-G hardening (Case D): first persistence failure fails the
+    // operation immediately. Retry is safe — already-created records are
+    // skipped via existsByStaffComanda + unique partial index.
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Unique violation');
+    expect(deps.commissionRecordRepository.create).toHaveBeenCalledTimes(1);
   });
 
-  it('should_not_fail_entirely_when_create_throws', async () => {
+  it('should_fail_when_create_throws_b34g_case_d', async () => {
     const deps = makeDeps({
       commissionRecordRepository: {
         create: vi.fn().mockRejectedValue(new Error('DB exploded')),
@@ -422,7 +429,8 @@ describe('createCommissionRecordHandler — Error Handling', () => {
       makeContext(),
     );
 
-    // Should still return success — errors are logged, not thrown
-    expect(result.success).toBe(true);
+    // B3.4-G hardening: "Falha financeira não pode ser mascarada como sucesso."
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('DB exploded');
   });
 });

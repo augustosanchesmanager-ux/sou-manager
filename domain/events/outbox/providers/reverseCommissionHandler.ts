@@ -155,26 +155,34 @@ export const createReverseCommissionHandler = (
 
       if (reversalAmount <= 0) continue;
 
-      // Check if reversal already exists for this record
+      // Check if reversal already exists for this record (Case C)
+      let existingReversals;
       try {
-        const existingReversals = await deps.commissionRecordRepository.list(
+        existingReversals = await deps.commissionRecordRepository.list(
           tenantId,
           {
             comanda_id: comandaId,
             record_type: 'reversal',
           },
         );
-        const alreadyReversed = (existingReversals || []).some(
-          (r) => r.original_record_id === record.id && r.status === 'active',
+      } catch (error) {
+        // Persistence error while checking idempotency (Case D):
+        // fail so the dispatcher retries when the DB recovers.
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(
+          `[REVERSE_COMMISSION] Failed to check existing reversals for comanda ${comandaId}:`,
+          errorMsg,
         );
-        if (alreadyReversed) {
-          console.log(
-            `[REVERSE_COMMISSION] Record ${record.id} already reversed — skipping`,
-          );
-          continue;
-        }
-      } catch {
-        // If check fails, proceed with reversal attempt
+        return { success: false, error: `Failed to check existing reversals: ${errorMsg}` };
+      }
+      const alreadyReversed = (existingReversals || []).some(
+        (r) => r.original_record_id === record.id && r.status === 'active',
+      );
+      if (alreadyReversed) {
+        console.log(
+          `[REVERSE_COMMISSION] Record ${record.id} already reversed — skipping`,
+        );
+        continue;
       }
 
       // Create reversal record via RPC
@@ -194,18 +202,23 @@ export const createReverseCommissionHandler = (
             `[REVERSE_COMMISSION] Created reversal for record ${record.id}: ${reversalAmount.toFixed(2)} (staff=${record.staff_id})`,
           );
         } else {
+          // RPC-level failure (Case D): fail so the dispatcher retries.
+          // Retry is safe — already-reversed records are skipped and the
+          // RPC itself is idempotent via idempotency_key.
           console.error(
             `[REVERSE_COMMISSION] RPC failed for record ${record.id}:`,
             result.error,
           );
+          return { success: false, error: `Reversal RPC failed for record ${record.id}: ${result.error}` };
         }
       } catch (error) {
+        // Repository exception (Case D): fail so the dispatcher retries.
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error(
           `[REVERSE_COMMISSION] Failed to create reversal for record ${record.id}:`,
           errorMsg,
         );
-        // Continue processing other records
+        return { success: false, error: `Failed to create reversal for record ${record.id}: ${errorMsg}` };
       }
     }
 

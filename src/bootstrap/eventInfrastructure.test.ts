@@ -4,6 +4,15 @@ import {
   getEventInfrastructure,
   disposeEventInfrastructure,
 } from './eventInfrastructure';
+import { appEventBus } from '../../domain/events/app-bus';
+import { createEvent } from '../../domain/events/types';
+import type {
+  CheckoutCompletedEvent,
+  CheckoutRevertedEvent,
+  SubscriptionCancelledEvent,
+  CreditsDeductedEvent,
+  CashClosingCompletedEvent,
+} from '../../domain/events/types';
 import type { DispatchTarget } from '../../domain/events/outbox/types';
 
 const buildEnqueueInput = (overrides?: Record<string, unknown>) => ({
@@ -99,15 +108,126 @@ describe('EventInfrastructure', () => {
     expect(infra.dispatcher.getProviders()).toContain('console');
   });
 
+  it('should_register_finance_and_console_providers_b34g', () => {
+    const infra = initializeEventInfrastructure();
+    const providers = infra.dispatcher.getProviders();
+    expect(providers).toContain('console');
+    expect(providers).toContain('finance');
+  });
+
   it('should_not_register_webhook_or_slack_by_default', () => {
     const infra = initializeEventInfrastructure();
     expect(infra.dispatcher.getProviders()).not.toContain('webhook');
     expect(infra.dispatcher.getProviders()).not.toContain('slack');
   });
 
-  it('should_not_register_finance_provider', () => {
+  // 🔒 B3.4-G Tests: Activation Routing
+
+  it('should_enqueue_only_commission_operation_targeting_finance_provider', async () => {
     const infra = initializeEventInfrastructure();
-    expect(infra.dispatcher.getProviders()).not.toContain('finance');
+
+    await appEventBus.publish(
+      createEvent<CheckoutCompletedEvent>({
+        eventType: 'CheckoutCompleted',
+        aggregateId: 'comanda-b34g',
+        aggregateType: 'comanda',
+        payload: {
+          comandaId: 'comanda-b34g',
+          clientId: 'client-1',
+          staffId: 'staff-1',
+          total: 100,
+          paymentMethod: 'pix',
+          paymentStatus: 'paid',
+          closureMode: 'standard',
+          itemCount: 1,
+          hasClubCredit: false,
+          financialEffect: true,
+        },
+        metadata: { tenantId: 'tenant-1', source: 'B34GTest' },
+      }),
+    );
+
+    const pending = await infra.outbox.find({ status: 'pending' });
+    expect(pending).toHaveLength(1);
+    expect(pending[0].targets[0].provider).toBe('finance');
+    expect(pending[0].payload.operationType).toBe('create_commission_record');
+
+    disposeEventInfrastructure();
+  });
+
+  it('should_enqueue_reverse_commission_targeting_finance_provider', async () => {
+    const infra = initializeEventInfrastructure();
+
+    await appEventBus.publish(
+      createEvent<CheckoutRevertedEvent>({
+        eventType: 'CheckoutReverted',
+        aggregateId: 'comanda-rev',
+        aggregateType: 'comanda',
+        payload: {
+          comandaId: 'comanda-rev',
+          reason: 'wrong_settlement',
+          reversedBy: 'u-1',
+          originalTotal: 100,
+          reversedAmount: 50,
+          originalCommission: 25,
+          originalReceivedValue: 100,
+        },
+        metadata: { tenantId: 'tenant-1', source: 'B34GTest' },
+      }),
+    );
+
+    const pending = await infra.outbox.find({ status: 'pending' });
+    expect(pending).toHaveLength(1);
+    expect(pending[0].targets[0].provider).toBe('finance');
+    expect(pending[0].payload.operationType).toBe('reverse_commission');
+
+    disposeEventInfrastructure();
+  });
+
+  it('should_not_enqueue_operations_for_out_of_scope_events', async () => {
+    const infra = initializeEventInfrastructure();
+
+    await appEventBus.publish(
+      createEvent<SubscriptionCancelledEvent>({
+        eventType: 'SubscriptionCancelled',
+        aggregateId: 'sub-1',
+        aggregateType: 'subscription',
+        payload: { subscriptionId: 'sub-1', reason: 'customer_request' },
+        metadata: { tenantId: 'tenant-1', source: 'B34GTest' },
+      }),
+    );
+    await appEventBus.publish(
+      createEvent<CreditsDeductedEvent>({
+        eventType: 'CreditsDeducted',
+        aggregateId: 'sub-1',
+        aggregateType: 'subscription',
+        payload: { subscriptionId: 'sub-1', serviceId: 'svc-1', amount: 1, reference: 'Comanda #c1' },
+        metadata: { tenantId: 'tenant-1', source: 'B34GTest' },
+      }),
+    );
+    await appEventBus.publish(
+      createEvent<CashClosingCompletedEvent>({
+        eventType: 'CashClosingCompleted',
+        aggregateId: 'closing-1',
+        aggregateType: 'cash_closing',
+        payload: {
+          closingId: 'closing-1',
+          businessDate: '2026-08-23',
+          closedBy: 'u-1',
+          expectedBalance: 100,
+          countedBalance: 100,
+          difference: 0,
+          extrasCount: 0,
+          hasDiscrepancy: false,
+        },
+        metadata: { tenantId: 'tenant-1', source: 'B34GTest' },
+      }),
+    );
+
+    const items = await infra.outbox.find({});
+    expect(items).toHaveLength(0);
+
+    disposeEventInfrastructure();
   });
 
   // ── B2 Tests: Dispatch Contract ─────────────────────────────

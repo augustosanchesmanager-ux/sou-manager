@@ -1,14 +1,18 @@
 /**
  * [SMG][PLATFORM][EVENTS][BOOTSTRAP] eventInfrastructure
  *
- * TD-001 B1+B2+B3.3+B3.4-D: Event infrastructure bootstrap.
+ * TD-001 B1+B2+B3.3+B3.4-D+B3.4-G: Event infrastructure bootstrap.
  *
  * B1: SubscriberRegistry with 6 read-only subscribers.
  * B2: InMemoryOutbox + InMemoryDispatcher with dispatch loop.
- * B3.3: FinanceSubscriber wired with DefaultFinanceStrategy.
- * B3.4-D: FinanceProvider with real commission handlers (created, NOT dispatched).
+ * B3.3: FinanceSubscriber wired with CommissionOnlyFinanceStrategy (B3.4-G gate).
+ * B3.4-D: FinanceProvider with real commission handlers.
+ * B3.4-G: FinanceProvider REGISTERED with dispatcher; subscriber targets
+ *         'finance'; persistent idempotency store (processed_operations).
  *
- * No EventStore, no ReplayEngine.
+ * ACTIVATION MATRIX (PO-approved): only create_commission_record and
+ * reverse_commission are executed. All other finance operations remain
+ * out of scope until a future PO gate.
  *
  * LIFECYCLE:
  *   initializeEventInfrastructure()  → creates and registers
@@ -29,13 +33,16 @@ import { reminderSubscriber } from '../../domain/events/subscribers/reminderSubs
 import { marketingSubscriber } from '../../domain/events/subscribers/marketingSubscriber';
 import { biSubscriber } from '../../domain/events/subscribers/biSubscriber';
 import { createFinanceSubscriber } from '../../domain/events/subscribers/financeSubscriber';
-import { createDefaultFinanceStrategy } from '../../domain/events/subscribers/defaultFinanceStrategy';
+import { createCommissionOnlyFinanceStrategy } from '../../domain/events/subscribers/commissionOnlyFinanceStrategy';
 import { createOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import { createDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import { consoleProvider } from '../../domain/events/outbox/providers/consoleProvider';
 import { createFinanceProvider } from '../../domain/events/outbox/providers/financeProvider';
+import type { IdempotencyStore } from '../../domain/events/outbox/providers/financeProvider';
+import { createPersistentIdempotencyStore } from '../../domain/events/outbox/providers/persistentIdempotencyStore';
 import { createCommissionRecordHandler } from '../../domain/events/outbox/providers/createCommissionRecordHandler';
 import { createReverseCommissionHandler } from '../../domain/events/outbox/providers/reverseCommissionHandler';
+import { getSharedClient } from '../../services/supabaseClient';
 import { commissionRecordRepository } from '../../domain/commission/commissionRecordRepository';
 import { comandaItemRepository } from '../../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../../domain/comanda/participant-repository';
@@ -47,6 +54,33 @@ import type { DispatcherProvider } from '../../domain/events/outbox/dispatcher';
 
 const GLOBAL_KEY = '__soumanager_event_infrastructure__';
 const DISPATCH_INTERVAL_MS = 5_000;
+
+/**
+ * Lazy persistent idempotency store.
+ * Defers getSharedClient() until first has()/set() call so that
+ * demo-mode/test bootstrap never instantiates a Supabase client eagerly.
+ */
+const createLazyPersistentIdempotencyStore = (): IdempotencyStore => {
+  let inner: IdempotencyStore | null = null;
+  const resolve = (): IdempotencyStore => {
+    if (!inner) {
+      // Structural cast: full supabase client satisfies the store's
+      // minimal chainable interface used by processed_operations.
+      inner = createPersistentIdempotencyStore({
+        db: getSharedClient() as unknown as Parameters<typeof createPersistentIdempotencyStore>[0]['db'],
+      });
+    }
+    return inner;
+  };
+  return {
+    async has(key, tenantId) {
+      return resolve().has(key, tenantId);
+    },
+    async set(key, tenantId) {
+      await resolve().set(key, tenantId);
+    },
+  };
+};
 
 export interface EventInfrastructure {
   registry: SubscriberRegistry;
@@ -82,18 +116,22 @@ export function initializeEventInfrastructure(): EventInfrastructure {
   const outbox = createOutbox();
   const dispatcher = createDispatcher(outbox);
 
-  // B3.3: FinanceSubscriber — enqueues financial operations to Outbox
-  const financeStrategy = createDefaultFinanceStrategy();
-  const financeSub = createFinanceSubscriber(outbox, financeStrategy);
+  // B3.3: FinanceSubscriber — gated by CommissionOnlyFinanceStrategy (B3.4-G)
+  // Only commission operations are enqueued; target routes to FinanceProvider.
+  const financeStrategy = createCommissionOnlyFinanceStrategy();
+  const financeSub = createFinanceSubscriber(outbox, financeStrategy, {
+    provider: 'finance',
+    config: {},
+  });
   registry.register(financeSub);
 
   registry.initialize();
 
   dispatcher.registerProvider(consoleProvider);
 
-  // B3.4-D: FinanceProvider with real commission handlers
-  // NOT registered with dispatcher yet — B3.4-E will wire and validate.
-  // FinanceSubscriber still sends to console provider.
+  // B3.4-G: FinanceProvider REGISTERED — commission + reversal activation.
+  // Persistent idempotency store (processed_operations) is PO-mandatory for
+  // the real bootstrap; lazy-wrapped so demo/test boot never touches Supabase.
   const financeProvider = createFinanceProvider({
     handlers: {
       create_commission_record: createCommissionRecordHandler({
@@ -107,7 +145,10 @@ export function initializeEventInfrastructure(): EventInfrastructure {
         commissionRecordRepository,
       }),
     },
+    idempotencyStore: createLazyPersistentIdempotencyStore(),
   });
+
+  dispatcher.registerProvider(financeProvider);
 
   // B2: Dispatch loop
   let dispatching = false;

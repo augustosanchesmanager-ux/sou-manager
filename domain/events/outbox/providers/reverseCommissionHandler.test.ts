@@ -357,7 +357,7 @@ describe('reverseCommissionHandler — Error Handling', () => {
     expect(result.error).toContain('DB connection lost');
   });
 
-  it('should_log_error_when_createReversal_fails_but_continue', async () => {
+  it('should_fail_when_createReversal_returns_failure_b34g_case_d', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const record = makeRecord({ commission_value: 40, received_value: 100 });
     const deps = makeDeps({
@@ -371,12 +371,13 @@ describe('reverseCommissionHandler — Error Handling', () => {
 
     const result = await handler.execute(makeData() as any, makeContext());
 
-    // Handler should still succeed even if one record fails
-    expect(result.success).toBe(true);
+    // B3.4-G hardening (Case D): RPC failure must NOT be masked as success.
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('RPC timeout');
     consoleSpy.mockRestore();
   });
 
-  it('should_continue_when_one_record_throws_and_process_others', async () => {
+  it('should_fail_fast_when_one_record_throws_so_retry_covers_remaining_b34g', async () => {
     const record1 = makeRecord({ id: 'rec-1', staff_id: 'staff-1', commission_value: 40, received_value: 100 });
     const record2 = makeRecord({ id: 'rec-2', staff_id: 'staff-2', commission_value: 20, received_value: 100 });
     let callCount = 0;
@@ -395,7 +396,10 @@ describe('reverseCommissionHandler — Error Handling', () => {
 
     const result = await handler.execute(makeData() as any, makeContext());
 
-    expect(result.success).toBe(true);
-    expect(deps.commissionRecordRepository.createReversal).toHaveBeenCalledTimes(2);
+    // B3.4-G hardening (Case D): fail fast on first persistence error.
+    // Retry is safe — already-reversed records are skipped idempotently.
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('RPC crash on first');
+    expect(deps.commissionRecordRepository.createReversal).toHaveBeenCalledTimes(1);
   });
 });
