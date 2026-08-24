@@ -40,7 +40,10 @@ const toComanda = (row: Record<string, unknown>): Comanda => ({
   staff_id: (row.staff_id as string) || null,
   status: (row.status as string) || 'open',
   total: (row.total as number) || 0,
-  paid_amount: typeof row.paid_amount === 'number' ? (row.paid_amount as number) : 0,
+  // TD-001 B3.4-H: NEVER synthesize financial defaults for absent columns.
+  // A fabricated paid_amount=0 zeroed every commission created by the
+  // event-driven path (handler treats 0 as a real received value).
+  // Absence must stay absence so consumers can fall back to total.
   payment_method: (row.payment_method as string) || null,
   notes: row.notes ? (row.notes as string) : null,
   created_at: (row.created_at as string) || '',

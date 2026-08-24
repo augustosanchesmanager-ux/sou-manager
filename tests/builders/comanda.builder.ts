@@ -15,7 +15,6 @@ export const makeComanda = (
   staff_id: 'staff-1',
   status: 'open',
   total: 50,
-  paid_amount: 0,
   payment_method: null,
   notes: null,
   created_at: new Date().toISOString(),
@@ -52,7 +51,6 @@ export const makeClosedComanda = (overrides: Partial<Comanda> = {}) =>
 export const makePaidComanda = (overrides: Partial<Comanda> = {}) =>
   makeComanda({
     status: 'paid',
-    paid_amount: 50,
     closed_at: new Date().toISOString(),
     ...overrides,
   });

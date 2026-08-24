@@ -196,21 +196,20 @@ async function performUiCheckout(page: Page): Promise<void> {
   await page.getByText(serviceName, { exact: false }).first().click();
   await page.waitForTimeout(800);
 
-  // 3. Assign the professional on the cart item (select containing barber option)
-  const selects = page.locator('select');
-  const selectCount = await selects.count();
-  let assigned = false;
-  for (let i = 0; i < selectCount; i++) {
-    const sel = selects.nth(i);
-    const options = await sel.locator('option').allTextContents().catch(() => [] as string[]);
-    const match = options.find((o) => o.trim() === 'B34H Barbeiro');
-    if (match !== undefined) {
-      await sel.selectOption({ label: match });
-      assigned = true;
-      break;
-    }
+  // 3. Assign the professional on the cart item's inline staff select.
+  //    Uniquely identified by its exclusive "Nenhum" option. Setting
+  //    item.staff_id makes checkout persist a PRIMARY participant at 100%
+  //    (syncParticipants fallback) -> share 1.0 -> commission R$40.
+  const staffSelects = page
+    .locator('select')
+    .filter({ has: page.locator('option', { hasText: 'Nenhum' }) });
+  const staffSelectCount = await staffSelects.count();
+  if (staffSelectCount === 0) {
+    throw new Error('[B34H] cart item staff select not found');
   }
-  log('checkout-professional-assigned', { assigned });
+  await staffSelects.first().selectOption({ label: 'B34H Barbeiro' });
+  await page.waitForTimeout(400);
+  log('checkout-professional-assigned', { assigned: true, selects: staffSelectCount });
 
   // 4. Ensure payment status = paid (default) and pick payment method
   const fecharAgora = page.getByRole('button', { name: /Fechar agora/ }).first();
@@ -461,6 +460,10 @@ test.describe('B34H - Controlled Financial Validation', () => {
     // items -> comandas -> transactions, then reference data, then users+tenant.
     type TeardownResult = { error?: { message?: string } | null };
     const steps: Array<[string, () => PromiseLike<TeardownResult>]> = [
+      // notifications reference users AND tenant; must go first or auth-user
+      // deletion fails ("Database error deleting user") and the tenant delete
+      // hits an FK violation (observed in run b34h-val-1787530041878).
+      ['notifications', () => admin().from('notifications').delete().eq('tenant_id', tenantId)],
       ['commission_records', () => admin().from('commission_records').delete().eq('tenant_id', tenantId)],
       ['comanda_items', async () => {
         const { data: comandas } = await admin().from('comandas').select('id').eq('tenant_id', tenantId);
@@ -541,6 +544,161 @@ test.describe('B34H - Controlled Financial Validation', () => {
         console.log(
           `[B34H][FASE1-dispatch-logs-on-timeout] ${JSON.stringify(allLogs.slice(-40))}`,
         );
+        // Ground-truth dump BEFORE teardown wipes evidence.
+        const dbgItems = await admin()
+          .from('comanda_items')
+          .select('id, staff_id, service_id, unit_price, quantity')
+          .eq('comanda_id', comandaAId);
+        const itemIdsDbg = (dbgItems.data || []).map((i: any) => i.id);
+        const dbgParts = itemIdsDbg.length
+          ? await admin()
+              .from('service_execution_participants')
+              .select('*')
+              .in('comanda_item_id', itemIdsDbg)
+          : { data: [] as any[] };
+        const dbgComanda = await admin()
+          .from('comandas')
+          .select('id, staff_id, status, total, discount, closure_mode, payment_method, financial_effect')
+          .eq('id', comandaAId);
+        console.log(
+          `[B34H][FASE1-db-ground-truth] ${JSON.stringify({
+            comanda: dbgComanda.data?.[0] ?? null,
+            items: dbgItems.data ?? null,
+            itemsErr: dbgItems.error?.message ?? null,
+            participants: dbgParts.data ?? null,
+            partsErr: (dbgParts as any).error?.message ?? null,
+          })}`,
+        );
+        // Offline replay of the handler decision with REAL domain functions
+        // on live-fetched rows — isolates logic vs runtime divergence.
+        try {
+          const participantsMod = await import('../../../domain/commission/participants');
+          const calcMod = await import('../../../domain/commission/calculate');
+          const rolesMod = await import('../../../src/lib/staff/roles');
+          const cm: any = dbgComanda.data?.[0];
+          const it0: any = dbgItems.data?.[0];
+          const staffRows = await admin()
+            .from('staff')
+            .select('id, name, role, status, commission_rate')
+            .eq('tenant_id', tenantId);
+          const staffById = new Map((staffRows.data || []).map((s: any) => [s.id, s]));
+          const parts: any[] = dbgParts.data || [];
+          const norm = participantsMod.normalizeCommissionParticipants(
+            { id: it0.id, service_id: it0.service_id, staff_id: it0.staff_id },
+            { staff_id: cm.staff_id },
+            parts,
+            Number(it0.unit_price),
+            staffById as any,
+          );
+          const detail = norm.participants.map((p: any) => {
+            const sid = p.staff_id || p.professional_id;
+            const st: any = staffById.get(sid);
+            const fb = calcMod.resolveFinancialBase({
+              item: it0,
+              discount: Number(it0.discount) || Number(cm.discount) || 0,
+              paidAmount: Number(cm.paid_amount ?? cm.amount_paid ?? cm.total),
+              quantity: Number(it0.quantity) || 1,
+            });
+            const rate = rolesMod.getEffectiveCommissionRate(st);
+            const val = calcMod.calculateCommissionValue(fb.receivedValue, p, rate);
+            return {
+              sid,
+              role: st?.role,
+              receives: st ? rolesMod.receivesCommission(st) : null,
+              gross: fb.grossValue,
+              net: fb.netValue,
+              received: fb.receivedValue,
+              payout_value: p.payout_value,
+              rate,
+              value: val,
+            };
+          });
+          const p0: any = norm.participants[0] || {
+            payout_type: 'percentage',
+            payout_value: 100,
+            staff_id: '',
+          };
+          const rate0 = rolesMod.getEffectiveCommissionRate(staffById.get(p0.staff_id || '') || null);
+          // Chain A (handler intent on raw row): absent column falls through to total.
+          const rawPaid = Number(cm.paid_amount ?? cm.amount_paid ?? cm.total);
+          const rawFb = calcMod.resolveFinancialBase({
+            item: it0,
+            discount: Number(it0.discount) || Number(cm.discount) || 0,
+            paidAmount: rawPaid,
+            quantity: Number(it0.quantity) || 1,
+          });
+          const rawVal = calcMod.calculateCommissionValue(rawFb.receivedValue, p0, rate0);
+          // Chain B (actual runtime): repository maps phantom paid_amount -> 0
+          // (domain/comanda/repository.ts:43); `0 ?? total` keeps the 0.
+          const mappedPaid =
+            typeof cm.paid_amount === 'number' ? cm.paid_amount : 0;
+          const mappedFb = calcMod.resolveFinancialBase({
+            item: it0,
+            discount: Number(it0.discount) || Number(cm.discount) || 0,
+            paidAmount: mappedPaid,
+            quantity: Number(it0.quantity) || 1,
+          });
+          const mappedVal = calcMod.calculateCommissionValue(
+            mappedFb.receivedValue,
+            p0,
+            rate0,
+          );
+          console.log(
+            `[B34H][FASE1-offline-replay] ${JSON.stringify({
+              primaryStaffId: norm.primaryStaffId,
+              participantCount: norm.participants.length,
+              isShared: norm.isShared,
+              detail,
+              chainA_rawRow: {
+                paidAmountSource: 'comanda.total',
+                paidAmount: rawPaid,
+                receivedValue: rawFb.receivedValue,
+                rate: rate0,
+                commissionValue: rawVal,
+              },
+              chainB_repositoryMapped: {
+                syntheticPaidAmount: mappedPaid,
+                receivedValue: mappedFb.receivedValue,
+                rate: rate0,
+                commissionValue: mappedVal,
+                note: 'mirrors domain/comanda/repository.ts:43 + handler nullish chain',
+              },
+            })}`,
+          );
+        } catch (repErr) {
+          console.log(`[B34H][FASE1-offline-replay] failure ${String(repErr)}`);
+        }
+        // Discriminator: run the EXACT handler input queries under the
+        // manager session so RLS visibility matches handler runtime.
+        try {
+          const { createClient: createUserClient } = await import('@supabase/supabase-js');
+          const envLocal = (await loadEnvLocal()) as Record<string, string>;
+          const userClient = createUserClient(envLocal.VITE_SUPABASE_URL, envLocal.VITE_SUPABASE_ANON_KEY);
+          const { error: signInErr } = await userClient.auth.signInWithPassword({
+            email: managerUser.email,
+            password: managerUser.password,
+          });
+          const asManager = async (q: () => PromiseLike<any>) => {
+            if (signInErr) return { err: `signIn failed: ${signInErr.message}` };
+            const r = await q();
+            return { rows: r.data, err: r.error?.message ?? null };
+          };
+          const mItems = await asManager(() =>
+            userClient.from('comanda_items').select('id, staff_id, unit_price, quantity').eq('tenant_id', tenantId).eq('comanda_id', comandaAId),
+          );
+          const itemIdsM = ((mItems as any).rows || []).map((i: any) => i.id);
+          const mParts = await asManager(() =>
+            userClient.from('service_execution_participants').select('id, comanda_item_id, staff_id, role, payout_type, payout_value, affects_commission, tenant_id').eq('tenant_id', tenantId).in('comanda_item_id', itemIdsM.length ? itemIdsM : ['00000000-0000-0000-0000-000000000000']),
+          );
+          const mStaff = await asManager(() =>
+            userClient.from('staff').select('id, name, role, status, commission_rate, tenant_id').eq('tenant_id', tenantId),
+          );
+          console.log(
+            `[B34H][FASE1-manager-view] ${JSON.stringify({ signInErr: signInErr?.message ?? null, items: mItems, participants: mParts, staff: mStaff })}`,
+          );
+        } catch (dbgErr) {
+          console.log(`[B34H][FASE1-manager-view] setup-failure ${String(dbgErr)}`);
+        }
         throw err;
       }
       commissionA = record;

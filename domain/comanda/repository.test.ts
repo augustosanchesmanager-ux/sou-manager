@@ -111,7 +111,10 @@ describe('ComandaRepository — EB-2 regression guard', () => {
     expect(result[0].status).toBe('paid');
     expect(result[0].client_id).toBe('cl1');
     expect(result[0].client_name ?? null).toBeNull();
-    expect(result[0].paid_amount ?? 0).toBe(0);
+    // TD-001 B3.4-H: absent column must stay ABSENT. A synthesized
+    // paid_amount=0 was read by the commission handler as a real zero
+    // payment and silently zeroed every commission record.
+    expect(result[0]).not.toHaveProperty('paid_amount');
     expect(result[0].notes ?? null).toBeNull();
   });
 

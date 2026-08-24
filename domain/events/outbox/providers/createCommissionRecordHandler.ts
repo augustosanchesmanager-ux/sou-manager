@@ -15,7 +15,8 @@
  *   - receivedValue: number — total comanda value (used as fallback for paidAmount)
  *
  * FLOW (mirrors CommissionApplicationService.loadCommissionLines 4-phase logic):
- *   1. Fetch comanda → get discount, paid_amount, status, total
+ *   1. Fetch comanda → resolve received base by field presence (paid_amount
+ *      → amount_paid → total; absent fields never read as 0)
  *   2. Fetch comanda_items → get unit_price, quantity, staff_id
  *   3. Fetch service_execution_participants → normalize per item
  *   4. Fetch staff → get commission_rate, role
@@ -147,10 +148,20 @@ export const createCommissionRecordHandler = (
     }
 
     const comandaDiscount = toNum(comanda.discount);
-    const comandaPaidAmount = toNum(
-      comanda.paid_amount ?? comanda.amount_paid ?? comanda.total,
-      receivedValue,
-    );
+    // TD-001 B3.4-H hardening: resolve the paid amount by FIELD PRESENCE,
+    // never by value. A synthetic 0 produced by a repository mapper for an
+    // absent column must NOT be read as a real zero payment (it silently
+    // zeroed every commission in production). Absence falls through to the
+    // next field, ending at comandas.total — a real schema column.
+    // An EXPLICIT 0 (field present) remains a genuine zero payment.
+    const hasPaidAmount = comanda.paid_amount !== undefined && comanda.paid_amount !== null;
+    const hasAmountPaid = comanda.amount_paid !== undefined && comanda.amount_paid !== null;
+    const paidAmountSource = hasPaidAmount
+      ? comanda.paid_amount
+      : hasAmountPaid
+        ? comanda.amount_paid
+        : comanda.total;
+    const comandaPaidAmount = toNum(paidAmountSource, receivedValue);
 
     // ── Phase 2: Fetch comanda items ──────────────────────────
     const items = await deps.comandaItemRepository.listByComandaIds(

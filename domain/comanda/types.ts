@@ -14,8 +14,6 @@ export interface Comanda {
   staff_id: string | null;
   status: string;
   total: number;
-  /** NOT a comandas column. Use total or transactions for effective paid amount. */
-  paid_amount?: number;
   payment_method: string | null;
   /** NOT a comandas column. Notes live on transactions/closure_note. */
   notes?: string | null;
