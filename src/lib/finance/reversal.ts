@@ -149,7 +149,7 @@ export const reverseFinancialTransaction = async ({
       if (comandaData) {
         const { data: items } = await supabase
           .from('comanda_items')
-          .select('id, unit_price, quantity, discount, staff_id')
+          .select('id, unit_price, quantity, staff_id')
           .eq('comanda_id', comandaId)
           .eq('tenant_id', tenantId);
 
