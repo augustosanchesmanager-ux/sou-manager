@@ -136,9 +136,12 @@ export const reverseFinancialTransaction = async ({
       const comandaId = originalTx.source_id;
       const originalTotal = Number(originalTx.amount || 0);
 
+      // TD-001 B3.4-H: only REAL schema columns here. The previous version
+      // selected the phantom column `comandas.payment_amount`, which made
+      // PostgREST fail and silently skip the event publish.
       const { data: comandaData } = await supabase
         .from('comandas')
-        .select('id, discount, payment_method, payment_amount, status')
+        .select('id, discount')
         .eq('id', comandaId)
         .eq('tenant_id', tenantId)
         .single();
@@ -146,7 +149,7 @@ export const reverseFinancialTransaction = async ({
       if (comandaData) {
         const { data: items } = await supabase
           .from('comanda_items')
-          .select('unit_price, quantity, discount, staff_id')
+          .select('id, unit_price, quantity, discount, staff_id')
           .eq('comanda_id', comandaId)
           .eq('tenant_id', tenantId);
 
@@ -154,43 +157,73 @@ export const reverseFinancialTransaction = async ({
         let originalReceivedValue = originalTotal;
 
         if (items && items.length > 0) {
-          const { resolveFinancialBase } = await import('../../../domain/commission/calculate');
+          const { resolveFinancialBase, calculateCommissionValue } =
+            await import('../../../domain/commission/calculate');
+          const { receivesCommission, getEffectiveCommissionRate } =
+            await import('../staff/roles');
 
           const totalGross = items.reduce(
-            (sum: number, item: any) => sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
+            (sum: number, item: any) =>
+              sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
             0
           );
           const discountAmount = Number(comandaData.discount || 0);
           originalReceivedValue = Math.max(0, totalGross - discountAmount);
 
-          const staffIds = [...new Set(items.map((i: any) => i.staff_id).filter(Boolean))];
+          // TD-001 B3.4-H: real table is service_execution_participants
+          // (keyed by comanda_item_id). The phantom `commission_participants`
+          // table never existed and silently killed the publish chain.
+          const itemIds = items.map((i: any) => i.id).filter(Boolean);
+          const { data: participants } = itemIds.length > 0
+            ? await supabase
+                .from('service_execution_participants')
+                .select('comanda_item_id, staff_id, affects_commission, payout_type, payout_value')
+                .eq('tenant_id', tenantId)
+                .in('comanda_item_id', itemIds)
+            : { data: [] };
+
+          const staffIds = [
+            ...new Set((participants || []).map((p: any) => p.staff_id).filter(Boolean)),
+          ];
+          const staffById = new Map<string, any>();
           if (staffIds.length > 0) {
-            const { data: participants } = await supabase
-              .from('commission_participants')
-              .select('staff_id, affects_commission, payout_type, payout_value')
+            const { data: staffRows } = await supabase
+              .from('staff')
+              .select('id, role, status, commission_rate')
               .eq('tenant_id', tenantId)
-              .in('staff_id', staffIds);
+              .in('id', staffIds);
+            (staffRows || []).forEach((s: any) => staffById.set(s.id, s));
+          }
 
-            if (participants && participants.length > 0) {
-              for (const item of items) {
-                const participant = participants.find((p: any) => p.staff_id === item.staff_id);
-                if (!participant?.affects_commission) continue;
+          // Reproduce EXACTLY what createCommissionRecordHandler persisted:
+          // per item/participant, canonical base × share × staff rate.
+          for (const item of items) {
+            const itemParticipants = (participants || []).filter(
+              (p: any) => p.comanda_item_id === item.id,
+            );
+            for (const participant of itemParticipants) {
+              if (!participant.affects_commission) continue;
 
-                const financialBase = resolveFinancialBase({
-                  item: {
-                    unit_price: Number(item.unit_price || 0),
-                    quantity: Number(item.quantity || 1),
-                    discount: Number(item.discount || 0),
-                  },
-                  discount: 0,
-                  paidAmount: Number(comandaData.payment_amount || 0),
-                });
+              const staff = staffById.get(participant.staff_id);
+              if (staff && !receivesCommission(staff)) continue;
 
-                if (financialBase.receivedValue > 0) {
-                  const rate = Number(participant.payout_value || 0) / 100;
-                  originalCommission += financialBase.receivedValue * rate;
-                }
-              }
+              const financialBase = resolveFinancialBase({
+                item: {
+                  unit_price: Number(item.unit_price || 0),
+                  quantity: Number(item.quantity || 1),
+                  discount: Number(item.discount || 0),
+                },
+                discount: discountAmount,
+                paidAmount: originalReceivedValue,
+                quantity: Number(item.quantity || 1),
+              });
+
+              const rate = getEffectiveCommissionRate(staff);
+              originalCommission += calculateCommissionValue(
+                financialBase.receivedValue,
+                participant,
+                rate,
+              );
             }
           }
         }
@@ -222,8 +255,10 @@ export const reverseFinancialTransaction = async ({
       }
     }
   } catch (eventError) {
-    // Event publishing failure should not block the reversal
-    console.warn('[reversal] Failed to publish CheckoutReverted event:', eventError);
+    // Event publishing failure should not block the reversal itself, but it
+    // MUST be observable: this exact catch previously hid two schema-drift
+    // failures behind a console.warn that no monitor filtered.
+    console.error('[REVERSAL][EVENT-PUBLISH-FAILED] CheckoutReverted was NOT published:', eventError);
   }
 
   return {

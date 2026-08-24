@@ -472,6 +472,10 @@ test.describe('B34H - Controlled Financial Validation', () => {
         return admin().from('comanda_items').delete().in('comanda_id', ids);
       }],
       ['comandas', () => admin().from('comandas').delete().eq('tenant_id', tenantId)],
+      // financial_reversals references transactions (FK
+      // financial_reversals_original_transaction_id_fkey) and must be removed
+      // BEFORE transactions (observed in reversal-phase run e7ce162c).
+      ['financial_reversals', () => admin().from('financial_reversals').delete().eq('tenant_id', tenantId)],
       ['transactions', () => admin().from('transactions').delete().eq('tenant_id', tenantId)],
       ['appointments', () => admin().from('appointments').delete().eq('tenant_id', tenantId)],
       ['processed_operations', () => admin().from('processed_operations').delete().eq('tenant_id', tenantId)],
