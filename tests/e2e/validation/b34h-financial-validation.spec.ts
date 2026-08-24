@@ -54,6 +54,7 @@ const num = (v: unknown): number => Number(v ?? 0);
 let runId = Date.now();
 let tenantId = '';
 let managerUser = { email: '', password: PASSWORD, userId: '' };
+let barberUser = { email: '', password: PASSWORD, userId: '' };
 let barberStaffId = '';
 let clientId = '';
 let serviceId = '';
@@ -370,12 +371,13 @@ test.describe('B34H - Controlled Financial Validation', () => {
     managerUser.email = `b34h-val-${runId}-manager@gmail.com`;
 
     const barberEmail = `b34h-val-${runId}-barber@gmail.com`;
+    barberUser.email = barberEmail;
     managerUser.userId = await createConfirmedUser({
       email: managerUser.email,
       password: managerUser.password,
       userMetadata: { first_name: 'B34H', last_name: 'Manager' },
     });
-    const barberUserId = await createConfirmedUser({
+    barberUser.userId = await createConfirmedUser({
       email: barberEmail,
       password: PASSWORD,
       userMetadata: { first_name: 'B34H', last_name: 'Barbeiro' },
@@ -407,7 +409,7 @@ test.describe('B34H - Controlled Financial Validation', () => {
 
     const { error: profilesError } = await admin().from('profiles').insert([
       { id: managerUser.userId, tenant_id: tenantId, full_name: 'B34H Manager', role: 'manager', status: 'active', onboarding_completed: true },
-      { id: barberUserId, tenant_id: tenantId, full_name: 'B34H Barbeiro', role: 'barber', status: 'active', onboarding_completed: true },
+      { id: barberUser.userId, tenant_id: tenantId, full_name: 'B34H Barbeiro', role: 'barber', status: 'active', onboarding_completed: true },
     ]);
     if (profilesError) throw new Error(`profiles insert failed: ${profilesError.message}`);
 
@@ -417,7 +419,7 @@ test.describe('B34H - Controlled Financial Validation', () => {
 
     const { error: membershipsError } = await admin().from('user_tenants').insert([
       { user_id: managerUser.userId, tenant_id: tenantId, role: 'manager', is_primary: true },
-      { user_id: barberUserId, tenant_id: tenantId, role: 'barber', is_primary: false },
+      { user_id: barberUser.userId, tenant_id: tenantId, role: 'barber', is_primary: false },
     ]);
     if (membershipsError) throw new Error(`user_tenants insert failed: ${membershipsError.message}`);
 
@@ -425,7 +427,7 @@ test.describe('B34H - Controlled Financial Validation', () => {
       .from('staff')
       .insert([
         { id: managerUser.userId, name: 'B34H Manager', email: managerUser.email, phone: '', role: 'manager', avatar: '', commission_rate: 0, status: 'active', tenant_id: tenantId },
-        { id: barberUserId, name: 'B34H Barbeiro', email: barberEmail, phone: '', role: 'barber', avatar: '', commission_rate: 40, status: 'active', tenant_id: tenantId },
+        { id: barberUser.userId, name: 'B34H Barbeiro', email: barberEmail, phone: '', role: 'barber', avatar: '', commission_rate: 40, status: 'active', tenant_id: tenantId },
       ])
       .select('id, name');
     if (staffError || !staffRows) throw new Error(`staff insert failed: ${staffError?.message}`);
@@ -486,6 +488,12 @@ test.describe('B34H - Controlled Financial Validation', () => {
       ['user_tenants', () => admin().from('user_tenants').delete().eq('tenant_id', tenantId)],
       ['profiles', () => admin().from('profiles').delete().eq('tenant_id', tenantId)],
       ['auth-users-manager', () => deleteUserByEmail(managerUser.email).then(() => ({ error: null }))],
+      // TD-001 / Test Infrastructure — Auth User Teardown Gap: the barber user
+      // was previously never removed and accumulated across runs (26 orphaned
+      // auth users found on 2026-08-24). Exact run-scoped identity only —
+      // deleteUserByEmail resolves the exact email to its ID before deleting;
+      // no prefix-based deletion.
+      ['auth-users-barber', () => deleteUserByEmail(barberUser.email).then(() => ({ error: null }))],
       ['tenant_settings', () => admin().from('tenant_settings').delete().eq('tenant_id', tenantId)],
       ['tenants', () => admin().from('tenants').delete().eq('id', tenantId)],
     ];
