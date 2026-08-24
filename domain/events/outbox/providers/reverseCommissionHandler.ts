@@ -190,7 +190,7 @@ export const createReverseCommissionHandler = (
         const result = await deps.commissionRecordRepository.createReversal({
           tenantId,
           originalRecordId: record.id,
-          commissionValue: reversalAmount,
+          commissionValue: -reversalAmount,
           idempotencyKey: `${context.idempotencyKey}_${record.id}`,
           eventId: context.eventId,
           eventType: context.sourceEvent,
