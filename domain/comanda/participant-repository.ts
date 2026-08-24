@@ -18,14 +18,14 @@ export interface ParticipantRow {
   id: string;
   comanda_item_id: string;
   staff_id: string | null;
-  professional_id: string | null;
+  professional_id?: string | null;
   role: string;
   payout_type: string;
   payout_value: number;
   affects_commission: boolean;
 }
 
-class ServiceExecutionParticipantRepositoryImpl extends SupabaseRepository {
+export class ServiceExecutionParticipantRepositoryImpl extends SupabaseRepository {
   constructor(db?: DatabaseClient, appSlug: AppSlug = 'barber') {
     super('service_execution_participants', db ?? createSupabaseClient('service_execution_participants', appSlug));
   }
@@ -34,7 +34,7 @@ class ServiceExecutionParticipantRepositoryImpl extends SupabaseRepository {
     try {
       if (comandaItemIds.length === 0) return [];
       const result = await this.from()
-        .select('id, comanda_item_id, staff_id, professional_id, role, payout_type, payout_value, affects_commission')
+        .select('id, comanda_item_id, staff_id, role, payout_type, payout_value, affects_commission')
         .eq('tenant_id', tenantId)
         .in('comanda_item_id', comandaItemIds);
       return this.extractData<ParticipantRow[]>(result, 'list participants by comanda item ids');

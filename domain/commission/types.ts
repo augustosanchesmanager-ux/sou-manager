@@ -131,7 +131,7 @@ export interface ParticipantRow {
   id: string;
   comanda_item_id: string;
   staff_id: string | null;
-  professional_id: string | null;
+  professional_id?: string | null;
   role: string;
   payout_type: string;
   payout_value: number;

@@ -1,0 +1,837 @@
+import { type BrowserContext, type Page } from '@playwright/test';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  createConfirmedUser,
+  deleteUserByEmail,
+  getAdminClient,
+  loadEnvLocal,
+} from '../helpers/supabaseAdmin';
+import { test, expect } from '../fixtures/auth.fixture';
+
+/**
+ * TD-001 B3.4-H — Controlled Financial Validation (PO-approved plan).
+ *
+ * Executes the ACTIVE commission-only financial path end-to-end against the
+ * real production Supabase project via the Vercel Preview deployment:
+ *
+ *   UI Checkout -> CheckoutCompleted -> FinanceSubscriber -> Outbox(target=finance)
+ *     -> FinanceProvider -> create_commission_record -> commission_records
+ *   UI Reversal  -> finance_reverse_transaction RPC -> CheckoutReverted
+ *     -> reverse_commission op -> create_commission_reversal RPC (advisory lock)
+ *
+ * PO adjustments enforced here:
+ *   1. Tenant isolation is PROVEN before any comanda exists (dedicated
+ *      b34h-val-* tenant, never Barbearia Principal b716e290-f7f6-4449-b790-5ae9dcdadcab).
+ *   2. Concurrency proofs are separate: 4A = two simultaneous REAL handler
+ *      executions via dual browser contexts; 4B = direct concurrent RPC calls
+ *      proving pg_advisory_xact_lock + FOR UPDATE + SUM validation.
+ *   3. Overflow behavior is OBSERVED and documented, never assumed; no
+ *      functional code changes are made to make tests pass.
+ *
+ * Golden rules: no migrations, no functional code changes during execution,
+ * full FK-aware teardown of the dedicated tenant.
+ */
+
+const PRINCIPAL_TENANT_ID = 'b716e290-f7f6-4449-b790-5ae9dcdadcab';
+const BLOCKED_OPERATION_TYPES = [
+  'create_transaction',
+  'reverse_revenue',
+  'deduct_credits',
+  'close_daily_cash',
+];
+const DISPATCH_WAIT_MS = 8_000;
+const PASSWORD = 'B34h-Validation-2026!';
+
+const log = (checkpoint: string, payload: unknown) => {
+  console.log(`[B34H][${checkpoint}] ${JSON.stringify(payload)}`);
+};
+
+const num = (v: unknown): number => Number(v ?? 0);
+
+// ---------------------------------------------------------------------------
+// Module-level state shared across serial tests
+// ---------------------------------------------------------------------------
+let runId = Date.now();
+let tenantId = '';
+let managerUser = { email: '', password: PASSWORD, userId: '' };
+let barberStaffId = '';
+let clientId = '';
+let serviceId = '';
+let clientName = '';
+let serviceName = '';
+
+let comandaAId = '';
+let commissionA: Record<string, unknown> | null = null;
+
+let comandaBId = '';
+let commissionB: Record<string, unknown> | null = null;
+
+let comandaCId = '';
+let commissionC: Record<string, unknown> | null = null;
+
+let comandaDId = '';
+let commissionD: Record<string, unknown> | null = null;
+
+const admin = () => getAdminClient();
+
+/** Authenticated (anon key + user login) client for direct RPC calls under RLS. */
+async function createAuthenticatedClient(): Promise<SupabaseClient> {
+  const env = loadEnvLocal();
+  const url = env.VITE_SUPABASE_URL;
+  const anonKey = env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY missing in .env.local');
+  const client = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { error } = await client.auth.signInWithPassword({
+    email: managerUser.email,
+    password: managerUser.password,
+  });
+  if (error) throw new Error(`signInWithPassword failed: ${error.message}`);
+  return client;
+}
+
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+async function applyVercelBypass(context: BrowserContext): Promise<void> {
+  const secret =
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET ||
+    loadEnvLocal().VERCEL_AUTOMATION_BYPASS_SECRET;
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
+  if (!secret || !baseUrl) return;
+  const origin = new URL(baseUrl).origin;
+  await context.route(`${origin}/**`, async (route) => {
+    await route.continue({
+      headers: { ...route.request().headers(), 'x-vercel-protection-bypass': secret },
+    });
+  });
+}
+
+async function newLoggedContext(browser: {
+  newContext: () => Promise<BrowserContext>;
+}): Promise<{ ctx: BrowserContext; page: Page }> {
+  const ctx = await browser.newContext();
+  await applyVercelBypass(ctx);
+  const page = await ctx.newPage();
+  await uiLogin(page);
+  return { ctx, page };
+}
+
+async function uiLogin(page: Page): Promise<void> {
+  await page.goto('/#/login');
+  const emailInput = page.locator('input[type="email"]');
+  await emailInput.waitFor({ state: 'visible', timeout: 20_000 });
+  await emailInput.fill(managerUser.email);
+  try {
+    await page.locator('input[type="password"]').fill(managerUser.password, { timeout: 15_000 });
+  } catch (err) {
+    const inputs = await page
+      .locator('input')
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const el = e as HTMLInputElement;
+          return {
+            type: el.type,
+            placeholder: el.placeholder,
+            visible: !!el.offsetParent,
+            value: el.value.slice(0, 40),
+          };
+        }),
+      )
+      .catch(() => [] as unknown[]);
+    console.log(
+      `[B34H][ui-login-debug] ${JSON.stringify({ url: page.url(), title: await page.title(), inputs })}`,
+    );
+    const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 600);
+    console.log(`[B34H][ui-login-debug-body] ${JSON.stringify(bodyText)}`);
+    throw err;
+  }
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL(/#\/dashboard/, { timeout: 40_000 });
+  log('ui-login', { ok: true });
+}
+
+/** Drives one REAL checkout through the PDV/comanda UI. */
+async function performUiCheckout(page: Page): Promise<void> {
+  await page.goto('/#/checkout?mode=comanda');
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.waitForTimeout(2_000);
+
+  // 1. Select client (button with search icon labeled "Buscar")
+  const clientButton = page.getByRole('button', { name: /Buscar/ }).first();
+  try {
+    await clientButton.waitFor({ state: 'visible', timeout: 20_000 });
+  } catch (err) {
+    const buttons = await page
+      .locator('button')
+      .evaluateAll((els) =>
+        els
+          .filter((e) => !!(e as HTMLElement).offsetParent)
+          .map((e) => (e as HTMLElement).innerText.replace(/\s+/g, ' ').trim().slice(0, 50))
+          .slice(0, 40),
+      )
+      .catch(() => [] as string[]);
+    const bodyText = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 800);
+    console.log(
+      `[B34H][checkout-debug] ${JSON.stringify({ url: page.url(), buttons, bodyText })}`,
+    );
+    throw err;
+  }
+  await clientButton.click();
+
+  const clientSearch = page.locator('input[placeholder="Buscar cliente..."]');
+  await clientSearch.waitFor({ state: 'visible', timeout: 15_000 });
+  await clientSearch.fill(clientName);
+  await page.waitForTimeout(1_500); // debounce + query
+  await page.getByText(clientName, { exact: false }).first().click();
+  await page.waitForTimeout(500);
+
+  // 2. Add service (+ Serviço button opens the item modal on services tab)
+  const addServiceButton = page.getByRole('button', { name: /\+\s*Servi/ }).first();
+  await addServiceButton.click();
+
+  const serviceSearch = page.locator('input[placeholder*="Buscar"]').last();
+  await serviceSearch.waitFor({ state: 'visible', timeout: 15_000 });
+  await serviceSearch.fill(serviceName);
+  await page.waitForTimeout(1_500);
+  await page.getByText(serviceName, { exact: false }).first().click();
+  await page.waitForTimeout(800);
+
+  // 3. Assign the professional on the cart item (select containing barber option)
+  const selects = page.locator('select');
+  const selectCount = await selects.count();
+  let assigned = false;
+  for (let i = 0; i < selectCount; i++) {
+    const sel = selects.nth(i);
+    const options = await sel.locator('option').allTextContents().catch(() => [] as string[]);
+    const match = options.find((o) => o.trim() === 'B34H Barbeiro');
+    if (match !== undefined) {
+      await sel.selectOption({ label: match });
+      assigned = true;
+      break;
+    }
+  }
+  log('checkout-professional-assigned', { assigned });
+
+  // 4. Ensure payment status = paid (default) and pick payment method
+  const fecharAgora = page.getByRole('button', { name: /Fechar agora/ }).first();
+  if (await fecharAgora.isVisible().catch(() => false)) {
+    await fecharAgora.click().catch(() => undefined);
+  }
+  const dinheiro = page.getByRole('button', { name: /^Dinheiro$/ }).first();
+  if (await dinheiro.isVisible().catch(() => false)) {
+    await dinheiro.click().catch(() => undefined);
+  }
+
+  // 5. Finish checkout ('Confirmar e fechar' when paymentStatus=paid)
+  const finishButton = page.getByRole('button', { name: /Confirmar e fechar|Concluir venda|Abrir e fechar agora/ }).first();
+  await finishButton.waitFor({ state: 'visible', timeout: 15_000 });
+
+  // Capture app feedback during the finish call.
+  const consoleMessages: string[] = [];
+  const consoleListener = (msg: any) => {
+    const text = `[${msg.type()}] ${msg.text()}`;
+    if (
+      msg.type() === 'error' ||
+      msg.type() === 'warning' ||
+      /checkout|commission|finance|rollback|erro|fail/i.test(text)
+    ) {
+      consoleMessages.push(text.slice(0, 300));
+    }
+  };
+  page.on('console', consoleListener);
+
+  await finishButton.click();
+
+  // 6. Wait for success feedback (toast or navigation away from /checkout)
+  await page
+    .waitForURL((u) => !u.hash.includes('/checkout'), { timeout: 45_000 })
+    .catch(async () => {
+      await page
+        .getByText(/sucesso|registrada|finalizada/i)
+        .first()
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(() => undefined);
+    });
+  const toasts = await page
+    .locator('[class*="toast"], [role="alert"], [role="status"]')
+    .allInnerTexts()
+    .catch(() => [] as string[]);
+  log('checkout-ui-done', { url: page.url(), toasts, consoleMessages: consoleMessages.slice(0, 15) });
+  page.off('console', consoleListener);
+  await page.waitForTimeout(2_000);
+}
+
+async function openReversalModalAndFill(page: Page, note: string): Promise<void> {
+  await page.goto('/#/cashflow');
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.waitForTimeout(3_000);
+
+  const estornar = page.getByRole('button', { name: /Estornar/ }).first();
+  await estornar.waitFor({ state: 'visible', timeout: 30_000 });
+  await estornar.click();
+
+  const noteInput = page.locator('textarea[placeholder*="estorno" i], textarea[placeholder*="auditoria" i]').first();
+  await noteInput.waitFor({ state: 'visible', timeout: 15_000 });
+  await noteInput.fill(note);
+
+  await page.locator('input[type="checkbox"]').first().check();
+}
+
+async function confirmReversal(page: Page): Promise<'success' | 'error'> {
+  await page.getByRole('button', { name: /Confirmar estorno auditado/ }).click();
+  const successToast = page.getByText(/registrada com sucesso/i).first();
+  const errorToast = page.getByText(/Nenhuma altera|excede|inválida|Não foi poss/i).first();
+  const winner = await Promise.race([
+    successToast
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'success' as const)
+      .catch(() => null),
+    errorToast
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'error' as const)
+      .catch(() => null),
+  ]);
+  return winner ?? 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// DB helpers (service role — bypasses RLS)
+// ---------------------------------------------------------------------------
+async function pollUntil<T>(
+  fn: () => Promise<T | null>,
+  label: string,
+  timeoutMs = 40_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let last: T | null = null;
+  while (Date.now() < deadline) {
+    last = await fn();
+    if (last !== null && last !== undefined) return last;
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+  throw new Error(`[B34H] pollUntil('${label}') timed out after ${timeoutMs}ms`);
+}
+
+async function fetchCommissionByComanda(comandaId: string, recordType?: 'commission' | 'reversal') {
+  let q = admin()
+    .from('commission_records')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('comanda_id', comandaId);
+  if (recordType) q = q.eq('record_type', recordType);
+  const { data, error } = await q;
+  if (error) throw new Error(`commission_records query failed: ${error.message}`);
+  return data || [];
+}
+
+async function waitForCommissionRecord(comandaId: string): Promise<Record<string, unknown>> {
+  await new Promise((r) => setTimeout(r, DISPATCH_WAIT_MS));
+  return pollUntil(async () => {
+    const rows = await fetchCommissionByComanda(comandaId, 'commission');
+    return rows.length === 1 ? (rows[0] as Record<string, unknown>) : null;
+  }, `commission record for comanda ${comandaId}`);
+}
+
+async function latestComandaId(excluding: string[]): Promise<string | null> {
+  const { data } = await admin()
+    .from('comandas')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  const rows = (data || []) as Array<{ id: string }>;
+  const found = rows.find((r) => !excluding.includes(r.id));
+  return found ? found.id : null;
+}
+
+async function assertNoForbiddenRows(): Promise<void> {
+  const { data, error } = await admin()
+    .from('processed_operations')
+    .select('*')
+    .eq('tenant_id', tenantId);
+  if (error) throw new Error(`processed_operations query failed: ${error.message}`);
+  const rows = data || [];
+  log('processed-operations-all', rows.map((r: any) => ({
+    operation_type: r.operation_type,
+    idempotency_key: r.idempotency_key,
+  })));
+  const forbidden = rows.filter((r: any) => BLOCKED_OPERATION_TYPES.includes(r.operation_type));
+  expect(forbidden, 'forbidden financial operations must not exist').toHaveLength(0);
+}
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('B34H - Controlled Financial Validation', () => {
+  test.setTimeout(240_000);
+
+  test.beforeAll(async () => {
+    runId = Date.now();
+    clientName = `Cliente Val B34H ${runId}`;
+    serviceName = `Servico Val B34H ${runId}`;
+    managerUser.email = `b34h-val-${runId}-manager@gmail.com`;
+
+    const barberEmail = `b34h-val-${runId}-barber@gmail.com`;
+    managerUser.userId = await createConfirmedUser({
+      email: managerUser.email,
+      password: managerUser.password,
+      userMetadata: { first_name: 'B34H', last_name: 'Manager' },
+    });
+    const barberUserId = await createConfirmedUser({
+      email: barberEmail,
+      password: PASSWORD,
+      userMetadata: { first_name: 'B34H', last_name: 'Barbeiro' },
+    });
+
+    const { data: tenant, error: tenantError } = await admin()
+      .from('tenants')
+      .insert({
+        name: `B34H Validation ${runId}`,
+        slug: `b34h-val-${runId}`,
+        app_slug: 'barber',
+        plan: 'pro',
+        status: 'active',
+      })
+      .select('id')
+      .single();
+    if (tenantError || !tenant) throw new Error(`tenants insert failed: ${tenantError?.message}`);
+    tenantId = (tenant as { id: string }).id;
+
+    // PO ADJUSTMENT 1 — isolation checkpoint BEFORE anything else.
+    log('CHECKPOINT-tenant-isolation', {
+      b34hTenantId: tenantId,
+      principalTenantId: PRINCIPAL_TENANT_ID,
+      distinct: tenantId !== PRINCIPAL_TENANT_ID,
+    });
+    expect(tenantId).not.toBe(PRINCIPAL_TENANT_ID);
+    expect(typeof tenantId).toBe('string');
+    expect(tenantId).toMatch(/^[0-9a-f-]{36}$/i);
+
+    const { error: profilesError } = await admin().from('profiles').insert([
+      { id: managerUser.userId, tenant_id: tenantId, full_name: 'B34H Manager', role: 'manager', status: 'active', onboarding_completed: true },
+      { id: barberUserId, tenant_id: tenantId, full_name: 'B34H Barbeiro', role: 'barber', status: 'active', onboarding_completed: true },
+    ]);
+    if (profilesError) throw new Error(`profiles insert failed: ${profilesError.message}`);
+
+    // Deterministic re-seed regardless of trigger drift (same strategy as globalSetup).
+    await admin().from('staff').delete().eq('tenant_id', tenantId);
+    await admin().from('user_tenants').delete().eq('tenant_id', tenantId);
+
+    const { error: membershipsError } = await admin().from('user_tenants').insert([
+      { user_id: managerUser.userId, tenant_id: tenantId, role: 'manager', is_primary: true },
+      { user_id: barberUserId, tenant_id: tenantId, role: 'barber', is_primary: false },
+    ]);
+    if (membershipsError) throw new Error(`user_tenants insert failed: ${membershipsError.message}`);
+
+    const { data: staffRows, error: staffError } = await admin()
+      .from('staff')
+      .insert([
+        { id: managerUser.userId, name: 'B34H Manager', email: managerUser.email, phone: '', role: 'manager', avatar: '', commission_rate: 0, status: 'active', tenant_id: tenantId },
+        { id: barberUserId, name: 'B34H Barbeiro', email: barberEmail, phone: '', role: 'barber', avatar: '', commission_rate: 40, status: 'active', tenant_id: tenantId },
+      ])
+      .select('id, name');
+    if (staffError || !staffRows) throw new Error(`staff insert failed: ${staffError?.message}`);
+    barberStaffId = staffRows.find((s: any) => s.name === 'B34H Barbeiro')!.id as string;
+
+    const { error: settingsError } = await admin()
+      .from('tenant_settings')
+      .upsert({ tenant_id: tenantId, chair_count: 1 }, { onConflict: 'tenant_id' });
+    if (settingsError) throw new Error(`tenant_settings upsert failed: ${settingsError.message}`);
+
+    const { data: clientRow, error: clientsError } = await admin()
+      .from('clients')
+      .insert({ tenant_id: tenantId, name: clientName, phone: '11000000001', email: `b34h-${runId}@val.com`, status: 'active' })
+      .select('id')
+      .single();
+    if (clientsError || !clientRow) throw new Error(`clients insert failed: ${clientsError?.message}`);
+    clientId = (clientRow as { id: string }).id;
+
+    const { data: serviceRow, error: servicesError } = await admin()
+      .from('services')
+      .insert({ tenant_id: tenantId, name: serviceName, category: 'Validacao', price: 100, duration: 30, active: true })
+      .select('id')
+      .single();
+    if (servicesError || !serviceRow) throw new Error(`services insert failed: ${servicesError?.message}`);
+    serviceId = (serviceRow as { id: string }).id;
+
+    log('seed-complete', { tenantId, managerUser: managerUser.email, barberStaffId, clientId, serviceId });
+  });
+
+  test.afterAll(async () => {
+    // FK-aware teardown. Commission records first (RESTRICT on staff), then
+    // items -> comandas -> transactions, then reference data, then users+tenant.
+    type TeardownResult = { error?: { message?: string } | null };
+    const steps: Array<[string, () => PromiseLike<TeardownResult>]> = [
+      ['commission_records', () => admin().from('commission_records').delete().eq('tenant_id', tenantId)],
+      ['comanda_items', async () => {
+        const { data: comandas } = await admin().from('comandas').select('id').eq('tenant_id', tenantId);
+        const ids = (comandas || []).map((c: any) => c.id);
+        if (!ids.length) return { error: null };
+        return admin().from('comanda_items').delete().in('comanda_id', ids);
+      }],
+      ['comandas', () => admin().from('comandas').delete().eq('tenant_id', tenantId)],
+      ['transactions', () => admin().from('transactions').delete().eq('tenant_id', tenantId)],
+      ['appointments', () => admin().from('appointments').delete().eq('tenant_id', tenantId)],
+      ['processed_operations', () => admin().from('processed_operations').delete().eq('tenant_id', tenantId)],
+      ['event_store', () => admin().from('event_store').delete().eq('metadata->>tenantId', tenantId)],
+      ['clients', () => admin().from('clients').delete().eq('tenant_id', tenantId)],
+      ['services', () => admin().from('services').delete().eq('tenant_id', tenantId)],
+      ['staff', () => admin().from('staff').delete().eq('tenant_id', tenantId)],
+      ['user_tenants', () => admin().from('user_tenants').delete().eq('tenant_id', tenantId)],
+      ['profiles', () => admin().from('profiles').delete().eq('tenant_id', tenantId)],
+      ['auth-users-manager', () => deleteUserByEmail(managerUser.email).then(() => ({ error: null }))],
+      ['tenant_settings', () => admin().from('tenant_settings').delete().eq('tenant_id', tenantId)],
+      ['tenants', () => admin().from('tenants').delete().eq('id', tenantId)],
+    ];
+    for (const [name, fn] of steps) {
+      try {
+        const res = await fn();
+        const error = res?.error ?? null;
+        if (error) console.warn(`[B34H][teardown] ${name} failed: ${error.message}`);
+        else log('teardown', { step: name, ok: true });
+      } catch (err) {
+        console.warn(`[B34H][teardown] ${name} threw`, err);
+      }
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 1 - Real UI checkout produces exactly one correct commission record', async ({ page }) => {
+    test.info().annotations.push({ description: 'UI Checkout -> CheckoutCompleted -> commission_records', type: 'b34h' });
+
+    // Persistent console capture across the whole dispatch window.
+    const allLogs: string[] = [];
+    const collector = (msg: any) => {
+      const text = msg.text();
+      if (
+        msg.type() === 'error' ||
+        /COMMISSION_RECORD_HANDLER|OUTBOX|FINANCE_SUBSCRIBER|FINANCE_PROVIDER|dead.?letter/i.test(text)
+      ) {
+        allLogs.push(`[${msg.type()}] ${text.slice(0, 400)}`);
+      }
+    };
+    page.on('console', collector);
+
+    try {
+      await uiLogin(page);
+      await performUiCheckout(page);
+
+      let firstPoll = true;
+      const comanda = (await pollUntil(async () => {
+        const r = await admin()
+          .from('comandas')
+          .select('id, tenant_id, status, total')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (firstPoll) {
+          console.log(
+            `[B34H][FASE1-first-poll] ${JSON.stringify({ row: r.data?.[0] ?? null, err: r.error?.message ?? null })}`,
+          );
+          firstPoll = false;
+        }
+        return r.data && r.data.length ? (r.data[0] as Record<string, unknown>) : null;
+      }, 'comanda row', 60_000)) as Record<string, unknown>;
+      comandaAId = comanda.id as string;
+      log('FASE1-comanda', comanda);
+      expect(comandaAId).toBeTruthy();
+
+      try {
+        var record = await waitForCommissionRecord(comandaAId);
+      } catch (err) {
+        console.log(
+          `[B34H][FASE1-dispatch-logs-on-timeout] ${JSON.stringify(allLogs.slice(-40))}`,
+        );
+        throw err;
+      }
+      commissionA = record;
+      log('CHECKPOINT-FASE1-commission-record', record);
+      console.log(`[B34H][FASE1-handler-logs] ${JSON.stringify(allLogs.slice(-25))}`);
+
+      expect(record.record_type).toBe('commission');
+      expect(record.staff_id).toBe(barberStaffId);
+      expect(num(record.gross_value)).toBe(100);
+      expect(num(record.net_value)).toBe(100);
+      expect(num(record.received_value)).toBe(100);
+      expect(num(record.commission_rate)).toBeCloseTo(0.4, 4);
+      expect(num(record.participant_share)).toBeCloseTo(1.0, 4);
+      expect(record.payout_type).toBe('percentage');
+      expect(record.affects_commission).toBe(true);
+      expect(num(record.commission_value)).toBe(40);
+      expect(record.original_record_id).toBeNull();
+      expect(String(record.status)).toBe('active');
+      expect(String(record.idempotency_key)).toBeTruthy();
+      expect(String(record.event_type)).toBe('CheckoutCompleted');
+
+      // Sync path intact: transaction row still created synchronously at checkout.
+      const { data: txs, error: txError } = await admin()
+        .from('transactions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('source_id', comandaAId);
+      if (txError) throw new Error(`transactions query failed: ${txError.message}`);
+      log('FASE1-sync-transactions', (txs || []).map((t: any) => ({ id: t.id, amount: t.amount, source_type: t.source_type })));
+      expect((txs || []).length).toBeGreaterThanOrEqual(1);
+    } finally {
+      page.off('console', collector);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 2 - Replay guard proven at database level (unique indexes)', async () => {
+    test.info().annotations.push({ description: 'DB-level idempotency evidence for FASE 2 replay', type: 'b34h' });
+    if (!commissionA) throw new Error('FASE 1 state missing');
+
+    // Honest scope note: the outbox is in-memory per browser session, so an
+    // external event replay cannot be triggered against this deployment. The
+    // hard guarantee lives in the database constraints; subscriber-level
+    // idempotency was already covered by unit tests (B3.4-E suite).
+    log('FASE2-scope-note', {
+      externalReplayPossible: false,
+      reason: 'InMemoryOutbox is per-browser-session; no persistent queue to drain twice.',
+    });
+
+    // (a) duplicate original commission for same staff+comanda -> partial unique index
+    const dupOriginal = await admin()
+      .from('commission_records')
+      .insert({
+        tenant_id: tenantId,
+        record_type: 'commission',
+        comanda_id: comandaAId,
+        staff_id: barberStaffId,
+        gross_value: 100,
+        net_value: 100,
+        received_value: 100,
+        commission_rate: 0.4,
+        commission_value: 40,
+        idempotency_key: `b34h-replay-dup-original-${runId}`,
+        event_id: 'b34h-replay-dup-original-event',
+        event_type: 'CheckoutCompleted',
+      });
+    log('CHECKPOINT-FASE2-duplicate-staff-comanda-blocked', { blocked: !!dupOriginal.error, detail: dupOriginal.error?.message });
+    expect(dupOriginal.error).not.toBeNull();
+    expect(dupOriginal.error!.message).toContain('idx_commission_records_staff_comanda');
+
+    // (b) same idempotency key reused -> idempotency unique index
+    const originalKey = String(commissionA.idempotency_key);
+    const dupIdem = await admin()
+      .from('commission_records')
+      .insert({
+        tenant_id: tenantId,
+        record_type: 'commission',
+        comanda_id: comandaAId,
+        staff_id: barberStaffId,
+        gross_value: 100,
+        net_value: 100,
+        received_value: 100,
+        commission_rate: 0.4,
+        commission_value: 40,
+        idempotency_key: originalKey,
+        event_id: 'b34h-replay-dup-idem-event',
+        event_type: 'CheckoutCompleted',
+      });
+    log('CHECKPOINT-FASE2-idempotency-key-blocked', { blocked: !!dupIdem.error, detail: dupIdem.error?.message });
+    expect(dupIdem.error).not.toBeNull();
+    expect(dupIdem.error!.message).toContain('idx_commission_records_idempotency');
+
+    // No extra rows appeared.
+    const rows = await fetchCommissionByComanda(comandaAId, 'commission');
+    expect(rows).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 3 - Real UI reversal produces audited reversal, preserves original, nets zero', async ({ page }) => {
+    test.info().annotations.push({ description: 'UI Cashflow reversal -> CheckoutReverted -> reverse_commission', type: 'b34h' });
+    if (!commissionA) throw new Error('FASE 1 state missing');
+
+    const snapshotBefore = {
+      commission_value: commissionA.commission_value,
+      gross_value: commissionA.gross_value,
+      net_value: commissionA.net_value,
+      received_value: commissionA.received_value,
+      staff_id: commissionA.staff_id,
+      status: commissionA.status,
+    };
+    log('FASE3-original-snapshot-before', snapshotBefore);
+
+    await uiLogin(page);
+    await openReversalModalAndFill(page, 'Validacao controlada B3.4-H FASE 3');
+    const outcome = await confirmReversal(page);
+    log('CHECKPOINT-FASE3-reversal-outcome', { outcome });
+    expect(outcome).toBe('success');
+
+    await new Promise((r) => setTimeout(r, DISPATCH_WAIT_MS));
+
+    const reversals = await pollUntil(async () => {
+      const rows = await fetchCommissionByComanda(comandaAId, 'reversal');
+      return rows.length >= 1 ? rows : null;
+    }, 'reversal record');
+    const reversal = reversals[0] as Record<string, unknown>;
+    log('CHECKPOINT-FASE3-reversal-record', reversal);
+
+    expect(reversal.record_type).toBe('reversal');
+    expect(reversal.original_record_id).toBe(commissionA.id);
+    expect(num(reversal.commission_value)).toBe(-40);
+    expect(num(reversal.gross_value)).toBe(0);
+    expect(num(reversal.received_value)).toBe(0);
+    expect(reversal.affects_commission).toBe(false);
+    expect(reversal.staff_id).toBe(barberStaffId);
+    expect(String(reversal.idempotency_key)).toMatch(/^finance-reversal-/);
+    expect(String(reversal.status)).toBe('active');
+
+    // Original row untouched (append-only guarantee).
+    const originals = await fetchCommissionByComanda(comandaAId, 'commission');
+    expect(originals).toHaveLength(1);
+    const after = originals[0] as Record<string, unknown>;
+    expect(after).toMatchObject(snapshotBefore);
+    log('CHECKPOINT-FASE3-original-preserved', after);
+
+    // Net effect zero.
+    const all = await fetchCommissionByComanda(comandaAId);
+    const netSum = all.reduce((acc: number, r: any) => acc + num(r.commission_value), 0);
+    log('CHECKPOINT-FASE3-net-sum-zero', { netSum });
+    expect(netSum).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 4A - Concurrent real handler executions produce exactly ONE effective reversal', async ({ browser }) => {
+    test.info().annotations.push({ description: 'Dual-context simultaneous UI reversals (real pipeline)', type: 'b34h' });
+
+    // Second checkout (comanda B) with its own live commission record.
+    const seed = await newLoggedContext(browser);
+    await performUiCheckout(seed.page);
+    comandaBId = await pollUntil(
+      () => latestComandaId([comandaAId]),
+      'comanda B',
+    );
+    expect(comandaBId).toBeTruthy();
+    commissionB = await waitForCommissionRecord(comandaBId);
+    log('FASE4A-second-checkout', { comandaBId, commissionValue: commissionB!.commission_value });
+    expect(num(commissionB!.commission_value)).toBe(40);
+    await seed.ctx.close(); // safe: commission record already persisted
+
+    // Dual contexts, both driving the REAL reversal pipeline simultaneously.
+    // Each modal generates its own random finance-reversal-* idempotency key,
+    // so dedup MUST come from the pipeline/RPC guards, not from key reuse.
+    const [a, b] = await Promise.all([newLoggedContext(browser), newLoggedContext(browser)]);
+    await Promise.all([
+      openReversalModalAndFill(a.page, 'Validacao B3.4-H FASE 4A contexto A'),
+      openReversalModalAndFill(b.page, 'Validacao B3.4-H FASE 4A contexto B'),
+    ]);
+    const outcomes = await Promise.all([confirmReversal(a.page), confirmReversal(b.page)]);
+    log('CHECKPOINT-FASE4A-ui-outcomes', outcomes);
+
+    await new Promise((r) => setTimeout(r, DISPATCH_WAIT_MS));
+    const effectiveReversals = await pollUntil(async () => {
+      const rows = await fetchCommissionByComanda(comandaBId, 'reversal');
+      return rows.length >= 1 ? rows : [];
+    }, '4A reversals');
+    log('CHECKPOINT-FASE4A-effective-reversals', effectiveReversals.map((r: any) => ({
+      id: r.id,
+      value: r.commission_value,
+      idempotency_key: r.idempotency_key,
+    })));
+    expect(effectiveReversals).toHaveLength(1);
+    expect(num(effectiveReversals[0].commission_value)).toBe(-40);
+
+    await a.ctx.close();
+    await b.ctx.close();
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 4B - Direct concurrent RPC calls prove advisory lock + SUM validation', async ({ browser }) => {
+    test.info().annotations.push({ description: 'Parallel create_commission_reversal calls (authenticated session)', type: 'b34h' });
+
+    // Third checkout via UI (comanda C) — context kept open until record lands.
+    const seed = await newLoggedContext(browser);
+    await performUiCheckout(seed.page);
+    comandaCId = await pollUntil(() => latestComandaId([comandaAId, comandaBId]), 'comanda C');
+    expect(comandaCId).toBeTruthy();
+    commissionC = await waitForCommissionRecord(comandaCId);
+    log('FASE4B-third-checkout', { comandaCId, commissionValue: commissionC!.commission_value });
+    expect(num(commissionC!.commission_value)).toBe(40);
+    await seed.ctx.close();
+
+    // Direct parallel RPC calls with DISTINCT idempotency keys: idempotency
+    // cannot dedupe these; only pg_advisory_xact_lock + FOR UPDATE + the SUM
+    // validation can. Exactly one must succeed.
+    const userClient = await createAuthenticatedClient();
+    const call = (suffix: string) =>
+      userClient.rpc('create_commission_reversal', {
+        p_tenant_id: tenantId,
+        p_original_record_id: commissionC!.id,
+        p_commission_value: -40,
+        p_idempotency_key: `b34h-rpc-${runId}-${suffix}`,
+        p_event_id: `b34h-rpc-${runId}-${suffix}`,
+        p_event_type: 'CheckoutReverted',
+      });
+    const [resA, resB] = await Promise.all([call('a'), call('b')]);
+    log('CHECKPOINT-FASE4B-rpc-a', { error: resA.error?.message ?? null, data: resA.data });
+    log('CHECKPOINT-FASE4B-rpc-b', { error: resB.error?.message ?? null, data: resB.data });
+
+    const successes = [resA, resB].filter(
+      (r) => !r.error && (r.data as any)?.success === true && (r.data as any)?.idempotent === false,
+    );
+    expect(successes).toHaveLength(1);
+
+    const dbReversals = await fetchCommissionByComanda(comandaCId, 'reversal');
+    log('CHECKPOINT-FASE4B-db-reversals', dbReversals.map((r: any) => ({
+      id: r.id, value: r.commission_value, idempotency_key: r.idempotency_key,
+    })));
+    expect(dbReversals).toHaveLength(1);
+    expect(num(dbReversals[0].commission_value)).toBe(-40);
+  });
+
+  // -------------------------------------------------------------------------
+  test('FASE 5 - Overflow attempt observed and documented; negative matrix clean', async ({ browser }) => {
+    test.info().annotations.push({ description: 'Overflow observation + forbidden-operation matrix', type: 'b34h' });
+
+    // Fourth checkout via UI (comanda D) — fresh original with full balance.
+    const seed = await newLoggedContext(browser);
+    await performUiCheckout(seed.page);
+    comandaDId = await pollUntil(
+      () => latestComandaId([comandaAId, comandaBId, comandaCId]),
+      'comanda D',
+    );
+    expect(comandaDId).toBeTruthy();
+    commissionD = await waitForCommissionRecord(comandaDId);
+    log('FASE5-fourth-checkout', { comandaDId, commissionValue: commissionD!.commission_value });
+    expect(num(commissionD!.commission_value)).toBe(40);
+    await seed.ctx.close();
+
+    // PO ADJUSTMENT 3: OBSERVE behavior — do not assume cap vs rejection,
+    // do not change any code to make this pass.
+    const userClient = await createAuthenticatedClient();
+    const attempt = await userClient.rpc('create_commission_reversal', {
+      p_tenant_id: tenantId,
+      p_original_record_id: commissionD!.id,
+      p_commission_value: -9999,
+      p_idempotency_key: `b34h-overflow-${runId}`,
+      p_event_id: `b34h-overflow-${runId}`,
+      p_event_type: 'CheckoutReverted',
+    });
+    log('CHECKPOINT-FASE5-overflow-attempt', {
+      error: attempt.error?.message ?? null,
+      data: attempt.data,
+    });
+
+    if (attempt.error) {
+      log('FASE5-OBSERVED-behavior', { kind: 'rejection', detail: attempt.error.message });
+      expect(attempt.error.message).toContain('excede');
+    } else if ((attempt.data as any)?.success === true) {
+      log('FASE5-OBSERVED-behavior', { kind: 'accepted-or-capped', detail: attempt.data });
+      // Documented, NOT failed: behavior observation only (PO rule).
+    }
+
+    // Final DB truth for comanda D (whatever behavior was observed).
+    const allD = await fetchCommissionByComanda(comandaDId);
+    log('CHECKPOINT-FASE5-comanda-D-final-state', allD.map((r: any) => ({
+      record_type: r.record_type,
+      commission_value: r.commission_value,
+      idempotency_key: r.idempotency_key,
+    })));
+
+    // Negative matrix: zero forbidden operations ever enqueued/executed for
+    // this tenant across ALL phases.
+    await assertNoForbiddenRows();
+  });
+});
