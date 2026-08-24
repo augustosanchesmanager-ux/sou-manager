@@ -455,8 +455,8 @@ describe('B3.4-E Reversal', () => {
       await handler.execute(data as any, makeContext());
 
       const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
-      // proportion = min(1, 100/100) = 1, reversal = 40 × 1 = 40
-      expect(callArgs.commissionValue).toBeCloseTo(40, 1);
+      // proportion = min(1, 100/100) = 1, reversal = -(40 × 1) = -40
+      expect(callArgs.commissionValue).toBeCloseTo(-40, 1);
     });
   });
 
@@ -476,8 +476,8 @@ describe('B3.4-E Reversal', () => {
       await handler.execute(data as any, makeContext());
 
       const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
-      // proportion = 50/100 = 0.5, reversal = 40 × 0.5 = 20
-      expect(callArgs.commissionValue).toBeCloseTo(20, 1);
+      // proportion = 50/100 = 0.5, reversal = -(40 × 0.5) = -20
+      expect(callArgs.commissionValue).toBeCloseTo(-20, 1);
     });
   });
 
@@ -823,7 +823,7 @@ describe('B3.4-E Integrity', () => {
       const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
       expect(callArgs.tenantId).toBe('tenant-1');
       expect(callArgs.originalRecordId).toBe('rec-999');
-      expect(callArgs.commissionValue).toBeGreaterThan(0);
+      expect(callArgs.commissionValue).toBeLessThan(0);
       expect(callArgs.idempotencyKey).toBe('evt_RPC_reverse_commission_rec-999');
       expect(callArgs.eventId).toBe('evt_RPC');
       expect(callArgs.eventType).toBe('CheckoutReverted');

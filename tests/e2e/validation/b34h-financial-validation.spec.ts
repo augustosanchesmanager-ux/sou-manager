@@ -519,7 +519,7 @@ test.describe('B34H - Controlled Financial Validation', () => {
       const text = msg.text();
       if (
         msg.type() === 'error' ||
-        /COMMISSION_RECORD_HANDLER|OUTBOX|FINANCE_SUBSCRIBER|FINANCE_PROVIDER|dead.?letter/i.test(text)
+        /COMMISSION_RECORD_HANDLER|OUTBOX|FINANCE_SUBSCRIBER|FINANCE_PROVIDER|dead.?letter|reversal/i.test(text)
       ) {
         allLogs.push(`[${msg.type()}] ${text.slice(0, 400)}`);
       }
@@ -760,7 +760,8 @@ test.describe('B34H - Controlled Financial Validation', () => {
       reason: 'InMemoryOutbox is per-browser-session; no persistent queue to drain twice.',
     });
 
-    // (a) duplicate original commission for same staff+comanda -> partial unique index
+    // 2A — unique (staff_id, comanda_id) prevents a second commission for the
+    // same professional/comanda.
     const dupOriginal = await admin()
       .from('commission_records')
       .insert({
@@ -777,18 +778,37 @@ test.describe('B34H - Controlled Financial Validation', () => {
         event_id: 'b34h-replay-dup-original-event',
         event_type: 'CheckoutCompleted',
       });
-    log('CHECKPOINT-FASE2-duplicate-staff-comanda-blocked', { blocked: !!dupOriginal.error, detail: dupOriginal.error?.message });
+    log('CHECKPOINT-FASE2-2A-staff-comanda-blocked', { blocked: !!dupOriginal.error, detail: dupOriginal.error?.message });
     expect(dupOriginal.error).not.toBeNull();
     expect(dupOriginal.error!.message).toContain('idx_commission_records_staff_comanda');
 
-    // (b) same idempotency key reused -> idempotency unique index
+    // 2B — unique idempotency_key prevents reprocessing the same operation.
+    // We deliberately use a DIFFERENT (staff, comanda) pair so the staff/comanda
+    // index cannot mask this second guarantee; only the idempotency index should fire.
+    const { data: altComanda, error: altErr } = await admin()
+      .from('comandas')
+      .insert({
+        tenant_id: tenantId,
+        client_id: clientId,
+        staff_id: barberStaffId,
+        status: 'paid',
+        total: 100,
+        subtotal: 100,
+        discount: 0,
+        payment_method: 'cash',
+        idempotency_key: `b34h-alt-comanda-${runId}`,
+      })
+      .select('id')
+      .single();
+    expect(altErr).toBeNull();
+    expect(altComanda).not.toBeNull();
     const originalKey = String(commissionA.idempotency_key);
     const dupIdem = await admin()
       .from('commission_records')
       .insert({
         tenant_id: tenantId,
         record_type: 'commission',
-        comanda_id: comandaAId,
+        comanda_id: altComanda!.id,
         staff_id: barberStaffId,
         gross_value: 100,
         net_value: 100,
@@ -799,19 +819,30 @@ test.describe('B34H - Controlled Financial Validation', () => {
         event_id: 'b34h-replay-dup-idem-event',
         event_type: 'CheckoutCompleted',
       });
-    log('CHECKPOINT-FASE2-idempotency-key-blocked', { blocked: !!dupIdem.error, detail: dupIdem.error?.message });
+    log('CHECKPOINT-FASE2-2B-idempotency-blocked', { blocked: !!dupIdem.error, detail: dupIdem.error?.message });
     expect(dupIdem.error).not.toBeNull();
     expect(dupIdem.error!.message).toContain('idx_commission_records_idempotency');
 
-    // No extra rows appeared.
+    // No extra rows appeared for the original comanda.
     const rows = await fetchCommissionByComanda(comandaAId, 'commission');
     expect(rows).toHaveLength(1);
   });
 
   // -------------------------------------------------------------------------
-  test('FASE 3 - Real UI reversal produces audited reversal, preserves original, nets zero', async ({ page }) => {
+    test('FASE 3 - Real UI reversal produces audited reversal, preserves original, nets zero', async ({ page }) => {
     test.info().annotations.push({ description: 'UI Cashflow reversal -> CheckoutReverted -> reverse_commission', type: 'b34h' });
     if (!commissionA) throw new Error('FASE 1 state missing');
+
+    // INSTRUMENTATION (TD-001 B3.4-H): capture browser console for FASE 3 page
+    // so reversal.ts publish logs ([reversal]… / [REVERSAL][EVENT-PUBLISH-FAILED]) are observed.
+    const f3Logs: string[] = [];
+    const f3Collector = (msg: any) => {
+      const text = `[${msg.type()}] ${msg.text()}`;
+      if (msg.type() === 'error' || /COMMISSION_RECORD_HANDLER|OUTBOX|FINANCE_SUBSCRIBER|FINANCE_PROVIDER|dead.?letter|reversal/i.test(text)) {
+        f3Logs.push(text.slice(0, 400));
+      }
+    };
+    page.on('console', f3Collector);
 
     const snapshotBefore = {
       commission_value: commissionA.commission_value,
@@ -829,6 +860,33 @@ test.describe('B34H - Controlled Financial Validation', () => {
     log('CHECKPOINT-FASE3-reversal-outcome', { outcome });
     expect(outcome).toBe('success');
 
+    // ── INSTRUMENTATION (TD-001 B3.4-H correction gate) ───────────────────────
+    // Capture the discriminators between the two candidate failure modes:
+    //  (1) originalTx.source_type !== 'comanda'  → publish skipped silently
+    //  (2) source_type === 'comanda' but originalCommission === 0 → reverse_commission not enqueued
+    // All reads are spec-side (no reversal.ts change).
+    const txProbe = await admin()
+      .from('transactions')
+      .select('id, source_id, source_type, type, amount, idempotency_key')
+      .eq('source_id', comandaAId);
+    log('CHECKPOINT-FASE3-instrument-tx', { rows: txProbe.data ?? null, err: txProbe.error?.message ?? null });
+
+    const esProbe = await admin()
+      .from('event_store')
+      .select('id, event_type, payload')
+      .eq('metadata->>tenantId', tenantId)
+      .eq('event_type', 'CheckoutReverted');
+    log('CHECKPOINT-FASE3-instrument-eventstore', {
+      count: esProbe.data?.length ?? 0,
+      events: (esProbe.data ?? []).map((e: any) => ({
+        eventType: e.event_type,
+        payload: e.payload,
+      })),
+      err: esProbe.error?.message ?? null,
+    });
+    log('CHECKPOINT-FASE3-browser-logs', { logs: f3Logs });
+    // ──────────────────────────────────────────────────────────────────────────
+
     await new Promise((r) => setTimeout(r, DISPATCH_WAIT_MS));
 
     const reversals = await pollUntil(async () => {
@@ -837,6 +895,7 @@ test.describe('B34H - Controlled Financial Validation', () => {
     }, 'reversal record');
     const reversal = reversals[0] as Record<string, unknown>;
     log('CHECKPOINT-FASE3-reversal-record', reversal);
+    log('CHECKPOINT-FASE3-reversal-count', { enqueued_reverse_commission: reversals.length });
 
     expect(reversal.record_type).toBe('reversal');
     expect(reversal.original_record_id).toBe(commissionA.id);
@@ -845,7 +904,15 @@ test.describe('B34H - Controlled Financial Validation', () => {
     expect(num(reversal.received_value)).toBe(0);
     expect(reversal.affects_commission).toBe(false);
     expect(reversal.staff_id).toBe(barberStaffId);
-    expect(String(reversal.idempotency_key)).toMatch(/^finance-reversal-/);
+    // Idempotency-key contract is split across two entities (TD-001 B3.4-H):
+    //  - the reversal TRANSACTION uses the finance-reversal-* prefix
+    //  - the commission_records.reversal uses the evt_*_reverse_commission_* prefix
+    const reversalTx = (txProbe.data ?? []).find(
+      (t: any) => t.type === 'expense' && String(t.idempotency_key ?? '').startsWith('finance-reversal-'),
+    );
+    expect(reversalTx, 'reversal transaction must carry a finance-reversal-* idempotency key').toBeTruthy();
+    expect(String(reversalTx.idempotency_key)).toMatch(/^finance-reversal-/);
+    expect(String(reversal.idempotency_key)).toMatch(/^evt_.*_reverse_commission_/);
     expect(String(reversal.status)).toBe('active');
 
     // Original row untouched (append-only guarantee).

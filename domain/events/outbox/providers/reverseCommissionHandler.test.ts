@@ -159,7 +159,7 @@ describe('reverseCommissionHandler — Reversal Logic', () => {
     expect(deps.commissionRecordRepository.createReversal).toHaveBeenCalledTimes(1);
     const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
     expect(callArgs.originalRecordId).toBe('rec-1');
-    expect(callArgs.commissionValue).toBeGreaterThan(0);
+    expect(callArgs.commissionValue).toBeCloseTo(-20, 1);
     expect(callArgs.tenantId).toBe('tenant-1');
   });
 
@@ -178,8 +178,8 @@ describe('reverseCommissionHandler — Reversal Logic', () => {
     await handler.execute(data as any, makeContext());
 
     const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
-    // proportion = 50/100 = 0.5, reversal = 40 × 0.5 = 20
-    expect(callArgs.commissionValue).toBeCloseTo(20, 1);
+    // proportion = 50/100 = 0.5, reversal = -(40 × 0.5) = -20
+    expect(callArgs.commissionValue).toBeCloseTo(-20, 1);
   });
 
   it('should_cap_reversal_at_original_commission', async () => {
@@ -197,8 +197,8 @@ describe('reverseCommissionHandler — Reversal Logic', () => {
     await handler.execute(data as any, makeContext());
 
     const callArgs = (deps.commissionRecordRepository.createReversal as any).mock.calls[0][0];
-    // proportion = min(1, 200/100) = 1, reversal = 40 × 1 = 40
-    expect(callArgs.commissionValue).toBeCloseTo(40, 1);
+    // proportion = min(1, 200/100) = 1, reversal = -(40 × 1) = -40
+    expect(callArgs.commissionValue).toBeCloseTo(-40, 1);
   });
 
   it('should_create_reversals_for_multiple_records', async () => {
