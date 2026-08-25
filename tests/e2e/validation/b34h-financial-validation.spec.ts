@@ -261,14 +261,35 @@ async function performUiCheckout(page: Page): Promise<void> {
   await page.waitForTimeout(2_000);
 }
 
-async function openReversalModalAndFill(page: Page, note: string): Promise<void> {
+async function openReversalModalAndFill(page: Page, note: string, targetTransactionId?: string): Promise<void> {
   await page.goto('/#/cashflow');
   await page.waitForLoadState('networkidle').catch(() => undefined);
   await page.waitForTimeout(3_000);
 
-  const estornar = page.getByRole('button', { name: /Estornar/ }).first();
-  await estornar.waitFor({ state: 'visible', timeout: 30_000 });
-  await estornar.click();
+  if (targetTransactionId) {
+    // Deterministic targeting: the reversal modal body renders the transaction
+    // id (Cashflow.tsx: reversalEntry.id). Match it instead of .first().
+    const buttons = page.getByRole('button', { name: /Estornar/ });
+    const count = await buttons.count();
+    let matched = false;
+    for (let i = 0; i < count; i++) {
+      await buttons.nth(i).click();
+      const title = page.getByText('Estorno / devolução auditada').first();
+      await title.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+      const idMatch = page.getByText(targetTransactionId, { exact: true });
+      if (await idMatch.count() > 0) {
+        matched = true;
+        break;
+      }
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+    }
+    if (!matched) throw new Error(`[B34H] reversal target transaction ${targetTransactionId} not found in Cashflow`);
+  } else {
+    const estornar = page.getByRole('button', { name: /Estornar/ }).first();
+    await estornar.waitFor({ state: 'visible', timeout: 30_000 });
+    await estornar.click();
+  }
 
   const noteInput = page.locator('textarea[placeholder*="estorno" i], textarea[placeholder*="auditoria" i]').first();
   await noteInput.waitFor({ state: 'visible', timeout: 15_000 });
@@ -946,28 +967,90 @@ test.describe('B34H - Controlled Financial Validation', () => {
     expect(num(commissionB!.commission_value)).toBe(40);
     await seed.ctx.close(); // safe: commission record already persisted
 
-    // Dual contexts, both driving the REAL reversal pipeline simultaneously.
+     // Dual contexts, both driving the REAL reversal pipeline simultaneously.
     // Each modal generates its own random finance-reversal-* idempotency key,
     // so dedup MUST come from the pipeline/RPC guards, not from key reuse.
     const [a, b] = await Promise.all([newLoggedContext(browser), newLoggedContext(browser)]);
+
+    // ── INSTRUMENTATION (TD-001 B3.4-H FASE 4A investigation, read-only) ──────
+    const f4Logs: string[] = [];
+    const f4Collector = (msg: any) => {
+      const text = `[${msg.type()}] ${msg.text()}`;
+      if (msg.type() === 'error' || /COMMISSION_RECORD_HANDLER|OUTBOX|FINANCE_SUBSCRIBER|FINANCE_PROVIDER|dead.?letter|reversal|CheckoutReverted|reverse_commission/i.test(text)) {
+        f4Logs.push(text.slice(0, 500));
+      }
+    };
+    a.page.on('console', f4Collector);
+    b.page.on('console', f4Collector);
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Deterministic target: comanda B's own income transaction id (NOT .first()).
+    const comandaBTxRes = await admin()
+      .from('transactions')
+      .select('id')
+      .eq('source_id', comandaBId)
+      .eq('type', 'income')
+      .single();
+    const comandaBTxId = (comandaBTxRes.data as any)?.id as string | undefined;
+    expect(comandaBTxId).toBeTruthy();
+    log('CHECKPOINT-FASE4A-target-tx', { comandaBId, comandaBTxId });
+
     await Promise.all([
-      openReversalModalAndFill(a.page, 'Validacao B3.4-H FASE 4A contexto A'),
-      openReversalModalAndFill(b.page, 'Validacao B3.4-H FASE 4A contexto B'),
+      openReversalModalAndFill(a.page, 'Validacao B3.4-H FASE 4A contexto A', comandaBTxId),
+      openReversalModalAndFill(b.page, 'Validacao B3.4-H FASE 4A contexto B', comandaBTxId),
     ]);
     const outcomes = await Promise.all([confirmReversal(a.page), confirmReversal(b.page)]);
     log('CHECKPOINT-FASE4A-ui-outcomes', outcomes);
+    log('CHECKPOINT-FASE4A-outcome-detail', { a: outcomes[0], b: outcomes[1] });
 
     await new Promise((r) => setTimeout(r, DISPATCH_WAIT_MS));
     const effectiveReversals = await pollUntil(async () => {
       const rows = await fetchCommissionByComanda(comandaBId, 'reversal');
       return rows.length >= 1 ? rows : [];
     }, '4A reversals');
-    log('CHECKPOINT-FASE4A-effective-reversals', effectiveReversals.map((r: any) => ({
-      id: r.id,
-      value: r.commission_value,
-      idempotency_key: r.idempotency_key,
-    })));
-    expect(effectiveReversals).toHaveLength(1);
+     log('CHECKPOINT-FASE4A-effective-reversals', effectiveReversals.map((r: any) => ({
+       id: r.id,
+       value: r.commission_value,
+       idempotency_key: r.idempotency_key,
+     })));
+
+     // ── INSTRUMENTATION (TD-001 B3.4-H FASE 4A investigation, read-only) ──────
+     // Probe the financial + commission truth BEFORE teardown to classify A vs B.
+     const frProbe = await admin()
+       .from('financial_reversals')
+       .select('id, tenant_id, original_transaction_id, source_id, source_type, amount, idempotency_key, reversal_transaction_id')
+       .eq('tenant_id', tenantId)
+       .eq('source_id', comandaBId);
+     log('CHECKPOINT-FASE4A-probe-financial-reversals', { rows: frProbe.data ?? null, err: frProbe.error?.message ?? null });
+
+     const txProbe = await admin()
+       .from('transactions')
+       .select('id, source_id, source_type, type, amount, idempotency_key')
+       .eq('source_id', comandaBId);
+     log('CHECKPOINT-FASE4A-probe-transactions', { rows: txProbe.data ?? null, err: txProbe.error?.message ?? null });
+
+     const crProbe = await admin()
+       .from('commission_records')
+       .select('id, comanda_id, record_type, commission_value, original_record_id, idempotency_key, status')
+       .eq('tenant_id', tenantId)
+       .eq('comanda_id', comandaBId);
+     log('CHECKPOINT-FASE4A-probe-commission-records', { rows: crProbe.data ?? null, err: crProbe.error?.message ?? null });
+
+     const esProbe = await admin()
+       .from('event_store')
+       .select('id, event_type, payload')
+       .eq('metadata->>tenantId', tenantId)
+       .eq('event_type', 'CheckoutReverted');
+     log('CHECKPOINT-FASE4A-probe-eventstore', {
+       count: esProbe.data?.length ?? 0,
+       events: (esProbe.data ?? []).map((e: any) => ({ eventType: e.event_type, payload: e.payload })),
+       err: esProbe.error?.message ?? null,
+     });
+
+     log('CHECKPOINT-FASE4A-browser-logs', { logs: f4Logs });
+     // ────────────────────────────────────────────────────────────────────────
+
+     expect(effectiveReversals).toHaveLength(1);
     expect(num(effectiveReversals[0].commission_value)).toBe(-40);
 
     await a.ctx.close();
