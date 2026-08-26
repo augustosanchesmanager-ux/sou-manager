@@ -331,7 +331,7 @@ export class SupabaseOutbox implements OutboxRepository {
       .select('id')
       .eq('status', 'processing')
       .gt('processing_started_at', '1970-01-01T00:00:00Z')
-      .gt('processing_started_at', staleThreshold);
+      .lt('processing_started_at', staleThreshold);
 
     if (queryError || !staleItems || staleItems.length === 0) {
       return 0;
