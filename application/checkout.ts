@@ -30,7 +30,8 @@ import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import type { DatabaseClient } from '../domain/shared/database-client';
-import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import { settleCheckoutComandaAndEnqueue } from '../src/lib/finance/settlement';
+import type { OutboxEnqueueData } from '../src/lib/finance/settlement';
 import {
     closeZeroAmountComanda,
     buildZeroCloseAuditNote,
@@ -534,7 +535,11 @@ class CheckoutApplicationServiceImpl {
     }
 
     /**
-     * Executa o settlement financeiro via RPC.
+     * Executa o settlement financeiro via RPC composta (D7).
+     *
+     * finance_settle_comanda_and_enqueue garante atomicidade entre
+     * o settlement e o INSERT em outbox_items na mesma transação.
+     * O event_id é gerado aqui e preservado em todas as camadas.
      */
     async settleComanda(
         req: FinishRequest,
@@ -552,8 +557,38 @@ class CheckoutApplicationServiceImpl {
                 : null,
         ].filter(Boolean).join('\n\n') || null;
 
+        // D7: Generate event_id for outbox (same format as domain/events/types.ts)
+        const eventId = `evt_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}_${Date.now()}`;
+
+        // D7: Build outbox payload (identical to FinanceSubscriber output)
+        const outboxPayload: OutboxEnqueueData = {
+            eventId,
+            eventType: 'CheckoutCompleted',
+            payload: {
+                operationType: 'create_commission_record',
+                operationData: {
+                    tenantId: req.tenantId,
+                    comandaId,
+                    clientId: req.client.id,
+                    staffId: req.cart[0]?.staff_id,
+                    receivedValue: req.total,
+                    paymentMethod: req.paymentMethod,
+                    hasClubCredit: req.creditItems.length > 0,
+                },
+                sourceEvent: 'CheckoutCompleted',
+                idempotencyKey: `${eventId}_create_commission_record`,
+            },
+            metadata: {
+                tenantId: req.tenantId,
+                userId: req.userId ?? undefined,
+                correlationId: idempotencyKey,
+                causationId: eventId,
+                source: 'CheckoutApplicationService',
+            },
+        };
+
         try {
-            await settleCheckoutComanda({
+            await settleCheckoutComandaAndEnqueue({
                 client: req.client,
                 comandaId,
                 appointmentId: req.relatedAppointmentId,
@@ -581,6 +616,7 @@ class CheckoutApplicationServiceImpl {
                 clientStats: {
                     lastService: req.cart.length > 0 ? req.cart[0].name : '',
                 },
+                outbox: outboxPayload,
             });
         } catch (settleErr: any) {
             console.error('[SMG][CHECKOUT][SETTLE][ERROR] Falha no settlement — comanda pode ter status inconsistente', {

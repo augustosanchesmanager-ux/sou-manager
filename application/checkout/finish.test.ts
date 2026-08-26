@@ -34,9 +34,9 @@ vi.mock('../../services/supabaseClient', () => ({
   })),
 }));
 
-const mockSettleCheckoutComanda = vi.fn();
+const mockSettleCheckoutComandaAndEnqueue = vi.fn();
 vi.mock('../../src/lib/finance/settlement', () => ({
-  settleCheckoutComanda: (...args: unknown[]) => mockSettleCheckoutComanda(...args),
+  settleCheckoutComandaAndEnqueue: (...args: unknown[]) => mockSettleCheckoutComandaAndEnqueue(...args),
 }));
 
 const mockCloseZeroAmountComanda = vi.fn();
@@ -266,7 +266,7 @@ describe('CheckoutApplicationService', () => {
     it('should_complete_pdv_checkout_with_settlement', async () => {
       const scenario = makeSuccessfulPaidScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
       mockInsertWithIdempotency.mockResolvedValue('comanda-paid-1');
 
       const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -274,13 +274,13 @@ describe('CheckoutApplicationService', () => {
       expect(result.comandaId).toBe('comanda-paid-1');
       expect(result.paymentStatus).toBe('paid');
       expect(result.isLegacyClubSettlement).toBe(false);
-      expect(mockSettleCheckoutComanda).toHaveBeenCalledTimes(1);
+      expect(mockSettleCheckoutComandaAndEnqueue).toHaveBeenCalledTimes(1);
     });
 
     it('should_return_comandaId_and_status_on_success', async () => {
       const scenario = makeSuccessfulPaidScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
       mockInsertWithIdempotency.mockResolvedValue('comanda-paid-1');
 
       const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -293,7 +293,7 @@ describe('CheckoutApplicationService', () => {
     it('should_create_new_comanda_when_no_existing', async () => {
       const scenario = makeSuccessfulPaidScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
       mockInsertWithIdempotency.mockResolvedValue('comanda-paid-1');
 
       const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -308,7 +308,7 @@ describe('CheckoutApplicationService', () => {
       const scenario = makeSuccessfulPaidScenario();
       scenario.request.comandaId = 'existing-comanda';
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
 
       const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
@@ -319,7 +319,7 @@ describe('CheckoutApplicationService', () => {
     it('should_create_comanda_with_correct_staff_id_when_single_staff', async () => {
       const scenario = makeSuccessfulPaidScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
       mockInsertWithIdempotency.mockResolvedValue('comanda-paid-1');
 
       const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -374,20 +374,20 @@ describe('CheckoutApplicationService', () => {
   // ═══════════════════════════════════════════════════════════════
   describe('Grupo D — Settlement', () => {
     describe('RPC settlement', () => {
-      it('should_call_settleCheckoutComanda_when_paid', async () => {
+      it('should_call_settleCheckoutComandaAndEnqueue_when_paid', async () => {
         const scenario = makeSuccessfulPaidScenario();
         mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-        mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+        mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
 
         await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
-        expect(mockSettleCheckoutComanda).toHaveBeenCalledTimes(1);
+        expect(mockSettleCheckoutComandaAndEnqueue).toHaveBeenCalledTimes(1);
       });
 
       it('should_set_comanda_status_open_when_settleViaRpc', async () => {
         const scenario = makeSuccessfulPaidScenario();
         mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-        mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+        mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
         mockInsertWithIdempotency.mockResolvedValue('comanda-paid-1');
 
         const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -412,7 +412,7 @@ describe('CheckoutApplicationService', () => {
         const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
         expect(result.paymentStatus).toBe('pending');
-        expect(mockSettleCheckoutComanda).not.toHaveBeenCalled();
+        expect(mockSettleCheckoutComandaAndEnqueue).not.toHaveBeenCalled();
       });
 
       it('should_set_status_to_open_when_payment_is_pending', () => {
@@ -432,7 +432,7 @@ describe('CheckoutApplicationService', () => {
         const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
         expect(result.isLegacyClubSettlement).toBe(true);
-        expect(mockSettleCheckoutComanda).not.toHaveBeenCalled();
+        expect(mockSettleCheckoutComandaAndEnqueue).not.toHaveBeenCalled();
         expect(mockBuildZeroCloseAuditNote).toHaveBeenCalled();
       });
 
@@ -468,7 +468,7 @@ describe('CheckoutApplicationService', () => {
         await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
         expect(mockCloseZeroAmountComanda).toHaveBeenCalledTimes(1);
-        expect(mockSettleCheckoutComanda).not.toHaveBeenCalled();
+        expect(mockSettleCheckoutComandaAndEnqueue).not.toHaveBeenCalled();
       });
 
     it('should_call_closeZeroAmount_with_club_credit_origin', async () => {
@@ -494,7 +494,7 @@ describe('CheckoutApplicationService', () => {
       it('should_deduct_credits_when_shouldDeductMembershipCredits_with_items', async () => {
         const scenario = makeCreditScenario();
         mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-        mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+        mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
         mockSupabaseRpc.mockResolvedValue({ error: null });
 
         await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
@@ -508,7 +508,7 @@ describe('CheckoutApplicationService', () => {
       it('should_not_deduct_credits_when_no_chefClubInfo', async () => {
         const scenario = makeSuccessfulPaidScenario();
         mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-        mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+        mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
 
         await checkoutApplicationService.finish(
           makeFinishRequest({
@@ -533,7 +533,7 @@ describe('CheckoutApplicationService', () => {
       const scenario = makeIdempotencyScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
       mockInsertWithIdempotency.mockResolvedValue('existing-idem-comanda');
-      mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+      mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
 
       const result = await checkoutApplicationService.finish(
         makeFinishRequest({ paymentStatus: 'paid', total: 50, comandaId: undefined }),
@@ -586,14 +586,14 @@ describe('CheckoutApplicationService — Observability Regression', () => {
   it('should_complete_finish_without_losing_this_when_instrumented', async () => {
     const scenario = makeSuccessfulPaidScenario();
     mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
-    mockSettleCheckoutComanda.mockResolvedValue(scenario.rpcResult);
+    mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
     mockInsertWithIdempotency.mockResolvedValue('comanda-instrumented-1');
 
     const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
     expect(result.comandaId).toBe('comanda-instrumented-1');
     expect(result.paymentStatus).toBe('paid');
-    expect(mockSettleCheckoutComanda).toHaveBeenCalledTimes(1);
+    expect(mockSettleCheckoutComandaAndEnqueue).toHaveBeenCalledTimes(1);
   });
 
   it('should_throw_validation_error_through_wrapper_when_instrumented', async () => {
@@ -622,6 +622,6 @@ describe('CheckoutApplicationService — Observability Regression', () => {
     const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
 
     expect(result.isLegacyClubSettlement).toBe(true);
-    expect(mockSettleCheckoutComanda).not.toHaveBeenCalled();
+    expect(mockSettleCheckoutComandaAndEnqueue).not.toHaveBeenCalled();
   });
 });

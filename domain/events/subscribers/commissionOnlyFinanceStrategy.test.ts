@@ -1,10 +1,14 @@
 /**
  * [SMG][DOMAIN][EVENTS][STRATEGY] commissionOnlyFinanceStrategy tests
  *
- * TD-001 B3.4-G Activation Gate.
+ * TD-001 B3.4-G Activation Gate + D7 (Transactional Outbox).
  *
- * Validates that ONLY commission operations survive the gate:
- *   CheckoutCompleted      -> create_commission_record ONLY
+ * D7: CheckoutCompleted now returns [] because the composite RPC
+ * (finance_settle_comanda_and_enqueue) handles outbox enqueue atomically.
+ * FinanceSubscriber should NOT create a second outbox item.
+ *
+ * Validates the activation matrix (filtering behavior):
+ *   CheckoutCompleted      -> [] (D7: composite RPC handles atomically)
  *   CheckoutReverted       -> reverse_commission ONLY
  *   SubscriptionCancelled  -> none
  *   CreditsDeducted        -> none
@@ -83,31 +87,18 @@ const makeCashClosingCompleted = (): CashClosingCompletedEvent => ({
 });
 
 describe('CommissionOnlyFinanceStrategy - CheckoutCompleted', () => {
-  it('produces ONLY create_commission_record (create_transaction filtered out)', () => {
+  it('produces nothing (D7: composite RPC handles outbox enqueue atomically)', () => {
     const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted());
-    expect(ops).toHaveLength(1);
-    expect(ops[0].type).toBe('create_commission_record');
-  });
-
-  it('preserves commission data contract (receivedValue, staffId)', () => {
-    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ total: 80 }));
-    expect(ops[0].data).toMatchObject({
-      tenantId: 't-1', comandaId: 'comanda-1', staffId: 'staff-1', receivedValue: 80,
-    });
-  });
-
-  it('produces nothing when financialEffect is false', () => {
-    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ financialEffect: false }));
     expect(ops).toHaveLength(0);
   });
 
-  it('produces nothing when staffId is missing', () => {
-    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ staffId: undefined }));
+  it('produces nothing even when financialEffect is true', () => {
+    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ financialEffect: true }));
     expect(ops).toHaveLength(0);
   });
 
-  it('produces nothing when total is 0', () => {
-    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ total: 0 }));
+  it('produces nothing even when staffId is present', () => {
+    const ops = strategy.mapCheckoutCompleted(makeCheckoutCompleted({ staffId: 'staff-1' }));
     expect(ops).toHaveLength(0);
   });
 });
@@ -156,7 +147,7 @@ describe('CommissionOnlyFinanceStrategy - Out-of-scope events produce NOTHING', 
 });
 
 describe('CommissionOnlyFinanceStrategy - Activation matrix compliance', () => {
-  it('never produces forbidden operation types', () => {
+  it('never produces forbidden operation types (D7: CheckoutCompleted excluded)', () => {
     const allOps = [
       ...strategy.mapCheckoutCompleted(makeCheckoutCompleted()),
       ...strategy.mapCheckoutCompleted(makeCheckoutCompleted({ hasClubCredit: true })),
@@ -168,7 +159,8 @@ describe('CommissionOnlyFinanceStrategy - Activation matrix compliance', () => {
       ...strategy.mapCashClosingCompleted(makeCashClosingCompleted()),
     ];
 
-    const allowed = new Set(['create_commission_record', 'reverse_commission']);
+    // D7: Only reverse_commission survives (CheckoutCompleted returns [])
+    const allowed = new Set(['reverse_commission']);
     for (const op of allOps) {
       expect(allowed.has(op.type)).toBe(true);
     }

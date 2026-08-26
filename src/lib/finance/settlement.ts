@@ -59,6 +59,86 @@ const withSettlementTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
   }
 };
 
+// ─── D7: Composite RPC — settlement + outbox enqueue (atomic) ──
+
+export interface OutboxEnqueueData {
+  eventId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  targets?: Array<{ provider: string; config: Record<string, unknown> }>;
+}
+
+export const settleCheckoutComandaAndEnqueue = async ({
+  comandaId,
+  tenantId,
+  supabase,
+  paymentMethod,
+  paidAmount,
+  paymentDateReal,
+  source = 'checkout',
+  notes,
+  idempotencyKey,
+  outbox,
+}: CheckoutSettlementInput & { outbox: OutboxEnqueueData }): Promise<CheckoutSettlementResult> => {
+  if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
+  if (!comandaId) throw new Error('comanda_id obrigatório para baixa financeira.');
+  if (!paymentMethod) throw new Error('Forma de pagamento obrigatória para baixa financeira.');
+  if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+    throw new Error('Valor pago deve ser maior que zero para baixa financeira.');
+  }
+
+  const key = idempotencyKey || createSettlementKey(comandaId);
+  const { data, error } = await withSettlementTimeout<any>(
+    supabase.rpc('finance_settle_comanda_and_enqueue', {
+      p_tenant_id: tenantId,
+      p_comanda_id: comandaId,
+      p_payment_method: paymentMethod,
+      p_paid_amount: paidAmount,
+      p_payment_date_real: paymentDateReal || new Date().toISOString(),
+      p_source: source,
+      p_notes: notes || null,
+      p_idempotency_key: key,
+      p_outbox_event_id: outbox.eventId,
+      p_outbox_event_type: outbox.eventType,
+      p_outbox_payload: outbox.payload,
+      p_outbox_metadata: outbox.metadata,
+      p_outbox_targets: outbox.targets || null,
+    }),
+  );
+
+  if (error) {
+    logSupabaseError('[settlement] finance_settle_comanda_and_enqueue failed', error, {
+      comandaId,
+      tenantId,
+      paymentMethod,
+      paidAmount,
+    });
+    throw new Error(SETTLEMENT_ERROR_MESSAGE);
+  }
+
+  const result = data || {};
+  if (result.success !== true) {
+    console.error('[settlement] finance_settle_comanda_and_enqueue returned an invalid result:', {
+      result,
+      comandaId,
+      tenantId,
+    });
+    throw new Error(SETTLEMENT_ERROR_MESSAGE);
+  }
+
+  return {
+    success: true,
+    idempotent: Boolean(result.idempotent),
+    comandaId: result.comanda_id || comandaId,
+    transactionId: result.transaction_id,
+    status: result.status || 'paid',
+    message: result.message || 'Baixa financeira registrada com sucesso.',
+  };
+};
+
+// ─── Original settlement (preserved for non-checkout callers) ──
+
 export const settleCheckoutComanda = async ({
   comandaId,
   tenantId,

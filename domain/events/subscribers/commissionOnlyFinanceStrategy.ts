@@ -2,13 +2,14 @@
  * [SMG][DOMAIN][EVENTS][STRATEGY] commissionOnlyFinanceStrategy
  *
  * TD-001 B3.4-G Activation Gate wrapper.
+ * D7: CheckoutCompleted skipped — composite RPC handles outbox enqueue atomically.
  *
  * Gates which finance operations are ACTIVATED for execution by the
  * FinanceProvider. All calculation rules remain in DefaultFinanceStrategy
  * (single source of truth); this wrapper only filters what gets enqueued.
  *
- * ACTIVATION MATRIX (PO-approved B3.4-G):
- *   CheckoutCompleted      -> create_commission_record ONLY
+ * ACTIVATION MATRIX (PO-approved B3.4-G + D7):
+ *   CheckoutCompleted      -> NONE (handled by composite RPC atomically)
  *   CheckoutReverted       -> reverse_commission ONLY
  *   SubscriptionCancelled  -> none
  *   CreditsDeducted        -> none
@@ -30,10 +31,11 @@ export const createCommissionOnlyFinanceStrategy = (): FinanceStrategy => {
   const base = createDefaultFinanceStrategy();
 
   return {
-    mapCheckoutCompleted(event) {
-      return base
-        .mapCheckoutCompleted(event)
-        .filter((op) => op.type === 'create_commission_record');
+    mapCheckoutCompleted(_event) {
+      // D7: CheckoutCompleted is now handled atomically by the composite RPC
+      // finance_settle_comanda_and_enqueue. The FinanceSubscriber should NOT
+      // create a second outbox item for the same event.
+      return [];
     },
 
     mapCheckoutReverted(event) {
