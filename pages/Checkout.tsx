@@ -505,7 +505,7 @@ const Checkout: React.FC = () => {
 
             const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
                 client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
-                client.from('staff').select('id, name, role').eq('tenant_id', resolvedTenantId).eq('status', 'active'),
+                client.from('staff').select('id, name, role').eq('tenant_id', resolvedTenantId).eq('status', 'active').order('name'),
                 client.from('services').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('products').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
@@ -1414,6 +1414,7 @@ const Checkout: React.FC = () => {
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => { setItemModalTab('services'); setIsItemModalOpen(true); }}
+                                    disabled={loading}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-[#EAF7FF] text-[#007BFF] hover:bg-[#007BFF] hover:text-white rounded-lg text-xs font-bold transition-all"
                                 >
                                     <span className="material-symbols-outlined text-sm">content_cut</span>
@@ -1421,6 +1422,7 @@ const Checkout: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={() => { setItemModalTab('products'); setIsItemModalOpen(true); }}
+                                    disabled={loading}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-bold transition-all"
                                 >
                                     <span className="material-symbols-outlined text-sm">shopping_bag</span>
