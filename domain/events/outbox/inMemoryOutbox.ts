@@ -22,7 +22,7 @@ export class InMemoryOutbox implements OutboxRepository {
 
   // ── Enqueue ────────────────────────────────────────────────────
 
-  async enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry'> & {
+  async enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry' | 'processingStartedAt' | 'claimedBy' | 'status'> & {
     retry?: Partial<OutboxItem['retry']>;
   }): Promise<OutboxItem> {
     this.counter += 1;
@@ -49,6 +49,8 @@ export class InMemoryOutbox implements OutboxRepository {
       updatedAt: now,
       dispatchedAt: null,
       completedAt: null,
+      processingStartedAt: null,
+      claimedBy: null,
     };
 
     this.items.set(outboxItem.id, outboxItem);
@@ -82,6 +84,8 @@ export class InMemoryOutbox implements OutboxRepository {
     item.status = 'processing';
     item.dispatchedAt = new Date().toISOString();
     item.updatedAt = new Date().toISOString();
+    item.processingStartedAt = new Date().toISOString();
+    item.claimedBy = 'in-memory-dispatcher';
   }
 
   async markPublished(id: string): Promise<void> {

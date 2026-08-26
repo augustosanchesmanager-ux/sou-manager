@@ -26,7 +26,7 @@ export interface OutboxRepository {
    * Creates item with status='pending', retry.attempts=0.
    * Returns the created item.
    */
-  enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry'> & {
+  enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry' | 'processingStartedAt' | 'claimedBy' | 'status'> & {
     retry?: Partial<OutboxItem['retry']>;
   }): Promise<OutboxItem>;
 

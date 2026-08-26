@@ -43,6 +43,8 @@ const buildOutboxItem = (overrides?: Partial<OutboxItem>): OutboxItem => ({
   updatedAt: new Date().toISOString(),
   dispatchedAt: null,
   completedAt: null,
+  processingStartedAt: null,
+  claimedBy: null,
   ...overrides,
 });
 

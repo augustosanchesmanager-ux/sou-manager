@@ -14,7 +14,7 @@ import type { DispatcherProvider } from './dispatcher';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-const buildEnqueueInput = (overrides?: Partial<OutboxItem>) => ({
+const buildEnqueueInput = (overrides?: Partial<Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry' | 'processingStartedAt' | 'claimedBy' | 'status'>> & { retry?: Partial<OutboxItem['retry']> }) => ({
   eventId: 'evt_123',
   eventType: 'CheckoutCompleted',
   tenantId: 'tenant-1',
@@ -553,6 +553,8 @@ describe('InMemoryDispatcher', () => {
           updatedAt: new Date().toISOString(),
           dispatchedAt: null,
           completedAt: null,
+          processingStartedAt: null,
+          claimedBy: null,
           payload: { total: 100 },
           metadata: { tenantId: 't-1', version: 1 },
         },

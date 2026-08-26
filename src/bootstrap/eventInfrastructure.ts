@@ -35,6 +35,7 @@ import { biSubscriber } from '../../domain/events/subscribers/biSubscriber';
 import { createFinanceSubscriber } from '../../domain/events/subscribers/financeSubscriber';
 import { createCommissionOnlyFinanceStrategy } from '../../domain/events/subscribers/commissionOnlyFinanceStrategy';
 import { createOutbox } from '../../domain/events/outbox/inMemoryOutbox';
+import { createSupabaseOutbox, SupabaseOutbox } from '../../domain/events/outbox/supabaseOutbox';
 import { createDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import { consoleProvider } from '../../domain/events/outbox/providers/consoleProvider';
 import { createFinanceProvider } from '../../domain/events/outbox/providers/financeProvider';
@@ -51,6 +52,7 @@ import { comandaRepository } from '../../domain/comanda/repository';
 import type { InMemoryOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import type { InMemoryDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import type { DispatcherProvider } from '../../domain/events/outbox/dispatcher';
+import type { OutboxRepository } from '../../domain/events/outbox/outboxRepository';
 
 const GLOBAL_KEY = '__soumanager_event_infrastructure__';
 const DISPATCH_INTERVAL_MS = 5_000;
@@ -84,7 +86,7 @@ const createLazyPersistentIdempotencyStore = (): IdempotencyStore => {
 
 export interface EventInfrastructure {
   registry: SubscriberRegistry;
-  outbox: InMemoryOutbox;
+  outbox: OutboxRepository;
   dispatcher: InMemoryDispatcher;
   financeProvider: DispatcherProvider;
   stopDispatchLoop: () => void;
@@ -113,7 +115,10 @@ export function initializeEventInfrastructure(): EventInfrastructure {
   registry.register(biSubscriber);
 
   // B2: Outbox + Dispatcher
-  const outbox = createOutbox();
+  // Use SupabaseOutbox when Supabase is configured (production),
+  // InMemoryOutbox for demo mode / tests.
+  const hasSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+  const outbox: OutboxRepository = hasSupabase ? createSupabaseOutbox() : createOutbox();
   const dispatcher = createDispatcher(outbox);
 
   // B3.3: FinanceSubscriber — gated by CommissionOnlyFinanceStrategy (B3.4-G)
@@ -150,12 +155,23 @@ export function initializeEventInfrastructure(): EventInfrastructure {
 
   dispatcher.registerProvider(financeProvider);
 
-  // B2: Dispatch loop
+  // B2: Dispatch loop — processes pending items every 5 seconds.
+  // If outbox supports stale recovery (SupabaseOutbox), also recovers
+  // items stuck in 'processing' for >5 minutes on each cycle.
   let dispatching = false;
   const dispatchLoop = setInterval(async () => {
     if (dispatching) return;
     dispatching = true;
     try {
+      // Stale recovery: reset items stuck in 'processing' (>5 min)
+      if (outbox instanceof SupabaseOutbox) {
+        const recovered = await outbox.recoverStaleProcessing();
+        if (recovered > 0) {
+          console.log(
+            `[EVENT_INFRA] Stale recovery: ${recovered} item(s) reset from processing to pending`,
+          );
+        }
+      }
       await dispatcher.dispatchAll();
     } finally {
       dispatching = false;

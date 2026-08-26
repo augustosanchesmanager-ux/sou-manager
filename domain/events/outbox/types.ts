@@ -98,6 +98,12 @@ export interface OutboxItem {
   /** When the item was completed (published or dead-lettered) */
   completedAt: string | null;
 
+  /** When processing was started (for stale recovery). Null if not yet claimed. */
+  processingStartedAt: string | null;
+
+  /** Dispatcher identifier that claimed this item. For debugging concurrency. */
+  claimedBy: string | null;
+
   /** Aggregated payload for dispatch (denormalized from event) */
   payload: Record<string, unknown>;
 
