@@ -1,6 +1,7 @@
 # ADR-016: Dispatcher Server-side — Autoridade de Processamento Assíncrono Multi-tenant
 
-**Status:** Accepted (2026-08-27 — **APROVADO PELO PO**; implementação D8 autorizada)
+**Status:** **Conceptually Approved — Implementation BLOCKED** (2026-08-27)
+> Aprovação conceitual do PO; **implementação REVOGADA/condicionada** à formalização do **Execution Boundary** (ver §Amendment-01). A premissa original (FinanceProvider portável para runtime server-side) provou-se falsa no diagnóstico; ADR-016 deve ser emendado antes de qualquer código.
 **Date:** 2026-08-27
 **Deciders:** PO (Augusto) + OpenCode
 **Prerequisite:** D8 Read-Only Diagnostic (`docs/audit/D8_READONLY_DIAGNOSTIC_20260827.md`)
@@ -83,12 +84,21 @@ $$;
 - O `FOR UPDATE SKIP LOCKED` garante que **múltiplos workers** tomem itens **distintos** sem double-claim e sem deadlock.
 - Isolamento por `tenant_id`: o item carrega `tenant_id`; o processamento (FinanceProvider) resolve e valida o tenant do item **dentro** do mesmo contexto transacional.
 
-### D-2. A autoridade de execução (quem processa)
+### D-2. A autoridade de execução (quem processa) — **EMENDADO (Amendment-01)**
 
-Recomendação: **Edge Function worker** rodando como agente de processamento, **ofertando o claim atômico do banco** (D-1) e delegando a execução do `FinanceProvider` (regra financeira já certificada) — mantendo a lógica de negócio em TypeScript, sem reescrever o contrato financeiro em PLpgSQL.
+> **Reformulação (decisão do PO, 2026-08-27):** substitui a redação original "Edge Function executa o processamento financeiro".
 
-- A Edge Function usa **contexto de tenant resolvido por item** (não uma sessão de usuário), via chamada ao RPC de claim + validação.
-- **Nunca** `service_role` indiscriminado: a função usa credencial que só invoca os RPCs de claim/processamento auditados (superfície mínima).
+**Edge Function worker executa o dispatcher server-side e reutiliza a MESMA regra financeira certificada através de um módulo runtime-neutral, com uma superfície de persistência mínima e explicitamente auditada.**
+
+- **Regra financeira NUNCA duplicada ou reimplementada** (nem em Deno, nem em PL/pgSQL).
+- **`service_role`, se necessário, NÃO substitui isolamento de tenant** — fica restrito às operações **indispensáveis** ao worker.
+- O worker **não deve ter acesso genérico às tabelas financeiras**; acesso somente às operações necessárias ao dispatcher.
+- **Sub-gate obrigatório:** se o Supabase exigir `service_role`, o isolamento DEVE acontecer em camada explicitamente auditável:
+  ```text
+  worker → event_id + tenant_id → narrow worker API/RPC → validação de tenant_id
+         → somente dados necessários daquele evento → create commission
+  ```
+- **Se isso não puder ser obtido com segurança → PARAR o D8 nesta etapa e reconsiderar a autoridade de execução** (não aceitar privilégio excessivo).
 
 ### D-3. Comparação de mecanismos (pg_cron vs Edge Function vs worker externo)
 
@@ -177,4 +187,13 @@ OLDEST_PENDING_AGE          (alerta por idade do item mais antigo — pegaria 63
 
 ## Status
 
-**Accepted (2026-08-27)** — APROVADO PELO PO. Implementação do D8 autorizada. Uma única trilha ativa (D8). Requisitos obrigatórios de design antes do código: **claim atômico no banco (`FOR UPDATE SKIP LOCKED`) + Edge Function worker + isolamento por `tenant_id` + health semântico**; agendamento (D-7) pode permanecer em aberto desde que não afete a corretude, mas a implementação DEVE tornar explícito como o worker é acionado em produção e como detectamos que parou de ser acionado.
+**Conceptually Approved — Implementation BLOCKED (2026-08-27).** Aprovação conceitual do PO; **implementação REVOGADA**. A premissa original (FinanceProvider executável server-side sem alterar fronteira de runtime) provou-se falsa no diagnóstico. **GATE obrigatório antes de código — Execution Boundary Design (Amendment-01):**
+- runtime-neutral Financial Domain Core;
+- repository/adapters separados do núcleo da regra;
+- superfície DB/RPC mínima e auditada;
+- isolamento por tenant (antes do privilegiado);
+- modelo de privilégio (service_role restrito às operações indispensáveis, NÃO substituto de RLS).
+
+**Próximo passo autorizado:** ADR-016 Amendment / Execution Boundary Design (somente documentação). **Nenhuma implementação até fechar o desenho.**
+
+**Decisão do PO (E2, superfície mínima):** reutilizar a MESMA regra financeira via módulo runtime-neutral; `service_role` exigiria sub-gate de isolamento auditável; se não seguro → PARAR D8 e reconsiderar autoridade.
