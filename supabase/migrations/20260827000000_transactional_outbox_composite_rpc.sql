@@ -33,10 +33,11 @@ CREATE OR REPLACE FUNCTION public.finance_settle_comanda_and_enqueue(
   p_notes              TEXT DEFAULT NULL,
   p_idempotency_key    TEXT DEFAULT NULL,
   -- Outbox params (new)
-  p_outbox_event_id    TEXT,
-  p_outbox_event_type  TEXT,
-  p_outbox_payload     JSONB,
-  p_outbox_metadata    JSONB,
+  -- DEFAULT NULL required: PostgreSQL mandates all params after a DEFAULT also have defaults
+  p_outbox_event_id    TEXT DEFAULT NULL,
+  p_outbox_event_type  TEXT DEFAULT NULL,
+  p_outbox_payload     JSONB DEFAULT NULL,
+  p_outbox_metadata    JSONB DEFAULT NULL,
   p_outbox_targets     JSONB DEFAULT NULL
 ) RETURNS JSONB
 LANGUAGE plpgsql
