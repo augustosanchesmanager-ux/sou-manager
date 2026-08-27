@@ -12,7 +12,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-013](./ADR-013-billing-tenant-featureflags.md) | Accepted | Billing × Tenant Lifecycle × Feature Flags — three decoupled contexts (6.0.5) |
 | [ADR-014](./ADR-014-transactional-outbox.md) | Accepted | Transactional Outbox (D7) — atomicidade RPC + enqueue |
 | [ADR-015](./ADR-015-pipeline-observability.md) | Proposed | Pipeline Financeiro — Observabilidade Crítica (implementado/deployado; PROD certification bloqueada por D8) |
-| [ADR-016](./ADR-016-dispatcher-server-side.md) | Proposed | Dispatcher Server-side — Autoridade de Processamento Assíncrono Multi-tenant (D8) — AGUARDA aprovação do PO |
+| [ADR-016](./ADR-016-dispatcher-server-side.md) | Accepted | Dispatcher Server-side — Autoridade de Processamento Assíncrono Multi-tenant (D8) |
 
 ---
 

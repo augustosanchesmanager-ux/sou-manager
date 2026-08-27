@@ -1,6 +1,6 @@
 # ADR-016: Dispatcher Server-side — Autoridade de Processamento Assíncrono Multi-tenant
 
-**Status:** Proposed (rascunho de design — **AGUARDA APROVAÇÃO DO PO** antes de qualquer implementação)
+**Status:** Accepted (2026-08-27 — **APROVADO PELO PO**; implementação D8 autorizada)
 **Date:** 2026-08-27
 **Deciders:** PO (Augusto) + OpenCode
 **Prerequisite:** D8 Read-Only Diagnostic (`docs/audit/D8_READONLY_DIAGNOSTIC_20260827.md`)
@@ -177,9 +177,4 @@ OLDEST_PENDING_AGE          (alerta por idade do item mais antigo — pegaria 63
 
 ## Status
 
-**Proposed** — AGUARDA aprovação do PO para iniciar implementação. Nenhum código/migration/produção alterado.
-
-**Dependências do ADR-016:**
-1. Aprovação do PO do design (autoridade = Edge Function worker; claim atômico no banco; health semântico).
-2. Definição do mecanismo de agendamento (D-7).
-3. Feature flag para rollback (D-5).
+**Accepted (2026-08-27)** — APROVADO PELO PO. Implementação do D8 autorizada. Uma única trilha ativa (D8). Requisitos obrigatórios de design antes do código: **claim atômico no banco (`FOR UPDATE SKIP LOCKED`) + Edge Function worker + isolamento por `tenant_id` + health semântico**; agendamento (D-7) pode permanecer em aberto desde que não afete a corretude, mas a implementação DEVE tornar explícito como o worker é acionado em produção e como detectamos que parou de ser acionado.
