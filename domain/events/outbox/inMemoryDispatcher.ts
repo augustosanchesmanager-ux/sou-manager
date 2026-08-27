@@ -15,10 +15,23 @@ import type { Dispatcher, DispatcherProvider } from './dispatcher';
 import type { OutboxRepository } from './outboxRepository';
 import type { OutboxItem } from './types';
 
+/**
+ * ADR-015: Observability hooks for the dispatch loop.
+ * Injected by bootstrap layer — domain code stays clean.
+ */
+export interface DispatcherHooks {
+  onItemDelivered?: (item: OutboxItem, provider: string) => void;
+  onItemError?: (item: OutboxItem, provider: string, error: string) => void;
+  onProviderMissing?: (item: OutboxItem, provider: string) => void;
+}
+
 export class InMemoryDispatcher implements Dispatcher {
   private providers = new Map<string, DispatcherProvider>();
 
-  constructor(private outbox: OutboxRepository) {}
+  constructor(
+    private outbox: OutboxRepository,
+    private hooks?: DispatcherHooks,
+  ) {}
 
   // ── Provider Management ───────────────────────────────────────
 
@@ -67,6 +80,7 @@ export class InMemoryDispatcher implements Dispatcher {
       const provider = this.providers.get(target.provider);
 
       if (!provider) {
+        this.hooks?.onProviderMissing?.(item, target.provider);
         console.error(
           `[OUTBOX] Provider "${target.provider}" not found for item ${item.id}`,
         );
@@ -81,10 +95,12 @@ export class InMemoryDispatcher implements Dispatcher {
         const result = await provider.deliver(item, target);
 
         if (result.success) {
+          this.hooks?.onItemDelivered?.(item, target.provider);
           console.log(
             `[OUTBOX] Item ${item.id} delivered via ${target.provider}`,
           );
         } else {
+          this.hooks?.onItemError?.(item, target.provider, result.error || 'Delivery failed');
           console.error(
             `[OUTBOX] Item ${item.id} delivery failed via ${target.provider}:`,
             result.error,
@@ -94,6 +110,7 @@ export class InMemoryDispatcher implements Dispatcher {
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
+        this.hooks?.onItemError?.(item, target.provider, errorMsg);
         console.error(
           `[OUTBOX] Item ${item.id} provider error (${target.provider}):`,
           errorMsg,
@@ -111,5 +128,5 @@ export class InMemoryDispatcher implements Dispatcher {
 /**
  * Factory for creating an InMemoryDispatcher.
  */
-export const createDispatcher = (outbox: OutboxRepository): InMemoryDispatcher =>
-  new InMemoryDispatcher(outbox);
+export const createDispatcher = (outbox: OutboxRepository, hooks?: DispatcherHooks): InMemoryDispatcher =>
+  new InMemoryDispatcher(outbox, hooks);

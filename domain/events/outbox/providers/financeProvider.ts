@@ -32,6 +32,15 @@
 
 import type { DispatcherProvider, OutboxItem, DispatchTarget } from '../types';
 
+// ─── ADR-015: Finance Provider Hooks ────────────────────────
+
+export interface FinanceProviderHooks {
+  onDelivered?: (itemId: string, operationType: string, tenantId: string) => void;
+  onError?: (itemId: string, operationType: string, error: string) => void;
+  onSkipped?: (itemId: string, operationType: string, reason: string) => void;
+  onHandlerMissing?: (itemId: string, operationType: string) => void;
+}
+
 // ─── Operation Handler Interface ──────────────────────────────
 
 /**
@@ -113,6 +122,9 @@ export interface FinanceProviderConfig {
 
   /** Provider name (default: 'finance') */
   name?: string;
+
+  /** ADR-015: Observability hooks */
+  hooks?: FinanceProviderHooks;
 }
 
 /**
@@ -133,6 +145,7 @@ export interface FinanceProviderConfig {
 export const createFinanceProvider = (config: FinanceProviderConfig): DispatcherProvider => {
   const store = config.idempotencyStore ?? new InMemoryIdempotencyStore();
   const providerName = config.name ?? 'finance';
+  const hooks = config.hooks;
 
   return {
     name: providerName,
@@ -147,6 +160,7 @@ export const createFinanceProvider = (config: FinanceProviderConfig): Dispatcher
 
       // Validate payload structure
       if (!payload.operationType) {
+        hooks?.onSkipped?.(item.id, 'unknown', 'missing operationType');
         return {
           success: false,
           error: `Invalid outbox item ${item.id}: missing operationType`,
@@ -159,6 +173,7 @@ export const createFinanceProvider = (config: FinanceProviderConfig): Dispatcher
       if (idempotencyKey) {
         const alreadyExecuted = await store.has(idempotencyKey, item.tenantId);
         if (alreadyExecuted) {
+          hooks?.onSkipped?.(item.id, operationType, 'idempotent — already executed');
           console.log(
             `[FINANCE_PROVIDER] Skipping ${operationType} — already executed (${idempotencyKey})`,
           );
@@ -169,6 +184,7 @@ export const createFinanceProvider = (config: FinanceProviderConfig): Dispatcher
       // Find handler
       const handler = config.handlers[operationType];
       if (!handler) {
+        hooks?.onHandlerMissing?.(item.id, operationType);
         return {
           success: false,
           error: `No handler for operation type: ${operationType}`,
@@ -190,9 +206,16 @@ export const createFinanceProvider = (config: FinanceProviderConfig): Dispatcher
           await store.set(idempotencyKey, item.tenantId);
         }
 
+        if (result.success) {
+          hooks?.onDelivered?.(item.id, operationType, item.tenantId);
+        } else {
+          hooks?.onError?.(item.id, operationType, result.error || 'Handler returned failure');
+        }
+
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
+        hooks?.onError?.(item.id, operationType, errorMsg);
         console.error(
           `[FINANCE_PROVIDER] Handler error for ${operationType} (${item.id}):`,
           errorMsg,

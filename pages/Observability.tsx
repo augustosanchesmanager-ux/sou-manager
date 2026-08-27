@@ -8,7 +8,7 @@ import type { LogEntry } from '../src/lib/observability/logger';
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DomainTab = 'overview' | 'checkout' | 'cashClosing' | 'appointments' | 'commission' | 'chefClub' | 'alerts' | 'logs';
+type DomainTab = 'overview' | 'checkout' | 'cashClosing' | 'appointments' | 'commission' | 'chefClub' | 'pipeline' | 'alerts' | 'logs';
 
 interface DomainMetrics {
   operations: { success: number; error: number; total: number };
@@ -147,6 +147,7 @@ const Observability: React.FC = () => {
     { key: 'appointments', label: 'Agendamentos', icon: 'calendar_month' },
     { key: 'commission', label: 'Comissões', icon: 'paid' },
     { key: 'chefClub', label: 'Club dos Chefes', icon: 'card_membership' },
+    { key: 'pipeline', label: 'Pipeline', icon: 'cable' },
     { key: 'alerts', label: `Alertas${activeAlerts.length > 0 ? ` (${activeAlerts.length})` : ''}`, icon: 'notifications' },
     { key: 'logs', label: 'Logs', icon: 'receipt_long' },
   ];
@@ -284,6 +285,10 @@ const Observability: React.FC = () => {
         />
       )}
 
+      {activeTab === 'pipeline' && (
+        <PipelinePanel refreshKey={refreshKey} />
+      )}
+
       {activeTab === 'alerts' && (
         <div className="space-y-6">
           {/* Active Alerts */}
@@ -399,6 +404,126 @@ const Observability: React.FC = () => {
           )}
         </div>
       )}
+    </div>
+  );
+};
+
+// ─── Pipeline Panel (ADR-015) ─────────────────────────────────
+
+const PipelinePanel: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
+  const heartbeat = metrics.getGauge('dispatch_heartbeat');
+  const health = heartbeat > 0 ? (Date.now() - heartbeat < 30000 ? 1 : Date.now() - heartbeat < 120000 ? 0 : -1) : -1;
+  const pendingDepth = metrics.getGauge('outbox_pending_depth');
+  const processingCount = metrics.getGauge('outbox_processing_count');
+  const deadLetterCount = metrics.getGauge('outbox_dead_letter_count');
+  const cycleCount = metrics.getCounter('dispatch_cycle_count');
+  const cycleErrors = metrics.getCounter('dispatch_cycle_error');
+  const itemsProcessed = metrics.getGauge('dispatch_items_processed');
+  const cycleLatency = metrics.getSummary('dispatch_cycle_duration_ms');
+  const enqueueCount = metrics.getCounter('outbox_enqueue_count');
+  const publishCount = metrics.getCounter('outbox_publish_count');
+  const failCount = metrics.getCounter('outbox_fail_count');
+  const staleRecovery = metrics.getCounter('outbox_stale_recovery_count');
+  const financeDelivered = metrics.getCounter('finance_deliver_success');
+  const financeErrors = metrics.getCounter('finance_deliver_error');
+  const financeSkipped = metrics.getCounter('finance_deliver_skip');
+  const handlerMissing = metrics.getCounter('finance_handler_missing');
+
+  const healthLabel = health === 1 ? 'VIVO' : health === 0 ? 'INSTÁVEL' : 'MORTO';
+  const healthColor = health === 1 ? 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/30'
+    : health === 0 ? 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30'
+    : 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30';
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  refreshKey; // force re-render on refresh
+
+  const pipelineLogs = logger.getLogs({}).filter(l =>
+    l.event.includes('dispatch') || l.event.includes('outbox') || l.event.includes('finance') || l.event.includes('pipeline')
+  ).slice(-20).reverse();
+
+  return (
+    <div className="space-y-6">
+      {/* Health Status */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard
+          label="Dispatch Loop"
+          value={healthLabel}
+          icon="monitor_heart"
+          color={healthColor}
+          sub={heartbeat > 0 ? `Último: ${new Date(heartbeat).toLocaleTimeString('pt-BR')}` : 'Nenhum heartbeat'}
+        />
+        <MetricCard label="Ciclos" value={formatNumber(cycleCount)} icon="loop" sub={cycleErrors > 0 ? `${cycleErrors} erros` : undefined} />
+        <MetricCard label="Itens Processados" value={formatNumber(itemsProcessed)} icon="inventory_2" />
+        <MetricCard label="Latência Média" value={formatMs(cycleLatency.avg)} icon="timer" />
+      </div>
+
+      {/* Outbox Depth */}
+      <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Outbox Queue</h3>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatNumber(enqueueCount)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Enqueue</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{formatNumber(pendingDepth)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Pending</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(processingCount)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Processing</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatNumber(publishCount)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Published</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatNumber(deadLetterCount)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Dead Letter</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatNumber(failCount)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Retries</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-slate-600 dark:text-slate-300">{formatNumber(staleRecovery)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Stale Recovery</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Finance Pipeline */}
+      <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Finance Pipeline</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard label="Operações Entregues" value={formatNumber(financeDelivered)} icon="check_circle" color="text-emerald-600" />
+          <MetricCard label="Erros Financeiros" value={formatNumber(financeErrors)} icon="error" color={financeErrors > 0 ? 'text-red-600' : 'text-slate-400'} />
+          <MetricCard label="Idempotents (skip)" value={formatNumber(financeSkipped)} icon="skip_next" />
+          <MetricCard label="Handler Ausente" value={formatNumber(handlerMissing)} icon="warning" color={handlerMissing > 0 ? 'text-red-600' : 'text-slate-400'} />
+        </div>
+      </div>
+
+      {/* Pipeline Logs */}
+      <div className="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Pipeline Logs ({pipelineLogs.length})</h3>
+        {pipelineLogs.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum log do pipeline registrado</p>
+        ) : (
+          <div className="space-y-1 font-mono text-xs">
+            {pipelineLogs.map((log, i) => (
+              <div key={i} className="flex items-start gap-2 py-1 border-b border-slate-50 dark:border-slate-800/50">
+                <span className="text-slate-400 dark:text-slate-500 w-20 shrink-0">
+                  {new Date(log.timestamp).toLocaleTimeString('pt-BR')}
+                </span>
+                <span className={`w-12 shrink-0 font-bold uppercase ${levelColor(log.level)}`}>
+                  {log.level}
+                </span>
+                <span className="text-slate-700 dark:text-slate-200 flex-1">{log.event}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

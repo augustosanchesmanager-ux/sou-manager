@@ -161,8 +161,16 @@ class AlertManager {
   // ─── Private ────────────────────────────────────────────────
 
   private evaluateRule(rule: AlertRule): Alert | null {
-    const summary = metrics.getSummary(rule.metric);
-    const currentValue = summary.count > 0 ? summary.avg : 0;
+    // ADR-015: Support counters, gauges, and histograms.
+    // Check counter first, then gauge, then histogram summary.
+    let currentValue = metrics.getCounter(rule.metric);
+    if (currentValue === 0) {
+      currentValue = metrics.getGauge(rule.metric);
+    }
+    if (currentValue === 0) {
+      const summary = metrics.getSummary(rule.metric);
+      currentValue = summary.count > 0 ? summary.avg : 0;
+    }
 
     if (!this.compare(currentValue, rule.operator, rule.threshold)) {
       return null;
@@ -377,6 +385,68 @@ export const DEFAULT_ALERTS: AlertRule[] = [
     severity: 'warning',
     message: 'Club dos Chefes subscription resolution failures detected',
     cooldown: 15 * 60 * 1000,
+  },
+
+  // ── ADR-015: Pipeline Observability ──
+  {
+    name: 'outbox_pending_depth_high',
+    metric: 'outbox_pending_depth',
+    threshold: 50,
+    operator: '>',
+    window: 10 * 60 * 1000,
+    severity: 'warning',
+    message: 'Outbox pending depth exceeded 50 items',
+    cooldown: 10 * 60 * 1000,
+  },
+  {
+    name: 'outbox_dead_letter_growing',
+    metric: 'outbox_dead_letter_count',
+    threshold: 0,
+    operator: '>',
+    window: 5 * 60 * 1000,
+    severity: 'critical',
+    message: 'Dead letter items detected in outbox',
+    cooldown: 5 * 60 * 1000,
+  },
+  {
+    name: 'outbox_stale_recovery_frequent',
+    metric: 'outbox_stale_recovery_count',
+    threshold: 3,
+    operator: '>',
+    window: 15 * 60 * 1000,
+    severity: 'warning',
+    message: 'Frequent stale recovery (>3 items in 15 min)',
+    cooldown: 15 * 60 * 1000,
+  },
+  {
+    name: 'dispatch_cycle_failure_rate',
+    metric: 'dispatch_cycle_error',
+    threshold: 1,
+    operator: '>',
+    window: 5 * 60 * 1000,
+    severity: 'critical',
+    message: 'Dispatch cycle failures detected',
+    cooldown: 5 * 60 * 1000,
+  },
+  {
+    name: 'finance_provider_error_rate',
+    metric: 'dispatch_item_error',
+    threshold: 3,
+    operator: '>',
+    window: 5 * 60 * 1000,
+    severity: 'warning',
+    message: 'Dispatch item delivery failures detected',
+    cooldown: 5 * 60 * 1000,
+  },
+  {
+    name: 'finance_provider_handler_missing',
+    metric: 'dispatch_item_error',
+    threshold: 1,
+    operator: '>=',
+    window: 5 * 60 * 1000,
+    severity: 'critical',
+    message: 'Dispatch item error — provider not found or handler missing',
+    cooldown: 5 * 60 * 1000,
   },
 ];
 

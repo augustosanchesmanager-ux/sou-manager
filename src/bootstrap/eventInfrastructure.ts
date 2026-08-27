@@ -49,6 +49,9 @@ import { comandaItemRepository } from '../../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../../domain/comanda/participant-repository';
 import { staffRepository } from '../../domain/staff/repository';
 import { comandaRepository } from '../../domain/comanda/repository';
+import { metrics } from '../lib/observability/metrics';
+import { logger } from '../lib/observability/logger';
+import { alerts } from '../lib/observability/alerts';
 import type { InMemoryOutbox } from '../../domain/events/outbox/inMemoryOutbox';
 import type { InMemoryDispatcher } from '../../domain/events/outbox/inMemoryDispatcher';
 import type { DispatcherProvider } from '../../domain/events/outbox/dispatcher';
@@ -117,9 +120,55 @@ export function initializeEventInfrastructure(): EventInfrastructure {
   // B2: Outbox + Dispatcher
   // Use SupabaseOutbox when Supabase is configured (production),
   // InMemoryOutbox for demo mode / tests.
+  // ADR-015: Dispatcher hooks inject observability without coupling domain to infrastructure.
   const hasSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-  const outbox: OutboxRepository = hasSupabase ? createSupabaseOutbox() : createOutbox();
-  const dispatcher = createDispatcher(outbox);
+  const outbox: OutboxRepository = hasSupabase
+    ? createSupabaseOutbox({
+        onEnqueue: (eventId, tenantId) => {
+          metrics.increment('outbox_enqueue_count', 1, { tenantId });
+          logger.business('outbox_enqueued', { eventId, tenantId });
+        },
+        onEnqueueDuplicate: (eventId) => {
+          metrics.increment('outbox_enqueue_duplicate');
+          logger.business('outbox_enqueue_duplicate', { eventId });
+        },
+        onClaim: (itemId, tenantId) => {
+          metrics.increment('outbox_claim_count', 1, { tenantId });
+        },
+        onClaimFailed: (itemId) => {
+          metrics.increment('outbox_claim_race');
+        },
+        onPublished: (itemId) => {
+          metrics.increment('outbox_publish_count');
+        },
+        onFailed: (itemId, error) => {
+          metrics.increment('outbox_fail_count');
+          logger.error('outbox_item_failed', new Error(error), { itemId });
+        },
+        onDeadLetter: (itemId, error) => {
+          metrics.increment('outbox_dead_letter_count');
+          logger.error('outbox_dead_letter', new Error(error), { itemId });
+        },
+        onStaleRecovery: (itemId) => {
+          metrics.increment('outbox_stale_recovery_count');
+          logger.business('outbox_stale_recovered', { itemId });
+        },
+      })
+    : createOutbox();
+  const dispatcher = createDispatcher(outbox, {
+    onItemDelivered: (item, provider) => {
+      metrics.increment('dispatch_item_success', 1, { provider });
+      logger.business('dispatch_item_delivered', { itemId: item.id, provider, eventId: item.eventId, tenantId: item.tenantId });
+    },
+    onItemError: (item, provider, error) => {
+      metrics.increment('dispatch_item_error', 1, { provider });
+      logger.error('dispatch_item_failed', new Error(error), { itemId: item.id, provider, eventId: item.eventId, tenantId: item.tenantId });
+    },
+    onProviderMissing: (item, provider) => {
+      metrics.increment('dispatch_item_error', 1, { provider });
+      logger.error('dispatch_provider_missing', new Error(`Provider "${provider}" not found`), { itemId: item.id, provider, eventId: item.eventId, tenantId: item.tenantId });
+    },
+  });
 
   // B3.3: FinanceSubscriber — gated by CommissionOnlyFinanceStrategy (B3.4-G)
   // Only commission operations are enqueued; target routes to FinanceProvider.
@@ -151,28 +200,93 @@ export function initializeEventInfrastructure(): EventInfrastructure {
       }),
     },
     idempotencyStore: createLazyPersistentIdempotencyStore(),
+    hooks: {
+      onDelivered: (itemId, operationType, tenantId) => {
+        metrics.increment('finance_deliver_success', 1, { operationType });
+        logger.business('finance_operation_delivered', { itemId, operationType, tenantId });
+      },
+      onError: (itemId, operationType, error) => {
+        metrics.increment('finance_deliver_error', 1, { operationType });
+        logger.error('finance_operation_error', new Error(error), { itemId, operationType });
+      },
+      onSkipped: (itemId, operationType, reason) => {
+        metrics.increment('finance_deliver_skip', 1, { operationType });
+        logger.business('finance_operation_skipped', { itemId, operationType, reason });
+      },
+      onHandlerMissing: (itemId, operationType) => {
+        metrics.increment('finance_handler_missing', 1, { operationType });
+        logger.error('finance_handler_missing', new Error(`No handler for ${operationType}`), { itemId, operationType });
+      },
+    },
   });
 
   dispatcher.registerProvider(financeProvider);
 
   // B2: Dispatch loop — processes pending items every 5 seconds.
-  // If outbox supports stale recovery (SupabaseOutbox), also recovers
-  // items stuck in 'processing' for >5 minutes on each cycle.
+  // ADR-015: Watchdog wraps entire cycle in try/catch to prevent exceptions
+  // from killing the loop permanently. Heartbeat metric + health gauge emitted.
   let dispatching = false;
+  let lastSuccessfulCycleAt = 0;
   const dispatchLoop = setInterval(async () => {
     if (dispatching) return;
     dispatching = true;
     try {
+      const cycleStart = Date.now();
+
       // Stale recovery: reset items stuck in 'processing' (>5 min)
       if (outbox instanceof SupabaseOutbox) {
-        const recovered = await outbox.recoverStaleProcessing();
-        if (recovered > 0) {
-          console.log(
-            `[EVENT_INFRA] Stale recovery: ${recovered} item(s) reset from processing to pending`,
-          );
+        try {
+          const recovered = await outbox.recoverStaleProcessing();
+          if (recovered > 0) {
+            logger.business('pipeline_stale_recovery', { count: recovered });
+            metrics.increment('outbox_stale_recovery_count');
+          }
+        } catch (recoveryErr) {
+          const msg = recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr);
+          logger.error('pipeline_stale_recovery_error', recoveryErr instanceof Error ? recoveryErr : new Error(msg));
+          metrics.increment('outbox_stale_recovery_error');
         }
       }
-      await dispatcher.dispatchAll();
+
+      // Dispatch all pending items
+      let itemsProcessed = 0;
+      try {
+        itemsProcessed = await dispatcher.dispatchAll();
+      } catch (dispatchErr) {
+        const msg = dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr);
+        logger.error('pipeline_dispatch_error', dispatchErr instanceof Error ? dispatchErr : new Error(msg));
+        metrics.increment('dispatch_cycle_error');
+      }
+
+      const cycleDuration = Date.now() - cycleStart;
+
+      // Heartbeat: record successful cycle timestamp
+      lastSuccessfulCycleAt = Date.now();
+      metrics.gauge('dispatch_heartbeat', lastSuccessfulCycleAt);
+      metrics.increment('dispatch_cycle_count');
+      metrics.gauge('dispatch_items_processed', itemsProcessed);
+      metrics.histogram('dispatch_cycle_duration_ms', cycleDuration);
+
+      // ADR-015: Update outbox depth gauges for alert evaluation
+      if (outbox instanceof SupabaseOutbox) {
+        try {
+          const pendingCount = await outbox.count('pending');
+          const deadLetterCount = await outbox.count('dead_letter');
+          const processingCount = await outbox.count('processing');
+          metrics.gauge('outbox_pending_depth', pendingCount);
+          metrics.gauge('outbox_dead_letter_count', deadLetterCount);
+          metrics.gauge('outbox_processing_count', processingCount);
+        } catch {
+          // Depth query failure must not break the cycle
+        }
+      }
+
+      // ADR-015: Evaluate pipeline alerts every cycle
+      try {
+        alerts.check();
+      } catch {
+        // Alert evaluation failure must never break the dispatch cycle
+      }
     } finally {
       dispatching = false;
     }

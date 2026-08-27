@@ -104,6 +104,19 @@ const itemToRow = (item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'di
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
+// ─── ADR-015: Outbox Hooks ────────────────────────────────────
+
+export interface OutboxHooks {
+  onEnqueue?: (eventId: string, tenantId: string) => void;
+  onEnqueueDuplicate?: (eventId: string) => void;
+  onClaim?: (itemId: string, tenantId: string) => void;
+  onClaimFailed?: (itemId: string) => void;
+  onPublished?: (itemId: string) => void;
+  onFailed?: (itemId: string, error: string) => void;
+  onDeadLetter?: (itemId: string, error: string) => void;
+  onStaleRecovery?: (itemId: string) => void;
+}
+
 // ─── SupabaseOutbox ──────────────────────────────────────────
 
 /**
@@ -118,6 +131,11 @@ const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
  */
 export class SupabaseOutbox implements OutboxRepository {
   private client: SupabaseClient | null = null;
+  private hooks?: OutboxHooks;
+
+  constructor(hooks?: OutboxHooks) {
+    this.hooks = hooks;
+  }
 
   private resolveClient(): SupabaseClient {
     if (!this.client) {
@@ -144,6 +162,7 @@ export class SupabaseOutbox implements OutboxRepository {
       const err = error as { code?: string; message?: string };
       // UNIQUE violation on event_id = duplicate event — idempotent success
       if (err.code === '23505') {
+        this.hooks?.onEnqueueDuplicate?.(item.eventId);
         console.warn(
           `[SUPABASE_OUTBOX] Duplicate event_id ${item.eventId} — skipping (idempotent)`,
         );
@@ -154,6 +173,7 @@ export class SupabaseOutbox implements OutboxRepository {
       throw new Error(`Failed to enqueue outbox item: ${err.message}`);
     }
 
+    this.hooks?.onEnqueue?.(item.eventId, item.tenantId);
     return rowToItem(data as OutboxItemRow);
   }
 
@@ -195,6 +215,7 @@ export class SupabaseOutbox implements OutboxRepository {
 
     if (claimError) {
       // Another dispatcher claimed it first — try again next cycle
+      this.hooks?.onClaimFailed?.(candidate.id);
       console.warn(
         `[SUPABASE_OUTBOX] Failed to claim item ${candidate.id}:`,
         claimError,
@@ -203,6 +224,7 @@ export class SupabaseOutbox implements OutboxRepository {
     }
 
     // Return the claimed item with updated fields
+    this.hooks?.onClaim?.(candidate.id, candidate.tenant_id);
     return {
       ...rowToItem(candidate),
       status: 'processing',
@@ -234,6 +256,8 @@ export class SupabaseOutbox implements OutboxRepository {
 
     if (error) {
       console.error(`[SUPABASE_OUTBOX] Failed to markPublished ${id}:`, error);
+    } else {
+      this.hooks?.onPublished?.(id);
     }
   }
 
@@ -271,6 +295,8 @@ export class SupabaseOutbox implements OutboxRepository {
 
       if (deadError) {
         console.error(`[SUPABASE_OUTBOX] Failed to dead-letter ${id}:`, deadError);
+      } else {
+        this.hooks?.onDeadLetter?.(id, errorMsg);
       }
     } else {
       // Still has retries → back to pending with scheduled nextRetryAt
@@ -292,6 +318,8 @@ export class SupabaseOutbox implements OutboxRepository {
 
       if (retryError) {
         console.error(`[SUPABASE_OUTBOX] Failed to schedule retry for ${id}:`, retryError);
+      } else {
+        this.hooks?.onFailed?.(id, errorMsg);
       }
     }
   }
@@ -312,6 +340,8 @@ export class SupabaseOutbox implements OutboxRepository {
 
     if (error) {
       console.error(`[SUPABASE_OUTBOX] Failed to dead-letter ${id}:`, error);
+    } else {
+      this.hooks?.onDeadLetter?.(id, reason);
     }
   }
 
@@ -354,6 +384,7 @@ export class SupabaseOutbox implements OutboxRepository {
 
       if (!resetError) {
         recovered++;
+        this.hooks?.onStaleRecovery?.(item.id);
         console.log(
           `[SUPABASE_OUTBOX] Recovered stale item ${item.id}`,
         );
@@ -453,4 +484,4 @@ export class SupabaseOutbox implements OutboxRepository {
  * Factory for creating a SupabaseOutbox.
  * Uses lazy client initialization.
  */
-export const createSupabaseOutbox = (): SupabaseOutbox => new SupabaseOutbox();
+export const createSupabaseOutbox = (hooks?: OutboxHooks): SupabaseOutbox => new SupabaseOutbox(hooks);
