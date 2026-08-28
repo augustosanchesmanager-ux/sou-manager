@@ -1133,11 +1133,11 @@ const Checkout: React.FC = () => {
     };
 
     const calculateParticipantPayout = (itemUnitPrice: number, participant: CartParticipant): number => {
-        return domainCalculateParticipantPayout(itemUnitPrice, 1, participant as unknown as ParticipantRow);
+        return domainCalculateParticipantPayout(itemUnitPrice, participant as unknown as ParticipantRow);
     };
 
     const calculateTotalPayouts = (itemUnitPrice: number, participants: CartParticipant[]): number => {
-        return domainCalculateTotalPayouts(itemUnitPrice, 1, participants as unknown as ParticipantRow[]);
+        return domainCalculateTotalPayouts(itemUnitPrice, participants as unknown as ParticipantRow[]);
     };
 
     const addParticipant = (itemId: string, professionalId: string, professionalName: string, role: ExecutionRole, payoutType: PayoutType, payoutValue: number) => {
