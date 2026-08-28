@@ -56,7 +56,7 @@ export interface CycleReport {
 async function withWorkerClient(url: string, jwt: string) {
   // apikey = anon key (Kong gateway); Authorization bearer carries the
   // worker_dispatcher role that PostgREST switches to. NOT service_role.
-  return createClient(url, Deno.env.get('SUPABASE_ANON_KEY') || '', {
+  return createClient(url, Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '', {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 }
@@ -215,8 +215,8 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const jwtSecret = Deno.env.get('SUPABASE_JWT_SECRET') || '';
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const jwtSecret = Deno.env.get('EDGE_JWT_SECRET') || '';
+  const supabaseUrl = Deno.env.get('APP_URL') || '';
   if (!jwtSecret || !supabaseUrl) {
     return new Response(
       JSON.stringify({ ok: false, error: 'SUPABASE_JWT_SECRET/SUPABASE_URL missing (scheduled invoke only; not user-facing).' }),
