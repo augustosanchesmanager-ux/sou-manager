@@ -32,6 +32,7 @@ import {
   toDateKey,
 } from '../services/scheduleBlocksApi';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
+import { buildWhatsAppUrl } from '../src/lib/utils/phone';
 
 
 
@@ -1911,8 +1912,6 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const cleanPhone = appointment.clientPhone.replace(/\D/g, '');
-    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     const text = `Olá ${appointment.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(appointment.startTime).toLocaleDateString('pt-BR')}
@@ -1922,7 +1921,12 @@ ${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${appointment.service}
 
 Podemos confirmar? 😄`;
 
-    window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    const waUrl = buildWhatsAppUrl(appointment.client, appointment.clientPhone, text);
+    if (!waUrl) {
+      setToast({ message: 'Telefone do cliente inválido. Confira o número cadastrado.', type: 'error' });
+      return;
+    }
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -3265,8 +3269,6 @@ Podemos confirmar? 😄`;
                       setToast({ message: 'Cliente sem telefone cadastrado.', type: 'error' });
                       return;
                     }
-                    const cleanPhone = apt.clientPhone.replace(/\D/g, '');
-                    const finalPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
                     const text = `Olá ${apt.client.split(' ')[0]}! Tudo bem? Aqui é da ${isEsteticaApp ? 'clínica' : 'barbearia'}. Passando para confirmar seu ${isEsteticaApp ? 'atendimento' : 'agendamento'}:
 
 📅 *Data:* ${new Date(apt.startTime).toLocaleDateString('pt-BR')} 
@@ -3275,8 +3277,12 @@ ${isEsteticaApp ? '✨' : '💈'} *${serviceLabel}:* ${apt.service}
 👤 *${professionalLabel}:* ${staff?.name || apt.staffName}
 
 Podemos confirmar? 😄`;
-                    const link = `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`;
-                    window.open(link, '_blank');
+                    const waUrl = buildWhatsAppUrl(apt.client, apt.clientPhone, text);
+                    if (!waUrl) {
+                      setToast({ message: 'Telefone do cliente inválido. Confira o número cadastrado.', type: 'error' });
+                      return;
+                    }
+                    window.open(waUrl, '_blank', 'noopener,noreferrer');
                   }}
                   className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2"
                 >
