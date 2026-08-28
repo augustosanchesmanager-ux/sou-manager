@@ -833,3 +833,83 @@ const filtered = await engine.replay({
 });
 ```
 
+---
+
+## D8 — Worker Dispatcher (Edge Function) ✅ PRODUCTION CERTIFIED
+
+Server-side automated outbox dispatcher. Fully certified in production (ADR-015 & ADR-016 `PRODUCTION CERTIFIED`, tag `v2.0.0-d8-production-certified`).
+
+### Architecture
+
+```
+pg_cron → pg_net → Kong → Edge Function → RPCs (PostgREST, worker_dispatcher role) → heartbeat
+```
+
+| Layer | Piece | Purpose |
+|-------|-------|---------|
+| Scheduler | `pg_cron` | `* * * * *` every minute |
+| HTTP | `pg_net` (extensions) | Async HTTP from Postgres to Edge Function |
+| Edge | `supabase/functions/worker-dispatcher/` | Claims + processes 1 item/cycle |
+| Role | `worker_dispatcher` | NOLOGIN/NOBYPASSRLS, PostgREST-switched role for function grants |
+| RPCs | migrations below | Claim/context/idempotent-insert/mark/retry/recover/heartbeat |
+| Data path | PostgREST + worker role | Never `service_role` on the data path |
+
+### Edge Function Env Vars (CRITICAL — platform names)
+
+The Supabase Edge Runtime **does NOT inject the legacy names**. The worker reads these custom secrets:
+
+| Code reads | Type | Source |
+|-----------|------|--------|
+| `SUPABASE_PUBLISHABLE_KEYS` | anon key | auto-injected by runtime |
+| `APP_URL` | Supabase URL | dashboard custom secret |
+| `EDGE_JWT_SECRET` | JWT secret for `mintWorkerJwt` | dashboard custom secret |
+
+**⚠ Known blocker (platform issue):** `EDGE_JWT_SECRET` is set in the Dashboard but **not injected** into the Edge Runtime; `Deno.env.get('EDGE_JWT_SECRET')` returns empty → worker returns `SUPABASE_JWT_SECRET/SUPABASE_URL missing` (503) and never completes its cycle. Awaiting Supabase Support fix. **Do NOT re-add `SUPABASE_`-prefix secrets via dashboard — the platform rejects them (custom secrets can't start with `SUPABASE_`).**
+
+### Migrations (applied to PROD)
+
+| Migration | Purpose |
+|-----------|---------|
+| `20260827120000_d8_worker_rpc_surface.sql` | `worker_dispatcher` role, RPC surface, heartbeat table, grants |
+| `20260827210000_d8_worker_schedule.sql` | No-op; pg_cron registered manually (see below) |
+| `20260828000000_d8_worker_retry_dead_letter.sql` | Amendment-04: `handle_processing_failure`, `recover_stale_processing`, amended `claim_next_outbox_item` (backoff predicate) |
+
+### D8 Cycle (8 steps)
+
+1. `claim_next_outbox_item()` — atomic claim (`FOR UPDATE SKIP LOCKED`), exactly one worker/claim
+2. `get_financial_operation_context()` — mounts MINIMAL tenant context (never computes commission)
+3. `calculateCommissionRecordsFromContext` — certified rule from shared Financial Core (integrity-gated)
+4. `exists_commission_record()` + insert — idempotent persistence
+5. `mark_outbox_item_processed('published')` — success terminal
+6. `handle_processing_failure()` — `pending(backoff)` | `dead_letter`
+7. `recover_stale_processing()` — watchdog for orphaned `processing` (>5min)
+8. `upsert_worker_heartbeat()` — server-side liveness
+
+### Stop Conditions (D8 + Amendment-04)
+
+No D7 commission calc change · no second financial rule · no direct worker table access · no cross-tenant · no idempotency break · no claim before `retry_next_retry_at` · no item loss.
+
+### pg_cron Registration (manual — `cron.job` UPDATE is permission-denied)
+
+Use `cron.unschedule()` + `cron.schedule()` (never direct UPDATE on `cron.job`). Job 3 (`* * * * *`) uses the **anon key** in the `Authorization: Bearer <anon>` header (not JWT).
+
+### Diagnostics / Read-Only Audit
+
+`supabase db query --linked` via Management API for read-only checks. Health signals:
+- `net._http_response` for function responses
+- `worker_heartbeat` rows with `queue_healthy=true` → cycle completed
+- Commission integrity: 0 idempotency duplicates expected
+
+### Harness
+
+Docker-based concurrency/behavior gates live in `tests/d8/harness/`:
+- `concurrency20.ps1` — 20 concurrent workers, 2 items → exactly 2 distinct claims, 0 double-claim
+- `concurrency2.ps1` — 2 independent sessions, distinct claims
+- `am04_run.ps1` — Amendment-04 retry/reclaim-after-backoff/dead-letter gate
+
+Equivalence proofs: `tests/d8/equivalence.test.ts` (worker `calculate.ts` == certified rule).
+
+### Core Sharing (Option B, PO-approved)
+
+`scripts/d8/export-core.mjs` generates `supabase/functions/_shared/financial-core/index.ts` + `core.sha256.json` from canonical sources. `npm run d8:verify` is a **mandatory STOP** on divergence. Canonical sources (never edited in D8): `domain/commission/{calculate,participants,types}.ts`, `shared/numbers/normalize.ts`, `domain/events/outbox/supabaseOutbox.ts`.
+
