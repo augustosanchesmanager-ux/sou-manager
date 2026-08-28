@@ -14,8 +14,14 @@
  *                                                Financial Domain Core (single source,
  *                                                integrity-gated _shared artifact).
  *   4. exists_commission_record() + insert   -> idempotent persistence.
- *   5. mark_outbox_item_processed()          -> published | failed.
- *   6. upsert_worker_heartbeat()             -> declarative server-side liveness.
+ *   5. mark_outbox_item_processed('published') -> success terminal.
+ *   6. handle_processing_failure()            -> failed: transition to
+ *                                                pending(backoff) | dead_letter
+ *                                                (retry lifecycle owned by D8 SQL,
+ *                                                Amendment-04).
+ *   7. recover_stale_processing()             -> watchdog: orphaned 'processing'
+ *                                                (>5min) back to pending.
+ *   8. upsert_worker_heartbeat()              -> declarative server-side liveness.
  *
  * Non-goals (STOP conditions of D8): NO generic table access, NO service_role on
  * the data path, NO commission math in Deno except the shared Core, NO SQL rule.
@@ -41,6 +47,8 @@ export interface CycleReport {
   claimed: number;
   processed: number;
   failed: number;
+  dead: number;
+  recovered: number;
   skipped: number;
   error?: string;
 }
@@ -55,7 +63,30 @@ async function withWorkerClient(url: string, jwt: string) {
 
 async function runCycle(url: string, jwt: string, maxTargets: number): Promise<CycleReport> {
   const supabase = await withWorkerClient(url, jwt);
-  const report: CycleReport = { ok: true, claimed: 0, processed: 0, failed: 0, skipped: 0 };
+  const report: CycleReport = {
+    ok: true,
+    claimed: 0,
+    processed: 0,
+    failed: 0,
+    dead: 0,
+    recovered: 0,
+    skipped: 0,
+  };
+
+  // ── 0. stale watchdog: orphaned 'processing' (>5min) back to pending ──
+  try {
+    const { data: recoveredCount, error: staleErr } = await supabase.rpc(
+      'recover_stale_processing',
+      { p_tenant_id: null },
+    );
+    if (staleErr) {
+      report.error = `stale-recovery failed: ${staleErr.message}`;
+    } else {
+      report.recovered = typeof recoveredCount === 'number' ? recoveredCount : 0;
+    }
+  } catch (staleErr) {
+    report.error = `stale-recovery failed: ${staleErr instanceof Error ? staleErr.message : ''}`;
+  }
 
   for (let i = 0; i < maxTargets; i++) {
     // ── 1. claim ────────────────────────────────────────────────
@@ -136,21 +167,29 @@ async function runCycle(url: string, jwt: string, maxTargets: number): Promise<C
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       void sourceStaffIds;
     } catch (cycleError) {
-      // A cycle failure on this item -> mark failed (retry lifecycle owned by
-      // the outbox SQL surface + scheduled requeue, NOT a manual bypass).
+      // Cycle failure on this item -> transition via handle_processing_failure,
+      // which atomically moves it to pending(backoff) or dead_letter (retry
+      // lifecycle owned by the D8 SQL surface, NOT a manual bypass).
       report.failed++;
       const msg = cycleError instanceof Error ? cycleError.message : String(cycleError);
       report.error = msg;
       try {
-        await supabase.rpc('mark_outbox_item_processed', {
-          p_item_id: item.id,
-          p_tenant_id: item.tenant_id,
-          p_status: 'failed',
-          p_error: msg.slice(0, 500),
-          p_attempts: 1,
-        });
-      } catch (markFailErr) {
-        report.error += `; mark-failed: ${markFailErr instanceof Error ? markFailErr.message : ''}`;
+        const { data: outcome, error: failErr } = await supabase.rpc(
+          'handle_processing_failure',
+          {
+            p_item_id: item.id,
+            p_tenant_id: item.tenant_id,
+            p_error: msg.slice(0, 500),
+          },
+        );
+        if (failErr) {
+          report.error += `; handle-failure: ${failErr.message}`;
+        } else {
+          const o = outcome as { dead_letter?: boolean; status?: string } | null;
+          if (o?.dead_letter) report.dead++;
+        }
+      } catch (failErr) {
+        report.error += `; handle-failure: ${failErr instanceof Error ? failErr.message : ''}`;
       }
     }
   }
@@ -167,7 +206,7 @@ async function reportHeartbeat(url: string, jwt: string, report: CycleReport) {
     p_last_error: report.error || null,
     p_delta_processed: report.processed,
     p_delta_failed: report.failed,
-    p_delta_dead: 0,
+    p_delta_dead: report.dead,
   });
 }
 
