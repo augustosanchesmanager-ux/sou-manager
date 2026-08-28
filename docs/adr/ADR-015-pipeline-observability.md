@@ -1,6 +1,6 @@
 # ADR-015: Pipeline Financeiro — Observabilidade Crítica
 
-**Status:** Proposed
+**Status:** PRODUCTION CERTIFIED (2026-08-28)
 **Date:** 2026-08-27
 **Deciders:** PO (Augusto) + OpenCode
 **Prerequisite:** D7 Transactional Outbox ativo em produção (`4798ec1`)

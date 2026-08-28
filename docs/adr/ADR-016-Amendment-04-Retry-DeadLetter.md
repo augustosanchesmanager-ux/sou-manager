@@ -1,6 +1,6 @@
 # ADR-016 Amendment-04 — Worker Retry/Requeue & Dead-Letter Contract (D8)
 
-**Status:** Proposed (draft — **AGUARDA aprovação do PO** antes de qualquer código)
+**Status:** PRODUCTION CERTIFIED (2026-08-28)
 **Date:** 2026-08-27
 **Deciders:** PO (Augusto) + OpenCode
 **Prerequisite:** Amendment-01 ✅, Amendment-02 ✅, Amendment-03 ✅ (Workers B/C/D implementados, commit `f3a0038`), Gate A 🟢, Equivalence 5/5 🟢
@@ -135,19 +135,19 @@ npx vitest run tests/d8/equivalence.test.ts
 
 ```text
 D8 Worker Gates B/C/D        🟢 IMPLEMENTADOS (f3a0038)
-Retry/requeue                 🔴 GAP  ← este contrato
-Dead-letter server-side       🔴 GAP  ← este contrato
-Amendment-04 (este)           🟡 AGUARDA APROVAÇÃO
-Deploy produção               🔴 BLOQUEADO (só após retry certificado)
-63742efa                      🔴 AGUARDA D8 (não usar como teste de implementação)
-ADR-015 PROD CERTIFIED        🔴 BLOQUEADO
+Retry/requeue                 🟢 IMPLEMENTADO + CERTIFICADO (8671710)
+Dead-letter server-side       🟢 IMPLEMENTADO + CERTIFICADO (8671710)
+Amendment-04 (este)           🟢 PRODUCTION CERTIFIED (2026-08-28)
+Deploy produção               🟢 COMPLETO (ushsnmlbeurfvlkieiln)
+63742efa                      🟢 OPERATIONAL — commission 40% = R$40 (confirmed by PO)
+ADR-015 PROD CERTIFIED        🟢 CERTIFIED (2026-08-28)
 ```
 
 ---
 
-## 9. Decisões pendentes do PO
+## 9. Decisões do PO (todas aprovadas)
 
-1. **Aprovar** a superfície: `handle_processing_failure` (novo), `recover_stale_processing` (novo), **amenda** da predica de `claim_next_outbox_item` (§3).
-2. **Aprovar** a semântica espelhando o certificado `SupabaseOutbox.markFailed` (backoff `base*2^(attempts-1)`, `maxAttempts=5`) — 1 fonte de behavior.
-3. **Aprovar** que o worker **não** produz mais `failed` via `mark_outbox_item_processed` (usa `handle_processing_failure`).
-4. **Confirmar** `retry_max_attempts=5` / `retry_base_delay_ms=1000` como defaults (sem alterar schema).
+1. ✅ **Aprovada** a superfície: `handle_processing_failure` (novo), `recover_stale_processing` (novo), **amenda** da predica de `claim_next_outbox_item` (§3).
+2. ✅ **Aprovada** a semântica espelhando o certificado `SupabaseOutbox.markFailed` (backoff `base*2^(attempts-1)`, `maxAttempts=5`) — 1 fonte de behavior.
+3. ✅ **Aprovado** que o worker **não** produz mais `failed` via `mark_outbox_item_processed` (usa `handle_processing_failure`).
+4. ✅ **Confirmado** `retry_max_attempts=5` / `retry_base_delay_ms=1000` como defaults (sem alterar schema).
