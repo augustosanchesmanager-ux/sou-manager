@@ -13,6 +13,10 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-014](./ADR-014-transactional-outbox.md) | Accepted | Transactional Outbox (D7) — atomicidade RPC + enqueue |
 | [ADR-015](./ADR-015-pipeline-observability.md) | PRODUCTION CERTIFIED | Pipeline Financeiro — Observabilidade Crítica (PROD certified 2026-08-28) |
 | [ADR-016](./ADR-016-dispatcher-server-side.md) | PRODUCTION CERTIFIED | Dispatcher Server-side — Autoridade de Processamento Assíncrono Multi-tenant (D8) (PROD certified 2026-08-28) |
+| [ADR-017](./ADR-017-financial-vs-operational-cycle.md) | Accepted | Ciclo Operacional × Ciclo Financeiro — Pagamento Antecipado e Atendimento Independente (G0 2026-08-29) |
+| [ADR-018](./ADR-018-payment-contract.md) | Accepted | Contrato de Pagamento — `payment_type` + Tabela `comanda_payments` (G0 2026-08-29) |
+| [ADR-019](./ADR-019-role-authorization.md) | Accepted | Autorização por Papel — Menor Privilégio em Operações Financeiras e Operacionais (G0 2026-08-29) |
+| [ADR-020](./ADR-020-attended-at-backfill.md) | Accepted | Estratégia de `attended_at` — Atendimento Realizado e Política de Backfill (G0 2026-08-29) |
 
 ---
 
