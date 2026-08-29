@@ -903,7 +903,7 @@ const AccountsReceivable: React.FC = () => {
                 .update({
                     status: 'cancelled',
                     cancellation_type: cancelReasonType,
-                    cancellation_reason: reasonText,
+                    closure_note: reasonText,
                     cancelled_at: new Date().toISOString(),
                     cancelled_by_user_id: user?.id || null,
                     hidden_from_financial: hiddenFromFinancial,

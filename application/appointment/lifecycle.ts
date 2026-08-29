@@ -226,17 +226,35 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         cancelled_by_user_id: userId,
     }, tenantId);
 
-    const comandas = await comandaRepository.list(tenantId, {
+    const openComandas = await comandaRepository.list(tenantId, {
         appointmentId,
         status: 'open',
+    });
+    const blockedComandas = await comandaRepository.list(tenantId, {
+        appointmentId,
+        status: 'blocked',
+    });
+
+    const seen = new Set<string>();
+    const comandas = [...openComandas, ...blockedComandas].filter((c) => {
+        if (!c.id || seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
     });
 
     const failedComandas: string[] = [];
 
     for (const comanda of comandas) {
+        if (comanda.status === 'cancelled') {
+            continue;
+        }
         try {
             await comandaRepository.update(comanda.id, {
                 status: 'cancelled',
+                cancellation_type: cancellationType,
+                cancelled_at: new Date().toISOString(),
+                cancelled_by_user_id: userId,
+                closure_note: cancellationReason || null,
             }, tenantId);
         } catch (err) {
             console.warn('[SMG][APPOINTMENT][CANCEL] Falha ao cancelar comanda vinculada:', {
