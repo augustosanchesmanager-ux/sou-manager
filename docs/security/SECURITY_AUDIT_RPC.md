@@ -119,6 +119,8 @@ All helper functions use `SECURITY DEFINER` and are correct:
 | `backfill_service_execution_participants()` | No auth check | Admin function without guard |
 | `build_chef_club_service_balance_map()` | No auth check | Utility function, low risk |
 
+**Status F1.1/F3.1 (CODE FIX COMPLETE / HOMOLOGATION BLOCKED, 2026-08-31):** o achado CRÍTICO de autorização/isolamento multi-tenant em `bulk_close_comandas_admin()` foi **corrigido no código** — branch `chore/seguranca-bulk-close-comandas-admin`, commit `983c5bc` `fix(security): harden bulk close comanda authorization` (já pushado). Legacy `get_current_tenant_id()` substituído por resolução explícita `auth.uid()` → tenant/superadmin/role/membership + validação de pertencimento de ID, fechando a barreira fail-closed de lote misto A+B. **Migration corretiva:** `20260831120000_seguranca_fix_bulk_close_comandas_admin.sql` (**NÃO aplicada** em nenhum ambiente). **E2E de regressão:** `tests/e2e/homologation/h6-5-bulk-close-comandas-admin.spec.ts` — **12 cenários** (SEC-1..SEC-12). **Validações estáticas:** build PASS · `tsc --noEmit` 0 erros no fix · `git diff --check` PASS · `playwright --list` 12 descobertos. **🟡 NÃO encerrado** — fechamento bloqueado até: reconciliação do staging aprovada pelo PO → migration aplicada → E2E real 12/12 → verificação de dados → aprovação PO → aplicação controlada em produção → reteste pós-migration. Produção **INTOCADA**.
+
 ### ⚠️ LOW
 
 | Function | Issue | Risk |
