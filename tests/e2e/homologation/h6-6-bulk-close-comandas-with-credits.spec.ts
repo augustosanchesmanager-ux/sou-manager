@@ -221,7 +221,7 @@ test.describe('H6.6-SEC — bulk_close_comandas_with_credits autorização (REST
     clientBId = (clB.data as { id: string }).id;
 
     // Serviço (obrigatório p/ consumo de crédito; comanda_items precisa de service_id)
-    const svc = await admin.from('services').insert({ tenant_id: tenantA, name: 'F14 Service A', price: 50, duration_minutes: 30, active: true }).select('id').single();
+    const svc = await admin.from('services').insert({ tenant_id: tenantA, name: 'F14 Service A', price: 50, duration: 30, active: true }).select('id').single();
     if (svc.error || !svc.data) throw new Error(`seed service failed: ${svc.error?.message}`);
     serviceAId = (svc.data as { id: string }).id;
 
@@ -244,11 +244,48 @@ test.describe('H6.6-SEC — bulk_close_comandas_with_credits autorização (REST
 
     const cred = await admin
       .from('customer_credits')
-      .insert({ tenant_id: tenantA, subscription_id: subscriptionAId, client_id: clientAId, available_credits: 5, used_credits: 0 })
+      .insert({
+        tenant_id: tenantA,
+        subscription_id: subscriptionAId,
+        client_id: clientAId,
+        available_credits: 5,
+        used_credits: 0,
+        // Dedução por serviço exige service_balance_map (deduct_chef_club_credits)
+        service_balance_map: [{ service_id: serviceAId, available: 5, used: 0 }],
+      })
       .select('id')
       .single();
     if (cred.error || !cred.data) throw new Error(`seed credits failed: ${cred.error?.message}`);
     creditsAId = (cred.data as { id: string }).id;
+
+    // Recebimento PAGO do ciclo vigente: sem ele deduct_chef_club_credits rejeita
+    // com 'Clube sem ciclo pago vigente' (gate financeiro de crédito do Clube).
+    const tx = await admin
+      .from('transactions')
+      .insert({ tenant_id: tenantA, type: 'credit', category: 'club', amount: 99 })
+      .select('id')
+      .single();
+    if (tx.error || !tx.data) throw new Error(`seed transaction failed: ${tx.error?.message}`);
+    const txId = (tx.data as { id: string }).id;
+
+    const recv = await admin
+      .from('customer_subscription_receivables')
+      .insert({
+        tenant_id: tenantA,
+        customer_id: clientAId,
+        subscription_id: subscriptionAId,
+        plan_id: planId,
+        billing_cycle_start: new Date(Date.now() - 86400000).toISOString(),
+        billing_cycle_end: new Date(Date.now() + 86400000 * 30).toISOString(),
+        due_date: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+        amount: 99,
+        status: 'paid',
+        paid_at: new Date(Date.now() - 86400000).toISOString(),
+        transaction_id: txId,
+      })
+      .select('id')
+      .single();
+    if (recv.error) throw new Error(`seed paid receivable failed: ${recv.error?.message}`);
 
     managerA = await signInSession(emails.managerA, PASSWORD);
     adminA = await signInSession(emails.adminA, PASSWORD);
@@ -268,7 +305,7 @@ test.describe('H6.6-SEC — bulk_close_comandas_with_credits autorização (REST
     // comanda_items para o consumo de crédito (comandaA_credit -> serviceA)
     const ci = await a()
       .from('comanda_items')
-      .insert({ comanda_id: comandaA_credit, service_id: serviceAId, quantity: 1, unit_price: 40, client_id: clientAId })
+      .insert({ comanda_id: comandaA_credit, service_id: serviceAId, quantity: 1, unit_price: 40 })
       .select('id');
     if (ci.error) throw new Error(`seed comanda_item failed: ${ci.error?.message}`);
 
@@ -282,6 +319,8 @@ test.describe('H6.6-SEC — bulk_close_comandas_with_credits autorização (REST
       await admin.from('comanda_items').delete().eq('comanda_id', comandaA_credit);
       await admin.from('comandas').delete().in('id', [comandaA_mgr, comandaA_adm, comandaA_own, comandaA_credit, comandaB, comandaB_credit]);
       await admin.from('customer_credits').delete().eq('id', creditsAId);
+      await admin.from('customer_subscription_receivables').delete().eq('subscription_id', subscriptionAId);
+      await admin.from('transactions').delete().eq('tenant_id', tenantA);
       await admin.from('customer_subscriptions').delete().eq('id', subscriptionAId);
       await admin.from('customer_plans').delete().eq('tenant_id', tenantA);
       await admin.from('services').delete().eq('tenant_id', tenantA);
