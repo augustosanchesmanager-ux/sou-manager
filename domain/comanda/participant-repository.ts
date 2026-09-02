@@ -34,10 +34,19 @@ export class ServiceExecutionParticipantRepositoryImpl extends SupabaseRepositor
     try {
       if (comandaItemIds.length === 0) return [];
       const result = await this.from()
-        .select('id, comanda_item_id, staff_id, role, payout_type, payout_value, affects_commission')
+        .select('id, comanda_item_id, professional_id, role, payout_type, payout_value, affects_commission')
         .eq('tenant_id', tenantId)
         .in('comanda_item_id', comandaItemIds);
-      return this.extractData<ParticipantRow[]>(result, 'list participants by comanda item ids');
+      const rows = this.extractData<Array<Record<string, unknown>>>(result, 'list participants by comanda item ids');
+      // schema real usa professional_id (sem staff_id); expõe ambos p/ contrato tolerante.
+      return (rows || []).map((row) => {
+        const professionalId = (row.professional_id as string | null) ?? null;
+        return {
+          ...row,
+          staff_id: professionalId,
+          professional_id: professionalId,
+        } as unknown as ParticipantRow;
+      });
     } catch (error) {
       this.throwOnError(error, 'list participants by comanda item ids');
     }
