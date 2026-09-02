@@ -123,135 +123,150 @@ export const reverseFinancialTransaction = async ({
     throw new Error(REVERSAL_ERROR_MESSAGE);
   }
 
-  // FIX-001 G3: Publish CheckoutReverted event for commission reversal
+  // FIX-001 G3 + H2-8: Publish CheckoutReverted event for commission reversal.
+  // Every read checks { data, error } — the previous version silently swallowed
+  // PostgREST errors from phantom columns (comandas.discount, comanda_items.staff_id,
+  // service_execution_participants.staff_id), which hid the entire publish chain.
   try {
-    const { data: originalTx } = await supabase
+    const { data: originalTx, error: txReadErr } = await supabase
       .from('transactions')
       .select('source_id, amount, source_type')
       .eq('id', originalTransactionId)
       .eq('tenant_id', tenantId)
       .single();
 
-    if (originalTx?.source_type === 'comanda' && originalTx?.source_id) {
+    if (txReadErr) {
+      console.error('[reversal][H2-8] Failed to read original transaction for event publish:', txReadErr.message);
+    } else if (originalTx?.source_type === 'comanda' && originalTx?.source_id) {
       const comandaId = originalTx.source_id;
       const originalTotal = Number(originalTx.amount || 0);
 
-      // TD-001 B3.4-H: only REAL schema columns here. The previous version
-      // selected the phantom column `comandas.payment_amount`, which made
-      // PostgREST fail and silently skip the event publish.
-      const { data: comandaData } = await supabase
+      const { data: comandaData, error: comandaReadErr } = await supabase
         .from('comandas')
-        .select('id, discount')
+        .select('id, total')
         .eq('id', comandaId)
         .eq('tenant_id', tenantId)
         .single();
 
-      if (comandaData) {
-        const { data: items } = await supabase
+      if (comandaReadErr) {
+        console.error('[reversal][H2-8] Failed to read comanda for event publish:', comandaReadErr.message);
+      } else if (comandaData) {
+        const { data: items, error: itemsReadErr } = await supabase
           .from('comanda_items')
-          .select('id, unit_price, quantity, staff_id')
+          .select('id, unit_price, quantity')
           .eq('comanda_id', comandaId)
           .eq('tenant_id', tenantId);
 
-        let originalCommission = 0;
-        let originalReceivedValue = originalTotal;
+        if (itemsReadErr) {
+          console.error('[reversal][H2-8] Failed to read comanda_items for event publish:', itemsReadErr.message);
+        } else {
+          let originalCommission = 0;
+          let originalReceivedValue = originalTotal;
 
-        if (items && items.length > 0) {
-          const { resolveFinancialBase, calculateCommissionValue } =
-            await import('../../../domain/commission/calculate');
-          const { receivesCommission, getEffectiveCommissionRate } =
-            await import('../staff/roles');
+          if (items && items.length > 0) {
+            const { resolveFinancialBase, calculateCommissionValue } =
+              await import('../../../domain/commission/calculate');
+            const { receivesCommission, getEffectiveCommissionRate } =
+              await import('../staff/roles');
 
-          const totalGross = items.reduce(
-            (sum: number, item: any) =>
-              sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
-            0
-          );
-          const discountAmount = Number(comandaData.discount || 0);
-          originalReceivedValue = Math.max(0, totalGross - discountAmount);
-
-          // TD-001 B3.4-H: real table is service_execution_participants
-          // (keyed by comanda_item_id). The phantom `commission_participants`
-          // table never existed and silently killed the publish chain.
-          const itemIds = items.map((i: any) => i.id).filter(Boolean);
-          const { data: participants } = itemIds.length > 0
-            ? await supabase
-                .from('service_execution_participants')
-                .select('comanda_item_id, staff_id, affects_commission, payout_type, payout_value')
-                .eq('tenant_id', tenantId)
-                .in('comanda_item_id', itemIds)
-            : { data: [] };
-
-          const staffIds = [
-            ...new Set((participants || []).map((p: any) => p.staff_id).filter(Boolean)),
-          ];
-          const staffById = new Map<string, any>();
-          if (staffIds.length > 0) {
-            const { data: staffRows } = await supabase
-              .from('staff')
-              .select('id, role, status, commission_rate')
-              .eq('tenant_id', tenantId)
-              .in('id', staffIds);
-            (staffRows || []).forEach((s: any) => staffById.set(s.id, s));
-          }
-
-          // Reproduce EXACTLY what createCommissionRecordHandler persisted:
-          // per item/participant, canonical base × share × staff rate.
-          for (const item of items) {
-            const itemParticipants = (participants || []).filter(
-              (p: any) => p.comanda_item_id === item.id,
+            const totalGross = items.reduce(
+              (sum: number, item: any) =>
+                sum + Number(item.unit_price || 0) * Number(item.quantity || 1),
+              0
             );
-            for (const participant of itemParticipants) {
-              if (!participant.affects_commission) continue;
+            const comandaTotal = Number(comandaData.total || 0);
+            const discountAmount = Math.max(0, totalGross - comandaTotal);
+            originalReceivedValue = comandaTotal;
 
-              const staff = staffById.get(participant.staff_id);
-              if (staff && !receivesCommission(staff)) continue;
+            const itemIds = items.map((i: any) => i.id).filter(Boolean);
+            const { data: participants, error: participantsReadErr } = itemIds.length > 0
+              ? await supabase
+                  .from('service_execution_participants')
+                  .select('comanda_item_id, professional_id, affects_commission, payout_type, payout_value')
+                  .eq('tenant_id', tenantId)
+                  .in('comanda_item_id', itemIds)
+              : { data: [], error: null };
 
-              const financialBase = resolveFinancialBase({
-                item: {
-                  unit_price: Number(item.unit_price || 0),
-                  quantity: Number(item.quantity || 1),
-                  discount: Number(item.discount || 0),
-                },
-                discount: discountAmount,
-                paidAmount: originalReceivedValue,
-                quantity: Number(item.quantity || 1),
-              });
+            if (participantsReadErr) {
+              console.error('[reversal][H2-8] Failed to read service_execution_participants for event publish:', participantsReadErr.message);
+            } else {
+              const professionalIds = [
+                ...new Set((participants || []).map((p: any) => p.professional_id).filter(Boolean)),
+              ];
+              const staffById = new Map<string, any>();
+              if (professionalIds.length > 0) {
+                const { data: staffRows, error: staffReadErr } = await supabase
+                  .from('staff')
+                  .select('id, role, status, commission_rate')
+                  .eq('tenant_id', tenantId)
+                  .in('id', professionalIds);
 
-              const rate = getEffectiveCommissionRate(staff);
-              originalCommission += calculateCommissionValue(
-                financialBase.receivedValue,
-                participant,
-                rate,
-              );
+                if (staffReadErr) {
+                  console.error('[reversal][H2-8] Failed to read staff for event publish:', staffReadErr.message);
+                } else {
+                  (staffRows || []).forEach((s: any) => staffById.set(s.id, s));
+                }
+              }
+
+              // Reproduce EXACTLY what createCommissionRecordHandler persisted:
+              // per item/participant, canonical base × share × staff rate.
+              for (const item of items) {
+                const itemParticipants = (participants || []).filter(
+                  (p: any) => p.comanda_item_id === item.id,
+                );
+                for (const participant of itemParticipants) {
+                  if (!participant.affects_commission) continue;
+
+                  const staff = staffById.get(participant.professional_id);
+                  if (staff && !receivesCommission(staff)) continue;
+
+                  const financialBase = resolveFinancialBase({
+                    item: {
+                      unit_price: Number(item.unit_price || 0),
+                      quantity: Number(item.quantity || 1),
+                      discount: 0,
+                    },
+                    discount: discountAmount,
+                    paidAmount: originalReceivedValue,
+                    quantity: Number(item.quantity || 1),
+                  });
+
+                  const rate = getEffectiveCommissionRate(staff);
+                  originalCommission += calculateCommissionValue(
+                    financialBase.receivedValue,
+                    participant,
+                    rate,
+                  );
+                }
+              }
             }
           }
-        }
 
-        await appEventBus.publish(createEvent<CheckoutRevertedEvent>({
-          eventType: 'CheckoutReverted',
-          aggregateId: comandaId,
-          aggregateType: 'comanda',
-          payload: {
-            comandaId,
-            reason: reasonType,
-            reversedBy: 'system',
-            originalTotal,
-            reversedAmount: amount,
+          await appEventBus.publish(createEvent<CheckoutRevertedEvent>({
+            eventType: 'CheckoutReverted',
+            aggregateId: comandaId,
+            aggregateType: 'comanda',
+            payload: {
+              comandaId,
+              reason: reasonType,
+              reversedBy: 'system',
+              originalTotal,
+              reversedAmount: amount,
+              originalCommission,
+              originalReceivedValue,
+            },
+            metadata: {
+              tenantId,
+              source: 'reverseFinancialTransaction',
+              correlationId: key,
+            },
+          }));
+
+          console.info('[reversal] CheckoutReverted event published for comanda:', comandaId, {
             originalCommission,
             originalReceivedValue,
-          },
-          metadata: {
-            tenantId,
-            source: 'reverseFinancialTransaction',
-            correlationId: key,
-          },
-        }));
-
-        console.info('[reversal] CheckoutReverted event published for comanda:', comandaId, {
-          originalCommission,
-          originalReceivedValue,
-        });
+          });
+        }
       }
     }
   } catch (eventError) {
