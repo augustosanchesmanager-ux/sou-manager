@@ -311,18 +311,22 @@ v_normalized_role := COALESCE(
 
 ---
 
-## 13. Decisão Pendente do PO (formato binário)
+## 13. Decisão do PO (formato binário)
 
 **Evidências apresentadas (FASES 1–5 + F1.1/F3.1):** fix de isolamento multi-tenant provado, corrigido e re-homologado nas 5 RPCs críticas (25/25 E2E + 20/20 ADR-021 + 15/15 GATE 2 + auditoria pós-teste aprovada + teardown 22/22 a zero); produção intocada; staging em estado pré-homologação; documentos-fonte e evidências executáveis versionados.
 
-**O PO responde:**
+**Decisão do PO (2026-09-02):**
 
 ```text
-☐ Sim, as evidências são suficientes para aprovar a promoção.
+☑ Sim, as evidências são suficientes para aprovar a promoção.
 ☐ Não, existe esta pendência específica:
     ______________________________________________________
 ```
 
+> **💬 Veredito formal do PO (verbatim):** *"SIM — as evidências são suficientes para prosseguir."* — **FASE 6: 🟢 APROVADA / ENCERRADA.**
+>
+> **Escopo da aprovação:** autoriza o avanço para o próximo fluxo de decisão — **promoção/versionamento**. **NÃO autoriza automaticamente** a aplicação em produção. As pendências operacionais (§12: migrations em produção, RPCs legadas, saneamento do gap histórico) permanecem **explicitamente separadas** das evidências de segurança aprovadas e seguem como decisões próprias do PO.
+
 **Recomendação técnica do OpenCode (Tech Lead):** **SIM** — as evidências cobrem integralmente a classe de vulnerabilidade que motivou o gate, com prova de não-persistência de efeitos cross-tenant e produção intocada. As pendências listadas em §12 são **operacionais** (promoção para produção, RPCs legadas, saneamento histórico), não lacunas de evidência da homologação, e seguem para decisão própria do PO no fluxo de versionamento.
 
-**Nenhuma operação adicional executada após a FASE 5. Produção intocada.**
+**Nenhuma operação adicional executada após a FASE 5. Produção intocada. STAGING GATE ENCERRADO (2026-09-02).**
