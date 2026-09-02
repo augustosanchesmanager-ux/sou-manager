@@ -1,0 +1,6 @@
+# D8 worker-dispatcher — server-side outbox dispatcher.
+#
+# verify_jwt = false: this function is invoked by Supabase Cron / an internal
+# scheduler with system credentials, NOT by end-users through the frontend.
+# Matches the repo precedent (admin-create-user, notification-sweep).
+verify_jwt = false

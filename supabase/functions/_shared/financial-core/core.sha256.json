@@ -1,0 +1,43 @@
+{
+  "contract": "ADR-016 Amendment-03 (Core Sharing & Integrity Contract)",
+  "tooling": {
+    "esbuild": "0.25.12",
+    "format": "esm",
+    "platform": "neutral",
+    "target": "es2021",
+    "note": "Self-contained, no relative imports; Deno-safe; bundled by Supabase CLI v2.95.6 within supabase/functions/"
+  },
+  "source": [
+    {
+      "path": "shared/numbers/normalize.ts",
+      "sha256": "4c8bf2c80e33861cf89f10745d8605a47dba362223c5c113ba5524997a7434b0"
+    },
+    {
+      "path": "domain/commission/types.ts",
+      "sha256": "8417a70cb13f9b7d83385f57c2dd61ba80b6329773d567eb992ce1b31e68a8b5"
+    },
+    {
+      "path": "domain/commission/calculate.ts",
+      "sha256": "63efc37983ffe94f8cb218bcca318d7fe8a1958e9ee244bfdbd01b0608335a13"
+    },
+    {
+      "path": "domain/commission/participants.ts",
+      "sha256": "10a16167537adef9a83071bc81404ba65af9d215f05234d2f7264f5d5e3d8ff5"
+    }
+  ],
+  "artifact": {
+    "path": "supabase/functions/_shared/financial-core/index.ts",
+    "sha256": "bdbdf2e09df1d4c39644a2c30551f7da36d646ff71905643483920a948592a0a"
+  },
+  "consumerBlobs": [
+    "normalizePercentage",
+    "resolveFinancialBase",
+    "calculateCommissionValue",
+    "isCommissionEligible",
+    "getEffectiveRate",
+    "getDefaultRateForRole",
+    "normalizeCommissionParticipants",
+    "calculateCommissionReversal",
+    "detectZeroReason"
+  ]
+}

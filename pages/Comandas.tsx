@@ -61,7 +61,6 @@ interface Comanda {
     staff_id?: string | null;
     appointment_id?: string | null;
     status: ComandaStatus;
-    cancellation_reason?: string | null;
     cancellation_type?: string | null;
     cancelled_at?: string | null;
     cancelled_by_user_id?: string | null;
@@ -1010,7 +1009,7 @@ const Comandas: React.FC = () => {
             const sharedValue = sharedDetails.reduce((sum, detail) => sum + detail.participantBase, 0);
             const paidValue = c.status === 'paid' ? Number(c.total || 0) : 0;
             const pendingValue = c.status === 'paid' || c.status === 'cancelled' ? 0 : Number(c.total || 0);
-            const observations = [c.closure_note, c.cancellation_reason].filter(Boolean).join(' | ');
+            const observations = [c.closure_note].filter(Boolean).join(' | ');
             return [
                 escapeCSV(getShortComandaRef(c.id)),
                 escapeCSV(new Date(c.created_at).toLocaleString('pt-BR')),
@@ -1108,10 +1107,10 @@ const Comandas: React.FC = () => {
 
             const updatePayload: Record<string, unknown> = {
                 status: 'cancelled',
-                cancellation_reason: reason,
                 cancellation_type: cancelReason,
                 cancelled_at: new Date().toISOString(),
                 cancelled_by_user_id: user?.id || null,
+                closure_note: reason,
                 hidden_from_financial: isHiddenFinancial,
             };
 

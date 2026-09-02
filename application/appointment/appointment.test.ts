@@ -506,8 +506,75 @@ describe('AppointmentApplicationService', () => {
         });
 
         expect(mockComandaUpdate).toHaveBeenCalledTimes(2);
-        expect(mockComandaUpdate).toHaveBeenCalledWith('com-1', { status: 'cancelled' }, 'tenant-1');
-        expect(mockComandaUpdate).toHaveBeenCalledWith('com-2', { status: 'cancelled' }, 'tenant-1');
+        expect(mockComandaUpdate).toHaveBeenCalledWith(
+          'com-1',
+          expect.objectContaining({ status: 'cancelled', cancellation_type: 'client_request' }),
+          'tenant-1',
+        );
+        expect(mockComandaUpdate).toHaveBeenCalledWith(
+          'com-2',
+          expect.objectContaining({ status: 'cancelled', cancellation_type: 'client_request' }),
+          'tenant-1',
+        );
+      });
+
+      it('should_cancel_blocked_comandas_linked_by_appointment_id', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockImplementation((_tenant: unknown, opts: any) =>
+          Promise.resolve(opts?.status === 'blocked' ? [{ id: 'com-blocked', status: 'blocked' }] : []),
+        );
+
+        await cancelAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          cancellationType: 'client_request',
+          cancellationReason: 'Cliente mudou de horário',
+          userId: 'user-1',
+        });
+
+        expect(mockComandaUpdate).toHaveBeenCalledTimes(1);
+        expect(mockComandaUpdate).toHaveBeenCalledWith(
+          'com-blocked',
+          expect.objectContaining({
+            status: 'cancelled',
+            cancellation_type: 'client_request',
+            closure_note: 'Cliente mudou de horário',
+          }),
+          'tenant-1',
+        );
+      });
+
+      it('should_not_cancel_paid_comandas', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([]);
+
+        await cancelAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          cancellationType: 'client_request',
+          userId: 'user-1',
+        });
+
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should_be_idempotent_on_already_cancelled_comandas', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockImplementation((_tenant: unknown, opts: any) =>
+          Promise.resolve(opts?.status === 'open' ? [{ id: 'com-1', status: 'cancelled' }] : []),
+        );
+
+        await cancelAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          cancellationType: 'client_request',
+          userId: 'user-1',
+        });
+
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
       });
 
       it('should_not_throw_when_comanda_cancel_fails', async () => {

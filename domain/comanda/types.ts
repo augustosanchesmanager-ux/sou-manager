@@ -40,6 +40,11 @@ export interface UpdateComandaInput {
   payment_method?: string | null;
   staff_id?: string | null;
   closed_at?: string | null;
+  cancellation_type?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_user_id?: string | null;
+  hidden_from_financial?: boolean;
+  closure_note?: string | null;
 }
 
 export interface ComandaListOptions {
