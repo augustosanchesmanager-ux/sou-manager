@@ -239,7 +239,7 @@ export function createTimer(name: string): () => void {
   const start = performance.now();
   return () => {
     const duration = performance.now() - start;
-    metrics.histogram(name, duration, 'ms');
+    metrics.histogram(name, duration, { unit: 'ms' });
     logger.performance(name, duration, 'ms');
   };
 }

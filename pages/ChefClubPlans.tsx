@@ -99,7 +99,7 @@ const ChefClubPlans: React.FC = () => {
 
         try {
             const data = await loadPlansPage(tenantId);
-            setPlans(data.plans as Plan[]);
+            setPlans(data.plans as unknown as Plan[]);
             setServices(data.services);
         } catch {
             setToast({ message: 'Erro ao carregar planos.', type: 'error' });

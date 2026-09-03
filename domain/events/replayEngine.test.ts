@@ -297,6 +297,7 @@ describe('ReplayEngine', () => {
       const e1 = {
         eventId: 'evt_old',
         eventType: 'CheckoutCompleted' as const,
+        eventTypeVersion: 1,
         aggregateId: 'comanda-1',
         aggregateType: 'comanda',
         occurredAt: '2026-07-01T10:00:00Z',
@@ -318,6 +319,7 @@ describe('ReplayEngine', () => {
       const e2 = {
         eventId: 'evt_middle',
         eventType: 'AppointmentCreated' as const,
+        eventTypeVersion: 1,
         aggregateId: 'appt-1',
         aggregateType: 'appointment',
         occurredAt: '2026-07-15T10:00:00Z',
@@ -337,6 +339,7 @@ describe('ReplayEngine', () => {
       const e3 = {
         eventId: 'evt_recent',
         eventType: 'CashClosingCompleted' as const,
+        eventTypeVersion: 1,
         aggregateId: 'closing-1',
         aggregateType: 'cash_closing',
         occurredAt: '2026-08-01T10:00:00Z',

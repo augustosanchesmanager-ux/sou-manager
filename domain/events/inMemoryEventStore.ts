@@ -36,6 +36,8 @@ export class InMemoryEventStore implements EventStoreRepository {
       id: `stored_${this.counter}`,
       event,
       storedAt: new Date().toISOString(),
+      eventTypeVersion: event.eventTypeVersion,
+      schemaVersion: 1,
     };
 
     this.events.push(stored);

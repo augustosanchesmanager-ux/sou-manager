@@ -626,7 +626,7 @@ function UpcastersTab() {
         <div className="space-y-3">
           <SectionHeader icon="compare" title="Diferencas entre Versoes" description="Comparacao visual de mudancas entre versoes de eventos" />
           {VERSION_DIFFS.map((diff, i) => (
-            <VersionDiffCard key={i} diff={diff} onClick={() => setSelectedDiff(diff)} />
+            <VersionDiffCard key={i} diff={diff} onClick={(): void => { setSelectedDiff(diff); }} />
           ))}
         </div>
       )}
@@ -826,7 +826,7 @@ export default function EventVersioningAdmin() {
             active={activeTab === tab.id}
             icon={tab.icon}
             label={tab.label}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(): void => { setActiveTab(tab.id); }}
           />
         ))}
       </div>

@@ -33,6 +33,11 @@ function buildItem(overrides?: Partial<OutboxItem>): OutboxItem {
     metadata: { tenantId: 'tenant-1', source: 'ADR015ControlledChaos' },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    retry: { attempts: 0, maxAttempts: 5, nextRetryAt: null, lastError: null, baseDelayMs: 1000 },
+    dispatchedAt: null,
+    completedAt: null,
+    processingStartedAt: null,
+    claimedBy: null,
     ...overrides,
   };
 }

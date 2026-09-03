@@ -71,7 +71,14 @@ const createMockDb = () => {
       from: mockFrom,
       rpc: mockRpc,
     } as unknown as DatabaseClient,
-    chainable,
+    chainable: chainable as unknown as {
+      single: ReturnType<typeof vi.fn>;
+      eq: ReturnType<typeof vi.fn>;
+      insert: ReturnType<typeof vi.fn>;
+      data: Record<string, unknown>[] | Record<string, unknown> | null;
+      error: unknown;
+      [key: string]: unknown;
+    },
     mockFrom,
     mockRpc,
   };

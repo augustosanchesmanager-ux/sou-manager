@@ -30,7 +30,8 @@
  *   - Dead letter investigation dashboard
  */
 
-import type { DispatcherProvider, OutboxItem, DispatchTarget } from '../types';
+import type { DispatcherProvider } from '../dispatcher';
+import type { OutboxItem, DispatchTarget } from '../types';
 
 // ─── ADR-015: Finance Provider Hooks ────────────────────────
 

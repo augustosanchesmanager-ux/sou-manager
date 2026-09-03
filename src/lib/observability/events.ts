@@ -213,7 +213,7 @@ export type BusinessEventName = keyof typeof BUSINESS_EVENTS;
  * Get event definition by name
  */
 export function getEventDef(name: BusinessEventName): BusinessEvent {
-  return BUSINESS_EVENTS[name];
+  return BUSINESS_EVENTS[name] as unknown as BusinessEvent;
 }
 
 /**

@@ -13,9 +13,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPersistentIdempotencyStore, type SupabaseClient } from './persistentIdempotencyStore';
 import { createFinanceProvider, InMemoryIdempotencyStore } from './financeProvider';
-import { InMemoryOutbox } from '../../inMemoryOutbox';
-import { InMemoryDispatcher } from '../../inMemoryDispatcher';
-import type { OutboxItem, DispatchTarget } from '../../types';
+import { InMemoryOutbox } from '../inMemoryOutbox';
+import { InMemoryDispatcher } from '../inMemoryDispatcher';
+import type { OutboxItem, DispatchTarget } from '../types';
 import type { OperationHandler } from './financeProvider';
 
 // ─── Mock Helpers ────────────────────────────────────────────────
@@ -31,9 +31,9 @@ const buildMockDb = () => {
             maybeSingle: vi.fn().mockImplementation(async () => {
               // The chain is: .from().select().eq().eq().maybeSingle()
               // We need to check what was stored
-              const calls = db.from.mock.results;
+              const calls = db.from.mock.calls;
               const lastCall = calls[calls.length - 1];
-              const table = lastCall?.args?.[0];
+              const table = lastCall?.[0];
 
               // Get the eq chain values
               const eqCalls = db.from.mock.results;
@@ -144,6 +144,8 @@ const buildOutboxItem = (overrides?: Partial<OutboxItem>): OutboxItem => ({
   updatedAt: new Date().toISOString(),
   dispatchedAt: null,
   completedAt: null,
+  processingStartedAt: null,
+  claimedBy: null,
   ...overrides,
 });
 

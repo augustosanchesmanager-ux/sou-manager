@@ -168,7 +168,6 @@ export const createFinanceSubscriber = (
           eventType,
           tenantId: metadata.tenantId,
           targets: [defaultTarget],
-          status: 'pending',
           payload: {
             operationType: operation.type,
             operationData: operation.data,

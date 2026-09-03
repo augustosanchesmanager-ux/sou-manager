@@ -40,7 +40,7 @@ vi.mock('../../src/lib/finance/settlement', () => ({
 }));
 
 const mockCloseZeroAmountComanda = vi.fn();
-const mockBuildZeroCloseAuditNote = vi.fn(() => 'audit-note-text');
+const mockBuildZeroCloseAuditNote = vi.fn((..._args: unknown[]) => 'audit-note-text');
 vi.mock('../../src/lib/finance/zeroClose', () => ({
   closeZeroAmountComanda: (...args: unknown[]) => mockCloseZeroAmountComanda(...args),
   buildZeroCloseAuditNote: (...args: unknown[]) => mockBuildZeroCloseAuditNote(...args),
@@ -58,7 +58,7 @@ import {
   makeLegacyRequest,
   makeZeroCloseRequest,
   makeCreditRequest,
-} from '../../../tests/builders/checkout.builder';
+} from '../../tests/builders/checkout.builder';
 
 // ─── Factories ────────────────────────────────────────────────────
 import {
@@ -66,7 +66,7 @@ import {
   createItemsCallSequence,
   createSimpleChain,
   makeDefaultItemsSequence,
-} from '../../../tests/factories/mockDatabaseClient';
+} from '../../tests/factories/mockDatabaseClient';
 
 // ─── Scenarios ────────────────────────────────────────────────────
 import {
@@ -80,7 +80,7 @@ import {
   makeConcurrencyScenario,
   makeIdempotencyScenario,
   buildMockFromImplementation,
-} from '../../../tests/scenarios/checkout.scenario';
+} from '../../tests/scenarios/checkout.scenario';
 
 // ─── Observability (regression) ───────────────────────────────────
 import { instrumentService } from '../../src/lib/observability/instrumentation';

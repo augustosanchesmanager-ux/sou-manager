@@ -18,31 +18,32 @@ import { SubscriberRegistry } from './subscriber';
 import { InMemoryOutbox, createOutbox } from './outbox/inMemoryOutbox';
 import { InMemoryDispatcher, createDispatcher } from './outbox/inMemoryDispatcher';
 import { consoleProvider } from './outbox/providers/consoleProvider';
-import type { DomainEvent, EventType } from './types';
+import type { DomainEvent, EventType, SystemEvent } from './types';
 import type { DispatcherProvider } from './outbox/dispatcher';
 import type { StoredEvent } from './eventStore';
 
 // ─── Test Helpers ───────────────────────────────────────────────
 
-const buildTestEvent = (overrides?: Partial<DomainEvent>): DomainEvent => ({
-  eventId: `evt_test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-  eventType: 'CheckoutCompleted',
-  eventTypeVersion: 1,
-  aggregateId: 'comanda-1',
-  aggregateType: 'comanda',
-  payload: {
-    comandaId: 'comanda-1',
-    total: 100,
-    paymentStatus: 'paid',
-    closureMode: 'full',
-    itemCount: 1,
-    hasClubCredit: false,
-    financialEffect: true,
-  },
-  metadata: { tenantId: 'tenant-1', source: 'ChaosTest' },
-  occurredAt: new Date().toISOString(),
-  ...overrides,
-});
+const buildTestEvent = (overrides?: Partial<DomainEvent>): SystemEvent =>
+  ({
+    eventId: `evt_test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    eventType: 'CheckoutCompleted',
+    eventTypeVersion: 1,
+    aggregateId: 'comanda-1',
+    aggregateType: 'comanda',
+    payload: {
+      comandaId: 'comanda-1',
+      total: 100,
+      paymentStatus: 'paid',
+      closureMode: 'full',
+      itemCount: 1,
+      hasClubCredit: false,
+      financialEffect: true,
+    },
+    metadata: { tenantId: 'tenant-1', source: 'ChaosTest' },
+    occurredAt: new Date().toISOString(),
+    ...overrides,
+  }) as unknown as SystemEvent;
 
 const buildProvider = (options: {
   fail?: boolean;
@@ -130,6 +131,7 @@ describe('Chaos Testing Suite (4.9)', () => {
 
       registry.register({
         name: 'FailingSubscriber',
+        description: 'Chaos subscriber that always throws',
         eventType: 'CheckoutCompleted',
         async handle() {
           throw new Error('Chaos: RPC failure');
@@ -138,6 +140,7 @@ describe('Chaos Testing Suite (4.9)', () => {
 
       registry.register({
         name: 'WorkingSubscriber',
+        description: 'Chaos subscriber that records received events',
         eventType: 'CheckoutCompleted',
         async handle(event) {
           receivedEvents.push(event.eventId);
@@ -294,7 +297,7 @@ describe('Chaos Testing Suite (4.9)', () => {
 
       for (const s of stored) {
         try {
-          await bus.publish(s.event);
+          await bus.publish(s.event as unknown as SystemEvent);
         } catch {}
       }
 
@@ -472,6 +475,7 @@ describe('Cross-cutting Chaos', () => {
 
     registry.register({
       name: 'CrashSubscriber',
+      description: 'Chaos subscriber that throws across layers',
       eventType: 'CheckoutCompleted',
       async handle() {
         throw new Error('Layer crash');
@@ -480,6 +484,7 @@ describe('Cross-cutting Chaos', () => {
 
     registry.register({
       name: 'WorkingSubscriber',
+      description: 'Chaos subscriber that records results',
       eventType: 'CheckoutCompleted',
       async handle(event) {
         results.push(event.eventId);
@@ -488,6 +493,7 @@ describe('Cross-cutting Chaos', () => {
 
     registry.register({
       name: 'AnotherWorkingSubscriber',
+      description: 'Chaos subscriber for appointment events',
       eventType: 'AppointmentCreated',
       async handle(event) {
         results.push(event.eventId);

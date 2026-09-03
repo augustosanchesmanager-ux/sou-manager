@@ -7,7 +7,12 @@
  * 4.7.4: Refactored to use domain repositories instead of direct Supabase calls.
  */
 
-import { validateStatusTransition, getTotalAvailableCredits, getTotalUsedCredits } from '../../domain/chefClub';
+import {
+  validateStatusTransition,
+  getTotalAvailableCredits,
+  getTotalUsedCredits,
+  type SubscriptionStatus as ChefClubSubscriptionStatus,
+} from '../../domain/chefClub';
 import { chefClubSubscriptionRepository } from '../../domain/chefClub/subscription-repository';
 import { chefClubCreditRepository } from '../../domain/chefClub/credit-repository';
 import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
@@ -70,7 +75,7 @@ export const updateSubscriptionStatus = async (
 
     // Validar transição
     const validation = validateStatusTransition(
-        current.status,
+        current.status as ChefClubSubscriptionStatus,
         newStatus as 'active' | 'past_due' | 'canceled' | 'paused',
     );
 
