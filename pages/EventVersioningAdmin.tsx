@@ -626,7 +626,7 @@ function UpcastersTab() {
         <div className="space-y-3">
           <SectionHeader icon="compare" title="Diferencas entre Versoes" description="Comparacao visual de mudancas entre versoes de eventos" />
           {VERSION_DIFFS.map((diff, i) => (
-            <VersionDiffCard key={i} diff={diff} onClick={() => setSelectedDiff(diff)} />
+            <VersionDiffCard key={i} diff={diff} onClick={(): void => { setSelectedDiff(diff); }} />
           ))}
         </div>
       )}
@@ -725,7 +725,7 @@ function ReplayCenterTab() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader icon="replay" title="Replay Center" description="Historico e detalhes de operacoes de replay com timeline" />
+      <SectionHeader icon="replay" title="Replay Center" description="Histórico e detalhes de operações de replay com timeline" />
 
       <div className="space-y-3">
         {REPLAY_JOBS.map(job => (
@@ -773,7 +773,7 @@ function ReplayCenterTab() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <DetailField label="Operador" value={job.operator} />
                   <DetailField label="Tenant" value={job.tenant} />
-                  <DetailField label="Modulo" value={job.module} />
+                  <DetailField label="Módulo" value={job.module} />
                   <DetailField label="Duracao" value={job.duration || '—'} />
                   <DetailField label="Upcasts" value={`${job.upcasted}`} />
                   <DetailField label="Retries" value={`${job.retried}`} />
@@ -826,7 +826,7 @@ export default function EventVersioningAdmin() {
             active={activeTab === tab.id}
             icon={tab.icon}
             label={tab.label}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(): void => { setActiveTab(tab.id); }}
           />
         ))}
       </div>

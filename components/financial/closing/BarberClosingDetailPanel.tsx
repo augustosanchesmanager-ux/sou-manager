@@ -43,7 +43,7 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
         { id: 'financial' as const, label: 'Financeiro', icon: <Scissors size={12} /> },
         { id: 'clients' as const, label: 'Clientes', icon: <User size={12} /> },
         { id: 'products' as const, label: 'Produtos', icon: <ShoppingBag size={12} /> },
-        { id: 'commissions' as const, label: 'Comissoes', icon: <Award size={12} /> },
+        { id: 'commissions' as const, label: 'Comissões', icon: <Award size={12} /> },
         { id: 'checklist' as const, label: 'Checklist', icon: <ListChecks size={12} /> },
     ];
 
@@ -223,7 +223,7 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
                     {/* Physical Conference */}
                     <div className="rounded-lg border border-slate-200 dark:border-border-dark p-3">
                         <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-2">
-                            Conferencia Fisica
+                            Conferência Física
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div>

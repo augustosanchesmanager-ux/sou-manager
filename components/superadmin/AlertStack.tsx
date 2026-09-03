@@ -31,7 +31,7 @@ const AlertStack: React.FC<AlertStackProps> = ({ items, onOpenAlert }) => (
     <div className="flex items-center justify-between gap-3">
       <div>
         <h3 className="text-base font-bold text-slate-950 dark:text-white">Alertas e riscos</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">Fila de priorizacao para seguranca, faturamento e integracoes.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Fila de priorização para segurança, faturamento e integrações.</p>
       </div>
       <div className="rounded-full bg-red-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-red-700 dark:bg-red-500/20 dark:text-red-200">
         {items.length} ativos
@@ -93,7 +93,7 @@ const AlertStack: React.FC<AlertStackProps> = ({ items, onOpenAlert }) => (
       <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
         {items.length === 0
           ? 'Sem incidentes ativos no recorte atual.'
-          : `${items.filter((item) => item.severity === 'alto').length} alertas altos, ${items.filter((item) => item.severity === 'medio').length} medios e ${items.filter((item) => item.severity === 'baixo').length} baixos no recorte atual.`}
+          : `${items.filter((item) => item.severity === 'alto').length} alertas altos, ${items.filter((item) => item.severity === 'medio').length} médios e ${items.filter((item) => item.severity === 'baixo').length} baixos no recorte atual.`}
       </p>
     </div>
   </section>

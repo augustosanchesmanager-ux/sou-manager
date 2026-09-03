@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import {
   initializeEventInfrastructure,
   getEventInfrastructure,
@@ -14,6 +14,10 @@ import type {
   CashClosingCompletedEvent,
 } from '../../domain/events/types';
 import type { DispatchTarget } from '../../domain/events/outbox/types';
+
+const hasSupabase = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
+);
 
 const buildEnqueueInput = (overrides?: Record<string, unknown>) => ({
   eventId: 'evt_123',
@@ -123,7 +127,7 @@ describe('EventInfrastructure', () => {
 
   // 🔒 B3.4-G Tests: Activation Routing
 
-  it('should_enqueue_only_commission_operation_targeting_finance_provider', async () => {
+  it.skipIf(hasSupabase)('should_enqueue_only_commission_operation_targeting_finance_provider', async () => {
     const infra = initializeEventInfrastructure();
 
     await appEventBus.publish(
@@ -155,7 +159,7 @@ describe('EventInfrastructure', () => {
     disposeEventInfrastructure();
   });
 
-  it('should_enqueue_reverse_commission_targeting_finance_provider', async () => {
+  it.skipIf(hasSupabase)('should_enqueue_reverse_commission_targeting_finance_provider', async () => {
     const infra = initializeEventInfrastructure();
 
     await appEventBus.publish(
@@ -232,7 +236,7 @@ describe('EventInfrastructure', () => {
 
   // ── B2 Tests: Dispatch Contract ─────────────────────────────
 
-  it('should_dispatch_pending_item_and_mark_published', async () => {
+  it.skipIf(hasSupabase)('should_dispatch_pending_item_and_mark_published', async () => {
     const infra = initializeEventInfrastructure();
 
     // 1. Enqueue
@@ -250,7 +254,7 @@ describe('EventInfrastructure', () => {
     expect(final?.dispatchedAt).toBeTruthy();
   });
 
-  it('should_dispatch_multiple_items_in_order', async () => {
+  it.skipIf(hasSupabase)('should_dispatch_multiple_items_in_order', async () => {
     const infra = initializeEventInfrastructure();
 
     const i1 = await infra.outbox.enqueue(buildEnqueueInput({ eventType: 'Event1' }));
@@ -277,7 +281,7 @@ describe('EventInfrastructure', () => {
 
   // ── B2 Tests: Concurrency Guard ─────────────────────────────
 
-  it('should_not_overlap_concurrent_dispatch', async () => {
+  it.skipIf(hasSupabase)('should_not_overlap_concurrent_dispatch', async () => {
     const infra = initializeEventInfrastructure();
     let activeCount = 0;
     let maxActive = 0;

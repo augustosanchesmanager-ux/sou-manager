@@ -32,7 +32,7 @@ const Login: React.FC = () => {
         }
 
         if (normalizedMessage.includes('erro no banco de dados ao encontrar o usuario')) {
-            return 'Nao foi possivel localizar este acesso no Auth do Supabase. Confirme o e-mail sem espacos e valide no painel do Supabase se o usuario ainda existe em Authentication > Users.';
+            return 'Não foi possível localizar este acesso no Auth do Supabase. Confirme o e-mail sem espaços e valide no painel do Supabase se o usuário ainda existe em Authentication > Users.';
         }
 
         return rawMessage || 'Ocorreu um erro ao fazer login.';
@@ -325,7 +325,7 @@ const Login: React.FC = () => {
 
             <footer className="mt-8 text-center z-10">
                 <p className={`text-[10px] uppercase tracking-[0.2em] font-bold transition-colors ${isElite ? 'text-amber-500/30' : 'text-slate-500 dark:text-slate-600'}`}>
-                    {isElite ? 'Protocolo de seguranca nivel 5 ativado' : 'Portal de acesso SMG - Sou.Manager'}
+                    {isElite ? 'Protocolo de segurança nível 5 ativado' : 'Portal de acesso SMG - Sou.Manager'}
                 </p>
             </footer>
         </div>

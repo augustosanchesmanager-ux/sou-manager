@@ -40,7 +40,7 @@ vi.mock('../../src/lib/finance/settlement', () => ({
 }));
 
 const mockCloseZeroAmountComanda = vi.fn();
-const mockBuildZeroCloseAuditNote = vi.fn(() => 'audit-note-text');
+const mockBuildZeroCloseAuditNote = vi.fn((..._args: unknown[]) => 'audit-note-text');
 vi.mock('../../src/lib/finance/zeroClose', () => ({
   closeZeroAmountComanda: (...args: unknown[]) => mockCloseZeroAmountComanda(...args),
   buildZeroCloseAuditNote: (...args: unknown[]) => mockBuildZeroCloseAuditNote(...args),
@@ -58,7 +58,8 @@ import {
   makeLegacyRequest,
   makeZeroCloseRequest,
   makeCreditRequest,
-} from '../../../tests/builders/checkout.builder';
+  makeProductCartItem,
+} from '../../tests/builders/checkout.builder';
 
 // ─── Factories ────────────────────────────────────────────────────
 import {
@@ -66,7 +67,7 @@ import {
   createItemsCallSequence,
   createSimpleChain,
   makeDefaultItemsSequence,
-} from '../../../tests/factories/mockDatabaseClient';
+} from '../../tests/factories/mockDatabaseClient';
 
 // ─── Scenarios ────────────────────────────────────────────────────
 import {
@@ -80,7 +81,7 @@ import {
   makeConcurrencyScenario,
   makeIdempotencyScenario,
   buildMockFromImplementation,
-} from '../../../tests/scenarios/checkout.scenario';
+} from '../../tests/scenarios/checkout.scenario';
 
 // ─── Observability (regression) ───────────────────────────────────
 import { instrumentService } from '../../src/lib/observability/instrumentation';
@@ -623,5 +624,82 @@ describe('CheckoutApplicationService — Observability Regression', () => {
 
     expect(result.isLegacyClubSettlement).toBe(true);
     expect(mockSettleCheckoutComandaAndEnqueue).not.toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Grupo G — Product Price Regression (P0.1)
+//
+// Products use `sale_price` (NOT `price`). The checkout must persist
+// `unit_price = sale_price` from the DB. This group proves the
+// application service correctly maps cart item price → unit_price
+// for product items.
+// ═══════════════════════════════════════════════════════════════════
+describe('CheckoutApplicationService — Product Price Regression', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('should_persist_unit_price_from_sale_price_when_product_has_valid_price', async () => {
+    const scenario = makeSuccessfulPaidScenario({
+      cart: [makeProductCartItem({ price: 35 })],
+      total: 35,
+    });
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
+    mockInsertWithIdempotency.mockResolvedValue('comanda-product-1');
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.comandaId).toBe('comanda-product-1');
+    expect(mockSettleCheckoutComandaAndEnqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('should_persist_unit_price_zero_when_product_price_is_zero', async () => {
+    const scenario = makeSuccessfulPaidScenario({
+      cart: [makeProductCartItem({ price: 0 })],
+      total: 0,
+      paymentStatus: 'paid',
+      shouldSettleZeroWithAudit: true,
+      zeroCloseOrigin: 'house_courtesy',
+      zeroCloseReason: 'Produto sem preço',
+    });
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockCloseZeroAmountComanda.mockResolvedValue({ success: true });
+    mockInsertWithIdempotency.mockResolvedValue('comanda-zero-product');
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.comandaId).toBe('comanda-zero-product');
+    expect(result.paymentStatus).toBe('paid');
+  });
+
+  it('should_persist_unit_price_for_service_item', async () => {
+    const scenario = makeSuccessfulPaidScenario({
+      cart: [makeCartItem({ type: 'service', price: 50 })],
+      total: 50,
+    });
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
+    mockInsertWithIdempotency.mockResolvedValue('comanda-service-1');
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.comandaId).toBe('comanda-service-1');
+  });
+
+  it('should_handle_mixed_cart_with_products_and_services', async () => {
+    const scenario = makeSuccessfulPaidScenario({
+      cart: [
+        makeCartItem({ type: 'service', price: 50 }),
+        makeProductCartItem({ price: 35 }),
+      ],
+      total: 85,
+    });
+    mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
+    mockSettleCheckoutComandaAndEnqueue.mockResolvedValue(scenario.rpcResult);
+    mockInsertWithIdempotency.mockResolvedValue('comanda-mixed-1');
+
+    const result = await checkoutApplicationService.finish(scenario.request, scenario.idempotencyKey);
+
+    expect(result.comandaId).toBe('comanda-mixed-1');
   });
 });

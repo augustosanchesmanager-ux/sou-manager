@@ -241,7 +241,7 @@ class CommissionApplicationServiceImpl {
             comandaRepository.listForCommission(tenantId, {
                 statuses: ['open', 'paid', 'blocked', 'cancelled'],
                 excludeHidden: true,
-            }) as Promise<ComandaRow[]>,
+            }) as unknown as Promise<ComandaRow[]>,
         ]);
 
         const staffById: Record<string, StaffMember> = {};

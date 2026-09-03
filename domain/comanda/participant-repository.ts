@@ -33,11 +33,22 @@ export class ServiceExecutionParticipantRepositoryImpl extends SupabaseRepositor
   async listByComandaItemIds(comandaItemIds: string[], tenantId: string): Promise<ParticipantRow[]> {
     try {
       if (comandaItemIds.length === 0) return [];
+      // Contrato canônico = staff_id: schema de PRODUÇÃO não possui coluna professional_id
+      // (provado por B3.4-H.1 e pelo worker D8 — ver migrations 20260827120000). Seleciona staff_id.
       const result = await this.from()
         .select('id, comanda_item_id, staff_id, role, payout_type, payout_value, affects_commission')
         .eq('tenant_id', tenantId)
         .in('comanda_item_id', comandaItemIds);
-      return this.extractData<ParticipantRow[]>(result, 'list participants by comanda item ids');
+      const rows = this.extractData<Array<Record<string, unknown>>>(result, 'list participants by comanda item ids');
+      // Expõe professional_id de forma tolerante (derivado de staff_id) para quem ainda o consome.
+      return (rows || []).map((row) => {
+        const staffId = (row.staff_id as string | null) ?? null;
+        return {
+          ...row,
+          staff_id: staffId,
+          professional_id: staffId,
+        } as unknown as ParticipantRow;
+      });
     } catch (error) {
       this.throwOnError(error, 'list participants by comanda item ids');
     }

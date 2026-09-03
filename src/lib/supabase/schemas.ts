@@ -6,7 +6,7 @@ import {
 
 export { APP_SLUGS, DEFAULT_APP_SLUG } from '../../../domain/shared/app';
 export type { AppSlug, AppModuleSlug } from '../../../domain/shared/app';
-import { APP_SLUGS, DEFAULT_APP_SLUG, type AppSlug } from '../../../domain/shared/app';
+import { APP_SLUGS, DEFAULT_APP_SLUG, type AppSlug, type AppModuleSlug } from '../../../domain/shared/app';
 export type SharedSchemaName = 'public';
 export type AppSchemaName = AppSlug;
 export type SupabaseSchemaName = SharedSchemaName | AppSchemaName;

@@ -444,8 +444,8 @@ export const resolveMembershipContext = async (
     // 5. Normalize balances
     const serviceBalances = normalizeCreditBalances(
         creditRow.service_balance_map,
-        creditRow.available_credits || 0,
-        creditRow.used_credits || 0,
+        Number(creditRow.available_credits) || 0,
+        Number(creditRow.used_credits) || 0,
     );
 
     const creditsRemaining = getTotalAvailableCredits(serviceBalances);

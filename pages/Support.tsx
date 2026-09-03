@@ -89,8 +89,8 @@ const Support: React.FC = () => {
         }
         const channel = supabase.channel('support_updates')
             .on('postgres_changes', channelOptions, (payload) => {
-                setTickets(prev => prev.map(t => t.id === payload.new.id ? payload.new as Ticket : t));
-                if (selectedTicket?.id === payload.new.id) {
+                setTickets(prev => prev.map(t => t.id === (payload.new as Ticket).id ? payload.new as Ticket : t));
+                if (selectedTicket?.id === (payload.new as Ticket).id) {
                     setSelectedTicket(payload.new as Ticket);
                 }
             })

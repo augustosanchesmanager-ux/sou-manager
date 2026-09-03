@@ -10,7 +10,7 @@ interface AdminActionMenuProps {
 
 const actionMenuItems: QuickAction[] = [
   { id: 'go-companies', label: 'Abrir empresas', description: 'Vai para a base real de tenants cadastrados.', tone: 'default' },
-  { id: 'go-users', label: 'Revisar usuarios', description: 'Mostra os perfis e acessos ativos da plataforma.', tone: 'default' },
+  { id: 'go-users', label: 'Revisar usuários', description: 'Mostra os perfis e acessos ativos da plataforma.', tone: 'default' },
   { id: 'go-subscriptions', label: 'Ver solicitacoes', description: 'Abre a fila real de mudanca de plano e acesso.', tone: 'default' },
   { id: 'go-audit', label: 'Abrir auditoria', description: 'Leva direto para os eventos auditados do ambiente.', tone: 'success' },
   { id: 'go-logs', label: 'Abrir alertas', description: 'Mostra a fila de riscos, tickets e monitoramento.', tone: 'danger' },
@@ -18,7 +18,7 @@ const actionMenuItems: QuickAction[] = [
 
 const iconMap = {
   'Abrir empresas': Building2,
-  'Revisar usuarios': Users,
+  'Revisar usuários': Users,
   'Ver solicitacoes': WalletCards,
   'Abrir auditoria': ShieldCheck,
   'Abrir alertas': ShieldAlert,
@@ -35,7 +35,7 @@ const AdminActionMenu: React.FC<AdminActionMenuProps> = ({ isOpen, onClose, onSe
         onClick={(event) => event.stopPropagation()}
       >
         <p className="text-sm font-bold text-slate-950 dark:text-white">Atalhos administrativos</p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Acesso rapido aos blocos reais da operacao master.</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Acesso rápido aos blocos reais da operação master.</p>
 
         <div className="mt-4 space-y-2">
           {actionMenuItems.map((item) => {

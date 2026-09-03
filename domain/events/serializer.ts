@@ -71,7 +71,7 @@ export const createEventSerializer = (): EventSerializer => ({
       aggregateId: parsed.aggregateId,
       aggregateType: parsed.aggregateType,
       payload: parsed.payload,
-      metadata: parsed.metadata as EventEnvelope['metadata'],
+      metadata: parsed.metadata as unknown as EventEnvelope['metadata'],
       occurredAt: parsed.occurredAt,
       storedAt: parsed.storedAt,
     });
@@ -102,7 +102,7 @@ export const createEventSerializer = (): EventSerializer => ({
         aggregateId: parsed.aggregateId,
         aggregateType: parsed.aggregateType,
         payload: parsed.payload,
-        metadata: parsed.metadata as EventEnvelope['metadata'],
+        metadata: parsed.metadata as unknown as EventEnvelope['metadata'],
         occurredAt: parsed.occurredAt,
         storedAt: parsed.storedAt,
       });

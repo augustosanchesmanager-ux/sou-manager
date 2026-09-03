@@ -45,7 +45,7 @@ const ClosingHeader: React.FC<ClosingHeaderProps> = ({
                     Fechamento de Caixa
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    Conferencia, ajustes e fechamento do caixa diario.
+                    Conferência, ajustes e fechamento do caixa diário.
                 </p>
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${statusClasses}`}>

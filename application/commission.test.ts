@@ -136,7 +136,7 @@ vi.mock('../domain/commission/participants', () => ({
 
 vi.mock('../domain/comanda/labels', () => ({
   getPaymentMethodLabel: vi.fn(() => 'Dinheiro'),
-  isServiceItem: vi.fn((item: { item_type?: string; type?: string }) => {
+  isServiceItem: vi.fn((item: { item_type?: string; type?: string; product_name?: string }) => {
     if (item.item_type === 'service' || item.type === 'service') return true;
     if (item.product_name && !item.product_name.startsWith('Prod')) return true;
     return false;
@@ -228,6 +228,7 @@ const makeCommissionLine = (overrides: Partial<CommissionLine> = {}): Commission
   professionalAvatar: '',
   participationRole: 'Principal',
   discountAmount: 0,
+  zeroReason: null,
   ...overrides,
 });
 

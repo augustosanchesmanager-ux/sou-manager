@@ -18,6 +18,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-019](./ADR-019-role-authorization.md) | Accepted | Autorização por Papel — Menor Privilégio em Operações Financeiras e Operacionais (G0 2026-08-29) |
 | [ADR-020](./ADR-020-attended-at-backfill.md) | Accepted | Estratégia de `attended_at` — Atendimento Realizado e Política de Backfill (G0 2026-08-29) |
 | [ADR-021](./ADR-021-rpc-tenant-scoped-authorization.md) | Accepted | Autorização Tenant-Scoped em RPCs — Correção do Finding Crítico FASE 3 (P4/P5/P7) (2026-09-01) |
+| [ADR-022](./ADR-022-ci-policy-quality-gates.md) | Accepted | Política de CI/CD e Quality Gates — FASE 6, item 6.1 (2026-09-03) |
 
 ---
 

@@ -198,13 +198,15 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
 
 type SupabaseQueryBuilder = ReturnType<ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>['from']>;
 
-const batchedIn = async <T extends Record<string, unknown>>(
+type FilterableQuery = { eq: (column: string, value: unknown) => FilterableQuery };
+
+const batchedIn = async <T extends object>(
     client: ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>,
     table: string,
     select: string,
     column: string,
     ids: string[],
-    extraFilters?: (q: SupabaseQueryBuilder) => SupabaseQueryBuilder,
+    extraFilters?: (q: FilterableQuery) => FilterableQuery,
 ): Promise<{ data: T[] | null; error: unknown }> => {
     if (ids.length === 0) return { data: [], error: null };
     const batches: string[][] = [];
@@ -214,9 +216,9 @@ const batchedIn = async <T extends Record<string, unknown>>(
     const allData: T[] = [];
     let lastError: unknown = null;
     for (const batch of batches) {
-        let q = client.from(table).select(select).in(column, batch);
-        if (extraFilters) q = extraFilters(q);
-        const { data, error } = await q as { data: T[] | null; error: unknown };
+        const raw = client.from(table).select(select).in(column, batch);
+        const q: FilterableQuery = extraFilters ? extraFilters(raw as unknown as FilterableQuery) : raw as unknown as FilterableQuery;
+        const { data, error } = await q as unknown as { data: T[] | null; error: unknown };
         if (error) { lastError = error; break; }
         if (data) allData.push(...data);
     }
@@ -440,7 +442,7 @@ const Comandas: React.FC = () => {
                 comandasRows.map((c) => c.client_id).filter((id): id is string => Boolean(id)),
             ));
 
-            const { data: itemsData, error: itemsError } = await batchedIn(
+            const { data: itemsData, error: itemsError } = await batchedIn<ComandaItemRow>(
                 client, 'comanda_items', COMANDA_ITEMS_SELECT, 'comanda_id', comandaIds,
             );
 
@@ -463,7 +465,7 @@ const Comandas: React.FC = () => {
 
             if (clientIds.length > 0) {
                 try {
-                    clientsResult = await batchedIn(client, 'clients', 'id, name, avatar, phone', 'id', clientIds);
+                    clientsResult = await batchedIn<ClientLookup>(client, 'clients', 'id, name, avatar, phone', 'id', clientIds);
                 } catch (err) {
                     clientsResult = { data: null, error: err };
                 }
@@ -473,7 +475,7 @@ const Comandas: React.FC = () => {
 
             if (staffIds.length > 0) {
                 try {
-                    staffResult = await batchedIn(client, 'staff', 'id, name', 'id', staffIds);
+                    staffResult = await batchedIn<StaffLookup>(client, 'staff', 'id, name', 'id', staffIds);
                 } catch (err) {
                     staffResult = { data: null, error: err };
                 }
@@ -483,7 +485,7 @@ const Comandas: React.FC = () => {
 
             if (appointmentIds.length > 0) {
                 try {
-                    appointmentsResult = await batchedIn(client, 'appointments', 'id, start_time', 'id', appointmentIds);
+                    appointmentsResult = await batchedIn<AppointmentLookup>(client, 'appointments', 'id, start_time', 'id', appointmentIds);
                 } catch (err) {
                     appointmentsResult = { data: null, error: err };
                 }
@@ -512,7 +514,7 @@ const Comandas: React.FC = () => {
             }, {} as Record<string, ComandaItem[]>);
 
             const transactionsSelect = 'id, tenant_id, source_id, amount, payment_method, date, created_at, status';
-            const { data: transactionRows, error: transactionsError } = await batchedIn(
+            const { data: transactionRows, error: transactionsError } = await batchedIn<ComandaTransactionRow>(
                 client, 'transactions', transactionsSelect, 'source_id', comandaIds,
                 (q) => {
                     let filtered = q.eq('source_type', 'comanda');
@@ -693,13 +695,22 @@ const Comandas: React.FC = () => {
         const unblockComandas = async () => {
             try {
                 const unblockClient = getScopedClient('barber');
-                const { error } = await unblockClient
-                    .from('comandas')
-                    .update({ status: 'open' })
-                    .in('id', commandsToUnblock);
+                const { data, error } = await unblockClient.rpc('batch_unblock_comandas', {
+                    p_tenant_id: tenantId,
+                    p_comanda_ids: commandsToUnblock,
+                });
 
                 if (error) {
                     logSupabaseError('[Comandas] Erro ao desbloquear comandas', error, { comandaIds: commandsToUnblock });
+                    return;
+                }
+
+                const result = (data || {}) as { success?: boolean; unblocked_count?: number };
+                if (result.success !== true) {
+                    logSupabaseError('[Comandas] batch_unblock_comandas retornou resultado invalido', new Error('unblocked_count ausente'), {
+                        comandaIds: commandsToUnblock,
+                        result,
+                    });
                     return;
                 }
 
@@ -866,7 +877,7 @@ const Comandas: React.FC = () => {
     )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })), [comandas]);
 
     const dateFilterDescription = !dateFrom && !dateTo
-        ? 'Periodo completo'
+        ? 'Período completo'
         : dateFrom && dateTo
         ? `${formatDateLabel(`${dateFrom}T00:00:00`)} ate ${formatDateLabel(`${dateTo}T00:00:00`)}`
         : dateFrom ? `A partir de ${formatDateLabel(`${dateFrom}T00:00:00`)}` : `Ate ${formatDateLabel(`${dateTo}T00:00:00`)}`;

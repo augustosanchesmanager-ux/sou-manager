@@ -132,9 +132,9 @@ const makeThenable = (value: unknown) => ({
 export interface MockDatabaseClient {
   from: ReturnType<typeof vi.fn>;
   rpc: ReturnType<typeof vi.fn>;
-  _nextComandaChain: (opts: Parameters<typeof createComandaChain>[0]) => void;
-  _setItemsSequence: (seq: ReturnType<typeof createItemsCallSequence>) => void;
-  _setDefault: (result?: ChainResult) => void;
+  _nextComandaChain: ReturnType<typeof vi.fn>;
+  _setItemsSequence: ReturnType<typeof vi.fn>;
+  _setDefault: ReturnType<typeof vi.fn>;
 }
 
 export const createMockDatabaseClient = (): MockDatabaseClient => {

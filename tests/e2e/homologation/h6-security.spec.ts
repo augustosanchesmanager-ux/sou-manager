@@ -236,7 +236,7 @@ test.describe('H6 — Segurança adversarial (REST, tenants isolados)', () => {
       { name: 'close_order', args: { p_comanda_id: comandaB } },
     ];
     for (const { name, args, okWhenFailClosed } of rpcs) {
-      const res = await anonC().rpc(name, args);
+      const res = await anonC().rpc(name as never, args as never);
       const success = res.error === null;
       const failClosed = success === true && !!okWhenFailClosed && okWhenFailClosed(res.data);
       probe(
@@ -381,7 +381,7 @@ test.describe('H6 — Segurança adversarial (REST, tenants isolados)', () => {
     // Escrita cross-tenant: managerA tenta alterar config de kiosk do tenant B;
     // verifica o estado persistido via service role (upsert retorna data=null).
     await a().from('kiosk_addons').upsert({ tenant_id: tenantB, status: 'disabled', max_devices: 9, kiosk_theme: 'custom' }, { onConflict: 'tenant_id' });
-    const kaAfter = await getAdminClient().from('kiosk_addons').select('status', 'max_devices', 'kiosk_theme').eq('tenant_id', tenantB).single();
+    const kaAfter = await getAdminClient().from('kiosk_addons').select('status, max_devices, kiosk_theme').eq('tenant_id', tenantB).single();
     const kaRow = kaAfter.error ? null : (kaAfter.data as { status: string; max_devices: number; kiosk_theme: string });
     const kaMutated = kaRow !== null && kaRow.status === 'disabled' && kaRow.max_devices === 9;
     probe('F6-7 kiosk_addons sem escrita cross-tenant', !kaMutated, `após=${JSON.stringify(kaAfter.data)}`);

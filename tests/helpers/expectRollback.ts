@@ -1,4 +1,4 @@
-import type { ExpectationResult } from 'vitest';
+import type { MatcherResult } from 'vitest';
 import type { Mock } from 'vitest';
 
 /**
@@ -8,7 +8,7 @@ import type { Mock } from 'vitest';
 export const expectRollbackAttempted = (
   deleteMock: Mock,
   tableName: string,
-): ExpectationResult => {
+): MatcherResult => {
   const calls = deleteMock.mock.calls.filter(
     (call) => call[0] === tableName || call[0]?.table === tableName,
   );
@@ -26,7 +26,7 @@ export const expectRollbackAttempted = (
  */
 export const expectNoRollback = (
   deleteMock: Mock,
-): ExpectationResult => {
+): MatcherResult => {
   const calls = deleteMock.mock.calls;
   return {
     pass: calls.length === 0,
@@ -43,7 +43,7 @@ export const expectNoRollback = (
 export const expectRollbackComplete = (
   insertMock: Mock,
   expectedCount: number,
-): ExpectationResult => {
+): MatcherResult => {
   const calls = insertMock.mock.calls;
   const totalInserted = calls.reduce((sum, call) => {
     const items = Array.isArray(call[0]) ? call[0] : [call[0]];

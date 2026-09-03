@@ -101,3 +101,15 @@ export const makeCreditRequest = (
     chefClubInfo: { id: 'sub-1' },
     ...overrides,
   });
+
+export const makeProductCartItem = (
+  overrides: Partial<CheckoutCartItem> = {},
+): CheckoutCartItem => ({
+  id: `item-${++_itemIdSeq}`,
+  type: 'product',
+  name: 'Pomada',
+  price: 35,
+  quantity: 1,
+  staff_id: null,
+  ...overrides,
+});

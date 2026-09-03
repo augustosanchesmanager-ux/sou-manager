@@ -42,12 +42,12 @@ const ConfirmActionModal: React.FC<ConfirmActionModalProps> = ({
     <div className="space-y-4">
       <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-200">Impacto da acao</p>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-200">Impacto da ação</p>
         <p className="mt-2 text-sm text-amber-800 dark:text-amber-100">{impact}</p>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Auditoria obrigatoria</p>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Esta operacao registra responsavel, horario, origem e justificativa no historico administrativo.</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Esta operação registra responsável, horário, origem e justificativa no histórico administrativo.</p>
       </div>
     </div>
   </Modal>

@@ -97,7 +97,7 @@ const OfflineSync: React.FC = () => {
       setSummary(nextSummary);
       setSnapshot(nextSnapshot);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel carregar pendencias offline.');
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar pendências offline.');
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ const OfflineSync: React.FC = () => {
       await refreshOfflineEssentialCache(tenantId, appSlug);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel atualizar o cache offline.');
+      setError(err instanceof Error ? err.message : 'Não foi possível atualizar o cache offline.');
     } finally {
       setRefreshingCache(false);
     }

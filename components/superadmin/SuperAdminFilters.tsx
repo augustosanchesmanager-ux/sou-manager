@@ -52,25 +52,25 @@ const SuperAdminFilters: React.FC<SuperAdminFiltersProps> = ({ value, onChange, 
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-bold text-slate-900 dark:text-white">Filtros avancados</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Refine periodo, risco, tenant, plano e trilhas administrativas.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Refine período, risco, tenant, plano e trilhas administrativas.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={onReset}>
             Limpar filtros
           </Button>
           <Button variant="secondary" size="sm" onClick={onSaveView}>
-            Salvar visao
+            Salvar visão
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-        <FilterSelect label="Periodo" selected={value.period} onChange={(period) => onChange({ ...value, period })} options={options.periods} />
+        <FilterSelect label="Período" selected={value.period} onChange={(period) => onChange({ ...value, period })} options={options.periods} />
         <FilterSelect label="Empresa" selected={value.company} onChange={(company) => onChange({ ...value, company })} options={options.companies} />
         <FilterSelect label="Status" selected={value.status} onChange={(status) => onChange({ ...value, status })} options={options.statuses} />
-        <FilterSelect label="Movimentacao" selected={value.movementType} onChange={(movementType) => onChange({ ...value, movementType })} options={options.movementTypes} />
+        <FilterSelect label="Movimentação" selected={value.movementType} onChange={(movementType) => onChange({ ...value, movementType })} options={options.movementTypes} />
         <FilterSelect label="Plano" selected={value.plan} onChange={(plan) => onChange({ ...value, plan })} options={options.plans} />
-        <FilterSelect label="Usuario" selected={value.user} onChange={(user) => onChange({ ...value, user })} options={options.users} />
+        <FilterSelect label="Usuário" selected={value.user} onChange={(user) => onChange({ ...value, user })} options={options.users} />
         <FilterSelect label="Financeiro" selected={value.financial} onChange={(financial) => onChange({ ...value, financial })} options={options.financialStates} />
         <FilterSelect label="Bloqueio" selected={value.blockedState} onChange={(blockedState) => onChange({ ...value, blockedState })} options={options.blockedStates} />
       </div>

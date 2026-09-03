@@ -28,14 +28,14 @@ const SuperAdminHeader: React.FC<SuperAdminHeaderProps> = ({
           Area restrita master
         </div>
         <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 dark:text-white display-font">
-          Administracao Geral
+          Administração Geral
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          Controle total da plataforma, usuarios, assinaturas e movimentacoes com foco em seguranca, rastreabilidade e operacao em escala.
+          Controle total da plataforma, usuários, assinaturas e movimentações com foco em segurança, rastreabilidade e operação em escala.
         </p>
         <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white dark:bg-white dark:text-slate-900">
           <Sparkles className="h-3.5 w-3.5" />
-          Ultima atualizacao: {lastUpdatedLabel}
+          Última atualização: {lastUpdatedLabel}
         </div>
       </div>
 

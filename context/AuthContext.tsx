@@ -197,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch (err) {
                 console.error('Failed to load auth session context:', err);
                 if (isMounted && requestId === requestCounter) {
-                    setAuthError('Nao foi possivel carregar o contexto de autenticacao. Faca login novamente.');
+                    setAuthError('Não foi possível carregar o contexto de autenticação. Faça login novamente.');
                 }
             } finally {
                 if (isMounted && requestId === requestCounter) {
@@ -300,7 +300,7 @@ export const useAuth = (): AuthContextType => {
             Boolean(authSessionContext.session) &&
             !loading &&
             !tenantId
-                ? 'Nao foi possivel determinar o tenant da sessao. Faca login novamente.'
+                ? 'Não foi possível determinar o tenant da sessão. Faça login novamente.'
                 : null
         );
 

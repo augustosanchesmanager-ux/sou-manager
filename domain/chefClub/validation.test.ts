@@ -102,7 +102,7 @@ describe('validateStatusTransition', () => {
   it('rejects canceled → any', () => {
     const result = validateStatusTransition('canceled', 'active');
     expect(result.valid).toBe(false);
-    if (!result.valid) {
+    if (result.valid === false) {
       expect(result.reason).toContain('cancelada');
     }
   });
