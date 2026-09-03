@@ -909,9 +909,18 @@ const Checkout: React.FC = () => {
     }, [openComandaSearchTerm, quickOpenComandas]);
 
     // Handlers
+    // Reads the sale price from the catalog item.
+    // Products use `sale_price` (schema: products.sale_price).
+    // Services use `price` (schema: services.price).
     const calculateItemPrice = (item: any, type: 'service' | 'product') => {
-        let basePrice = Number(item.price ?? item.sale_price ?? 0);
-        if (isNaN(basePrice)) return 0;
+        const rawPrice = type === 'product'
+            ? (item.sale_price ?? item.price ?? null)
+            : (item.price ?? item.sale_price ?? null);
+
+        const basePrice = Number(rawPrice);
+        if (rawPrice === null || rawPrice === undefined || isNaN(basePrice) || basePrice <= 0) {
+            return 0;
+        }
 
         // Find applicable promotion
         const promo = activePromotions.find(p =>
@@ -960,6 +969,15 @@ const Checkout: React.FC = () => {
 
     const handleAddItem = (item: any, type: 'service' | 'product') => {
         const finalPrice = calculateItemPrice(item, type);
+
+        if (type === 'product' && finalPrice <= 0) {
+            setToast({
+                message: 'Este produto não possui preço de venda válido. Defina o preço antes de adicionar.',
+                type: 'error',
+            });
+            return;
+        }
+
         const canSuggestCredit = type === 'service' && !!checkoutBenefits;
         const usedCreditsForService = canSuggestCredit
             ? cart.filter((cartItem) => cartItem.usedCredit && cartItem.service_id === item.id).length
@@ -2151,7 +2169,12 @@ const Checkout: React.FC = () => {
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <span className="font-bold text-slate-900 dark:text-white">
-                                                    R$ {Number(item.price ?? item.sale_price ?? 0).toFixed(2)}
+                                                    {(() => {
+                                                        const displayPrice = itemModalTab === 'products'
+                                                            ? Number(item.sale_price ?? item.price ?? 0)
+                                                            : Number(item.price ?? item.sale_price ?? 0);
+                                                        return `R$ ${displayPrice.toFixed(2)}`;
+                                                    })()}
                                                 </span>
                                             </div>
                                         </button>
