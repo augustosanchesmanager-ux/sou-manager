@@ -1,6 +1,6 @@
 # H-7 — Operação Real: Roteiro de Execução e Checklist de Evidências
 
-> **Status:** 🟢 **JANELA EXECUÇÃO EM ANDAMENTO (2026-09-02, com Rubens/equipe).** **Baseline oficial = snapshot 09-02 08:24** (`H7_BASELINE_READONLY.md` §8) — substitui o 08-16 como referência operacional. **S3-1 = FECHADO** (doc `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` §8 S3-4; decisão PO 09-02: resolvido operacionalmente, fora das ações da janela). Ciclo H7-1 em execução. **H2-8 = causa raiz COMPROVADA em staging (§10.5)** — colunas fantasma (`comandas.discount`, `comanda_items.staff_id`) no bloco de publish do `reversal.ts` (código atual HEAD); aguarda correção do código + decisão do PO. Operação permanece em pausa controlada (sem reversões comissionáveis).
+> **Status:** 🟢 **JANELA EXECUÇÃO EM ANDAMENTO (2026-09-02, com Rubens/equipe).** **Baseline oficial = snapshot 09-02 08:24** (`H7_BASELINE_READONLY.md` §8) — substitui o 08-16 como referência operacional. **S3-1 = FECHADO** (doc `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` §8 S3-4; decisão PO 09-02: resolvido operacionalmente, fora das ações da janela). Ciclo H7-1 em execução. **H2-8 = 🟢 FECHADO (§10.6):** causa raiz (§10.5 — colunas fantasma `comandas.discount`/`comanda_items.staff_id` no publish do `reversal.ts`) **corrigida no código em `523192a`** e **cadeia completa comprovada em STAGING** (`tests/homologation/h2-8/h2-8-staging-chain.spec.ts` PASS: `CheckoutReverted` → `reverse_commission` → reversal de comissão → net 0 → idempotente). **Produção NÃO tocada; sem deploy; sem migration.** Operação permanece em pausa controlada (sem reversões comissionáveis); tratamento do estado real `6bd5cbe4` segue decisão do PO.
 > **Atualização 2026-08-16 (Trilha A):** incidente original resolvido por evidência — causa raiz **CONFIRMADA** como frontend de produção `718f6f9` defasado × schema vigente (`tenants.active` removido pela migration `20260728000000`). Ver `docs/audit/H7_1_TRILHA_A_REPRODUCAO.md`. A execução do ciclo H7-1 no preview `78604c6` (código novo) foi auditada e está íntegra; **nenhuma correção aplicada; operação permanece parada.**
 > **Referência:** `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (§8.2 — Gate H-7) · `docs/audit/SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` (§4/§12) · `docs/BUSINESS_DECISIONS.md` (D-HOM-26, D-HOM-27)
 > **Data do roteiro:** 2026-08-14 · **Responsável:** OpenCode + Operação (Sanchez Barber) · **PO:** Augusto
@@ -294,6 +294,34 @@ Comanda do teste do Rubens (09-02 11:43, Penteado R$15, cash) que teve o checkou
 
 ---
 
+### 10.6 H2-8 — FECHAMENTO FORMAL (2026-09-02): correção aplicada + cadeia completa comprovada em STAGING — 🟢 CLOSED
+
+**Correção aplicada no código (commit `523192a`, HEAD):** `fix(reversal): remove phantom columns and add error checks in CheckoutReverted publish` implementou exatamente a ação recomendada na §10.5, no bloco de publish de `src/lib/finance/reversal.ts`:
+
+- **removidas** as colunas fantasma: `comandas.discount` e `comanda_items.staff_id`;
+- `service_execution_participants` lida pela coluna **real** `professional_id` (não `staff_id`);
+- todas as leituras agora **checam `.error`** (log de erro `[reversal][H2-8] ...`) em vez de desestruturar `{ data }` cegamente — o short-circuit silencioso que suprimia `CheckoutReverted` não pode mais ocorrer sem evidência;
+- o bloco agora publica `CheckoutReverted` via `appEventBus.publish(createEvent<CheckoutRevertedEvent>)` com `originalCommission`/`originalReceivedValue` derivados de leituras reais e índice `EVENT-PUBLISH-FAILED` se falhar.
+
+**Comprovação controlada em STAGING (cadeia canônica `tests/homologation/h2-8/h2-8-staging-chain.spec.ts`, schema real `tjcvuhynckocmvtqykxp`, código HEAD):**
+
+| Sinal | Valor | Status |
+|-------|-------|--------|
+| Comissão original | +R$3,75 `active` (R$15 × 50% participant × 50% staff) | ✅ |
+| `finance_reverse_transaction` (full_refund) | success — perna financeira | ✅ |
+| `CheckoutReverted` publicado | ✅ (`originalCommission: 3.75`, `originalReceivedValue: 15`) | ✅ |
+| Outbox `reverse_commission` | enfileirado + processado | ✅ |
+| Reversal de comissão | −R$3,75 `active` com `original_record_id` | ✅ |
+| `financial_reversals` | 1 × R$15 | ✅ |
+| Saldo líquido | R$0 | ✅ |
+| Idempotência (2ª reversão, mesma chave) | `financial_reversals`=1, reversal records=1, net 0, `secondResultIdempotent=true` (guarda `already reversed — skipping` do `reverseCommissionHandler`) | ✅ |
+
+**Controprova da integridade do pipeline:** em produção (08-25, comanda `f859260a`) o mesmo caminho `CheckoutReverted → reverse_commission → ReverseCommissionHandler` já operou corretamente (1 reversal `5b645e00` R$−7,50); o short-circuit de §10.5 era defeito do código HEAD naquele momento, agora corrigido.
+
+**Veredito H2-8: 🟢 CLOSED (prova canônica em staging).** Causa raiz corrigida em `523192a`; cadeia financeira + de comissão comprovada ponta-a-ponta em staging com teardown completo. **Produção NÃO tocada; sem deploy; sem migration.** O tratamento de estados reais inconsistentes (`6bd5cbe4`, produção) e a liberação de novas reversões em produção permanecem **decisão do PO**, conforme D-HOM-27 (parar, não corrigir no banco).
+
+---
+
 ## 11. Estado da Janela e Próximos Passos
 
 | Item | Status |
@@ -304,7 +332,7 @@ Comanda do teste do Rubens (09-02 11:43, Penteado R$15, cash) que teve o checkou
 | UI da comanda (comissão + Fechar Caixa do Barbeiro) | 🟢 ✅ PASS |
 | S3-1 R$260 | 🟢 ✅ FECHADO (anterior) |
 | FINDING R$40/R$20 (dashboard) | 🟢 ✅ RESOLVIDO — desconto R$5 legítimo (comanda 09-01, não relacionado à H7) |
-| H2-8 — reversão (via `finance_reverse_transaction`) | 🔴 **FAIL / FINDING DE CONTRATO** — perna financeira ok, perna de comissão não acionada; **causa raiz comprovada em staging (§10.5): colunas fantasma (`comandas.discount`, `comanda_items.staff_id`) no bloco de publish do código atual → `CheckoutReverted` nunca publicado → comissão não revertida** |
-| H-7 | 🔴 **PAUSA CONTROLADA — operação normal/comissão validada; reversões financeiras comissionáveis pausadas até comprovação do fluxo em staging; sem perda financeira** |
+| H2-8 — reversão (via `finance_reverse_transaction`) | 🟢 **✅ RESOLVIDO / FECHADO (§10.6)** — causa raiz (§10.5) corrigida em `523192a` (colunas fantasma removidas, `professional_id`, checagem de `.error`); cadeia completa comprovada em STAGING (`h2-8-staging-chain.spec.ts` PASS: `CheckoutReverted` → `reverse_commission` → reversal de comissão → net 0 → idempotente). Produção não tocada; tratamento do estado real `6bd5cbe4` segue decisão do PO |
+| H-7 | 🔴 **PAUSA CONTROLADA — operação normal/comissão validada; H2-8 FECHADO (prova em staging); reversões financeiras comissionáveis em produção permanecem pausadas até decisão do PO; sem perda financeira** |
 
-**Próxima etapa:** **CAUSA RAIZ JÁ COMPROVADA em staging (§10.5)** — corrigir `src/lib/finance/reversal.ts` (remover colunas fantasma `comandas.discount` e `comanda_items.staff_id`; usar `service_execution_participants.professional_id`; checar `.error` nas leituras) e revalidar em staging o caminho `finance_reverse_transaction → CheckoutReverted → reverse_commission → reverseCommissionHandler`. Após isso, decidir com o PO o tratamento de `6bd5cbe4` e a liberação de novos testes de reversão.
+**Próxima etapa:** **H2-8 FECHADO em staging (§10.6)** — a correção do `reversal.ts` (remover colunas fantasma, usar `professional_id`, checar `.error`) já foi aplicada em `523192a` e a cadeia `finance_reverse_transaction → CheckoutReverted → reverse_commission → reverseCommissionHandler` foi revalidada em staging com PASS. Restam decisões do PO (fora do escopo de código): (1) tratamento do estado real de produção `6bd5cbe4` (comanda/comissão inconsciente); (2) liberação de novas reversões comissionáveis em produção.
