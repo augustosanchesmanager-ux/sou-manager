@@ -640,7 +640,7 @@ const SupabaseMonitoring: React.FC = () => {
         </div>
 
         <div className="card-boutique p-6">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-primary">Historico</p>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-primary">Histórico</p>
           <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white display-font">Alertas anteriores</h2>
           <div className="mt-6 space-y-3">
             {alertHistory.map((alert) => (

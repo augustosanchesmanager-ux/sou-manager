@@ -59,7 +59,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ indicators, loading }) => {
                 <div>
                     <IndicatorCard
                         icon={<TrendingUp size={14} />}
-                        label="Ticket Medio"
+                        label="Ticket Médio"
                         value={formatCurrency(indicators.ticketMedio)}
                     />
                     <IndicatorCard
@@ -88,7 +88,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ indicators, loading }) => {
                     />
                     <IndicatorCard
                         icon={<Clock size={14} />}
-                        label="Tempo Medio Atendimento"
+                        label="Tempo Médio Atendimento"
                         value={indicators.tempoMedioAtendimento > 0 ? `${indicators.tempoMedioAtendimento} min` : '—'}
                     />
                     <IndicatorCard

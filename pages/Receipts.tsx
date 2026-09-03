@@ -194,7 +194,7 @@ const Receipts: React.FC = () => {
                     .or(`original_transaction_id.in.(${transactionIds}),reversal_transaction_id.in.(${transactionIds})`);
 
                 if (reversalsError) {
-                    console.warn('Nao foi possivel carregar reversoes dos recibos:', reversalsError);
+                    console.warn('Não foi possível carregar reversões dos recibos:', reversalsError);
                 } else {
                     ((allReversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
                         // Build reversedByTransactionId and reversalsByTransactionId (original direction)
@@ -278,7 +278,7 @@ const Receipts: React.FC = () => {
         } catch (error: any) {
             console.error('Error fetching receipts:', error);
             setReceipts([]);
-            setLoadError('Nao foi possivel carregar recibos e transactions. Nenhum dado financeiro foi alterado.');
+            setLoadError('Não foi possível carregar recibos e transactions. Nenhum dado financeiro foi alterado.');
         } finally {
             setLoading(false);
         }
@@ -369,7 +369,7 @@ const Receipts: React.FC = () => {
             return;
         }
         if (!reasonType || !reasonNote.trim()) {
-            setReversalError('Informe motivo e observacao para continuar.');
+            setReversalError('Informe motivo e observação para continuar.');
             return;
         }
         if (!reversalConfirmed) {
@@ -404,10 +404,10 @@ const Receipts: React.FC = () => {
             });
         } catch (error: any) {
             console.error('Erro ao registrar reversao pelo recibo:', error);
-            setReversalError(error?.message || 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.');
+            setReversalError(error?.message || 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.');
             setActionMessage({
                 type: 'error',
-                message: 'Nao foi possivel registrar a reversao financeira. Nenhuma alteracao foi aplicada.',
+                message: 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.',
             });
         } finally {
             setReversingId(null);
@@ -720,10 +720,10 @@ const Receipts: React.FC = () => {
                                             <button onClick={() => openViewModal(receipt)} className="p-1.5 sm:p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors" title="Visualizar">
                                                 <span className="material-symbols-outlined text-[20px]">visibility</span>
                                             </button>
-                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Abra o recibo para imprimir pela visualizacao.">
+                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Abra o recibo para imprimir pela visualização.">
                                                 <span className="material-symbols-outlined text-[20px]">print</span>
                                             </button>
-                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Exportacao PDF direta fica para fase futura.">
+                                            <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Exportação PDF direta fica para fase futura.">
                                                 <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
                                             </button>
                                             <button disabled className="p-1.5 sm:p-2 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed" title="Reemissao auditada fica para fase futura.">
@@ -894,7 +894,7 @@ const Receipts: React.FC = () => {
                     <div className="mt-6 space-y-4 print:hidden">
                         {selectedReceipt.reversalStatus !== 'none' && (
                             <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-                                <p className="text-xs font-bold uppercase text-amber-700 dark:text-amber-200">Historico de reversoes</p>
+                                <p className="text-xs font-bold uppercase text-amber-700 dark:text-amber-200">Histórico de reversões</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
                                     Revertido: {selectedReceipt.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
@@ -928,15 +928,15 @@ const Receipts: React.FC = () => {
 
                         {selectedReceipt.reversalSource && (
                             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
-                                <p className="text-xs font-bold uppercase text-rose-700 dark:text-rose-200">Movimentacao reversa auditada</p>
+                                <p className="text-xs font-bold uppercase text-rose-700 dark:text-rose-200">Movimentação reversa auditada</p>
                                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-                                    Este recibo representa uma movimentacao reversa e preserva a transaction original.
+                                    Este recibo representa uma movimentação reversa e preserva a transaction original.
                                 </p>
                                 <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                                    <p>Original: {selectedReceipt.reversalSource.originalTransactionId || 'Nao informado'}</p>
+                                    <p>Original: {selectedReceipt.reversalSource.originalTransactionId || 'Não informado'}</p>
                                     <p>Tipo: {selectedReceipt.reversalSource.reversalType}</p>
                                     <p>Motivo: {selectedReceipt.reversalSource.reasonType}</p>
-                                    <p>Data: {selectedReceipt.reversalSource.createdAt ? new Date(selectedReceipt.reversalSource.createdAt).toLocaleString('pt-BR') : 'Nao informada'}</p>
+                                    <p>Data: {selectedReceipt.reversalSource.createdAt ? new Date(selectedReceipt.reversalSource.createdAt).toLocaleString('pt-BR') : 'Não informada'}</p>
                                 </div>
                             </div>
                         )}
@@ -953,7 +953,7 @@ const Receipts: React.FC = () => {
                     </button>
                     <button
                         disabled
-                        title="Exportacao PDF estruturada fica para fase futura."
+                        title="Exportação PDF estruturada fica para fase futura."
                         className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-emerald-600/50 transition-colors flex items-center gap-2 cursor-not-allowed"
                     >
                         <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
@@ -979,7 +979,7 @@ const Receipts: React.FC = () => {
                 {reversalReceipt && (
                     <div className="space-y-5">
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">O recibo e a transaction original nao serao apagados. O sistema criara uma movimentacao reversa auditada.</p>
+                            <p className="font-bold">O recibo e a transaction original não serão apagados. O sistema criará uma movimentação reversa auditada.</p>
                             <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolucao ao cliente ou correcao financeira autorizada.</p>
                         </div>
 
@@ -1082,7 +1082,7 @@ const Receipts: React.FC = () => {
                             </label>
 
                             <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Observacao obrigatoria</span>
+                                <span className="text-xs font-bold uppercase text-slate-500">Observação obrigatória</span>
                                 <textarea
                                     value={reasonNote}
                                     onChange={(event) => setReasonNote(event.target.value)}
@@ -1101,7 +1101,7 @@ const Receipts: React.FC = () => {
                                 className="mt-1 size-4 rounded border-slate-300 text-primary focus:ring-primary"
                             />
                             <span>
-                                Confirmo que esta acao criara uma movimentacao reversa auditada e preservara o recibo e a transaction original.
+                                Confirmo que esta ação criará uma movimentação reversa auditada e preservará o recibo e a transaction original.
                             </span>
                         </label>
 

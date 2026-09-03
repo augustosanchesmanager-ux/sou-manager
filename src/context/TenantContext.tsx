@@ -27,7 +27,7 @@ const getTenantErrorMessage = (error: unknown, appSlug: AppSlug): string => {
     return error.message;
   }
 
-  return `Nao foi possivel resolver o tenant do app ${appSlug}.`;
+  return `Não foi possível resolver o tenant do app ${appSlug}.`;
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

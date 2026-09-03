@@ -120,15 +120,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       title: 'FINANCEIRO',
       icon: 'payments',
       items: [
-        { name: isEsteticaApp ? 'Financeiro' : 'Visao Geral', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
+        { name: isEsteticaApp ? 'Financeiro' : 'Visão Geral', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
         { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
         { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables', module: 'chef_club' },
-        { name: 'Conferencia de Caixa',   icon: 'lock',                   path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
-        { name: isEsteticaApp ? 'Repasses' : 'Comissoes', icon: 'percent', path: '/commissions', module: 'commissions' },
-        { name: isEsteticaApp ? 'Relatórios' : 'Relatorios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Conferência de Caixa',   icon: 'lock',                   path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
+        { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: 'percent', path: '/commissions', module: 'commissions' },
+        { name: isEsteticaApp ? 'Relatórios' : 'Relatórios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
       ]
     }
   ];

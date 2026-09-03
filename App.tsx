@@ -84,7 +84,7 @@ const RouteFallback: React.FC = () => (
   <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
     <div className="flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-border-dark bg-white/90 dark:bg-card-dark/90 px-5 py-4 shadow-sm">
       <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-b-primary" />
-      <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Carregando modulo...</span>
+      <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Carregando módulo...</span>
     </div>
   </div>
 );

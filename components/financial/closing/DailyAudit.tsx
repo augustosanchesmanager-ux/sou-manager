@@ -93,7 +93,7 @@ const DailyAudit: React.FC<DailyAuditProps> = ({ audit, loading }) => {
                     />
                     <AuditItem
                         icon={<FileEdit size={14} />}
-                        label="Lancamentos Manuais"
+                        label="Lançamentos Manuais"
                         value={audit.manualExpenses}
                     />
                     <AuditItem

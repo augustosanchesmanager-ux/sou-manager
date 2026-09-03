@@ -27,7 +27,7 @@ const QuickActionsPanel: React.FC<QuickActionsPanelProps> = ({ actions, onSelect
           key={action.id}
           onClick={() => onSelect(action)}
           className={`rounded-2xl border p-4 text-left transition hover:shadow-lg ${toneClass[action.tone]}`}
-          title={`${action.label}. Toda acao gera historico automaticamente.`}
+          title={`${action.label}. Toda ação gera histórico automaticamente.`}
         >
           <div className="flex items-start justify-between gap-3">
             <div>

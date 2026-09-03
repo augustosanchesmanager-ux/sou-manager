@@ -55,7 +55,7 @@ const AuditDrawer: React.FC<AuditDrawerProps> = ({ item, isOpen, onClose }) => {
             <p className="mt-2 text-sm font-bold text-slate-950 dark:text-white">{item.actor}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Usuario impactado</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Usuário impactado</p>
             <p className="mt-2 text-sm font-bold text-slate-950 dark:text-white">{item.user}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
@@ -95,7 +95,7 @@ const AuditDrawer: React.FC<AuditDrawerProps> = ({ item, isOpen, onClose }) => {
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
             <p className="text-sm font-bold text-slate-950 dark:text-white">Acoes disponiveis</p>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Revisar auditoria completa, reenviar notificacao, bloquear acesso relacionado ou escalar para suporte tecnico.</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Revisar auditoria completa, reenviar notificação, bloquear acesso relacionado ou escalar para suporte técnico.</p>
           </div>
         </div>
       </aside>

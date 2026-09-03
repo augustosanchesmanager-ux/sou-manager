@@ -62,13 +62,13 @@ const FinancialOverview: React.FC = () => {
                 return {
                     id: transaction.id,
                     date: transaction.date || transaction.created_at || new Date().toISOString(),
-                    description: transaction.description || transaction.category || 'Lancamento sem descricao',
+                    description: transaction.description || transaction.category || 'Lançamento sem descrição',
                     category: transaction.category || 'Sem categoria',
                     accountId: transaction.payment_method || 'nao-informado',
-                    accountName: transaction.payment_method || 'Nao informado',
+                    accountName: transaction.payment_method || 'Não informado',
                     costCenter: transaction.category || 'Sem centro',
                     type,
-                    paymentMethod: transaction.payment_method || 'Nao informado',
+                    paymentMethod: transaction.payment_method || 'Não informado',
                     status: 'realizado',
                     value,
                     runningBalance: 0,
@@ -77,8 +77,8 @@ const FinancialOverview: React.FC = () => {
 
             setEntries(mappedEntries);
         } catch (error: any) {
-            console.error('Erro ao carregar visao geral:', error);
-            setToast({ message: error?.message || 'Erro ao carregar visao geral.', type: 'error' });
+        console.error('Erro ao carregar visão geral:', error);
+        setToast({ message: error?.message || 'Erro ao carregar visão geral.', type: 'error' });
             setEntries([]);
         } finally {
             setLoading(false);
@@ -106,8 +106,8 @@ const FinancialOverview: React.FC = () => {
 
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Visao Geral Financeira</h2>
-                    <p className="text-slate-500 mt-1">Resumo macro do financeiro do periodo.</p>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Visão Geral Financeira</h2>
+                    <p className="text-slate-500 mt-1">Resumo macro do financeiro do período.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -140,7 +140,7 @@ const FinancialOverview: React.FC = () => {
                         changeText={`${entries.filter((entry) => entry.type === 'entrada').length} registros`}
                         trend="up"
                         tone="positive"
-                        helperText="Total de receitas do periodo"
+                        helperText="Total de receitas do período"
                         icon={<ArrowUpCircle size={18} />}
                     />
                     <FinancialSummaryCard
@@ -149,7 +149,7 @@ const FinancialOverview: React.FC = () => {
                         changeText={`${entries.filter((entry) => entry.type === 'saida').length} registros`}
                         trend="down"
                         tone="negative"
-                        helperText="Total de despesas do periodo"
+                        helperText="Total de despesas do período"
                         icon={<ArrowDownCircle size={18} />}
                     />
                     <FinancialSummaryCard
@@ -158,16 +158,16 @@ const FinancialOverview: React.FC = () => {
                         changeText={saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo'}
                         trend={saldoAtual >= 0 ? 'up' : 'down'}
                         tone={saldoAtual >= 0 ? 'positive' : 'negative'}
-                        helperText="Entradas menos saidas no periodo"
+                        helperText="Entradas menos saídas no período"
                         icon={<Wallet size={18} />}
                     />
                     <FinancialSummaryCard
-                        title="Ticket medio"
+                        title="Ticket médio"
                         value={ticketMedioEntrada}
-                        changeText="Receitas por lancamento"
+                        changeText="Receitas por lançamento"
                         trend="up"
                         tone="neutral"
-                        helperText="Media das entradas registradas"
+                        helperText="Média das entradas registradas"
                         icon={<Wallet size={18} />}
                     />
                 </div>
@@ -177,9 +177,9 @@ const FinancialOverview: React.FC = () => {
                 <div className="mx-auto size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4">
                     <span className="material-symbols-outlined text-2xl">insights</span>
                 </div>
-                <h3 className="text-base font-bold text-slate-950 dark:text-white mb-2">Resumo do Periodo</h3>
+                <h3 className="text-base font-bold text-slate-950 dark:text-white mb-2">Resumo do Período</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                    Este e o resumo financeiro macro do periodo selecionado. Acesse Fluxo de Caixa para ver detalhes de cada lancamento.
+                    Este é o resumo financeiro macro do período selecionado. Acesse Fluxo de Caixa para ver detalhes de cada lançamento.
                 </p>
                 <div className="mt-4 flex justify-center gap-3">
                     <Button

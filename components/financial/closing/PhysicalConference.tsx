@@ -30,7 +30,7 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
         <div className="rounded-xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-4 shadow-[0_4px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                    Conferencia Fisica
+                    Conferência Física
                 </h3>
                 {!hasDifference && countedValue > 0 ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">

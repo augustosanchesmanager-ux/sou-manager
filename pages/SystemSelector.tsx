@@ -86,12 +86,12 @@ const SystemSelector: React.FC = () => {
             Escolha o sistema
           </span>
           <h1 className="mt-6 text-4xl sm:text-5xl font-black tracking-tight">
-            Entrada central, operacao desacoplada
+            Entrada central, operação desacoplada
           </h1>
           <p className="mt-4 text-base sm:text-lg text-slate-300 leading-relaxed">
             O dominio principal <span className="font-bold text-white">soumanager.com</span> representa a marca SMG,
             o portal principal e o acesso central da plataforma. Os sistemas operacionais rodam em subdominios
-            dedicados para garantir clareza, seguranca e escala.
+            dedicados para garantir clareza, segurança e escala.
           </p>
         </section>
 

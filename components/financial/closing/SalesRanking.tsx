@@ -102,7 +102,7 @@ const SalesRanking: React.FC<SalesRankingProps> = ({ barberSummaries, loading })
                                         {barber.comandaCount} comandas
                                     </span>
                                     <span className="text-[9px] font-bold text-slate-400">
-                                        Ticket medio: {barber.comandaCount > 0 ? formatCurrency(barber.totalReceived / barber.comandaCount) : formatCurrency(0)}
+                                        Ticket médio: {barber.comandaCount > 0 ? formatCurrency(barber.totalReceived / barber.comandaCount) : formatCurrency(0)}
                                     </span>
                                 </div>
                             </div>

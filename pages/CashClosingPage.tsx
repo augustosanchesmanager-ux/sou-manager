@@ -75,7 +75,7 @@ const CashClosingPage: React.FC = () => {
 
     const previewText = useMemo(() => generatePreviewText(
         formattedFilterDate, closing.validation, closing.extras, closing.paymentRows,
-        closing.observations, user?.email || 'Nao informado', closing.barberSummaries,
+        closing.observations, user?.email || 'Não informado', closing.barberSummaries,
         closing.filteredEntries, closing.openComandasSummary, closing.attendancesByBarber,
     ), [formattedFilterDate, closing.validation, closing.extras, closing.paymentRows,
         closing.observations, user, closing.barberSummaries, closing.filteredEntries,
@@ -88,7 +88,7 @@ const CashClosingPage: React.FC = () => {
             closing.filteredEntries, closing.barberSummaries, closing.attendancesByBarber,
             closing.openComandasSummary,
             {
-                responsible: user?.email || 'Nao informado',
+                responsible: user?.email || 'Não informado',
                 closingTime: new Date().toLocaleString('pt-BR'),
                 grossSales: closing.totalEntradas,
                 discounts: 0,
@@ -131,7 +131,7 @@ const CashClosingPage: React.FC = () => {
         addText('COMPROVANTE DE FECHAMENTO DE CAIXA', { fontSize: 14, fontStyle: 'bold', align: 'center' });
         y += 4;
         addText(`Data: ${formattedFilterDate}`, { fontSize: 10 });
-        addText(`Responsavel: ${user?.email || 'Nao informado'}`, { fontSize: 10 });
+        addText(`Responsavel: ${user?.email || 'Não informado'}`, { fontSize: 10 });
         addText(`Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 10 });
         y += 4;
 
@@ -240,7 +240,7 @@ const CashClosingPage: React.FC = () => {
         doc.setLineWidth(0.3);
         doc.line(margin, y, pageWidth - margin, y);
         y += 4;
-        addText(`Assinatura: ${user?.email || 'Nao informado'}`, { fontSize: 9 });
+        addText(`Assinatura: ${user?.email || 'Não informado'}`, { fontSize: 9 });
         addText(`Data/Hora: ${new Date().toLocaleString('pt-BR')}`, { fontSize: 9 });
 
         doc.save(`fechamento-${closing.filterDate.replace(/-/g, '-')}.pdf`);
@@ -264,7 +264,7 @@ const CashClosingPage: React.FC = () => {
     const handleSaveWithToast = useCallback(async () => {
         try {
             await closing.handleSaveConference();
-            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
+            setToast({ message: 'Conferência salva com sucesso.', type: 'success' });
             setShowSaveConfirm(false);
         } catch (error: any) {
             setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
@@ -326,7 +326,7 @@ const CashClosingPage: React.FC = () => {
     const handleSaveBarberCash = useCallback(async (barberStaffId: string) => {
         try {
             await closing.handleSaveConference();
-            setToast({ message: 'Conferencia salva com sucesso.', type: 'success' });
+            setToast({ message: 'Conferência salva com sucesso.', type: 'success' });
         } catch (error: any) {
             setToast({ message: error?.message || 'Erro ao salvar.', type: 'error' });
         }
@@ -459,13 +459,13 @@ const CashClosingPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Conferencia de Caixa Individual por Barbeiro */}
+            {/* Conferência de Caixa Individual por Barbeiro */}
             {!closing.loading && closing.barberClosingDetails.length > 0 && (
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <Users size={16} className="text-slate-400" />
                         <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                            Conferencia de Caixa do Barbeiro
+                            Conferência de Caixa do Barbeiro
                         </h3>
                         {pendingBarberCount > 0 && (
                             <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
@@ -587,10 +587,10 @@ const CashClosingPage: React.FC = () => {
             </Modal>
 
             {/* Save Confirm Modal */}
-            <Modal isOpen={showSaveConfirm} onClose={() => setShowSaveConfirm(false)} title="Salvar Conferencia" maxWidth="sm">
+            <Modal isOpen={showSaveConfirm} onClose={() => setShowSaveConfirm(false)} title="Salvar Conferência" maxWidth="sm">
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Salvar conferencia do dia <strong>{formattedFilterDate}</strong>? Nenhum lancamento e alterado.
+                        Salvar conferência do dia <strong>{formattedFilterDate}</strong>? Nenhum lançamento é alterado.
                     </p>
                     <div className="flex gap-3 pt-2">
                         <button onClick={() => setShowSaveConfirm(false)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
@@ -622,7 +622,7 @@ const CashClosingPage: React.FC = () => {
                             <div className="flex items-center gap-2">
                                 <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
                                 <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                                    Existem {pendingBarberCount} caixa(s) individual(is) pendente(s) de conferencia.
+                                    Existem {pendingBarberCount} caixa(s) individual(is) pendente(s) de conferência.
                                 </span>
                             </div>
                         </div>

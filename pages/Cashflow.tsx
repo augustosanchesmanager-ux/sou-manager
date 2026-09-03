@@ -267,7 +267,7 @@ const Cashflow: React.FC = () => {
                 return {
                     id: transaction.id,
                     date: transaction.date || transaction.created_at || new Date().toISOString(),
-                    description: transaction.description || transaction.category || 'Lancamento sem descricao',
+                    description: transaction.description || transaction.category || 'Lançamento sem descrição',
                     category: transaction.category || 'Sem categoria',
                     accountId: transaction.payment_method || 'nao-informado',
                     accountName: transaction.payment_method || 'Não informado',
@@ -639,9 +639,9 @@ const Cashflow: React.FC = () => {
                     icon={<Wallet size={18} />}
                 />
                 <FinancialSummaryCard
-                    title="Ticket medio"
+                    title="Ticket médio"
                     value={ticketMedioEntrada}
-                    changeText="Receitas por lancamento"
+                    changeText="Receitas por lançamento"
                     trend="up"
                     tone="neutral"
                     helperText="Media das entradas registradas"
@@ -929,7 +929,7 @@ const Cashflow: React.FC = () => {
             <Modal
                 isOpen={!!selectedEntry}
                 onClose={() => setSelectedEntry(null)}
-                title={selectedEntry ? `Lancamento ${selectedEntry.type}` : 'Detalhes do lancamento'}
+                title={selectedEntry ? `Lançamento ${selectedEntry.type}` : 'Detalhes do lançamento'}
                 maxWidth="lg"
             >
                 {selectedEntry && (
