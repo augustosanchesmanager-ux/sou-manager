@@ -9,6 +9,7 @@ import {
     updateCreditMap,
     updateBillingDate,
     updateSubscriptionStatus,
+    cancelSubscriptionWithReceivables,
     type SubscriptionDetailData,
     type SubscriptionDetailClient,
 } from '../application/chefClub';
@@ -17,7 +18,10 @@ import {
     normalizeCreditBalances,
     getTotalAvailableCredits,
     getTotalUsedCredits,
+    cancelReasonLabels,
+    isCancelReason,
     type ServiceBalanceEntry,
+    type CancelReason,
 } from '../domain/chefClub';
 import { formatCurrency } from '../shared/format/currency';
 
@@ -50,6 +54,9 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
     const [statusModalOpen, setStatusModalOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<'paused' | 'canceled' | 'active' | null>(null);
+    const [cancelReason, setCancelReason] = useState<CancelReason | ''>('');
+    const [cancelObservation, setCancelObservation] = useState('');
+    const [cancelReceivables, setCancelReceivables] = useState(false);
 
     const loadData = useCallback(async () => {
         if (!tenantId || !subscriptionId) return;
@@ -117,11 +124,37 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
         setSaving(true);
         try {
-            await updateSubscriptionStatus(tenantId, subscriptionId, pendingStatus);
+            if (pendingStatus === 'canceled') {
+                if (cancelReceivables && !cancelReason) {
+                    setToast({ message: 'Motivo do cancelamento é obrigatório', type: 'error' });
+                    setSaving(false);
+                    return;
+                }
 
-            const statusLabels = { active: 'reativada', paused: 'pausada', canceled: 'cancelada' };
-            setToast({ message: `Assinatura ${statusLabels[pendingStatus]} com sucesso!`, type: 'success' });
+                const result = await cancelSubscriptionWithReceivables({
+                    subscriptionId,
+                    tenantId,
+                    cancelReceivables,
+                    cancelReason: cancelReason || undefined,
+                    cancelObservation: cancelObservation || null,
+                });
+
+                const messages = [];
+                messages.push('Assinatura cancelada');
+                if (result.receivablesCancelled > 0) {
+                    messages.push(`${result.receivablesCancelled} recebível(is) cancelado(s)`);
+                }
+                setToast({ message: messages.join(' + '), type: 'success' });
+            } else {
+                await updateSubscriptionStatus(tenantId, subscriptionId, pendingStatus);
+                const statusLabels = { active: 'reativada', paused: 'pausada', canceled: 'cancelada' };
+                setToast({ message: `Assinatura ${statusLabels[pendingStatus]} com sucesso!`, type: 'success' });
+            }
+
             setStatusModalOpen(false);
+            setCancelReason('');
+            setCancelObservation('');
+            setCancelReceivables(false);
             void loadData();
         } catch (err: any) {
             setToast({ message: `Erro ao atualizar: ${err.message}`, type: 'error' });
@@ -407,18 +440,64 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                 </div>
             </Modal>
 
-            <Modal isOpen={statusModalOpen} onClose={() => setStatusModalOpen(false)} title="Confirmar Ação" maxWidth="sm">
+            <Modal isOpen={statusModalOpen} onClose={() => setStatusModalOpen(false)} title={pendingStatus === 'canceled' ? 'Cancelar Assinatura' : 'Confirmar Ação'} maxWidth="sm">
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
                         {pendingStatus === 'active' && 'Tem certeza que deseja reativar esta assinatura?'}
                         {pendingStatus === 'paused' && 'Tem certeza que deseja pausar esta assinatura? O cliente perderá o acesso aos benefícios.'}
                         {pendingStatus === 'canceled' && 'Tem certeza que deseja cancelar esta assinatura? Esta ação não pode ser desfeita.'}
                     </p>
+
+                    {pendingStatus === 'canceled' && (
+                        <div className="space-y-3 p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20">
+                            <div>
+                                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Motivo do Cancelamento *</label>
+                                <select
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value as CancelReason | '')}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                    <option value="">Selecione o motivo</option>
+                                    {Object.entries(cancelReasonLabels).map(([key, label]) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Observação (opcional)</label>
+                                <textarea
+                                    value={cancelObservation}
+                                    onChange={(e) => setCancelObservation(e.target.value)}
+                                    rows={2}
+                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary resize-none"
+                                    placeholder="Detalhes adicionais..."
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="cancelReceivables"
+                                    checked={cancelReceivables}
+                                    onChange={(e) => setCancelReceivables(e.target.checked)}
+                                    className="rounded border-slate-300 text-red-500 focus:ring-red-500"
+                                />
+                                <label htmlFor="cancelReceivables" className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                    Cancelar cobranças pendentes/atrasadas
+                                </label>
+                            </div>
+                            <p className="text-[10px] text-slate-500 -mt-1 ml-6">
+                                Recebíveis já pagos não serão afetados
+                            </p>
+                        </div>
+                    )}
+
                     <div className="flex gap-3">
                         <button onClick={() => setStatusModalOpen(false)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm">
                             Voltar
                         </button>
-                        <button onClick={handleStatusChange} disabled={saving} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm text-white disabled:opacity-50 ${
+                        <button onClick={handleStatusChange} disabled={saving || (pendingStatus === 'canceled' && cancelReceivables && !cancelReason)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm text-white disabled:opacity-50 ${
                             pendingStatus === 'canceled' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-blue-600'
                         }`}>
                             {saving ? 'Aguarde...' : 'Confirmar'}

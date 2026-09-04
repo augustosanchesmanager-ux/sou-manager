@@ -117,3 +117,26 @@ export const receivableStatusMeta: Record<
 export const isReceivableStatus = (
   value: string,
 ): value is ReceivableStatus => value in receivableStatusMeta;
+
+// ─── Cancel Reasons ──────────────────────────────────────────────
+
+export type CancelReason =
+  | 'client_request'
+  | 'financial_problem'
+  | 'plan_change'
+  | 'service_dissatisfaction'
+  | 'no_longer_needed'
+  | 'other';
+
+export const cancelReasonLabels: Record<CancelReason, string> = {
+  client_request: 'Solicitação do cliente',
+  financial_problem: 'Problema financeiro',
+  plan_change: 'Mudança de plano',
+  service_dissatisfaction: 'Insatisfação com serviço',
+  no_longer_needed: 'Não preciso mais',
+  other: 'Outro',
+};
+
+export const isCancelReason = (
+  value: string,
+): value is CancelReason => value in cancelReasonLabels;

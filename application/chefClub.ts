@@ -102,4 +102,9 @@ export {
     pauseSubscription,
     resumeSubscription,
     cancelSubscription,
+    cancelSubscriptionWithReceivables,
+} from './chefClub/operations';
+
+export type {
+    CancelSubscriptionWithReceivablesParams,
 } from './chefClub/operations';
