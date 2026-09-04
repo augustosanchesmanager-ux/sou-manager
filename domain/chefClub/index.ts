@@ -10,6 +10,7 @@ export {
   type SubscriptionStatusMeta,
   type ReceivableStatus,
   type ReceivableStatusMeta,
+  type CancelReason,
   subscriptionStatusLabels,
   subscriptionStatusMeta,
   subscriptionActionLabels,
@@ -17,6 +18,8 @@ export {
   receivableStatusLabels,
   receivableStatusMeta,
   isReceivableStatus,
+  cancelReasonLabels,
+  isCancelReason,
 } from './types';
 
 // Credits

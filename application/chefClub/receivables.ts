@@ -273,3 +273,36 @@ export const refreshReceivableStatuses = async (tenantId: string): Promise<void>
         );
     }
 };
+
+// ─── Cancel Receivables ──────────────────────────────────────────
+
+export interface CancelReceivablesParams {
+    subscriptionId: string;
+    tenantId: string;
+    cancelReason: string;
+    cancelObservation?: string | null;
+}
+
+export const cancelReceivablesBySubscription = async (
+    params: CancelReceivablesParams,
+): Promise<number> => {
+    const { subscriptionId, tenantId, cancelReason, cancelObservation } = params;
+
+    const { data, error } = await getRpcClient().rpc('cancel_club_receivables', {
+        p_subscription_id: subscriptionId,
+        p_tenant_id: tenantId,
+        p_cancel_reason: cancelReason,
+        p_cancel_observation: cancelObservation ?? null,
+    });
+
+    if (error) {
+        console.error('[SMG][CHEF_CLUB] Erro ao cancelar recebíveis:', error);
+        throw new ChefClubError(
+            `Falha ao cancelar recebíveis: ${error.message}`,
+            'CANCEL_RECEIVABLE_ERROR',
+            error,
+        );
+    }
+
+    return Number(data ?? 0);
+};

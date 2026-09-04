@@ -86,6 +86,7 @@ export {
     payReceivable,
     settleReceivableWithDetails,
     refreshReceivableStatuses,
+    cancelReceivablesBySubscription,
     loadReceivablePage,
     canPayReceivable,
     getDisplayStatus,
@@ -98,6 +99,7 @@ export type {
     ClientRecord,
     PlanRecord,
     ReceivableTotals,
+    CancelReceivablesParams,
 } from './receivables';
 
 // Operations
@@ -107,6 +109,10 @@ export {
     pauseSubscription,
     resumeSubscription,
     cancelSubscription,
+    cancelSubscriptionWithReceivables,
+} from './operations';
+export type {
+    CancelSubscriptionWithReceivablesParams,
 } from './operations';
 
 /**
