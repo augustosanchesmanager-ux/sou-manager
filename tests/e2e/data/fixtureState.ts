@@ -16,6 +16,26 @@ export interface E2EUserState {
   password: string;
 }
 
+export interface E2EChefClubState {
+  subscriptionA: {
+    id: string;
+    receivableIds: { pending: string; overdue: string; paid: string };
+  };
+  subscriptionB: {
+    id: string;
+    receivableIds: { pending: string; overdue: string; paid: string };
+  };
+  clientId: string;
+  managerId: string;
+  tenantB: {
+    subscriptionId: string;
+    receivableIds: { pending: string; overdue: string; paid: string };
+    clientId: string;
+    managerId: string;
+    tenantId: string;
+  };
+}
+
 export interface E2EFixtureState {
   runId: number;
   tenantId: string;
@@ -25,6 +45,7 @@ export interface E2EFixtureState {
     cashier: E2EUserState;
     invitee: E2EUserState;
   };
+  chefClub?: E2EChefClubState;
 }
 
 const STATE_FILE = path.resolve(process.cwd(), 'test-results', '.e2e-fixture-state.json');

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createConfirmedUser, deleteUserByEmail, getAdminClient } from '../helpers/supabaseAdmin';
+import { seedChefClubData } from './seed-chefclub-p03c';
 import type { E2EFixtureState } from '../data/fixtureState';
 
 /**
@@ -207,11 +208,21 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   ]);
   if (servicesError) fail('services insert', servicesError);
 
-  // 5. Persist fixture state for the auth fixtures.
+  // 5. P0.3-C: ChefClub test data
+  let chefClubData: Awaited<ReturnType<typeof seedChefClubData>> | null = null;
+  try {
+    chefClubData = await seedChefClubData(tenantId);
+    console.log(`[e2e-seed] ChefClub data seeded: subscription=${chefClubData.subscriptionId}`);
+  } catch (err) {
+    console.warn('[e2e-seed] ChefClub seed failed (tests may skip):', err);
+  }
+
+  // 6. Persist fixture state for the auth fixtures.
   const state: E2EFixtureState = {
     runId,
     tenantId,
     users,
+    chefClub: chefClubData || undefined,
   };
   const stateDir = path.resolve(process.cwd(), 'test-results');
   fs.mkdirSync(stateDir, { recursive: true });
@@ -228,6 +239,11 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     try {
       for (const user of Object.values(users)) {
         await deleteUserByEmail(user.email);
+      }
+      if (chefClubData) {
+        await admin.from('customer_credits').delete().eq('tenant_id', tenantId);
+        await admin.from('customer_subscription_receivables').delete().eq('tenant_id', tenantId);
+        await admin.from('customer_subscriptions').delete().eq('tenant_id', tenantId);
       }
       await admin.from('clients').delete().eq('tenant_id', tenantId);
       await admin.from('services').delete().eq('tenant_id', tenantId);
