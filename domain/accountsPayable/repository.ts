@@ -19,9 +19,16 @@ export interface CreateOneTimeAPResult {
   message?: string;
 }
 
+export interface CreateRecurringBillResult {
+  success: boolean;
+  id?: string;
+  created?: boolean;
+  message?: string;
+}
+
 export interface AccountsPayableRepository {
   // Recurring Bills
-  createRecurringBill(data: Omit<RecurringBill, 'id' | 'created_at' | 'updated_at'>): Promise<RecurringBill>;
+  createRecurringBill(data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }): Promise<CreateRecurringBillResult>;
   updateRecurringBill(id: string, data: Partial<Pick<RecurringBill, 'name' | 'amount' | 'due_day' | 'category' | 'notes' | 'is_active'>>): Promise<RecurringBill>;
   deleteRecurringBill(id: string): Promise<void>;
   getRecurringBillsByTenant(tenantId: string): Promise<RecurringBill[]>;
@@ -43,11 +50,14 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
   return {
     // Recurring Bills
     async createRecurringBill(data) {
-      const { data: result, error } = await supabase
-        .from('recurring_bills')
-        .insert(data)
-        .select()
-        .single();
+      const { data: result, error } = await supabase.rpc('create_recurring_bill', {
+        p_name: data.name,
+        p_amount: data.amount,
+        p_due_day: data.due_day,
+        p_idempotency_key: data.idempotency_key,
+        p_category: data.category || 'Outros',
+        p_notes: data.notes || null,
+      });
 
       if (error) throw error;
       return result;

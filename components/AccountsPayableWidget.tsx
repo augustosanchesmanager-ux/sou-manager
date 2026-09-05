@@ -30,6 +30,8 @@ const AccountsPayableWidget: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [isRecurringSubmitting, setIsRecurringSubmitting] = useState(false);
+  const [recurringIdempotencyKey, setRecurringIdempotencyKey] = useState<string | null>(null);
 
   // Recurring Bill Form
   const [billForm, setBillForm] = useState({
@@ -74,19 +76,30 @@ const AccountsPayableWidget: React.FC = () => {
 
   const handleCreateRecurringBill = async (e: React.FormEvent) => {
     e.preventDefault();
+    const key = recurringIdempotencyKey || crypto.randomUUID();
+    setRecurringIdempotencyKey(key);
+    setIsRecurringSubmitting(true);
     try {
-      await createRecurringBill({
+      const result = await createRecurringBill({
         name: billForm.name,
         amount: parseFloat(billForm.amount),
         due_day: parseInt(billForm.due_day, 10),
         category: billForm.category,
         notes: billForm.notes || undefined,
+        idempotency_key: key,
       });
-      setToast({ message: 'Recorrência criada!', type: 'success' });
+      if (result.created) {
+        setToast({ message: 'Recorrência criada!', type: 'success' });
+      } else {
+        setToast({ message: 'Recorrência já existe', type: 'info' });
+      }
       setIsRecurringModalOpen(false);
       setBillForm({ name: '', amount: '', due_day: '10', category: 'Outros', notes: '' });
+      setRecurringIdempotencyKey(null);
     } catch {
       setToast({ message: 'Erro ao criar recorrência', type: 'error' });
+    } finally {
+      setIsRecurringSubmitting(false);
     }
   };
 
@@ -273,7 +286,7 @@ const AccountsPayableWidget: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => { setEditingBill(null); setBillForm({ name: '', amount: '', due_day: '10', category: 'Outros', notes: '' }); setIsRecurringModalOpen(true); }}
+            onClick={() => { setEditingBill(null); setBillForm({ name: '', amount: '', due_day: '10', category: 'Outros', notes: '' }); setRecurringIdempotencyKey(crypto.randomUUID()); setIsRecurringModalOpen(true); }}
             className="bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-sm">autorenew</span>
@@ -485,9 +498,11 @@ const AccountsPayableWidget: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+              disabled={isRecurringSubmitting}
+              data-testid="recurring-submit"
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {editingBill ? 'Atualizar' : 'Criar Recorrência'}
+              {isRecurringSubmitting ? 'Criando...' : editingBill ? 'Atualizar' : 'Criar Recorrência'}
             </button>
           </div>
         </form>

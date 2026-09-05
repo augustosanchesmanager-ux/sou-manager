@@ -74,16 +74,18 @@ export function useAccountsPayable() {
     }
   }, [tenantId, fetchAccountsPayable]);
 
-  const createRecurringBill = useCallback(async (data: { name: string; amount: number; due_day: number; category?: string; notes?: string }) => {
+  const createRecurringBill = useCallback(async (data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }) => {
     try {
-      const bill = await service.createRecurringBill(data);
-      setRecurringBills((prev) => [...prev, bill]);
-      return bill;
+      const result = await service.createRecurringBill(data);
+      if (result.created) {
+        await fetchRecurringBills();
+      }
+      return result;
     } catch (err) {
       setError(extractError(err));
       throw err;
     }
-  }, []);
+  }, [fetchRecurringBills]);
 
   const updateRecurringBill = useCallback(async (id: string, data: Partial<Pick<RecurringBill, 'name' | 'amount' | 'due_day' | 'category' | 'notes' | 'is_active'>>) => {
     try {
