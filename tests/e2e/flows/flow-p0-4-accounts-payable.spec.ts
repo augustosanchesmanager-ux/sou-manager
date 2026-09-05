@@ -285,37 +285,42 @@ test.describe('P0.4 — CRUD: Recurring bill', () => {
 
 // ─── Idempotency: duplicate prevention ────────────────────
 test.describe('P0.4 — Idempotency', () => {
-  test('should_prevent_duplicate_recurring_bill_on_double_submit', async ({ loggedAdmin }) => {
+  test('should_prevent_duplicate_recurring_bill_on_double_submit', { timeout: 60_000 }, async ({ loggedAdmin }) => {
     await gotoExpenses(loggedAdmin);
 
-    // Open recurring modal
     await loggedAdmin.getByRole('button', { name: /\+ Recorrência/ }).click();
     await expect(loggedAdmin.locator('h3:has-text("Nova Recorrência")')).toBeVisible({ timeout: 5_000 });
 
-    // Fill form
     await loggedAdmin.locator('input[placeholder*="Aluguel"]').fill(TEST_AP_IDEMPOTENT);
     await loggedAdmin.locator('input[type="number"][step="0.01"]').fill('999');
     await loggedAdmin.locator('input[type="number"][min="1"]').fill('25');
 
-    // Submit twice rapidly
+    let pendingRequest: { resolve: () => void } | null = null;
+
+    await loggedAdmin.route('**/rest/v1/recurring_bills**', async (route) => {
+      if (route.request().method() === 'POST') {
+        await new Promise<void>((resolve) => { pendingRequest = { resolve }; });
+      }
+      await route.continue();
+    });
+
     const submitBtn = loggedAdmin.getByRole('button', { name: 'Criar Recorrência' });
     await submitBtn.click();
-    await loggedAdmin.waitForTimeout(500);
-    // Second submit — modal may have closed, skip if so
-    const modalStillOpen = await loggedAdmin.locator('h3:has-text("Nova Recorrência")').isVisible().catch(() => false);
-    if (modalStillOpen) {
-      await submitBtn.click();
-    }
+    await loggedAdmin.waitForTimeout(1_000);
 
+    await submitBtn.click();
+    await loggedAdmin.waitForTimeout(500);
+
+    pendingRequest?.resolve();
     await loggedAdmin.waitForTimeout(5_000);
 
-    // Switch to recurring tab and count items with this name
+    await loggedAdmin.unroute('**/rest/v1/recurring_bills**');
+
     await widgetTab(loggedAdmin, 'Recorrências').click();
     await loggedAdmin.waitForTimeout(500);
 
     const matchingItems = loggedAdmin.locator(`p:has-text("${TEST_AP_IDEMPOTENT}")`);
     const count = await matchingItems.count();
-    // At most 1 item should exist (idempotency prevents duplicates)
     expect(count).toBeLessThanOrEqual(1);
   });
 });
