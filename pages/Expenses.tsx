@@ -4,7 +4,7 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { transactionRepository } from '../domain/transaction';
 import { useAuth } from '../context/AuthContext';
-import RecurringBillsWidget from '../components/RecurringBillsWidget';
+import AccountsPayableWidget from '../components/AccountsPayableWidget';
 
 interface Expense {
     id: string;
@@ -179,8 +179,8 @@ const Expenses: React.FC = () => {
                 </button>
             </div>
 
-            {/* Contas a Pagar - Seção Expansível */}
-            <RecurringBillsWidget />
+            {/* Contas a Pagar - Novo módulo P0.4 */}
+            <AccountsPayableWidget />
 
             {/* KPI summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
