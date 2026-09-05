@@ -247,6 +247,15 @@ const AccountsPayableWidget: React.FC = () => {
     <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm text-red-500">error</span>
+            <p className="text-xs font-bold text-red-600 dark:text-red-400" data-testid="widget-error">{error}</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">account_balance</span>
