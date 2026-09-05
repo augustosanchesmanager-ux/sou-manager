@@ -37,7 +37,8 @@ export interface AccountsPayableApplicationService {
 
 export function createAccountsPayableApplicationService(
   repository: AccountsPayableRepository,
-  tenantId: string
+  tenantId: string,
+  createdBy: string | null = null
 ): AccountsPayableApplicationService {
   return {
     // Recurring Bills
@@ -50,7 +51,7 @@ export function createAccountsPayableApplicationService(
         category: data.category || 'outros',
         notes: data.notes || null,
         is_active: true,
-        created_by: null,
+        created_by: createdBy,
       });
     },
 
@@ -89,7 +90,7 @@ export function createAccountsPayableApplicationService(
         competence_year: dueDate.getFullYear(),
         category: data.category || 'outros',
         notes: data.notes || null,
-        created_by: null,
+        created_by: createdBy,
       });
     },
 
