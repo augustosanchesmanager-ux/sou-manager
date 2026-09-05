@@ -133,4 +133,16 @@ describe('P0.4 — Accounts Payable domain logic', () => {
       // When paid, transaction_id gets populated but old transactions remain untouched
     });
   });
+
+  describe('created_by attribution (A6)', () => {
+    it('created_by is set when provided', () => {
+      const ap = makeAP({ created_by: 'user-123' });
+      expect(ap.created_by).toBe('user-123');
+    });
+
+    it('created_by can be null for system-created records', () => {
+      const ap = makeAP({ created_by: null });
+      expect(ap.created_by).toBeNull();
+    });
+  });
 });

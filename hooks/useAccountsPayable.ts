@@ -12,12 +12,12 @@ import { createAccountsPayableApplicationService } from '@/domain/accountsPayabl
 
 export function useAccountsPayable() {
   const supabase = useResolvedClient();
-  const { tenantId } = useAuth();
+  const { tenantId, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const repository = createAccountsPayableRepository(supabase);
-  const service = createAccountsPayableApplicationService(repository, tenantId || '');
+  const service = createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null);
 
   // Recurring Bills
   const [recurringBills, setRecurringBills] = useState<RecurringBill[]>([]);
