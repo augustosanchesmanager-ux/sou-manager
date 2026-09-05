@@ -12,6 +12,13 @@ import {
   CreateAccountPayableFromRecurringResult,
 } from './types';
 
+export interface CreateOneTimeAPResult {
+  success: boolean;
+  id?: string;
+  created?: boolean;
+  message?: string;
+}
+
 export interface AccountsPayableRepository {
   // Recurring Bills
   createRecurringBill(data: Omit<RecurringBill, 'id' | 'created_at' | 'updated_at'>): Promise<RecurringBill>;
@@ -23,7 +30,7 @@ export interface AccountsPayableRepository {
   // Accounts Payable
   getAccountsPayableByTenant(tenantId: string, filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }): Promise<AccountPayable[]>;
   getAccountsPayableById(id: string): Promise<AccountPayable | null>;
-  createAccountPayable(data: Omit<AccountPayable, 'id' | 'created_at' | 'updated_at' | 'status' | 'paid_at' | 'cancelled_at' | 'cancelled_by' | 'paid_by' | 'transaction_id'>): Promise<AccountPayable>;
+  createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
   updateAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // RPCs
@@ -123,12 +130,15 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return data;
     },
 
-    async createAccountPayable(data) {
-      const { data: result, error } = await supabase
-        .from('accounts_payable')
-        .insert({ ...data, status: 'pending' })
-        .select()
-        .single();
+    async createOneTimeAccountPayable(data) {
+      const { data: result, error } = await supabase.rpc('create_one_time_account_payable', {
+        p_name: data.name,
+        p_amount: data.amount,
+        p_due_date: data.due_date,
+        p_idempotency_key: data.idempotency_key,
+        p_category: data.category || 'outros',
+        p_notes: data.notes || null,
+      });
 
       if (error) throw error;
       return result;

@@ -106,11 +106,11 @@ export function useAccountsPayable() {
     }
   }, []);
 
-  const createOneTimeAccountPayable = useCallback(async (data: { name: string; amount: number; due_date: string; category?: string; notes?: string }) => {
+  const createOneTimeAccountPayable = useCallback(async (data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }) => {
     try {
-      const ap = await service.createOneTimeAccountPayable(data);
+      const result = await service.createOneTimeAccountPayable(data);
       await fetchAccountsPayable();
-      return ap;
+      return result;
     } catch (err) {
       setError(extractError(err));
       throw err;

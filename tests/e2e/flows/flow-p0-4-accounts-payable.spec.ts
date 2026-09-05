@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
+import { loadEnvLocal, getAdminClient } from '../helpers/supabaseAdmin';
 
 // ─── Helpers ───────────────────────────────────────────────
 const uniqueId = Date.now();
@@ -344,5 +345,138 @@ test.describe('P0.4 — Error visibility', () => {
 
     // Assert: no error banner visible
     await expect(loggedAdmin.locator('[data-testid="widget-error"]')).not.toBeVisible({ timeout: 3_000 });
+  });
+});
+
+// ─── A7: Idempotency — UI double-click ────────────────────
+test.describe('P0.4-A7 — Idempotency: UI double-click', () => {
+  test('should_prevent_duplicate_on_double_click', { timeout: 60_000 }, async ({ loggedAdmin }) => {
+    await gotoExpenses(loggedAdmin);
+
+    // Open modal, fill form
+    await loggedAdmin.getByRole('button', { name: /\+ Avulsa/ }).click();
+    await expect(loggedAdmin.locator('h3:has-text("Nova Conta Avulsa")')).toBeVisible({ timeout: 5_000 });
+    await loggedAdmin.locator('input[placeholder*="Compra"]').fill(`A7-DoubleClick-${uniqueId}`);
+    await loggedAdmin.locator('input[type="number"][step="0.01"]').fill('100.00');
+    await loggedAdmin.locator('input[type="date"]').fill(new Date().toISOString().split('T')[0]);
+
+    // Double-click submit
+    const submitBtn = loggedAdmin.getByRole('button', { name: 'Criar Conta' });
+    await submitBtn.dblclick();
+
+    // Assert: only 1 record created
+    await waitForToast(loggedAdmin, 'Conta avulsa criada!');
+    const items = loggedAdmin.locator(`p:has-text("A7-DoubleClick-${uniqueId}")`);
+    await expect(items).toHaveCount(1);
+  });
+});
+
+// ─── A7: Idempotency — RPC concurrency ────────────────────
+test.describe('P0.4-A7 — Idempotency: RPC concurrency', () => {
+  test('should_handle_concurrent_rpcs_with_same_key', { timeout: 60_000 }, async ({ loggedAdmin }) => {
+    const idempotencyKey = crypto.randomUUID();
+    const dueDate = new Date().toISOString().split('T')[0];
+
+    // Read Supabase config from .env.local (Node side)
+    const env = loadEnvLocal();
+    const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
+    const anonKey = env.VITE_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !anonKey) throw new Error('VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY required');
+
+    // Extract the access token from Supabase's localStorage session (browser side)
+    const accessToken = await loggedAdmin.evaluate(() => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const token = parsed?.current_session?.access_token || parsed?.access_token;
+            if (token) return token as string;
+          } catch { /* parse error — try next key */ }
+        }
+      }
+      return null;
+    });
+    if (!accessToken) throw new Error('No Supabase auth token found in localStorage');
+
+    // Two concurrent RPC calls via direct fetch with the same idempotency key
+    const [result1, result2] = await loggedAdmin.evaluate(
+      async ([key, date, url, apiKey, token]) => {
+        const rpcCall = async (k: string) => {
+          const res = await fetch(`${url}/rest/v1/rpc/create_one_time_account_payable`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: apiKey,
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              p_name: 'Concurrent-Test',
+              p_amount: 300.0,
+              p_due_date: date,
+              p_idempotency_key: k,
+              p_category: 'outros',
+            }),
+          });
+          const data = await res.json();
+          return {
+            data: res.ok ? data : null,
+            error: res.ok ? null : { message: JSON.stringify(data) },
+          };
+        };
+
+        const [r1, r2] = await Promise.all([rpcCall(key), rpcCall(key)]);
+        return [
+          { data: r1.data, error: r1.error },
+          { data: r2.data, error: r2.error },
+        ];
+      },
+      [idempotencyKey, dueDate, supabaseUrl, anonKey, accessToken],
+    );
+
+    // Both should succeed
+    expect(result1.error).toBeNull();
+    expect(result2.error).toBeNull();
+
+    // One should create, the other should return existing
+    const created = [result1, result2].filter((r) => r.data?.created === true);
+    const existing = [result1, result2].filter((r) => r.data?.created === false);
+
+    expect(created).toHaveLength(1);
+    expect(existing).toHaveLength(1);
+
+    // Both should return the same ID
+    expect(created[0].data.id).toBe(existing[0].data.id);
+
+    // Persistence check: exactly 1 record via REST count
+    const countResult = await loggedAdmin.evaluate(
+      async ([key, url, apiKey, token]) => {
+        const res = await fetch(
+          `${url}/rest/v1/accounts_payable?idempotency_key=eq.${encodeURIComponent(key)}&select=id`,
+          {
+            headers: {
+              apikey: apiKey,
+              Authorization: `Bearer ${token}`,
+              Range: '0-0',
+            },
+          },
+        );
+        const rows = await res.json();
+        return Array.isArray(rows) ? rows.length : 0;
+      },
+      [idempotencyKey, supabaseUrl, anonKey, accessToken] as unknown as [string, string, string, string],
+    );
+
+    expect(countResult).toBe(1);
+
+    // Cleanup via service-role (Node side)
+    const admin = getAdminClient();
+    const { error: deleteError } = await admin
+      .from('accounts_payable')
+      .delete()
+      .eq('id', created[0].data.id);
+    expect(deleteError).toBeNull();
   });
 });
