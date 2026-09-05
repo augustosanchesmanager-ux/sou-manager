@@ -28,6 +28,8 @@ const AccountsPayableWidget: React.FC = () => {
   const [editingBill, setEditingBill] = useState<RecurringBill | null>(null);
   const [editingAP, setEditingAP] = useState<AccountPayableWithOverdue | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   // Recurring Bill Form
   const [billForm, setBillForm] = useState({
@@ -118,6 +120,10 @@ const AccountsPayableWidget: React.FC = () => {
 
   const handleCreateOneTimeAP = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const key = idempotencyKey || crypto.randomUUID();
+    setIdempotencyKey(key);
     try {
       await createOneTimeAccountPayable({
         name: apForm.name,
@@ -125,12 +131,16 @@ const AccountsPayableWidget: React.FC = () => {
         due_date: apForm.due_date,
         category: apForm.category,
         notes: apForm.notes || undefined,
+        idempotency_key: key,
       });
       setToast({ message: 'Conta avulsa criada!', type: 'success' });
       setIsOneTimeModalOpen(false);
       setApForm({ name: '', amount: '', due_date: new Date().toISOString().split('T')[0], category: 'Outros', notes: '' });
+      setIdempotencyKey(null);
     } catch {
       setToast({ message: 'Erro ao criar conta avulsa', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -486,7 +496,7 @@ const AccountsPayableWidget: React.FC = () => {
       {/* One-time AP Modal */}
       <Modal
         isOpen={isOneTimeModalOpen}
-        onClose={() => { setIsOneTimeModalOpen(false); setEditingAP(null); }}
+              onClose={() => { setIsOneTimeModalOpen(false); setEditingAP(null); setIdempotencyKey(null); }}
         title={editingAP ? 'Editar Conta' : 'Nova Conta Avulsa'}
         maxWidth="md"
       >
@@ -555,16 +565,17 @@ const AccountsPayableWidget: React.FC = () => {
           <div className="pt-4 flex gap-3">
             <button
               type="button"
-              onClick={() => { setIsOneTimeModalOpen(false); setEditingAP(null); }}
+              onClick={() => { setIsOneTimeModalOpen(false); setEditingAP(null); setIdempotencyKey(null); }}
               className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+              disabled={isSubmitting}
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {editingAP ? 'Atualizar' : 'Criar Conta'}
+              {isSubmitting ? 'Criando...' : editingAP ? 'Atualizar' : 'Criar Conta'}
             </button>
           </div>
         </form>

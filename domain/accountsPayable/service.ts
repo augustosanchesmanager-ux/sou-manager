@@ -11,7 +11,7 @@ import {
   CancelAccountPayableResult,
   CreateAccountPayableFromRecurringResult,
 } from './types';
-import { AccountsPayableRepository } from './repository';
+import { AccountsPayableRepository, CreateOneTimeAPResult } from './repository';
 
 export interface AccountsPayableApplicationService {
   // Recurring Bills
@@ -23,7 +23,7 @@ export interface AccountsPayableApplicationService {
   // Accounts Payable
   listAccountsPayable(filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }): Promise<AccountPayableWithOverdue[]>;
   getAccountsPayableById(id: string): Promise<AccountPayableWithOverdue | null>;
-  createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string }): Promise<AccountPayable>;
+  createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
   editAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // Actions
@@ -79,18 +79,13 @@ export function createAccountsPayableApplicationService(
     },
 
     async createOneTimeAccountPayable(data) {
-      const dueDate = new Date(data.due_date);
-      return repository.createAccountPayable({
-        tenant_id: tenantId,
-        recurring_bill_id: null,
+      return repository.createOneTimeAccountPayable({
         name: data.name,
         amount: data.amount,
         due_date: data.due_date,
-        competence_month: dueDate.getMonth() + 1,
-        competence_year: dueDate.getFullYear(),
         category: data.category || 'outros',
         notes: data.notes || null,
-        created_by: createdBy,
+        idempotency_key: data.idempotency_key,
       });
     },
 
