@@ -10,6 +10,21 @@ import {
 import { createAccountsPayableRepository } from '@/domain/accountsPayable/repository';
 import { createAccountsPayableApplicationService } from '@/domain/accountsPayable/service';
 
+/** Extract a human-readable message from any thrown value (including PostgrestError) */
+function extractError(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.error === 'string') return obj.error;
+    if (obj.error && typeof obj.error === 'object' && typeof (obj.error as Record<string, unknown>).message === 'string') {
+      return String((obj.error as Record<string, unknown>).message);
+    }
+  }
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return `Erro desconhecido: ${JSON.stringify(err)}`;
+}
+
 export function useAccountsPayable() {
   const supabase = useResolvedClient();
   const { tenantId, user } = useAuth();
@@ -31,7 +46,7 @@ export function useAccountsPayable() {
       const bills = await service.getRecurringBills();
       setRecurringBills(bills);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao buscar recorrências');
+      setError(extractError(err));
     }
   }, [tenantId]);
 
@@ -43,7 +58,7 @@ export function useAccountsPayable() {
       const items = await service.listAccountsPayable(filters);
       setAccountsPayable(items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao buscar contas a pagar');
+      setError(extractError(err));
     } finally {
       setLoading(false);
     }
@@ -55,7 +70,7 @@ export function useAccountsPayable() {
       await service.ensureCurrentMonthInstances();
       await fetchAccountsPayable();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao gerar ocorrências do mês');
+      setError(extractError(err));
     }
   }, [tenantId, fetchAccountsPayable]);
 
@@ -65,7 +80,7 @@ export function useAccountsPayable() {
       setRecurringBills((prev) => [...prev, bill]);
       return bill;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar recorrência');
+      setError(extractError(err));
       throw err;
     }
   }, []);
@@ -76,7 +91,7 @@ export function useAccountsPayable() {
       setRecurringBills((prev) => prev.map((b) => (b.id === id ? bill : b)));
       return bill;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar recorrência');
+      setError(extractError(err));
       throw err;
     }
   }, []);
@@ -86,7 +101,7 @@ export function useAccountsPayable() {
       await service.deactivateRecurringBill(id);
       setRecurringBills((prev) => prev.map((b) => (b.id === id ? { ...b, is_active: false } : b)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao desativar recorrência');
+      setError(extractError(err));
       throw err;
     }
   }, []);
@@ -97,7 +112,7 @@ export function useAccountsPayable() {
       await fetchAccountsPayable();
       return ap;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar conta avulsa');
+      setError(extractError(err));
       throw err;
     }
   }, [fetchAccountsPayable]);
@@ -108,7 +123,7 @@ export function useAccountsPayable() {
       await fetchAccountsPayable();
       return ap;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao editar conta');
+      setError(extractError(err));
       throw err;
     }
   }, [fetchAccountsPayable]);
@@ -119,7 +134,7 @@ export function useAccountsPayable() {
       await fetchAccountsPayable();
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao dar baixa');
+      setError(extractError(err));
       throw err;
     }
   }, [fetchAccountsPayable]);
@@ -130,7 +145,7 @@ export function useAccountsPayable() {
       await fetchAccountsPayable();
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao cancelar conta');
+      setError(extractError(err));
       throw err;
     }
   }, [fetchAccountsPayable]);
