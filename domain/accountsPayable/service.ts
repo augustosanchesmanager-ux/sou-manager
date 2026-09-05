@@ -11,11 +11,11 @@ import {
   CancelAccountPayableResult,
   CreateAccountPayableFromRecurringResult,
 } from './types';
-import { AccountsPayableRepository, CreateOneTimeAPResult } from './repository';
+import { AccountsPayableRepository, CreateOneTimeAPResult, CreateRecurringBillResult } from './repository';
 
 export interface AccountsPayableApplicationService {
   // Recurring Bills
-  createRecurringBill(data: { name: string; amount: number; due_day: number; category?: string; notes?: string }): Promise<RecurringBill>;
+  createRecurringBill(data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }): Promise<CreateRecurringBillResult>;
   updateRecurringBill(id: string, data: Partial<Pick<RecurringBill, 'name' | 'amount' | 'due_day' | 'category' | 'notes' | 'is_active'>>): Promise<RecurringBill>;
   deactivateRecurringBill(id: string): Promise<void>;
   getRecurringBills(): Promise<RecurringBill[]>;
@@ -44,14 +44,12 @@ export function createAccountsPayableApplicationService(
     // Recurring Bills
     async createRecurringBill(data) {
       return repository.createRecurringBill({
-        tenant_id: tenantId,
         name: data.name,
         amount: data.amount,
         due_day: data.due_day,
-        category: data.category || 'outros',
+        category: data.category || 'Outros',
         notes: data.notes || null,
-        is_active: true,
-        created_by: createdBy,
+        idempotency_key: data.idempotency_key,
       });
     },
 
