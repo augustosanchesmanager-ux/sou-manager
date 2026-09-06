@@ -219,8 +219,14 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 | P1.1 | **CLOSED** (merge `cea99c9`, fechamento documental `8bed19a`) |
 | P1.3 staging | **REVALIDATED** (schema alinhado, RPC corrigido, 27/27 testes + E2E estrito PASS) |
 | P1.3 produção | **APLICADA + VALIDADA pós-produção** (migration `20260905000000` aplicada 2026-09-06; smoke 7/7 PASS) |
-| P1.3 fechamento | ⏳ **STOP — aguarda decisão do PO** (critério de fechamento: P1.3 não é CLOSED apenas pela aplicação bem-sucedida) |
+| P1.3 fechamento | 🟢 **CLOSED (2026-09-06, autorização formal do PO)** — *"AUTORIZO O FECHAMENTO DA P1.3 — KPIs CANÔNICOS."* Migration aplicada/validada (8/8 critérios + smoke 7/7), drift corrigido, privilégios anon/service_role restringidos, alignment `20260906000000` **não** aplicada em produção (pré-flight demonstrou schema já alinhado), nenhuma reconciliação/alteração adicional autorizada |
 
 ---
 
-**Produção aplicada e validada. STOP para decisão de fechamento do PO — conforme critério: *"P1.3 não deve ser considerada CLOSED apenas pela aplicação bem-sucedida."***
+**P1.3 CLOSED — decisão formal do PO (2026-09-06).**
+
+> *"AUTORIZO O FECHAMENTO DA P1.3 — KPIs CANÔNICOS. A migration 20260905000000 está aplicada e validada em produção, com os 8 critérios pós-produção atendidos e smoke 7/7 PASS. O drift professional_id → staff_id foi corrigido na implementação da função e os privilégios anon/service_role foram adequadamente restringidos. A migration 20260906000000 não deve ser aplicada em produção, pois o pré-flight demonstrou que o schema produtivo já está alinhado e sua aplicação seria desnecessária. Nenhuma reconciliação ou alteração adicional de dados está autorizada como parte deste fechamento. P1.3: CLOSED."*
+
+**Estado consolidado P1:** P1.1 🟢 CLOSED · P1.3 🟢 CLOSED · P1.2 permanece conforme roadmap (não inferir concluída).
+
+**Próximo trabalho:** retorno ao roadmap — P2 é candidato natural para o próximo Design Gate.
