@@ -1,9 +1,9 @@
 # P1.3 — Production Gate: Canonical KPIs via RPC `get_dashboard_kpis`
 
 > **Data:** 2026-09-06
-> **Branch:** `feature/p1-3-canonical-kpis` (`f7fde2d` → correção aplicada)
-> **Ambientes auditados:** staging `tjcvuhynckocmvtqykxp` (read+write), produção `ushsnmlbeurfvlkieiln` (somente leitura)
-> **Veredito:** **REVALIDATED — Opção A executada exclusivamente em staging. Aguarda decisão do PO sobre produção.**
+> **Branch:** `feature/p1-3-canonical-kpis` (`f7fde2d` → correção aplicada → produção aplicada)
+> **Ambientes auditados:** staging `tjcvuhynckocmvtqykxp` (read+write), produção `ushsnmlbeurfvlkieiln` (migration aplicada 2026-09-06)
+> **Veredito:** **PRODUÇÃO APLICADA — validação pós-produção PASS. Aguarda decisão de fechamento do PO (STOP).**
 
 ---
 
@@ -171,14 +171,56 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 
 ---
 
+## 9.1 Produção Aplicada (autorização explícita do PO, 2026-09-06)
+
+> **Autorização PO (verbatim):** *"AUTORIZO A APLICAÇÃO DA P1.3 CORRIGIDA EM PRODUÇÃO. Escopo exclusivo: migration 20260905000000 corrigida, com K9 utilizando sep.staff_id; correção dos GRANT/REVOKE conforme validado em staging; 20260906000000 somente se fizer parte do procedimento de aplicação validado e necessário ao alinhamento do schema. A execução deve utilizar a Management API e CREATE OR REPLACE conforme validado, sem alterações adicionais fora do escopo."*
+
+### Execução (Management API — `POST /v1/projects/ushsn.../database/query`)
+
+| Passo | Resultado |
+|-------|-----------|
+| Pré-flight: helpers `current_tenant_id_from_auth_uid` / `current_is_super_admin_from_auth_uid` | ✅ presentes |
+| Pré-flight: RPC `get_dashboard_kpis` | ✅ inexistente antes (esperado) |
+| Pré-flight: SEP `staff_id` + `payout_amount_calculated` (11 colunas) | ✅ compatível com a migration corrigida |
+| Pré-flight: índice `idx_service_execution_participants_staff` | ✅ presente |
+| **Aplicação `20260905000000`** (CREATE OR REPLACE + grants idêntico ao staging) | ✅ **HTTP 201** |
+| Alignment `20260906000000` | ⏭️ **NÃO aplicada** — no-op desnecessário em produção (`staff_id` + índice já existem; escopo autorizado condiciona aplicação à necessidade) |
+
+### Validação pós-produção (evidência objetiva — critérios do PO)
+
+| # | Critério | Evidência |
+|---|----------|-----------|
+| 1 | Função existente com assinatura correta | ✅ `get_dashboard_kpis(text,uuid)` — SECURITY DEFINER, `returns jsonb`, args `p_period text DEFAULT 'month', p_staff_id uuid DEFAULT NULL` |
+| 2 | `prosrc` usando `sep.staff_id` | ✅ presente na posição 10450 |
+| 3 | Zero referência a `sep.professional_id` | ✅ posição 0 (ausente no corpo) |
+| 4 | ACL: `authenticated` = EXECUTE | ✅ `authenticated_exec=true` |
+| 4 | ACL: `anon` = NO EXECUTE | ✅ `anon_exec=false` |
+| 4 | ACL: `service_role` = NO EXECUTE | ✅ `service_role_exec=false` |
+| 5 | Schema/índice `service_execution_participants` compatível | ✅ `staff_id` presente + índice `idx_service_execution_participants_staff` (pré-flight) |
+| 6 | Nenhuma alteração indevida de dados | ✅ migration contém apenas `CREATE OR REPLACE FUNCTION` + grants + comment + NOTIFY — **zero DML, zero DDL de tabela** (grep estático) |
+| 7 | Smoke do RPC em produção (tenant 100% efêmero, teardown FK-aware) | ✅ **7/7 PASS** — ver abaixo |
+
+### Smoke produção (tenant efêmero `p13-smoke-{runId}`, removido ao final)
+
+| Check | Resultado |
+|-------|-----------|
+| RPC sem escopo (`{}`) como `authenticated` | ✅ HTTP 200 — envelope `meta,financial,clients,operations,staff`, `meta.tenant_id` = tenant efêmero |
+| RPC escopado (`p_staff_id` válido) | ✅ HTTP 200 — `scope_staff_id` ecoado, `staff: []` (tenant sem participações, K9 executa sem erro) |
+| RPC com `anon` (sem sessão) | ✅ HTTP 401 — `permission denied for function get_dashboard_kpis` (ACL enforçada) |
+| Teardown pós-smoke | ✅ tenant removido (`tenants?id=eq...` → `[]`), usuário auth removido (404) |
+| Dados reais afetados | ✅ **NÃO** — tenant efêmero criado e removido em mesma execução |
+
+---
+
 ## 10. Decisão
 
 | Estado | Valor |
 |--------|-------|
 | P1.1 | **CLOSED** (merge `cea99c9`, fechamento documental `8bed19a`) |
 | P1.3 staging | **REVALIDATED** (schema alinhado, RPC corrigido, 27/27 testes + E2E estrito PASS) |
-| P1.3 produção | **STOP — aguarda decisão do PO** (migration corrigida pronta; aplicação exige autorização explícita) |
+| P1.3 produção | **APLICADA + VALIDADA pós-produção** (migration `20260905000000` aplicada 2026-09-06; smoke 7/7 PASS) |
+| P1.3 fechamento | ⏳ **STOP — aguarda decisão do PO** (critério de fechamento: P1.3 não é CLOSED apenas pela aplicação bem-sucedida) |
 
 ---
 
-**Opção A concluída e revalidada em staging. Produção permanece STOP — aguardando decisão explícita do PO sobre a aplicação da migration P1.3 corrigida em `ushsnmlbeurfvlkieiln`.**
+**Produção aplicada e validada. STOP para decisão de fechamento do PO — conforme critério: *"P1.3 não deve ser considerada CLOSED apenas pela aplicação bem-sucedida."***
