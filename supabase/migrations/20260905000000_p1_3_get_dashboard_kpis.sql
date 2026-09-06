@@ -23,7 +23,7 @@ BEGIN;
 --   SECURITY DEFINER + gate interno obrigatório
 --   p_tenant_id NUNCA aceito do frontend (derivado do contexto)
 --   SET search_path = public
---   Grants: REVOKE PUBLIC/anon + GRANT authenticated
+--   Grants: REVOKE PUBLIC/anon/service_role + GRANT authenticated (P1.3 gate)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.get_dashboard_kpis(
@@ -315,13 +315,13 @@ BEGIN
       JOIN public.comandas c
         ON c.id = ci.comanda_id AND c.tenant_id = v_tenant_id
       JOIN public.staff s
-        ON s.id = sep.professional_id
+        ON s.id = sep.staff_id
       WHERE sep.tenant_id = v_tenant_id
         AND c.status = 'paid'
         AND COALESCE(c.financial_effect, true) = true
         AND COALESCE(c.closed_at, c.settled_at, c.created_at) >= v_start
         AND COALESCE(c.closed_at, c.settled_at, c.created_at) < v_end
-        AND (p_staff_id IS NULL OR sep.professional_id = p_staff_id)
+        AND (p_staff_id IS NULL OR sep.staff_id = p_staff_id)
         AND sep.affects_revenue = true
       GROUP BY s.id, s.name
     ) x;
@@ -366,8 +366,12 @@ BEGIN
 END;
 $$;
 
--- ─────────── Grants (ADR-012) ───────────
+-- ─────────── Grants (ADR-012 + P1.3 Production Gate) ───────────
+-- REVOKE ALL ... FROM PUBLIC não remove grants explícitos por role
+-- (default privileges do Supabase concedem EXECUTE a anon/service_role).
 REVOKE ALL ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM service_role;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) IS

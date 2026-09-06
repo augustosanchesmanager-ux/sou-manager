@@ -1,9 +1,9 @@
 # P1.3 — Production Gate: Canonical KPIs via RPC `get_dashboard_kpis`
 
 > **Data:** 2026-09-06
-> **Branch:** `feature/p1-3-canonical-kpis` (`8bed19a`)
-> **Ambientes auditados:** staging `tjcvuhynckocmvtqykxp` (read+write históricos), produção `ushsnmlbeurfvlkieiln` (somente leitura)
-> **Veredito:** **HOLD — NÃO aplicar a migration em produção como está** (achado bloqueante de schema drift no K9)
+> **Branch:** `feature/p1-3-canonical-kpis` (`f7fde2d` → correção aplicada)
+> **Ambientes auditados:** staging `tjcvuhynckocmvtqykxp` (read+write), produção `ushsnmlbeurfvlkieiln` (somente leitura)
+> **Veredito:** **REVALIDATED — Opção A executada exclusivamente em staging. Aguarda decisão do PO sobre produção.**
 
 ---
 
@@ -11,12 +11,12 @@
 
 | # | Critério | Status |
 |---|----------|--------|
-| 1 | Migration P1.3 pronta para produção | ❌ **NÃO** (K9 referencia coluna inexistente em produção) |
-| 2 | Evidências de staging | ✅ Válidas para staging, **não representativas de produção** nesse ponto |
-| 3 | Segurança / RLS / SECURITY DEFINER / grants | ⚠️ OK funcional + **achado de grant hygiene** (anon/service_role EXECUTE) |
+| 1 | Migration P1.3 pronta para produção | ✅ **SIM** (K9 corrigido: `sep.staff_id`, REVOKE anon/sr) |
+| 2 | Evidências de staging | ✅ Revalidadas — schema alinhado, RPC funcional, E2E estrito PASS |
+| 3 | Segurança / RLS / SECURITY DEFINER / grants | ✅ OK — REVOKE anon/service_role aplicado |
 | 4 | Equivalência dos KPIs | ✅ 27/27 testes (13 equivalência + 14 segurança), |Δ| ≤ 0.01 |
 | 5 | Impacto e rollback | ✅ Impacto zero-dados, rollback `DROP FUNCTION` imediato |
-| 6 | Somente migration ou integração adicional | ⚠️ Migration sim; integração frontend já existe (P1.1) — correção K9 necessária |
+| 6 | Somente migration ou integração adicional | ✅ Migration corrigida; integração frontend já existe (P1.1) |
 | 7 | Autorização explícita do PO | ⏳ **NÃO DADA** — produção permanece STOP |
 
 ---
@@ -96,7 +96,7 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 
 ---
 
-## 5. Evidências de Staging (válidas, porém insuficientes)
+## 5. Evidências de Staging — PRÉ correção (referência histórica)
 
 | Check | Resultado |
 |-------|-----------|
@@ -107,17 +107,34 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 | E2E estrito contra staging (card "Faturamento" via RPC real) | ✅ PASS |
 | Homologação P1.1 (PR #26, merge `cea99c9`) | ✅ CLOSED |
 
-**Limitação:** staging foi aplicado contra um schema que **não espelha produção** em `service_execution_participants`. A homologação estrita provou o K9 contra `professional_id`; em produção o K9 usa `staff_id`.
+**Limitação (então vigente):** staging tinha schema **divergente** de produção em `service_execution_participants` — homologação provou o K9 contra `professional_id`, produção usa `staff_id`.
 
-**Ação:** replicar a correção do schema em staging **antes** de qualquer validação de produção.
+---
+
+## 5.1 Evidências de Staging — PÓS correção (Opção A, 2026-09-06)
+
+| Check | Resultado |
+|-------|-----------|
+| Migration P1.3 corrigida (`sep.staff_id` nas 2 posições do K9 + `REVOKE ... FROM anon, service_role`) aplicada em staging | ✅ HTTP 201, re-aplicável (`CREATE OR REPLACE`) |
+| Alignment migration `20260906000000` (`ADD COLUMN staff_id` + backfill guardado + índice) aplicada em staging | ✅ HTTP 201 |
+| `service_execution_participants` pós-alinhamento | ✅ 11 colunas (originais + `staff_id`), índice `idx_service_execution_participants_staff` presente, 0 linhas (backfill trivially consistente) |
+| ACL da função em staging | ✅ `anon` EXECUTE = **false**, `service_role` EXECUTE = **false**, `authenticated` EXECUTE = **true** |
+| `prosrc` da função em staging | ✅ contém `sep.staff_id` (pos. 10450); **zero** referências a `sep.professional_id` |
+| Alias de saída `professional_id` (contrato `kpiTypes.ts`) | ✅ preservado — sem mudança de contrato RPC |
+| Testes unitários no código corrigido | ✅ **27/27 PASS** (13 equivalência + 14 segurança, 376ms) |
+| E2E estrito contra staging (card "Faturamento" via RPC real, banner degradação ausente) | ✅ **PASS** (8.6s) |
+| Produção | 🚫 **INTOCADA** — nenhuma alteração aplicada (`ushsn...`) |
+
+**Nota sobre o drift:** o alinhamento em staging espelha produção (`staff_id` como fonte). O migration `20260418100000` (repo) continua histórico-imutável com `professional_id`; a alignment migration registra o drift para ambientes futuros. Em produção a migration P1.3 corrigida é **no-op-compatível** (`CREATE OR REPLACE` + coluna `staff_id` já existente).
 
 ---
 
 ## 6. Equivalência dos KPIs
 
 - ✅ **13/13 equivalência** (K1–K6 vs old selector, |Δ| ≤ 0.01) + **14/14 segurança** re-executados no estado fundido (`cea99c9`) — 2026-09-06.
+- ✅ **Re-executados no código corrigido** (K9 `sep.staff_id`) — **27/27 PASS** (376ms), certificado de equivalência mantido após a correção.
 - Diferenças intencionais documentadas (D-EST-01 reversões, D-RET-01 retenção `completed`, crescimento fração vs %).
-- **Risco residual:** a correção do K9 (troca `professional_id` → `staff_id`) **não altera semântica** (mesma FK `public.staff(id)`), mas exige re-execução dos testes de equivalência para manter o certificado.
+- **Risco residual:** nenhum — a troca `professional_id` → `staff_id` é a **mesma FK** `public.staff(id)`, semântica idêntica, e o certificado foi re-executado.
 
 ---
 
@@ -140,19 +157,17 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 
 ---
 
-## 9. Correção Proposta (próximo passo, aguarda decisão do PO)
+## 9. Correção Executada (Opção A — autorizada pelo PO, 2026-09-06)
 
-**Opção A (recomendada) — corregir a migration P1.3 + alinhar staging:**
-1. Substituir `sep.professional_id` por `sep.staff_id` nas 2 posições do K9 (mesma FK, semântica idêntica).
-2. Adicionar `REVOKE EXECUTE ... FROM anon, service_role;` ao bloco de grants.
-3. Re-aplicar a migration corrigida em staging e validar novamente (re-execução 27/27 testes + E2E estrito).
-4. Só então apresentar novo pedido de aplicação em produção.
+**Opção A — corregir a migration P1.3 + alinhar staging:**
+1. ✅ Substituído `sep.professional_id` por `sep.staff_id` nas 2 posições do K9 (mesma FK, semântica idêntica).
+2. ✅ Adicionado `REVOKE EXECUTE ... FROM anon, service_role;` ao bloco de grants.
+3. ✅ Re-aplicada a migration corrigida em staging + **alignment migration** `20260906000000` (espelha produção: `staff_id` + índice).
+4. ✅ Revalidado: **27/27 testes PASS + E2E estrito PASS contra staging** (card "Faturamento" via RPC real, banner de degradação ausente).
 
-**Opção B — investigar/registrar primeiro o drift:**
-- Auditar como `staff_id`/`payout_amount_calculated` entrou em produção sem migration (hotfix manual?).
-- Recomendado: registrar ADR ou almeno documento de drift antes de qualquer aplicação (a coluna `payout_amount_calculated` também só existe em produção — outro sinal de alteração fora do fluxo).
+**Opção B (registro do drift):** a alignment migration documenta o drift (`staff_id`/`payout_amount_calculated` só em produção); auditoria de como entrou sem migration permanece como item de segurança (fora do escopo desta decisão).
 
-**Opção C — não aplicar agora:** manter P1.3 produção = STOP até decisão.
+**Opção C (não aplicar):** descartada — PO autorizou explicitamente a Opção A para staging.
 
 ---
 
@@ -161,9 +176,9 @@ REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon, serv
 | Estado | Valor |
 |--------|-------|
 | P1.1 | **CLOSED** (merge `cea99c9`, fechamento documental `8bed19a`) |
-| P1.3 staging | **VALIDATED** (schema divergente — revalidar após correção) |
-| P1.3 produção | **STOP — HOLD por schema drift bloqueante** |
+| P1.3 staging | **REVALIDATED** (schema alinhado, RPC corrigido, 27/27 testes + E2E estrito PASS) |
+| P1.3 produção | **STOP — aguarda decisão do PO** (migration corrigida pronta; aplicação exige autorização explícita) |
 
 ---
 
-**Aguardando decisão do PO sobre a Opção de correção (A/B/C). Nenhuma alteração será aplicada em produção sem autorização explícita.**
+**Opção A concluída e revalidada em staging. Produção permanece STOP — aguardando decisão explícita do PO sobre a aplicação da migration P1.3 corrigida em `ushsnmlbeurfvlkieiln`.**
