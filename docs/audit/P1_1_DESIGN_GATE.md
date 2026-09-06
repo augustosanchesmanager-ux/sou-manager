@@ -154,3 +154,16 @@ staging
     ↓
 PR
 ```
+
+---
+
+## 11. Fechamento (2026-09-06)
+
+**P1.1 ENCERRADA.** Merge autorizado pelo PO.
+
+- **PR #26 merged** (`feature/p1-1-central-de-relatorios` → `feature/p1-3-canonical-kpis`, merge `cea99c9`, 2026-09-06T06:50:02Z).
+- **Homologação staging:** migration P1.3 `20260905000000_get_dashboard_kpis.sql` aplicada **exclusivamente no staging** (`tjcvuhynckocmvtqykxp`, autorização explícita do PO) + registro em `supabase_migrations.schema_migrations`. RPC confirmado (`to_regprocedure` OK; `authenticated` EXECUTE). E2E estrito contra staging PASS — card "Faturamento" renderizado via RPC real, banner de degradação ausente.
+- **Validação pós-merge:** typecheck 72 = 72 pré-existentes (zero novos); build PASS (14.06s, EXIT 0).
+- **Produção NÃO tocada** — migration P1.3 não aplicada em produção; qualquer ação em produção permanece sujeita a autorização explícita do PO.
+
+STATUS: CONTINUE (aguardando decisão do PO para avanço em produção).
