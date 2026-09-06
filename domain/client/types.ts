@@ -33,6 +33,21 @@ export interface UpdateClientInput {
   birthday?: string;
 }
 
+export interface ClientImportRow {
+  rowNumber: number;
+  name: string;
+  phone: string;
+  email: string;
+  birthday: string;
+}
+
+export interface ImportJobResult {
+  jobId: string;
+  totalRows: number;
+  importedRows: number;
+  skippedRows: number;
+}
+
 export interface OpenComandaSummary {
   id: string;
   total: number;
