@@ -636,6 +636,100 @@ describe('AppointmentApplicationService', () => {
           'tenant-1',
         );
       });
+
+      // ═══ M4-P1: decisão obrigatória REMARCAR/ESTORNAR quando há pagamento ═══
+      it('should_throw_PAYMENT_DECISION_REQUIRED_when_comanda_has_payments_and_no_decision', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([{ id: 'com-1', status: 'open' }]);
+        mockRpc.mockImplementation((rpcName: string) => {
+          if (rpcName === 'check_comanda_has_valid_payments') {
+            return Promise.resolve({ data: { has_valid_payments: true, payment_count: 1 }, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        });
+
+        await expect(
+          cancelAppointment({
+            tenantId: 'tenant-1',
+            appointmentId: 'apt-1',
+            cancellationType: 'client_request',
+            userId: 'user-1',
+          }),
+        ).rejects.toMatchObject({ code: 'PAYMENT_DECISION_REQUIRED' });
+
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should_keep_open_comandas_with_payments_when_paymentDecision_is_remarcar', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([{ id: 'com-1', status: 'open' }]);
+        mockRpc.mockImplementation((rpcName: string) => {
+          if (rpcName === 'check_comanda_has_valid_payments') {
+            return Promise.resolve({ data: { has_valid_payments: true, payment_count: 1 }, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        });
+
+        await cancelAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          cancellationType: 'client_request',
+          paymentDecision: 'remarcar',
+          userId: 'user-1',
+        });
+
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
+        expect(mockRpc).not.toHaveBeenCalledWith(
+          'reverse_comanda_payment',
+          expect.anything(),
+        );
+      });
+
+      it('should_reverse_payments_and_cancel_comanda_when_paymentDecision_is_estornar', async () => {
+        mockAppointmentCancel.mockResolvedValue(undefined);
+        mockComandaUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([{ id: 'com-1', status: 'open' }]);
+        mockRpc.mockImplementation((rpcName: string) => {
+          if (rpcName === 'check_comanda_has_valid_payments') {
+            return Promise.resolve({ data: { has_valid_payments: true, payment_count: 1 }, error: null });
+          }
+          if (rpcName === 'get_comanda_payment_summary') {
+            return Promise.resolve({
+              data: { payments: [{ id: 'payment-1', amount: 50 }] },
+              error: null,
+            });
+          }
+          if (rpcName === 'reverse_comanda_payment') {
+            return Promise.resolve({ data: { success: true, comanda_payment_id: 'payment-1' }, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        });
+
+        await cancelAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          cancellationType: 'client_request',
+          cancellationReason: 'Cliente desistiu',
+          paymentDecision: 'estornar',
+          userId: 'user-1',
+        });
+
+        expect(mockRpc).toHaveBeenCalledWith(
+          'reverse_comanda_payment',
+          expect.objectContaining({
+            p_tenant_id: 'tenant-1',
+            p_comanda_payment_id: 'payment-1',
+            p_refund_method: 'internal_credit',
+            p_actor_id: 'user-1',
+          }),
+        );
+        expect(mockComandaUpdate).toHaveBeenCalledWith(
+          'com-1',
+          expect.objectContaining({ status: 'cancelled', cancellation_type: 'client_request' }),
+          'tenant-1',
+        );
+      });
     });
   });
 

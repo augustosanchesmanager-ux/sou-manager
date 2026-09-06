@@ -73,6 +73,11 @@ export interface CancelAppointmentParams {
     cancellationType: 'client_request' | 'no_show' | 'registration_error' | 'test' | 'other';
     cancellationReason?: string;
     userId: string;
+    /**
+     * M4-P1: 'remarcar' preserva comandas com pagamento válido (cancela apenas as sem pagamento);
+     * 'estornar' reverte pagamentos (append-only) e cancela todas. Obrigatório quando há pagamento válido.
+     */
+    paymentDecision?: 'remarcar' | 'estornar';
 }
 
 export interface RescheduleAppointmentParams {

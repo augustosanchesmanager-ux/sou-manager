@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
+import {
+    REFUND_METHODS,
+    DEFAULT_REFUND_METHOD,
+    getTenantRefundMethod,
+    upsertTenantRefundMethod,
+    type RefundMethod,
+} from '../src/lib/finance/refundConfig';
 
 const BR_STATES = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -83,7 +90,7 @@ const validateProfileFields = (profile: Record<string, string>) => {
 };
 
 const Settings: React.FC = () => {
-    const { user, tenantId } = useAuth();
+    const { user, tenantId, accessRole: authAccessRole } = useAuth();
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [cepLoading, setCepLoading] = useState(false);
@@ -274,6 +281,47 @@ const Settings: React.FC = () => {
 
         void fetchGoals();
     }, [tenantId]);
+
+    // M4-P8: configuração de reembolso (refund_method por tenant)
+    const [refundMethod, setRefundMethod] = useState<RefundMethod>(DEFAULT_REFUND_METHOD);
+    const [refundLoading, setRefundLoading] = useState(false);
+    const [refundSaving, setRefundSaving] = useState(false);
+    const [refundMessage, setRefundMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const isManagement = authAccessRole === 'manager' || authAccessRole === 'superadmin';
+
+    useEffect(() => {
+        if (!tenantId || !isManagement) return;
+
+        const fetchRefundMethod = async () => {
+            setRefundLoading(true);
+            try {
+                const result = await getTenantRefundMethod({ tenantId, supabase });
+                setRefundMethod(result.refundMethod);
+            } catch (err) {
+                console.error('[Settings][P8] Erro ao carregar método de reembolso:', err);
+            } finally {
+                setRefundLoading(false);
+            }
+        };
+
+        void fetchRefundMethod();
+    }, [tenantId, isManagement]);
+
+    const handleSaveRefundMethod = async () => {
+        if (!tenantId) return;
+
+        setRefundSaving(true);
+        setRefundMessage(null);
+
+        try {
+            await upsertTenantRefundMethod({ tenantId, refundMethod, supabase });
+            setRefundMessage({ type: 'success', text: 'Método de reembolso atualizado com sucesso.' });
+        } catch (err) {
+            setRefundMessage({ type: 'error', text: (err as Error).message || 'Erro ao salvar método de reembolso.' });
+        } finally {
+            setRefundSaving(false);
+        }
+    };
 
     const handleSaveGoals = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -857,6 +905,51 @@ const Settings: React.FC = () => {
                     </button>
                 </form>
             </section>
+
+            {/* M4-P8: Refund Method Section */}
+            {isManagement && (
+                <section className="bg-white dark:bg-card-dark p-8 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden relative">
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="material-symbols-outlined text-primary">currency_exchange</span>
+                        <h3 className="font-bold text-slate-900 dark:text-white text-lg">Configuração de Reembolso</h3>
+                    </div>
+
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-xl">
+                        Define como os reembolsos de pagamentos cancelados serão processados por padrão
+                        (estorno de antecipação/parcial em cancelamentos de agendamento).
+                    </p>
+
+                    <div className="space-y-4 max-w-xl">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Método de reembolso padrão</label>
+                            <select
+                                value={refundMethod}
+                                onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
+                                disabled={refundLoading || refundSaving}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-primary focus:border-transparent"
+                            >
+                                {REFUND_METHODS.map((method) => (
+                                    <option key={method.value} value={method.value}>{method.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {refundMessage && (
+                            <p className={`text-sm font-medium ${refundMessage.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {refundMessage.text}
+                            </p>
+                        )}
+
+                        <button
+                            onClick={handleSaveRefundMethod}
+                            disabled={refundLoading || refundSaving}
+                            className="px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                        >
+                            {refundSaving ? 'Salvando...' : 'Salvar configuração'}
+                        </button>
+                    </div>
+                </section>
+            )}
 
             {/* Usage Stats Section */}
             <section className="bg-white dark:bg-card-dark p-8 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden relative">

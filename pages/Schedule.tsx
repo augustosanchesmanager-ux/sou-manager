@@ -33,6 +33,7 @@ import {
 } from '../services/scheduleBlocksApi';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import { buildWhatsAppUrl } from '../src/lib/utils/phone';
+import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
 
 
 
@@ -76,6 +77,8 @@ interface CalendarAppointment {
   source?: string | null;
   channel?: string | null;
   isOverbooked?: boolean;
+  attendedAt?: string | null;
+  attendedAtSource?: string | null;
 }
 
 type DisplayMode = 'calendar' | 'list';
@@ -203,6 +206,13 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
   const [year, month, day] = value.split('-').map(Number);
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+};
+
+const toLocalDatetimeInput = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 const Schedule: React.FC = () => {
@@ -352,7 +362,16 @@ const Schedule: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
+  const [showPaymentDecisionModal, setShowPaymentDecisionModal] = useState(false);
   const cancelModalRef = useRef<HTMLDivElement>(null);
+
+  // P4 — Correção retroativa de attended_at (apenas gestão)
+  const isManagementRole = accessRole === 'manager' || accessRole === 'superadmin';
+  const [correctionAppointment, setCorrectionAppointment] = useState<CalendarAppointment | null>(null);
+  const [correctionDatetime, setCorrectionDatetime] = useState('');
+  const [correctionMotivo, setCorrectionMotivo] = useState('');
+  const [correctionBusy, setCorrectionBusy] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (showCancelModal && cancelModalRef.current) {
@@ -672,6 +691,8 @@ const Schedule: React.FC = () => {
           source: apt.source || null,
           channel: apt.channel || null,
           isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
+          attendedAt: apt.attended_at || null,
+          attendedAtSource: apt.attended_at_source || null,
         };
       });
       setAppointments(mapped);
@@ -1050,7 +1071,7 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleCancelAppointment = async (appointmentId: string) => {
+  const handleCancelAppointment = async (appointmentId: string, paymentDecision?: 'remarcar' | 'estornar') => {
     if (!tenantId) {
       setToast({ message: 'Tenant inválido para cancelar agendamento.', type: 'error' });
       return;
@@ -1063,6 +1084,7 @@ const Schedule: React.FC = () => {
         cancellationType: (cancellationType as any) || 'client_request',
         cancellationReason: cancelReason || 'Não informado',
         userId: user?.id || '',
+        paymentDecision,
       });
 
       setToast({ message: 'Agendamento cancelado com sucesso.', type: 'info' });
@@ -1070,6 +1092,10 @@ const Schedule: React.FC = () => {
       fetchAppointments();
     } catch (err) {
       console.error('Error cancelling appointment:', err);
+      if (err instanceof AppointmentError && err.code === 'PAYMENT_DECISION_REQUIRED') {
+        setShowPaymentDecisionModal(true);
+        return;
+      }
       setToast({ message: 'Erro ao cancelar agendamento.', type: 'error' });
     }
   };
@@ -1081,11 +1107,62 @@ const Schedule: React.FC = () => {
     setShowCancelModal(true);
   };
 
-  const confirmCancelAppointment = async () => {
+  const confirmCancelAppointment = async (paymentDecision?: 'remarcar' | 'estornar') => {
     if (!appointmentToCancel) return;
     setShowCancelModal(false);
-    await handleCancelAppointment(appointmentToCancel.id);
+    if (paymentDecision) {
+      setShowPaymentDecisionModal(false);
+    }
+    await handleCancelAppointment(appointmentToCancel.id, paymentDecision);
     setAppointmentToCancel(null);
+  };
+
+  const openCorrectionModal = (appointment: CalendarAppointment) => {
+    setCorrectionAppointment(appointment);
+    setCorrectionDatetime(appointment.attendedAt ? toLocalDatetimeInput(appointment.attendedAt) : toLocalDatetimeInput(appointment.startTime));
+    setCorrectionMotivo('');
+    setCorrectionError(null);
+  };
+
+  const submitAttendanceCorrection = async () => {
+    if (!correctionAppointment || !tenantId) return;
+
+    const motivo = correctionMotivo.trim();
+    if (!motivo) {
+      setCorrectionError('O motivo é obrigatório para corrigir o atendimento.');
+      return;
+    }
+
+    const newAttendedAt = new Date(correctionDatetime);
+    if (!correctionDatetime || Number.isNaN(newAttendedAt.getTime())) {
+      setCorrectionError('Informe uma data e hora válidas para o atendimento.');
+      return;
+    }
+
+    const apptId = correctionAppointment.id;
+    setCorrectionBusy(true);
+    setCorrectionError(null);
+    try {
+      const result = await correctAppointmentAttendance({
+        tenantId,
+        appointmentId: apptId,
+        newAttendedAt: newAttendedAt.toISOString(),
+        motivo,
+        supabase,
+      });
+      const correctedAt = result.correctedAttendedAt || newAttendedAt.toISOString();
+      setAppointments((prev) => prev.map((apt) => apt.id === apptId ? { ...apt, attendedAt: correctedAt, attendedAtSource: 'management_correction' } : apt));
+      setSelectedAppointment((prev) => prev && prev.id === apptId ? { ...prev, attendedAt: correctedAt, attendedAtSource: 'management_correction' } : prev);
+      setCorrectionAppointment(null);
+      setCorrectionDatetime('');
+      setCorrectionMotivo('');
+      setToast({ message: result.message || 'Atendimento corrigido com sucesso.', type: 'success' });
+    } catch (err) {
+      console.error('Erro ao corrigir atendimento:', err);
+      setCorrectionError(err instanceof Error ? err.message : 'Erro ao corrigir o atendimento.');
+    } finally {
+      setCorrectionBusy(false);
+    }
   };
 
   const doesBlockMatchDateAndStaff = (block: ScheduleBlock, dateKey: string, staffId: string) => {
@@ -1595,7 +1672,7 @@ const Schedule: React.FC = () => {
       .in('appointment_id', appointmentIds);
 
     if (comandasError) {
-      console.warn('Erro ao carregar comandas para exportacao da agenda:', comandasError);
+      console.warn('Erro ao carregar comandas para exportação da agenda:', comandasError);
     }
 
     const comandaRows = (comandas || []) as any[];
@@ -1613,7 +1690,7 @@ const Schedule: React.FC = () => {
       : { data: [] as any[], error: null };
 
     if (itemsError) {
-      console.warn('Erro ao carregar itens para exportacao da agenda:', itemsError);
+      console.warn('Erro ao carregar itens para exportação da agenda:', itemsError);
     }
 
     const itemRows = (items || []) as any[];
@@ -1627,7 +1704,7 @@ const Schedule: React.FC = () => {
       : { data: [] as any[], error: null };
 
     if (participantsError) {
-      console.warn('Erro ao carregar participantes para exportacao da agenda:', participantsError);
+      console.warn('Erro ao carregar participantes para exportação da agenda:', participantsError);
     }
 
     const participantRows = (participants || []) as any[];
@@ -1831,10 +1908,27 @@ const Schedule: React.FC = () => {
     if (!tenantId) return;
 
     try {
+      // P4/P5/M4: "Finalizar" (completed) agora registra attended_at = now() via
+      // confirm_appointment_attendance (gate: barbeiro-próprio, recepção, gestão).
+      // O antigo caminho changeStatus('completed') não preenchia attended_at.
+      if (nextStatus === 'completed') {
+        const result = await confirmAppointmentAttendance({
+          tenantId,
+          appointmentId: appointment.id,
+          supabase,
+        });
+        const finalStatus = result.status || 'completed';
+        const attendedAt = result.attendedAt || new Date().toISOString();
+        setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: finalStatus, color: statusColors[finalStatus] || apt.color, attendedAt, attendedAtSource: null } : apt));
+        setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: finalStatus, color: statusColors[finalStatus] || prev.color, attendedAt, attendedAtSource: null } : prev);
+        setToast({ message: result.message || 'Atendimento finalizado com sucesso.', type: 'success' });
+        return;
+      }
+
       await appointmentApplicationService.changeStatus({
         tenantId,
         appointmentId: appointment.id,
-        newStatus: nextStatus as 'confirmed' | 'in_progress' | 'completed',
+        newStatus: nextStatus as 'confirmed' | 'in_progress',
       });
 
       setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: nextStatus, color: statusColors[nextStatus] || apt.color } : apt));
@@ -1842,7 +1936,7 @@ const Schedule: React.FC = () => {
       setToast({ message: `${confirmationLabel} com sucesso.`, type: 'success' });
     } catch (err) {
       console.error('Erro ao atualizar status do agendamento:', err);
-      setToast({ message: 'Erro ao atualizar status do agendamento.', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Erro ao atualizar status do agendamento.', type: 'error' });
     }
   };
 
@@ -3361,6 +3455,18 @@ Podemos confirmar? 😄`;
               </div>
             </div>
 
+            {isManagementRole && selectedAppointmentDetails.status === 'completed' && (
+              <div>
+                <button
+                  onClick={() => { if (selectedAppointmentDetails) openCorrectionModal(selectedAppointmentDetails); }}
+                  className="w-full px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-bold hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors inline-flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">edit_calendar</span>
+                  Corrigir Atendimento
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Horário</p>
@@ -3386,6 +3492,11 @@ Podemos confirmar? 😄`;
                 <p className="text-sm font-black text-slate-900 dark:text-white">
                   {selectedAppointmentDetails.status === 'in_progress' ? 'Iniciado' : selectedAppointmentDetails.isOverdue ? 'Atrasado' : selectedAppointmentDetails.statusLabel}
                 </p>
+                {selectedAppointmentDetails.attendedAt && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Atendido em {new Date(selectedAppointmentDetails.attendedAt).toLocaleString('pt-BR')}
+                  </p>
+                )}
               </div>
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status da Comanda</p>
@@ -3399,6 +3510,79 @@ Podemos confirmar? 😄`;
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Observações</p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAppointmentDetails.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!correctionAppointment}
+        onClose={() => { if (!correctionBusy) { setCorrectionAppointment(null); setCorrectionError(null); } }}
+        title="Corrigir Atendimento"
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <button
+              onClick={() => { if (!correctionBusy) { setCorrectionAppointment(null); setCorrectionError(null); } }}
+              disabled={correctionBusy}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors disabled:opacity-50"
+            >
+              Voltar
+            </button>
+            <button
+              onClick={() => void submitAttendanceCorrection()}
+              disabled={correctionBusy}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {correctionBusy ? 'Salvando...' : 'Confirmar Correção'}
+            </button>
+          </div>
+        }
+      >
+        {correctionAppointment && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
+              <p className="text-sm font-black text-slate-900 dark:text-white">{correctionAppointment.client}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {correctionAppointment.service} com {correctionAppointment.staffName || 'profissional não informado'}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {new Date(correctionAppointment.startTime).toLocaleDateString('pt-BR')} às {getDecimalTimeLabel(correctionAppointment.start)}
+              </p>
+              {correctionAppointment.attendedAt && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Atendido em {new Date(correctionAppointment.attendedAt).toLocaleString('pt-BR')}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nova data e hora do atendimento</label>
+              <input
+                type="datetime-local"
+                value={correctionDatetime}
+                onChange={(e) => setCorrectionDatetime(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                Motivo da correção <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={correctionMotivo}
+                onChange={(e) => setCorrectionMotivo(e.target.value)}
+                placeholder="Descreva o motivo da correção"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            {correctionError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30">
+                <p className="text-xs font-bold text-red-700 dark:text-red-400">{correctionError}</p>
               </div>
             )}
           </div>
@@ -3476,6 +3660,50 @@ Podemos confirmar? 😄`;
                 className="px-4 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirmar Cancelamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentDecisionModal && appointmentToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPaymentDecisionModal(false)} />
+          <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Pagamento detectado</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                O agendamento de <span className="font-semibold">{appointmentToCancel.client}</span> possui comanda(s)
+                com pagamento válido. Escolha como tratar o pagamento antes de cancelar.
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800 font-medium">
+                ⚠️ <strong>Remarcar</strong> mantém a comanda aberta e o pagamento preservado (recomendado se o
+                cliente vai voltar). <strong>Estornar</strong> reverte o pagamento (crédito interno) e cancela a
+                comanda.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => setShowPaymentDecisionModal(false)}
+                className="px-4 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => void confirmCancelAppointment('estornar')}
+                className="px-4 py-3 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors"
+              >
+                Estornar
+              </button>
+              <button
+                onClick={() => void confirmCancelAppointment('remarcar')}
+                className="px-4 py-3 rounded-xl bg-[#007BFF] text-white text-sm font-bold hover:bg-[#0067D6] transition-colors col-span-2"
+              >
+                Remarcar (manter pagamento)
               </button>
             </div>
           </div>
