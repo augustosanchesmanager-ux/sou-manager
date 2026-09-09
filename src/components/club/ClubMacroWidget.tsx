@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMembershipOverview } from '../../hooks/useMembershipOverview';
 import { formatCurrency } from '../../../shared/format/currency';

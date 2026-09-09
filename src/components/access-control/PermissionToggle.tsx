@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import type { PermissionDefinition, PermissionRole } from '../../lib/permissions/types';
 import { getPermissionByKey } from '../../lib/permissions/definitions';
 

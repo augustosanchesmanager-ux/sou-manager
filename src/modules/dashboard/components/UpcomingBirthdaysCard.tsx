@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { UpcomingBirthday } from '../types';
 
 export const UpcomingBirthdaysCard: React.FC<{

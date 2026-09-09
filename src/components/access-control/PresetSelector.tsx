@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import type { PermissionPreset, PermissionRole } from '../../lib/permissions/types';
 import { getPresetsByRole } from '../../lib/permissions/presets';
 import Button from '../../../components/ui/Button';

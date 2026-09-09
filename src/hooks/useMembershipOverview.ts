@@ -114,7 +114,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
       let activeCount = 0;
       let pastDueCount = 0;
       let canceledCount = 0;
-      let totalSubscribers = rawSubscriptions.length;
+      const totalSubscribers = rawSubscriptions.length;
 
       const collectionQueue: CollectionQueueItem[] = [];
 

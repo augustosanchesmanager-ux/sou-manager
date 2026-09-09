@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import Modal from '../../../../components/ui/Modal';
 import type { DashboardAppointment } from '../types';
 import { getAppointmentStatusMeta } from '../../../../shared/status/appointment';

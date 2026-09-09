@@ -232,7 +232,7 @@ function MetricCard({ icon, label, value, accent, sub }: { icon: string; label: 
   );
 }
 
-function TabButton({ active, icon, label, onClick }: { active: boolean; icon: string; label: string; onClick: () => void }) {
+function TabButton({ active, icon, label, onClick }: { key?: string | number; active: boolean; icon: string; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -638,7 +638,7 @@ function UpcastersTab() {
   );
 }
 
-function VersionDiffCard({ diff, onClick }: { diff: EventVersionDiff; onClick: () => void }) {
+function VersionDiffCard({ diff, onClick }: { key?: string | number; diff: EventVersionDiff; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
