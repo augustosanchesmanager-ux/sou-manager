@@ -127,7 +127,10 @@ describe('EventInfrastructure', () => {
 
   // 🔒 B3.4-G Tests: Activation Routing
 
-  it.skipIf(hasSupabase)('should_enqueue_only_commission_operation_targeting_finance_provider', async () => {
+  // D7: CheckoutCompleted is handled atomically by composite RPC
+  // (finance_settle_comanda_and_enqueue). FinanceSubscriber must NOT create
+  // a second outbox item — CommissionOnlyFinanceStrategy returns [].
+  it.skipIf(hasSupabase)('should_NOT_enqueue_for_checkout_completed_d7_rpc_handles_it', async () => {
     const infra = initializeEventInfrastructure();
 
     await appEventBus.publish(
@@ -151,10 +154,10 @@ describe('EventInfrastructure', () => {
       }),
     );
 
+    // D7 activation gate: CommissionOnlyFinanceStrategy returns [] for
+    // CheckoutCompleted. The composite RPC handles commission enqueue atomically.
     const pending = await infra.outbox.find({ status: 'pending' });
-    expect(pending).toHaveLength(1);
-    expect(pending[0].targets[0].provider).toBe('finance');
-    expect(pending[0].payload.operationType).toBe('create_commission_record');
+    expect(pending).toHaveLength(0);
 
     disposeEventInfrastructure();
   });
