@@ -1,14 +1,3 @@
-# CI - Quality Gates (ADR-022, Phase 6.1)
-#
-# Mandatory gates: typecheck, build, unit, architecture:ci
-# Advisory gate: lint (non-blocking)
-#
-# Triggers: pull_request, push to main
-#
-# Structure: parallel jobs + final aggregated validate job.
-# Each gate runs in an isolated job; the validate job only succeeds
-# when all mandatory gates pass.
-
 name: CI
 
 on:
@@ -27,7 +16,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Gate: typecheck
+      - name: Gate typecheck
         run: npm run typecheck
 
   build:
@@ -40,7 +29,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Gate: build
+      - name: Gate build
         run: npm run build
 
   unit:
@@ -53,7 +42,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Gate: unit
+      - name: Gate unit
         run: npm run test
 
   architecture:
@@ -66,11 +55,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Gate: architecture:ci
+      - name: Gate architecture
         run: npm run architecture:ci
 
   lint:
-    name: lint (advisory)
+    name: lint advisory
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -80,17 +69,14 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Gate: lint
+      - name: Gate lint
         run: npm run lint
 
-  # Aggregated job: final pipeline status.
-  # Only runs after the 4 mandatory gates pass.
-  # lint is NOT mandatory (advisory) - not in needs.
   validate:
-    name: validate (aggregated)
+    name: validate
     runs-on: ubuntu-latest
     needs: [typecheck, build, unit, architecture]
     if: success()
     steps:
-      - name: All mandatory gates passed
-        run: echo "typecheck, build, unit, architecture:ci OK (ADR-022)"
+      - name: All gates passed
+        run: echo OK
