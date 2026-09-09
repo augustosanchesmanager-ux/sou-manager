@@ -1,27 +1,18 @@
-# CI — Política de CI/CD e Quality Gates (ADR-022, FASE 6 item 6.1)
+# CI - Quality Gates (ADR-022, Phase 6.1)
 #
-# Gates obrigatórios aprovados na política:
-#   - typecheck
-#   - build
-#   - unit
-#   - architecture:ci
+# Mandatory gates: typecheck, build, unit, architecture:ci
+# Advisory gate: lint (non-blocking)
 #
-# Gatilhos (aprovados no ADR-022):
-#   - pull_request
-#   - push em main
+# Triggers: pull_request, push to main
 #
-# Estrutura: jobs separados em paralelo + job agregado final.
-# Cada gate roda em um job isolado; o job agregado "validate" só conclui
-# o pipeline quando todos os gates obrigatórios passam.
-#
-# NOTA: gate vermelho BLOQUEIA o merge (política ADR-022 §9). Este workflow
-# reflete fielmente o estado do repositório; falhas nos gates são registradas
-# e bloqueiam a promoção até correção.
+# Structure: parallel jobs + final aggregated validate job.
+# Each gate runs in an isolated job; the validate job only succeeds
+# when all mandatory gates pass.
 
 name: CI
 
 on:
-  pull_request: {}
+  pull_request:
   push:
     branches:
       - main
@@ -93,15 +84,14 @@ jobs:
       - name: Gate: lint
         run: npm run lint
 
-  # Job agregado: condição final do pipeline.
-  # Roda somente após os 4 gates obrigatórios passarem (GitHub falha o `needs` se
-  # qualquer um for vermelho), consolidando o status geral em um único check.
-  # lint NÃO é obrigatório (advisory) — não entra no needs.
+  # Aggregated job: final pipeline status.
+  # Only runs after the 4 mandatory gates pass.
+  # lint is NOT mandatory (advisory) - not in needs.
   validate:
-    name: validate (agregado)
+    name: validate (aggregated)
     runs-on: ubuntu-latest
     needs: [typecheck, build, unit, architecture]
     if: success()
     steps:
-      - name: Todos os gates obrigatórios passaram
+      - name: All mandatory gates passed
         run: echo "typecheck, build, unit, architecture:ci OK (ADR-022)"
