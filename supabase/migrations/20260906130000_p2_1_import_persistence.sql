@@ -1,6 +1,8 @@
 -- ============================================================================
 -- P2.1 — Import Engine: Persistence Layer (Clients)
--- Draft CORRIGIDO pós-auditoria — NÃO APLICAR EM PRODUÇÃO
+-- VERSÃO FINAL CERTIFICADA (decisão PO 2026-09-10, D5)
+-- Substitui o draft. Corpo idêntico ao deployado em staging (verificado
+-- 2026-09-10: diff UTF-8 limpo, IGUAIS) e já em produção (baseline 6.1.1).
 -- Fixes aplicados: SEC-01 (race condition), SEC-02 (SQLERRM leak), SEC-03 (DoS limits)
 -- ============================================================================
 -- Tabelas: import_jobs, import_rows
