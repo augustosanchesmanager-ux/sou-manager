@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import type { PermissionDefinition, PermissionModule, PermissionRole } from '../../lib/permissions/types';
 import { MODULE_LABELS, MODULE_ICONS, getPermissionsByModule, getModulePermissionsCount } from '../../lib/permissions/definitions';
 import PermissionToggle from './PermissionToggle';

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { PermissionModule, PermissionRole } from '../../lib/permissions/types';
 import { getPermissionsByModule } from '../../lib/permissions/definitions';
 import ModuleSection from './ModuleSection';

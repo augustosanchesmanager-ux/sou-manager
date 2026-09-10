@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Link } from 'react-router-dom';
 import { formatAppointmentTime } from '../selectors';
 import type { DashboardAppointment } from '../types';

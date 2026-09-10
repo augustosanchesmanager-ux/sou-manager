@@ -2,7 +2,7 @@
  * [SMG][DOMAIN][CLIENT] repository
  *
  * RESPONSABILIDADE: Gerencia a entidade Client (tabela clients).
- *   Operações: list, getById, create, update, delete, exists, import.
+ *   Operações: list, getById, create, update, delete, exists, importViaJob.
  *
  * NÃO FAZ:
  *   - Orquestração de exclusão em cascata (DeleteClientService)
@@ -15,7 +15,8 @@
  * GARANTIAS:
  *   - Todas as operações filtram por tenant_id
  *   - Lança RepositoryError em falhas (nunca retorna { data, error })
- *   - create() retorna Client; update/delete/import retornam void; exists retorna boolean
+ *   - create() retorna Client; update/delete retornam void; exists retorna boolean;
+ *     importViaJob() chama o RPC transacional import_clients_batch (nunca INSERT direto)
  *   - Zero conhecimento de React, UI, navigate, toast
  */
 
@@ -23,7 +24,7 @@ import { SupabaseRepository } from '../shared/supabase-repository';
 import { createSupabaseClient } from '../shared/supabase-client-factory';
 import type { DatabaseClient } from '../shared/database-client';
 import type { IRepository } from '../shared/repository';
-import type { Client, CreateClientInput, UpdateClientInput } from './types';
+import type { Client, ClientImportRow, CreateClientInput, ImportJobResult, UpdateClientInput } from './types';
 import type { AppSlug } from '../shared/app';
 
 export { RepositoryError } from '../shared/errors';
@@ -130,21 +131,17 @@ class ClientRepositoryImpl extends SupabaseRepository {
     }
   }
 
-  async import(inputs: CreateClientInput[], tenantId: string): Promise<void> {
+  async importViaJob(jobId: string, rows: ClientImportRow[]): Promise<ImportJobResult> {
     try {
-      const toInsert = inputs.map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        birthday: c.birthday || null,
-        status: 'active',
-        tenant_id: tenantId,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random`,
-      }));
-      const result = await this.from().insert(toInsert);
-      this.extractData(result, 'Erro ao importar clientes');
+      if (rows.length === 0) return { jobId, totalRows: 0, importedRows: 0, skippedRows: 0 };
+      const result = await this.db.rpc('import_clients_batch', {
+        p_job_id: jobId,
+        p_rows: rows,
+      });
+      const data = this.extractData<ImportJobResult>(result, 'Erro ao importar clientes via job');
+      return { jobId, totalRows: data.totalRows, importedRows: data.importedRows, skippedRows: data.skippedRows };
     } catch (err) {
-      this.throwOnError(err, 'Erro ao importar clientes');
+      this.throwOnError(err, 'Erro ao importar clientes via job');
     }
   }
 
@@ -206,7 +203,7 @@ export interface ClientRepository extends IRepository<Client> {
   create(input: CreateClientInput, tenantId: string): Promise<Client>;
   update(id: string, input: UpdateClientInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;
-  import(inputs: CreateClientInput[], tenantId: string): Promise<void>;
+  importViaJob(jobId: string, rows: ClientImportRow[]): Promise<ImportJobResult>;
   getByIds(ids: string[], tenantId: string): Promise<Record<string, { id: string; name: string; phone: string }>>;
   getNameMap(ids: string[], tenantId: string): Promise<Record<string, string>>;
   getOneById(id: string, tenantId: string): Promise<{ id: string; name: string; phone: string } | null>;

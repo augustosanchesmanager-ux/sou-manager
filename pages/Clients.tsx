@@ -13,6 +13,7 @@ import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { formatCurrency } from '../shared/format/currency';
 import { clientRepository, RepositoryError } from '../domain/client';
+import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
 
 interface Client {
     id: string;
@@ -24,13 +25,6 @@ interface Client {
     total_spent: number;
     status: string;
     avatar: string;
-    birthday: string;
-}
-
-interface ParsedClient {
-    name: string;
-    phone: string;
-    email: string;
     birthday: string;
 }
 
@@ -90,7 +84,8 @@ const Clients: React.FC = () => {
     // Import/Export states
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [parsedData, setParsedData] = useState<ParsedClient[]>([]);
+    const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+    const [includeDuplicates, setIncludeDuplicates] = useState(false);
 
     useEffect(() => {
         const shouldOpenNew = Boolean((location.state as { openNewClient?: boolean } | null)?.openNewClient);
@@ -422,68 +417,58 @@ const Clients: React.FC = () => {
         document.body.removeChild(link);
     };
 
-    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
-                const data = results.data as any[];
-                const mapped: ParsedClient[] = [];
+        try {
+            const csvText = await file.text();
+            const existingKeys = new Set<string>(clients.filter((c) => c.phone.trim() !== '').map((c) => phoneDuplicateKey(c.phone)));
 
-                data.forEach(row => {
-                    const nameStr = row.Nome || row.nome || row.Name || row.name || row.Cliente;
-                    const phoneStr = row.Telefone || row.telefone || row.Phone || row.phone || row.Celular || '';
-                    const emailStr = row.Email || row.email || row['E-mail'] || '';
-                    const bdayStr = row.Aniversário || row.aniversário || row.Aniversario || row.nascimento || row.Birthday || '';
+            const preview = buildImportPreview({
+                definition: clientImportDefinition,
+                csvText,
+                fileBytes: file.size,
+                fileName: file.name,
+                existingKeys,
+            });
 
-                    if (nameStr) {
-                        // parse pt-BR date
-                        let isoDate = '';
-                        if (bdayStr.includes('/')) {
-                            const parts = bdayStr.split('/');
-                            if (parts.length === 3) isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                        } else if (bdayStr.includes('-')) {
-                            isoDate = bdayStr;
-                        }
-
-                        mapped.push({
-                            name: nameStr,
-                            phone: String(phoneStr).trim(),
-                            email: String(emailStr).trim(),
-                            birthday: isoDate,
-                        });
-                    }
-                });
-
-                if (mapped.length > 0) {
-                    setParsedData(mapped);
-                    setIsImportModalOpen(true);
-                } else {
-                    setToast({ message: 'Nenhum cliente válido encontrado no CSV.', type: 'error' });
-                }
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            },
-            error: (error) => {
-                setToast({ message: `Erro ao ler CSV: ${error.message}`, type: 'error' });
-                if (fileInputRef.current) fileInputRef.current.value = '';
+            if (preview.fileErrors.length > 0) {
+                setToast({ message: preview.fileErrors[0], type: 'error' });
+            } else if (preview.validRows.length === 0 && preview.duplicateRows.length === 0) {
+                setToast({ message: 'Nenhum cliente válido encontrado no CSV.', type: 'error' });
+            } else {
+                setIncludeDuplicates(false);
+                setImportPreview(preview);
+                setIsImportModalOpen(true);
             }
-        });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Erro ao ler o arquivo.';
+            setToast({ message: `Erro ao ler CSV: ${message}`, type: 'error' });
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
     const handleConfirmImport = async () => {
-        if (!tenantId) {
-            setToast({ message: 'Tenant inválido para importar clientes.', type: 'error' });
+        if (!importPreview) return;
+
+        const rowsToImport = includeDuplicates
+            ? [...importPreview.validRows, ...importPreview.duplicateRows]
+            : importPreview.validRows;
+
+        if (rowsToImport.length === 0) {
+            setToast({ message: 'Nenhum cliente válido para importar.', type: 'error' });
             return;
         }
+
+        setIsImportModalOpen(false);
         setLoading(true);
         try {
-            await clientRepository.import(parsedData, tenantId);
-            setToast({ message: `${parsedData.length} clientes importados com sucesso!`, type: 'success' });
-            setIsImportModalOpen(false);
-            setParsedData([]);
+            const jobId = crypto.randomUUID();
+            const result = await clientRepository.importViaJob(jobId, rowsToImport.map(toPersistableRow));
+            setImportPreview(null);
+            setToast({ message: `${result.importedRows} de ${result.totalRows} clientes importados com sucesso!`, type: 'success' });
             fetchClients();
         } catch (error) {
             const message = error instanceof RepositoryError ? error.message : 'Erro ao importar clientes.';
@@ -909,94 +894,97 @@ const Clients: React.FC = () => {
             {/* IMPORT PREVIEW MODAL */}
             <Modal
                 isOpen={isImportModalOpen}
-                onClose={() => { setIsImportModalOpen(false); setParsedData([]); }}
+                onClose={() => { setIsImportModalOpen(false); setImportPreview(null); }}
                 title="Conciliação de Base de Clientes"
                 maxWidth="3xl"
             >
-                <div className="space-y-4">
-                    <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                        <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Revisão de Dados</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-300">Encontramos <strong>{parsedData.length} clientes</strong> prontos para cadastro. Modifique os detalhes listados caso precise de algum ajuste fino, ou descarte para abortar a inserção no banco de dados.</p>
-                    </div>
+                {importPreview && (
+                    <div className="space-y-4">
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Revisão de Dados</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300">
+                                <strong>{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
+                                Nada é gravado até a confirmação.
+                            </p>
+                            <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
+                                <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{importPreview.validRows.length} válida(s)</span>
+                                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">{importPreview.duplicateRows.length} duplicada(s)</span>
+                                <span className="px-2 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">{importPreview.invalidRows.length} inválida(s)</span>
+                            </div>
+                            {importPreview.warnings.length > 0 && (
+                                <ul className="mt-2 text-[11px] text-amber-600 dark:text-amber-400 list-disc list-inside space-y-0.5">
+                                    {importPreview.warnings.slice(0, 5).map((w, i) => <li key={i}>{w}</li>)}
+                                </ul>
+                            )}
+                        </div>
 
-                    <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
-                        <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10 border-b border-slate-200 dark:border-border-dark">
-                                    <tr>
-                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nome Completo</th>
-                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Telefone</th>
-                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Email</th>
-                                        <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nascimento</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-sm">
-                                    {parsedData.map((row, i) => (
-                                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/5">
-                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
-                                                <input
-                                                    type="text"
-                                                    value={row.name}
-                                                    onChange={e => {
-                                                        const copy = [...parsedData];
-                                                        copy[i].name = e.target.value;
-                                                        setParsedData(copy);
-                                                    }}
-                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[150px]"
-                                                />
-                                            </td>
-                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
-                                                <input
-                                                    type="text"
-                                                    value={row.phone}
-                                                    onChange={e => {
-                                                        const copy = [...parsedData];
-                                                        copy[i].phone = e.target.value;
-                                                        setParsedData(copy);
-                                                    }}
-                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[130px]"
-                                                />
-                                            </td>
-                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
-                                                <input
-                                                    type="email"
-                                                    value={row.email}
-                                                    onChange={e => {
-                                                        const copy = [...parsedData];
-                                                        copy[i].email = e.target.value;
-                                                        setParsedData(copy);
-                                                    }}
-                                                    className="bg-transparent border-b border-transparent focus:border-primary focus:outline-none w-full min-w-[160px]"
-                                                />
-                                            </td>
-                                            <td className="px-4 py-3 text-slate-900 dark:text-slate-300">
-                                                <DatePickerInput
-                                                    value={row.birthday}
-                                                    onChange={e => {
-                                                        const copy = [...parsedData];
-                                                        copy[i].birthday = e.target.value;
-                                                        setParsedData(copy);
-                                                    }}
-                                                    className="bg-slate-50 dark:bg-[#1A1A1A] text-xs font-bold rounded p-1 outline-none text-slate-700 dark:text-slate-300"
-                                                    style={{ colorScheme: 'dark' }}
-                                                />
-                                            </td>
+                        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
+                            <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10 border-b border-slate-200 dark:border-border-dark">
+                                        <tr>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">#</th>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nome Completo</th>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Telefone</th>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Email</th>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nascimento</th>
+                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Status</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-sm">
+                                        {importPreview.rows.map((row) => (
+                                            <tr key={row.rowNumber} className="hover:bg-slate-50 dark:hover:bg-white/5">
+                                                <td className="px-4 py-3 text-xs text-slate-400">{row.rowNumber}</td>
+                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.name || '—'}</td>
+                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.phone || '—'}</td>
+                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.email || '—'}</td>
+                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.birthday || '—'}</td>
+                                                <td className="px-4 py-3">
+                                                    {row.status === 'valid' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase">Válida</span>
+                                                    )}
+                                                    {row.status === 'duplicate' && (
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase w-fit">Duplicada</span>
+                                                            {row.duplicateOf && <span className="text-[11px] text-amber-600 dark:text-amber-400">{row.duplicateOf}</span>}
+                                                        </div>
+                                                    )}
+                                                    {row.status === 'invalid' && (
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase w-fit">Inválida</span>
+                                                            {row.errors.map((e, i) => <span key={i} className="text-[11px] text-red-600 dark:text-red-400">{e}</span>)}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {importPreview.duplicateRows.length > 0 && (
+                            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={includeDuplicates}
+                                    onChange={(e) => setIncludeDuplicates(e.target.checked)}
+                                    className="size-4 accent-primary"
+                                />
+                                Incluir as {importPreview.duplicateRows.length} duplicada(s) sinalizada(s) mesmo assim
+                            </label>
+                        )}
+
+                        <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-border-dark mt-6">
+                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+                                Descartar Arquivo
+                            </button>
+                            <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
+                                {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)} Cliente(s)`}
+                            </button>
                         </div>
                     </div>
-
-                    <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-border-dark mt-6">
-                        <button type="button" onClick={() => { setIsImportModalOpen(false); setParsedData([]); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
-                            Descartar Arquivo
-                        </button>
-                        <button type="button" onClick={handleConfirmImport} disabled={loading} className="px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
-                            {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${parsedData.length} Clientes`}
-                        </button>
-                    </div>
-                </div>
+                )}
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
