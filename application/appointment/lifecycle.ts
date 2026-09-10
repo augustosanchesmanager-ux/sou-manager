@@ -208,7 +208,7 @@ export async function resolveFinalPrice(params: ResolveFinalPriceParams): Promis
 }
 
 export async function cancelAppointment(params: CancelAppointmentParams): Promise<void> {
-    const { tenantId, appointmentId, cancellationType, cancellationReason, userId } = params;
+    const { tenantId, appointmentId, cancellationType, cancellationReason, userId, paymentDecision } = params;
 
     if (!appointmentId) {
         throw new AppointmentError('ID do agendamento é obrigatório.', 'VALIDATION_ERROR');
@@ -242,12 +242,74 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         return true;
     });
 
+    // M4-P1: detecta comandas com pagamento válido (comanda_payments sem reversed_at).
+    // Se houver pagamento, o cancelamento exige decisão explícita: REMARCAR ou ESTORNAR.
+    const comandasWithPayment: typeof comandas = [];
+    for (const comanda of comandas) {
+        try {
+            const { data: paymentCheck } = await getRpcClient().rpc('check_comanda_has_valid_payments', {
+                p_tenant_id: tenantId,
+                p_comanda_id: comanda.id,
+            });
+            if (paymentCheck && (paymentCheck as any).has_valid_payments === true) {
+                comandasWithPayment.push(comanda);
+            }
+        } catch (err) {
+            console.warn('[SMG][APPOINTMENT][CANCEL] Falha ao verificar pagamentos da comanda:', {
+                comandaId: comanda.id,
+                appointmentId,
+                error: err,
+            });
+        }
+    }
+
+    if (comandasWithPayment.length > 0 && !paymentDecision) {
+        throw new AppointmentError(
+            'Pagamento detectado nas comandas vinculadas. Escolha REMARCAR (manter pagamento) ou ESTORNAR (reembolsar) antes de cancelar.',
+            'PAYMENT_DECISION_REQUIRED',
+        );
+    }
+
     const failedComandas: string[] = [];
 
     for (const comanda of comandas) {
         if (comanda.status === 'cancelled') {
             continue;
         }
+
+        // M4-P1 'remarcar': preserva comandas com pagamento válido (mantém open/blocked).
+        if (paymentDecision === 'remarcar' && comandasWithPayment.some((c) => c.id === comanda.id)) {
+            continue;
+        }
+
+        // M4-P1 'estornar': reverte pagamento antes de cancelar a comanda (append-only).
+        if (paymentDecision === 'estornar' && comandasWithPayment.some((c) => c.id === comanda.id)) {
+            try {
+                const { data: paymentSummary } = await getRpcClient().rpc('get_comanda_payment_summary', {
+                    p_tenant_id: tenantId,
+                    p_comanda_id: comanda.id,
+                });
+                const payments = (paymentSummary as any)?.payments || [];
+                for (const payment of payments) {
+                    await getRpcClient().rpc('reverse_comanda_payment', {
+                        p_tenant_id: tenantId,
+                        p_comanda_payment_id: payment.id,
+                        p_motivo: cancellationReason || `Cancelamento de agendamento (${cancellationType})`,
+                        p_refund_method: 'internal_credit',
+                        p_actor_id: userId,
+                    });
+                }
+            } catch (err) {
+                console.warn('[SMG][APPOINTMENT][CANCEL] Falha ao estornar pagamento da comanda:', {
+                    comandaId: comanda.id,
+                    appointmentId,
+                    error: err,
+                });
+                failedComandas.push(comanda.id);
+                continue;
+            }
+        }
+
         try {
             await comandaRepository.update(comanda.id, {
                 status: 'cancelled',
