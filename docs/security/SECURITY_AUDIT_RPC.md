@@ -189,6 +189,12 @@ GRANT EXECUTE ON FUNCTION public.my_function(uuid) TO authenticated;
 
 **Já tratado nesta data:** as funções do módulo Billing/Team Invitations da 6.0.4 (migration `20260806030000_fix_auth_staff_id_to_profiles.sql`).
 
+### Escopo expandido: Drift Audit inclui Function ACLs (PO, 2026-09-09)
+
+Decisão formal do PO durante investigação P2.1-OUTBOX-42501: o processo de **drift audit** do projeto deve incorporar a verificação de **privilegios de funções SECURITY DEFINER** e **Function ACLs** (`GRANT EXECUTE`). A auditoria de drift não se limita a schema/RLS — deve também detectar mudanças de grants em funções existentes (revogações, concessões indevidas, inclusão de `anon` em funções protegidas).
+
+**Ação:** incorporar esta verificação ao processo de drift audit habitual (junto com schema drift, RLS drift, etc.).
+
 ---
 
 ## Conclusion

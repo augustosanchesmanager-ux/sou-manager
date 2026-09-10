@@ -1,4 +1,4 @@
-import { type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSharedClient, supabase } from '../../../services/supabaseClient';
 import {
   getTotalAvailableCredits,

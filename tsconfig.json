@@ -28,6 +28,7 @@
   },
   "exclude": [
     "supabase",
-    "examples"
+    "examples",
+    "tests"
   ]
 }

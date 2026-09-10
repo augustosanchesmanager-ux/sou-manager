@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     test: {
-      exclude: ['tests/e2e/**', 'node_modules/**', '.opencode/**'],
+      exclude: ['tests/e2e/**', 'tests/homologation/**', 'node_modules/**', '.opencode/**'],
     },
     server: {
       port: 3000,

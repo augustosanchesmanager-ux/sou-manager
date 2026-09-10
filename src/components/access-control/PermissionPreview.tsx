@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import Modal from '../../../components/ui/Modal';
 import Button from '../../../components/ui/Button';
 import type { PermissionRole } from '../../lib/permissions/types';
