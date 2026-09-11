@@ -5,7 +5,7 @@
  * - credits.ts: resolveSubscription (4-phase pipeline), getAvailableCredits, hasAvailableCredits, deductCredits, deductCreditsBatch
  * - subscriptions.ts: createSubscription, updateSubscriptionStatus, changePlan, updateBillingDate, updateCreditMap
  * - receivables.ts: generateReceivables, payReceivable, settleReceivableWithDetails, refreshReceivableStatuses, getDisplayStatus, canPayReceivable, filterReceivables, computeReceivableTotals
- * - operations.ts: activatePlan, settleReceivable, pauseSubscription, resumeSubscription, cancelSubscription
+ * - operations.ts: activatePlan, settleReceivable, pauseSubscription, resumeSubscription, cancelSubscription, cancelSubscriptionWithReceivables
  * - loaders.ts: loadActivePlans, loadSubscriptionDetail, resolveMembershipContext, computePlanSummary
  *
  * Convention: should_<result>_when_<condition>
@@ -179,6 +179,7 @@ import {
     pauseSubscription,
     resumeSubscription,
     cancelSubscription,
+    cancelSubscriptionWithReceivables,
 } from './operations';
 import {
     loadActivePlans,
@@ -188,6 +189,8 @@ import {
     type ServiceOption,
 } from './loaders';
 import { ChefClubError } from './types';
+import { appEventBus } from '../../domain/events/app-bus';
+import type { SystemEvent } from '../../domain/events/types';
 
 // ─── Tests ───────────────────────────────────────────────────────
 
@@ -867,6 +870,273 @@ describe('ChefClubApplicationService', () => {
             await cancelSubscription('tenant-1', 'sub-1');
 
             expect(capturedPayload.status).toBe('canceled');
+        });
+    });
+
+    // ════════════════════════════════════════════════════════════════
+    // GROUP P0.3 — Cancel Subscription With Receivables (D2)
+    // ════════════════════════════════════════════════════════════════
+
+    describe('Grupo P0.3-C — Cancelamento com Recebíveis (D2)', () => {
+        // Captura eventos publicados no bus (canal '*' — mesma rota do FinanceSubscriber)
+        const captureEvents = async (): Promise<{ events: SystemEvent[]; stop: () => void }> => {
+            const events: SystemEvent[] = [];
+            const stop = appEventBus.subscribeAll((e) => {
+                events.push(e);
+            });
+            return { events, stop };
+        };
+
+        it('should_cancel_subscription_without_receivables', async () => {
+            const client = makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 0 },
+                error: null,
+            });
+            mockScopedClient.mockReturnValue(client);
+
+            const { events, stop } = await captureEvents();
+            try {
+                const result = await cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: false,
+                });
+
+                expect(result).toEqual({ subscriptionCancelled: true, receivablesCancelled: 0 });
+                expect(client.rpc).toHaveBeenCalledWith('cancel_subscription_with_receivables', {
+                    p_subscription_id: 'sub-1',
+                    p_tenant_id: 'tenant-1',
+                    p_cancel_receivables: false,
+                    p_cancel_reason: null,
+                    p_cancel_observation: null,
+                });
+            } finally {
+                stop();
+            }
+        });
+
+        it('should_cancel_subscription_with_receivables', async () => {
+            const client = makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 2 },
+                error: null,
+            });
+            mockScopedClient.mockReturnValue(client);
+
+            const { events, stop } = await captureEvents();
+            try {
+                const result = await cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: true,
+                    cancelReason: 'client_request',
+                    cancelObservation: 'Cliente não renovou',
+                });
+
+                expect(result).toEqual({ subscriptionCancelled: true, receivablesCancelled: 2 });
+                expect(client.rpc).toHaveBeenCalledWith('cancel_subscription_with_receivables', {
+                    p_subscription_id: 'sub-1',
+                    p_tenant_id: 'tenant-1',
+                    p_cancel_receivables: true,
+                    p_cancel_reason: 'client_request',
+                    p_cancel_observation: 'Cliente não renovou',
+                });
+            } finally {
+                stop();
+            }
+        });
+
+        it('should_publish_subscription_cancelled_event', async () => {
+            mockScopedClient.mockReturnValue(makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 0 },
+                error: null,
+            }));
+
+            const { events, stop } = await captureEvents();
+            try {
+                await cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: false,
+                });
+            } finally {
+                stop();
+            }
+
+            const cancelled = events.filter((e) => e.eventType === 'SubscriptionCancelled');
+            expect(cancelled).toHaveLength(1);
+            expect(cancelled[0].aggregateId).toBe('sub-1');
+            expect(cancelled[0].aggregateType).toBe('subscription');
+            expect(cancelled[0].payload).toEqual({
+                subscriptionId: 'sub-1',
+                reason: 'user_cancelled',
+            });
+            expect(cancelled[0].metadata.tenantId).toBe('tenant-1');
+            expect(cancelled[0].metadata.source).toBe('ChefClubApplicationService');
+        });
+
+        it('should_feed_finance_subscriber_channel_when_cancelled', async () => {
+            mockScopedClient.mockReturnValue(makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 1 },
+                error: null,
+            }));
+
+            // FinanceSubscriber se registra via subscribeAll ('*'); o teste usa o mesmo canal
+            const delivered: SystemEvent[] = [];
+            const stop = appEventBus.subscribeAll((e) => {
+                delivered.push(e);
+            });
+            try {
+                await cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: true,
+                    cancelReason: 'client_request',
+                });
+            } finally {
+                stop();
+            }
+
+            expect(delivered.some((e) => e.eventType === 'SubscriptionCancelled')).toBe(true);
+        });
+
+        it('should_reject_cancelling_receivables_without_reason', async () => {
+            // RPC exige motivo quando p_cancel_receivables=true (enforcement server-side)
+            mockScopedClient.mockReturnValue(makeClient({
+                data: null,
+                error: { message: 'Motivo do cancelamento é obrigatório quando cancelar recebíveis' },
+            }));
+
+            const { events, stop } = await captureEvents();
+            try {
+                await expect(cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: true,
+                })).rejects.toThrow(ChefClubError);
+            } finally {
+                stop();
+            }
+
+            expect(events.filter((e) => e.eventType === 'SubscriptionCancelled')).toHaveLength(0);
+        });
+
+        it('should_publish_event_even_with_zero_receivables_cancelled', async () => {
+            mockScopedClient.mockReturnValue(makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 0 },
+                error: null,
+            }));
+
+            const { events, stop } = await captureEvents();
+            try {
+                const result = await cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: true,
+                    cancelReason: 'no_need',
+                });
+
+                expect(result).toEqual({ subscriptionCancelled: true, receivablesCancelled: 0 });
+            } finally {
+                stop();
+            }
+
+            expect(events.some((e) => e.eventType === 'SubscriptionCancelled')).toBe(true);
+        });
+
+        it('should_propagate_tenant_id_to_rpc', async () => {
+            const client = makeClient({
+                data: { subscription_cancelled: true, receivables_cancelled: 0 },
+                error: null,
+            });
+            mockScopedClient.mockReturnValue(client);
+
+            await cancelSubscriptionWithReceivables({
+                subscriptionId: 'sub-1',
+                tenantId: 'tenant-42',
+                cancelReceivables: false,
+            });
+
+            expect(client.rpc).toHaveBeenCalledWith(
+                'cancel_subscription_with_receivables',
+                expect.objectContaining({
+                    p_tenant_id: 'tenant-42',
+                    p_subscription_id: 'sub-1',
+                }),
+            );
+        });
+
+        it('should_throw_chefclub_error_on_tenant_rejection_without_publishing', async () => {
+            mockScopedClient.mockReturnValue(makeClient({
+                data: null,
+                error: { message: 'Tenant não autorizado' },
+            }));
+
+            const { events, stop } = await captureEvents();
+            try {
+                await expect(cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-42',
+                    cancelReceivables: false,
+                })).rejects.toThrow(ChefClubError);
+            } finally {
+                stop();
+            }
+
+            expect(events.filter((e) => e.eventType === 'SubscriptionCancelled')).toHaveLength(0);
+        });
+
+        it('should_throw_chefclub_error_on_authorization_failure_without_publishing', async () => {
+            mockScopedClient.mockReturnValue(makeClient({
+                data: null,
+                error: { message: 'Usuário autenticado obrigatório' },
+            }));
+
+            const { events, stop } = await captureEvents();
+            try {
+                await expect(cancelSubscriptionWithReceivables({
+                    subscriptionId: 'sub-1',
+                    tenantId: 'tenant-1',
+                    cancelReceivables: false,
+                })).rejects.toThrow(ChefClubError);
+            } finally {
+                stop();
+            }
+
+            expect(events.filter((e) => e.eventType === 'SubscriptionCancelled')).toHaveLength(0);
+        });
+
+        it('should_legacy_cancel_subscription_still_publish_event', async () => {
+            const fetchChain = makeChainable({ data: null, error: null });
+            fetchChain.maybeSingle.mockResolvedValue({ data: { status: 'active' }, error: null });
+
+            let capturedPayload: Record<string, unknown> = {};
+            const updateChain = makeChainable({ data: null, error: null });
+            updateChain.update = vi.fn().mockImplementation((p: Record<string, unknown>) => {
+                capturedPayload = p;
+                return updateChain;
+            });
+
+            const { events, stop } = await captureEvents();
+            try {
+                mockScopedClient.mockReturnValue({
+                    rpc: vi.fn(),
+                    from: vi.fn()
+                        .mockReturnValueOnce(fetchChain)
+                        .mockReturnValueOnce(updateChain),
+                });
+
+                await cancelSubscription('tenant-1', 'sub-1');
+            } finally {
+                stop();
+            }
+
+            expect(capturedPayload.status).toBe('canceled');
+            const cancelled = events.filter((e) => e.eventType === 'SubscriptionCancelled');
+            expect(cancelled).toHaveLength(1);
+            expect(cancelled[0].payload).toEqual({
+                subscriptionId: 'sub-1',
+                reason: 'user_cancelled',
+            });
         });
     });
 

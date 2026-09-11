@@ -36,3 +36,5 @@ playwright-report/
 h3_*.cjs
 h4_*.cjs
 h4_*.json
+
+.vercel
