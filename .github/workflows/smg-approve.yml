@@ -1,0 +1,50 @@
+name: smg-pr-approve
+
+# SMG PR Approve
+#
+# Automated, PO-authorized approval execution:
+#   PO comments "/approve" on a PR -> this workflow validates fail-closed
+#   gates -> registers a formal APPROVE review as the review executor account
+#   (review-bot-smg) via the REVIEW_BOT_TOKEN secret.
+#
+# The executor account NEVER decides on its own: it only executes an explicit
+# PO authorization. Approval != merge authorization != deploy (separate gates).
+#
+# Governance reference: docs/audit/6.1.4_SMG_PR_APPROVE_AUTOMATION.md
+#
+# Secret required (added directly on GitHub by the PO, never shared with the
+# agent): REVIEW_BOT_TOKEN = fine-grained PAT of the review-bot-smg account,
+# repository sou-manager, permission "Pull requests: Write" only.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  approve:
+    name: smg-pr-approve
+    runs-on: ubuntu-latest
+    # Cheap pre-filter at the trigger level; the authoritative gates run in
+    # the script (fail-closed). `issue.pull_request` is set when the comment
+    # is on a pull request (PRs are issues in the API model).
+    if: github.event.issue.pull_request != null && github.event.comment.body == '/approve'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate gates and execute approval
+        run: node scripts/smg-pr-approve/run.mjs
+        env:
+          # Fine-grained PAT of review-bot-smg (type User -> satisfies branch
+          # protection required reviews). The default GITHUB_TOKEN is never
+          # used for the approval (least privilege preserved).
+          SMG_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
