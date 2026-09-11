@@ -108,6 +108,11 @@ async function main() {
   });
 
   if (!decision.ok) {
+    if (decision.noop) {
+      // Idempotency: already approved — silent STOP, exit 0, no POST (documented G7).
+      console.log(`[smg-pr-approve] NOOP — ${decision.reason}`);
+      return;
+    }
     throw new Error(`STOP — ${decision.reason}`);
   }
 

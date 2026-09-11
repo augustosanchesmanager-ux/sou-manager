@@ -213,14 +213,22 @@ describe("buildDecision (composição fail-closed)", () => {
           ),
         },
       },
-      {
-        label: "já aprovado",
-        overrides: { reviews: [{ user: { login: "review-bot-smg" }, state: "APPROVED" }] },
-      },
     ];
     for (const { label, overrides } of cases) {
-      expect(buildDecision({ ...GOOD_CONTEXT, ...overrides }).ok, label).toBe(false);
+      const decision = buildDecision({ ...GOOD_CONTEXT, ...overrides });
+      expect(decision.ok, label).toBe(false);
+      expect(decision.noop, label).not.toBe(true);
     }
+  });
+
+  test("já aprovado -> NOOP idempotente (sem POST, exit 0)", () => {
+    const decision = buildDecision({
+      ...GOOD_CONTEXT,
+      reviews: [{ user: { login: "review-bot-smg" }, state: "APPROVED" }],
+    });
+    expect(decision.ok).toBe(false);
+    expect(decision.noop).toBe(true);
+    expect(decision.reason).toMatch(/idempotência/);
   });
 
   test("lint advisory vermelho NÃO bloqueia (baseline documentada)", () => {
