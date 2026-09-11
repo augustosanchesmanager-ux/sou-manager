@@ -1,6 +1,6 @@
 # M4 — Relatório Final de Implementação (P1/P4/P5/P6/P7/P8)
 
-> **Fase:** M4 — Implementação pós-G1.3 · **Status:** CONCLUÍDA (backend+banco) / PARCIAL (frontend P4/P5/P7)
+> **Fase:** M4 — Implementação pós-G1.3 · **Status:** CONCLUÍDA (backend+banco) / CONCLUÍDA (frontend P7 — 11/09/2026) / PARCIAL (frontend P4/P5)
 > **Data:** 30/08/2026 · **Responsável:** OpenCode (Tech Lead) + Augusto (PO)
 > **Base normativa:** ADR-016..020 · G1.1/G1.2 (29/08/2026) · M4_FASE2_MAPA_ESTADO_ATUAL.md (aprovado pelo PO)
 > **Regra da etapa:** Implementação → Testes → Build → Typecheck → Auditoria → Documentação. Nenhuma migration antiga alterada; nenhuma migration aplicada em produção (aguarda PO).
@@ -104,9 +104,10 @@ Implementar as seis decisões da M4 (P1/P4/P5/P6/P7/P8) que separam **pagamento 
 |---|---|
 | `npx vitest run src/lib/finance/` | **54/54 PASS** (6 arquivos) |
 | `npx vitest run application/appointment/appointment.test.ts` | **60/60 PASS** (57 baseline + 3 P1) |
-| Suíte completa `npx vitest run` | **1203 PASS / 1 FAIL** — `eventInfrastructure.test.ts` (pré-existente; provado via `git stash`: falha sem minhas alterações; 21 passaram no estado limpo) |
-| `npm run build` | ✔ built in 12.89s (pós-fix `payment.ts`; re-rodado após stash pop) |
-| `npx tsc --noEmit --pretty false` | **ZERO erros novos** nos arquivos tocados (finance/*, lifecycle, types, Schedule, Settings); 65 erros totais = baseline pré-existente (8 em `Comandas.tsx` em linhas não editadas 218/447/466/476/486/518/531 + test files de domain/events etc.) |
+| Suíte completa `npx vitest run` | **1294 PASS / 5 skipped / 0 FAIL** (67 arquivos, 11/09/2026 pós-UI P7) — falha pré-existente `eventInfrastructure.test.ts` não mais presente |
+| `npm run build` | ✔ built in 15.32s (11/09/2026, pós-UI P7) |
+| `npx tsc --noEmit` | ✔ **exit 0 — ZERO erros** (11/09/2026; baseline de 65 erros pré-existentes não mais presente após merges) |
+| `npm run d8:verify` | ✔ D8:VERIFY OK — canonical Core == worker artifact (byte-identical) |
 | `git diff --check` | ✔ OK (sem whitespace errors) |
 
 ## 8. Riscos e Pendências
@@ -116,10 +117,11 @@ Implementar as seis decisões da M4 (P1/P4/P5/P6/P7/P8) que separam **pagamento 
 | 1 | **Aplicação das migrations em produção** | 🔴 BLOQUEADO (PO) | Exige aprovação explícita; `npm run d8:verify` antes de qualquer deploy |
 | 2 | **UI de correção retroativa P4** (gestão ajustar `attended_at` com motivo) | 🟡 PARCIAL — RPC+lib+testes prontos; **sem tela** | Persistir RPC; UI em subfase seguinte |
 | 3 | **UI de confirmação P5** (barbeiro/recepção confirmar atendimento) | 🟡 PARCIAL — RPC+lib+testes prontos; Schedule ainda usa `changeStatus` | Substituir caminho de confirmação pela RPC |
-| 4 | **UI de registro de pagamento parcial P7** (recepção registrar `anticipado`/`parcial`) | 🟡 PARCIAL — RPC+lib+testes prontos; **sem tela** ($ `registerComandaPayment`) | UI de Checkout parcial em subfase seguinte |
-| 5 | `eventInfrastructure.test.ts` (1 falha) | 🟡 pré-existente | Não corrigir (baseline conhecida M2 do Mapa) |
-| 6 | 65 erros tsc pré-existentes | 🟡 baseline | Não corrigir (fora do escopo) |
+| 4 | **UI de registro de pagamento parcial P7** (recepção registrar `anticipado`/`parcial`) | ✅ CONCLUÍDA (11/09/2026) — card de pagamentos registrados + modal de registro no Checkout (`pages/Checkout.tsx`), gate por papel espelha o RPC (recepção/gestão) | UI no Checkout integrada à P4/P5 |
+| 5 | `eventInfrastructure.test.ts` (1 falha) | ⚪ resolvida — **não mais presente** na suíte completa (1294/0, 11/09/2026) | Baseline antiga; removida pelo estado atual da suíte |
+| 6 | 65 erros tsc pré-existentes | ⚪ resolvida — `npx tsc --noEmit` **exit 0** (11/09/2026) | Baseline antiga; não mais reprodutível após merges |
 | 7 | Delegação a subagentes falhou (model timeout `bg_63e7a183`, model not found `bg_dfb85837`) | ⚪ processo | Implementação executada diretamente pelo Tech Lead |
+| 8 | **UI P7 entregue — merge/PR e E2E pendentes** | 🟡 execução | Commit + push + PR abertos; E2E da suíte completa na etapa de baseline (14/09/2026, previsto) |
 
 ## 9. Responsável
 
@@ -129,7 +131,7 @@ Implementar as seis decisões da M4 (P1/P4/P5/P6/P7/P8) que separam **pagamento 
 ## 10. Próxima Etapa
 
 1. **Apresentar ao PO** este relatório + impacto das migrations (gate obrigatório §6 do Mapa).
-2. **PO aprovar aplicação** das 5 migrations novas em produção (nunca automática).
-3. Implementar **UI pendentes**: P4 (correção retroativa em gestão), P5 (confirmação de atendimento via RPC no Schedule), P7 (registro de parcial/antecipado em Checkout).
-4. Após UI P4/P5/P7: rodar `npm run d8:verify` + suíte completa + E2E antes de baseline.
+2. **PO aprovar aplicação** das 5 migrations novas em produção (nunca automática). *(P7 e saneamento ACL M4 já autorizados e aplicados em 11/09/2026 — ver `6.1.4_A1` e `20260911120000`.)*
+3. Implementar **UI pendentes**: P4 (correção retroativa em gestão), P5 (confirmação de atendimento via RPC no Schedule).
+4. **P7 UI entregue (11/09/2026):** `npx tsc --noEmit` exit 0 · suíte completa 1294/0 · `npm run d8:verify` OK · build ✔ — pendente apenas **E2E da suíte completa** (smoke < 3min) na etapa de baseline.
 5. Registrar baseline/tag somente após commit semântico + push da branch + push da tag (política oficial ROADMAP).
