@@ -143,6 +143,24 @@ export const cancelSubscriptionWithReceivables = async (
     }
 
     const result = data as { subscription_cancelled: boolean; receivables_cancelled: number };
+
+    // P0.3-C D2: fluxo novo também deve alimentar FinanceSubscriber→outbox→D8 (ADR-001)
+    if (result.subscription_cancelled) {
+        await appEventBus.publish(createEvent<SubscriptionCancelledEvent>({
+            eventType: 'SubscriptionCancelled',
+            aggregateId: subscriptionId,
+            aggregateType: 'subscription',
+            payload: {
+                subscriptionId,
+                reason: cancelReason ?? 'user_cancelled',
+            },
+            metadata: {
+                tenantId,
+                source: 'ChefClubApplicationService',
+            },
+        }));
+    }
+
     return {
         subscriptionCancelled: result.subscription_cancelled,
         receivablesCancelled: result.receivables_cancelled,
