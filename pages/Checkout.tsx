@@ -28,6 +28,11 @@ import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
 import {
+    getComandaPaymentSummary,
+    registerComandaPayment,
+    type ComandaPaymentSummary,
+} from '../src/lib/finance/payment';
+import {
     buildZeroCloseAuditNote,
     closeZeroAmountComanda,
     isManagerLikeRole,
@@ -348,6 +353,17 @@ const Checkout: React.FC = () => {
     const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
     const [paymentMethod, setPaymentMethod] = useState<'credit' | 'debit' | 'cash' | 'pix' | 'other'>('credit');
     const [paymentDescription, setPaymentDescription] = useState<string>('');
+    // P7: registro de pagamento parcial/antecipado (comanda_payments)
+    const [loadedComandaStatus, setLoadedComandaStatus] = useState<string | null>(null);
+    const [paymentSummary, setPaymentSummary] = useState<ComandaPaymentSummary | null>(null);
+    const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(false);
+    const [isRegisterPaymentModalOpen, setIsRegisterPaymentModalOpen] = useState(false);
+    const [registerPaymentType, setRegisterPaymentType] = useState<'anticipado' | 'parcial'>('parcial');
+    const [registerAmount, setRegisterAmount] = useState('');
+    const [registerPaymentMethod, setRegisterPaymentMethod] = useState<'credit' | 'debit' | 'cash' | 'pix' | 'other'>('credit');
+    const [registerPaymentDescription, setRegisterPaymentDescription] = useState('');
+    const [registerMotivo, setRegisterMotivo] = useState('');
+    const [isRegisteringPayment, setIsRegisteringPayment] = useState(false);
     const [closureMode, setClosureMode] = useState<ClosureMode>('standard');
     const [closureNote, setClosureNote] = useState('');
     const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
@@ -425,6 +441,13 @@ const Checkout: React.FC = () => {
     const shouldCollectDiscountAudit = discountValue > 0;
     const creditItems = React.useMemo(() => cart.filter(item => item.usedCredit && item.type === 'service' && item.service_id), [cart]);
     const canCloseWithAdministrativeOrigin = isManagerLikeRole(accessRole, canAccessSuperAdmin);
+    // P7: apenas edição de comanda existente com status pagável e papel recepção/gestão
+    const canRegisterComandaPayment = checkoutEntryMode === 'edit_comanda'
+        && !!comandaId
+        && !!loadedComandaStatus
+        && loadedComandaStatus !== 'paid'
+        && loadedComandaStatus !== 'cancelled'
+        && (accessRole === 'receptionist' || isManagerLikeRole(accessRole, canAccessSuperAdmin));
 
     const checkoutFlags = React.useMemo(() => computeCheckoutFlags({
         paymentStatus,
@@ -568,6 +591,7 @@ const Checkout: React.FC = () => {
 
                     setSelectedClient(selectedClientData || null);
                     setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
+                    setLoadedComandaStatus(comanda.status || null);
                     setPaymentMethod(comanda.payment_method || 'credit');
                     setDiscount(String(comanda.discount || 0));
                     setClosureMode(comanda.closure_mode === 'legacy_membership' ? 'legacy_membership' : 'standard');
@@ -655,6 +679,31 @@ const Checkout: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (!canRegisterComandaPayment || !comandaId || !tenantId) {
+            setPaymentSummary(null);
+            return;
+        }
+        let cancelled = false;
+        setPaymentSummaryLoading(true);
+        getComandaPaymentSummary({
+            tenantId,
+            comandaId,
+            supabase: getScopedClient('barber'),
+        })
+            .then((summary) => {
+                if (!cancelled) setPaymentSummary(summary);
+            })
+            .catch((err) => {
+                console.error('[checkout][p7] Falha ao carregar resumo de pagamentos:', err);
+                if (!cancelled) setPaymentSummary(null);
+            })
+            .finally(() => {
+                if (!cancelled) setPaymentSummaryLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [canRegisterComandaPayment, comandaId, tenantId]);
 
     useEffect(() => {
         if (comandaId) return;
@@ -1322,6 +1371,61 @@ const Checkout: React.FC = () => {
         }
     };
 
+    const handleRegisterComandaPayment = async () => {
+        const amount = parseFloat(registerAmount);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setToast({ message: 'Informe um valor maior que zero.', type: 'error' });
+            return;
+        }
+        if (!comandaId || !tenantId) {
+            setToast({ message: 'Comanda ou tenant inválido para registro de pagamento.', type: 'error' });
+            return;
+        }
+        if (paymentSummary && amount > paymentSummary.remaining + 0.01) {
+            setToast({ message: `Valor excede o restante da comanda (R$ ${paymentSummary.remaining.toFixed(2)}).`, type: 'error' });
+            return;
+        }
+        if (registerPaymentMethod === 'other' && !registerPaymentDescription.trim()) {
+            setToast({ message: 'Informe a descrição da forma de pagamento ao selecionar "Outros".', type: 'error' });
+            return;
+        }
+
+        setIsRegisteringPayment(true);
+        try {
+            const result = await registerComandaPayment({
+                tenantId,
+                comandaId,
+                paymentType: registerPaymentType,
+                amount,
+                paymentMethod: registerPaymentMethod === 'other'
+                    ? registerPaymentDescription.trim()
+                    : registerPaymentMethod,
+                motivo: registerMotivo.trim() || null,
+                supabase: getScopedClient('barber'),
+            });
+
+            setToast({ message: result.message, type: 'success' });
+            setIsRegisterPaymentModalOpen(false);
+            setRegisterAmount('');
+            setRegisterPaymentType('parcial');
+            setRegisterPaymentMethod('credit');
+            setRegisterPaymentDescription('');
+            setRegisterMotivo('');
+
+            const summary = await getComandaPaymentSummary({
+                tenantId,
+                comandaId,
+                supabase: getScopedClient('barber'),
+            });
+            setPaymentSummary(summary);
+        } catch (err: any) {
+            console.error('Save error details:', err);
+            setToast({ message: err?.message ? `Erro: ${err.message}` : 'Não foi possível registrar o pagamento.', type: 'error' });
+        } finally {
+            setIsRegisteringPayment(false);
+        }
+    };
+
     const normalizedItemSearch = searchTerm.trim().toLowerCase();
     const filteredItems = React.useMemo(() => itemModalTab === 'services'
         ? services.filter(s => getCatalogSearchText(s).includes(normalizedItemSearch))
@@ -1776,6 +1880,58 @@ const Checkout: React.FC = () => {
                                 <span className="font-black text-3xl text-[#003366] dark:text-[#00D2FF]">R$ {total.toFixed(2)}</span>
                             </div>
                         </div>
+
+                        {canRegisterComandaPayment && (
+                            <div className="mb-8 rounded-2xl border border-primary/25 bg-white dark:bg-background-dark p-4 text-sm shadow-sm">
+                                <div className="mb-3 flex items-center justify-between gap-2">
+                                    <p className="text-[11px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Pagamentos registrados</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRegisterPaymentModalOpen(true)}
+                                        disabled={paymentSummaryLoading || isRegisteringPayment}
+                                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {paymentSummaryLoading ? 'Carregando...' : '+ Registrar Pagamento'}
+                                    </button>
+                                </div>
+
+                                {paymentSummaryLoading ? (
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        <div className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary"></div>
+                                        Carregando pagamentos...
+                                    </div>
+                                ) : paymentSummary && paymentSummary.hasValidPayments ? (
+                                    <div className="space-y-3">
+                                        {paymentSummary.payments.map((payment) => (
+                                            <div key={payment.id} className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-base text-primary">payments</span>
+                                                    <div>
+                                                        <p className="font-bold capitalize text-slate-700 dark:text-slate-200">
+                                                            {payment.paymentType} · {payment.paymentMethod || 'não informado'}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-500">
+                                                            {new Date(payment.createdAt).toLocaleString('pt-BR')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="font-black text-emerald-600">R$ {payment.amount.toFixed(2)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between border-t border-slate-200 dark:border-white/10 pt-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                            <span>Total pago</span>
+                                            <span className="text-emerald-600">R$ {paymentSummary.totalPaid.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                                            <span>Restante</span>
+                                            <span className="text-amber-600">R$ {paymentSummary.remaining.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-500">Nenhum pagamento antecipado/parcial registrado nesta comanda.</p>
+                                )}
+                            </div>
+                        )}
 
                         {isZeroPaidCheckout && !isLegacyClubSettlement && (
                             <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm">
@@ -2502,6 +2658,146 @@ const Checkout: React.FC = () => {
                         >
                             <span className="material-symbols-outlined text-sm">add_circle</span>
                             Criar {isEsteticaApp ? 'novo mesmo assim' : 'Nova Mesmo Assim'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* === REGISTER COMMANDA PAYMENT MODAL (P7) === */}
+            <Modal
+                isOpen={isRegisterPaymentModalOpen}
+                onClose={() => {
+                    setIsRegisterPaymentModalOpen(false);
+                    setRegisterAmount('');
+                    setRegisterPaymentType('parcial');
+                    setRegisterPaymentMethod('credit');
+                    setRegisterPaymentDescription('');
+                    setRegisterMotivo('');
+                }}
+                title="Registrar Pagamento"
+                maxWidth="md"
+            >
+                <div className="space-y-4">
+                    <div className="rounded-xl bg-slate-50 dark:bg-white/5 p-3 text-xs text-slate-600 dark:text-slate-300">
+                        <p className="mb-1">
+                            Registra um pagamento <span className="font-bold">antecipado</span> ou <span className="font-bold">parcial</span> na comanda sem fechá-la. Não altera o status da comanda, o atendimento nem a comissão.
+                        </p>
+                    </div>
+
+                    <div>
+                        <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Tipo de pagamento</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {([
+                                { value: 'anticipado', label: 'Antecipado' },
+                                { value: 'parcial', label: 'Parcial' },
+                            ] as const).map((type) => (
+                                <button
+                                    key={type.value}
+                                    type="button"
+                                    onClick={() => setRegisterPaymentType(type.value)}
+                                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${
+                                        registerPaymentType === type.value
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                                    }`}
+                                >
+                                    {type.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Valor (R$)</span>
+                            <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={registerAmount}
+                                onChange={(e) => setRegisterAmount(e.target.value)}
+                                placeholder="0,00"
+                                className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-background-dark px-3 py-2.5 text-sm font-black text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        </label>
+                        {paymentSummary && (
+                            <p className="mt-1 text-[11px] text-slate-500">
+                                Restante da comanda: <span className="font-bold text-amber-600">R$ {paymentSummary.remaining.toFixed(2)}</span>
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Forma de pagamento</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {([
+                                { value: 'credit', label: 'Crédito' },
+                                { value: 'debit', label: 'Débito' },
+                                { value: 'pix', label: 'Pix' },
+                                { value: 'cash', label: 'Dinheiro' },
+                                { value: 'other', label: 'Outros' },
+                            ] as const).map((method) => (
+                                <button
+                                    key={method.value}
+                                    type="button"
+                                    onClick={() => setRegisterPaymentMethod(method.value)}
+                                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${
+                                        registerPaymentMethod === method.value
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                                    }`}
+                                >
+                                    {method.label}
+                                </button>
+                            ))}
+                        </div>
+                        {registerPaymentMethod === 'other' && (
+                            <input
+                                type="text"
+                                value={registerPaymentDescription}
+                                onChange={(e) => setRegisterPaymentDescription(e.target.value)}
+                                placeholder="Descreva a forma de pagamento..."
+                                className="mt-2 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-background-dark px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block">
+                            <span className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Motivo (opcional)</span>
+                            <textarea
+                                value={registerMotivo}
+                                onChange={(e) => setRegisterMotivo(e.target.value)}
+                                rows={2}
+                                placeholder="Ex.: pagamento antecipado de pacote, sinal de reserva..."
+                                className="w-full resize-none rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-background-dark px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        </label>
+                    </div>
+
+                    <div className="flex gap-3 pt-1">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsRegisterPaymentModalOpen(false);
+                                setRegisterAmount('');
+                                setRegisterPaymentType('parcial');
+                                setRegisterPaymentMethod('credit');
+                                setRegisterPaymentDescription('');
+                                setRegisterMotivo('');
+                            }}
+                            disabled={isRegisteringPayment}
+                            className="flex-1 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleRegisterComandaPayment}
+                            disabled={isRegisteringPayment}
+                            className="flex-1 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {isRegisteringPayment ? 'Registrando...' : 'Registrar Pagamento'}
                         </button>
                     </div>
                 </div>
