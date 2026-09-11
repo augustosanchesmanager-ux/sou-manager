@@ -27,6 +27,8 @@ export const ADVISORY_CHECK_NAMES = ["lint advisory"];
 
 const okResult = () => ({ ok: true, reason: "" });
 const failResult = (reason) => ({ ok: false, reason });
+/** Idempotency is NOT a failure: documented "silent STOP" — exit 0, no POST. */
+const noopResult = (reason) => ({ ok: false, noop: true, reason });
 
 /** `/approve` must be the exact command (trimmed). */
 export function isApproveCommand(body) {
@@ -87,14 +89,20 @@ export function validateChecks(checkRuns) {
   return okResult();
 }
 
-/** Idempotency: an existing APPROVED review means nothing to do. */
+/**
+ * Idempotency: an existing APPROVED review means nothing to do.
+ * Returns a NOOP result (not a failure): the workflow exits 0 WITHOUT
+ * posting a new review — documented G7 "STOP silencioso, exit 0 sem POST".
+ */
 export function hasExistingApproval(reviews) {
   return Array.isArray(reviews) && reviews.some((review) => review.state === "APPROVED");
 }
 
 /**
  * Composite decision: apply all gates in order, fail-closed.
- * Returns { ok: true } to approve or { ok: false, reason } to STOP.
+ * Returns { ok: true, noop?: false } to approve,
+ *         { ok: false, noop: true, reason } for silent idempotent STOP,
+ *         { ok: false, reason } for a hard STOP (exit 1, no approval).
  */
 export function buildDecision({ comment, pr, checks, reviews }) {
   const commentGate = validateComment(comment);
@@ -104,7 +112,7 @@ export function buildDecision({ comment, pr, checks, reviews }) {
   const ciGate = validateChecks(checks);
   if (!ciGate.ok) return ciGate;
   if (hasExistingApproval(reviews)) {
-    return failResult("PR já possui aprovação registrada (idempotência — nada a fazer)");
+    return noopResult("PR já possui aprovação registrada (idempotência — nada a fazer)");
   }
   return okResult();
 }
