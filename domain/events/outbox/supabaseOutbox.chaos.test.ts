@@ -191,6 +191,12 @@ function createMockSupabaseClient() {
 
   const client = {
     from: (_table: string) => createBuilder(),
+    auth: {
+      getSession: async () => ({
+        data: { session: {} as Record<string, unknown> | null },
+        error: null,
+      }),
+    },
   };
 
   return { client, table, getTable: () => table };
@@ -601,5 +607,59 @@ describe('Chaos: SupabaseOutbox — Trilha C Gate [E2E/CHAOS]', () => {
       expect(deadLetters.length).toBe(1);
       expect(deadLetters[0].status).toBe('dead_letter');
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SESSION GUARD — incident P2.1-OUTBOX-42501
+// ═══════════════════════════════════════════════════════════════════
+
+describe('SupabaseOutbox — Session Guard (incident P2.1-OUTBOX-42501)', () => {
+  let mock: ReturnType<typeof createMockSupabaseClient>;
+  let outbox: SupabaseOutbox;
+
+  beforeEach(() => {
+    mock = createMockSupabaseClient();
+    // No active session → the dispatch loop / queries must not hit the DB (anon)
+    mock.client.auth.getSession = async () => ({
+      data: { session: null as Record<string, unknown> | null },
+      error: null,
+    });
+    outbox = createSupabaseOutbox();
+    (outbox as unknown as { client: ReturnType<typeof createMockSupabaseClient>['client'] }).client =
+      mock.client;
+  });
+
+  it('should return safe empty defaults on all read/query methods without session', async () => {
+    await expect(outbox.findNext()).resolves.toBeNull();
+    await expect(outbox.recoverStaleProcessing()).resolves.toBe(0);
+    await expect(outbox.count()).resolves.toBe(0);
+    await expect(outbox.count('pending')).resolves.toBe(0);
+    await expect(outbox.find()).resolves.toEqual([]);
+    await expect(outbox.findById('outbox_unknown')).resolves.toBeNull();
+    await expect(outbox.getDeadLetters()).resolves.toEqual([]);
+    // Zero anon queries: nothing may touch the DB without an active session
+    expect(mock.table.size).toBe(0);
+  });
+
+  it('should reject enqueue without an active session', async () => {
+    await expect(
+      outbox.enqueue({
+        eventId: 'evt_no_session',
+        eventType: 'CheckoutCompleted',
+        tenantId: 'tenant-1',
+        targets: [{ provider: 'finance', config: {} }],
+        payload: { comandaId: 'c-x', total: 100 },
+        metadata: { tenantId: 'tenant-1', source: 'test' },
+      }),
+    ).rejects.toThrow(/without an active session/);
+    expect(mock.table.size).toBe(0);
+  });
+
+  it('should no-op status writes without an active session', async () => {
+    await expect(outbox.markPublished('outbox_1')).resolves.toBeUndefined();
+    await expect(outbox.markFailed('outbox_1', 'boom')).resolves.toBeUndefined();
+    await expect(outbox.moveToDeadLetter('outbox_1', 'boom')).resolves.toBeUndefined();
+    expect(mock.table.size).toBe(0);
   });
 });
