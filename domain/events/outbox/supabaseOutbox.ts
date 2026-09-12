@@ -144,11 +144,34 @@ export class SupabaseOutbox implements OutboxRepository {
     return this.client;
   }
 
+  /**
+   * True quando há uma sessão ativa no cliente compartilhado.
+   *
+   * Sem sessão ativa o PostgREST opera como role `anon` — e as RLS policies
+   * de `outbox_items` (`current_tenant_id_from_auth_uid()`, SECURITY DEFINER)
+   * falham com 42501 para `anon` (incidente P2.1-OUTBOX-42501). Nenhuma query
+   * deve ser emitida nesse estado.
+   */
+  private async hasActiveSession(): Promise<boolean> {
+    const client = this.resolveClient();
+    const { data, error } = await client.auth.getSession();
+    if (error) {
+      console.error('[SUPABASE_OUTBOX] Failed to read session:', error);
+      return false;
+    }
+    return Boolean(data?.session);
+  }
+
   // ── Enqueue ────────────────────────────────────────────────────
 
   async enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'dispatchedAt' | 'completedAt' | 'retry' | 'processingStartedAt' | 'claimedBy' | 'status'> & {
     retry?: Partial<OutboxItem['retry']>;
   }): Promise<OutboxItem> {
+    if (!(await this.hasActiveSession())) {
+      throw new Error(
+        '[SUPABASE_OUTBOX] Cannot enqueue outbox item without an active session',
+      );
+    }
     const client = this.resolveClient();
     const row = itemToRow(item);
 
@@ -180,6 +203,7 @@ export class SupabaseOutbox implements OutboxRepository {
   // ── Find Next (Atomic Claim) ──────────────────────────────────
 
   async findNext(): Promise<OutboxItem | null> {
+    if (!(await this.hasActiveSession())) return null;
     const client = this.resolveClient();
 
     // Atomic claim: SELECT first eligible pending item, lock it, update to processing.
@@ -242,6 +266,10 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   async markPublished(id: string): Promise<void> {
+    if (!(await this.hasActiveSession())) {
+      console.warn('[SUPABASE_OUTBOX] markPublished skipped: no active session');
+      return;
+    }
     const client = this.resolveClient();
     const now = new Date().toISOString();
 
@@ -262,6 +290,10 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   async markFailed(id: string, errorMsg: string): Promise<void> {
+    if (!(await this.hasActiveSession())) {
+      console.warn('[SUPABASE_OUTBOX] markFailed skipped: no active session');
+      return;
+    }
     const client = this.resolveClient();
     const now = new Date().toISOString();
 
@@ -325,6 +357,10 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   async moveToDeadLetter(id: string, reason: string): Promise<void> {
+    if (!(await this.hasActiveSession())) {
+      console.warn('[SUPABASE_OUTBOX] moveToDeadLetter skipped: no active session');
+      return;
+    }
     const client = this.resolveClient();
     const now = new Date().toISOString();
 
@@ -352,6 +388,7 @@ export class SupabaseOutbox implements OutboxRepository {
    * Returns number of recovered items.
    */
   async recoverStaleProcessing(): Promise<number> {
+    if (!(await this.hasActiveSession())) return 0;
     const client = this.resolveClient();
     const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
 
@@ -397,6 +434,7 @@ export class SupabaseOutbox implements OutboxRepository {
   // ── Query ─────────────────────────────────────────────────────
 
   async find(options?: OutboxQueryOptions): Promise<OutboxItem[]> {
+    if (!(await this.hasActiveSession())) return [];
     const client = this.resolveClient();
 
     let query = client
@@ -425,6 +463,7 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   async findById(id: string): Promise<OutboxItem | null> {
+    if (!(await this.hasActiveSession())) return null;
     const client = this.resolveClient();
 
     const { data, error } = await client
@@ -439,6 +478,7 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   async count(status?: OutboxStatus): Promise<number> {
+    if (!(await this.hasActiveSession())) return 0;
     const client = this.resolveClient();
 
     if (status) {
@@ -466,6 +506,7 @@ export class SupabaseOutbox implements OutboxRepository {
   // ── Helpers ───────────────────────────────────────────────────
 
   private async findByEventId(eventId: string): Promise<OutboxItem | null> {
+    if (!(await this.hasActiveSession())) return null;
     const client = this.resolveClient();
 
     const { data, error } = await client
