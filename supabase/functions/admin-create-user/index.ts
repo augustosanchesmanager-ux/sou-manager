@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+// F2.1: hierarquia de papéis (fonte canônica testada em tests/security/f2_1_role_hierarchy.test.ts)
+import { canAssignStaffRole } from '../_shared/staff-role-hierarchy.ts';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -130,9 +132,9 @@ Deno.serve(async (req: Request) => {
 
         const { email, password, name, role, tenant_id } = await req.json();
         const normalizedRequestedRole = normalizeStaffRole(role);
-        const normalizedRequestedRoleLower = normalizedRequestedRole.toLowerCase();
-        if (!isSuperAdmin && (normalizedRequestedRoleLower === 'super admin' || normalizedRequestedRoleLower === 'superadmin')) {
-            return new Response(JSON.stringify({ error: 'Forbidden: only super admin can assign super admin role' }), {
+        // F2.1: hierarquia rígida — somente superadmin atribui admin; manager cria barber/receptionist.
+        if (!canAssignStaffRole(callerRole, normalizedRequestedRole)) {
+            return new Response(JSON.stringify({ error: 'Forbidden: role hierarchy violation' }), {
                 status: 403,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
