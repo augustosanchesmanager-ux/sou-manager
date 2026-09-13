@@ -28,7 +28,7 @@ const roleIcons: Record<string, string> = { manager: 'admin_panel_settings', adm
 const Team: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { tenantId, appSlug } = useAuth();
+    const { tenantId, appSlug, isSuperAdmin } = useAuth();
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
     const memberLabel = isEsteticaApp ? labels.professional : 'Colaborador';
@@ -52,6 +52,14 @@ const Team: React.FC = () => {
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
     const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
     const [commissionEditedManually, setCommissionEditedManually] = useState(false);
+
+    // F2.1 (SEC-AUTHZ-CREATE-USER): somente superadmin pode atribuir o papel `admin`.
+    // Gerentes criam apenas barber/receptionist (hierarquia enforcement no backend —
+    // edge function admin-create-user). `admin` fica oculto no seletor para não-superadmins.
+    const assignableRoles = isSuperAdmin ? roles : roles.filter(r => r !== 'admin');
+    // Na edição, preserva o papel atual do membro (ex.: admin editado por não-superadmin)
+    // para o select não ficar com valor fora das opções.
+    const roleOptions = assignableRoles.includes(form.role) ? assignableRoles : [...assignableRoles, form.role];
 
     const fetchTeam = useCallback(async () => {
         if (!tenantId) {
@@ -531,7 +539,7 @@ const Team: React.FC = () => {
                             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
                             <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                                {roles.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
+                                {roleOptions.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
                             </select>
                         </div>
                         <div>
