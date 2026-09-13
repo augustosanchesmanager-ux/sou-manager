@@ -208,6 +208,7 @@ Controles implementados:
 - valida permissao do solicitante
 - bloqueia criacao de super admin por usuario nao-superadmin
 - cria/atualiza registro em `staff`
+- aplica hierarquia de papeis (F2.1, 2026-09-13): regra `rank(requested) < rank(caller)` via `_shared/staff-role-hierarchy.ts` (superadmin=4, admin=3, manager/owner/gerente administrativo=2, barber/receptionist=1) — 403 quando violada; frontend `pages/Team.tsx` filtra `admin` do seletor para nao-superadmins
 
 ## 8. Estado atual por funcionalidade
 ### 8.1 Ativo
