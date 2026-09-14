@@ -14,6 +14,7 @@ import { AuditAdjustmentButton } from '../components/audit';
 import { DEFAULT_APP_SLUG } from '../src/lib/supabase/schemas';
 import { fetchChefClubCreditsByClients, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import { formatCurrency } from '../shared/format/currency';
+import { escapeHtml } from '../shared/strings';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { logSupabaseError } from '../src/lib/supabase/errors';
 import ComandaListItem from '../components/ComandaListItem';
@@ -1081,10 +1082,11 @@ const Comandas: React.FC = () => {
     const handlePrint = (comanda: Comanda) => {
         const printWindow = window.open('', '_blank', 'width=420,height=640');
         if (!printWindow) return;
-        const itemsHtml = comanda.comanda_items.map((item) => `<li>${item.product_name} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
+        printWindow.opener = null;
+        const itemsHtml = comanda.comanda_items.map((item) => `<li>${escapeHtml(item.product_name)} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
         printWindow.document.write(`
-            <html><head><title>${orderLabel} #${getDisplayId(comanda.id)}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
-            <body><h1>${orderLabel} #${getDisplayId(comanda.id)}</h1><div class="line"><strong>Cliente:</strong> ${comanda.clients.name}</div><div class="line"><strong>Status:</strong> ${statusLabels[comanda.status]}</div><div class="line"><strong>Abertura:</strong> ${new Date(comanda.created_at).toLocaleString('pt-BR')}</div><div class="line"><strong>Profissionais:</strong> ${comanda.staff_names.join(' / ') || 'Sem profissional'}</div><ul>${itemsHtml}</ul><div class="total">Total: ${formatCurrency(comanda.total)}</div></body></html>
+            <html><head><title>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
+            <body><h1>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</h1><div class="line"><strong>Cliente:</strong> ${escapeHtml(comanda.clients.name)}</div><div class="line"><strong>Status:</strong> ${escapeHtml(statusLabels[comanda.status])}</div><div class="line"><strong>Abertura:</strong> ${escapeHtml(new Date(comanda.created_at).toLocaleString('pt-BR'))}</div><div class="line"><strong>Profissionais:</strong> ${escapeHtml(comanda.staff_names.join(' / ') || 'Sem profissional')}</div><ul>${itemsHtml}</ul><div class="total">Total: ${escapeHtml(formatCurrency(comanda.total))}</div></body></html>
         `);
         printWindow.document.close();
         printWindow.print();

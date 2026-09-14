@@ -28,6 +28,7 @@ import {
     downloadCSV,
     generatePreviewText,
 } from '../components/financial/cashCloseUtils';
+import { escapeHtml } from '../shared/strings';
 import { useAuth } from '../context/AuthContext';
 
 const CashClosingPage: React.FC = () => {
@@ -252,10 +253,11 @@ const CashClosingPage: React.FC = () => {
     const handlePrint = useCallback(() => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
+        printWindow.opener = null;
         printWindow.document.write(`
-            <html><head><title>Fechamento Caixa - ${formattedFilterDate}</title>
+            <html><head><title>Fechamento Caixa - ${escapeHtml(formattedFilterDate)}</title>
             <style>body{font-family:monospace;padding:20px;white-space:pre-wrap;font-size:12px;}</style>
-            </head><body>${previewText.replace(/\n/g, '<br>')}</body></html>
+            </head><body>${escapeHtml(previewText).replace(/\n/g, '<br>')}</body></html>
         `);
         printWindow.document.close();
         printWindow.print();
