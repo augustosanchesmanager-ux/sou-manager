@@ -95,11 +95,13 @@ All helper functions use `SECURITY DEFINER` and are correct:
 
 | Function | Issue | Risk |
 |---|---|---|
-| `approve_access_request()` | **NO auth.uid() check, NO tenant validation** (guarda pendente — dívida P3) | Any authenticated user can approve access requests |
+| `approve_access_request()` | **✅ RESOLVIDA (F3.1, 2026-09-14)** — guardas `auth.uid()` + superadmin adicionadas (era: NO auth.uid() check, NO tenant validation — dívida P3) | Fechado: qualquer usuário autenticado aprovar pedidos de acesso |
 
 **Status (H6 remediação, D-HOM-24, 2026-08-13):** `REVOKE EXECUTE` de `anon`/`PUBLIC` + `GRANT` a `authenticated` aplicados via migration `20260813120500_h6_revoke_anon_approve_access_request.sql` (hardening, sem alteração de lógica). **Guarda `ASSERT current_is_super_admin_from_auth_uid()` registrada como dívida P3** — revisão em etapa posterior.
 
 > **Dívida P3 formal (D-HOM-26, 2026-08-14):** registrada como **item separado**, fora da remediação H-6. **M7 (`20260813120500`) formalmente BLOQUEADA** — o efeito (revoke anon/PUBLIC) já existia no banco desde o backup `20260728`; a migration não corrige o vetor real. **Correção pendente (etapa posterior, item próprio):** adicionar guarda `auth.uid()`/superadmin em `approve_access_request` (`IF NOT current_is_super_admin_from_auth_uid() THEN RAISE EXCEPTION ... END IF;`) + teste dedicado (RPC com usuário authenticated não-superadmin → erro; superadmin → sucesso). **Não resolvida na M7** por decisão do PO (não corrigir lógica na janela de remediação).
+
+> **✅ RESOLVIDA — F3.1 (2026-09-14, ciclo smg-change-control completo):** migration `20260914120000_fix_approve_access_request_auth_guard.sql` (merges `0bf8d4f` #58 + `32761db` #59 em `main`) adiciona as duas guardas — `IF auth.uid() IS NULL THEN RAISE EXCEPTION ... END IF;` (autenticação) e `IF NOT current_is_super_admin_from_auth_uid() THEN RAISE EXCEPTION ... END IF;` (superadmin, via helper SECURITY DEFINER) — com `SET search_path TO 'public', 'auth'` e `SECURITY DEFINER` preservado; **sem `anon`** no proacl. **Aplicada e validada em STAGING** (`tjcvuhynckocmvtqykxp`, HTTP 200; E2E H6-11 PASS — manager comum → `P0001 Insufficient permissions: superadmin required to approve access requests`, pedido `pending`) **e em PROD** (`ushsnmlbeurfvlkieiln`, HTTP 200, somente `20260914120000`, version efetiva `20260914224139`; verificação: `has_auth_guard=true`, `has_superadmin_guard=true`, `has_search_path=true`, `prosecdef=true`, proacl `{postgres, authenticated, service_role}` sem anon; **E2E H6-11 PASS em PROD** — `P0001...`, pedido permanece `pending`, teardown completo). Suíte formal `h6-security.spec.ts` registrada como **frente separada** (fixtures stale — `products.price` vs `cost_price/sale_price`; `role:'Manager'` vs constraint lowercase), não corrigida nesta frente.
 
 ### ❌ HIGH
 
