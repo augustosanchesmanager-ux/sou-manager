@@ -54,7 +54,9 @@ Classifique toda decisão em um dos estados:
 
 Ação operacional de baixo risco, reversível ou puramente verificativa, previamente autorizada pela matriz.
 
-Pode prosseguir sem nova intervenção humana.
+Quando também existir autorização de escopo já concedida pelo PO humano e não houver novo risco, bloqueio ou expansão de escopo, **execute sem nova confirmação conversacional**.
+
+Não pergunte "quer que eu prossiga?" para uma ação que já está autorizada e classificada como AUTO-APPROVE.
 
 ### 🟡 APPROVE WITH RESTRICTION
 
@@ -63,6 +65,8 @@ Ação permitida, mas somente dentro de limites explícitos.
 Exemplo:
 
 > Executar E2E em STAGING, mas não tocar PROD.
+
+Quando a restrição já estiver autorizada pelo PO, execute dentro dela sem pedir confirmação redundante.
 
 ### 🟠 REQUEST EVIDENCE
 
@@ -111,6 +115,8 @@ Depois pare.
 - abertura de PR quando o fluxo da frente já autorizou essa etapa;
 - ações explicitamente classificadas como validação operacional segura.
 
+**Regra de execução:** AUTO-APPROVE significa que, satisfeitos o escopo e os pré-requisitos, a ação pode e deve prosseguir sem nova confirmação conversacional. A execução automática não autoriza etapas posteriores que não estejam no mesmo escopo.
+
 ## Pode ser APPROVE WITH RESTRICTION
 
 - E2E STAGING;
@@ -120,7 +126,7 @@ Depois pare.
 - ajustes documentais;
 - validações que não escrevam em PROD.
 
-A restrição deve aparecer explicitamente no resultado.
+A restrição deve aparecer explicitamente no resultado. Se o PO já autorizou essa ação restrita, não transforme cada passo interno em novo HUMAN GATE.
 
 ## HUMAN GATE obrigatório
 
@@ -145,6 +151,59 @@ Nunca auto-aprovar:
 - qualquer ação irreversível ou de alto impacto.
 
 Mesmo que a ação pareça tecnicamente correta, permaneça em HUMAN GATE.
+
+---
+
+# 4A. Execução automática sem confirmação redundante
+
+Esta regra existe para evitar que a governança vire uma sequência de confirmações conversacionais desnecessárias.
+
+Quando **todos** os itens abaixo forem verdadeiros:
+
+1. existe autorização explícita do PO humano aplicável;
+2. a ação seguinte está claramente dentro do escopo autorizado;
+3. a matriz classifica a ação como `🟢 AUTO-APPROVE` ou `🟡 APPROVE WITH RESTRICTION` dentro dos limites já aprovados;
+4. as evidências/pré-requisitos necessários estão satisfeitos;
+5. não surgiu risco, bloqueio, conflito ou drift novo relevante;
+6. a ação não envolve escrita de alto impacto não autorizada;
+7. não há expansão de frente, etapa, ambiente ou objetivo;
+
+então:
+
+- **NÃO perguntar "quer que eu prossiga?"**;
+- executar imediatamente a ação autorizada;
+- registrar a decisão, o escopo e as restrições;
+- validar o resultado;
+- reportar o resultado ao PO;
+- parar somente no **próximo gate real**, quando houver.
+
+Uma confirmação conversacional não é um gate de governança. Não use uma pergunta de confirmação para substituir a matriz de autoridade.
+
+### Exemplos
+
+- PO autorizou formalização documental de E2E histórico suficiente → formalizar imediatamente.
+- PO autorizou auditoria read-only → executar imediatamente.
+- PO autorizou E2E STAGING dentro de escopo fechado → executar imediatamente.
+- PO autorizou documentação derivada de evidências confirmadas → produzir a documentação imediatamente.
+
+### Não aplicar esta regra quando
+
+- a ação nova não está claramente no escopo;
+- a matriz classifica a ação como `⏸️ HUMAN GATE`;
+- a ação exige mudança de ambiente/configuração não autorizada;
+- envolve PROD mutável, financeiro, segurança, RLS/ACL, tenant isolation, rollback, merge/deploy ou D8;
+- existe evidência `CONFLICTING` ou ausência de evidência obrigatória;
+- a execução exigiria pular uma etapa do ciclo de change-control.
+
+Nesses casos, parar no gate apropriado.
+
+### Limite importante
+
+Executar automaticamente **a ação autorizada** não significa encadear automaticamente ações posteriores.
+
+Exemplo:
+
+> PO autorizou validação E2E → execute E2E. Isso não autoriza automaticamente commit, push, PR, merge ou deploy, salvo se essas etapas estiverem explicitamente incluídas no mesmo escopo e permitidas pela matriz.
 
 ---
 
@@ -223,6 +282,8 @@ Não pule etapas.
 Não agrupe etapas apenas para "ganhar tempo".
 
 Se a frente estiver em VALIDAÇÃO, não avance automaticamente para IMPLEMENT, COMMIT, MERGE ou DEPLOY.
+
+**Exceção de fluxo:** a regra de execução automática do §4A pode executar imediatamente uma ação já autorizada dentro da etapa atual. Ela não permite saltar para outra etapa não autorizada.
 
 ---
 
@@ -455,9 +516,13 @@ Antes de emitir AUTO-APPROVE, responda internamente:
 16. A evidência é histórica e, se for, ela ainda é suficiente para este gate?
 17. Existe requisito explícito de frescor/reexecução?
 18. Alguma mudança posterior invalidou a evidência histórica?
+19. Se a ação já estiver autorizada e for AUTO-APPROVE/RESTRICTED, estou prestes a pedir uma confirmação redundante?
+20. Se sim, devo executar agora em vez de perguntar novamente?
 ```
 
 Se qualquer resposta indicar risco não automatizável, pare.
+
+Se os itens 19 e 20 forem aplicáveis e nenhuma regra superior bloquear a ação, **execute imediatamente e não solicite nova confirmação conversacional**.
 
 ---
 
@@ -500,168 +565,181 @@ ou
 ou
 ⏸️ HUMAN GATE
 
-### Escopo autorizado
-Somente: ...
+### Ação autorizada
+- ...
 
 ### Explicitamente NÃO autorizado
 - ...
-- ...
 
 ### Próximo gate
-...
+- ...
 ```
+
+**Importante:** quando a decisão for `🟢 AUTO-APPROVE` ou `🟡 APPROVE WITH RESTRICTION` e a autorização de escopo já existir, o bloco acima deve ser seguido pela execução da ação. Não terminar a resposta com uma pergunta do tipo "quer que eu prossiga?".
+
+Só terminar em pergunta quando houver uma decisão genuinamente necessária do PO humano.
 
 ---
 
-# 17. Exemplo — P0.4 E2E STAGING
+# 17. Exemplos de decisão
 
-Entrada:
-
-```text
-P0.4
-Etapa: VALIDAÇÃO
-E2E STAGING
-Migrations 3/3 presentes
-RPCs 5/5
-ACL 5/5
-E2E histórico 18/18
-Ledger PROD 0/3
-reverse_revenue ausente
-```
-
-Decisão correta:
+## Exemplo A — E2E STAGING já autorizado
 
 ```text
+PO anterior:
+"Autorizo exclusivamente E2E P0.4 em STAGING."
+
+Governança:
 🟡 APPROVE WITH RESTRICTION
-
-AUTORIZADO:
-- executar suite E2E P0.4 em STAGING.
-
-NÃO AUTORIZADO:
-- INSERT/repair de ledger PROD;
-- migration PROD;
-- alteração de RPC;
-- alteração RLS/ACL;
-- merge;
-- deploy;
-- promoção.
-
-Motivo:
-o E2E STAGING é uma validação operacional delimitada.
-O ledger PROD é uma pendência separada de proveniência.
 ```
 
-Nunca transformar isso em:
+Ação:
 
-> "P0.4 aprovado para produção."
+- executar E2E STAGING;
+- não tocar PROD;
+- não inserir/repair ledger;
+- não alterar migrations/RLS/ACL;
+- não mergear;
+- não deployar.
+
+**Não perguntar novamente antes de executar.**
 
 ---
 
-# 18. Exemplo — ledger drift
-
-Entrada:
+## Exemplo B — E2E histórico suficiente
 
 ```text
-Ledger PROD 0/3
-Objeto existe
-Migration existe
-Proveniência não comprovada
+E2E histórico P0.4:
+18/18 PASS
+runId 1789228868471
 ```
 
-Decisão:
-
-```text
-⏸️ HUMAN GATE
-
-Não autorizado:
-- INSERT no ledger;
-- repair;
-- marcar artificialmente como applied.
-
-Necessário:
-- decisão específica sobre estratégia de reconciliação.
-```
-
----
-
-# 19. Exemplo — documentação
-
-Se uma alteração documental apenas registra evidências já comprovadas e não altera código, banco ou política:
+Sem requisito de frescor e sem mudanças invalidantes:
 
 ```text
 🟢 AUTO-APPROVE
 ```
 
-Mas nunca fabricar uma certificação documental para compensar uma evidência ausente.
+Ação imediata:
+
+- formalizar a evidência histórica na documentação autorizada;
+- registrar explicitamente `HISTORICAL/STAGING`;
+- validar a alteração documental.
+
+Não perguntar novamente.
+
+Isso não autoriza automaticamente promoção, merge ou deploy.
 
 ---
 
-# 20. Relação com o PO humano
+## Exemplo C — Ledger PROD não comprovado
 
-O PO humano continua sendo autoridade máxima para:
+```text
+Ledger P0.4 PROD:
+0/3 comprovado nesta execução
+```
+
+Se a ação proposta for INSERT/repair:
+
+```text
+⏸️ HUMAN GATE
+```
+
+Não executar.
+
+---
+
+## Exemplo D — Migration PROD
+
+Mesmo com migration correta e testes verdes:
+
+```text
+⏸️ HUMAN GATE
+```
+
+Migration PROD exige decisão humana específica.
+
+---
+
+## Exemplo E — D8 incompleto
+
+Se faltar qualquer requisito D8:
+
+```text
+🔴 BLOCK
+```
+
+ou `⏸️ HUMAN GATE` quando a decisão depender de exceção humana.
+
+Nunca improvisar.
+
+---
+
+# 18. Relação com o PO humano
+
+O PO humano continua sendo a autoridade máxima para:
 
 - produção;
 - dinheiro;
 - segurança;
 - dados;
 - reversões;
-- alterações irreversíveis;
+- ações irreversíveis;
 - exceções de governança;
-- promoção final quando classificada como human gate.
+- promoção final quando houver HUMAN GATE.
 
-A skill pode recomendar:
+A skill existe para **tirar do PO a necessidade de repetir confirmações de baixo risco que já foram decididas**, não para retirar do PO decisões de alto impacto.
 
-```text
-RECOMENDAÇÃO DO PO GOVERNANCE:
-APROVAR / NÃO APROVAR / AGUARDAR
-```
+Regra prática:
 
-Mas nunca alegar que o PO humano autorizou algo que não foi explicitamente autorizado.
+> O PO decide o que está autorizado. A governança decide se a ação está dentro desse contrato. Se estiver e for automatizável, executa sem pedir a mesma autorização outra vez.
 
 ---
 
-# 21. Anti-patterns proibidos
+# 19. Anti-padrões proibidos
 
 Nunca:
 
 - inventar aprovação;
-- inferir aprovação de silêncio;
-- usar aprovação de outra frente;
-- usar aprovação de STAGING para PROD;
-- usar aprovação de implementação para merge;
-- usar aprovação de merge para deploy;
+- tratar silêncio como aprovação;
+- pedir confirmação redundante para ação já explicitamente autorizada e classificada como AUTO-APPROVE/RESTRICTED;
+- transformar cada etapa interna de uma autorização em novo HUMAN GATE;
+- fazer autorização transitiva entre ambientes;
+- fazer autorização transitiva entre etapas;
+- transformar STAGING em PROD;
+- transformar implementação em merge;
+- transformar merge em deploy;
 - alterar PROD para fazer teste passar;
-- inserir ledger para deixar matriz verde;
+- inserir ledger para fazer matriz ficar verde;
 - ignorar drift;
-- esconder FAIL/MISSING;
-- repetir consulta em loop infinito;
-- misturar branches;
-- contornar branch protection;
-- diminuir nível de segurança para facilitar execução;
+- esconder falhas;
+- entrar em loop infinito de confirmação;
+- misturar branches/frentes;
+- usar bypass de proteção;
+- reduzir segurança para acelerar fluxo;
 - transformar recomendação em autorização;
-- interpretar "continue" como autorização universal.
+- tratar "continue" como autorização universal;
+- usar a ausência de uma pergunta como motivo para bloquear uma ação já autorizada e automatizável.
 
 ---
 
-# 22. Critério de sucesso
+# 20. Critério de sucesso
 
 A skill é bem-sucedida quando:
 
-- reduz decisões operacionais repetitivas;
-- mantém rastreabilidade;
-- não inventa evidências;
-- não ultrapassa escopo;
-- bloqueia ações de alto impacto;
-- mantém separação STAGING/PROD;
-- preserva D8;
-- preserva integridade financeira;
-- mantém STOP gates claros;
-- entrega ao PO humano somente decisões que realmente precisam de autoridade humana.
+- decisões repetitivas de baixo risco são automatizadas;
+- ações já autorizadas não ficam esperando confirmação conversacional redundante;
+- ações de alto impacto continuam protegidas por HUMAN GATE;
+- evidências históricas válidas são reaproveitadas corretamente;
+- nenhum ambiente é confundido;
+- nenhum escopo é ampliado;
+- nenhum dado financeiro é inventado;
+- nenhum drift é apagado por conveniência;
+- D8 continua inviolável;
+- o PO humano continua com autoridade sobre produção, dinheiro, segurança, dados e irreversibilidade.
 
-## Regra final
+---
 
-> Automatize a análise e as decisões de baixo risco.
->
-> Não automatize a autoridade sobre produção, dinheiro, segurança, dados ou ações irreversíveis.
->
-> Quando houver dúvida relevante, pare e peça decisão humana.
+# 21. Regra final
+
+> **Automatize análise, decisão operacional de baixo risco e execução de ações já autorizadas. Não automatize autoridade sobre produção, dinheiro, segurança, dados ou ações irreversíveis. Quando houver dúvida material, pare. Quando não houver dúvida e a ação já estiver autorizada dentro do escopo, não peça a mesma autorização novamente — execute e reporte.**
