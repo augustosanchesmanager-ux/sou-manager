@@ -277,7 +277,79 @@ Evidência histórica também não deve ser apresentada como execução atual.
 
 ---
 
-# 10. Drift
+# 10. Suficiência de evidência histórica
+
+Evidência histórica válida **não precisa ser repetida automaticamente** apenas porque não foi produzida no turno atual.
+
+Quando um gate exige uma evidência que já foi comprovada anteriormente, classifique-a como `HISTORICAL` e verifique antes de pedir nova execução:
+
+1. a evidência pertence à mesma frente e ao mesmo escopo;
+2. foi produzida no ambiente correto;
+3. o resultado está claramente identificado (por exemplo, runId, data ou referência documental);
+4. não existe requisito explícito de evidência fresca/reexecução para esse gate;
+5. não existe evidência nova conflitante;
+6. não houve mudança relevante de código, banco, configuração ou ambiente que invalide o resultado;
+7. a finalidade do gate pode ser satisfeita pela evidência existente.
+
+Se todos os critérios forem satisfeitos, a evidência histórica pode ser considerada **suficiente para o gate atual** e a ação de formalização documental pode ser `🟢 AUTO-APPROVE`, desde que não envolva escrita de alto impacto.
+
+Isso significa:
+
+> `HISTORICAL` não significa `INVALID`. Significa apenas que a execução ocorreu anteriormente.
+
+Nunca apresentar evidência histórica como execução atual. Registrar explicitamente sua natureza histórica.
+
+## Quando exigir evidência fresca
+
+Solicite nova execução somente quando:
+
+- o gate exigir explicitamente evidência fresca;
+- houve mudança relevante desde a execução anterior;
+- o ambiente/configuração relevante mudou;
+- a evidência anterior está incompleta, conflitante ou perdeu validade;
+- a decisão depende de estado vivo que não pode ser inferido da evidência histórica.
+
+Se a nova execução exigir mudança de ambiente/configuração ou tocar uma área fora da autorização atual, isso **não deve ser autoautorizado**. Reavalie o escopo e, quando necessário, use `⏸️ HUMAN GATE`.
+
+## Exemplo — E2E histórico suficiente
+
+Entrada:
+
+```text
+Frente: P0.4
+Etapa: VALIDAÇÃO
+E2E STAGING histórico: 18/18 PASS
+runId: 1789228868471
+Migrations: 3/3
+RPCs: 5/5
+ACL: 5/5
+Sem drift novo relevante
+Ledger PROD: pendência separada e bloqueada
+```
+
+Se não houver requisito de reexecução fresca, decisão correta:
+
+```text
+🟢 AUTO-APPROVE
+
+AUTORIZADO:
+- formalizar o E2E histórico 18/18 como evidência da etapa de validação;
+- registrar que a evidência é HISTORICAL/STAGING.
+
+NÃO AUTORIZADO:
+- executar E2E em PROD;
+- alterar `.env.local` para outro ambiente sem autorização de escopo;
+- reparar/inserir ledger PROD;
+- promover;
+- merge;
+- deploy.
+```
+
+O fato de uma evidência poder fechar o gate não cria autorização para ações posteriores.
+
+---
+
+# 11. Drift
 
 Quando houver drift:
 
@@ -294,7 +366,7 @@ Drift financeiro ou de proveniência de ledger deve ser tratado como assunto pr�
 
 ---
 
-# 11. Ledger e integridade financeira
+# 12. Ledger e integridade financeira
 
 Para qualquer assunto financeiro:
 
@@ -322,7 +394,7 @@ depending on the action requested.
 
 ---
 
-# 12. Timeout e falha de infraestrutura
+# 13. Timeout e falha de infraestrutura
 
 Timeout não é evidência de PASS nem de FAIL funcional.
 
@@ -342,7 +414,7 @@ Se a evidência for obrigatória para o gate:
 
 ---
 
-# 13. Regra contra contaminação entre frentes
+# 14. Regra contra contaminação entre frentes
 
 Uma frente não pode executar ou modificar outra.
 
@@ -360,7 +432,7 @@ Se detectar trabalho de outra frente na branch atual:
 
 ---
 
-# 14. Decisão automática
+# 15. Decisão automática
 
 Antes de emitir AUTO-APPROVE, responda internamente:
 
@@ -380,13 +452,16 @@ Antes de emitir AUTO-APPROVE, responda internamente:
 13. Existe autorização anterior aplicável?
 14. Estou ampliando o escopo?
 15. Estou transformando inferência em evidência?
+16. A evidência é histórica e, se for, ela ainda é suficiente para este gate?
+17. Existe requisito explícito de frescor/reexecução?
+18. Alguma mudança posterior invalidou a evidência histórica?
 ```
 
 Se qualquer resposta indicar risco não automatizável, pare.
 
 ---
 
-# 15. Formato obrigatório da decisão
+# 16. Formato obrigatório da decisão
 
 Sempre que decidir um gate, produzir:
 
@@ -438,7 +513,7 @@ Somente: ...
 
 ---
 
-# 16. Exemplo — P0.4 E2E STAGING
+# 17. Exemplo — P0.4 E2E STAGING
 
 Entrada:
 
@@ -482,7 +557,7 @@ Nunca transformar isso em:
 
 ---
 
-# 17. Exemplo — ledger drift
+# 18. Exemplo — ledger drift
 
 Entrada:
 
@@ -509,7 +584,7 @@ Necessário:
 
 ---
 
-# 18. Exemplo — documentação
+# 19. Exemplo — documentação
 
 Se uma alteração documental apenas registra evidências já comprovadas e não altera código, banco ou política:
 
@@ -521,7 +596,7 @@ Mas nunca fabricar uma certificação documental para compensar uma evidência a
 
 ---
 
-# 19. Relação com o PO humano
+# 20. Relação com o PO humano
 
 O PO humano continua sendo autoridade máxima para:
 
@@ -545,7 +620,7 @@ Mas nunca alegar que o PO humano autorizou algo que não foi explicitamente auto
 
 ---
 
-# 20. Anti-patterns proibidos
+# 21. Anti-patterns proibidos
 
 Nunca:
 
@@ -568,7 +643,7 @@ Nunca:
 
 ---
 
-# 21. Critério de sucesso
+# 22. Critério de sucesso
 
 A skill é bem-sucedida quando:
 
