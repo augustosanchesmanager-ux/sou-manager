@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Security - committed by mistake (F4.1 security audit 2026-09-13)
+.vercel-temp.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
