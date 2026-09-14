@@ -14,6 +14,12 @@
 --   1. auth.uid() IS NULL           -> 'Authentication required'
 --   2. NOT super_admin_from_auth_uid -> 'Insufficient permissions: superadmin'
 -- O corpo de negócio e o SECURITY DEFINER são preservados intactos.
+--
+-- Emenda F3.1a (2026-09-14): preserva SET search_path TO 'public', 'auth'.
+-- Sem o SET explícito, CREATE OR REPLACE FUNCTION reatribui as propriedades
+-- implícitas da definição — removendo silenciosamente o search_path fixado
+-- que hoje protege a função em produção (doc PostgreSQL: "all other function
+-- properties are assigned the values specified or implied in the command").
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.approve_access_request(p_request_id UUID)
@@ -61,4 +67,4 @@ BEGIN
   VALUES (v_tenant_id, 'system_alert', 'Bem-vindo!', 'Sua barbearia foi ativada com sucesso. Comece configurando seu time e serviços.');
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'auth';
