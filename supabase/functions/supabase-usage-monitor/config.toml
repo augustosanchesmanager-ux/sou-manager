@@ -1,0 +1,11 @@
+# F2.2 (SEC-AUTHZ-USAGE-MONITOR) — supabase-usage-monitor.
+#
+# verify_jwt = false: a autenticação é feita DENTRO da função via GoTrue
+# (`auth.getUser`) + autorização superadmin — mesmo padrão aprovado na F2.1
+# (admin-create-user) e no worker-dispatcher. O JWT do chamador é verificado
+# contra o GoTrue (compatível com chaves assimétricas ES256), e o papel
+# superadmin é exigido antes de qualquer operação service_role (espelha
+# `public.is_super_admin()` — RLS de usage_logs/alerts preservada).
+# NÃO habilitar verify_jwt = true aqui: isso só provaria "JWT válido", não o
+# papel superadmin; a autorização vive na função, não no gateway.
+verify_jwt = false
