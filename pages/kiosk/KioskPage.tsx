@@ -264,7 +264,7 @@ const KioskInner: React.FC<{ tenant: TenantInfo; timeout: number }> = ({ tenant,
                         </div>
                     )}
                     <div>
-                        <p style={{ color: '#fff', fontSize: '20px', fontWeight: 900, margin: 0, tracking: '-1px' }}>
+                        <p style={{ color: '#fff', fontSize: '20px', fontWeight: 900, margin: 0, letterSpacing: '-1px' }}>
                             {tenant.name}
                         </p>
                         <p style={{ color: theme.textSub, fontSize: '11px', margin: 0, letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.6 }}>
@@ -487,7 +487,7 @@ const KioskPage: React.FC = () => {
     if (error || addonEnabled === false) return (
         <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '24px', textAlign: 'center', padding: '40px' }}>
             <span style={{ fontSize: '80px', marginBottom: '20px' }}>🔐</span>
-            <p style={{ color: '#fff', fontSize: '32px', fontWeight: 900, tracking: '-1px' }}>TOTEM NÃO HABILITADO</p>
+            <p style={{ color: '#fff', fontSize: '32px', fontWeight: 900, letterSpacing: '-1px' }}>TOTEM NÃO HABILITADO</p>
             <p style={{ color: '#64748b', fontSize: '16px', maxWidth: '400px' }}>{error || 'O módulo de autoatendimento precisa ser ativado no painel administrativo.'}</p>
         </div>
     );

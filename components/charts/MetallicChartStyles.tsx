@@ -195,7 +195,7 @@ export const GradientBar = ({
 }: {
   dataKey: string;
   fill?: string;
-  radius?: number[];
+  radius?: number | [number, number, number, number];
 }) => (
   <Bar 
     dataKey={dataKey} 

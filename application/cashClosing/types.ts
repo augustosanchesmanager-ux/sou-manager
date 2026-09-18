@@ -180,7 +180,7 @@ export interface SaveConferenceParams {
     agendaSummary: AgendaSummary;
     paymentMethodBreakdown: Array<{ method: string; entradas: number; saidas: number; count: number }>;
     extras: SangriaSuprimento[];
-    filters?: Record<string, unknown>;
+    filters?: object;
     barberSummaries: BarberSummary[];
 }
 

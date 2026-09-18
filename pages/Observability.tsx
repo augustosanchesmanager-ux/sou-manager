@@ -232,7 +232,7 @@ const Observability: React.FC = () => {
           {/* Business Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard label="Checkouts" value={formatNumber(dashboardMetrics.business.checkoutsToday)} icon="point_of_sale" />
-            <MetricCard label Ticket Médio={`R$ ${dashboardMetrics.business.averageTicket.toFixed(2)}`} value="" icon="attach_money" />
+            <MetricCard label="Ticket Médio" value={`R$ ${dashboardMetrics.business.averageTicket.toFixed(2)}`} icon="attach_money" />
             <MetricCard label="Serviços" value={formatNumber(dashboardMetrics.business.servicesPerformed)} icon="content_cut" />
             <MetricCard label="Créditos Club dos Chefes" value={formatNumber(dashboardMetrics.business.creditsUsed)} icon="card_membership" />
             <MetricCard label="Comissão Diária" value={`R$ ${dashboardMetrics.business.dailyCommission.toFixed(2)}`} icon="paid" />

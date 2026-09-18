@@ -65,7 +65,7 @@ const Clients: React.FC = () => {
     const barberSupabase = getScopedClient('barber');
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
     // Filters
     const [search, setSearch] = useState('');

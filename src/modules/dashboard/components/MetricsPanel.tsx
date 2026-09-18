@@ -65,7 +65,7 @@ export const MetricsPanel: React.FC<{
       clients: clientsCount,
       appointments: metrics.todayAppointments,
       avg_ticket: metrics.avgTicket,
-      growth: metrics.growth,
+      growth: metrics.revenueGrowth,
       retention: metrics.retentionRate,
       team: metrics.activeStaffPercent,
       custom: 0,

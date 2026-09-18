@@ -31,6 +31,7 @@ interface AddonInfo {
     status: 'enabled' | 'disabled';
     kiosk_theme: string;
     max_devices: number;
+    limits?: { theme: string; max_devices: number; logo_url?: string; ambient_images?: string[] };
 }
 
 const KioskAdmin: React.FC = () => {
@@ -96,7 +97,8 @@ const KioskAdmin: React.FC = () => {
         const addonInfo: AddonInfo | null = data ? {
             status: data.status,
             kiosk_theme: theme,
-            max_devices: data.limits?.max_devices || 1
+            max_devices: data.limits?.max_devices || 1,
+            limits: data.limits || undefined,
         } : null;
 
         setAddon(addonInfo);
@@ -311,7 +313,7 @@ const KioskAdmin: React.FC = () => {
 
     return (
         <div className="flex h-screen overflow-hidden bg-slate-900">
-            <Sidebar />
+            <Sidebar isOpen={false} onClose={() => {}} />
 
             <main className="flex-1 overflow-y-auto" style={{ background: '#0f172a', padding: '32px' }}>
 

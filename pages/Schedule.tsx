@@ -3040,7 +3040,7 @@ Podemos confirmar? 😄`;
               Cancelar
             </button>
             <button
-              onClick={handleSave}
+              onClick={() => handleSave()}
               className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
             >
               {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
@@ -3655,7 +3655,7 @@ Podemos confirmar? 😄`;
                 Voltar
               </button>
               <button
-                onClick={confirmCancelAppointment}
+                onClick={() => confirmCancelAppointment()}
                 disabled={!cancellationType || (cancellationType === 'other' && !cancelReason.trim())}
                 className="px-4 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
