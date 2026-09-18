@@ -271,8 +271,15 @@ export interface PlanSummary {
     serviceCatalog: number;
 }
 
+export interface PlanSummaryRow {
+    active?: boolean;
+    monthly_price?: number | string;
+    service_credit_map?: unknown;
+    service_credits?: unknown;
+}
+
 export const computePlanSummary = (
-    plans: Record<string, unknown>[],
+    plans: PlanSummaryRow[],
     services: ServiceOption[],
 ): PlanSummary => {
     const activePlans = plans.filter((p) => p.active);

@@ -177,10 +177,9 @@ const Provision: React.FC = () => {
                             </div>
                             <button
                                 type="submit"
-                                disabled={state === 'provisioning'}
                                 className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                {state === 'provisioning' ? 'Criando...' : 'Criar barbearia'}
+                                Criar barbearia
                             </button>
                         </form>
                     ) : state === 'error' ? (

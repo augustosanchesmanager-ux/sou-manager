@@ -113,7 +113,7 @@ const PortalAdmin: React.FC = () => {
 
     return (
         <div className="flex h-screen bg-[#f8fafc]">
-            <Sidebar />
+            <Sidebar isOpen={false} onClose={() => {}} />
 
             {showModal && (
                 <AddonModal

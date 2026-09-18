@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 interface ToastProps {
     message: string;
-    type?: 'success' | 'error' | 'info';
+    type?: 'success' | 'error' | 'info' | 'warning';
     onClose: () => void;
     duration?: number;
 }
@@ -21,13 +21,15 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose, durat
     const colors = {
         success: 'bg-emerald-500',
         error: 'bg-red-500',
-        info: 'bg-primary'
+        info: 'bg-primary',
+        warning: 'bg-amber-500'
     };
 
     const icons = {
         success: 'check_circle',
         error: 'error',
-        info: 'info'
+        info: 'info',
+        warning: 'warning'
     };
 
     return (

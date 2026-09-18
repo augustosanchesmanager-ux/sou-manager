@@ -506,7 +506,7 @@ const Team: React.FC = () => {
                 <form onSubmit={handleSave} className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                        <input type="text" required={editingMember || !inviteRoles.includes(form.role)} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        <input type="text" required={Boolean(editingMember) || !inviteRoles.includes(form.role)} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: João Silva" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">

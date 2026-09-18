@@ -22,7 +22,7 @@ export interface StrategicDashboardData {
   
   // Charts
   revenueEvolution: { date: string; value: number }[];
-  revenueByDay: { day: string; value: number }[];
+  revenueByDay: { date: string; value: number }[];
   
   // Rankings
   topProfessionals: { id: string; name: string; appointments: number; avatar?: string }[];

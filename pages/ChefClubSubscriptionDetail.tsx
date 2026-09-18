@@ -14,7 +14,6 @@ import {
     type SubscriptionDetailClient,
 } from '../application/chefClub';
 import {
-    normalizePlanServiceCredits,
     normalizeCreditBalances,
     getTotalAvailableCredits,
     getTotalUsedCredits,
@@ -191,7 +190,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
     const { subscription, plan, credits, client, availablePlans } = detail;
 
-    const planServices = plan ? normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits) : [];
+    const planServices = plan ? plan.service_credits : [];
     const serviceBalances = normalizeCreditBalances(
         credits?.service_balance_map,
         credits?.available_credits || 0,

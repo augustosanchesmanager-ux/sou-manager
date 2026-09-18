@@ -118,6 +118,7 @@ interface ClubReceivableRecord {
     due_date: string;
     amount: number;
     status: string;
+    transaction_id: string | null;
 }
 
 interface ReceiptRecord {
@@ -415,7 +416,7 @@ const AccountsReceivable: React.FC = () => {
                 barberSupabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
                     barberSupabase
                         .from('customer_subscription_receivables')
-                        .select('id, customer_id, subscription_id, plan_id, due_date, amount, status')
+                        .select('id, customer_id, subscription_id, plan_id, due_date, amount, status, transaction_id')
                         .eq('tenant_id', tenantId)
                         .in('status', ['pending', 'overdue'])
                 ),
