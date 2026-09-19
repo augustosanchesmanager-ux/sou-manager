@@ -212,34 +212,129 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- 9) Fechamento em lote (lógica legítima preservada), isolado ao tenant efetivo.
-  UPDATE public.comandas
-  SET
-    status = 'paid',
-    closure_mode = 'standard',
-    closure_note = NULLIF(BTRIM(p_closure_note), ''),
-    financial_effect = true,
-    membership_credit_effect = p_apply_credits,
-    payment_method = p_payment_method,
-    closed_at = NOW()
-  WHERE id = ANY(v_ids)
-    AND status = 'open'
-    AND (v_eff_tenant_id IS NULL OR tenant_id = v_eff_tenant_id);
+  -- 9) Settlement financeiro por comanda (atomicidade: settlement + outbox na mesma transação).
+  --    Reutiliza finance_settle_comanda_and_enqueue (D7) que garante:
+  --    - finance_settle_comanda (UPDATE comanda + INSERT transaction) + outbox_items INSERT na mesma transação
+  --    - Se settlement falha → exception propaga → ROLLBACK total (créditos + comanda + settlement + outbox)
+  --    - Idempotência via p_idempotency_key + event_id no outbox (ON CONFLICT DO NOTHING)
+  --    - Dispara CheckoutCompleted → FinanceSubscriber → FinanceProvider → comissão + cash closing
+  v_updated_count := 0;
 
-  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+  FOREACH v_comanda_id IN ARRAY v_ids LOOP
+    -- Obter total da comanda para p_paid_amount
+    DECLARE
+      v_comanda_total NUMERIC;
+      v_comanda_payment_method TEXT;
+      v_settlement JSONB;
+      v_event_id TEXT;
+      v_outbox_payload JSONB;
+      v_outbox_metadata JSONB;
+    BEGIN
+      -- Obter dados necessários da comanda
+      -- appointment_id não é usado aqui (finance_settle_comanda trata internamente)
+      SELECT total, payment_method
+      INTO v_comanda_total, v_comanda_payment_method
+      FROM public.comandas
+      WHERE id = v_comanda_id AND tenant_id = v_eff_tenant_id;
 
-  UPDATE public.appointments
-  SET status = 'completed'
-  WHERE id IN (
-    SELECT appointment_id
-    FROM public.comandas
-    WHERE id = ANY(v_ids)
-      AND appointment_id IS NOT NULL
-      AND status = 'paid'
-      AND closure_mode = 'standard'
-      AND (v_eff_tenant_id IS NULL OR tenant_id = v_eff_tenant_id)
-  )
-    AND (v_eff_tenant_id IS NULL OR tenant_id = v_eff_tenant_id);
+      IF v_comanda_total IS NULL THEN
+        RAISE EXCEPTION 'Comanda % não encontrada para tenant %', v_comanda_id, v_eff_tenant_id;
+      END IF;
+
+      IF v_comanda_total <= 0 THEN
+        RAISE EXCEPTION 'Comanda % com total inválido (<= 0): %', v_comanda_id, v_comanda_total;
+      END IF;
+
+      -- Chaves determinísticas para idempotência.
+      -- Formato: bulk-close-credits:{tenant_id}:{comanda_id}
+      -- Diferente do checkout (finance-settle-{comandaId}-{uuid}) pois no bulk o retry
+      -- deve usar a mesma chave para a mesma comanda/tenant, permitindo retry seguro
+      -- sem duplicar settlement/outbox. O formato determina a unicidade por comanda+tenant.
+      v_idempotency_key := 'bulk-close-credits:' || v_eff_tenant_id || ':' || v_comanda_id;
+
+      -- event_id determinístico para outbox.
+      -- Formato: evt-bulk-close-credits:{comanda_id}
+      -- Diferente do padrão generateEventId (evt_{timestamp}_{random}_{counter}) pois
+      -- o retry do mesmo batch deve gerar o MESMO event_id para a mesma comanda,
+      -- permitindo que ON CONFLICT (event_id) DO NOTHING no outbox evite duplicatas.
+      -- O prefixo 'evt-bulk-close-credits:' identifica a origem do evento.
+      v_event_id := 'evt-bulk-close-credits:' || v_comanda_id;
+
+      -- Payload do outbox (espelha CheckoutCompleted do checkout.ts)
+      v_outbox_payload := jsonb_build_object(
+        'eventId', v_event_id,
+        'eventType', 'CheckoutCompleted',
+        'payload', jsonb_build_object(
+          'operationType', 'create_commission_record',
+          'operationData', jsonb_build_object(
+            'tenantId', v_eff_tenant_id,
+            'comandaId', v_comanda_id,
+            'clientId', (SELECT client_id FROM public.comandas WHERE id = v_comanda_id),
+            'staffId', (SELECT staff_id FROM public.comanda_items WHERE comanda_id = v_comanda_id LIMIT 1),
+            'receivedValue', v_comanda_total,
+            -- payment_method: prioriza o valor já armazenado na comanda (v_comanda_payment_method).
+      -- Se a comanda já possui payment_method definido (ex: setado no checkout original),
+      -- respeita esse valor. Caso contrário, usa o parâmetro p_payment_method da chamada.
+      -- Isso garante que o settlement registre o método de pagamento real da comanda.
+      'paymentMethod', COALESCE(v_comanda_payment_method, p_payment_method),
+            'hasClubCredit', p_apply_credits
+          ),
+          'sourceEvent', 'CheckoutCompleted',
+          'idempotencyKey', v_event_id || '_create_commission_record'
+        ),
+        'metadata', jsonb_build_object(
+          'tenantId', v_eff_tenant_id,
+          'userId', auth.uid(),
+          'correlationId', v_idempotency_key,
+          'causationId', v_event_id,
+          'source', 'BulkCloseComandasWithCredits'
+        )
+      );
+
+      v_outbox_metadata := jsonb_build_object(
+        'tenantId', v_eff_tenant_id,
+        'userId', auth.uid(),
+        'correlationId', v_idempotency_key,
+        'causationId', v_event_id,
+        'source', 'BulkCloseComandasWithCredits'
+      );
+
+      -- Chamar settlement atomic (D7) - faz UPDATE comanda + INSERT transaction + outbox atomically
+      SELECT public.finance_settle_comanda_and_enqueue(
+        v_eff_tenant_id,
+        v_comanda_id,
+        COALESCE(v_comanda_payment_method, p_payment_method),
+        v_comanda_total,
+        NOW(),
+        'checkout',
+        NULL, -- notes
+        'bulk-close-credits:' || v_eff_tenant_id || ':' || v_comanda_id, -- idempotency key determinística
+        v_event_id,
+        'CheckoutCompleted',
+        v_outbox_payload,
+        v_outbox_metadata,
+        '[{"provider":"finance","config":{}}]'::jsonb
+      ) INTO v_settlement;
+
+      -- Verificar resultado do settlement
+      IF v_settlement IS NULL THEN
+        RAISE EXCEPTION 'finance_settle_comanda_and_enqueue retornou NULL para comanda %', v_comanda_id;
+      END IF;
+
+      IF NOT (v_settlement->>'success')::boolean THEN
+        -- Settlement falhou - propagar erro, outbox NÃO escrito, ROLLBACK total
+        RAISE EXCEPTION 'Settlement falhou para comanda %: %', v_comanda_id, v_settlement->>'message';
+      END IF;
+
+      -- Se settlement foi idempotente, outbox já existe - OK
+      -- Se não idempotente, outbox foi enfileirado atomicamente
+
+      v_updated_count := v_updated_count + 1;
+    END;
+  END LOOP;
+
+  -- Appointments são atualizados pelo finance_settle_comanda internamente
+  -- (quando comanda.appointment_id existe)
 
   RETURN jsonb_build_object(
     'updated_count', v_updated_count,
