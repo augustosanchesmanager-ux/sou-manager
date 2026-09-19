@@ -224,7 +224,6 @@ BEGIN
     -- Obter total da comanda para p_paid_amount
     DECLARE
       v_comanda_total NUMERIC;
-      v_comanda_appointment_id UUID;
       v_comanda_payment_method TEXT;
       v_settlement JSONB;
       v_event_id TEXT;
@@ -232,8 +231,9 @@ BEGIN
       v_outbox_metadata JSONB;
     BEGIN
       -- Obter dados necessários da comanda
-      SELECT total, appointment_id, payment_method
-      INTO v_comanda_total, v_comanda_appointment_id, v_comanda_payment_method
+      -- appointment_id não é usado aqui (finance_settle_comanda trata internamente)
+      SELECT total, payment_method
+      INTO v_comanda_total, v_comanda_payment_method
       FROM public.comandas
       WHERE id = v_comanda_id AND tenant_id = v_eff_tenant_id;
 
@@ -245,10 +245,19 @@ BEGIN
         RAISE EXCEPTION 'Comanda % com total inválido (<= 0): %', v_comanda_id, v_comanda_total;
       END IF;
 
-      -- Chaves determinísticas para idempotência (formato: bulk-close-credits:{tenant}:{comanda})
+      -- Chaves determinísticas para idempotência.
+      -- Formato: bulk-close-credits:{tenant_id}:{comanda_id}
+      -- Diferente do checkout (finance-settle-{comandaId}-{uuid}) pois no bulk o retry
+      -- deve usar a mesma chave para a mesma comanda/tenant, permitindo retry seguro
+      -- sem duplicar settlement/outbox. O formato determina a unicidade por comanda+tenant.
       v_idempotency_key := 'bulk-close-credits:' || v_eff_tenant_id || ':' || v_comanda_id;
 
-      -- event_id determinístico para outbox (formato compatível com generateEventId)
+      -- event_id determinístico para outbox.
+      -- Formato: evt-bulk-close-credits:{comanda_id}
+      -- Diferente do padrão generateEventId (evt_{timestamp}_{random}_{counter}) pois
+      -- o retry do mesmo batch deve gerar o MESMO event_id para a mesma comanda,
+      -- permitindo que ON CONFLICT (event_id) DO NOTHING no outbox evite duplicatas.
+      -- O prefixo 'evt-bulk-close-credits:' identifica a origem do evento.
       v_event_id := 'evt-bulk-close-credits:' || v_comanda_id;
 
       -- Payload do outbox (espelha CheckoutCompleted do checkout.ts)
@@ -263,7 +272,11 @@ BEGIN
             'clientId', (SELECT client_id FROM public.comandas WHERE id = v_comanda_id),
             'staffId', (SELECT staff_id FROM public.comanda_items WHERE comanda_id = v_comanda_id LIMIT 1),
             'receivedValue', v_comanda_total,
-            'paymentMethod', COALESCE(v_comanda_payment_method, p_payment_method),
+            -- payment_method: prioriza o valor já armazenado na comanda (v_comanda_payment_method).
+      -- Se a comanda já possui payment_method definido (ex: setado no checkout original),
+      -- respeita esse valor. Caso contrário, usa o parâmetro p_payment_method da chamada.
+      -- Isso garante que o settlement registre o método de pagamento real da comanda.
+      'paymentMethod', COALESCE(v_comanda_payment_method, p_payment_method),
             'hasClubCredit', p_apply_credits
           ),
           'sourceEvent', 'CheckoutCompleted',
