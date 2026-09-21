@@ -22,8 +22,10 @@ export const PO_ACCOUNT = "augustosanchesmanager-ux";
  * `lint advisory` is the documented pre-existing CI baseline (see ROADMAP 8.50):
  * 33 errors / 213 warnings in 96 TS/TSX files, advisory (continue-on-error),
  * NEVER a mandatory gate.
+ * `e2e smoke advisory` is the CI smoke job with continue-on-error; the
+ * workflow can be SUCCESS while this check-run conclusion is failure.
  */
-export const ADVISORY_CHECK_NAMES = ["lint advisory"];
+export const ADVISORY_CHECK_NAMES = ["lint advisory", "e2e smoke advisory"];
 
 const okResult = () => ({ ok: true, reason: "" });
 const failResult = (reason) => ({ ok: false, reason });
