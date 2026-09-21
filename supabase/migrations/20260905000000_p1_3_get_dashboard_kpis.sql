@@ -315,13 +315,13 @@ BEGIN
       JOIN public.comandas c
         ON c.id = ci.comanda_id AND c.tenant_id = v_tenant_id
       JOIN public.staff s
-        ON s.id = sep.professional_id
+        ON s.id = sep.staff_id
       WHERE sep.tenant_id = v_tenant_id
         AND c.status = 'paid'
         AND COALESCE(c.financial_effect, true) = true
         AND COALESCE(c.closed_at, c.settled_at, c.created_at) >= v_start
         AND COALESCE(c.closed_at, c.settled_at, c.created_at) < v_end
-        AND (p_staff_id IS NULL OR sep.professional_id = p_staff_id)
+        AND (p_staff_id IS NULL OR sep.staff_id = p_staff_id)
         AND sep.affects_revenue = true
       GROUP BY s.id, s.name
     ) x;
