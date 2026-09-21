@@ -241,4 +241,15 @@ describe("buildDecision (composição fail-closed)", () => {
     };
     expect(buildDecision(context).ok).toBe(true);
   });
+
+  test("e2e smoke advisory vermelho NÃO bloqueia (PR #70 / R5.3)", () => {
+    const context = {
+      ...GOOD_CONTEXT,
+      checks: [
+        ...GOOD_CONTEXT.checks,
+        { name: "e2e smoke advisory", status: "completed", conclusion: "failure" },
+      ],
+    };
+    expect(buildDecision(context).ok).toBe(true);
+  });
 });
