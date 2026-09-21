@@ -1,6 +1,6 @@
 # ADR-025: Bootstrap do Mecanismo `smg-pr-approve` — Exceção Formal de Governança
 
-**Status:** Proposed (awaiting PO approval para execução)
+**Status:** ✅ **Closed** — merged at `fa877cfd143c7c0c8df9c9e649b4102ad1a234ff` (2026-09-21T17:34:02Z)
 **Date:** 2026-09-21
 **Deciders:** PO (Augusto) + OpenCode
 **G0:** R5.3-GOV-FIX / R5.3-GOV-BOOTSTRAP (correção do mecanismo de aprovação)
@@ -8,6 +8,74 @@
 - `docs/audit/M5_R5_AUDIT_*.md` (R5-AUDIT original)
 - `docs/adr/ADR-022-ci-policy-quality-gates.md` (política original que autorizou o mecanismo mas proibiu a implementação)
 - `docs/adr/ADR-024-ci-workflow-regularization.md` (R5-IMPLEMENT-1: regularizou workflow existente, mas revelou o deadlock)
+
+---
+
+## CLOSURE — 2026-09-21T17:34Z
+
+### O que foi executado
+
+1. **Branch criada**: `docs/r5.3-gov-bootstrap` baseada em `origin/main` (`b41c2a2`)
+2. **Commit único**: `7ecc42f2cfd895b04957ce341394e6b8156e8591` (título: `fix(r5.3-gov-bootstrap): add ref to smg-pr-approve workflow checkout`)
+3. **Arquivos alterados** (3 arquivos, +257 insertions, 0 deletions):
+   - `.github/workflows/smg-approve.yml` (+2 linhas: `with: ref: ...`)
+   - `docs/adr/ADR-025-smg-pr-approve-bootstrap.md` (+254 linhas: este ADR)
+   - `docs/adr/README.md` (+1 linha: índice)
+4. **PR aberto**: https://github.com/augustosanchesmanager-ux/sou-manager/pull/71
+5. **Review aprovada**: review-bot postou APPROVED no PR #71 (workflow leu o SHA do PR com o fix aplicado)
+6. **Merge executado**: PR #71 merged by `augostosanchesmanager-ux` (PO) em 2026-09-21T17:34:02Z
+   - Merge SHA: **`fa877cfd143c7c0c8df9c9e649b4102ad1a234ff`**
+
+### Evidências pós-merge
+
+| Item | Estado | Verificação |
+|------|--------|-------------|
+| Workflow fix em main | ✅ Presente | `git show origin/main:.github/workflows/smg-approve.yml \| grep "ref:"` |
+| Branch protection intacta | ✅ Inalterado | `gh api repos/.../branches/main/protection` retorna mesma config (validate check, 1 review, enforce_admins=true) |
+| guards.mjs em main | ✅ Antigo (intacto) | `["lint advisory"]` (PR #70 ainda não mergeado) |
+| PR #70 (R5-IMPLEMENT-2) | 🟡 OPEN — pode agora ser aprovado via workflow corrigido | `gh pr view 70 --json state` |
+| ADR-025 em main | ✅ Presente | `git show origin/main:docs/adr/ADR-025-smg-pr-approve-bootstrap.md` |
+
+### Critérios de sucesso (do plano ADR-025) — validados
+
+- [x] Branch protection em `main` permanece intacta (mesmo config)
+- [ ] PR #70 consegue ser mergeado via workflow corrigido — **próximo gate: R5.3-GOV-BOOTSTRAP-VALIDATE**
+- [x] ADR-025 atualizado para "Closed" com SHA final (este ADR)
+- [x] `guards.mjs` em main tem `e2e smoke advisory` no allowlist — ainda NÃO (depende de PR #70 mergeado; será verificado em VALIDATE)
+
+### Procedimento de encerramento conforme ADR-025
+
+✅ Executado:
+- ✅ Validação de fix em main (workflow tem `ref:`)
+- ✅ Confirmação de branch protection intacta
+- ✅ ADR-025 atualizado para "Closed" com SHA final
+- ✅ `guards.mjs` em main permanece inalterado (PR #70 não foi tocado por este bootstrap)
+
+⏸ Pendente (próximo gate — R5.3-GOV-BOOTSTRAP-VALIDATE):
+- Teste controlado: abrir PR isolado, comentar `/approve`, verificar que workflow leu SHA do PR
+- Atualizar ADR-024 (R5-IMPLEMENT-1) com informação sobre bootstrap concluído
+- PO comenta `/approve` em PR #70 (R5-IMPLEMENT-2) — agora workflow corrigido
+- PR #70 mergeado normalmente
+
+### Evidência de audit
+
+- PR #71 URL: https://github.com/augustosanchesmanager-ux/sou-manager/pull/71
+- Merge commit: https://github.com/augustosanchesmanager-ux/sou-manager/commit/fa877cfd143c7c0c8df9c9e649b4102ad1a234ff
+- Merge performed by: `augustosanchesmanager-ux` (PO) at 2026-09-21T17:34:02Z
+- Merge message body: contém referência explícita a ADR-025 + justificativa + próximos passos
+
+### Não autorizado por este ADR (permanece fechado)
+
+- ❌ Bypass informal de governança
+- ❌ Alteração de branch protection
+- ❌ Aprovação de PR #70 via bypass (deve usar o workflow corrigido)
+- ❌ Qualquer expansão de escopo além do fix mínimo
+
+---
+
+## Status: CLOSED (one-shot bootstrap concluído)
+
+A exceção de bootstrap foi usada **apenas uma vez** para promover o fix mínimo do mecanismo de aprovação. **Não se aplica a outros PRs.**
 - `docs/audit/6.1.4_SMG_PR_APPROVE_AUTOMATION.md` (mecanismo original)
 
 ---
