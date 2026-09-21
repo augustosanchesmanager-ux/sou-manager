@@ -21,6 +21,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-022](./ADR-022-ci-policy-quality-gates.md) | Accepted | Política de CI/CD e Quality Gates — FASE 6, item 6.1 (2026-09-03) |
 | [ADR-023](./ADR-023-f1-staff-role-hierarchy-enforcement.md) | Accepted | F1 — Enforcement de hierarquia de papéis de Staff no banco (2026-09-14) |
 | [ADR-024](./ADR-024-ci-workflow-regularization.md) | Proposed | Regularização dos CI Workflows + Política Operacional de Override (R5-IMPLEMENT-1, 2026-09-21) |
+| [ADR-025](./ADR-025-smg-pr-approve-bootstrap.md) | Proposed | Bootstrap do Mecanismo `smg-pr-approve` — Exceção Formal de Governança (R5.3-GOV-BOOTSTRAP, 2026-09-21) |
 
 ---
 
