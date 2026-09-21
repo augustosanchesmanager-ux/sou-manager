@@ -22,10 +22,18 @@ export const PO_ACCOUNT = "augustosanchesmanager-ux";
  * `lint advisory` is the documented pre-existing CI baseline (see ROADMAP 8.50):
  * 33 errors / 213 warnings in 96 TS/TSX files, advisory (continue-on-error),
  * NEVER a mandatory gate.
- * `e2e smoke advisory` is the CI smoke job with continue-on-error; the
- * workflow can be SUCCESS while this check-run conclusion is failure.
+ *
+ * `e2e smoke advisory` is the smoke E2E job added in PR #70 (R5.3). It runs
+ * Playwright against `tests/e2e/smoke/` and is intentionally advisory
+ * (continue-on-error: true) while E2E infrastructure is being formalized
+ * (R5.3 limitation: missing VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in CI
+ * — pending separate gate). When this check fails, the failure is expected
+ * and must NOT block the PO's /approve gate.
  */
-export const ADVISORY_CHECK_NAMES = ["lint advisory", "e2e smoke advisory"];
+export const ADVISORY_CHECK_NAMES = [
+  "lint advisory",
+  "e2e smoke advisory",
+];
 
 const okResult = () => ({ ok: true, reason: "" });
 const failResult = (reason) => ({ ok: false, reason });
