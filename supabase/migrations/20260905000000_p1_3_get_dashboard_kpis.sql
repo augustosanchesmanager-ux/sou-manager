@@ -23,7 +23,7 @@ BEGIN;
 --   SECURITY DEFINER + gate interno obrigatório
 --   p_tenant_id NUNCA aceito do frontend (derivado do contexto)
 --   SET search_path = public
---   Grants: REVOKE PUBLIC/anon/service_role + GRANT authenticated (P1.3 gate)
+--   Grants: REVOKE PUBLIC/anon + GRANT authenticated
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.get_dashboard_kpis(
@@ -367,8 +367,6 @@ END;
 $$;
 
 -- ─────────── Grants (ADR-012 + P1.3 Production Gate) ───────────
--- REVOKE ALL ... FROM PUBLIC não remove grants explícitos por role
--- (default privileges do Supabase concedem EXECUTE a anon/service_role).
 REVOKE ALL ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_dashboard_kpis(TEXT, UUID) FROM service_role;
