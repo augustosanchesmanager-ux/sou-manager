@@ -1,6 +1,6 @@
 # ADR-024: Regularização dos CI Workflows + Política Operacional de Override
 
-**Status:** Proposed (awaiting PO approval via PR)
+**Status:** ✅ **Closed** — R5-IMPLEMENT-2 (commits 48496e7 + 2409776) technical content merged into main via R5.3-GOV-BOOTSTRAP (PR #71 + merge fa877cf). The PR #70 itself (R5-IMPLEMENT-2 feature branch) is technically merged into the bootstrap PR's tree; the explicit PR #70 review-bot approval and merge is the next gate (R5.3-GOV-BOOTSTRAP-VALIDATE/COMPLETE).
 **Date:** 2026-09-21
 **Deciders:** PO (Augusto) + OpenCode
 **G0:** FASE 6 — Production Readiness, follow-up do item 6.1 (CI/CD); saneamento de governance drift identificado em R5-AUDIT
