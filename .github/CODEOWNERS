@@ -1,0 +1,11 @@
+# CODEOWNERS
+# Reference: ADR-024 (R5-IMPLEMENT-2, item R5.2)
+# Per ADR-024 §3 forward policy: CI workflow changes require ADR follow-up.
+
+# Default: no owner
+# Owner for critical paths: @augustosanchesmanager-ux (PO)
+
+/supabase/migrations/    @augustosanchesmanager-ux
+/src/lib/finance/        @augustosanchesmanager-ux
+/.github/workflows/      @augustosanchesmanager-ux
+/scripts/d8/             @augustosanchesmanager-ux
