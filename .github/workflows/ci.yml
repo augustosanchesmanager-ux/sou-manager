@@ -73,6 +73,22 @@ jobs:
       - name: Gate lint
         run: npm run lint
 
+  e2e-smoke:
+    name: e2e smoke advisory
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: E2E smoke (advisory, non-blocking)
+        run: npm run test:e2e:smoke
+        env:
+          CI: "true"
+
   validate:
     name: validate
     runs-on: ubuntu-latest
