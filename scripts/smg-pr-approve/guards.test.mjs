@@ -139,6 +139,23 @@ describe("validateChecks", () => {
     expect(validateChecks(checks).ok).toBe(true);
   });
 
+  test("e2e smoke advisory falho não bloqueia", () => {
+    const checks = [
+      ...GREEN_CHECKS,
+      { name: "e2e smoke advisory", status: "completed", conclusion: "failure" },
+    ];
+    expect(validateChecks(checks).ok).toBe(true);
+  });
+
+  test("lint advisory + e2e smoke advisory falhos juntos não bloqueiam", () => {
+    const checks = [
+      ...GREEN_CHECKS,
+      { name: "lint advisory", status: "completed", conclusion: "failure" },
+      { name: "e2e smoke advisory", status: "completed", conclusion: "failure" },
+    ];
+    expect(validateChecks(checks).ok).toBe(true);
+  });
+
   test("check obrigatório falho -> STOP", () => {
     const checks = GREEN_CHECKS.map((c) =>
       c.name === "build" ? { ...c, conclusion: "failure" } : c,
@@ -237,6 +254,17 @@ describe("buildDecision (composição fail-closed)", () => {
       checks: [
         ...GOOD_CONTEXT.checks,
         { name: "lint advisory", status: "completed", conclusion: "failure" },
+      ],
+    };
+    expect(buildDecision(context).ok).toBe(true);
+  });
+
+  test("e2e smoke advisory vermelho NÃO bloqueia (allowlist em main)", () => {
+    const context = {
+      ...GOOD_CONTEXT,
+      checks: [
+        ...GOOD_CONTEXT.checks,
+        { name: "e2e smoke advisory", status: "completed", conclusion: "failure" },
       ],
     };
     expect(buildDecision(context).ok).toBe(true);

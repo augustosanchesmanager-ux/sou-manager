@@ -35,7 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.issue.pull_request.head.sha }}
+          # issue_comment payload has no pull_request.head.sha (only url/html/diff/patch).
+          # refs/pull/<n>/head is the durable pointer to the commented PR's head.
+          ref: refs/pull/${{ github.event.issue.number }}/head
 
       - name: Setup Node
         uses: actions/setup-node@v4
