@@ -84,6 +84,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
       - name: Write .env.local for E2E helpers
         run: |
           printf 'VITE_SUPABASE_URL=%s\n' "$VITE_SUPABASE_URL" > .env.local
