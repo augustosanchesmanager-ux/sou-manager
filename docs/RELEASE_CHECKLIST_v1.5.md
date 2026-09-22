@@ -35,6 +35,7 @@
 - [x] **Hardening RPCs irmãs (2026-08-08, decisão PO D-6.0.5.5-6..8)** — ✅ **CONCLUÍDO**: auditoria de estado efetivo + validação empírica PG16 (suite S1–S16 + G1) revelou **2 RPCs quebradas** (`create_invoice`/`record_payment_attempt` — declaradas "limpas" incorretamente na `06070000`); fix aditivo **`20260808000000`** validado **S1–S16 + G1 PASS** + idempotência 2×; sem mudança de regra/contrato/escopo (D-6.0.5.5-7)
 - [x] **6.0.5.6** **Production Compatibility Audit (PCA)** — ✅ **`READY`** (executada 2026-08-08; inicialmente `BLOCKED` → correções PO D-6.0.5.6-5/6: `migration repair --status applied 20260806030000` + upgrade `free→pro` dos 3 tenants; re-auditoria OK) — **gate pré-deploy LIBERADO** — `docs/audit/PRODUCTION_COMPATIBILITY_AUDIT.md` = **READY**
 - [ ] **6.0.6** **Compliance & Legal** — ⏳ **PLANNED** (2026-08-07, decisão PO); **gate obrigatório de certificação da release v1.5** — `docs/audit/PHASE_6_0_6_ENTRY_AUDIT.md`; fase **exclusivamente documental** nesta etapa
+  > **DIVERGÊNCIA REGISTRADA (GATE B.1, 2026-09-22):** `PROJECT_STATUS.md` marca 6.0.6 como "✅ 100%", porém o §11 deste checklist apresenta **0/7 itens atendidos**. **Decisão do PO: 6.0.6 NÃO está certificada** — este checklist prevalece até reconciliação formal. Observação adicional: `docs/ARCHITECTURE_COMPLIANCE_LEGAL.md` está **untracked** (não versionada no git). Correção do `PROJECT_STATUS.md` fora do escopo deste gate (pendente de autorização própria).
 
 ---
 
@@ -72,6 +73,7 @@
 - [x] **ADR-012** — RPC Execute Grants (`REVOKE FROM PUBLIC/anon` + `GRANT TO authenticated`) — vigente
 - [x] **ADR-013** — Billing, Tenant Lifecycle e Feature Flags: Três Contextos Desacoplados + Estado Efetivo + Single Writer (Accepted 2026-08-06)
 - [ ] Revisar se 6.0.5.4/6.0.5.5 exigem novo ADR (preferência: NÃO — resolver dentro do ADR-013 §3.1/§4.7)
+  > Nota GATE B.1 (2026-09-22): nenhum ADR novo foi criado para 6.0.5.4/5 até o ROADMAP 8.x (ADRs posteriores 015/016/022/023 são de outras frentes), mas a revisão formal do item nunca foi registrada — permanece `[ ]` até decisão explícita.
 
 ---
 
@@ -81,7 +83,7 @@
 - [x] `PHASE_6_0_5_2_ENTRY_AUDIT.md` — ✅ APROVADA/IMPLEMENTADA
 - [x] `PHASE_6_0_5_3_ENTRY_AUDIT.md` — ✅ APROVADA + implementação concluída (critério "deploy" pendente)
 - [x] `PHASE_6_0_5_4_ENTRY_AUDIT.md` — ✅ APROVADA + implementação concluída (E2E flow14 adiado à janela única)
-- [ ] `PHASE_6_0_5_5_ENTRY_AUDIT.md` — planejada
+- [x] `PHASE_6_0_5_5_ENTRY_AUDIT.md` — ✅ **EXISTE** (correção documental GATE B.1, 2026-09-22: arquivo presente em `docs/audit/`; gate §12.3 `SCHEMA FREEZE = YES` referenciado no próprio checklist §10 — item estava stale como "planejada")
 
 ---
 
@@ -121,7 +123,7 @@
 - [x] 6.0.5.2 → 819 verdes (+24)
 - [x] 6.0.5.3 → **847/847 verdes** (40 test files)
 - [x] 6.0.5.4 → **874/874 verdes** (+27)
-- [ ] 6.0.5.5 → suíte completa verde
+- [x] 6.0.5.5 → suíte completa verde (correção GATE B.1, 2026-09-22: **883/883 PASS** registrado no fechamento da 6.0.5.5 — PROJECT_STATUS 6.0.5 / ROADMAP 8.x; evoluído posteriormente para 888/888 (D-HOM-13) e 897/897 (H3-4))
 - [x] Typecheck — baseline **125 erros** (sem novos em cada subfase)
 - [x] Build — OK em todas as subfases (6.0.5.3: 10.80s)
 - [x] `architecture:ci` — verde (repositoryViolations 233 → 230 na 6.0.5.3; 230 na 6.0.5.4)
@@ -230,9 +232,9 @@
 
 ## 12. Pendências de Qualidade / Segurança (backlog documentado)
 
-- [ ] `approve_access_request()` — adicionar `auth.uid()` (legado, Security Audit 3.3)
-- [ ] `close_order()` — deprecar/fixar (legado)
-- [ ] `FOR UPDATE` em SELECTs críticos de RPCs (hardening produção)
+- [x] `approve_access_request()` — adicionar `auth.uid()` (legado, Security Audit 3.3) — ✅ **CORRIGIDO** (correção GATE B.1, 2026-09-22: frente **F3.1 CLOSED**, ROADMAP 8.70 — migration `20260914120000` com guarda `auth.uid()` + superadmin + `SET search_path`, aplicada e validada em STAGING **E E2E H6-11 PASS em PROD**, 2026-09-14; amenda F3.1a `32761db`)
+- [x] `close_order()` — deprecar/fixar (legado) — ✅ **MITIGADO** (correção GATE B.1, 2026-09-22: achado H6-2 remediado — desativação via migration `20260813130000`; reauditoria final H-6 P1–P7 **7/7 PASS**, `docs/audit/H6_SECURITY_AUDIT.md` §9)
+- [ ] `FOR UPDATE` em SELECTs críticos de RPCs (hardening produção) — permanece aberto (sem evidência de implementação)
 - [ ] Backlog: anon lê perfis superadmin via REST; `public_select_tenants` kiosk legacy (achados pré-existentes, não-regressão)
 
 ---
@@ -253,3 +255,29 @@
 - [ ] Baseline `v1.5.0-feature-flags-6.0.5` criada (commit + tag anotada + push)
 - [ ] ROADMAP / PROJECT_STATUS / changelog atualizados
 - [ ] **Aprovação explícita do PO** para certificação da versão
+
+---
+
+## 14. GATE B.1 — Pre-Flight / Resolução Read-Only (2026-09-22)
+
+> **Decisão do PO:** 🟡 RELEASE v1.5 permanece **BLOCKED**. Autorizado GATE B.1 — resolução read-only dos bloqueios + correção documental do checklist stale (somente evidência existente). **Não autorizado:** deploy, migration, alteração financeira, correção de S3-1, tag `v1.5.0`, certificação final. **6.0.6 não está certificada** (0/7). Dependabot #73–75 fora deste gate.
+
+**Correções documentais executadas neste gate (evidência existente, zero código):**
+- §4 — `PHASE_6_0_5_5_ENTRY_AUDIT.md` stale "planejada" → `[x]` (arquivo existe)
+- §7 — 6.0.5.5 "suíte verde" → `[x]` (883/883 registrado no fechamento)
+- §12 — `approve_access_request` → `[x]` (F3.1, ROADMAP 8.70, PROD validada); `close_order` → `[x]` (mitigado H6-2)
+- §1.2 — divergência 6.0.6 registrada (PROJECT_STATUS ✅ × §11 0/7 → PO: NÃO certificada)
+- §3 — nota de revisão ADR pendente (mantido `[ ]`)
+
+**Bloqueadores — estado após B.1:**
+| Bloqueador | Estado |
+|---|---|
+| H-8 Topologia Vercel (frontend defasado `a006ec4` × main `7b69cf4`; destino do legado) | 🔴 permanece — decisão do PO |
+| H-7 janela acompanhada | 🟡 preparação formal criada: `docs/audit/H7_JANELA_ACOMPANHADA_PREPARACAO.md` — **aguarda agenda do PO** |
+| S3-1 duplicidade RIOS R$ 260 | 🟡 permanece ABERTO — **não corrigido (fora do escopo, por decisão do PO)** — tratamento exclusivo do PO |
+| H-1 / H-3 ressalva / D-HOM-6 / veredito final | ⏳ pendentes (etapa de homologação) |
+| Smoke final + flow15 + tag v1.5.0 + deploy frontend + rollback executado | ⏳ pendentes (gates posteriores) |
+| 6.0.6 Compliance 0/7 | 🔴 não certificada — ordem: após homologação aprovada |
+
+**Produção:** 🔒 NÃO TOCADA (nenhuma escrita, migration, deploy ou alteração financeira).
+**Próximo:** STOP → decisão do PO sobre continuação do gate B.1/homologação.
