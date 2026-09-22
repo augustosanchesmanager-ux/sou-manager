@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
+const isDeployedUrl = baseURL && !baseURL.includes('localhost');
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -33,10 +34,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  // Only start local dev server when testing against localhost.
+  // When PLAYWRIGHT_BASE_URL is a deployed URL, skip webServer entirely.
+  ...(isDeployedUrl
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run dev',
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 30_000,
+        },
+      }),
 });

@@ -1,0 +1,85 @@
+name: Deploy Validation
+
+on:
+  deployment_status:
+
+jobs:
+  validate-deployment:
+    name: deploy validation
+    runs-on: ubuntu-latest
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Resolve deployment URL
+        id: resolve
+        env:
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.target_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$DEPLOYMENT_URL" ]; then
+            echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+            echo "✅ Deployment URL: $DEPLOYMENT_URL"
+          else
+            echo "❌ No deployment URL found in deployment_status event"
+            exit 1
+          fi
+
+      - name: Wait for deployment to be available
+        run: |
+          URL="${{ steps.resolve.outputs.url }}"
+          echo "Waiting for deployment to be ready at: $URL"
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Deployment available (HTTP $HTTP_CODE) after ${i}0 seconds"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/30 — HTTP $HTTP_CODE, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Deployment not available after 300 seconds"
+          exit 1
+
+      - name: Health check
+        run: |
+          URL="${{ steps.resolve.outputs.url }}"
+          echo "Running health check against: $URL"
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Health check PASSED (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Health check FAILED (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: E2E smoke against deployed URL
+        run: |
+          URL="${{ steps.resolve.outputs.url }}"
+          echo "Running E2E smoke against: $URL"
+          npm run test:e2e:smoke
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: ${{ steps.resolve.outputs.url }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Audit summary
+        if: always()
+        run: |
+          echo "## Deploy Validation Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | ${{ github.event.deployment.sha }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Branch | ${{ github.event.deployment.ref }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Environment | ${{ github.event.deployment.environment }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Deployment URL | ${{ steps.resolve.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |" >> "$GITHUB_STEP_SUMMARY"
