@@ -84,10 +84,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Write .env.local for E2E helpers
+        run: |
+          printf 'VITE_SUPABASE_URL=%s\n' "$VITE_SUPABASE_URL" > .env.local
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY" >> .env.local
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: E2E smoke (advisory, non-blocking)
         run: npm run test:e2e:smoke
         env:
           CI: "true"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
 
   validate:
     name: validate
