@@ -1,33 +1,41 @@
 # H-7 — PREPARAÇÃO DA JANELA ACOMPANHADA (GATE B.1)
 
-> **Status:** 🟡 AGUARDANDO AGENDA DO PO
-> **Criado:** 2026-09-22 (GATE B.1 — resolução read-only dos bloqueios da v1.5)
+> **Status:** 🟡 AGUARDANDO AGENDA DO PO — **retomada da janela pausada desde 2026-09-02** (não é primeira execução)
+> **Criado:** 2026-09-22 (GATE B.1 — resolução read-only dos bloqueiros da v1.5) · **fixup:** 2026-09-22 (S3-1 = FECHADO; status H-7 corrigido)
 > **Natureza:** documental — nenhuma execução, escrita em banco ou alteração de produção.
-> **Referências:** `HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1..H-8) · `H7_OPERACAO_REAL_ROTEIRO.md` (roteiro D-HOM-27) · `H7_BASELINE_READONLY.md` (baseline 2026-08-16) · `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` (achado S3-1)
+> **Referências:** `HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (gates H-1..H-8) · `H7_OPERACAO_REAL_ROTEIRO.md` (roteiro D-HOM-27; **janela iniciou 09-02, em pausa controlada**) · `H7_BASELINE_READONLY.md` (**baseline oficial = snapshot 09-02 08:24**) · `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` (**S3-1 FECHADO**, §8 S3-4) · `BUSINESS_DECISIONS.md` **D-HOM-27b** (decisões 2026-09-02)
 
 ---
 
 ## 1. Objetivo
 
-Executar o **ciclo H7-1 completo acompanhado** no tenant real Sanchez Barber — agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência — com evidências, para concluir o gate **H-7** da homologação da v1.5.
+**Retomar** a janela H-7 acompanhada (iniciada 2026-09-02, em pausa controlada) e concluir o **ciclo H7-1** — agendamento → atendimento → comanda → pagamento → comissão → fechamentos → conferência — com evidências, para concluir o gate **H-7** da homologação da v1.5. Inclui a **reabertura de reversões comissionáveis** sob observação (D-HOM-27b, Decisão C) e a **reconciliação pós-operação**.
+
+## 1.1 Decisões do PO já vigentes (D-HOM-27b, 2026-09-02) — não decidir de novo
+
+1. **`6bd5cbe4` (Penteado R$15): PRESERVAR** — sem correção manual/reconciliação no banco; manter como histórico de teste conhecido; reconciliação futura exige decisão específica.
+2. **Reversões comissionáveis: JANELA CONTROLADA** — reabertura somente em operação real acompanhada, com observação de comissão + reconciliação pós-operação; qualquer anomalia interrompe a janela e gera novo finding (sem workaround em produção).
+3. **H2-8: CLOSED** — não reabrir (fix `523192a` + proof canônico em staging).
 
 ## 2. Pré-condições (devem estar CONFIRMADAS antes de agendar)
 
 | # | Pré-condição | Estado |
 |---|---|---|
-| 1 | Janela de data/hora definida pelo PO (dia, horário, duração) | ⏳ **PO** |
+| 1 | Janela de **retomada** (data, horário, duração) definida pelo PO | ⏳ **PO** |
 | 2 | Equipe ciente (Rubens/equipe conforme roteiro) — janela acompanhada, sem execução espontânea | ⏳ **PO** |
-| 3 | Baseline read-only atualizado (recontagem antes da janela — o baseline de 2026-08-16 pode estar desatualizado por P0.4/M4/segurança) | ⏳ executar no início da janela |
-| 4 | S3-1 (duplicidade RIOS R$ 260) **registrado e NÃO corrigido** — referência para a conferência não confundir achado histórico com nova divergência | ✅ registrado; correção **proibida** neste gate |
-| 5 | Homologação account (`homolog.sanchez@…`) disponível; login validado (D-HOM-12) | ✅ histórico |
-| 6 | Preview/produção servindo build conferido pelo PO (H-8 pendente de decisão — definir em qual ambiente o ciclo roda) | ⏳ **PO** (depende do destino H-8) |
-| 7 | Este documento revisado/aprovado como roteiro de evidências complementar ao `H7_OPERACAO_REAL_ROTEIRO.md` | ⏳ **PO** |
+| 3 | Baseline read-only **recontado no início da retomada** (baseline oficial = snapshot **09-02 08:24**; operação vive desde então) | ⏳ executar na retomada |
+| 4 | **S3-1 = FECHADO** (cancelado 2026-08-16, S3-4; decisão PO 09-02: não reabrir, não modificar `d561a4c3`) — se aparecer na conferência, é histórico `cancelled`, não nova divergência | ✅ fechado — **não tocar** |
+| 5 | H-8 esclarecido o suficiente (decisão PO sobre CD automático/legado) — pré-requisito do próprio PO antes de homologar | ⏳ **PO** (ver auditoria B.1) |
+| 6 | Homologação account (`homolog.sanchez@…`) disponível; login validado (D-HOM-12) | ✅ histórico |
+| 7 | Ambiente/entry point definido pelo PO (produção serve `7b69cf4` via CD automático) | ⏳ **PO** (depende H-8) |
+| 8 | Este documento revisado/aprovado como roteiro de evidências complementar ao `H7_OPERACAO_REAL_ROTEIRO.md` | ⏳ **PO** |
 
 ## 3. Escopo
 
-- **Único ciclo H7-1** — 1 agendamento → 1 atendimento → 1 comanda → pagamento → comissão → fechamento → conferência.
-- Dados reais do tenant Sanchez Barber; registros da homologação **identificáveis**; **sem manipular dados existentes**.
-- Saldos contagens **antes e depois** (clients, services, appointments, comandas, transactions, credits, receivables, cash_closings — espelhar baseline).
+- **Retomada do ciclo H7-1** (iniciado em 02/09, pausado) — concluir agendamento → atendimento → comanda → pagamento → comissão → fechamento → conferência.
+- **Reabertura de reversões comissionáveis** sob observação direta (D-HOM-27b Decisão C) + reconciliação pós-operação.
+- Dados reais do tenant Sanchez Barber; registros da homologação **identificáveis**; **sem manipular dados existentes**; **`6bd5cbe4` preservado** (D-HOM-27b).
+- Saldos contagens **antes e depois** (clients, services, appointments, comandas, transactions, credits, receivables, cash_closings — espelhar baseline oficial 09-02).
 
 ## 4. Critérios de evidência (capturar durante a janela)
 
@@ -41,12 +49,13 @@ Executar o **ciclo H7-1 completo acompanhado** no tenant real Sanchez Barber —
 
 > Qualquer **divergência financeira · duplicidade · perda de crédito · comissão incorreta · queixa de fechamento** → **PARAR imediatamente, sem corrigir no banco.**
 
-- **S3-1:** se a duplicidade R$ 260 aparecer na conferência, **não é nova** — referenciar `H7_1_INVESTIGACAO_S3_READONLY_20260816.md`; não corrigir; registrar ocorrência.
+- **S3-1:** o registro `d561a4c3` deve aparecer como `cancelled` — é histórico reconciliado (S3-4/2026-08-16); **não é nova divergência; não modificar**.
+- **`6bd5cbe4`:** preservado por decisão PO (D-HOM-27b) — não reconciliar manualmente durante a janela.
 - M7 (`20260813120500`) permanece bloqueada (dívida P3) — fora do escopo.
 
 ## 6. Fora do escopo (proibido nesta janela)
 
-Correção de S3-1 · qualquer migration/DDL/DML não prevista · toque em produção fora do ciclo · correção espontânea de banco · merge/tag/deploy · alteração de RLS/RPC · reabertura de frentes fechadas · dependabot.
+Reabrir/modificar S3-1 (`d561a4c3`) · reconciliar `6bd5cbe4` · qualquer migration/DDL/DML não prevista · toque em produção fora do ciclo · correção espontânea de banco · merge/tag/deploy · alteração de RLS/RPC · reabertura de frentes fechadas · dependabot.
 
 ## 7. Pós-janela (STOP obrigatório)
 
@@ -57,4 +66,4 @@ Correção de S3-1 · qualquer migration/DDL/DML não prevista · toque em produ
 ---
 
 **Responsável:** OpenCode (execução do roteiro) · Augusto PO (agenda, acompanhamento, veredito)
-**Próxima ação:** 🟡 **PO define data/hora/equipe e confirma o ambiente (H-8)** → executar pré-condições → janela.
+**Próxima ação:** 🟡 **PO define data/hora/equipe da RETOMADA + confirma H-8 (CD automático/legado)** → recontar baseline 09-02 → retomar janela.
