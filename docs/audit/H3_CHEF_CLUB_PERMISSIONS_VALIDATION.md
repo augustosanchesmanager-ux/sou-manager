@@ -91,4 +91,4 @@ A ressalva do item 6 ("bloqueio de roles restritos não exercitado via E2E") foi
 
 **Validações da subfase (pós-E2E):** `npm test` 1399 passed / 5 skipped (exit 0) · `npm run build` exit 0 · `npx tsc --noEmit` exit 0 · `git diff --check` limpo.
 
-**Status:** ressalva **RESOLVIDA**. O gate **H-3 permanece 🟡** até **ratificação formal do PO** (registro D-HOM próprio — número a definir pelo PO) para o veredito 🟢. **Tenant real Sanchez Barber intocado; zero mutações em produção. Sem merge, tag ou deploy.**
+**Status:** ressalva **RESOLVIDA** e **ratificada — D-HOM-30 (2026-09-23): H-3 🟢 APROVADO, H3-5 🟢 RESOLVIDO.** Identificador formal = D-HOM-30 (D-HOM-28/29 preservados como referências históricas órfãs — um identificador de decisão nunca deve ter dois significados). **Tenant real Sanchez Barber intocado; zero mutações em produção. A ratificação não autoriza merge, tag ou deploy (gates separados); H-8 segue 🔴.**
