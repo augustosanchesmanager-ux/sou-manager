@@ -1,6 +1,7 @@
 # H-7 — Operação Real: Roteiro de Execução e Checklist de Evidências
 
-> **Status:** 🟢 **JANELA EXECUÇÃO EM ANDAMENTO (2026-09-02, com Rubens/equipe).** **Baseline oficial = snapshot 09-02 08:24** (`H7_BASELINE_READONLY.md` §8) — substitui o 08-16 como referência operacional. **S3-1 = FECHADO** (doc `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` §8 S3-4; decisão PO 09-02: resolvido operacionalmente, fora das ações da janela). Ciclo H7-1 em execução. **H2-8 = 🟢 FECHADO (§10.6):** causa raiz (§10.5 — colunas fantasma `comandas.discount`/`comanda_items.staff_id` no publish do `reversal.ts`) **corrigida no código em `523192a`** e **cadeia completa comprovada em STAGING** (`tests/homologation/h2-8/h2-8-staging-chain.spec.ts` PASS: `CheckoutReverted` → `reverse_commission` → reversal de comissão → net 0 → idempotente). **Produção NÃO tocada; sem deploy; sem migration.** Operação permanece em pausa controlada (sem reversões comissionáveis); tratamento do estado real `6bd5cbe4` segue decisão do PO.
+> **Status:** 🔴 **STOP OPERACIONAL — P1-01 registrado, execução ENCERRADA na janela 2026-09-23 (D-HOM-31).** Janela acompanhada 2026-09-23 (Rubens/UI produção + OpenCode read-only): baseline fresco capturado, ciclo executado até o fechamento profissional, **Q1–Q4 ✅ PASS**, **P1-01 reproduzido e evidenciado (§10.7)** — `barber_closing` grava `expected_cash=0` / `cash_difference=145` / `status=discrepancy` por cadeia `payment_method` inconsistente (transação `'cash'` → comanda `null` → lookup `'Dinheiro'`). **Q5–Q7 NÃO executados.** `6bd5cbe4` permanece **preservada, sem tratamento**. Próximo ciclo: **frente de correção/validação do P1 (ponta-a-ponta)**. Nenhuma correção aplicada durante a execução.
+> **Status anterior (janela 2026-09-02):** 🟢 JANELA EXECUÇÃO EM ANDAMENTO (2026-09-02, com Rubens/equipe). **Baseline oficial = snapshot 09-02 08:24** (`H7_BASELINE_READONLY.md` §8) — substitui o 08-16 como referência operacional. **S3-1 = FECHADO** (doc `H7_1_INVESTIGACAO_S3_READONLY_20260816.md` §8 S3-4; decisão PO 09-02: resolvido operacionalmente, fora das ações da janela). Ciclo H7-1 em execução. **H2-8 = 🟢 FECHADO (§10.6):** causa raiz (§10.5 — colunas fantasma `comandas.discount`/`comanda_items.staff_id` no publish do `reversal.ts`) **corrigida no código em `523192a`** e **cadeia completa comprovada em STAGING** (`tests/homologation/h2-8/h2-8-staging-chain.spec.ts` PASS: `CheckoutReverted` → `reverse_commission` → reversal de comissão → net 0 → idempotente). **Produção NÃO tocada; sem deploy; sem migration.**
 > **Atualização 2026-08-16 (Trilha A):** incidente original resolvido por evidência — causa raiz **CONFIRMADA** como frontend de produção `718f6f9` defasado × schema vigente (`tenants.active` removido pela migration `20260728000000`). Ver `docs/audit/H7_1_TRILHA_A_REPRODUCAO.md`. A execução do ciclo H7-1 no preview `78604c6` (código novo) foi auditada e está íntegra; **nenhuma correção aplicada; operação permanece parada.**
 > **Referência:** `docs/audit/HOMOLOGATION_PLAN_SANCHEZ_BARBER.md` (§8.2 — Gate H-7) · `docs/audit/SNAPSHOT_PRE_HOMOLOGACAO_SANCHEZ_BARBER_v1_5_0.md` (§4/§12) · `docs/BUSINESS_DECISIONS.md` (D-HOM-26, D-HOM-27)
 > **Data do roteiro:** 2026-08-14 · **Responsável:** OpenCode + Operação (Sanchez Barber) · **PO:** Augusto
@@ -156,15 +157,15 @@ Evidenciar no H-7 a quadratura SQL formal da matriz de cancelamento/reversão:
 
 ## 8. Checklist de Evidências (a anexar ao registro do gate)
 
-- [ ] Baseline pré-ciclo capturada (B1..B10) com queries e saída.
-- [ ] Registros a criar identificados (tabela da §4) confirmados.
-- [ ] Prints/JSON/timestamps de cada etapa do ciclo (agenda → conferência).
-- [ ] Comanda do ciclo (valor bruto → descontos → pago).
-- [ ] Transaction(s) correspondentes.
-- [ ] Crédito Chef Club consumido (se aplicável).
-- [ ] Comissão (profissional/base/percentual/valor).
-- [ ] Fechamento profissional + fechamento de caixa + financeiro consolidado.
-- [ ] Quadratura Q1..Q7 (saída SQL).
+- [x] Baseline pré-ciclo capturada (B1..B10) com queries e saída. — ✅ baseline fresco 2026-09-23 (`h7-baseline-pre-execution-1790173523654.json`)
+- [x] Registros a criar identificados (tabela da §4) confirmados. — ✅ cliente `HOMOLOG H7` original + comanda `b5368c28` identificáveis
+- [x] Prints/JSON/timestamps de cada etapa do ciclo (agenda → conferência). — ✅ `h7-observe-step0..step3-*.json` + `h7-qcheck-pagamento-*.json` (conferência encerrada no P1-01, §10.7)
+- [x] Comanda do ciclo (valor bruto → descontos → pago). — ✅ Q1 PASS (`b5368c28` R$145, discount 0, paid cash)
+- [x] Transaction(s) correspondentes. — ✅ Q2 PASS (1× income R$145 `d39803f7`, sem duplicidade)
+- [ ] Crédito Chef Club consumido (se aplicável). — não aplicável no ciclo 09-23
+- [x] Comissão (profissional/base/percentual/valor). — ✅ Q4 PASS (`7bf99382` HERON R$45×50%=R$22,50 active)
+- [ ] Fechamento profissional + fechamento de caixa + financeiro consolidado. — 🔴 encerrado no P1-01 (§10.7): fechamento profissional gravou divergência falsa; fechamento de caixa e consolidado NÃO executados (D-HOM-31)
+- [ ] Quadratura Q1..Q7 (saída SQL). — Q1–Q4 ✅ PASS; **Q5–Q7 NÃO executados** (D-HOM-31)
 - [ ] Matriz H2-1..H2-8 (cancelamento/reversão).
 - [ ] Reflexo receivable H3-4.
 - [ ] Investigação S3 (10 overdue + 6 pending) com conclusão.
@@ -322,6 +323,52 @@ Comanda do teste do Rubens (09-02 11:43, Penteado R$15, cash) que teve o checkou
 
 ---
 
+### 10.7 P1-01 — Fechamento de barbeiro grava divergência falsa (cadeia `payment_method`) — 2026-09-23 — 🔴 STOP OPERACIONAL (D-HOM-31)
+
+**Janela:** 2026-09-23, acompanhada — Rubens via UI (produção `smg-barber`), OpenCode com leitura read-only (Management/service key, sem escrita). **Baseline fresco capturado antes da operação** (regra PO): `docs/audit/h7-execution/h7-baseline-pre-execution-1790173523654.json` (14:25:20Z) — sem anomalia (0 comandas abertas, 0 tx no dia; clients 360 · 13 assinaturas ativas · 17 linhas de crédito).
+
+**Ciclo executado até a etapa 6** (evidências `h7-observe-step0..step3-*.json`, `h7-qcheck-pagamento-*.json`):
+
+| Etapa | Resultado |
+|-------|-----------|
+| 1 Agenda | Agendamento `HOMOLOG H7-1` cancelado pré-pagamento (zero efeito); ciclo refeito no cliente original **`HOMOLOG H7` `edbe83f1`** |
+| 2 Atendimento | Atendimento concluído (HERON) |
+| 3 Pagamento — **Q1** | ✅ PASS — comanda **`b5368c28`** R$145 (CORTE SIMPLES 45 + PRODUTO TESTE 100), discount 0, `paid` cash, `financial_effect=true` |
+| 3 Pagamento — **Q2** | ✅ PASS — 1× income R$145 (`d39803f7`), fonte comanda, sem duplicidade |
+| 3 — **Q3** | ✅ PASS — sem Chef Club/crédito envolvido |
+| 4 Comissão — **Q4** | ✅ PASS — `7bf99382` HERON R$45 × 50% = **R$22,50** `active`; produto sem comissão = regra confirmada (59 itens de serviço com record, 0 de produto) |
+| — Abertura de caixa | evento `opening` 18:06:49 (`cash_closing df4e8a0b`, draft) — via UI, caminho de escrita funcionou com JWT do Rubens |
+| **6 Fechamento profissional** | 🔴 **P1-01 REPRODUZIDO** (abaixo) |
+
+**P1-01 — comportamento observado:**
+
+- **Guard de UI:** com "Dinheiro em mãos" = 0 o botão "Fechar Caixa do Barbeiro" fica desabilitado **sem nenhum feedback** (`BarberClosingDetailPanel.tsx:315`, `disabled={countedValue <= 0}`; input fica na aba Checklist → Conferência Física).
+- Com valor > 0 digitado (R$145, justificativa `"teste"`), a gravação ocorreu — `barber_closing` **`728307e6`** (closed_at 18:58:15):
+  - **`status = discrepancy`**, **`expected_cash = 0`**, **`counted_cash = 145`**, **`cash_difference = 145`**
+  - `payment_methods = {"Nao informado": 45}`
+  - vínculo correto: `cash_closing_id = df4e8a0b`; evento `barber_closing` auditou a divergência falsa em `metadata` (`expectedCash: 0, cashDifference: 145`)
+
+**Causa raiz — cadeia de `payment_method` em 3 níveis (NÃO é apenas label):**
+
+1. **Transação** grava `payment_method = 'cash'`.
+2. **Comanda** desta ciclo está com `payment_method = null` → loader (`application/cashClosing/loaders.ts:165`) publica `'Nao informado'` em `paymentMethods`.
+3. **Lookup no fechamento** busca `paymentMethods['Dinheiro']` (`application/cashClosing/summary.ts:321` e `src/hooks/useCashClosing.ts:494`) → **`0`**. Os testes unitários usam fixture `paymentMethod: 'Dinheiro'` (`cashClosing.test.ts`, `summary.test.ts`) e **mascaram** o mismatch.
+
+**Agravantes:**
+- `barber_closings_complete` foi para **`true`** mesmo com `status=discrepancy` → o fechamento do dia prosseguiria como "completo" com um falso R$145 de diferença embutido.
+- A UI não exibe erro em caso de exceção no handler (caminho silencioso adicional).
+
+**Impacto:** **sem perda financeira** — transação, comissão e repasse inalterados (Q1–Q4 permanecem PASS; produção 45 / comissão 22,50 / repasse 22,50 corretos). Dano = **confiabilidade da conferência de caixa e do estado de fechamento**.
+
+**Evidências BEFORE/AFTER (read-only, nenhuma correção aplicada):**
+- `docs/audit/h7-execution/h7-p1-barber-close-BEFORE-20260923T183533Z.json`
+- `docs/audit/h7-execution/h7-p1-barber-close-AFTER-20260923T185913Z.json`
+- script: `scripts/h7-p1-barber-close-snap.mjs`
+
+**Decisão do PO (2026-09-23, D-HOM-31):** REGISTRAR P1 → **ENCERRAR a execução operacional do H-7 neste ponto** → **Q5–Q7 NÃO executados** → abrir **frente específica de correção/validação do P1**, a ser validada **de ponta a ponta** antes de considerar o fechamento de caixa confiável (níveis: escrita da comanda/transação, loader, lookup do fechamento, guarda de UI, flag `barber_closings_complete`). **`6bd5cbe4` permanece preservada, sem mexer nela.**
+
+---
+
 ## 11. Estado da Janela e Próximos Passos
 
 | Item | Status |
@@ -333,6 +380,11 @@ Comanda do teste do Rubens (09-02 11:43, Penteado R$15, cash) que teve o checkou
 | S3-1 R$260 | 🟢 ✅ FECHADO (anterior) |
 | FINDING R$40/R$20 (dashboard) | 🟢 ✅ RESOLVIDO — desconto R$5 legítimo (comanda 09-01, não relacionado à H7) |
 | H2-8 — reversão (via `finance_reverse_transaction`) | 🟢 **✅ RESOLVIDO / FECHADO (§10.6)** — causa raiz (§10.5) corrigida em `523192a` (colunas fantasma removidas, `professional_id`, checagem de `.error`); cadeia completa comprovada em STAGING (`h2-8-staging-chain.spec.ts` PASS: `CheckoutReverted` → `reverse_commission` → reversal de comissão → net 0 → idempotente). Produção não tocada; tratamento do estado real `6bd5cbe4` segue decisão do PO |
-| H-7 | 🔴 **PAUSA CONTROLADA — operação normal/comissão validada; H2-8 FECHADO (prova em staging); reversões financeiras comissionáveis em produção permanecem pausadas até decisão do PO; sem perda financeira** |
+| **Ciclo 2026-09-23 — Q1–Q4 (agenda→pagamento→comissão)** | 🟢 ✅ PASS (baseline fresco + evidências `h7-observe-step0..step3`, `h7-qcheck-pagamento`) |
+| **P1-01 — fechamento profissional grava divergência falsa (§10.7)** | 🔴 **REGISTRADO (2026-09-23)** — `expected_cash=0`/`cash_difference=145`/`status=discrepancy`; sem perda financeira; sem correção aplicada |
+| **Q5–Q7 + fechamento de caixa do dia** | ⛔ **NÃO EXECUTADOS** — encerramento da janela por D-HOM-31 |
+| `6bd5cbe4` (Penteado R$15) | 🟡 **PRESERVADA, sem tratamento** (D-HOM-27b; reafirmado D-HOM-31) |
+| H-7 | 🔴 **STOP OPERACIONAL (D-HOM-31)** — operação/comissão validadas até Q4; P1-01 bloqueia confiança no fechamento de caixa; frente de correção P1 é próximo ciclo |
+| H-8 | 🔴 BLOQUEADOR (inalterado) |
 
-**Próxima etapa:** **H2-8 FECHADO em staging (§10.6)** — a correção do `reversal.ts` (remover colunas fantasma, usar `professional_id`, checar `.error`) já foi aplicada em `523192a` e a cadeia `finance_reverse_transaction → CheckoutReverted → reverse_commission → reverseCommissionHandler` foi revalidada em staging com PASS. Restam decisões do PO (fora do escopo de código): (1) tratamento do estado real de produção `6bd5cbe4` (comanda/comissão inconsciente); (2) liberação de novas reversões comissionáveis em produção.
+**Próxima etapa (D-HOM-31):** abrir **frente específica de correção/validação do P1-01** — corrigir/validar de **ponta a ponta** a cadeia `payment_method` (escrita transação/comanda → loader → lookup `paymentMethods['Dinheiro']` → guarda de UI → flag `barber_closings_complete`) antes de retomar qualquer fechamento de caixa confiável. Somente após validação ponta-a-ponta do P1 é que o H-7 poderá retomar (fechamento de caixa + Q5–Q7) e, em janela própria, as decisões pendentes do D-HOM-27b: (1) tratamento de `6bd5cbe4` (**preservada até lá**); (2) liberação de reversões comissionáveis em produção. **H-8 permanece 🔴 BLOQUEADOR; sem merge, tag ou deploy.**
