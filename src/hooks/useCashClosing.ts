@@ -2,6 +2,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cashClosingApplicationService, validate } from '@/application/cashClosing';
 import { normalizePercentage } from '@/shared/numbers/normalize';
+import { getPaymentMethodLabelFromString } from '@/domain/comanda/labels';
 import {
     type CashCloseFilters,
     type SangriaSuprimento,
@@ -232,10 +233,10 @@ export function useCashClosing(
                     description: transaction.description || transaction.category || 'Lancamento sem descricao',
                     category: transaction.category || 'Sem categoria',
                     accountId: transaction.payment_method || 'nao-informado',
-                    accountName: transaction.payment_method || 'Nao informado',
+                    accountName: transaction.payment_method ? getPaymentMethodLabelFromString(transaction.payment_method) : 'Nao informado',
                     costCenter: transaction.category || 'Sem centro',
                     type: transaction.type === 'income' ? 'entrada' : 'saida',
-                    paymentMethod: transaction.payment_method || 'Nao informado',
+                    paymentMethod: transaction.payment_method ? getPaymentMethodLabelFromString(transaction.payment_method) : 'Nao informado',
                     status: 'realizado',
                     value: Number(transaction.amount || 0),
                     runningBalance: 0,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle, AlertTriangle, Edit3 } from 'lucide-react';
-import { formatCurrency } from '../cashCloseUtils';
+import { formatCurrency, isCountedCashInformed } from '../cashCloseUtils';
 import type { CashCloseValidation } from '../cashCloseUtils';
 
 interface PhysicalConferenceProps {
@@ -23,8 +23,9 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
     if (loading) return null;
 
     const countedValue = parseFloat(countedCash) || 0;
+    const isInformed = isCountedCashInformed(countedCash);
     const cashDifference = countedValue - totalExpected;
-    const hasDifference = countedValue > 0 && Math.abs(cashDifference) > 0.01;
+    const hasDifference = isInformed && Math.abs(cashDifference) > 0.01;
 
     return (
         <div className="rounded-xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-4 shadow-[0_4px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
@@ -32,7 +33,7 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
                 <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     Conferência Física
                 </h3>
-                {!hasDifference && countedValue > 0 ? (
+                {!hasDifference && isInformed ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
                         <CheckCircle size={10} /> Conferido
                     </span>
@@ -84,7 +85,7 @@ const PhysicalConference: React.FC<PhysicalConferenceProps> = ({
                 </div>
             </div>
 
-            {countedValue > 0 && hasDifference && (
+            {hasDifference && (
                 <div className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-3">
                     <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />

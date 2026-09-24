@@ -470,6 +470,25 @@ describe('CashClosingApplicationService', () => {
         );
       });
 
+      it('should_count_discrepancy_toward_complete_when_all_finalized', async () => {
+        mockBarberGetByCashClosingId
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            { id: 'bc-1', status: 'closed' },
+            { id: 'bc-2', status: 'discrepancy' },
+          ]);
+        mockBarberUpsert.mockResolvedValue(undefined);
+        mockUpdateBarberClosingsCount.mockResolvedValue(undefined);
+        mockEventInsert.mockResolvedValue(undefined);
+
+        await cashClosingApplicationService.closeBarberCash(makeCloseBarberCashParams());
+
+        expect(mockUpdateBarberClosingsCount).toHaveBeenCalledWith(
+          'cc-1', 'tenant-1',
+          expect.objectContaining({ barber_closings_count: 2, barber_closings_complete: true }),
+        );
+      });
+
       it('should_upsert_with_existing_id_when_barber_already_closed', async () => {
         mockBarberGetByCashClosingId.mockResolvedValue([
           { id: 'bc-existing', staff_id: 'staff-1', status: 'open' },

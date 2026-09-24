@@ -13,6 +13,7 @@
  */
 
 import { formatCurrency } from '../../shared/format/currency';
+import { getPaymentMethodLabelFromString } from '../../domain/comanda/labels';
 import {
     validateCashClose,
     type SangriaSuprimento,
@@ -101,12 +102,27 @@ export function computeDaySummary(params: {
     const validation = validateCashClose(totalExpected, totalExpected);
 
     // ── Payment Method Breakdown ──
+    const resolveEntryPaymentMethod = (raw: string | null | undefined): string =>
+        raw ? getPaymentMethodLabelFromString(raw) : 'Nao informado';
+
+    const resolveComandaPaymentMethod = (cmd: ComandaDetail): string => {
+        if (cmd.paymentMethod) return getPaymentMethodLabelFromString(cmd.paymentMethod);
+        const txEntry = filteredEntries.find(e =>
+            e.type === 'entrada' &&
+            e.sourceType === 'comanda' &&
+            e.sourceId === cmd.comandaId &&
+            !e.isReversalTransaction,
+        );
+        return txEntry?.paymentMethod ? getPaymentMethodLabelFromString(txEntry.paymentMethod) : 'Nao informado';
+    };
+
     const paymentMap: Record<string, { entradas: number; saidas: number; count: number }> = {};
     filteredEntries.forEach(e => {
-        if (!paymentMap[e.paymentMethod]) paymentMap[e.paymentMethod] = { entradas: 0, saidas: 0, count: 0 };
-        if (e.type === 'entrada') paymentMap[e.paymentMethod].entradas += e.value;
-        else paymentMap[e.paymentMethod].saidas += e.value;
-        paymentMap[e.paymentMethod].count += 1;
+        const method = resolveEntryPaymentMethod(e.paymentMethod);
+        if (!paymentMap[method]) paymentMap[method] = { entradas: 0, saidas: 0, count: 0 };
+        if (e.type === 'entrada') paymentMap[method].entradas += e.value;
+        else paymentMap[method].saidas += e.value;
+        paymentMap[method].count += 1;
     });
     const paymentMethodBreakdown = Object.entries(paymentMap).sort((a, b) => b[1].count - a[1].count);
 
@@ -238,7 +254,7 @@ export function computeDaySummary(params: {
 
         const paymentMethods: Record<string, number> = {};
         barberComandas.forEach(cmd => {
-            const method = cmd.paymentMethod || 'Nao informado';
+            const method = resolveComandaPaymentMethod(cmd);
             paymentMethods[method] = (paymentMethods[method] || 0) + cmd.total;
         });
 
@@ -247,7 +263,7 @@ export function computeDaySummary(params: {
             serviceName: cmd.items.map((i: any) => i.serviceName).join(', '),
             time: cmd.comandaId,
             value: cmd.total,
-            paymentMethod: cmd.paymentMethod || 'Nao informado',
+            paymentMethod: resolveComandaPaymentMethod(cmd),
             status: cmd.status,
         }));
 

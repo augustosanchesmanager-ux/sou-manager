@@ -36,7 +36,7 @@ class ComandaItemRepositoryImpl extends SupabaseRepository {
       if (comandaIds.length === 0) return [];
       const slug = appSlug || this.defaultAppSlug;
       const result = await createSupabaseClient(this.tableName, slug).from(this.tableName)
-        .select('id, comanda_id, service_id, product_name, quantity, unit_price')
+        .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id')
         .eq('tenant_id', tenantId)
         .in('comanda_id', comandaIds);
       return this.extractData<ComandaItemRow[]>(result, 'list comanda items by comanda ids');

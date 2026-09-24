@@ -1,5 +1,6 @@
 import type { EnrichedCashFlowEntry } from './types';
 import { formatCurrency } from '../../shared/format/currency';
+import { getPaymentMethodLabelFromString } from '../../domain/comanda/labels';
 
 export { formatCurrency } from '../../shared/format/currency';
 export type { CashClosingRecord, BarberClosingRecord, CashClosingEventRecord } from '../../domain/cashClosing/types';
@@ -217,6 +218,8 @@ export const validateCashClose = (
     return { totalExpected, totalReceived, difference, isValid };
 };
 
+export const isCountedCashInformed = (raw: string): boolean => raw.trim() !== '';
+
 export const buildPaymentMethodRows = (
     entries: CashClosingEntryExtended[],
     extras: SangriaSuprimento[],
@@ -225,7 +228,7 @@ export const buildPaymentMethodRows = (
     entries
         .filter(e => e.type === 'entrada')
         .forEach(e => {
-            const method = e.paymentMethod || 'Nao informado';
+            const method = e.paymentMethod ? getPaymentMethodLabelFromString(e.paymentMethod) : 'Nao informado';
             incomeByMethod[method] = (incomeByMethod[method] || 0) + e.value;
         });
 
@@ -262,6 +265,7 @@ export const buildBarberSummaries = (
     };
 
     comandas.forEach(cmd => {
+        if (cmd.status !== 'open' && cmd.status !== 'paid') return;
         const isOpen = cmd.status === 'open';
 
         const itemStaffIds = new Set(
