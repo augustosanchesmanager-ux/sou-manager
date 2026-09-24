@@ -1,0 +1,142 @@
+{
+  "timestamp": "2026-09-23T17:30:06.399Z",
+  "label": "step1-agenda",
+  "clients": [
+    {
+      "id": "edbe83f1-44ee-4c77-b96f-7b5a4103464a",
+      "name": "HOMOLOG H7",
+      "status": "active",
+      "created_at": "2026-08-17T01:13:02.11156+00:00"
+    },
+    {
+      "id": "3e914917-52a9-4ab0-8bb2-9d748b9f258c",
+      "name": "HOMOLOG H7-1",
+      "status": "active",
+      "created_at": "2026-09-18T19:36:17.897259+00:00"
+    }
+  ],
+  "appointments_edbe83f1-44ee-4c77-b96f-7b5a4103464a": [
+    {
+      "id": "dfe96801-6091-4f3c-82cd-8322cceb0427",
+      "status": "cancelled",
+      "start_time": "2026-09-02T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-02T11:45:58.57617+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    },
+    {
+      "id": "ba6de4ce-a19d-4127-9b0b-4e7157f53ec7",
+      "status": "cancelled",
+      "start_time": "2026-09-02T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-02T11:43:14.733637+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    },
+    {
+      "id": "eb3137e0-504b-44ef-b53c-cfa88c7faaa0",
+      "status": "cancelled",
+      "start_time": "2026-08-16T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-08-17T01:13:03.08+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    }
+  ],
+  "comandas_edbe83f1-44ee-4c77-b96f-7b5a4103464a": [
+    {
+      "id": "298c12e0-5450-43f3-bba7-acc0c07bd2c5",
+      "status": "paid",
+      "total": 45,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-02T11:45:58.57617+00:00",
+      "closed_at": "2026-09-02T11:46:14.154+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "6bd5cbe4-2442-4ba3-ba00-c6ac9bf475e2",
+      "status": "paid",
+      "total": 15,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-02T11:43:14.733637+00:00",
+      "closed_at": "2026-09-02T11:43:41.636+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "a119921e-f120-48ec-b1d7-35ea16932b6d",
+      "status": "paid",
+      "total": 45,
+      "discount": 0,
+      "payment_method": "pix",
+      "created_at": "2026-08-17T01:13:03.08+00:00",
+      "closed_at": "2026-08-17T01:13:13.973+00:00",
+      "cancelled_at": null
+    }
+  ],
+  "appointments_3e914917-52a9-4ab0-8bb2-9d748b9f258c": [
+    {
+      "id": "b73689c9-1225-48a9-bef0-f578a8bbc2dd",
+      "status": "confirmed",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00",
+      "attended_at": null,
+      "cancellation_reason": null
+    },
+    {
+      "id": "01e68bfa-0b0a-4eec-9ec0-86c65b5a8aec",
+      "status": "completed",
+      "start_time": "2026-09-18T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-18T19:36:18.866374+00:00",
+      "attended_at": null,
+      "cancellation_reason": null
+    }
+  ],
+  "comandas_3e914917-52a9-4ab0-8bb2-9d748b9f258c": [
+    {
+      "id": "7fcfc709-8c11-4226-8221-26a4a4c7640d",
+      "status": "open",
+      "total": 45,
+      "discount": 0,
+      "payment_method": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00",
+      "closed_at": null,
+      "cancelled_at": null
+    },
+    {
+      "id": "137df76d-196f-4cf1-9ab1-3a0f026136f1",
+      "status": "paid",
+      "total": 35,
+      "discount": 0,
+      "payment_method": "other",
+      "created_at": "2026-09-18T19:36:18.866374+00:00",
+      "closed_at": "2026-09-18T19:37:40.986+00:00",
+      "cancelled_at": null
+    }
+  ],
+  "dayAppointments": [
+    {
+      "id": "b73689c9-1225-48a9-bef0-f578a8bbc2dd",
+      "client_id": "3e914917-52a9-4ab0-8bb2-9d748b9f258c",
+      "status": "confirmed",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00"
+    }
+  ],
+  "dayTransactions": []
+}

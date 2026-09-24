@@ -1,0 +1,134 @@
+{
+  "label": "H-7 P1 evidence — AFTER 'Fechar Caixa do Barbeiro' click (P1 REPRODUCED)",
+  "capturedAt": "2026-09-23T18:59:13.596Z",
+  "businessDate": "2026-09-23",
+  "tenantId": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+  "script": "scripts/h7-p1-barber-close-snap.mjs",
+  "verdict": "P1 REPRODUCED — expected_cash=0, counted_cash=145, cash_difference=145, status=discrepancy. No money divergence: tx/commission untouched.",
+  "rootCause": {
+    "code": [
+      "application/cashClosing/summary.ts:321 expectedCash: paymentMethods['Dinheiro'] || 0",
+      "src/hooks/useCashClosing.ts:494 expectedCash = barberDetail.paymentMethods['Dinheiro'] || 0"
+    ],
+    "actualKeysObserved": {
+      "transactionLevel": "cash",
+      "comandaLevelWrittenOnClosing": "Nao informado (comanda.payment_method null at loader)",
+      "lookupKeyInCode": "Dinheiro"
+    },
+    "masks": "unit tests use fixture paymentMethod: 'Dinheiro' (cashClosing.test.ts / summary.test.ts)",
+    "guardRelated": "BarberClosingDetailPanel.tsx:315 disabled={countedValue <= 0} — counted=0 leaves button unclickable with no feedback"
+  },
+  "barberClosingsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "728307e6-054c-4dec-ab25-307aacf2bcd4",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "cash_closing_id": "df4e8a0b-500e-4c7a-8508-14ea28c23d58",
+        "business_date": "2026-09-23",
+        "staff_id": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+        "status": "discrepancy",
+        "total_produced": 45,
+        "total_received": 45,
+        "commission_total": 22.5,
+        "repasse_total": 22.5,
+        "discounts_total": 0,
+        "advances_total": 0,
+        "balance": 22.5,
+        "payment_methods": { "Nao informado": 45 },
+        "counted_cash": 145,
+        "expected_cash": 0,
+        "cash_difference": 145,
+        "conference_justification": "teste",
+        "checklist": {
+          "cashCounted": true,
+          "conferenceDone": true,
+          "productsVerified": true,
+          "allCommandsClosed": true
+        },
+        "comandas_count": 1,
+        "clients_served_count": 1,
+        "products_sold_count": 0,
+        "closed_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "closed_at": "2026-09-23T18:58:15.861+00:00",
+        "created_at": "2026-09-23T18:58:28.221478+00:00",
+        "updated_at": "2026-09-23T18:58:28.221478+00:00"
+      }
+    ]
+  },
+  "cashClosingEventsToday": {
+    "count": 2,
+    "rows": [
+      {
+        "id": "832c9cfe-3ee2-4f48-92c0-1060cdc833e6",
+        "event_type": "opening",
+        "event_time": "2026-09-23T18:06:49.93+00:00",
+        "label": "Caixa aberto",
+        "created_at": "2026-09-23T18:07:02.228842+00:00"
+      },
+      {
+        "id": "3c05af3d-34a9-452f-a545-9a7b3aad4332",
+        "cash_closing_id": "df4e8a0b-500e-4c7a-8508-14ea28c23d58",
+        "barber_closing_id": null,
+        "event_type": "barber_closing",
+        "event_time": "2026-09-23T18:58:16.999+00:00",
+        "label": "Fechamento - HERON FERREIRA",
+        "detail": "Produção: R$ 45.00 | Comissão: R$ 22.50 | Status: discrepancy",
+        "metadata": {
+          "barberId": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+          "countedCash": 145,
+          "expectedCash": 0,
+          "cashDifference": 145
+        },
+        "created_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "created_at": "2026-09-23T18:58:29.31488+00:00"
+      }
+    ]
+  },
+  "cashClosingsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "df4e8a0b-500e-4c7a-8508-14ea28c23d58",
+        "status": "draft",
+        "updated_at": "2026-09-23T18:58:29.014772+00:00",
+        "expected_balance": 145,
+        "total_counted": 145,
+        "total_difference": 0,
+        "opening_time": "2026-09-23T18:06:49.676+00:00",
+        "closing_time": null,
+        "barber_closings_count": 1,
+        "barber_closings_complete": true,
+        "note": "discrepancy still counts toward barber_closings_complete=true (day-close not blocked by status)"
+      }
+    ]
+  },
+  "txToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "d39803f7-7b66-4707-a31e-dcf0c870866b",
+        "type": "income",
+        "amount": 145,
+        "payment_method": "cash",
+        "status": "paid",
+        "created_at": "2026-09-23T17:35:22.360327+00:00",
+        "note": "unchanged vs BEFORE"
+      }
+    ]
+  },
+  "commissionsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "7bf99382-8368-4eaf-9c46-56ed557ae809",
+        "staff_id": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+        "comanda_id": "b5368c28-263d-438f-9eb7-1dc965410243",
+        "commission_value": 22.5,
+        "status": "active",
+        "created_at": "2026-09-23T17:35:26.357822+00:00",
+        "note": "unchanged vs BEFORE"
+      }
+    ]
+  }
+}

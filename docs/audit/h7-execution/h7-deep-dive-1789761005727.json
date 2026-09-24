@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-09-18T19:50:05.727Z",
+  "tenantId": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+  "comandas": null,
+  "items": null,
+  "transactions": null,
+  "commissions": null,
+  "closings": null,
+  "appointments": null,
+  "receivables": [
+    {
+      "id": "de8ee5af-8744-41ef-a675-a576fe268ab7",
+      "amount": 160,
+      "status": "pending",
+      "due_date": "2026-10-19",
+      "paid_at": null,
+      "subscription_id": "a5657a59-1648-4731-b826-360464dee211",
+      "created_at": "2026-09-13T00:06:37.212446+00:00"
+    },
+    {
+      "id": "951c3367-129d-4185-b5cd-bad382c0e3de",
+      "amount": 160,
+      "status": "pending",
+      "due_date": "2026-10-10",
+      "paid_at": null,
+      "subscription_id": "408da040-2343-45e1-8938-d650d582c686",
+      "created_at": "2026-09-11T22:39:55.612007+00:00"
+    },
+    {
+      "id": "87eb55a7-be73-4ffd-8baa-f6b335c9c16e",
+      "amount": 260,
+      "status": "overdue",
+      "due_date": "2026-06-06",
+      "paid_at": null,
+      "subscription_id": "89f3f822-a012-44db-8b60-4279b9c1ed16",
+      "created_at": "2026-09-11T06:10:56.576259+00:00"
+    },
+    {
+      "id": "51b1673f-968b-4185-94c9-3c5d269f2bd4",
+      "amount": 260,
+      "status": "overdue",
+      "due_date": "2026-09-10",
+      "paid_at": null,
+      "subscription_id": "5600fba7-62cb-4786-9b38-c4459ca97341",
+      "created_at": "2026-09-06T19:05:35.128487+00:00"
+    },
+    {
+      "id": "b96728ab-7a63-49b6-ba6b-9954db6a0d23",
+      "amount": 260,
+      "status": "paid",
+      "due_date": "2026-08-10",
+      "paid_at": "2026-08-10T15:00:00+00:00",
+      "subscription_id": "5600fba7-62cb-4786-9b38-c4459ca97341",
+      "created_at": "2026-09-06T08:17:02.732275+00:00"
+    },
+    {
+      "id": "89b1f15d-5200-4231-b853-216125d25194",
+      "amount": 200,
+      "status": "pending",
+      "due_date": "2026-09-21",
+      "paid_at": null,
+      "subscription_id": "df02ce1f-6462-4a8d-b431-33f7ad572018",
+      "created_at": "2026-09-06T08:16:30.524944+00:00"
+    },
+    {
+      "id": "2bfc5e7f-eb7f-4047-b5f2-aea3e9997879",
+      "amount": 260,
+      "status": "paid",
+      "due_date": "2026-07-10",
+      "paid_at": "2026-07-10T15:00:00+00:00",
+      "subscription_id": "5600fba7-62cb-4786-9b38-c4459ca97341",
+      "created_at": "2026-09-06T08:15:49.196392+00:00"
+    },
+    {
+      "id": "a7f362f0-e7b0-471f-a982-2953dfe8b3b0",
+      "amount": 260,
+      "status": "paid",
+      "due_date": "2026-06-10",
+      "paid_at": "2026-06-10T15:00:00+00:00",
+      "subscription_id": "5600fba7-62cb-4786-9b38-c4459ca97341",
+      "created_at": "2026-09-06T08:15:03.164484+00:00"
+    },
+    {
+      "id": "a19a9e4c-25e6-4fe1-9c63-6f7053722243",
+      "amount": 260,
+      "status": "paid",
+      "due_date": "2026-05-10",
+      "paid_at": "2026-05-10T15:00:00+00:00",
+      "subscription_id": "5600fba7-62cb-4786-9b38-c4459ca97341",
+      "created_at": "2026-09-06T08:14:23.72049+00:00"
+    },
+    {
+      "id": "7908b220-1e0e-4e14-ba7f-92c2596a02af",
+      "amount": 260,
+      "status": "overdue",
+      "due_date": "2026-09-10",
+      "paid_at": null,
+      "subscription_id": "7777cd92-da0f-412e-9ab6-875624d27ba7",
+      "created_at": "2026-08-29T01:35:12.689937+00:00"
+    }
+  ],
+  "credits": null,
+  "participants": null
+}

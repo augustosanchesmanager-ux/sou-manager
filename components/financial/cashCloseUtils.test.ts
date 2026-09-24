@@ -4,6 +4,7 @@ import {
   buildBarberSummaries,
   buildPaymentMethodRows,
   isFrontlineRole,
+  isCountedCashInformed,
   buildAttendancesByBarber,
   buildOpenComandasSummary,
   filterEntries,
@@ -88,6 +89,43 @@ describe('buildPaymentMethodRows', () => {
     expect(result).toHaveLength(1);
     expect(result[0].method).toBe('Nao informado');
   });
+
+  it('should_normalize_cash_to_dinheiro_when_raw_method_is_cash', () => {
+    const entries = [
+      { type: 'entrada' as const, paymentMethod: 'cash', value: 145 } as any,
+    ];
+    const result = buildPaymentMethodRows(entries, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].method).toBe('Dinheiro');
+    expect(result[0].launched).toBe(145);
+  });
+
+  it('should_merge_cash_and_dinheiro_into_one_row_when_both_present', () => {
+    const entries = [
+      { type: 'entrada' as const, paymentMethod: 'cash', value: 100 } as any,
+      { type: 'entrada' as const, paymentMethod: 'Dinheiro', value: 50 } as any,
+    ];
+    const result = buildPaymentMethodRows(entries, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].method).toBe('Dinheiro');
+    expect(result[0].launched).toBe(150);
+  });
+});
+
+describe('isCountedCashInformed', () => {
+  it('should_return_true_when_counted_is_zero', () => {
+    expect(isCountedCashInformed('0')).toBe(true);
+    expect(isCountedCashInformed('0.00')).toBe(true);
+  });
+
+  it('should_return_false_when_counted_is_empty', () => {
+    expect(isCountedCashInformed('')).toBe(false);
+    expect(isCountedCashInformed('   ')).toBe(false);
+  });
+
+  it('should_return_true_when_counted_has_value', () => {
+    expect(isCountedCashInformed('123.45')).toBe(true);
+  });
 });
 
 describe('buildBarberSummaries', () => {
@@ -160,6 +198,83 @@ describe('buildBarberSummaries', () => {
   it('handles empty comandas', () => {
     const result = buildBarberSummaries([], {});
     expect(result).toHaveLength(0);
+  });
+
+  it('should_exclude_cancelled_from_revenue_when_status_cancelled', () => {
+    const comandas = [
+      {
+        comandaId: 'c1', staffId: 'staff1', staffName: 'Marcos', total: 100,
+        status: 'cancelled', paymentMethod: 'Dinheiro', clientName: 'A', appointmentId: null,
+        items: [{ staffId: 'staff1', serviceName: 'Corte', quantity: 1, unitPrice: 100 }],
+      },
+      {
+        comandaId: 'c2', staffId: 'staff1', staffName: 'Marcos', total: 80,
+        status: 'paid', paymentMethod: 'Dinheiro', clientName: 'B', appointmentId: null,
+        items: [{ staffId: 'staff1', serviceName: 'Barba', quantity: 1, unitPrice: 80 }],
+      },
+    ] as any[];
+    const staffMap = { staff1: { name: 'Marcos', role: 'barber', commissionRate: 50 } };
+
+    const result = buildBarberSummaries(comandas, staffMap);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].totalReceived).toBe(80);
+    expect(result[0].comandaCount).toBe(1);
+  });
+
+  it('should_exclude_reversed_from_revenue_when_status_reversed', () => {
+    const comandas = [{
+      comandaId: 'c1', staffId: 'staff1', staffName: 'Marcos', total: 100,
+      status: 'reversed', paymentMethod: 'Dinheiro', clientName: 'A', appointmentId: null,
+      items: [{ staffId: 'staff1', serviceName: 'Corte', quantity: 1, unitPrice: 100 }],
+    }] as any[];
+    const staffMap = { staff1: { name: 'Marcos', role: 'barber', commissionRate: 50 } };
+
+    const result = buildBarberSummaries(comandas, staffMap);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('should_attribute_item_without_staff_to_comanda_staff_when_shared', () => {
+    const comandas = [{
+      comandaId: 'c1',
+      staffId: 'staff1',
+      staffName: 'Marcos',
+      total: 150,
+      status: 'paid',
+      paymentMethod: 'Dinheiro',
+      clientName: 'Cliente',
+      appointmentId: null,
+      items: [
+        { staffId: 'staff2', serviceName: 'Barba', quantity: 1, unitPrice: 50 },
+        { staffId: null, serviceName: 'Corte', quantity: 1, unitPrice: 100 },
+      ],
+    }] as any[];
+    const staffMap = {
+      staff1: { name: 'Marcos', role: 'barber', commissionRate: 50 },
+      staff2: { name: 'Julia', role: 'barber', commissionRate: 40 },
+    };
+
+    const result = buildBarberSummaries(comandas, staffMap);
+
+    const marcos = result.find(b => b.staffId === 'staff1');
+    expect(marcos?.totalReceived).toBe(100);
+    const julia = result.find(b => b.staffId === 'staff2');
+    expect(julia?.totalReceived).toBe(50);
+  });
+
+  it('should_use_sem_profissional_when_no_staff_anywhere', () => {
+    const comandas = [{
+      comandaId: 'c1', staffId: null, staffName: '', total: 70,
+      status: 'paid', paymentMethod: 'Dinheiro', clientName: 'A', appointmentId: null,
+      items: [{ staffId: null, serviceName: 'Corte', quantity: 1, unitPrice: 70 }],
+    }] as any[];
+
+    const result = buildBarberSummaries(comandas, {});
+
+    expect(result).toHaveLength(1);
+    expect(result[0].staffId).toBe('sem-profissional');
+    expect(result[0].totalReceived).toBe(70);
   });
 });
 

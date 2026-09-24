@@ -473,3 +473,92 @@ describe('validate — contrato H7: counted como input do operador', () => {
     expect(result.difference).toBeCloseTo(0.02, 2);
   });
 });
+
+// ─── P1-01: payment method normalization ─────────────────────────
+
+describe('computeDaySummary — P1-01 payment method normalization', () => {
+  const emptyParams = {
+    filteredEntries: [],
+    extras: [],
+    comandas: [],
+    appointments: [],
+    filteredComandaDetails: [],
+    barberSummaries: [],
+    reversalEntries: [],
+  };
+
+  const makeBarberSummaryWithComanda = (cmdOverrides: Record<string, unknown> = {}) => [{
+    staffId: 'staff-1',
+    staffName: 'Barbeiro 1',
+    role: 'barber',
+    commissionRate: 0.4,
+    totalReceived: 145,
+    comandaCount: 1,
+    comandas: [{
+      comandaId: 'c1',
+      staffId: 'staff-1',
+      staffName: 'Barbeiro 1',
+      total: 145,
+      status: 'paid',
+      paymentMethod: 'cash',
+      clientName: 'Cliente',
+      appointmentId: null,
+      items: [{ staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: 145 }],
+      ...cmdOverrides,
+    }],
+    openComandaCount: 0,
+    openTotal: 0,
+    openComandas: [],
+  }] as any[];
+
+  it('should_map_raw_cash_to_dinheiro_when_comanda_payment_is_cash', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 145, paymentMethod: 'cash' })],
+      barberSummaries: makeBarberSummaryWithComanda(),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.paymentMethods['Dinheiro']).toBe(145);
+    expect(detail.conference.expectedCash).toBe(145);
+    expect(detail.clientsServed[0].paymentMethod).toBe('Dinheiro');
+  });
+
+  it('should_recover_dinheiro_from_transaction_when_comanda_method_null', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 145, paymentMethod: 'cash', sourceId: 'c1' })],
+      barberSummaries: makeBarberSummaryWithComanda({ paymentMethod: null }),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.paymentMethods['Dinheiro']).toBe(145);
+    expect(detail.conference.expectedCash).toBe(145);
+  });
+
+  it('should_fall_back_to_nao_informado_when_no_comanda_and_no_transaction', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 10, paymentMethod: 'pix', sourceId: 'other' })],
+      barberSummaries: makeBarberSummaryWithComanda({ paymentMethod: null }),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.paymentMethods['Nao informado']).toBe(145);
+    expect(detail.paymentMethods['Dinheiro']).toBeUndefined();
+    expect(detail.conference.expectedCash).toBe(0);
+  });
+
+  it('should_normalize_breakdown_key_when_entry_method_is_raw_cash', () => {
+    const result = computeDaySummary({
+      ...emptyParams,
+      filteredEntries: [makeEntry({ type: 'entrada', value: 145, paymentMethod: 'cash' })],
+    });
+
+    const dinheiro = result.paymentMethodBreakdown.find(([method]) => method === 'Dinheiro');
+    expect(dinheiro).toBeDefined();
+    expect(dinheiro![1].entradas).toBe(145);
+    const rawCash = result.paymentMethodBreakdown.find(([method]) => method === 'cash');
+    expect(rawCash).toBeUndefined();
+  });
+});

@@ -3,7 +3,7 @@ import {
     CheckCircle, AlertTriangle, Edit3, Clock, Scissors,
     ShoppingBag, Award, ArrowDownCircle, User, ListChecks
 } from 'lucide-react';
-import { formatCurrency } from '../cashCloseUtils';
+import { formatCurrency, isCountedCashInformed } from '../cashCloseUtils';
 import type { BarberClosingDetail, TimelineEvent } from '../cashCloseUtils';
 
 interface BarberClosingDetailProps {
@@ -250,15 +250,15 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
                             <div>
                                 <label className="text-[9px] font-bold text-slate-500 mb-1 block">Diferenca</label>
                                 <p className={`text-sm font-extrabold py-1.5 ${
-                                    countedValue > 0 && Math.abs(cashDifference) > 0.01
+                                    isCountedCashInformed(countedCash) && Math.abs(cashDifference) > 0.01
                                         ? 'text-rose-600 dark:text-rose-400'
                                         : 'text-emerald-600 dark:text-emerald-400'
                                 }`}>
-                                    {countedValue > 0 ? formatCurrency(cashDifference) : '—'}
+                                    {isCountedCashInformed(countedCash) ? formatCurrency(cashDifference) : '—'}
                                 </p>
                             </div>
                         </div>
-                        {countedValue > 0 && Math.abs(cashDifference) > 0.01 && (
+                        {isCountedCashInformed(countedCash) && Math.abs(cashDifference) > 0.01 && (
                             <div className="mt-2">
                                 <label className="text-[9px] font-bold text-amber-600 mb-1 block">Justificativa da divergencia</label>
                                 <textarea
@@ -305,14 +305,14 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
                 </button>
                 <button
                     onClick={() => {
-                        if (onCloseBarberCash && countedValue >= 0) {
+                        if (onCloseBarberCash && isCountedCashInformed(countedCash) && countedValue >= 0) {
                             onCloseBarberCash(barber.staffId, {
                                 countedCash: countedValue,
                                 justification,
                             });
                         }
                     }}
-                    disabled={!onCloseBarberCash || countedValue <= 0}
+                    disabled={!onCloseBarberCash || !isCountedCashInformed(countedCash) || countedValue < 0}
                     className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                 >
                     Fechar Caixa do Barbeiro

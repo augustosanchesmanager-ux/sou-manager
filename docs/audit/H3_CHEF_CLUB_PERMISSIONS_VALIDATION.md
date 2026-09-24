@@ -69,3 +69,26 @@ O bloqueio de **barber**/**receptionist** é implementado no guard `ManagerRoute
 - ✅ 0 erros de console e 0 erros HTTP.
 
 **Nenhuma alteração de dados no banco real foi realizada neste teste** (apenas leitura).
+
+---
+
+## 7. Gate C — Exercício da ressalva H3-5 (ManagerRoute RBAC) — RESOLVIDA (2026-09-23)
+
+A ressalva do item 6 ("bloqueio de roles restritos não exercitado via E2E") foi **exercitada e RESOLVIDA** em **tenant E2E isolado** (nunca o tenant real Sanchez Barber), conforme exigido por D-HOM-17/D-HOM-19.
+
+- **Spec:** `tests/e2e/homologation/h35-managerroute-rbac.spec.ts` (Playwright, Chromium)
+- **Ambiente:** STAGING (`tjcvuhynckocmvtqykxp`) com `E2E_PROVISIONING=1`
+- **Tenant:** isolado `gatec-h35-*` (`70aa026b-…`), provisionado com users `barber`/`receptionist`/`manager`/`owner`+`superadmin` e plano `pro` (`chef_club` ativa); teardown e2e-seed concluído
+- **Data:** 2026-09-23 · **Resultado: 5/5 PASS (1.2m)**
+
+| ID | Cenário | Resultado |
+|----|---------|-----------|
+| H35-1 | `barber` bloqueado nas 3 rotas Chef Club (ManagerRoute → redirect `/#/dashboard`) | ✅ PASS |
+| H35-2 | `receptionist` bloqueado nas 3 rotas Chef Club | ✅ PASS |
+| H35-3 | `manager` acessa as 3 rotas com conteúdo renderizado | ✅ PASS |
+| H35-4 | `owner`/`superadmin` acessam as 3 rotas com conteúdo renderizado | ✅ PASS |
+| H35-5 | Feature `chef_club` ativa (`pro`/`active` em `plan_features`) | ✅ PASS |
+
+**Validações da subfase (pós-E2E):** `npm test` 1399 passed / 5 skipped (exit 0) · `npm run build` exit 0 · `npx tsc --noEmit` exit 0 · `git diff --check` limpo.
+
+**Status:** ressalva **RESOLVIDA** e **ratificada — D-HOM-30 (2026-09-23): H-3 🟢 APROVADO, H3-5 🟢 RESOLVIDO.** Identificador formal = D-HOM-30 (D-HOM-28/29 preservados como referências históricas órfãs — um identificador de decisão nunca deve ter dois significados). **Tenant real Sanchez Barber intocado; zero mutações em produção. A ratificação não autoriza merge, tag ou deploy (gates separados); H-8 segue 🔴.**
