@@ -182,7 +182,9 @@ export const reverseFinancialTransaction = async ({
             const { data: participants, error: participantsReadErr } = itemIds.length > 0
               ? await supabase
                   .from('service_execution_participants')
-                  .select('comanda_item_id, professional_id, affects_commission, payout_type, payout_value')
+                  // select('*'): PROD só tem staff_id, staging tem staff_id + professional_id.
+                  // Nomear colunas aqui quebraria a leitura em PROD (PGRST204 → originalCommission=0).
+                  .select('*')
                   .eq('tenant_id', tenantId)
                   .in('comanda_item_id', itemIds)
               : { data: [], error: null };
@@ -191,7 +193,11 @@ export const reverseFinancialTransaction = async ({
               console.error('[reversal][H2-8] Failed to read service_execution_participants for event publish:', participantsReadErr.message);
             } else {
               const professionalIds = [
-                ...new Set((participants || []).map((p: any) => p.professional_id).filter(Boolean)),
+                ...new Set(
+                  (participants || [])
+                    .map((p: any) => p.staff_id || p.professional_id)
+                    .filter(Boolean),
+                ),
               ];
               const staffById = new Map<string, any>();
               if (professionalIds.length > 0) {
@@ -217,7 +223,7 @@ export const reverseFinancialTransaction = async ({
                 for (const participant of itemParticipants) {
                   if (!participant.affects_commission) continue;
 
-                  const staff = staffById.get(participant.professional_id);
+                  const staff = staffById.get(participant.staff_id || participant.professional_id);
                   if (staff && !receivesCommission(staff)) continue;
 
                   const financialBase = resolveFinancialBase({
