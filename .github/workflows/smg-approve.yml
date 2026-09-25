@@ -7,6 +7,21 @@ name: smg-pr-approve
 #   gates -> registers a formal APPROVE review as the review executor account
 #   (review-bot-smg) via the REVIEW_BOT_TOKEN secret.
 #
+# FASE 3A / T15 (design: docs/audit/T15_CONSUME_FINAL_DESIGN.md; ADR-028 B1):
+#   job `approve` — gates + POST da review (SMG_TOKEN = PAT só-PR, sem acesso
+#     a contents); com a flag ligada, leitura dos dois stores via API (?ref=)
+#     e step outputs (consumption_required + cross-refs). contents: read.
+#   job `consume` — executa somente quando consumption_required == 'true';
+#     único detentor de contents: write; grava CREATE-only o evento em
+#     docs/consumption/<record_id>.json (branch smg-gate-consumption) via
+#     GITHUB_TOKEN. Nunca recebe SMG_TOKEN. Nunca POSTa reviews.
+#   Flag: SMG_GATE_RECORD_REQUIRED = vars.SMG_GATE_RECORD_REQUIRED == 'true'
+#     (ausente/diferente => OFF => caminho legado, implementação inerte).
+#
+# P.02 trust boundary: ambos os jobs dão checkout SOMENTE da default branch.
+# Idempotência/concorrência (ADR-028 §15): concurrency por PR (barreira 1) +
+# CREATE-only 422 + re-read (barreira 2).
+#
 # The executor account NEVER decides on its own: it only executes an explicit
 # PO authorization. Approval != merge authorization != deploy (separate gates).
 #
@@ -14,23 +29,46 @@ name: smg-pr-approve
 #
 # Secret required (added directly on GitHub by the PO, never shared with the
 # agent): REVIEW_BOT_TOKEN = fine-grained PAT of the review-bot-smg account,
-# repository sou-manager, permission "Pull requests: Write" only.
+# repository sou-manager, permission "Pull requests: Write" only (sem acesso
+# a contents — a escrita de consumo é exclusiva do GITHUB_TOKEN no job
+# `consume`).
 
 on:
   issue_comment:
     types: [created]
 
+# Least privilege at the workflow level; `contents: write` exists ONLY inside
+# the `consume` job (B1 separation of authority — ADR-028 §5).
 permissions:
   contents: read
+
+# Idempotency/concurrency barrier 1 (ADR-028 §15): one serialized run per PR;
+# an in-flight approve/consume sequence is never cancelled mid-way.
+concurrency:
+  group: smg-pr-approve-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  # Contract form — never a literal. Absent/other value => OFF => legacy path.
+  SMG_GATE_RECORD_REQUIRED: ${{ vars.SMG_GATE_RECORD_REQUIRED == 'true' }}
 
 jobs:
   approve:
     name: smg-pr-approve
     runs-on: ubuntu-latest
-    # Cheap pre-filter at the trigger level; the authoritative gates run in
-    # the script (fail-closed). `issue.pull_request` is set when the comment
-    # is on a pull request (PRs are issues in the API model).
+    permissions:
+      contents: read
+    # Cheap pre-filter at the trigger level (C2 camada 1); the authoritative
+    # gates run in the script (fail-closed). `issue.pull_request` is set when
+    # the comment is on a pull request (PRs are issues in the API model).
     if: github.event.issue.pull_request != null && github.event.comment.body == '/approve'
+    outputs:
+      consumption_required: ${{ steps.gate.outputs.consumption_required }}
+      record_id: ${{ steps.gate.outputs.record_id }}
+      grant_ref: ${{ steps.gate.outputs.grant_ref }}
+      pr_head_sha: ${{ steps.gate.outputs.pr_head_sha }}
+      target: ${{ steps.gate.outputs.target }}
+      approval_ref: ${{ steps.gate.outputs.approval_ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,10 +85,51 @@ jobs:
           node-version: 22
 
       - name: Validate gates and execute approval
+        id: gate
         run: node scripts/smg-pr-approve/run.mjs
         env:
           # Fine-grained PAT of review-bot-smg (type User -> satisfies branch
           # protection required reviews). The default GITHUB_TOKEN is never
           # used for the approval (least privilege preserved).
           SMG_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          # Store reads (flag ON) use the workflow token — the PAT has no
+          # contents scope (separation of authority, B1).
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+
+  consume:
+    name: smg-gate-consumption
+    runs-on: ubuntu-latest
+    needs: approve
+    # C2 (camada 1): PR-only + runs only after a successful approve phase that
+    # explicitly requested consumption. Flag OFF => outputs empty => skipped.
+    if: github.event.issue.pull_request != null && needs.approve.outputs.consumption_required == 'true'
+    permissions:
+      # The ONLY contents: write in this workflow. Scope: CREATE-only on
+      # smg-gate-consumption (never UPDATE/DELETE, never smg-gate-records).
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # P.02 invariant (T15): every job that runs the consume also runs
+          # SOMENTE com código da default branch.
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Consume authorization record (CREATE-only)
+        run: node scripts/smg-pr-approve/run.mjs
+        env:
+          SMG_PR_APPROVE_PHASE: consume
+          # GITHUB_TOKEN only — this job NEVER receives the review-bot PAT.
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SMG_CONSUME_RECORD_ID: ${{ needs.approve.outputs.record_id }}
+          SMG_CONSUME_GRANT_REF: ${{ needs.approve.outputs.grant_ref }}
+          SMG_CONSUME_PR_HEAD_SHA: ${{ needs.approve.outputs.pr_head_sha }}
+          SMG_CONSUME_TARGET: ${{ needs.approve.outputs.target }}
+          SMG_CONSUME_APPROVAL_REF: ${{ needs.approve.outputs.approval_ref }}
