@@ -48,3 +48,90 @@ describe("smg-approve.yml trust boundary (P.02)", () => {
     expect(yaml).toMatch(/permissions:\s*\n\s*contents:\s*read/);
   });
 });
+
+describe("smg-approve.yml — FASE 3A / T15 (consumo de Authorization Record)", () => {
+  const yaml = readFileSync(WORKFLOW_PATH, "utf8");
+
+  test("concurrency barreira por PR, sem cancelamento em voo (ADR-028 §15)", () => {
+    expect(yaml).toMatch(
+      /concurrency:\s*\n\s*group:\s*smg-pr-approve-\$\{\{\s*github\.event\.issue\.number\s*\}\}/,
+    );
+    expect(yaml).toMatch(/cancel-in-progress:\s*false/);
+  });
+
+  test("workflow-level permanece contents: read", () => {
+    const first = yaml.match(/permissions:\s*\n\s*contents:\s*(\w+)/);
+    expect(first).not.toBeNull();
+    expect(first[1]).toBe("read");
+  });
+
+  test("contents: write existe exatamente UMA vez e somente no job consume", () => {
+    const writes = yaml.match(/^\s*contents:\s*write\s*$/gm) ?? [];
+    expect(writes.length).toBe(1);
+    const consumeIdx = yaml.indexOf("\n  consume:");
+    expect(consumeIdx).toBeGreaterThan(-1);
+    // yaml.search ignora ocorrências em comentários — só linhas YAML reais.
+    const writeIdx = yaml.search(/^\s*contents:\s*write\s*$/m);
+    expect(writeIdx).toBeGreaterThan(consumeIdx);
+    const approveBlock = yaml.slice(yaml.indexOf("\n  approve:"), consumeIdx);
+    expect(approveBlock).toMatch(/permissions:\s*\n\s*contents:\s*read/);
+  });
+
+  test("job consume exige approve bem-sucedido com consumption_required == 'true'", () => {
+    expect(yaml).toMatch(/needs:\s*approve/);
+    expect(yaml).toContain("needs.approve.outputs.consumption_required == 'true'");
+  });
+
+  test("flag SMG_GATE_RECORD_REQUIRED via vars — nunca literal", () => {
+    expect(yaml).toContain(
+      "SMG_GATE_RECORD_REQUIRED: ${{ vars.SMG_GATE_RECORD_REQUIRED == 'true' }}",
+    );
+    expect(yaml).not.toMatch(/SMG_GATE_RECORD_REQUIRED:\s*'?true'?\s*$/m);
+  });
+
+  test("C2 camada 1 — gate estrutural PR-only nos DOIS jobs (§8-1)", () => {
+    const gates = yaml.match(/github\.event\.issue\.pull_request != null/g) ?? [];
+    expect(gates.length).toBe(2);
+  });
+
+  test("§8-18 — invariante P.02: ambos os jobs dão checkout só da default branch", () => {
+    const checkouts = yaml.match(/uses:\s*actions\/checkout@v4/g) ?? [];
+    expect(checkouts.length).toBe(2);
+    const refs =
+      yaml.match(/ref:\s*\$\{\{\s*github\.event\.repository\.default_branch\s*\}\}/g) ?? [];
+    expect(refs.length).toBe(2);
+    expect(yaml).not.toContain("refs/pull");
+  });
+
+  test("separação de token — PAT (SMG_TOKEN) só no approve; consume só GITHUB_TOKEN", () => {
+    const approveIdx = yaml.indexOf("\n  approve:");
+    const consumeIdx = yaml.indexOf("\n  consume:");
+    expect(approveIdx).toBeGreaterThan(-1);
+    expect(consumeIdx).toBeGreaterThan(approveIdx);
+    const patUsages = [...yaml.matchAll(/SMG_TOKEN:/g)].map((m) => m.index);
+    expect(patUsages.length).toBeGreaterThan(0);
+    for (const idx of patUsages) {
+      expect(idx).toBeGreaterThan(approveIdx);
+      expect(idx).toBeLessThan(consumeIdx);
+    }
+    const consumeBlock = yaml.slice(consumeIdx);
+    expect(consumeBlock).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(consumeBlock).toContain("SMG_PR_APPROVE_PHASE: consume");
+    expect(consumeBlock).not.toContain("SMG_TOKEN");
+    expect(consumeBlock).not.toContain("REVIEW_BOT_TOKEN");
+  });
+
+  test("outputs do approve publicam consumption_required + 5 cross-refs", () => {
+    expect(yaml).toContain("consumption_required: ${{ steps.gate.outputs.consumption_required }}");
+    expect(yaml).toContain("record_id: ${{ steps.gate.outputs.record_id }}");
+    expect(yaml).toContain("grant_ref: ${{ steps.gate.outputs.grant_ref }}");
+    expect(yaml).toContain("pr_head_sha: ${{ steps.gate.outputs.pr_head_sha }}");
+    expect(yaml).toContain("target: ${{ steps.gate.outputs.target }}");
+    expect(yaml).toContain("approval_ref: ${{ steps.gate.outputs.approval_ref }}");
+    expect(yaml).toContain("SMG_CONSUME_APPROVAL_REF: ${{ needs.approve.outputs.approval_ref }}");
+  });
+
+  test("step de aprovação tem id gate (fonte dos outputs)", () => {
+    expect(yaml).toMatch(/id:\s*gate/);
+  });
+});
