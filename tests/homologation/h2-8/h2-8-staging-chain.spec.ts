@@ -226,6 +226,9 @@ test('ETAPA B: cadeia completa reversão de comissão + idempotência em staging
   const { error: partErr } = await svc.from('service_execution_participants').insert({
     tenant_id: tenant.id,
     comanda_item_id: comandaItem.id,
+    // Dual-write: staff_id é o contrato canônico (repo lê só ele desde 8ab6e14); professional_id
+    // mantém visível o participante para o reversal pré-fix — não remover nenhum dos dois.
+    staff_id: staff.id,
     professional_id: staff.id,
     role: 'primary',
     payout_type: 'percentage',
