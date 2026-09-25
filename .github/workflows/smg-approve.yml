@@ -35,9 +35,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # issue_comment payload has no pull_request.head.sha (only url/html/diff/patch).
-          # refs/pull/<n>/head is the durable pointer to the commented PR's head.
-          ref: refs/pull/${{ github.event.issue.number }}/head
+          # P.02 trust boundary: run ONLY default-branch code. run.mjs reads the
+          # GitHub API + GITHUB_EVENT_PATH exclusively (never PR files), and this
+          # job exposes SMG_TOKEN (REVIEW_BOT_TOKEN) — PR-head code must not run.
+          # Spec: docs/audit/P_02_SMG_APPROVE_TRUST_BOUNDARY.md (fix option A).
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
