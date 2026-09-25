@@ -68,7 +68,7 @@ async function main() {
   }
 
   // Day-level activity (context, not client-scoped)
-  const today = '2026-09-23';
+  const today = '2026-09-25';
   const { data: dayAppts, error: dae } = await db
     .from('appointments')
     .select('id, client_id, status, start_time, date, created_at')

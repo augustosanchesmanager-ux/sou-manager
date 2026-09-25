@@ -24,7 +24,9 @@ async function main() {
     .select('*')
     .eq('tenant_id', SANCHEZ)
     .eq('status', 'paid')
-    .gte('created_at', '2026-09-23T00:00:00');
+    .eq('client_id', 'edbe83f1-44ee-4c77-b96f-7b5a4103464a')
+    .gte('created_at', '2026-09-25T00:00:00')
+    .order('created_at', { ascending: false });
   if (ce) fail('comandas', ce);
   console.log('COMANDAS today paid:', comandas?.length ?? 0);
   const comanda = comandas?.[0];
@@ -65,7 +67,7 @@ async function main() {
     .from('transactions')
     .select('*')
     .eq('tenant_id', SANCHEZ)
-    .gte('created_at', '2026-09-23T00:00:00')
+    .gte('created_at', '2026-09-25T00:00:00')
     .order('created_at', { ascending: true });
   if (te) fail('transactions', te);
   console.log('TRANSACTIONS today:', txs?.length ?? 0);
