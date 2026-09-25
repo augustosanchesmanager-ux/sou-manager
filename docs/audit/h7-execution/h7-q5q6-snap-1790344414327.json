@@ -1,0 +1,238 @@
+﻿{
+  "capturedAt": "2026-09-25T13:53:34.740Z",
+  "businessDate": "2026-09-25",
+  "barberClosingsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "43e97aed-8085-474a-bd3b-f67c397433c5",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "cash_closing_id": "d5efad50-6ebe-4e62-a28e-3c1903e9b5ac",
+        "business_date": "2026-09-25",
+        "staff_id": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+        "status": "closed",
+        "total_produced": 20,
+        "total_received": 20,
+        "commission_total": 10,
+        "repasse_total": 10,
+        "discounts_total": 0,
+        "advances_total": 0,
+        "balance": 10,
+        "payment_methods": {
+          "Dinheiro": 20
+        },
+        "counted_cash": 20,
+        "expected_cash": 20,
+        "cash_difference": 0,
+        "conference_justification": null,
+        "checklist": {
+          "cashCounted": true,
+          "conferenceDone": true,
+          "productsVerified": true,
+          "allCommandsClosed": true
+        },
+        "comandas_count": 1,
+        "clients_served_count": 1,
+        "products_sold_count": 0,
+        "closed_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "closed_at": "2026-09-25T13:48:19.993+00:00",
+        "created_at": "2026-09-25T13:48:21.336754+00:00",
+        "updated_at": "2026-09-25T13:48:21.336754+00:00"
+      }
+    ]
+  },
+  "cashClosingEventsToday": {
+    "count": 3,
+    "rows": [
+      {
+        "id": "94ff4bae-e545-452e-a79e-9a6ed4620cb0",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "cash_closing_id": null,
+        "barber_closing_id": null,
+        "business_date": "2026-09-25",
+        "event_type": "opening",
+        "event_time": "2026-09-25T13:47:31.645+00:00",
+        "label": "Caixa aberto",
+        "detail": "Caixa aberto por 828175b0-ac50-444f-bd90-51b9a399c28c",
+        "metadata": {},
+        "created_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "created_at": "2026-09-25T13:47:32.959828+00:00"
+      },
+      {
+        "id": "7b481daf-5be9-4215-84af-b1672f85ff84",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "cash_closing_id": "d5efad50-6ebe-4e62-a28e-3c1903e9b5ac",
+        "barber_closing_id": null,
+        "business_date": "2026-09-25",
+        "event_type": "barber_closing",
+        "event_time": "2026-09-25T13:48:20.897+00:00",
+        "label": "Fechamento - HERON FERREIRA",
+        "detail": "Produ├º├úo: R$ 20.00 | Comiss├úo: R$ 10.00 | Status: closed",
+        "metadata": {
+          "barberId": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+          "countedCash": 20,
+          "expectedCash": 20,
+          "cashDifference": 0
+        },
+        "created_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "created_at": "2026-09-25T13:48:22.191801+00:00"
+      },
+      {
+        "id": "e1edcb07-9f92-47e2-8187-9b48196c1d0d",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "cash_closing_id": "d5efad50-6ebe-4e62-a28e-3c1903e9b5ac",
+        "barber_closing_id": null,
+        "business_date": "2026-09-25",
+        "event_type": "closing",
+        "event_time": "2026-09-25T13:48:45.013+00:00",
+        "label": "Caixa fechado",
+        "detail": "Caixa fechado por 828175b0-ac50-444f-bd90-51b9a399c28c. Total: R$ 20.00",
+        "metadata": {},
+        "created_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "created_at": "2026-09-25T13:48:46.309204+00:00"
+      }
+    ]
+  },
+  "cashClosingsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "d5efad50-6ebe-4e62-a28e-3c1903e9b5ac",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "business_date": "2026-09-25",
+        "period_start": "2026-09-25T03:00:00+00:00",
+        "period_end": "2026-09-26T02:59:59.999+00:00",
+        "status": "confirmed",
+        "created_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "confirmed_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "created_at": "2026-09-25T13:47:32.681717+00:00",
+        "updated_at": "2026-09-25T13:48:46.029236+00:00",
+        "confirmed_at": "2026-09-25T13:48:44.735+00:00",
+        "notes": null,
+        "expected_income": 20,
+        "expected_expense": 0,
+        "expected_balance": 20,
+        "total_counted": 20,
+        "total_difference": 0,
+        "appointments_scheduled_count": 0,
+        "appointments_completed_count": 0,
+        "appointments_received_count": 0,
+        "appointments_cancelled_count": 0,
+        "appointments_pending_count": 0,
+        "appointments_no_show_count": 0,
+        "appointments_summary": {
+          "no_show": {
+            "count": 0,
+            "total": 0
+          },
+          "pending": {
+            "count": 11,
+            "total": 495
+          },
+          "received": {
+            "count": 1,
+            "total": 20
+          },
+          "cancelled": {
+            "count": 3,
+            "total": 190
+          },
+          "completed": {
+            "count": 1,
+            "total": 20
+          },
+          "scheduled": {
+            "count": 15,
+            "total": 705
+          }
+        },
+        "financial_summary": {
+          "metaDoDia": 0,
+          "ticketMedio": 20,
+          "comissaoTotal": 10,
+          "novosClientes": 0,
+          "percentualMeta": 0,
+          "produtosVendidos": 0,
+          "servicosVendidos": 1,
+          "clientesAtendidos": 1,
+          "tempoMedioAtendimento": 45
+        },
+        "opening_time": "2026-09-25T13:47:31.357+00:00",
+        "closing_time": "2026-09-25T13:48:44.735+00:00",
+        "ip_address": null,
+        "user_agent": null,
+        "total_sangrias": 0,
+        "total_suprimentos": 0,
+        "barber_closings_count": 1,
+        "barber_closings_complete": true
+      }
+    ]
+  },
+  "txToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "eb375af2-869a-4ad1-b737-21f8ec6dfb25",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "user_id": "828175b0-ac50-444f-bd90-51b9a399c28c",
+        "type": "income",
+        "category": "Receita de Comanda",
+        "amount": 20,
+        "description": "Baixa financeira de comanda c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7 via checkout",
+        "payment_method": "cash",
+        "date": "2026-09-25T13:47:07.896+00:00",
+        "status": "paid",
+        "created_at": "2026-09-25T13:47:09.269859+00:00",
+        "updated_at": "2026-09-25T13:47:09.269859+00:00",
+        "method": null,
+        "notes": null,
+        "due_day": null,
+        "source_type": "comanda",
+        "source_id": "c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7",
+        "idempotency_key": "finance-settle-c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7-comanda-61c6f585-1a8b-45ee-83c6-9bcf3153fd29",
+        "metadata": {
+          "notes": null,
+          "source": "checkout",
+          "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+          "comanda_id": "c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7",
+          "settled_at": "2026-09-25T13:47:09.269859+00:00",
+          "paid_amount": 20,
+          "comanda_total": 20,
+          "idempotency_key": "finance-settle-c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7-comanda-61c6f585-1a8b-45ee-83c6-9bcf3153fd29",
+          "amount_difference": 0,
+          "payment_date_real": "2026-09-25T13:47:07.896+00:00",
+          "settled_by_user_id": "828175b0-ac50-444f-bd90-51b9a399c28c"
+        },
+        "account_payable_id": null
+      }
+    ]
+  },
+  "commissionsToday": {
+    "count": 1,
+    "rows": [
+      {
+        "id": "b462a796-bd81-4813-a993-d9e6a695c925",
+        "tenant_id": "b716e290-f7f6-4449-b790-5ae9dcdadcab",
+        "record_type": "commission",
+        "comanda_id": "c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7",
+        "comanda_item_id": "8862e397-9e7d-4a75-9114-cbfd6e696598",
+        "staff_id": "62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+        "gross_value": 20,
+        "discount": 0,
+        "net_value": 20,
+        "received_value": 20,
+        "commission_rate": 0.5,
+        "commission_value": 10,
+        "participant_share": 1,
+        "payout_type": "percentage",
+        "affects_commission": true,
+        "original_record_id": null,
+        "idempotency_key": "evt_muh0lx4o_4qtg9t_1790344027896_create_commission_record_62ddf002-5c05-49fa-8ff3-6d67fa82c562",
+        "event_id": "evt_muh0lx4o_4qtg9t_1790344027896",
+        "event_type": "CheckoutCompleted",
+        "status": "active",
+        "created_at": "2026-09-25T13:47:12.084891+00:00"
+      }
+    ]
+  }
+}

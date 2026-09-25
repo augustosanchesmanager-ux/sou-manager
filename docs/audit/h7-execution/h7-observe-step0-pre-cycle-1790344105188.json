@@ -1,0 +1,551 @@
+{
+  "timestamp": "2026-09-25T13:48:22.957Z",
+  "label": "step0-pre-cycle",
+  "clients": [
+    {
+      "id": "edbe83f1-44ee-4c77-b96f-7b5a4103464a",
+      "name": "HOMOLOG H7",
+      "status": "active",
+      "created_at": "2026-08-17T01:13:02.11156+00:00"
+    },
+    {
+      "id": "3e914917-52a9-4ab0-8bb2-9d748b9f258c",
+      "name": "HOMOLOG H7-1",
+      "status": "active",
+      "created_at": "2026-09-18T19:36:17.897259+00:00"
+    }
+  ],
+  "appointments_edbe83f1-44ee-4c77-b96f-7b5a4103464a": [
+    {
+      "id": "f7be48a5-38f1-4d41-87e0-992071a0524f",
+      "status": "completed",
+      "start_time": "2026-09-25T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-25T13:46:47.782786+00:00",
+      "attended_at": null,
+      "cancellation_reason": null
+    },
+    {
+      "id": "37268635-3b18-4deb-80d3-7044af1937ae",
+      "status": "completed",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-23T17:32:12.613414+00:00",
+      "attended_at": null,
+      "cancellation_reason": null
+    },
+    {
+      "id": "dfe96801-6091-4f3c-82cd-8322cceb0427",
+      "status": "cancelled",
+      "start_time": "2026-09-02T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-02T11:45:58.57617+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    },
+    {
+      "id": "ba6de4ce-a19d-4127-9b0b-4e7157f53ec7",
+      "status": "cancelled",
+      "start_time": "2026-09-02T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-02T11:43:14.733637+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    },
+    {
+      "id": "eb3137e0-504b-44ef-b53c-cfa88c7faaa0",
+      "status": "cancelled",
+      "start_time": "2026-08-16T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-08-17T01:13:03.08+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    }
+  ],
+  "comandas_edbe83f1-44ee-4c77-b96f-7b5a4103464a": [
+    {
+      "id": "c304cae5-7dc7-40ca-9a2d-6f4dcf3f41f7",
+      "status": "paid",
+      "total": 20,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-25T13:46:47.782786+00:00",
+      "closed_at": "2026-09-25T13:47:07.896+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "b5368c28-263d-438f-9eb7-1dc965410243",
+      "status": "paid",
+      "total": 145,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-23T17:32:12.613414+00:00",
+      "closed_at": "2026-09-23T17:35:10.091+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "298c12e0-5450-43f3-bba7-acc0c07bd2c5",
+      "status": "paid",
+      "total": 45,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-02T11:45:58.57617+00:00",
+      "closed_at": "2026-09-02T11:46:14.154+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "6bd5cbe4-2442-4ba3-ba00-c6ac9bf475e2",
+      "status": "paid",
+      "total": 15,
+      "discount": 0,
+      "payment_method": "cash",
+      "created_at": "2026-09-02T11:43:14.733637+00:00",
+      "closed_at": "2026-09-02T11:43:41.636+00:00",
+      "cancelled_at": null
+    },
+    {
+      "id": "a119921e-f120-48ec-b1d7-35ea16932b6d",
+      "status": "paid",
+      "total": 45,
+      "discount": 0,
+      "payment_method": "pix",
+      "created_at": "2026-08-17T01:13:03.08+00:00",
+      "closed_at": "2026-08-17T01:13:13.973+00:00",
+      "cancelled_at": null
+    }
+  ],
+  "appointments_3e914917-52a9-4ab0-8bb2-9d748b9f258c": [
+    {
+      "id": "b73689c9-1225-48a9-bef0-f578a8bbc2dd",
+      "status": "cancelled",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00",
+      "attended_at": null,
+      "cancellation_reason": "test"
+    },
+    {
+      "id": "01e68bfa-0b0a-4eec-9ec0-86c65b5a8aec",
+      "status": "completed",
+      "start_time": "2026-09-18T10:00:00+00:00",
+      "date": null,
+      "time": null,
+      "notes": null,
+      "created_at": "2026-09-18T19:36:18.866374+00:00",
+      "attended_at": null,
+      "cancellation_reason": null
+    }
+  ],
+  "comandas_3e914917-52a9-4ab0-8bb2-9d748b9f258c": [
+    {
+      "id": "7fcfc709-8c11-4226-8221-26a4a4c7640d",
+      "status": "cancelled",
+      "total": 45,
+      "discount": 0,
+      "payment_method": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00",
+      "closed_at": null,
+      "cancelled_at": "2026-09-23T17:31:35.79+00:00"
+    },
+    {
+      "id": "137df76d-196f-4cf1-9ab1-3a0f026136f1",
+      "status": "paid",
+      "total": 35,
+      "discount": 0,
+      "payment_method": "other",
+      "created_at": "2026-09-18T19:36:18.866374+00:00",
+      "closed_at": "2026-09-18T19:37:40.986+00:00",
+      "cancelled_at": null
+    }
+  ],
+  "dayAppointments": [
+    {
+      "id": "b73689c9-1225-48a9-bef0-f578a8bbc2dd",
+      "client_id": "3e914917-52a9-4ab0-8bb2-9d748b9f258c",
+      "status": "cancelled",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-23T17:29:47.217888+00:00"
+    },
+    {
+      "id": "37268635-3b18-4deb-80d3-7044af1937ae",
+      "client_id": "edbe83f1-44ee-4c77-b96f-7b5a4103464a",
+      "status": "completed",
+      "start_time": "2026-09-23T10:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-23T17:32:12.613414+00:00"
+    },
+    {
+      "id": "005c9b33-5195-4a84-83ad-8b3ff0c83e52",
+      "client_id": "90ba3973-930d-41b6-8e7f-b9e9bb1a3b13",
+      "status": "cancelled",
+      "start_time": "2026-09-26T00:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T11:16:51.127572+00:00"
+    },
+    {
+      "id": "c1653676-350e-4e3e-a530-a7cc96a4f232",
+      "client_id": "9949fdff-6e80-4720-9535-89dd6b6a7d41",
+      "status": "confirmed",
+      "start_time": "2026-09-24T21:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T11:36:40.156015+00:00"
+    },
+    {
+      "id": "02d91ceb-47c7-45ad-b330-47f7f310e0c4",
+      "client_id": "2ccfdc78-5a16-4ba2-9cd3-cfa1990b5d07",
+      "status": "cancelled",
+      "start_time": "2026-09-25T13:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T11:38:10.213203+00:00"
+    },
+    {
+      "id": "d714b72d-6dd3-4a24-889f-866eca5739bc",
+      "client_id": "2ccfdc78-5a16-4ba2-9cd3-cfa1990b5d07",
+      "status": "cancelled",
+      "start_time": "2026-09-26T14:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T11:46:21.900764+00:00"
+    },
+    {
+      "id": "c8cbdd80-f245-4432-820e-b326bb609a01",
+      "client_id": "2ccfdc78-5a16-4ba2-9cd3-cfa1990b5d07",
+      "status": "confirmed",
+      "start_time": "2026-09-25T17:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T12:23:31.117454+00:00"
+    },
+    {
+      "id": "8ca8a75d-779e-4fa9-ae1c-9493c387680f",
+      "client_id": "66c2d1ef-c30a-44c8-9da1-dec676bd4a50",
+      "status": "confirmed",
+      "start_time": "2026-09-24T21:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:00:18.79647+00:00"
+    },
+    {
+      "id": "3ede418f-9124-4d99-a954-f5a05d5f0ea4",
+      "client_id": "b0d9ee68-0c45-4e8a-bfab-0fd55edacc86",
+      "status": "confirmed",
+      "start_time": "2026-09-25T13:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:05:03.085386+00:00"
+    },
+    {
+      "id": "8e8859bf-fc4d-4957-adaf-f81b6465eaee",
+      "client_id": "37165157-3e30-48df-a2d0-e1937b6c5293",
+      "status": "confirmed",
+      "start_time": "2026-09-25T11:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:05:37.432858+00:00"
+    },
+    {
+      "id": "9f07d801-2db9-426a-ad77-5ac1aeeeea47",
+      "client_id": "0cbd798a-896c-4349-a785-d892e2d67ab2",
+      "status": "confirmed",
+      "start_time": "2026-09-25T11:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:06:24.721974+00:00"
+    },
+    {
+      "id": "e1b32380-7c3a-40ac-aefb-e0133b5e8deb",
+      "client_id": "7d8d4e7a-4bae-4538-b52e-636a54d8312c",
+      "status": "confirmed",
+      "start_time": "2026-09-25T12:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:07:18.797901+00:00"
+    },
+    {
+      "id": "fc00a2d6-343b-454f-90ad-eeda79277908",
+      "client_id": "d2f522cb-777b-4757-834e-0e83902f5aa6",
+      "status": "confirmed",
+      "start_time": "2026-09-25T12:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:08:00.895126+00:00"
+    },
+    {
+      "id": "ec28f9c0-42e0-4a2a-9166-66fe8588adce",
+      "client_id": "cf146fa3-8dae-4047-b62d-939d56203a35",
+      "status": "confirmed",
+      "start_time": "2026-09-26T20:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:15:48.884827+00:00"
+    },
+    {
+      "id": "dba5a70e-4655-4714-89d2-2b13b1e69101",
+      "client_id": "64478cf5-f051-40cb-9c2b-921bc259a212",
+      "status": "confirmed",
+      "start_time": "2026-09-24T22:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:16:19.470326+00:00"
+    },
+    {
+      "id": "ba4cca66-bd89-41c9-b28c-1751bac731a0",
+      "client_id": "d1238022-3807-4906-9321-d0902664388e",
+      "status": "confirmed",
+      "start_time": "2026-09-26T17:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:23:03.995442+00:00"
+    },
+    {
+      "id": "4a2bff10-effe-48f0-9c5e-c3fcceacbf09",
+      "client_id": "dc2d5f67-d226-464d-89b4-0ee60c55aa66",
+      "status": "cancelled",
+      "start_time": "2026-09-26T23:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:24:22.070207+00:00"
+    },
+    {
+      "id": "4951c234-aa35-477d-a3f2-bbc8108df694",
+      "client_id": "dd962e42-9614-4a5b-a086-362a7debff4b",
+      "status": "confirmed",
+      "start_time": "2026-09-26T17:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:25:41.646494+00:00"
+    },
+    {
+      "id": "c3edbfce-4af4-4293-88c0-b7caa6ee1b92",
+      "client_id": "e3463b8a-3280-4bd1-b1cb-a56e82809c65",
+      "status": "confirmed",
+      "start_time": "2026-09-26T16:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:32:57.621683+00:00"
+    },
+    {
+      "id": "ccee9194-7950-458b-87a3-e046582791e4",
+      "client_id": "d9e2dc9f-c095-49f2-9f55-89f0fc45cf3d",
+      "status": "confirmed",
+      "start_time": "2026-09-25T22:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:36:57.306374+00:00"
+    },
+    {
+      "id": "bedfab7b-ec77-437e-b591-a61675d64715",
+      "client_id": "c64535fb-35d2-4cf7-938c-141d0d7e0ea1",
+      "status": "confirmed",
+      "start_time": "2026-09-25T23:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:41:11.847427+00:00"
+    },
+    {
+      "id": "8fc501c9-90f9-427c-8839-bf42e35e1cde",
+      "client_id": "e00b2352-6a84-47df-a596-9425b571c755",
+      "status": "confirmed",
+      "start_time": "2026-09-26T18:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:45:30.982294+00:00"
+    },
+    {
+      "id": "10ac2b35-17bb-4f83-be60-de21055cab3b",
+      "client_id": "84d9fdec-e518-4e49-867b-2a52c6658165",
+      "status": "confirmed",
+      "start_time": "2026-09-26T19:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:46:42.026832+00:00"
+    },
+    {
+      "id": "f4982620-7372-44c3-8a1b-4e20f8602084",
+      "client_id": "45042632-a4f0-4e09-bf60-36dcd563492b",
+      "status": "cancelled",
+      "start_time": "2026-09-25T15:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:50:37.540498+00:00"
+    },
+    {
+      "id": "ba3093ca-184b-4ec6-b5cd-8a2f1aa353e3",
+      "client_id": "b62d670d-6600-4f1c-8c9c-f97bb82b69d0",
+      "status": "confirmed",
+      "start_time": "2026-09-26T15:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:52:43.773248+00:00"
+    },
+    {
+      "id": "def7fc6f-6130-4b89-9d60-6e904e38fa44",
+      "client_id": "b62d670d-6600-4f1c-8c9c-f97bb82b69d0",
+      "status": "confirmed",
+      "start_time": "2026-09-26T15:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:53:19.629777+00:00"
+    },
+    {
+      "id": "70744d2e-24a2-4825-aeff-894dc0f8e1c5",
+      "client_id": "1cca66d9-269a-4525-8f9a-a48952e4be63",
+      "status": "confirmed",
+      "start_time": "2026-09-24T19:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:56:43.64487+00:00"
+    },
+    {
+      "id": "301e855f-5895-44bf-a427-b9e5059d6417",
+      "client_id": "3ff89686-9af4-4267-8e67-c765fbbec02c",
+      "status": "confirmed",
+      "start_time": "2026-09-24T18:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T17:59:25.036629+00:00"
+    },
+    {
+      "id": "1082f5dd-684b-43bb-86c3-216190ffc177",
+      "client_id": "9184966b-6bb9-4560-a18c-3d2ee5f4d772",
+      "status": "cancelled",
+      "start_time": "2026-09-26T18:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T18:18:38.666189+00:00"
+    },
+    {
+      "id": "eb8d697f-f9e2-4fd4-84d6-f68db2a43a20",
+      "client_id": "8d73ac7b-2683-476a-8201-05707ca4bd42",
+      "status": "confirmed",
+      "start_time": "2026-09-26T14:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T19:01:10.752287+00:00"
+    },
+    {
+      "id": "bb5a6c34-1071-431b-bb12-dd704ed53921",
+      "client_id": "8d73ac7b-2683-476a-8201-05707ca4bd42",
+      "status": "confirmed",
+      "start_time": "2026-09-26T14:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T19:03:15.279315+00:00"
+    },
+    {
+      "id": "d5db4850-3017-457e-ae0e-3efcd329a4b7",
+      "client_id": "10fd69a3-3acc-44bc-8177-b2ab0443936b",
+      "status": "confirmed",
+      "start_time": "2026-09-23T18:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:05:13.253601+00:00"
+    },
+    {
+      "id": "62f7ee55-814e-4568-adb0-695339d7e9c2",
+      "client_id": "fd0226b7-3edb-438a-b605-bce83e89c03e",
+      "status": "confirmed",
+      "start_time": "2026-09-23T20:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:05:54.004932+00:00"
+    },
+    {
+      "id": "b705e416-eb0b-4740-b8d8-cb2538c40126",
+      "client_id": "de9801e8-783d-4e78-9a0c-8ab093013094",
+      "status": "confirmed",
+      "start_time": "2026-09-23T22:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:06:22.588939+00:00"
+    },
+    {
+      "id": "20c7b098-eecf-4919-b65b-d92dfbb5efcb",
+      "client_id": "662781cf-1753-4180-a17c-8679ce3df3ae",
+      "status": "confirmed",
+      "start_time": "2026-09-24T22:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:18:52.548313+00:00"
+    },
+    {
+      "id": "91cb1a0a-3bd0-42d7-9c7a-98b4fff9f4ab",
+      "client_id": "dc2d5f67-d226-464d-89b4-0ee60c55aa66",
+      "status": "confirmed",
+      "start_time": "2026-09-26T11:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:43:28.067356+00:00"
+    },
+    {
+      "id": "843a88fa-4ce9-4774-9768-13de13a548ef",
+      "client_id": "fe421c65-4dc2-488b-9a7e-1d1de3b8f772",
+      "status": "confirmed",
+      "start_time": "2026-09-26T16:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T20:58:53.068213+00:00"
+    },
+    {
+      "id": "b3c24c4c-5dc2-4e64-9ebf-b28c354403f6",
+      "client_id": "90ba3973-930d-41b6-8e7f-b9e9bb1a3b13",
+      "status": "confirmed",
+      "start_time": "2026-09-25T22:45:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T21:10:41.861414+00:00"
+    },
+    {
+      "id": "2b67d5e0-fc0f-4e16-a939-8b68a5de77cf",
+      "client_id": "9184966b-6bb9-4560-a18c-3d2ee5f4d772",
+      "status": "confirmed",
+      "start_time": "2026-09-25T18:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T21:15:30.634007+00:00"
+    },
+    {
+      "id": "5389a029-0321-40a6-b1b2-6b541650f2e4",
+      "client_id": "b3f4930e-0f47-48c7-a343-d449d1ebed03",
+      "status": "confirmed",
+      "start_time": "2026-09-26T21:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T21:31:53.361714+00:00"
+    },
+    {
+      "id": "d00c2ca2-78ff-4014-8a3c-0edc66c71643",
+      "client_id": "a2ff65f8-2d2b-4f68-a2f3-c0cb0ee8e5c1",
+      "status": "confirmed",
+      "start_time": "2026-09-25T16:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T21:50:12.013373+00:00"
+    },
+    {
+      "id": "24fea0e8-73f5-445e-9b03-84393eec7ce7",
+      "client_id": "90ba3973-930d-41b6-8e7f-b9e9bb1a3b13",
+      "status": "confirmed",
+      "start_time": "2026-09-24T23:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T22:35:42.834824+00:00"
+    },
+    {
+      "id": "ec16b6d6-5ef5-4899-aae8-97c35ffe7bb6",
+      "client_id": "18ec560a-57ae-4920-bf4a-64952abe7fda",
+      "status": "confirmed",
+      "start_time": "2026-09-24T23:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-24T22:36:32.81857+00:00"
+    },
+    {
+      "id": "12487ba5-a84c-4d26-9088-c671042402a8",
+      "client_id": "c7337477-3217-4295-bebb-6bc75d3be5f7",
+      "status": "confirmed",
+      "start_time": "2026-09-24T23:30:00+00:00",
+      "date": null,
+      "created_at": "2026-09-25T00:16:28.151971+00:00"
+    },
+    {
+      "id": "f7be48a5-38f1-4d41-87e0-992071a0524f",
+      "client_id": "edbe83f1-44ee-4c77-b96f-7b5a4103464a",
+      "status": "completed",
+      "start_time": "2026-09-25T10:00:00+00:00",
+      "date": null,
+      "created_at": "2026-09-25T13:46:47.782786+00:00"
+    }
+  ],
+  "dayTransactions": [
+    {
+      "id": "d39803f7-7b66-4707-a31e-dcf0c870866b",
+      "type": "income",
+      "amount": 145,
+      "created_at": "2026-09-23T17:35:22.360327+00:00",
+      "notes": null
+    },
+    {
+      "id": "eb375af2-869a-4ad1-b737-21f8ec6dfb25",
+      "type": "income",
+      "amount": 20,
+      "created_at": "2026-09-25T13:47:09.269859+00:00",
+      "notes": null
+    }
+  ]
+}
