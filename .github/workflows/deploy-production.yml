@@ -1,0 +1,227 @@
+name: Deploy Production (Promote Controlado)
+
+# P-AUTO Fase 1 — Governança C+D (decisão PO 2026-09-26)
+# C = workflow_dispatch + Environment Protection (aprovacao humana)
+# D = vercel promote (promocao explicita do deployment alvo)
+# Regra: merge em main NAO promove producao. Promocao exige este workflow
+# dispatchado manualmente, com dry_run=true por padrao e confirmacao dupla.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Projeto Vercel alvo"
+        type: choice
+        required: true
+        options:
+          - smg-barber
+          - smg-barber-staging
+          - smg-estetica
+      sha:
+        description: "SHA de origem esperado (trilha de auditoria, opcional)"
+        required: false
+        default: ""
+      authorization_ref:
+        description: "Referencia da autorizacao do PO (ex.: PR #123 / mensagem)"
+        required: true
+      deployment_url:
+        description: "Deployment Vercel a promover (URL ou ID). Obrigatorio quando dry_run=false."
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry-run: true = somente audita (PADRAO). false = promove de verdade."
+        type: boolean
+        required: true
+        default: true
+      confirm:
+        description: "Digite exatamente o nome do projeto para confirmar a promocao (obrigatorio quando dry_run=false)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  deployments: read
+
+# Uma promocao por vez, por projeto. Nunca cancela uma promocao em andamento.
+concurrency:
+  group: deploy-production-${{ github.event.inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-validate:
+    name: resolve & validate (read-only)
+    runs-on: ubuntu-latest
+    outputs:
+      project: ${{ steps.guard.outputs.project }}
+      domain: ${{ steps.guard.outputs.domain }}
+      promote: ${{ steps.guard.outputs.promote }}
+      authorization_ref: ${{ steps.guard.outputs.authorization_ref }}
+    steps:
+      - name: Guardrails de entrada
+        id: guard
+        env:
+          PROJECT: ${{ inputs.project }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          AUTH_REF: ${{ inputs.authorization_ref }}
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AUTH_REF" ]; then
+            echo "::error::authorization_ref e obrigatorio (trilha de auditoria)."
+            exit 1
+          fi
+          PROMOTE=false
+          if [ "$DRY_RUN" != "true" ]; then
+            PROMOTE=true
+            if [ "$CONFIRM" != "$PROJECT" ]; then
+              echo "::error::dry_run=false exige confirm identico ao projeto ('$PROJECT'). Recusado."
+              exit 1
+            fi
+            if [ -z "$DEPLOYMENT_URL" ]; then
+              echo "::error::dry_run=false exige deployment_url (URL ou ID Vercel do deployment alvo)."
+              exit 1
+            fi
+          fi
+          case "$PROJECT" in
+            smg-barber) DOMAIN="https://barber.soumanager.com" ;;
+            smg-barber-staging) DOMAIN="https://staging.barber.soumanager.com" ;;
+            smg-estetica) DOMAIN="https://estetica.soumanager.com.br" ;;
+            *) echo "::error::Projeto desconhecido: $PROJECT"; exit 1 ;;
+          esac
+          echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+          echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
+          echo "promote=$PROMOTE" >> "$GITHUB_OUTPUT"
+          echo "authorization_ref=$AUTH_REF" >> "$GITHUB_OUTPUT"
+          echo "Projeto=$PROJECT | DryRun=$DRY_RUN | Promote=$PROMOTE | Auth=$AUTH_REF"
+
+      - name: Listar deployments GitHub do projeto (auditoria read-only)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/deployments?per_page=30" > /tmp/deployments.json || echo "[]" > /tmp/deployments.json
+          {
+            echo "### Candidatos de deployment (GitHub Deployments API)"
+            echo ""
+            echo '```json'
+            jq --arg p "$PROJECT" '[.[] | select(.environment == ("Production – " + $p) or .environment == ("Preview – " + $p))] | .[0:5]' /tmp/deployments.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: promote (requer aprovacao do Environment)
+    needs: resolve-validate
+    if: needs.resolve-validate.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: ${{ needs.resolve-validate.outputs.domain }}
+    steps:
+      - name: Verificar VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Secret VERCEL_TOKEN ausente. A promocao real nao pode ser executada ate o PO provisionar um token granular (GAP P-AUTO)."
+            exit 1
+          fi
+
+      - name: vercel promote
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_SCOPE: ${{ secrets.VERCEL_TEAM_SCOPE }}
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          SCOPE_ARGS=""
+          if [ -n "${VERCEL_TEAM_SCOPE:-}" ]; then
+            SCOPE_ARGS="--scope $VERCEL_TEAM_SCOPE"
+          fi
+          echo "Promovendo deployment: $DEPLOYMENT_URL"
+          npx --yes vercel promote "$DEPLOYMENT_URL" \
+            --token "$VERCEL_TOKEN" \
+            --yes --non-interactive --timeout 5m $SCOPE_ARGS
+
+  post-validate:
+    name: post-validate
+    needs: [resolve-validate, promote]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check (somente apos promocao real)
+        if: needs.promote.result == 'success'
+        env:
+          DOMAIN: ${{ needs.resolve-validate.outputs.domain }}
+        run: |
+          set -euo pipefail
+          echo "Aguardando dominio de producao: $DOMAIN"
+          for i in $(seq 1 30); do
+            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 15 "$DOMAIN" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check PASSED (HTTP $HTTP_CODE) na tentativa $i"
+              exit 0
+            fi
+            echo "Tentativa $i/30 — HTTP $HTTP_CODE, retry em 10s..."
+            sleep 10
+          done
+          echo "::error::Health check FALHOU apos 300s em $DOMAIN"
+          exit 1
+
+      - name: Checkout (smoke)
+        if: needs.promote.result == 'success'
+        uses: actions/checkout@v4
+
+      - name: Setup Node (smoke)
+        if: needs.promote.result == 'success'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Smoke E2E contra producao (somente apos promocao real)
+        if: needs.promote.result == 'success'
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: ${{ needs.resolve-validate.outputs.domain }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run test:e2e:smoke
+
+      - name: Trilha de auditoria
+        if: always()
+        env:
+          PROJECT: ${{ needs.resolve-validate.outputs.project }}
+          DOMAIN: ${{ needs.resolve-validate.outputs.domain }}
+          AUTH_REF: ${{ needs.resolve-validate.outputs.authorization_ref }}
+          SHA_INPUT: ${{ inputs.sha }}
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+          VALIDATE_RESULT: ${{ needs.resolve-validate.result }}
+        run: |
+          {
+            echo "## P-AUTO — Trilha de Auditoria (Promocao Producao)"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|-------|-------|"
+            echo "| Projeto | $PROJECT |"
+            echo "| Dominio | $DOMAIN |"
+            echo "| SHA informado | ${SHA_INPUT:-(nao informado)} |"
+            echo "| Commit do workflow run | $GITHUB_SHA |"
+            echo "| Deployment alvo | ${DEPLOYMENT_URL:-(dry-run)} |"
+            echo "| Dry run | $DRY_RUN |"
+            echo "| Authorization ref | $AUTH_REF |"
+            echo "| Executor | $GITHUB_ACTOR |"
+            echo "| Job resolve-validate | $VALIDATE_RESULT |"
+            echo "| Job promote | $PROMOTE_RESULT |"
+            echo "| Timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+            echo ""
+            echo "Rollback: promover o deployment anterior conhecido com o mesmo comando \`vercel promote <deployment-id>\`. Ver docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md."
+          } >> "$GITHUB_STEP_SUMMARY"
