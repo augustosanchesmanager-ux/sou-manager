@@ -15,7 +15,8 @@ type UserClient = SupabaseClient<any, 'public', any>;
  *   - start_trial / activate_subscription / get_subscription / cancel_subscription
  *   - apply_subscription_transition (efetivação do cancelamento pelo engine)
  *
- * Credenciais lidas de `.env.local` (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY).
+ * Credenciais resolvidas por `loadEnvLocal()` (process.env com fallback para
+ * `.env.local`): VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.
  */
 export async function signInAsUser(
   email: string,
@@ -25,7 +26,9 @@ export async function signInAsUser(
   const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
   const anonKey = env.VITE_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
-    throw new Error('E2E requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local');
+    throw new Error(
+      'E2E requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (process.env or .env.local)',
+    );
   }
 
   const client = createClient(url, anonKey, {

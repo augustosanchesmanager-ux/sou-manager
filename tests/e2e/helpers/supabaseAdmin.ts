@@ -20,9 +20,14 @@ type AdminClient = SupabaseClient<any, 'public', any>;
  *   - The signup UI flow is therefore covered SEPARATELY by
  *     tests/e2e/flows/flow6a-signup-ui.spec.ts (gated, non-blocking).
  *
- * Credenciais lidas de `.env.local` (nunca commitadas):
+ * Credenciais resolvidas por `loadEnvLocal()`:
  *   - VITE_SUPABASE_URL
  *   - SUPABASE_SERVICE_ROLE_KEY
+ *
+ * Precedência: `process.env` (CI runners, variáveis exportadas) vence sobre
+ * `.env.local` (desenvolvimento local). Valores VAZIOS em `process.env` são
+ * ignorados para que um export acidental em branco não mascare o valor local.
+ * Nunca registre os valores resolvidos em logs.
  */
 export function loadEnvLocal(): Record<string, string> {
   const filePath = path.resolve(process.cwd(), '.env.local');
@@ -37,6 +42,11 @@ export function loadEnvLocal(): Record<string, string> {
     const value = trimmed.slice(eq + 1).trim();
     if (key) env[key] = value.replace(/^"(.*)"$/, '$1');
   }
+  // CI não possui `.env.local` em disco: as variáveis chegam via `env:` do
+  // workflow. `process.env` tem precedência sobre o arquivo (contrato CI/local).
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value) env[key] = value;
+  }
   return env;
 }
 
@@ -48,7 +58,9 @@ export function getAdminClient(): AdminClient {
   const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
   const serviceRole = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceRole) {
-    throw new Error('E2E requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local');
+    throw new Error(
+      'E2E requires VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (process.env or .env.local)',
+    );
   }
   // The project has no generated Database types and the remote schema has
   // drifted, so the client uses the untyped generic (row shape = any).
