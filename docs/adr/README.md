@@ -22,6 +22,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-023](./ADR-023-f1-staff-role-hierarchy-enforcement.md) | Accepted | F1 — Enforcement de hierarquia de papéis de Staff no banco (2026-09-14) |
 | [ADR-024](./ADR-024-ci-workflow-regularization.md) | Proposed | Regularização dos CI Workflows + Política Operacional de Override (R5-IMPLEMENT-1, 2026-09-21) |
 | [ADR-025](./ADR-025-smg-pr-approve-bootstrap.md) | Proposed | Bootstrap do Mecanismo `smg-pr-approve` — Exceção Formal de Governança (R5.3-GOV-BOOTSTRAP, 2026-09-21) |
+| [ADR-026](./ADR-026-merge-not-equal-deploy-prod-gate.md) | Accepted (Amendment-01) | `MERGE ≠ DEPLOY PROD` — Gate C+D com Staged Production (2026-09-24; Amd-01 2026-09-27) |
 
 ---
 
