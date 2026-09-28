@@ -6,15 +6,27 @@
 >
 > **Regra vinculante:** *MERGE = autorização para integrar código.
 > DEPLOY = autorização separada para promover produção.*
+>
+> **Amendment-01 (2026-09-27) — Staged Production:** direção ratificada pelo PO
+> (D1–D4; `docs/adr/ADR-026-merge-not-equal-deploy-prod-gate.md`,
+> `docs/audit/P_AUTO_STAGED_CHANGE_PLAN_20260927.md`). Após a **execução do toggle**
+> `Auto-assign Custom Production Domains` = OFF no projeto `smg-barber` (somente pelo PO,
+> após STOP #3 do plano), o merge em `main` passa a criar deployments **staged**
+> (build ok, **domínio não muda**) e o `promote` passa a mover o alias de fato.
+> **Enquanto o toggle estiver ON, vigia o modelo da Fase 1** (auto-assign ativo —
+> `promote` do deployment de `main` retorna 409 estrutural, evidência no gate do PR #93).
 
 ---
 
 ## 1. Princípio
 
 Após o merge em `main`, o Git Integration do Vercel **continua** criando um
-deployment `Production – smg-barber` automaticamente (Fase 1 **NÃO** desliga o
-auto-deploy — isso é Fase 2, gate próprio). O que a Fase 1 adiciona é o
-**mecanismo controlado de promoção explícita** para os 3 projetos, com:
+deployment `Production – smg-barber` automaticamente (a Fase 1 **NÃO** desliga o
+build automático). Com o **Amendment-01 executado** (toggle `Auto-assign Custom
+Production Domains` = OFF), esse deployment nasce **staged**: build com env de
+produção, mas o **domínio de produção não muda** — o alias só se move via
+`promote`. O que a Fase 1 adiciona é o **mecanismo controlado de promoção
+explícita** para os 3 projetos, com:
 
 1. **Dispatch manual** (`workflow_dispatch`) — nada promove sozinho por este workflow;
 2. **`dry_run=true` por padrão** — dispatch acidental nunca promove;
@@ -63,6 +75,11 @@ aprovação de environment e não toca em produção.**
 
 ### 3.2 Promoção real (duas aprovações)
 
+0. **Preflight do candidato:** `vercel inspect <domínio de produção>` → confirmar que o
+   deployment **atual (Current)** é **diferente** do candidato a promover (com Amendment-01
+   executado, o candidato originado de `main` deve estar **staged**, nunca `Current`). Se o
+   candidato já for `Current`, **abortar o dispatch** — o auto-assign está ON (toggle
+   religado ou mudança ainda não executada; ver §7).
 1. Recuperar o **deployment alvo** (ID ou URL Vercel):
    `GET /v6/deployments?projectId=<id>&target=production` (ou o deployment desejado
    via `vercel ls <projeto> --token <token>`).
@@ -85,6 +102,12 @@ aprovação de environment e não toca em produção.**
 6. `post-validate` roda health check no domínio (HTTP 200, até 300s) + smoke E2E
    (`test:e2e:smoke`) **somente quando o promote foi bem-sucedido**, e grava a
    trilha final.
+
+> **Regra D3 (política de candidato — Amendment-01):** o candidato aprovado é a
+> **SHA registrada no `dispatch`**. Pushes posteriores em `main` criam um novo
+> candidato e exigem novo ciclo de aprovação — **o artefato aprovado pelo PO é
+> exatamente o artefato que chega à produção** (promote staged não rebuilda:
+> mesmo deployment ID, mesma build).
 
 ### 3.3 Pós-promoção
 
@@ -123,22 +146,39 @@ Todo dispatch grava no `$GITHUB_STEP_SUMMARY`:
 
 ## 6. GAPs conhecidos (Fase 1)
 
-1. **`VERCEL_TOKEN` não existe como secret do repositório.** O job `promote`
-   falha com mensagem explícita até o PO provisionar um **token granular**
-   (escopo: Deployments + Projects, só para os 3 projetos) e cadastrá-lo como
-   secret `VERCEL_TOKEN` (+ opcional `VERCEL_TEAM_SCOPE`). O token OAuth
-   pessoal (`vca_…`) **não** deve ser copiado para o secret.
+1. ~~**`VERCEL_TOKEN` não existe como secret do repositório.**~~ **SUPERADO**
+   (evidência: gate `36347757267` — o job `promote` chegou à API do Vercel e
+   retornou 409 semântico, não "token ausente"). Manter o secret como **token
+   granular** (escopo: Deployments + Projects, só para os 3 projetos; opcional
+   `VERCEL_TEAM_SCOPE`); o token OAuth pessoal (`vca_…`) **não** deve ser
+   copiado para o secret.
 2. **Dry-run ao vivo só pós-merge** (limitação de `workflow_dispatch`, §3.1).
-3. **Auto-deploy de produção continua ativo** (Git Integration) — eliminação é
-   o critério da **Fase 2**, ainda não autorizada.
+3. **Auto-assign de produção** (Git Integration) — **em transição**: com o
+   Amendment-01 (Staged Production), o toggle `Auto-assign Custom Production
+   Domains` será desligado exclusivamente pelo change-control
+   (`docs/audit/P_AUTO_STAGED_CHANGE_PLAN_20260927.md`, STOP #3, executor = PO).
+   O **build** automático de `main` continua; o que deixa de acontecer é o
+   movimento automático do alias. Enquanto o toggle estiver ON, vigia o modelo
+   Fase 1 (409 estrutural no promote do deployment de `main`).
 4. **Previews com deployment protection (login)** podem devolver 401/403 em
    checagens HTTP diretas — este runbook só valida domínios de produção.
 5. O `deployment_status` → `deploy-validate.yml` **não** dispara em promoções
    via CLI (`vercel promote` não cria GitHub Deployment) — a pós-validação
    correspondente é o job `post-validate` deste workflow.
+   **ACHADO INDEPENDENTE (congelado):** a condição do job
+   (`deployment.ref == 'refs/heads/main'`) **nunca é satisfeita** — `vercel[bot]`
+   passa SHA e o GitHub Actions environment passa `main`; 7/7 runs pós-merge do
+   gate do PR #93 terminaram `skipped`. O workflow é inalcançável em qualquer
+   mundo, inclusive pós-promote. Decisão própria futura (corrigir a condição
+   **ou** aposentar via ADR) — **nunca misturar com esta frente**.
 
 ## 7. Limites desta frente (não autorizado)
 
-Desligar auto-deploy · alterar `prodBranch` · branch `production` · promover sem
-dispatch/aprovação · deploy direto fora deste workflow · alterar Supabase ·
-mexer em D-HOM-27b · Q5–Q7 · excluir branches · merge sem `/approve` do PO.
+Desligar o Git Integration (build automático) · alterar `prodBranch` · branch
+`production` · trocar `Auto-assign Custom Production Domains` **fora** do
+change-control P-AUTO Staged (único caminho autorizado: STOP #3 do
+`docs/audit/P_AUTO_STAGED_CHANGE_PLAN_20260927.md`, executor = PO) · promover
+sem dispatch/aprovação · deploy direto fora deste workflow · alterar Supabase ·
+mexer em D-HOM-27b · Q5–Q7 · excluir branches · merge sem `/approve` do PO ·
+editar `deploy-production.yml` ou `deploy-validate.yml` nesta frente (guardrail
+e correção de `ref` = frentes futuras separadas).
