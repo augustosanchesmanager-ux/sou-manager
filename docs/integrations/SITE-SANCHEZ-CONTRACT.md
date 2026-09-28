@@ -291,8 +291,8 @@ supabase/functions/site-sanchez-appointments/
 |----|-----------|---------------|-----------------|
 | **G1** | RPC exige payload completo (client_name, service_id, professional_id, scheduled_at) mesmo para cancelamento. Relaxar precisa migração + gate independente. | **FATO** (SQL:129-135, 153-179) | Futura ADR + migração |
 | **G2** | Edge Function **NÃO deployada em produção** (evidência H7, `docs/audit/H7_B_TRILHO_B_P1_P4_READONLY_RELATORIO.md:179`). | **FATO** | Deploy requer autorização PO |
-| **G3** | Webhook inbound `api/smg/appointments.js` no lado Site **nunca chamado pelo SMG** (sync unidirecional Site→SMG apenas). | **HIPÓTESE** (baseado em ausência de chamadas no código SMG) | Validar com time do Site |
-| **G4** | Tenant de staging hardcoded nos scripts: `b716e290-f7f6-4449-b790-5ae9dcdadcab` (D-8). Questão: tenant correto para prod? | **HIPÓTESE** | Confirmar com PO/Infra |
+| **G3** | Webhook inbound `api/smg/appointments.js` no lado Site **nunca chamado pelo SMG** — sincronização é **unidirecional Site→SMG** apenas. | **FATO** (grep nos dois repositórios 2026-09-28: zero chamadores inbound no SMG e no Site; ressalva: consumidores externos fora dos dois repos — validar com o time do Site) | Limitação declarada pelo PO (2026-09-28); evolução bidirecional = decisão futura |
+| **G4** | Tenant da integração hardcoded nos scripts e exigido pelo RPC: `b716e290-f7f6-4449-b790-5ae9dcdadcab` (D-8). Questão "tenant correto para prod?" **respondida**: é o tenant de produção. | **FATO** (evidência PROD 2026-09-27: "Barbearia Principal", slug `sanchez`, único candidato ativo; 18 services / 7 staff / 2040 appointments; staff map 2/2) | Checklist H7 (distribuição dos 22 serviços + realinhamento do `SMG_SERVICE_ID_MAP`) |
 
 > **Legenda:** **FATO** = evidência direta no código/docs; **HIPÓTESE** = inferência, precisa validação.
 
