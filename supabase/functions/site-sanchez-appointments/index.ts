@@ -1,32 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import {
+  verifyRequestAuth,
+  validatePayload,
+  buildSuccessResponse,
+  buildErrorResponse,
+  getRpcErrorStatus,
+  type AppointmentPayload,
+  type RpcSuccessResult,
+  type RpcErrorResult,
+} from './contract.ts';
 
-type AppointmentPayload = {
-  client_name?: unknown;
-  phone?: unknown;
-  service_id?: unknown;
-  professional_id?: unknown;
-  scheduled_at?: unknown;
-  status?: unknown;
-  site_appointment_id?: unknown;
-  external_id?: unknown;
-  notes?: unknown;
-};
-
-type JsonBody = Record<string, unknown>;
-
-type AppointmentResult = {
-  appointment_id?: string;
-  client_id?: string;
-  status?: string;
-};
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_NAME_LENGTH = 120;
-const MAX_NOTES_LENGTH = 500;
 const ALLOWED_DOMAIN_SCHEMAS = new Set(['public', 'barber']);
-
-const textEncoder = new TextEncoder();
 
 const buildCorsHeaders = (req: Request) => {
   const allowedOrigin = Deno.env.get('SANCHEZ_ALLOWED_ORIGIN')?.trim() || '';
@@ -45,7 +30,7 @@ const buildCorsHeaders = (req: Request) => {
   };
 };
 
-const jsonResponse = (req: Request, body: JsonBody, status: number) =>
+const jsonResponse = (req: Request, body: Record<string, unknown>, status: number) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -53,119 +38,6 @@ const jsonResponse = (req: Request, body: JsonBody, status: number) =>
       'Content-Type': 'application/json',
     },
   });
-
-const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
-
-const timingSafeEqual = (left: string, right: string) => {
-  const leftBytes = textEncoder.encode(left);
-  const rightBytes = textEncoder.encode(right);
-  if (leftBytes.length !== rightBytes.length) return false;
-
-  let diff = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    diff |= leftBytes[index] ^ rightBytes[index];
-  }
-
-  return diff === 0;
-};
-
-const toHex = (buffer: ArrayBuffer) =>
-  Array.from(new Uint8Array(buffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-
-const hmacSha256 = async (secret: string, value: string) => {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    textEncoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-
-  return toHex(await crypto.subtle.sign('HMAC', key, textEncoder.encode(value)));
-};
-
-const verifyRequestAuth = async (req: Request, rawBody: string, webhookSecret: string) => {
-  const authHeader = req.headers.get('authorization') || '';
-  if (authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.slice('Bearer '.length).trim();
-    if (timingSafeEqual(token, webhookSecret)) return true;
-  }
-
-  const signatureHeader = req.headers.get('x-sanchez-signature') || '';
-  const providedSignature = signatureHeader.replace(/^sha256=/i, '').trim().toLowerCase();
-  if (!providedSignature) return false;
-
-  const expectedSignature = await hmacSha256(webhookSecret, rawBody);
-  return timingSafeEqual(providedSignature, expectedSignature);
-};
-
-const validateOrigin = (req: Request) => {
-  const allowedOrigin = Deno.env.get('SANCHEZ_ALLOWED_ORIGIN')?.trim() || '';
-  if (!allowedOrigin) return true;
-
-  const origin = req.headers.get('origin');
-  if (!origin) return true;
-
-  return origin === allowedOrigin;
-};
-
-const validatePayload = (payload: AppointmentPayload) => {
-  const errors: string[] = [];
-  const status = typeof payload.status === 'string' ? payload.status.trim().toLowerCase() : 'active';
-  if (!['active', 'cancelled', 'rescheduled'].includes(status)) {
-    errors.push('status must be active, cancelled, or rescheduled.');
-  }
-
-  const clientName = typeof payload.client_name === 'string' ? payload.client_name.trim() : '';
-  if (!clientName) errors.push('client_name is required.');
-  if (clientName.length > MAX_NAME_LENGTH) errors.push(`client_name must be at most ${MAX_NAME_LENGTH} characters.`);
-
-  const rawPhone = typeof payload.phone === 'string' || typeof payload.phone === 'number' ? String(payload.phone) : '';
-  const phone = normalizePhone(rawPhone);
-  if (status === 'active' && (phone.length < 10 || phone.length > 13)) {
-    errors.push('phone must contain 10 to 13 digits.');
-  }
-
-  const serviceId = typeof payload.service_id === 'string' ? payload.service_id.trim() : '';
-  if (!UUID_RE.test(serviceId)) errors.push('service_id must be a valid UUID.');
-
-  const professionalId = typeof payload.professional_id === 'string' ? payload.professional_id.trim() : '';
-  if (!UUID_RE.test(professionalId)) errors.push('professional_id must be a valid UUID.');
-
-  const scheduledAtText = typeof payload.scheduled_at === 'string' ? payload.scheduled_at.trim() : '';
-  const scheduledAt = scheduledAtText ? new Date(scheduledAtText) : null;
-  if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
-    errors.push('scheduled_at must be a valid ISO date.');
-  } else if (scheduledAt.getTime() <= Date.now()) {
-    errors.push('scheduled_at must be in the future.');
-  }
-
-  const notes = typeof payload.notes === 'string' ? payload.notes.trim() : '';
-  if (notes.length > MAX_NOTES_LENGTH) errors.push(`notes must be at most ${MAX_NOTES_LENGTH} characters.`);
-
-  const siteAppointmentId =
-    typeof payload.site_appointment_id === 'string' ? payload.site_appointment_id.trim() : '';
-  if (!siteAppointmentId) errors.push('site_appointment_id is required.');
-
-  const externalId = typeof payload.external_id === 'string' ? payload.external_id.trim() : '';
-
-  return {
-    errors,
-    value: {
-      clientName,
-      phone,
-      serviceId,
-      professionalId,
-      scheduledAt: scheduledAt?.toISOString() || '',
-      status,
-      siteAppointmentId,
-      externalId,
-      notes,
-    },
-  };
-};
 
 Deno.serve(async (req: Request) => {
   const requestId = crypto.randomUUID();
@@ -178,12 +50,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse(req, { ok: false, error: 'Method not allowed.', request_id: requestId }, 405);
   }
 
-  if (!validateOrigin(req)) {
-    console.error('site-sanchez-appointments forbidden origin', {
-      request_id: requestId,
-      origin: req.headers.get('origin'),
-    });
-    return jsonResponse(req, { ok: false, error: 'Origin not allowed.', request_id: requestId }, 403);
+  const allowedOrigin = Deno.env.get('SANCHEZ_ALLOWED_ORIGIN')?.trim() || '';
+  if (allowedOrigin) {
+    const origin = req.headers.get('origin');
+    if (origin && origin !== allowedOrigin) {
+      console.error('site-sanchez-appointments forbidden origin', {
+        request_id: requestId,
+        origin,
+      });
+      return jsonResponse(req, { ok: false, error: 'Origin not allowed.', request_id: requestId }, 403);
+    }
   }
 
   const tenantId = Deno.env.get('SANCHEZ_TENANT_ID')?.trim() || '';
@@ -246,49 +122,46 @@ Deno.serve(async (req: Request) => {
 
   const { data, error } = await supabase.rpc('create_site_sanchez_appointment', {
     p_tenant_id: tenantId,
-    p_client_name: validation.value.clientName,
-    p_phone: validation.value.phone,
-    p_service_id: validation.value.serviceId,
-    p_professional_id: validation.value.professionalId,
-    p_scheduled_at: validation.value.scheduledAt,
-    p_notes: validation.value.notes || null,
+    p_client_name: validation.value!.clientName,
+    p_phone: validation.value!.phone,
+    p_service_id: validation.value!.serviceId,
+    p_professional_id: validation.value!.professionalId,
+    p_scheduled_at: validation.value!.scheduledAt,
+    p_notes: validation.value!.notes || null,
     p_domain_schema: domainSchema,
-    p_status: validation.value.status,
-    p_site_appointment_id: validation.value.siteAppointmentId,
-    p_external_id: validation.value.externalId || null,
+    p_status: validation.value!.status,
+    p_site_appointment_id: validation.value!.siteAppointmentId,
+    p_external_id: validation.value!.externalId || null,
   });
 
   if (error) {
-    const message = error.message || 'Failed to create appointment.';
-    const isConflict = error.code === '23P01' || /horario indisponivel/i.test(message);
-    const status = isConflict ? 409 : /invalido|obrigatorio|configurado|preparado/i.test(message) ? 400 : 500;
+    const rpcError: RpcErrorResult = {
+      ok: false,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+    };
+    const status = getRpcErrorStatus(rpcError);
 
     console.error('site-sanchez-appointments rpc error', {
       request_id: requestId,
       status,
       code: error.code,
-      message,
+      message: error.message,
       tenant_id: tenantId,
-      service_id: validation.value.serviceId,
-      professional_id: validation.value.professionalId,
-      status: validation.value.status,
-      site_appointment_id: validation.value.siteAppointmentId,
+      service_id: validation.value!.serviceId,
+      professional_id: validation.value!.professionalId,
+      status: validation.value!.status,
+      site_appointment_id: validation.value!.siteAppointmentId,
     });
 
-    return jsonResponse(req, { ok: false, error: message, request_id: requestId }, status);
+    // A3: RPC-derived 400 errors include details: [message] for envelope consistency
+    const details = status === 400 && error.message ? [error.message] : undefined;
+    return jsonResponse(req, buildErrorResponse(error.message || 'Failed to create appointment.', requestId, details, status), status);
   }
 
-  const result = (data || {}) as AppointmentResult;
+  const rpcResult = (data || {}) as RpcSuccessResult;
 
-  return jsonResponse(
-    req,
-    {
-      ok: true,
-      appointment_id: result.appointment_id,
-      client_id: result.client_id,
-      status: result.status || 'confirmed',
-      request_id: requestId,
-    },
-    validation.value.status === 'active' ? 201 : 200,
-  );
+  const successResponse = buildSuccessResponse(rpcResult, validation.value!.status, requestId);
+  return jsonResponse(req, successResponse, validation.value!.status === 'active' ? 201 : 200);
 });
