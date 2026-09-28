@@ -1,915 +1,221 @@
-# AGENTS.md — SOU MANA.GER
+# AGENTS.md — SOU MANA.GER (SMG Platform)
 
-> Compact instructions for OpenCode sessions. If a fact is obvious from filenames or generic to React/Vite, it is omitted.
-
----
-
-## ⚠ ROADMAP CONGELADO
-
-**A partir de 2026-07-24, o roadmap está oficialmente CONGELADO.**
-
-- ❌ Nenhuma nova fase poderá ser criada
-- ❌ Nenhuma fase poderá ser reorganizada
-- ✅ Somente evoluções documentadas por ADR são permitidas
-- ✅ Toda mudança arquitetural deve passar por ADR
-
-**Decisões Estratégicas:** Ver `ROADMAP.md` (Decisões D1-D9)
+> **Princípio (PO, 2026-09-28):** este arquivo ensina **como trabalhar** no projeto; o repositório e `docs/` são a **fonte da verdade** sobre o que o projeto contém.
+> Se a informação é descoberta corretamente olhando código, tipos ou docs, ela **não** pertence aqui. Não copie inventários para o `AGENTS.md`.
+> Antes de alterar um módulo, consulte a implementação e a documentação vigente — nunca assuma contrato (API, RPC, eventos) por este arquivo.
+> Manutenção deste arquivo é frente documental isolada: não misturar com alteração de código, banco ou produto.
 
 ---
 
-## Diretriz Oficial (2026-07-27)
+## 1. Identidade do projeto
 
-A arquitetura técnica está **estabilizada**. O objetivo agora é transformar a SMG Platform em uma plataforma SaaS pronta para produção.
+- **Produto comercial ativo:** apenas **SMG Barber**. "Club dos Chefes" é módulo do SMG Barber, não um SaaS.
+- **Decisão arquitetural permanente:** arquitetura sempre genérica, modular e multi-tenant; regras de negócio, docs e implementação consideram **somente** o produto ativo. Nada de feature/doc para segmentos futuros por hipótese. *"Arquitetura pensa no futuro. Negócio pensa no presente."*
+- **Roadmap CONGELADO desde 2026-07-24** (`ROADMAP.md`, decisões D1–D9): nenhuma fase nova, nenhuma reorganização. Só evolução documentada por ADR.
+- **Stack:** React 19 · Vite 6 · TypeScript 5.8 · Tailwind v4 (config via CSS — **não existe** `tailwind.config`) · Supabase (PG + Auth + Realtime) · Google Gemini (`@google/generative-ai`) · deploy Vercel.
+- **Router: `HashRouter`, nunca `BrowserRouter`** — exigido pelo rewrite SPA do `vercel.json`.
+- **Estado:** só React Context (`AuthContext` → `TenantProvider` → `AppProvider` → `ThemeProvider`). Sem Redux/Zustand.
+- **Glossário obrigatório:** `docs/TAXONOMY.md` (SMG Platform = ecossistema, SMG Core = arquitetura técnica). Domínios: `{produto}.soumanager.com` — **nunca** `app.soumanager.com`.
+- **Idioma:** documentação funcional/de negócio em pt-BR; código e identificadores em inglês.
 
-### Produto Comercial Ativo
+### Estrutura de diretórios (fonte clássica de erro)
 
-**Único produto em desenvolvimento:** SMG Barber
-
-A SMG Platform foi concebida para suportar múltiplos produtos SaaS compartilhando a mesma infraestrutura técnica. Atualmente existe apenas um produto comercial ativo: **SMG Barber**. Novos segmentos poderão ser desenvolvidos futuramente, mediante decisão formal do Product Owner.
-
-### Decisão Arquitetural Permanente
-
-> A arquitetura da SMG Platform deve sempre ser construída de forma genérica, modular e multi-tenant.
->
-> Entretanto, decisões de negócio, documentação funcional, regras de domínio e implementação devem considerar exclusivamente os produtos comercialmente ativos.
->
-> Nenhuma funcionalidade, documentação ou arquitetura específica para novos segmentos poderá ser criada baseada em hipóteses futuras.
-
-**Princípio:** Arquitetura pensa no futuro. Negócio pensa no presente.
-
-### Papel da IA
-
-A IA atua como: **Software Architect**, **Product Architect**, **Platform Architect**, **Tech Lead**, **Staff Engineer**, **Analista de Negócios**.
-
-O papel é **impedir** decisões que prejudiquem a escalabilidade futura da plataforma.
-
-Sempre que identificar duplicação, inconsistências, nomenclatura incorreta, arquitetura inadequada, fluxo confuso ou documentação divergente — **interromper a execução** e apresentar uma proposta **antes** de escrever código.
-
-### Regra de Entrada
-
-Antes de iniciar qualquer nova fase, executar:
-1. Auditoria documental
-2. Auditoria arquitetural
-3. Auditoria de nomenclatura
-4. Auditoria de consistência
+- Alias **`@/` aponta para a RAIZ do repositório**, não para `src/` (`vite.config.ts`).
+- Existem **duas árvores de código**: na raiz (`components/`, `context/`, `hooks/`, `pages/`, `services/`, `domain/`, `application/`) **e** sob `src/`. Verifique ambas antes de criar arquivo — evite duplicatas.
+- Barrel: `services/supabaseClient.ts` re-exporta tudo de `src/lib/supabase/`.
 
 ---
 
-## Política Oficial de Versionamento e Fluxo Operacional (PO, 2026-08-06)
+## 2. Regras invioláveis
 
-> Decisão formal do PO. Padrão oficial do projeto. O OpenCode atua como **Tech Lead operacional**; o PO decide apenas estratégia, negócio, arquitetura (ADR), deploys e merges.
+### Multi-tenant e RLS
 
-### Fluxo operacional obrigatório (por subfase)
+- Isolamento por `tenant_id` via RLS; helpers centrais `current_tenant_id_from_auth_uid()` e bypass `current_is_super_admin_from_auth_uid()` (ambos `SECURITY DEFINER`).
+- `AuthContext` resolve o tenant efetivo pela RPC `get_auth_access_context`; `TenantContext` carrega o registro via `resolveTenantForUser()`.
+- **Bug de dado entre tenants quase sempre é** regressão de política RLS ou filtro `tenant_id` ausente na query do front — nunca roteamento de schema.
+- Nunca afrouxar RLS, remover filtro de `tenant_id` ou criar RPC sem autorização. Antes de mexer em RLS/RPC: ler `docs/security/SECURITY_AUDIT_RLS.md` e `docs/security/SECURITY_AUDIT_RPC.md`.
+- **Hardening a confirmar antes de tocar RPC/RLS** (verificar estado — pode já estar aplicado): migration `20260723000000_security_fix_rls_critical.sql` em PROD · check de `auth.uid()` em `approve_access_request()` · destino de `close_order()` (legado) · `FOR UPDATE` em SELECTs críticos de RPCs.
+
+### Cliente Supabase
+
+- Importar de `services/supabaseClient.ts` ou `src/lib/supabase/client.ts`.
+- `getSharedClient()` → tabelas em `public`; `getSchemaClient(schema)` / `getScopedClient({schema, tenantId})` → tabelas de domínio quando multi-schema ligado; `getClientForTable(tableName, tenantId)` escolhe sozinho.
+- **Nunca** instanciar `createClient` cru em componente/página.
+
+### Multi-schema (opcional)
+
+- `VITE_SUPABASE_MULTI_SCHEMA_ENABLED=true` roteia tabelas de domínio para schema `barber`/`auto`/`club`; caso contrário tudo fica em `public`. Tabelas centrais (`profiles`, `tenants`, `staff`, `audit_logs`…) são sempre `public`.
+- Resolução de app: `src/middleware/resolveApp.ts` (mapa explícito → heurística de subdomínio → fallback `barber`); roteamento em `src/lib/supabase/schemas.ts`.
+
+### Migrations e banco
+
+- Mudança de schema = arquivo **timestampado** em `supabase/migrations/`. Não há runner automático no build do front.
+- **Aplicar migration no banco remoto de produção exige aprovação explícita do PO.**
+
+### Financeiro
+
+- **ADR-001:** `domain/commission/` (comissão teórica) e `application/cashClosing/` (rateio efetivo de fechamento de caixa) são domínios **distintos**. **Nunca** substituir um pelo outro sem decisão de negócio que altere o ADR. Ver `docs/adr/ADR-001-Commission-vs-Settlement.md`.
+- D8 (worker de outbox): canônicos **não se editam** em D8 — `domain/commission/{calculate,participants,types}.ts`, `shared/numbers/normalize.ts`, `domain/events/outbox/supabaseOutbox.ts`. Divergência = **STOP**: `npm run d8:verify`. Data path do worker nunca usa `service_role`.
+
+### D8 — worker de outbox (Edge Function)
+
+- Arquitetura: `pg_cron → pg_net → worker-dispatcher Edge Function → RPCs` via role **worker_dispatcher** (NOLOGIN, sem bypass RLS). **Nunca `service_role` no data path.**
+- Secrets lidos pelo worker: `SUPABASE_PUBLISHABLE_KEYS` (auto-injetado), `APP_URL` e `EDGE_JWT_SECRET` (**custom secrets** no dashboard). Bloqueio conhecido (2026-08): `EDGE_JWT_SECRET` setado no dashboard mas não injetado no Edge Runtime → worker responde 503 e não completa o ciclo — verificar status antes de diagnosticar. **Nunca criar secret custom com prefixo `SUPABASE_`** (a plataforma rejeita).
+- pg_cron: registrar com `cron.unschedule()` + `cron.schedule()` — **nunca** `UPDATE` direto em `cron.job` (permission denied). Harness em `tests/d8/harness/*.ps1` e prova de equivalência em `tests/d8/equivalence.test.ts`.
+- **Stop conditions D8 (Amendment-04) — violação quebra a certificação PROD:** sem alteração no cálculo de comissão D7 · sem segunda regra financeira · sem acesso direto às tabelas do worker · sem cross-tenant · sem quebra de idempotência · sem claim antes de `retry_next_retry_at` · sem perda de item.
+
+### Testes
+
+- **Nunca alterar teste para fazê-lo passar.** Corrigir o código ou propor mudança de comportamento ao PO.
+
+### Local Demo Mode (crítico para debugar)
+
+Se **não há env do Supabase** e o host é `localhost`/`127.0.0.1`, o app sobe em modo demo silencioso: sessão falsa em `soumanager.local.demo.session`, usuário/tenant hardcoded, tudo emulado em `soumanager.local.demo.db`.
+
+- Login demo: `teste@soumanager.local` / `12345678`.
+- **Implicação forense:** bug de auth/dados em localhost pode ser artefato do modo demo. Verifique `hasSupabaseEnv` e `isLocalDemoEnabled()` em `src/lib/supabase/client.ts` antes de culpar RLS/RPC.
+
+---
+
+## 3. Governança e autorização
+
+### Papéis
+
+| Responsável | Escopo |
+|---|---|
+| **OpenCode** | Arquitetura, código, testes, docs técnicas, ADRs, CI/CD, automações, validações |
+| **Augusto (PO)** | Produtos, módulos, nomenclatura, planos, onboarding, estratégia, domínios, infra, deploy, fornecedores, políticas, LGPD |
+
+Itens comerciais **nunca** são decididos automaticamente pelo OpenCode.
+
+### Protocolo SMG Change Control (precedência)
+
+Todo trabalho de engenharia segue o **SMG Change Control Protocol** — `.opencode/SMG_CHANGE_CONTROL.md` + `.opencode/AGENTS.md` (carregado automaticamente nas sessões) + skills `smg-*` em `.opencode/skills/`:
 
 ```
-Implementação → Testes Unitários → Build → Typecheck → E2E → Auditoria
-    → Atualização da documentação → Commit semântico → Push da branch → Push das tags
+INTAKE → AUDIT → CLASSIFY → STOP/GATE → ISOLATE → IMPLEMENT → VALIDATE → STOP/GATE
+  → COMMIT AUTHORIZATION → COMMIT → STOP/GATE → PUSH AUTHORIZATION → PUSH → PR
+  → CI/E2E → STOP/GATE → MERGE AUTHORIZATION → MERGE → POST-MERGE
+  → DEPLOY AUTHORIZATION → DEPLOY → POST-DEPLOY → CLOSE
 ```
 
-Somente após essa sequência a subfase é considerada encerrada.
+- Não pular etapa nem STOP/GATE; nunca misturar frentes não relacionadas; nunca implementar fora do escopo autorizado.
+- Invariantes: diff isolado antes de commit · `git diff --check` sempre · separar **EVIDENCE / INTERPRETATION / GAP / DECISION** · nunca modificar produção durante investigação.
+- Execução P.02 nova: começar por `smg-change-control` fazendo só `INTAKE → AUDIT → CLASSIFY → STOP` e aguardar autorização do PO.
 
-### Sempre executar automaticamente (não perguntar ao PO)
-
-- Commit semântico
-- Atualização de `ROADMAP.md`
-- Atualização de `PROJECT_STATUS.md`
-- Atualização de ADRs
-- Atualização dos Entry Checks (`docs/audit/`)
-- Atualização dos documentos da fase
-- Atualização do changelog
-- `git push` da branch
-- `git push --tags` quando houver baseline/tag criada
+> **Precedência registrada (decisão do PO, 2026-09-28):** o protocolo SMG (set/2026) **governa commit, push, merge e deploy**, que exigem autorização explícita. A Política de Versionamento de 2026-08-06 ("commit semântico e `git push` automáticos") fica **superada nesses pontos**, pendente de formalização em documento/ADR pelo PO. Quando os dois documentos divergirem, vale o mais restritivo: **parar e perguntar ao PO**.
 
 ### Sempre exigir aprovação explícita do PO
 
-- Merge para `main`
-- Merge para `develop` (caso exista)
-- Deploy em produção
-- Aplicação de migrations no banco remoto de produção
-- Alterações arquiteturais que gerem novo ADR
-- Mudanças de regra de negócio
-- Operações destrutivas (rollback, exclusões, etc.)
+- Merge em `main` (merge só no encerramento da fase completa, nunca durante subfases) · deploy em produção · migration em produção · novo ADR · mudança de regra de negócio · operação destrutiva (rollback, exclusões).
+- **`MERGE ≠ DEPLOY PROD`** (ADR-026): merge em main não implica deploy.
 
-### Baselines
+### Sempre executar automaticamente (sem perguntar)
 
-Toda baseline certificada exige: commit semântico + tag anotada + push da branch + push da tag + ROADMAP atualizado + PROJECT_STATUS atualizado + documentação da fase atualizada. A baseline só é concluída com todos os itens.
+Atualizar `ROADMAP.md`, `PROJECT_STATUS.md`, ADRs, Entry Checks (`docs/audit/`), documentos da fase e changelog; commit semântico e push **somente após a autorização do gate correspondente** (ver precedência acima).
 
-### Fluxo das fases
+### Sequência obrigatória por subfase (PO, 2026-08-06)
 
-```
-Auditoria → Plano → Implementação → Testes → Build → Typecheck → E2E
-    → Documentação → Commit → Push → Tag (quando aplicável) → Baseline
-```
+`Implementação → Testes unitários → Build → Typecheck → E2E → Auditoria → Atualização da documentação → Commit semântico → Push da branch → Push das tags`
 
-**Merge** acontece somente no encerramento da fase completa, nunca durante as subfases.
+**A subfase só é considerada encerrada após essa sequência completa** (commit/push após autorização do gate).
 
----
+### Antes de iniciar qualquer nova fase (regra de entrada)
 
-## Glossário Oficial
+1. Auditoria documental · 2. Auditoria arquitetural · 3. Auditoria de nomenclatura · 4. Auditoria de consistência.
 
-**Toda nomenclatura deve seguir `docs/TAXONOMY.md`.**
+Cada fase documenta: objetivo, escopo, critérios de entrada/saída, dependências, arquivos alterados, testes, riscos, responsável, próxima etapa.
 
-- **Produtos:** SMG Barber
-- **Módulos:** Club dos Chefes (módulo do SMG Barber, não SaaS)
-- **Plataforma:** SMG Platform (ecossistema), SMG Core (arquitetura técnica)
-- **Domínios:** `{produto}.soumanager.com` (nunca `app.soumanager.com`)
+Baseline certificada = commit semântico + tag anotada + push da branch e da tag + ROADMAP/PROJECT_STATUS/docs da fase atualizados.
+
+### Mudança estrutural exige ADR antes de implementar
+
+Roadmap congelado: sem ADR não há mudança estrutural. Sem ADR também não se cria novo Repository, Application Service, camada ou abstração — na dúvida, resolver dentro do padrão existente e **interromper para propor** antes de escrever código (duplicação, inconsistência, nomenclatura errada, fluxo confuso, doc divergente).
 
 ---
 
-## Responsabilidades
+## 4. Como o agente trabalha
 
-| Responsável | Escopo |
-|-------------|--------|
-| **OpenCode** | Arquitetura, código, testes, documentação técnica, ADRs, CI/CD, automações, validações |
-| **Augusto (PO)** | Produtos, módulos, nomenclaturas, planos comerciais, onboarding, estratégia, domínios, infraestrutura, deploy, fornecedores, políticas, LGPD |
-
-**Regra:** Itens comerciais nunca devem ser decididos automaticamente pelo OpenCode.
-
----
-
-## Nova Forma de Execução
-
-Cada fase deverá possuir:
-- Objetivo
-- Escopo
-- Critérios de Entrada
-- Critérios de Saída
-- Dependências
-- Arquivos Alterados
-- Testes
-- Riscos
-- Responsável
-- Próxima Etapa
+- **Investigar primeiro, alterar minimamente.** Bugfix = correção mínima, sem refactor junto.
+- **Checklist forense** (aplicar a todo bug): (1) é localhost / modo demo? (2) `tenant_id` consistente na query e na RLS? (3) `profileStatus` travado em `pending`? (4) mismatch de `VITE_SUPABASE_MULTI_SCHEMA_ENABLED` vs ambiente? (5) listener/subscription duplicado (`onAuthStateChange`, `useEffect` sem cleanup)? (6) a causa raiz é efeito colateral ou sintoma — rastreie UI → contexto → RPC/query.
+- **Padrões já observados:** `setState` duplo em bloco `finally` (cadeia de re-render) · provider sem array de dependência · retry sem backoff (nenhuma chamada embutida — verificar manualmente) · replay de eventos do Supabase Realtime se habilitado.
+- **Alvos de debug** (loops, execução dupla, cascata): `src/lib/supabase/client.ts` (demo mode, subscribers) · `context/AuthContext.tsx` (session listener, `fetchAccessContext`) · `src/context/TenantContext.tsx` (`refreshTenant`) · `src/context/AppContext.tsx` (hostname, `setActiveAppContext`) · `App.tsx` (rotas e guards).
+- **Guardas de rota:** `ProtectedRoute` (redireciona `pending`/`suspended` para `/pending-approval`), `ManagerRoute` (bloqueia `barber`/`receptionist`), `SuperAdminRoute`. Loop de redirect / loading infinito = corrida entre `AuthContext.loading` e `TenantContext.loading`, ou `profileStatus` preso.
+- **Infra de eventos/observabilidade:** existe e está madura (`domain/events/` com bus, event store, subscribers, outbox com retry/dead-letter, finance provider idempotente, replay engine; `src/lib/observability/` com dashboard em `/#/observability`). Para contratos exatos, **ler o código** — não confiar em cópia histórica deste arquivo.
 
 ---
 
-## Stack & Tooling
+## 5. Comandos e gates
 
-- **React 19** + **Vite 6** + **TypeScript 5.8** + **Tailwind CSS v4** (CSS-based config, no `tailwind.config` file).
-- **Router**: `react-router-dom` with **HashRouter** (not BrowserRouter). Required for Vercel SPA deployment (`vercel.json` has a catch-all rewrite to `index.html`).
-- **State**: Pure React Context — `AuthContext` → `TenantProvider` → `AppProvider` → `ThemeProvider`. No Redux/Zustand.
-- **Backend**: Supabase (PostgreSQL + Auth + Realtime). Migrations live in `supabase/migrations/`.
-- **AI**: Google Gemini via `@google/generative-ai`.
-- **No formatter** configured.
-
----
-
-## Dev Commands
+### Comandos
 
 ```bash
 npm install
-npm run dev      # Vite dev server on port 3000, host 0.0.0.0
-npm run build    # Production build to dist/
-npm run preview  # Preview production build locally
+npm run dev                # Vite, porta 3000, host 0.0.0.0
+npm run build              # produção → dist/
+npm run typecheck          # tsc --noEmit
+npm run lint               # biome — APENAS src/  (lint:fix para auto-correção)
+npm run test               # vitest run (unit); exclui tests/e2e e tests/homologation
+npx vitest run <caminho>   # um arquivo de teste
+npm run test:e2e           # Playwright (sobe dev server se baseURL for localhost)
+npm run test:e2e:smoke     # suíte @smoke
+npm run test:e2e:ui        # modo interativo
+npm run architecture:ci    # gate de CI (modo baseline)
+npx vitest run --config vitest.h2-8.config.ts tests/homologation/h2-8/<spec>  # harness H2-8 sob demanda
+npm run d8:verify          # integridade do core exportado p/ Edge Function — STOP em divergência
+git diff --check           # obrigatório antes do commit
 ```
 
----
+### Gates de CI (`.github/workflows/ci.yml`, ADR-022)
 
-## Environment Variables
+- **Bloqueadores** (job agregado `validate`): `typecheck` · `build` · `unit` · `architecture:ci`.
+- **Advisory** (`continue-on-error`): `lint` · `e2e-smoke`.
+- E2E é obrigatório quando há mudança de fluxo crítico P0/P1 e antes de promoção final.
+- Alterar workflows/CI exige PO + ADR (ADR-024 está *Proposed*).
+- Override de gate: somente para **falha de infraestrutura** (nunca de lógica) e só com autorização do PO — `docs/runbooks/ci-gate-override.md`.
 
-Create `.env.local` in the repo root (do not commit it):
+### Armadilhas de verificação
+
+- **`npm run lint` só cobre `src/`.** `domain/`, `application/`, `components/`, `pages/`, `hooks/` (raiz) **não** são lintados — lint verde não significa repo limpo.
+- **Nenhum formatter ativo** (biome com `formatter.enabled: false`). Não reformatar arquivos por conta própria.
+- **`architecture:ci` pode passar mascarado.** O runner conta violações pela regex `Total: N violation`; guards que reportam `Total: N error(s)` (Forbidden Imports) ou `Found N circular dependency` são contados como 0. *Evidência (2026-09-28):* `architecture:ci` sai com exit 0, mas `guard-imports.mjs` e `guard-circular.mjs` saem com exit 1 (1 forbidden import: `components/billing/StatusBanner.tsx`; 1 circular: `domain/billing/repository.ts ↔ supabaseBillingRepository.ts`). Para verificação real, rodar os guards individuais. **Corrigir o runner é mudança de CI → PO + ADR.**
+- Baseline de arquitetura: `architecture-baseline.json` (repo 233 / imports 0 / circular 0) — violações não podem aumentar.
+
+### E2E (Playwright)
+
+- Testes em `tests/e2e/` (fixtures, Page Objects, flows, smoke, regression). **Nunca** acessar seletor direto no teste — usar Page Objects e fixtures de auth. Dados demo estáticos (`tests/e2e/data/`) para reprodutibilidade.
+- Roda contra a app real: exige `.env.local` com `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (login real via Supabase; helpers lançam erro sem isso). CI injeta também `SUPABASE_SERVICE_ROLE_KEY`.
+- `PLAYWRIGHT_BASE_URL=<url deploy>` roda contra ambiente publicado e **não** sobe dev server.
+- `expect.timeout: 30_000` de propósito — páginas são `React.lazy` compiladas sob demanda; timeout curto gera flake.
+
+### Convenções de teste unitário
+
+`tests/README.md` é a referência: nomes `should_<resultado>_when_<condição>()`, builders de `tests/builders/` (nunca objetos literais grandes), AAA com comentários em cenários > 5 linhas, `vi.mock` no topo do arquivo, **nunca** mockar funções puras de domínio, `vi.clearAllMocks()` em `beforeEach`. Testes de `application/` e `domain/` ficam co-localizados com o código testado.
+
+### Ambiente (`.env.local` na raiz, não commitar)
 
 ```env
-VITE_SUPABASE_URL=<url>
-VITE_SUPABASE_ANON_KEY=<anon-key>
-VITE_GEMINI_API_KEY=<key>
-VITE_SUPABASE_MULTI_SCHEMA_ENABLED=false   # Optional; see Multi-App Architecture
-VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}  # Optional JSON hostname→appSlug map
-```
-
-`vite.config.ts` also injects `process.env.GEMINI_API_KEY` at build time from `env.GEMINI_API_KEY`.
-
----
-
-## Local Demo Mode (Critical for Debugging)
-
-If **no Supabase env vars are present** AND the browser host is `localhost`/`127.0.0.1`, the app silently boots into **local demo mode**:
-
-- A fake session is stored in `localStorage` under `soumanager.local.demo.session`.
-- A hardcoded demo user/tenant is returned (`LOCAL_DEMO_USER_ID`, `LOCAL_DEMO_TENANT_ID`).
-- All Supabase reads/writes are emulated via in-memory localStorage (`soumanager.local.demo.db`).
-
-**Forensic implication**: Auth or data bugs reported on localhost may be artifacts of demo mode, not real Supabase behavior. Always check `hasSupabaseEnv` and `isLocalDemoEnabled()` in `src/lib/supabase/client.ts` before diagnosing RLS or RPC failures.
-
----
-
-## Multi-App & Multi-Tenant Architecture
-
-The system is a **multi-tenant SaaS** with optional **multi-schema** support.
-
-### App Slugs & Schemas
-
-- Supported apps: `barber` (default), `auto`, `club`.
-- App resolution order (see `src/middleware/resolveApp.ts`):
-  1. `VITE_APP_HOSTNAME_MAP` exact match
-  2. Subdomain/hostname heuristic (`barber.*`, `auto.*`, etc.)
-  3. Fallback to `barber`
-- Schema routing (`src/lib/supabase/schemas.ts`):
-  - `SHARED_SCHEMA = 'public'` for core tables (`profiles`, `tenants`, `staff`, `audit_logs`, etc.).
-  - App-specific schema (`barber`, `auto`, `club`) for domain tables (`appointments`, `clients`, `comandas`, `transactions`, etc.) **only when** `VITE_SUPABASE_MULTI_SCHEMA_ENABLED` is true. Otherwise, everything stays in `public`.
-
-### Tenant Isolation
-
-- Row Level Security (RLS) policies enforce `tenant_id` isolation. See migration `20260227223434_fix_all_rls_policies_use_security_definer_function.sql`.
-- `AuthContext` resolves the effective `tenantId` via Supabase RPC `get_auth_access_context`.
-- `TenantContext` then fetches the full tenant record and user memberships via `resolveTenantForUser()`.
-
-**Forensic implication**: Bugs where users see cross-tenant data are almost always RLS policy regressions or missing `tenant_id` filters in frontend queries, not schema routing issues.
-
----
-
-## Module Boundaries & Path Aliases
-
-- `@/` maps to the **repo root** (`path.resolve(__dirname, '.')`), not `src/`.
-- There are **dual directory structures** — some code lives at root (`components/`, `context/`, `hooks/`, `pages/`, `services/`) and some under `src/`. Check both before creating duplicates.
-- Barrel file: `services/supabaseClient.ts` re-exports everything from `src/lib/supabase/`.
-
----
-
-## Auth & Routing Hierarchy
-
-Provider nesting (inner → outer):
-
-```
-ThemeProvider
-  AppProvider      (resolves appSlug/schema from hostname)
-    AuthProvider   (session + accessRole + profileStatus)
-      TenantProvider (tenant record + memberships)
-        HashRouter
-```
-
-### Route Guards
-
-- `ProtectedRoute`: Blocks unauthenticated users and redirects `pending`/`suspended` non-superadmins to `/pending-approval`.
-- `ManagerRoute`: Blocks `barber` and `receptionist` from admin/financial pages.
-- `SuperAdminRoute`: Blocks non-superadmins from `/superadmin`.
-
-**Forensic implication**: Redirect loops or infinite loading states usually stem from race conditions between `AuthContext.loading` and `TenantContext.loading`, or from `profileStatus` being stuck in `pending`.
-
----
-
-## Supabase Client Patterns
-
-- Always import from `services/supabaseClient.ts` (or `src/lib/supabase/client.ts`).
-- Use `getSharedClient()` for `public` schema tables.
-- Use `getSchemaClient(schema)` or `getScopedClient({ schema, tenantId })` for domain tables when multi-schema is enabled.
-- `getClientForTable(tableName, tenantId)` automatically picks the correct schema based on `isDomainTable()` and `isSharedTable()`.
-
-**Do not** instantiate a raw `createClient` in page components.
-
----
-
-## Database Migrations
-
-All schema changes must be added as timestamped SQL files in `supabase/migrations/`.
-
-Notable historical fixes to be aware of:
-- `20260227223434_fix_all_rls_policies_use_security_definer_function.sql` — central RLS fix.
-- `20260226052610_fix_manager_trigger_and_backfill_staff.sql` — auto-insert manager into `staff`.
-- `20260308_multitenant_hotfix.sql` — multitenancy patch.
-
-There is **no automated migration runner** in the frontend build; migrations are applied via Supabase CLI or dashboard.
-
----
-
-## Common Debugging Targets
-
-When investigating loops, duplicate execution, or cascading failures, prioritize these files:
-
-1. `src/lib/supabase/client.ts` — demo mode, auth subscribers, client instantiation.
-2. `context/AuthContext.tsx` — session listener, `onAuthStateChange`, `fetchAccessContext`.
-3. `src/context/TenantContext.tsx` — `refreshTenant` triggered by auth session changes.
-4. `src/context/AppContext.tsx` — hostname resolution, `setActiveAppContext` side effects.
-5. `App.tsx` — route definitions and guard composition.
-
-Check for:
-- **useEffect without cleanup** on `onAuthStateChange` subscriptions.
-- **Dual `setState` in `finally` blocks** causing re-render chains.
-- **Missing dependency arrays** in context providers.
-- **Retry without backoff** in any service call (none are built-in; verify manually).
-- **Event replay** from Supabase Realtime if enabled later.
-
----
-
-## Deployment
-
-- Platform: **Vercel**.
-- Build output: `dist/`.
-- `vercel.json` rewrites all paths to `index.html` (SPA behavior). HashRouter is required because of this.
-
----
-
-## Forensic Checklist (Apply to Every Bug)
-
-1. **Is this localhost?** Verify if local demo mode is active.
-2. **Is `tenant_id` consistent?** Check query filters and RLS policy context.
-3. **Is `profileStatus` blocking the user?** Check `AuthContext` state before blaming routes.
-4. **Is there a schema mismatch?** Compare `VITE_SUPABASE_MULTI_SCHEMA_ENABLED` with the migration target environment.
-5. **Is there a duplicate listener/subscription?** Search for `onAuthStateChange` and `useEffect` without cleanup.
-6. **Is the root cause a side effect or a symptom?** Trace the error backward from the UI to the context to the RPC/query.
-
----
-
-## Architectural Decisions
-
-Full ADRs live in `docs/adr/`.
-
-### ADR-001 — Commission vs Settlement
-
-**Commission** (theoretical) and **Settlement** (cash closing payout) are intentionally separate domains.
-
-- `domain/commission/` calculates theoretical commission from service execution, participant splits, `affects_commission`, and `commission_rate`.
-- `application/cashClosing/` calculates effective financial payout considering discounts, advances, reversals, and operational cash rules.
-
-**Never replace CashClosing calculations with Commission calculations** unless a business decision explicitly changes this ADR. These are two different questions with two different answers.
-
-See: `docs/adr/ADR-001-Commission-vs-Settlement.md`
-
----
-
-## Frozen Architecture
-
-Phase 2 is officially frozen.
-
-Before creating:
-- new Repository
-- new Application Service
-- new layer
-- new abstraction
-
-Verify if the problem truly requires architectural change. Most problems are solved within existing patterns.
-
-Architectural changes after Phase 2 must be justified via ADR.
-
-Full roadmap: `ROADMAP.md` (project root)
-
----
-
-## Security Audit (Fase 3.3)
-
-### RLS Policies
-
-- **Primary helper:** `current_tenant_id_from_auth_uid()` (SECURITY DEFINER)
-- **Superadmin bypass:** `current_is_super_admin_from_auth_uid()` (SECURITY DEFINER)
-- **47 tables** inventoried, 37 with RLS enabled
-- **Critical fixes:** `20260723000000_security_fix_rls_critical.sql`
-
-### Key Findings
-
-1. **Cash closing tables** — Now have superadmin bypass (was missing)
-2. **Legacy `get_current_tenant_id()`** — Replaced in role_permissions and tenants
-3. **Idempotency** — Well-implemented across all critical financial operations
-4. **Race conditions** — Mitigated by database constraints; `FOR UPDATE` recommended for production hardening
-
-### RPC Security
-
-- **20+ RPCs** audited, all core financial RPCs properly secured
-- **Critical:** `approve_access_request()` and `close_order()` need auth checks (legacy)
-- **See:** `docs/security/SECURITY_AUDIT_RLS.md` and `docs/security/SECURITY_AUDIT_RPC.md`
-
-### Production Checklist
-
-- [ ] Apply migration `20260723000000_security_fix_rls_critical.sql`
-- [ ] Fix `approve_access_request()` — add auth.uid() check
-- [ ] Deprecate or fix `close_order()` — legacy function
-- [ ] Add `FOR UPDATE` to critical SELECT queries in RPCs
-
----
-
-## E2E Testing (Fase 3.4)
-
-### Stack
-
-- **Playwright** with Chromium
-- **Page Objects** pattern (never access selectors directly in tests)
-- **Auth fixtures** for pre-authenticated pages (admin, manager, barber, cashier)
-
-### Commands
-
-```bash
-npm run test:e2e          # Run all E2E tests
-npm run test:e2e:ui       # Run with Playwright UI
-npm run test:e2e:smoke    # Run smoke suite only (@smoke tag)
-```
-
-### Structure
-
-```text
-tests/e2e/
-├── fixtures/      # Auth fixtures (loggedAdmin, loggedBarber1, etc.)
-├── pages/         # Page Objects (7 pages)
-├── data/          # Static demo data
-├── flows/         # P0 critical flows (5 flows)
-├── smoke/         # Smoke suite (10 tests, <3 min)
-└── regression/    # P1 admin CRUD + P2 reports
-```
-
-### Test Priority
-
-- **P0 (Critical):** Appointment → Checkout → Commission, ChefClub lifecycle, Cancel/Reverse, Multi-barber, Cash closing
-- **P1 (High):** CRUD clients, professionals, services
-- **P2 (Medium):** Reports, CSV, Dashboard
-
-### Conventions
-
-- Tag critical tests with `@smoke` for CI
-- Use Page Objects for all page interactions
-- Use auth fixtures for pre-authenticated state
-- Use static demo data for reproducibility
-
-### Demo Mode (Important)
-
-The app runs in **local demo mode** when:
-- Hostname is `localhost`/`127.0.0.1`
-- No `VITE_SUPABASE_URL` env var
-
-In demo mode:
-- Login: `teste@soumanager.local` / `12345678`
-- Role: `manager` (only role available)
-- Data: 2 clients, 2 services, 1 product, 2 plans (seeded in localStorage)
-- All Supabase operations are mocked in-memory
-
-**E2E tests run against the real app with `.env.local` (Supabase configured).** The auth fixture logs in via the real Supabase auth flow.
-
----
-
-## Observability (Fase 3.5) ✅
-
-### Module Location
-
-`src/lib/observability/` — All observability code lives here.
-
-### Components
-
-| File | Purpose |
-|------|---------|
-| `logger.ts` | Structured logging with context (tenant, user, request, correlation) |
-| `events.ts` | Business events catalog (20+ predefined events) |
-| `metrics.ts` | Metrics collection (counters, gauges, histograms) |
-| `alerts.ts` | Alert system with 14 domain-specific rules + webhook support |
-| `instrumentation.ts` | Declarative service wrapper (`withObservability`, `instrumentService`) |
-| `config.ts` | Centralized instrumentation config for all Application Services |
-| `useObservability.ts` | React hook for app initialization |
-
-### Declarative Instrumentation
-
-Services are instrumented externally via config — zero changes to service code:
-
-```typescript
-import { instrumentService } from '@/src/lib/observability';
-
-instrumentService(checkoutApplicationService, {
-  finish: {
-    operation: 'Checkout.finish',
-    businessEvent: 'CHECKOUT_COMPLETED',
-    metric: 'checkout_duration_ms',
-  },
-});
-```
-
-### Dashboard
-
-Access via `/#/observability` (ManagerRoute):
-- **Overview**: Total operations, success rate, error rate, active alerts
-- **Domain tabs**: Checkout, CashClosing, Appointments, Commission, ChefClub
-- **Latency distribution**: min, p50, avg, p95, max per domain
-- **Alerts**: Active alerts, rules table, alert history
-- **Logs**: Recent structured logs with filtering
-
-### Alert Rules (14 domain-specific)
-
-| Category | Rule | Threshold | Severity |
-|----------|------|-----------|----------|
-| Global | High error rate | > 5 errors / 5 min | Critical |
-| Global | High RPC latency | > 3 seconds | Warning |
-| Global | High rollback rate | > 10 rollbacks / 15 min | Critical |
-| Checkout | Checkout failure rate | > 3 / 5 min | Critical |
-| Checkout | Checkout timeout | > 10 seconds | Warning |
-| Checkout | Items sync rollback | > 1 / 15 min | Critical |
-| CashClosing | Close failure | > 2 / 15 min | Critical |
-| CashClosing | Close duration high | > 15 seconds | Warning |
-| Appointment | Creation failure | > 3 / 5 min | Critical |
-| Appointment | Create duration high | > 8 seconds | Warning |
-| Commission | Load failure | > 2 / 15 min | Warning |
-| ChefClub | Credit deduction failure | > 2 / 15 min | Critical |
-| ChefClub | Subscription resolution failure | > 3 / 15 min | Warning |
-
-### Webhook Support
-
-```typescript
-alerts.addWebhook({
-  url: 'https://hooks.slack.com/services/...',
-  method: 'POST',
-  headers: { 'X-Custom': 'value' },
-  transform: (notification) => ({
-    text: notification.message,
-    severity: notification.severity,
-  }),
-});
+VITE_SUPABASE_URL=...          VITE_SUPABASE_ANON_KEY=...
+VITE_GEMINI_API_KEY=...        # vite.config.ts injeta em process.env no build
+VITE_SUPABASE_MULTI_SCHEMA_ENABLED=false   # opcional
+VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
 ```
 
 ---
 
-## Event Bus + Event Store + Subscribers + Outbox (Fase 4) ✅
-
-### Architecture
-
-Domain-only infrastructure in `domain/events/` — zero React/Supabase dependency.
-
-### Components
-
-| File | Purpose |
-|------|---------|
-| `types.ts` | Event interfaces, `EventMetadata`, `SystemEvent` union, `createEvent` factory |
-| `bus.ts` | `EventBus` interface (publish, subscribe, subscribeAll, clear) |
-| `memory-bus.ts` | `InMemoryEventBus` class + `createEventBus` factory |
-| `app-bus.ts` | `appEventBus` singleton (same pattern as supabase import) |
-| `eventStore.ts` | `EventStoreRepository` interface (append, findBy*, count, replay) |
-| `inMemoryEventStore.ts` | `InMemoryEventStore` class + `createEventStore` factory |
-| `index.ts` | Barrel exports |
-
-### Event Structure (Payload vs Metadata)
-
-Events are split into **payload** (business data) and **metadata** (cross-cutting context):
-
-```typescript
-await appEventBus.publish(createEvent<CheckoutCompletedEvent>({
-  eventType: 'CheckoutCompleted',
-  aggregateId: comandaId,
-  aggregateType: 'comanda',
-  payload: {                    // Business data
-    comandaId, clientId, total, paymentStatus, ...
-  },
-  metadata: {                   // Cross-cutting context
-    tenantId: req.tenantId,
-    correlationId: idempotencyKey,
-    source: 'CheckoutApplicationService',
-    // version is auto-set to 1 by createEvent factory
-  },
-}));
-```
-
-### Event Store API
-
-```typescript
-const store = createEventStore();
-
-// Append (append-only, throws on duplicate eventId)
-await store.append(event);
-await store.appendBatch(events);
-
-// Query
-await store.findByAggregate('comanda', 'comanda-1');
-await store.findByCorrelation('corr-123');
-await store.findByType('CheckoutCompleted');
-await store.findByTenant('tenant-1');
-await store.findById('evt_...');
-await store.count();
-
-// Replay (Not Implemented — prepared for future)
-await store.replay(query, handler); // throws 'Not Implemented'
-```
-
-### Domain Events (11 types)
-
-| Event | Aggregate | Published By |
-|-------|-----------|-------------|
-| `CheckoutCompleted` | comanda | CheckoutApplicationService |
-| `CheckoutReverted` | comanda | *(prepared)* |
-| `AppointmentCreated` | appointment | AppointmentApplicationService |
-| `AppointmentCancelled` | appointment | AppointmentApplicationService |
-| `AppointmentCompleted` | appointment | *(prepared)* |
-| `CashClosingCompleted` | cash_closing | CashClosingApplicationService |
-| `SubscriptionCreated` | subscription | ChefClubApplicationService |
-| `SubscriptionCancelled` | subscription | ChefClubApplicationService |
-| `CreditsDeducted` | subscription | ChefClubApplicationService |
-| `TransactionCreated` | transaction | *(prepared)* |
-| `CommissionCalculated` | commission | *(prepared)* |
-
-### Database Schema
-
-`event_store` table (migration `20260723100000_event_store.sql`):
-- Append-only (no UPDATE/DELETE policies)
-- RLS enabled (superadmin bypass + tenant isolation)
-- 6 indexes for aggregate, correlation, tenant, type, time, source queries
-- `payload` (JSONB) and `metadata` (JSONB) separated
-
-### Subscribers
-
-Read-only event handlers that react to domain events without modifying business state.
-
-| Subscriber | Event | Purpose |
-|-----------|-------|---------|
-| `AnalyticsSubscriber` | `CheckoutCompleted` | Tracks checkout metrics |
-| `AuditSubscriber` | `*` (all events) | Logs all events for compliance |
-| `NotificationSubscriber` | `CheckoutCompleted` | Sends checkout confirmations |
-| `ReminderSubscriber` | `AppointmentCreated` | Schedules appointment reminders |
-| `MarketingSubscriber` | `AppointmentCreated` | Tracks client engagement |
-| `BiSubscriber` | `CashClosingCompleted` | Updates BI dashboards |
-
-**IMPORTANT**: Financial subscribers (Commission, Finance) are intentionally excluded. Validate infrastructure with safe read-only subscribers first. Migrate to financial subscribers after validation.
-
-**IMPORTANT**: Financial subscribers (Commission, Finance) are now implemented in Phase 4.6. See below.
-
-```typescript
-import { SubscriberRegistry } from '@/domain/events';
-import { analyticsSubscriber, auditSubscriber } from '@/domain/events/subscribers';
-
-const registry = new SubscriberRegistry(appEventBus);
-registry.register(analyticsSubscriber);
-registry.register(auditSubscriber);
-registry.initialize(); // subscribes all registered subscribers
-```
-
-### Financial Subscribers (Fase 4.6) ✅
-
-Two financial subscribers that react to domain events and produce financial side effects.
-
-**CommissionSubscriber** (Group A — low risk, read-only):
-- Listens to `CheckoutCompleted`
-- Delegates calculation to injectable `CommissionCalculator` interface
-- Publishes `CommissionCalculated` event for downstream consumers
-- Skips events with `financialEffect=false` or no `staffId`
-
-```typescript
-import { createCommissionSubscriber } from '@/domain/events/subscribers';
-
-const commissionSub = createCommissionSubscriber(bus, {
-  calculate: async ({ comandaId, tenantId, total, staffId }) => {
-    // Call CommissionApplicationService or equivalent
-    return { staffId, period, totalSales, totalCommission, lineCount };
-  },
-});
-registry.register(commissionSub);
-```
-
-**FinanceSubscriber** (Group B — writes via Outbox):
-- Listens to 4 event types via `subscribeAll` (`*`)
-- Maps events to `FinanceOperation[]` via injectable `FinanceStrategy`
-- Enqueues operations to Outbox with idempotency (`eventId_operationType`)
-- Actual execution via `DispatcherProvider` (future: `FinanceProvider`)
-
-| Event | Operations |
-|-------|-----------|
-| `CheckoutCompleted` | `create_transaction`, `create_commission_record` |
-| `SubscriptionCancelled` | `reverse_revenue` |
-| `CreditsDeducted` | `deduct_credits` |
-| `CashClosingCompleted` | `close_daily_cash` |
-
-```typescript
-import { createFinanceSubscriber } from '@/domain/events/subscribers';
-
-const financeSub = createFinanceSubscriber(outbox, {
-  mapCheckoutCompleted: (event) => [
-    { type: 'create_transaction', data: { amount: event.payload.total } },
-    { type: 'create_commission_record', data: { staffId: event.payload.staffId } },
-  ],
-  mapSubscriptionCancelled: (event) => [
-    { type: 'reverse_revenue', data: { subscriptionId: event.payload.subscriptionId } },
-  ],
-  mapCreditsDeducted: (event) => [
-    { type: 'deduct_credits', data: { amount: event.payload.amount } },
-  ],
-  mapCashClosingCompleted: (event) => [
-    { type: 'close_daily_cash', data: { closingId: event.payload.closingId } },
-  ],
-});
-registry.register(financeSub);
-```
-
-### Outbox Pattern (Fase 4.5) ✅
-
-Reliable event delivery via outbox queue with retry + dead letter.
-
-**Location:** `domain/events/outbox/`
-
-| File | Purpose |
-|------|---------|
-| `types.ts` | `OutboxItem`, `RetryPolicy`, `DispatchTarget`, `OutboxStatus` |
-| `outboxRepository.ts` | `OutboxRepository` interface (enqueue, findNext, markProcessing/Published/Failed, query, dead letters) |
-| `dispatcher.ts` | `Dispatcher` interface (dispatch, dispatchAll) + `DispatcherProvider` interface |
-| `inMemoryOutbox.ts` | `InMemoryOutbox` class + `createOutbox` factory |
-| `inMemoryDispatcher.ts` | `InMemoryDispatcher` class + `createDispatcher` factory |
-| `providers/consoleProvider.ts` | Console logging provider |
-| `providers/webhookProvider.ts` | HTTP webhook provider |
-| `providers/slackProvider.ts` | Slack webhook provider |
-| `index.ts` | Barrel exports |
-
-**Status lifecycle:**
-```
-pending → processing → published
-                      → pending (retry, nextRetryAt set)
-                        → dead_letter (after maxAttempts)
-```
-
-**Retry:** Exponential backoff — `baseDelayMs × 2^(attempts-1)`. Items exceeding `maxAttempts` move to dead letter.
-
-**Usage:**
-```typescript
-import { createOutbox, createDispatcher } from '@/domain/events/outbox';
-
-const outbox = createOutbox();
-const dispatcher = createDispatcher(outbox);
-
-// Enqueue
-await outbox.enqueue({
-  eventId: event.id,
-  eventType: event.eventType,
-  tenantId: event.metadata.tenantId,
-  targets: [{ provider: 'webhook', config: { url: '...' } }],
-  payload: event.payload,
-  metadata: event.metadata,
-});
-
-// Dispatch (single item)
-await dispatcher.dispatch();
-
-// Dispatch all pending
-await dispatcher.dispatchAll();
-```
-
-### FinanceProvider (Fase 4.6) ✅
-
-Official executor for financial operations from the Outbox. Implements `DispatcherProvider`.
-
-**Flow:** `FinanceSubscriber → Outbox → Dispatcher → FinanceProvider → Repositories`
-
-| File | Purpose |
-|------|---------|
-| `providers/financeProvider.ts` | `createFinanceProvider` factory, `OperationHandler` interface, `InMemoryIdempotencyStore` |
-
-**6 Operation Types:**
-
-| Operation | Handler Target | Source Event |
-|-----------|---------------|-------------|
-| `create_transaction` | TransactionRepository | CheckoutCompleted |
-| `create_receivable` | ReceivableRepository | SubscriptionCreated |
-| `create_commission_record` | CommissionRepository | CheckoutCompleted |
-| `reverse_revenue` | TransactionRepository | SubscriptionCancelled |
-| `deduct_credits` | ChefClubRepository | CreditsDeducted |
-| `close_daily_cash` | CashClosingRepository | CashClosingCompleted |
-
-**Idempotency:** Uses `idempotencyKey` from operation payload. In-memory for testing; persistent DB table for production.
-
-**Persistent Store** (`processed_operations` table):
-- UNIQUE index on `(tenant_id, idempotency_key)` — O(1) dedup via INSERT → UNIQUE VIOLATION
-- Append-only: no UPDATE/DELETE policies
-- RLS enabled (superadmin bypass + tenant isolation)
-- Migration: `20260723110000_processed_operations.sql`
-
-```typescript
-import { createFinanceProvider, createPersistentIdempotencyStore } from '@/domain/events/outbox';
-
-const persistentStore = createPersistentIdempotencyStore({ db: supabaseClient });
-const provider = createFinanceProvider({
-  handlers: {
-    create_transaction: {
-      execute: async (data, context) => {
-        // Create transaction via TransactionRepository
-        return { success: true };
-      },
-    },
-  },
-  idempotencyStore: persistentStore,
-});
-
-dispatcher.registerProvider(provider);
-```
-
-### Replay Engine (Fase 4.7) ✅
-
-Replays events from the EventStore through the EventBus for state reconstruction, recovery, and debugging.
-
-**Flow:** `EventStore → ReplayEngine → EventBus → Subscribers`
-
-| File | Purpose |
-|------|---------|
-| `replayEngine.ts` | `createReplayEngine({ eventStore, eventBus })` factory |
-| `replayEngine.test.ts` | 31 tests (basic, dry-run, filtering, batching, error handling, edge cases) |
-
-**ReplayOptions:**
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `eventType` | `string` | Filter by event type |
-| `aggregateType` | `string` | Filter by aggregate type |
-| `aggregateId` | `string` | Filter by aggregate ID |
-| `correlationId` | `string` | Filter by correlation ID |
-| `tenantId` | `string` | Filter by tenant ID |
-| `from` | `string` | ISO date — start of time range |
-| `to` | `string` | ISO date — end of time range |
-| `dryRun` | `boolean` | Simulate replay without publishing |
-| `batchSize` | `number` | Events per batch (default: 100) |
-| `continueOnError` | `boolean` | Continue after error (default: true) |
-| `onProgress` | `function` | Progress callback for long replays |
-
-**ReplayResult:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | `'completed' \| 'partial' \| 'dry_run' \| 'no_events'` | Overall status |
-| `report` | `ReplayReport` | Metrics (total, replayed, skipped, failed, durationMs, throughput, errors) |
-| `events` | `StoredEvent[]` | Events replayed (empty in dry-run) |
-
-**Usage:**
-```typescript
-import { createReplayEngine } from '@/domain/events';
-
-const engine = createReplayEngine({ eventStore, eventBus });
-
-// Full replay
-const result = await engine.replay({ tenantId: 'tenant-1' });
-
-// Dry-run (simulate)
-const dry = await engine.replay({ eventType: 'CheckoutCompleted', dryRun: true });
-
-// Filtered replay with progress
-const filtered = await engine.replay({
-  eventType: 'CheckoutCompleted',
-  from: '2026-07-01',
-  to: '2026-07-31',
-  batchSize: 50,
-  onProgress: (p) => console.log(`${p.percentComplete}% (${p.processed}/${p.total})`),
-});
-```
-
----
-
-## D8 — Worker Dispatcher (Edge Function) ✅ PRODUCTION CERTIFIED
-
-Server-side automated outbox dispatcher. Fully certified in production (ADR-015 & ADR-016 `PRODUCTION CERTIFIED`, tag `v2.0.0-d8-production-certified`).
-
-### Architecture
-
-```
-pg_cron → pg_net → Kong → Edge Function → RPCs (PostgREST, worker_dispatcher role) → heartbeat
-```
-
-| Layer | Piece | Purpose |
-|-------|-------|---------|
-| Scheduler | `pg_cron` | `* * * * *` every minute |
-| HTTP | `pg_net` (extensions) | Async HTTP from Postgres to Edge Function |
-| Edge | `supabase/functions/worker-dispatcher/` | Claims + processes 1 item/cycle |
-| Role | `worker_dispatcher` | NOLOGIN/NOBYPASSRLS, PostgREST-switched role for function grants |
-| RPCs | migrations below | Claim/context/idempotent-insert/mark/retry/recover/heartbeat |
-| Data path | PostgREST + worker role | Never `service_role` on the data path |
-
-### Edge Function Env Vars (CRITICAL — platform names)
-
-The Supabase Edge Runtime **does NOT inject the legacy names**. The worker reads these custom secrets:
-
-| Code reads | Type | Source |
-|-----------|------|--------|
-| `SUPABASE_PUBLISHABLE_KEYS` | anon key | auto-injected by runtime |
-| `APP_URL` | Supabase URL | dashboard custom secret |
-| `EDGE_JWT_SECRET` | JWT secret for `mintWorkerJwt` | dashboard custom secret |
-
-**⚠ Known blocker (platform issue):** `EDGE_JWT_SECRET` is set in the Dashboard but **not injected** into the Edge Runtime; `Deno.env.get('EDGE_JWT_SECRET')` returns empty → worker returns `SUPABASE_JWT_SECRET/SUPABASE_URL missing` (503) and never completes its cycle. Awaiting Supabase Support fix. **Do NOT re-add `SUPABASE_`-prefix secrets via dashboard — the platform rejects them (custom secrets can't start with `SUPABASE_`).**
-
-### Migrations (applied to PROD)
-
-| Migration | Purpose |
-|-----------|---------|
-| `20260827120000_d8_worker_rpc_surface.sql` | `worker_dispatcher` role, RPC surface, heartbeat table, grants |
-| `20260827210000_d8_worker_schedule.sql` | No-op; pg_cron registered manually (see below) |
-| `20260828000000_d8_worker_retry_dead_letter.sql` | Amendment-04: `handle_processing_failure`, `recover_stale_processing`, amended `claim_next_outbox_item` (backoff predicate) |
-
-### D8 Cycle (8 steps)
-
-1. `claim_next_outbox_item()` — atomic claim (`FOR UPDATE SKIP LOCKED`), exactly one worker/claim
-2. `get_financial_operation_context()` — mounts MINIMAL tenant context (never computes commission)
-3. `calculateCommissionRecordsFromContext` — certified rule from shared Financial Core (integrity-gated)
-4. `exists_commission_record()` + insert — idempotent persistence
-5. `mark_outbox_item_processed('published')` — success terminal
-6. `handle_processing_failure()` — `pending(backoff)` | `dead_letter`
-7. `recover_stale_processing()` — watchdog for orphaned `processing` (>5min)
-8. `upsert_worker_heartbeat()` — server-side liveness
-
-### Stop Conditions (D8 + Amendment-04)
-
-No D7 commission calc change · no second financial rule · no direct worker table access · no cross-tenant · no idempotency break · no claim before `retry_next_retry_at` · no item loss.
-
-### pg_cron Registration (manual — `cron.job` UPDATE is permission-denied)
-
-Use `cron.unschedule()` + `cron.schedule()` (never direct UPDATE on `cron.job`). Job 3 (`* * * * *`) uses the **anon key** in the `Authorization: Bearer <anon>` header (not JWT).
-
-### Diagnostics / Read-Only Audit
-
-`supabase db query --linked` via Management API for read-only checks. Health signals:
-- `net._http_response` for function responses
-- `worker_heartbeat` rows with `queue_healthy=true` → cycle completed
-- Commission integrity: 0 idempotency duplicates expected
-
-### Harness
-
-Docker-based concurrency/behavior gates live in `tests/d8/harness/`:
-- `concurrency20.ps1` — 20 concurrent workers, 2 items → exactly 2 distinct claims, 0 double-claim
-- `concurrency2.ps1` — 2 independent sessions, distinct claims
-- `am04_run.ps1` — Amendment-04 retry/reclaim-after-backoff/dead-letter gate
-
-Equivalence proofs: `tests/d8/equivalence.test.ts` (worker `calculate.ts` == certified rule).
-
-### Core Sharing (Option B, PO-approved)
-
-`scripts/d8/export-core.mjs` generates `supabase/functions/_shared/financial-core/index.ts` + `core.sha256.json` from canonical sources. `npm run d8:verify` is a **mandatory STOP** on divergence. Canonical sources (never edited in D8): `domain/commission/{calculate,participants,types}.ts`, `shared/numbers/normalize.ts`, `domain/events/outbox/supabaseOutbox.ts`.
-
+## 6. Referências
+
+| Assunto | Onde |
+|---|---|
+| Roadmap, decisões D1–D9 | `ROADMAP.md` · status: `PROJECT_STATUS.md` |
+| Nomenclatura oficial | `docs/TAXONOMY.md` |
+| Arquitetura / dados / funcionalidades / contribuição | `docs/ARQUITETURA.md`, `docs/BANCO_DE_DADOS.md`, `docs/FUNCIONALIDADES.md`, `docs/DESENVOLVIMENTO.md` |
+| ADRs (índice) | `docs/adr/README.md` |
+| Auditorias de segurança | `docs/security/SECURITY_AUDIT_RLS.md`, `docs/security/SECURITY_AUDIT_RPC.md` |
+| Evidências de fase, Entry Checks, governança | `docs/audit/` |
+| Testes (convenções, builders, mocks) | `tests/README.md` |
+| Protocolo de mudança e skills | `.opencode/SMG_CHANGE_CONTROL.md`, `.opencode/AGENTS.md`, `.opencode/skills/` |
+| Eventos / outbox / replay / observabilidade | `domain/events/`, `src/lib/observability/` (ler o código) |
+| D8 worker + harness | `supabase/functions/worker-dispatcher/`, `tests/d8/` |
+
+**Deploy:** Vercel, saída `dist/`, rewrite de paths para `index.html` (por isso HashRouter). Deploy em produção = decisão do PO.
