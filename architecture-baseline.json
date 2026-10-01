@@ -1,9 +1,15 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "created": "2026-07-24",
-  "description": "Architecture baseline — violations must not increase",
-  "repositoryViolations": 233,
-  "forbiddenImports": 0,
-  "circularImports": 0,
-  "notes": "233 repo violations are legacy debt in pages/components/hooks. Fixed 5 forbidden imports in 4.7.8."
+  "updated": "2026-10-01",
+  "description": "Architecture baseline — violations must not increase. Known technical debt is allowed to sit in the baseline and must ratchet down over time.",
+  "repositoryViolations": 227,
+  "forbiddenImports": 1,
+  "circularImports": 1,
+  "notes": "Measured on origin/main @ cded131 (HARDENING-01). repositoryViolations=227 is legacy debt in pages/components/hooks. forbiddenImports=1 is components/billing/StatusBanner.tsx -> src/lib/supabase/tenant. circularImports=1 is domain/billing/repository.ts <-> domain/billing/supabaseBillingRepository.ts. Both Billing violations belong to a separate front and are NOT to be fixed in the HARDENING-01 branch. Ratchet: each value may only go down, never up.",
+  "debt": {
+    "repositoryViolations": "Legacy .from() calls in UI layers (pages/components/hooks).",
+    "forbiddenImports": "components/billing/StatusBanner.tsx imports src/lib/supabase/tenant directly. Front: Billing.",
+    "circularImports": "domain/billing/repository.ts <-> domain/billing/supabaseBillingRepository.ts. Front: Billing."
+  }
 }
