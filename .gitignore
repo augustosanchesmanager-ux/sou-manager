@@ -7,6 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Console residue from tooling scripts (P1.3/P1.1 gate 2026-10-01)
+stdout.txt
+stderr.txt
+
 node_modules
 dist
 dist-ssr
@@ -14,6 +18,13 @@ dist-ssr
 
 # Security - committed by mistake (F4.1 security audit 2026-09-13)
 .vercel-temp.env
+
+# Security - local secrets & quarantine artifacts (P1.3/P1.1 gate 2026-10-01)
+# NUNCA versionar credenciais locais nem patches de quarentena fora do tracking.
+a1skey.env
+*.bak_bom
+*.patch
+patches/
 
 # Editor directories and files
 .vscode/*
