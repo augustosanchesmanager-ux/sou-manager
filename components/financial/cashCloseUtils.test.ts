@@ -8,6 +8,9 @@ import {
   buildAttendancesByBarber,
   buildOpenComandasSummary,
   filterEntries,
+  buildBarberSettlementLines,
+  BARBER_SETTLEMENT_FOOTNOTE,
+  formatCurrency,
   type CashCloseFilters,
 } from '../../components/financial/cashCloseUtils';
 
@@ -380,5 +383,58 @@ describe('filterEntries', () => {
     }, new Set());
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('e1');
+  });
+});
+
+describe('buildBarberSettlementLines', () => {
+  it('should_render_discriminative_blocks_when_fiado_parcial', () => {
+    const lines = buildBarberSettlementLines({
+      totalProduced: 100,
+      totalReceived: 50,
+      pendingReceived: 50,
+      pendingCommission: 25,
+      commission: 25,
+    });
+
+    expect(lines).toEqual([
+      'APURACAO DO DIA',
+      `Producao Bruta: ${formatCurrency(100)}`,
+      `(-) Fiado / Valores a Receber: ${formatCurrency(50)}`,
+      `(=) Base Efetiva de Liquidacao: ${formatCurrency(50)}`,
+      `Total de Comissao Apurada no Dia: ${formatCurrency(25)}`,
+      `Comissao Retida (Fiado a Receber): ${formatCurrency(25)}`,
+      `Comissao Liquida Apurada Hoje: ${formatCurrency(25)}`,
+    ]);
+  });
+
+  it('should_render_zeroed_fiado_blocks_when_no_fiado', () => {
+    const lines = buildBarberSettlementLines({
+      totalProduced: 80,
+      totalReceived: 80,
+      pendingReceived: 0,
+      pendingCommission: 0,
+      commission: 40,
+    });
+
+    expect(lines).toContain(`(-) Fiado / Valores a Receber: ${formatCurrency(0)}`);
+    expect(lines).toContain(`Comissao Retida (Fiado a Receber): ${formatCurrency(0)}`);
+    expect(lines).toContain(`(=) Base Efetiva de Liquidacao: ${formatCurrency(80)}`);
+  });
+
+  it('should_always_render_seven_blocks_regardless_of_fiado', () => {
+    expect(
+      buildBarberSettlementLines({
+        totalProduced: 0,
+        totalReceived: 0,
+        pendingReceived: 0,
+        pendingCommission: 0,
+        commission: 0,
+      }),
+    ).toHaveLength(7);
+  });
+
+  it('should_state_repasse_cycle_in_footnote', () => {
+    expect(BARBER_SETTLEMENT_FOOTNOTE).toContain('ciclo de repasse');
+    expect(BARBER_SETTLEMENT_FOOTNOTE).toContain('diario, semanal, quinzenal ou mensal');
   });
 });

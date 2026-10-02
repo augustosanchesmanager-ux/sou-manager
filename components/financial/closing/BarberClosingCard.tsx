@@ -54,6 +54,11 @@ const BarberClosingCard: React.FC<BarberClosingCardProps> = ({
                             <span className="text-[10px] font-bold text-slate-500">
                                 Comissao: <span className="text-primary">{formatCurrency(barber.commission)}</span>
                             </span>
+                            {(barber.pendingReceived ?? 0) > 0 && (
+                                <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase">
+                                    Fiado: {formatCurrency(barber.pendingReceived ?? 0)}
+                                </span>
+                            )}
                             {!allChecklistPassed && (
                                 <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
                                     Pendencias

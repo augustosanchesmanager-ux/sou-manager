@@ -215,6 +215,7 @@ export function computeDaySummary(params: {
         reversedComandas: reversedCmds.length,
         pendingPayments: pendingPayments.length,
         pendingPaymentsTotal: pendingPayments.reduce((s, e) => s + e.value, 0),
+        fiadoTotal: barberSummaries.reduce((s, b) => s + (b.pendingTotal || 0), 0),
         reaberturas: 0,
         manualReceivables: manuallyLaunched.filter(e => e.type === 'entrada').length,
         manualExpenses: manuallyLaunched.filter(e => e.type === 'saida').length,
@@ -332,7 +333,9 @@ export function computeDaySummary(params: {
             staffName: barber.staffName,
             role: barber.role,
             status: isClosed ? 'closed' as const : 'open' as const,
-            totalProduced: barber.totalReceived + pendingReceived + (barber.openTotal || 0),
+            // openTotal NAO entra: comanda em aberto nao foi prestada/conferida
+            // no dia e inflaria a producao bruta do profissional.
+            totalProduced: barber.totalReceived + pendingReceived,
             totalReceived: barber.totalReceived,
             pendingReceived,
             commission: commissionServices + commissionProducts,
