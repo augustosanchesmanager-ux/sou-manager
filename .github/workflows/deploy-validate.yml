@@ -111,6 +111,12 @@ jobs:
           fi
 
       - name: E2E smoke against deployed URL
+        # BLINDAGEM PROD: o smoke roda [e2e-seed], que cria staff e tenant no
+        # banco via SUPABASE_SERVICE_ROLE_KEY. Em producao isso viola a
+        # integridade dos dados reais de tenants. Desativado ate existir
+        # ambiente de staging/homologacao para E2E. Reativar junto com a
+        # migracao da suite E2E para staging — nao apenas removendo este if.
+        if: false
         run: |
           URL="${{ steps.resolve.outputs.url }}"
           echo "Running E2E smoke against: $URL"
