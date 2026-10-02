@@ -1,7 +1,7 @@
-# ADR-026: `MERGE ≠ DEPLOY PROD` — Gate de Publicação C+D com Staged Production (Amendment-01)
+# ADR-026: `MERGE ≠ DEPLOY PROD` — Gate de Publicação C+D (Amendment-01, Amendment-02)
 
-**Status:** Accepted (Amendment-01, 2026-09-27 — direção Staged Production ratificada pelo PO; IMPLEMENT pendente de autorização explícita e change-control)
-**Date:** 2026-09-24 (Amendment-01: 2026-09-27)
+**Status:** Accepted (Amendment-01, 2026-09-27 — direção Staged Production ratificada pelo PO; Amendment-02, 2026-10-02 — modelo operacional híbrido Vercel homologado; Gate C+D permanece como Fase 2)
+**Date:** 2026-09-24 (Amendment-01: 2026-09-27; Amendment-02: 2026-10-02)
 **Deciders:** PO (Augusto) + OpenCode
 **G0:** P-AUTO (dívida change-control: `MERGE ≠ DEPLOY PROD`)
 **References:**

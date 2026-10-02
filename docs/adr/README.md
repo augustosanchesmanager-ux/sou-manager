@@ -7,6 +7,15 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | ADR | Status | Theme |
 |---|---|---|
 | [ADR-001](./ADR-001-Commission-vs-Settlement.md) | Accepted | Commission vs Settlement |
+| [ADR-002](./ADR-002-repository-pattern.md) | Accepted | Repository Pattern |
+| [ADR-003](./ADR-003-multi-tenant-isolation.md) | Accepted | Multi-Tenant Isolation |
+| [ADR-004](./ADR-004-application-services.md) | Accepted | Application Services |
+| [ADR-005](./ADR-005-rpc-strategy.md) | Accepted | RPC Strategy |
+| [ADR-006](./ADR-006-event-bus.md) | Accepted | Event Bus |
+| [ADR-007](./ADR-007-outbox-pattern.md) | Accepted | Outbox Pattern |
+| [ADR-008](./ADR-008-audit-strategy.md) | Accepted | Audit Strategy |
+| [ADR-009](./ADR-009-repository-naming.md) | Accepted | Repository Naming Conventions |
+| [ADR-010](./ADR-010-architecture-guards.md) | Accepted (Amendment-01) | Architecture Guards (2026-07-24; Amd-01 fail-closed 2026-10-01) |
 | [ADR-011](./ADR-011-phase-6.0.3-scope-team-onboarding.md) | Accepted | Phase 6.0.3 scope — Team Onboarding & Invitations |
 | [ADR-012](./ADR-012-rpc-execute-grants.md) | Accepted | RPC EXECUTE grants — least-privilege by default |
 | [ADR-013](./ADR-013-billing-tenant-featureflags.md) | Accepted | Billing × Tenant Lifecycle × Feature Flags — three decoupled contexts (6.0.5) |
@@ -22,7 +31,8 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-023](./ADR-023-f1-staff-role-hierarchy-enforcement.md) | Accepted | F1 — Enforcement de hierarquia de papéis de Staff no banco (2026-09-14) |
 | [ADR-024](./ADR-024-ci-workflow-regularization.md) | Proposed | Regularização dos CI Workflows + Política Operacional de Override (R5-IMPLEMENT-1, 2026-09-21) |
 | [ADR-025](./ADR-025-smg-pr-approve-bootstrap.md) | Proposed | Bootstrap do Mecanismo `smg-pr-approve` — Exceção Formal de Governança (R5.3-GOV-BOOTSTRAP, 2026-09-21) |
-| [ADR-026](./ADR-026-merge-not-equal-deploy-prod-gate.md) | Accepted (Amendment-01) | `MERGE ≠ DEPLOY PROD` — Gate C+D com Staged Production (2026-09-24; Amd-01 2026-09-27) |
+| [ADR-026](./ADR-026-merge-not-equal-deploy-prod-gate.md) | Accepted (Amendment-01, Amendment-02) | `MERGE ≠ DEPLOY PROD` — Gate C+D (2026-09-24; Amd-01 2026-09-27; Amd-02 CD híbrido Vercel 2026-10-02) |
+| [ADR-027](./ADR-027-billing-contracts-type-segregation.md) | Accepted | Segregação de Contratos de Billing e Desacoplamento de Tipos de Tenant (ADR-027, 2026-10-02) |
 
 ---
 
