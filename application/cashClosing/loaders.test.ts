@@ -123,3 +123,89 @@ describe('loadComandasWithDetails — P1-01 staff_id flow', () => {
     expect(result.comandaDetails).toHaveLength(2);
   });
 });
+
+describe('loadComandasWithDetails — discriminador type do item', () => {
+  beforeEach(() => {
+    mockComandaList.mockReset();
+    mockItemListByComandaIds.mockReset();
+  });
+
+  it('should_type_as_product_when_product_name_present_and_service_id_null', async () => {
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: null, product_name: 'Pomada Matiz', unit_price: 40 }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const item = result.comandaDetails[0].items[0];
+    expect(item.type).toBe('product');
+    expect(item.serviceName).toBe('Pomada Matiz');
+  });
+
+  it('should_expose_type_for_items_built_without_discriminator', async () => {
+    // Trava o contrato: todo item mapeado precisa sair com 'type' definido.
+    // Sem o campo, summary.ts cairia no fallback por substring do nome.
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: 'sv1' }),
+      makeItem({ id: 'i2', service_id: null, product_name: 'Shampoo' }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const items = result.comandaDetails[0].items;
+    expect(items.every((i) => i.type !== undefined)).toBe(true);
+    expect(items.map((i) => i.type)).toEqual(['service', 'product']);
+  });
+
+  it('should_type_as_service_when_service_id_resolves_even_with_product_name', async () => {
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: 'sv1', product_name: 'Pomada Matiz', unit_price: 40 }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const item = result.comandaDetails[0].items[0];
+    expect(item.type).toBe('service');
+    expect(item.serviceName).toBe('Corte');
+  });
+
+  it('should_type_as_service_when_neither_service_nor_product_name', async () => {
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: null, product_name: null }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const item = result.comandaDetails[0].items[0];
+    expect(item.type).toBe('service');
+    expect(item.serviceName).toBe('Item');
+  });
+
+  it('should_type_as_product_when_service_id_absent_from_service_map', async () => {
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: 'sv-inexistente', product_name: 'Shampoo' }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const item = result.comandaDetails[0].items[0];
+    expect(item.type).toBe('product');
+    expect(item.serviceName).toBe('Shampoo');
+  });
+
+  it('should_treat_blank_product_name_as_absent', async () => {
+    mockComandaList.mockResolvedValue([makeComanda()]);
+    mockItemListByComandaIds.mockResolvedValue([
+      makeItem({ service_id: null, product_name: '   ' }),
+    ]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    expect(result.comandaDetails[0].items[0].type).toBe('service');
+  });
+});

@@ -53,6 +53,8 @@ export interface ComandaItemDetail {
     unitPrice: number;
     staffId: string | null;
     staffName: string;
+    /** Discriminador explícito; evita inferir produto por substring do nome. */
+    type?: 'service' | 'product';
 }
 
 export interface BarberSummary {
