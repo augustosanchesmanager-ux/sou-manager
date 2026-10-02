@@ -23,6 +23,11 @@ vi.mock('../../domain/comanda/item-repository', () => ({
     listByComandaIds: (...args: unknown[]) => mockItemListByComandaIds(...args),
   },
 }));
+vi.mock('../../domain/comanda/comandaPaymentRepository', () => ({
+  comandaPaymentRepository: {
+    getPaymentsByComandaIds: async () => [],
+  },
+}));
 
 vi.mock('../../domain/cashClosing/repository', () => ({
   cashClosingRepository: {},
