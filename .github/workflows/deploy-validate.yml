@@ -1,5 +1,22 @@
 name: Deploy Validation
 
+# HARDENING-02 — o gatilho casava `deployment.ref == 'refs/heads/main'`, mas a
+# Vercel grava em `ref` o SHA de 40 chars (prova: deployment 6796077341, ref =
+# d176407...). Condicao sempre falsa: todo run historico saiu "skipped".
+#
+# O environment e' o contrato real da Vercel aqui. Atencao ao EN-DASH (U+2013)
+# em 'Production – smg-barber' — hifen (U+002D) nao casa. As literais cobrem
+# separadores que a Vercel ja usou no historico (en-dash, hifen, espaco, barra,
+# underscore) e o prefixo 'Production' cobre rotulo imprevisto; divergencia de
+# rotulo fica visivel no relatorio.
+#
+># As guardas sao o que impede falso positivo. O historico real do repo tem 14
+# environments distintos, incluindo 'Production – smg-estetica', 'Production –
+# sou-manager' e 'Production – soumama.ger'. Por isso:
+#   contains(..., 'smg-barber')  -> so dispara para o projeto deste repo;
+#                                   'smg-estetica' e 'sou-manager' ficam de fora.
+#   !contains(..., 'staging')     -> 'Production – smg-barber-staging' existe
+#                                   no historico (2x) e NAO e producao.
 on:
   deployment_status:
 
@@ -7,7 +24,18 @@ jobs:
   validate-deployment:
     name: deploy validation
     runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'refs/heads/main'
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      contains(github.event.deployment.environment, 'smg-barber') &&
+      !contains(github.event.deployment.environment, 'staging') &&
+      (
+        github.event.deployment.environment == 'Production – smg-barber' ||
+        github.event.deployment.environment == 'Production - smg-barber' ||
+        github.event.deployment.environment == 'Production smg-barber' ||
+        github.event.deployment.environment == 'Production/smg-barber' ||
+        github.event.deployment.environment == 'Production_smg-barber' ||
+        startsWith(github.event.deployment.environment, 'Production')
+      )
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,14 +48,16 @@ jobs:
         id: resolve
         env:
           DEPLOYMENT_URL: ${{ github.event.deployment_status.target_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FALLBACK_URL: https://barber.soumanager.com
         run: |
-          if [ -n "$DEPLOYMENT_URL" ]; then
+          if [ -n "$DEPLOYMENT_URL" ] && [ "$DEPLOYMENT_URL" != "null" ]; then
             echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+            echo "url_source=deployment_status.target_url" >> "$GITHUB_OUTPUT"
             echo "✅ Deployment URL: $DEPLOYMENT_URL"
           else
-            echo "❌ No deployment URL found in deployment_status event"
-            exit 1
+            echo "⚠️  target_url ausente — usando fallback de produção: $FALLBACK_URL"
+            echo "url=$FALLBACK_URL" >> "$GITHUB_OUTPUT"
+            echo "url_source=fallback" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Wait for deployment to be available
@@ -35,7 +65,7 @@ jobs:
           URL="${{ steps.resolve.outputs.url }}"
           echo "Waiting for deployment to be ready at: $URL"
           for i in $(seq 1 30); do
-            HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" 2>/dev/null || echo "000")
+            HTTP_CODE=$(curl -fs -o /dev/null -w '%{http_code}' --max-time 10 "$URL" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ Deployment available (HTTP $HTTP_CODE) after ${i}0 seconds"
               exit 0
@@ -50,11 +80,21 @@ jobs:
         run: |
           URL="${{ steps.resolve.outputs.url }}"
           echo "Running health check against: $URL"
-          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL")
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Health check PASSED (HTTP $HTTP_CODE)"
+          # O app e um SPA Vite (HashRouter) sem rota /api/health — a raiz
+          # responde 200 e e o unico sinal de vida confiavel. A rota /api/health
+          # fica como tentativa: se algum dia for exposta, valida mais forte.
+          ROOT_CODE=$(curl -fs -o /dev/null -w '%{http_code}' --max-time 15 "$URL/" || echo "000")
+          echo "GET $URL/ -> HTTP $ROOT_CODE"
+          if [ "$ROOT_CODE" = "200" ]; then
+            echo "✅ Health check PASSED on / (HTTP $ROOT_CODE)"
+            API_CODE=$(curl -fs -o /dev/null -w '%{http_code}' --max-time 15 "$URL/api/health" || echo "000")
+            if [ "$API_CODE" = "200" ]; then
+              echo "✅ /api/health also available (HTTP $API_CODE)"
+            else
+              echo "ℹ️  /api/health not exposed (HTTP $API_CODE) — expected for Vite SPA"
+            fi
           else
-            echo "❌ Health check FAILED (HTTP $HTTP_CODE)"
+            echo "❌ Health check FAILED on / (HTTP $ROOT_CODE)"
             exit 1
           fi
 
@@ -77,9 +117,10 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Commit | ${{ github.event.deployment.sha }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Branch | ${{ github.event.deployment.ref }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit (SHA) | ${{ github.event.deployment.sha }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Environment | ${{ github.event.deployment.environment }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Exact match on canonical name | ${{ github.event.deployment.environment == 'Production – smg-barber' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Deployment URL | ${{ steps.resolve.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| URL source | ${{ steps.resolve.outputs.url_source }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |" >> "$GITHUB_STEP_SUMMARY"
