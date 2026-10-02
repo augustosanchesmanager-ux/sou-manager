@@ -143,6 +143,14 @@ function buildComandaDetails(
         const cmdItems = itemsByComanda.get(cmd.id) || [];
         const detailItems: ComandaItemDetail[] = cmdItems.map(item => {
             const itemStaffId = item.staff_id || cmd.staff_id;
+            const hasProductName = Boolean(item.product_name && item.product_name.trim().length > 0);
+            const hasValidService = Boolean(item.service_id && serviceMap[item.service_id]);
+            // service_id resolvido tem precedencia: um item de balcao
+            // cadastrado em services e com product_name legado continua
+            // sendo comissionado como servico.
+            const resolvedType: 'service' | 'product' = hasValidService
+                ? 'service'
+                : (hasProductName ? 'product' : 'service');
             return {
                 id: item.id,
                 serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
@@ -150,6 +158,7 @@ function buildComandaDetails(
                 unitPrice: Number(item.unit_price || 0),
                 staffId: itemStaffId,
                 staffName: staffMap[itemStaffId || '']?.name || '-',
+                type: resolvedType,
             };
         });
 
