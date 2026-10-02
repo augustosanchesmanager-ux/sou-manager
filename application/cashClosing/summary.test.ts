@@ -562,3 +562,105 @@ describe('computeDaySummary — P1-01 payment method normalization', () => {
     expect(rawCash).toBeUndefined();
   });
 });
+
+describe('computeDaySummary — sem comissão duplicada de produto', () => {
+  const baseParams = {
+    filteredEntries: [],
+    extras: [],
+    comandas: [],
+    appointments: [],
+    filteredComandaDetails: [],
+    reversalEntries: [],
+  };
+
+  const mixedBarberSummary = (items: Array<Record<string, unknown>>) => [{
+    staffId: 'staff-1',
+    staffName: 'Barbeiro 1',
+    role: 'barber',
+    commissionRate: 0.4,
+    totalReceived: 100,
+    comandaCount: 1,
+    comandas: [{
+      comandaId: 'c-mixed',
+      staffId: 'staff-1',
+      staffName: 'Barbeiro 1',
+      total: 100,
+      status: 'paid',
+      paymentMethod: 'cash',
+      clientName: 'Cliente',
+      appointmentId: null,
+      items,
+    }],
+    openComandaCount: 0,
+    openTotal: 0,
+    openComandas: [],
+  }] as any[];
+
+  it('should_charge_product_commission_only_once_on_mixed_comanda', () => {
+    const result = computeDaySummary({
+      ...baseParams,
+      barberSummaries: mixedBarberSummary([
+        { staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: 60 },
+        { staffId: 'staff-1', serviceName: 'Produto Pomada Matiz', quantity: 1, unitPrice: 40 },
+      ]),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    // 60 servicos + 40 produto = 100 recebidos. Comissão = 24 + 16 = 40.
+    // Antes da correção: 100*0.4 + 40*0.4 = 56 (produto pago 2x).
+    expect(detail.commissions.services).toBe(24);
+    expect(detail.commissions.products).toBe(16);
+    expect(detail.commission).toBe(40);
+    expect(detail.repasse).toBe(60);
+  });
+
+  it('should_keep_commission_equal_to_rate_times_total_received', () => {
+    const totalReceived = 100;
+    const rate = 0.4;
+    const result = computeDaySummary({
+      ...baseParams,
+      barberSummaries: mixedBarberSummary([
+        { staffId: 'staff-1', serviceName: 'Barba', quantity: 2, unitPrice: 30 },
+        { staffId: 'staff-1', serviceName: 'Produto Shampoo', quantity: 2, unitPrice: 20 },
+      ]),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    const productTotal = 2 * 20;
+    const servicesTotal = totalReceived - productTotal;
+    expect(servicesTotal).toBe(60);
+    expect(detail.commissions.services).toBe(servicesTotal * rate);
+    expect(detail.commissions.products).toBe(productTotal * rate);
+    expect(detail.commissions.finalValue).toBe(totalReceived * rate);
+  });
+
+  it('should_use_explicit_product_discriminator_over_name', () => {
+    const result = computeDaySummary({
+      ...baseParams,
+      barberSummaries: mixedBarberSummary([
+        { staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: 60, type: 'service' },
+        // Sem o discriminador o nome cairia no fallback e virar serviço.
+        { staffId: 'staff-1', serviceName: 'Shampoo', quantity: 1, unitPrice: 40, type: 'product' },
+      ]),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.commissions.products).toBe(16);
+    expect(detail.commissions.services).toBe(24);
+    expect(detail.commission).toBe(40);
+  });
+
+  it('should_not_double_charge_when_comanda_has_no_products', () => {
+    const result = computeDaySummary({
+      ...baseParams,
+      barberSummaries: mixedBarberSummary([
+        { staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: 100 },
+      ]),
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.commissions.products).toBe(0);
+    expect(detail.commissions.services).toBe(40);
+    expect(detail.commission).toBe(40);
+  });
+});
