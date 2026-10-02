@@ -16,6 +16,7 @@ import { transactionRepository } from '../../domain/transaction/repository';
 import type { Transaction } from '../../domain/transaction/types';
 import { comandaRepository } from '../../domain/comanda/repository';
 import { comandaItemRepository } from '../../domain/comanda/item-repository';
+import { comandaPaymentRepository } from '../../domain/comanda/comandaPaymentRepository';
 import type { Comanda } from '../../domain/comanda/types';
 import type { ComandaItemRow } from '../../domain/comanda/item-repository';
 import { receivableRepository } from '../../domain/receivable/repository';
@@ -267,10 +268,28 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
     const serviceMap: Record<string, string> = {};
     referenceData.services.forEach(s => { serviceMap[s.id] = s.name; });
 
-    const [comandaResult, reversals] = await Promise.all([
-        loadComandasWithDetails(tenantId, start, end, staffMap, clientMap, serviceMap),
+    const comandaResult = await loadComandasWithDetails(
+        tenantId, start, end, staffMap, clientMap, serviceMap,
+    );
+
+    const [reversals, payments] = await Promise.all([
         loadReversals(tenantId, transactions.map(t => t.id).filter(Boolean)),
+        // Fail-closed: sem a base liquidada real nao se pode calcular repasse.
+        // Deixar a leitura falhar silenciosamente cairia no fallback legado e
+        // comissionaria fiado como integral.
+        comandaPaymentRepository.getPaymentsByComandaIds(
+            comandaResult.comandaDetails.map(c => c.comandaId),
+            tenantId,
+        ),
     ]);
+
+    // Reprocessa os detalhes com a base liquidada real.
+    const detailsWithPayments = buildComandaDetails(
+        comandaResult.comandas as unknown as Comanda[],
+        comandaResult.comandaItems as unknown as ComandaItemRow[],
+        staffMap, clientMap, serviceMap,
+        payments,
+    );
 
     const openComandas = comandaResult.comandas.filter(c => c.status === 'open');
     const clubOverdue = receivables.filter(r => r.status === 'overdue');
@@ -280,7 +299,7 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
         appointments,
         comandas: comandaResult.comandas,
         comandaItems: comandaResult.comandaItems,
-        comandaDetails: comandaResult.comandaDetails,
+        comandaDetails: Array.from(detailsWithPayments.values()),
         staff: referenceData.staff,
         clients: referenceData.clients,
         services: referenceData.services,
