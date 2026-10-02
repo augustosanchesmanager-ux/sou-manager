@@ -416,9 +416,9 @@ const CashClosingPage: React.FC = () => {
                                 Não foi possível consolidar o fechamento de caixa
                             </p>
                             <p className="text-xs text-rose-700/80 dark:text-rose-300/80">
-                                Ocorreu uma falha ao carregar os dados financeiros e a base liquidada
-                                das comandas. Para a sua segurança, os valores não foram calculados
-                                para evitar repasses divergentes.
+                                Ocorreu uma falha ao carregar os registros financeiros. Para
+                                a sua segurança e integridade dos repasses aos profissionais, os
+                                cálculos foram temporariamente suspensos.
                             </p>
                         </div>
                     </div>
