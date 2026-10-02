@@ -286,6 +286,10 @@ export function computeDaySummary(params: {
         );
 
         const commissionRate = barber.commissionRate;
+        // Fiado fica fora da base de repasse: so a parcela liquidada gera
+        // comissao a pagar agora. A pendencia e exibida em pendingCommission.
+        const pendingReceived = barber.pendingTotal || 0;
+        const pendingCommission = Math.round((pendingReceived * commissionRate + Number.EPSILON) * 100) / 100;
         const productsSoldTotal = productsSold.reduce((s, p) => s + p.value, 0);
         // totalReceived já inclui o valor dos produtos. Sem esta subtração, a
         // comissão de serviços e a de produtos somariam a mesma base e o
@@ -328,9 +332,11 @@ export function computeDaySummary(params: {
             staffName: barber.staffName,
             role: barber.role,
             status: isClosed ? 'closed' as const : 'open' as const,
-            totalProduced: barber.totalReceived,
+            totalProduced: barber.totalReceived + pendingReceived + (barber.openTotal || 0),
             totalReceived: barber.totalReceived,
+            pendingReceived,
             commission: commissionServices + commissionProducts,
+            pendingCommission,
             repasse: barber.totalReceived - (commissionServices + commissionProducts),
             discounts: 0,
             advances: 0,

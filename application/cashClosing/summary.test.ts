@@ -664,3 +664,73 @@ describe('computeDaySummary — sem comissão duplicada de produto', () => {
     expect(detail.commission).toBe(40);
   });
 });
+
+describe('computeDaySummary — fiado não gera repasse', () => {
+  const baseParams = {
+    filteredEntries: [],
+    extras: [],
+    comandas: [],
+    appointments: [],
+    filteredComandaDetails: [],
+    reversalEntries: [],
+  };
+
+  const summaryFor = (totalReceived: number, pendingTotal: number, total = 100) => [{
+    staffId: 'staff-1',
+    staffName: 'Barbeiro 1',
+    role: 'barber',
+    commissionRate: 0.4,
+    totalReceived,
+    pendingTotal,
+    comandaCount: 1,
+    comandas: [{
+      comandaId: 'c-fiado',
+      staffId: 'staff-1',
+      staffName: 'Barbeiro 1',
+      total,
+      status: 'paid',
+      paymentMethod: 'pix',
+      clientName: 'Cliente',
+      appointmentId: null,
+      paidAmount: totalReceived,
+      pendingAmount: pendingTotal,
+      items: [{ staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: total, type: 'service' }],
+    }],
+    openComandaCount: 0,
+    openTotal: 0,
+    openComandas: [],
+  }] as any[];
+
+  it('should_pay_commission_only_on_settled_base_when_partially_paid', () => {
+    const result = computeDaySummary({ ...baseParams, barberSummaries: summaryFor(60, 40) });
+
+    const detail = result.barberClosingDetails[0];
+    // 60 liquidados x 40% = 24 de repasse imediato.
+    expect(detail.totalReceived).toBe(60);
+    expect(detail.commission).toBe(24);
+    expect(detail.repasse).toBe(36);
+    expect(detail.pendingReceived).toBe(40);
+    expect(detail.pendingCommission).toBe(16);
+  });
+
+  it('should_keep_settled_total_when_fully_paid_without_pending', () => {
+    const result = computeDaySummary({ ...baseParams, barberSummaries: summaryFor(100, 0) });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.totalReceived).toBe(100);
+    expect(detail.pendingReceived).toBe(0);
+    expect(detail.pendingCommission).toBe(0);
+    expect(detail.commission).toBe(40);
+    expect(detail.repasse).toBe(60);
+  });
+
+  it('should_retain_pending_commission_when_nothing_is_settled', () => {
+    const result = computeDaySummary({ ...baseParams, barberSummaries: summaryFor(0, 100) });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.commission).toBe(0);
+    expect(detail.repasse).toBe(0);
+    expect(detail.pendingReceived).toBe(100);
+    expect(detail.pendingCommission).toBe(40);
+  });
+});
