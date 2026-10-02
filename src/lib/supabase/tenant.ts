@@ -9,6 +9,14 @@ import {
   isTenantGuardedTable,
   type SupabaseSchemaName,
 } from './schemas';
+import type { TenantStatus } from '../../../domain/tenant/types';
+
+/**
+ * TenantStatus é canônico em `domain/tenant/types` (ADR-027). Re-exportado
+ * aqui para retrocompatibilidade com módulos legados que importam de
+ * `src/lib/supabase/tenant` — que carrega dependência de infraestrutura.
+ */
+export type { TenantStatus };
 
 export type TenantRole =
   | 'superadmin'
@@ -17,15 +25,6 @@ export type TenantRole =
   | 'receptionist'
   | 'staff'
   | 'unknown';
-
-export type TenantStatus =
-  | 'draft'
-  | 'trial'
-  | 'active'
-  | 'past_due'
-  | 'suspended'
-  | 'cancelled'
-  | 'archived';
 
 export interface TenantRecord {
   id: string;

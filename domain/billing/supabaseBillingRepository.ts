@@ -26,7 +26,7 @@ import {
   type Invoice,
   type PaymentAttempt,
   type RecordAttemptInput,
-} from './repository';
+} from './contracts';
 import type { BillingSubscription } from './types';
 
 const toSubscription = (row: Record<string, unknown>): BillingSubscription => ({

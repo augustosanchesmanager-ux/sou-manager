@@ -15,69 +15,23 @@
  */
 
 import type { BillingSubscription, InvoiceDraft } from './types';
+import type {
+  ApplyTransitionInput,
+  BillingRepository,
+  Invoice,
+  PaymentAttempt,
+  RecordAttemptInput,
+} from './contracts';
 
+export type {
+  BillingRepository,
+  Invoice,
+  PaymentAttempt,
+  ApplyTransitionInput,
+  RecordAttemptInput,
+} from './contracts';
 export { RepositoryError } from '../shared/errors';
 export type { InvoiceDraft } from './types';
-export { supabaseBillingRepository } from './supabaseBillingRepository';
-
-export interface ApplyTransitionInput {
-  subscriptionId: string;
-  status: BillingSubscription['status'];
-  currentPeriodStart?: string | null;
-  currentPeriodEnd?: string | null;
-  canceledAt?: string | null;
-  clearCancelRequest?: boolean;
-  /** D-6.0.5.4-5: fim da janela de grace — null limpa ao sair de past_due/suspended. */
-  graceEndsAt?: string | null;
-}
-
-export interface Invoice {
-  id: string;
-  tenantId: string;
-  subscriptionId: string | null;
-  status: 'issued' | 'paid';
-  amount: number;
-  dueDate: string;
-  billingPeriodStart: string | null;
-  billingPeriodEnd: string | null;
-  paidAt: string | null;
-  idempotencyKey: string | null;
-  createdAt: string;
-}
-
-export interface RecordAttemptInput {
-  invoiceId: string;
-  tenantId: string;
-  status: 'success' | 'failed';
-  provider?: string | null;
-  error?: string | null;
-}
-
-export interface PaymentAttempt {
-  id: string;
-  invoiceId: string;
-  tenantId: string;
-  status: 'success' | 'failed';
-  provider: string | null;
-  error: string | null;
-  attemptedAt: string;
-}
-
-export interface BillingRepository {
-  /** Assinaturas ativas candidatas a processamento no instante asOf. */
-  findDueSubscriptions(asOf: string): Promise<BillingSubscription[]>;
-  /** Busca uma assinatura por id. */
-  getSubscription(subscriptionId: string): Promise<BillingSubscription | null>;
-  /** Persiste transição computada pelo engine (subscription + tenants.status). */
-  applyTransition(input: ApplyTransitionInput): Promise<BillingSubscription>;
-  /** Cria invoice (idempotente por tenantId+idempotencyKey). */
-  createInvoice(draft: InvoiceDraft): Promise<Invoice>;
-  getInvoice(invoiceId: string): Promise<Invoice | null>;
-  /** Marca invoice paga (idempotente — não re-escreve paid_at). */
-  markInvoicePaid(invoiceId: string): Promise<Invoice>;
-  /** Append-only em payment_attempts. */
-  recordPaymentAttempt(input: RecordAttemptInput): Promise<PaymentAttempt>;
-}
 
 // ─── In-memory (testes) ────────────────────────────────────────────
 

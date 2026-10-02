@@ -20,7 +20,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTenantOptional } from '../../src/context/TenantContext';
-import type { TenantStatus } from '../../src/lib/supabase/tenant';
+import type { TenantStatus } from '../../domain/tenant/types';
 
 interface BannerSpec {
   icon: string;
