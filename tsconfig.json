@@ -29,6 +29,7 @@
   "exclude": [
     "supabase",
     "examples",
-    "tests"
+    "tests",
+    "scripts"
   ]
 }
