@@ -124,18 +124,39 @@ export async function loadReversals(tenantId: string, transactionIds: string[]):
 
 // ─── Comanda Details Builder ─────────────────────────────────────
 
+/**
+ * Pagamentos registrados por comanda (ADR-018). `reversed_at` preenchido
+ * significa estorno e nao conta para a base liquidada.
+ */
+export interface ComandaPaymentRow {
+    comanda_id: string;
+    amount: number | string;
+    payment_type?: string;
+    payment_method?: string | null;
+    reversed_at?: string | null;
+}
+
 function buildComandaDetails(
     comandas: Comanda[],
     items: ComandaItemRow[],
     staffMap: Record<string, { name: string; role: string }>,
     clientMap: Record<string, string>,
     serviceMap: Record<string, string>,
+    payments: ComandaPaymentRow[] = [],
 ): Map<string, ComandaDetail> {
     const itemsByComanda = new Map<string, ComandaItemRow[]>();
     items.forEach(item => {
         const list = itemsByComanda.get(item.comanda_id) || [];
         list.push(item);
         itemsByComanda.set(item.comanda_id, list);
+    });
+
+    const paymentsByComanda = new Map<string, ComandaPaymentRow[]>();
+    payments.forEach(p => {
+        if (p.reversed_at) return;
+        const list = paymentsByComanda.get(p.comanda_id) || [];
+        list.push(p);
+        paymentsByComanda.set(p.comanda_id, list);
     });
 
     const result = new Map<string, ComandaDetail>();
@@ -165,6 +186,15 @@ function buildComandaDetails(
         const resolvedStaffId = cmd.staff_id || cmdItems.find(i => i.staff_id)?.staff_id || null;
         const clientName = cmd.client_name || clientMap[cmd.client_id || ''] || 'Cliente nao identificado';
 
+        const cmdTotal = Number(cmd.total || 0);
+        const cmdPayments = paymentsByComanda.get(cmd.id) || [];
+        // Expand and Contract: comanda_payments manda quando existe; sem
+        // registro (legado) so 'paid' e integralmente liquidada.
+        const paidAmount = cmdPayments.length > 0
+            ? cmdPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+            : (cmd.status === 'paid' ? cmdTotal : 0);
+        const pendingAmount = Math.max(0, cmdTotal - paidAmount);
+
         result.set(cmd.id, {
             comandaId: cmd.id,
             clientId: cmd.client_id,
@@ -172,11 +202,13 @@ function buildComandaDetails(
             staffId: resolvedStaffId,
             staffName: staffMap[resolvedStaffId || '']?.name || 'Sem profissional',
             paymentMethod: cmd.payment_method,
-            total: Number(cmd.total || 0),
+            total: cmdTotal,
             status: cmd.status,
             appointmentId: cmd.appointment_id || null,
             createdAt: null,
             items: detailItems,
+            paidAmount,
+            pendingAmount,
         });
     });
 
@@ -190,6 +222,7 @@ export async function loadComandasWithDetails(
     staffMap: Record<string, { name: string; role: string }>,
     clientMap: Record<string, string>,
     serviceMap: Record<string, string>,
+    payments: ComandaPaymentRow[] = [],
 ): Promise<{
     comandas: ComandaSnapshot[];
     comandaItems: ComandaItemSnapshot[];
@@ -199,7 +232,7 @@ export async function loadComandasWithDetails(
     const comandaIds = allComandas.map(c => c.id);
     const allItems = await comandaItemRepository.listByComandaIds(comandaIds, tenantId);
 
-    const comandaDetails = buildComandaDetails(allComandas, allItems, staffMap, clientMap, serviceMap);
+    const comandaDetails = buildComandaDetails(allComandas, allItems, staffMap, clientMap, serviceMap, payments);
 
     return {
         comandas: allComandas as unknown as ComandaSnapshot[],

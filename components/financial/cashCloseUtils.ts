@@ -44,6 +44,14 @@ export interface ComandaDetail {
     appointmentId: string | null;
     createdAt: string | null;
     items: ComandaItemDetail[];
+    /**
+     * Montante com liquidacao financeira comprovada (comanda_payments).
+     * Ausente = comanda legada sem registro de pagamento; a agregacao assume
+     * o total integral apenas quando status === 'paid'.
+     */
+    paidAmount?: number;
+    /** Parcela ainda nao liquidada; retida fora da base de repasse. */
+    pendingAmount?: number;
 }
 
 export interface ComandaItemDetail {
@@ -62,7 +70,11 @@ export interface BarberSummary {
     staffName: string;
     role: string;
     commissionRate: number;
+    /** Base liquidada: unica base de comissao e repasse. */
     totalReceived: number;
+    /** Base ainda nao liquidada (fiado); nao gera repasse. Opcional por
+     *  retrocompatibilidade com constructores legados. */
+    pendingTotal?: number;
     comandaCount: number;
     comandas: ComandaDetail[];
     openComandaCount: number;
@@ -139,7 +151,11 @@ export interface BarberClosingDetail {
     status: 'open' | 'closed';
     totalProduced: number;
     totalReceived: number;
+    /** Parcela liquidada e pendente somadas: producao bruta do dia. */
+    pendingReceived: number;
     commission: number;
+    /** Comissao retida sobre a parcela ainda nao liquidada. */
+    pendingCommission: number;
     repasse: number;
     discounts: number;
     advances: number;
@@ -249,6 +265,7 @@ export const buildBarberSummaries = (
 ): BarberSummary[] => {
     const byBarber = new Map<string, {
         totalReceived: number;
+        pendingTotal: number;
         openTotal: number;
         paidComandas: ComandaDetail[];
         openComandas: ComandaDetail[];
@@ -258,6 +275,7 @@ export const buildBarberSummaries = (
         if (!byBarber.has(staffId)) {
             byBarber.set(staffId, {
                 totalReceived: 0,
+                pendingTotal: 0,
                 openTotal: 0,
                 paidComandas: [],
                 openComandas: [],
@@ -280,6 +298,7 @@ export const buildBarberSummaries = (
                 const staffId = item.staffId || cmd.staffId || 'sem-profissional';
                 const data = getOrCreate(staffId);
                 const itemValue = item.unitPrice * item.quantity;
+                const itemShare = cmd.total > 0 ? itemValue / cmd.total : 1;
 
                 const partialCmd: ComandaDetail = {
                     ...cmd,
@@ -293,7 +312,8 @@ export const buildBarberSummaries = (
                     data.openTotal += itemValue;
                     data.openComandas.push(partialCmd);
                 } else {
-                    data.totalReceived += itemValue;
+                    data.totalReceived += cmd.paidAmount !== undefined ? cmd.paidAmount * itemShare : itemValue;
+                    data.pendingTotal += cmd.pendingAmount !== undefined ? cmd.pendingAmount * itemShare : 0;
                     data.paidComandas.push(partialCmd);
                 }
             });
@@ -305,7 +325,8 @@ export const buildBarberSummaries = (
                 data.openTotal += cmd.total;
                 data.openComandas.push(cmd);
             } else {
-                data.totalReceived += cmd.total;
+                data.totalReceived += cmd.paidAmount !== undefined ? cmd.paidAmount : cmd.total;
+                data.pendingTotal += cmd.pendingAmount !== undefined ? cmd.pendingAmount : 0;
                 data.paidComandas.push(cmd);
             }
         }
@@ -319,6 +340,7 @@ export const buildBarberSummaries = (
             role: info?.role || '',
             commissionRate: info?.commissionRate ?? 40,
             totalReceived: data.totalReceived,
+            pendingTotal: data.pendingTotal,
             comandaCount: data.paidComandas.length,
             comandas: data.paidComandas,
             openComandaCount: data.openComandas.length,

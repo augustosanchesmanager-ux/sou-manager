@@ -209,3 +209,78 @@ describe('loadComandasWithDetails — discriminador type do item', () => {
     expect(result.comandaDetails[0].items[0].type).toBe('service');
   });
 });
+
+describe('loadComandasWithDetails — paidAmount / pendingAmount (ADR-018)', () => {
+  beforeEach(() => {
+    mockComandaList.mockReset();
+    mockItemListByComandaIds.mockReset();
+  });
+
+  it('should_assume_full_payment_when_legacy_comanda_paid_without_payment_rows', async () => {
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'paid', total: 100 })]);
+    mockItemListByComandaIds.mockResolvedValue([makeItem({ unit_price: 100 })]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const cmd = result.comandaDetails[0];
+    expect(cmd.paidAmount).toBe(100);
+    expect(cmd.pendingAmount).toBe(0);
+  });
+
+  it('should_sum_only_settled_payments_when_partial_payment_rows_exist', async () => {
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'paid', total: 100 })]);
+    mockItemListByComandaIds.mockResolvedValue([makeItem({ unit_price: 100 })]);
+    const payments = [{ comanda_id: 'c1', amount: 60, payment_type: 'parcial', reversed_at: null }];
+
+    const result = await loadComandasWithDetails(
+      't1', 'start', 'end', staffMap, clientMap, serviceMap, payments,
+    );
+
+    const cmd = result.comandaDetails[0];
+    expect(cmd.paidAmount).toBe(60);
+    expect(cmd.pendingAmount).toBe(40);
+  });
+
+  it('should_ignore_reversed_payments_when_summing_paid_amount', async () => {
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'paid', total: 100 })]);
+    mockItemListByComandaIds.mockResolvedValue([makeItem({ unit_price: 100 })]);
+    const payments = [
+      { comanda_id: 'c1', amount: 60, payment_type: 'parcial', reversed_at: null },
+      { comanda_id: 'c1', amount: 100, payment_type: 'final', reversed_at: '2026-10-01T12:00:00Z' },
+    ];
+
+    const result = await loadComandasWithDetails(
+      't1', 'start', 'end', staffMap, clientMap, serviceMap, payments,
+    );
+
+    const cmd = result.comandaDetails[0];
+    // O pagamento estornado de 100 nao conta; resta 60 liquidados.
+    expect(cmd.paidAmount).toBe(60);
+    expect(cmd.pendingAmount).toBe(40);
+  });
+
+  it('should_treat_open_comanda_as_fully_pending', async () => {
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'open', total: 80 })]);
+    mockItemListByComandaIds.mockResolvedValue([makeItem({ unit_price: 80 })]);
+
+    const result = await loadComandasWithDetails('t1', 'start', 'end', staffMap, clientMap, serviceMap);
+
+    const cmd = result.comandaDetails[0];
+    expect(cmd.paidAmount).toBe(0);
+    expect(cmd.pendingAmount).toBe(80);
+  });
+
+  it('should_never_yield_negative_pending_when_payments_exceed_total', async () => {
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'paid', total: 50 })]);
+    mockItemListByComandaIds.mockResolvedValue([makeItem({ unit_price: 50 })]);
+    const payments = [{ comanda_id: 'c1', amount: 70, payment_type: 'final', reversed_at: null }];
+
+    const result = await loadComandasWithDetails(
+      't1', 'start', 'end', staffMap, clientMap, serviceMap, payments,
+    );
+
+    const cmd = result.comandaDetails[0];
+    expect(cmd.paidAmount).toBe(70);
+    expect(cmd.pendingAmount).toBe(0);
+  });
+});
