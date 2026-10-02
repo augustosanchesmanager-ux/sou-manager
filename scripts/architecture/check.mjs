@@ -47,8 +47,9 @@ const guards = [
     script: "guard-repository.mjs",
     baselineKey: "repositoryViolations",
     parse(output) {
-      // guard-repository.mjs:73 -> "Total: 227 violation(s). UI layers must use Repositories."
-      const m = /^[ \t]*Total:[ \t]*(\d+)[ \t]+violation\(s\)/m.exec(output);
+      // O guard emite summary-first: "Total: 227 violation(s). ..." pode estar
+      // no topo OU no rodapé. O flag `m` casa em qualquer linha.
+      const m = /Total:[ \t]*(\d+)[ \t]+violation\(s\)/.exec(output);
       if (!m) {
         throw new UnparsableGuardOutput(
           "esperado 'Total: <n> violation(s)' (guard-repository.mjs)",
@@ -140,7 +141,10 @@ for (const guard of guards) {
   let thrown = null;
 
   try {
-    stdout = execFileSync(process.execPath, [scriptPath], {
+    // --ci é repassado ao guard para que ele emita o total primeiro e trunque
+    // o dump detalhado: um guard que despeja centenas de linhas estoura o pipe
+    // do runner e o total nunca chega ao parser.
+    stdout = execFileSync(process.execPath, [scriptPath, ...(isCI ? ["--ci"] : [])], {
       encoding: "utf-8",
       cwd: ROOT,
       timeout: GUARD_TIMEOUT_MS,

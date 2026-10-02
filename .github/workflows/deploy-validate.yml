@@ -10,7 +10,7 @@ name: Deploy Validation
 # underscore) e o prefixo 'Production' cobre rotulo imprevisto; divergencia de
 # rotulo fica visivel no relatorio.
 #
-># As guardas sao o que impede falso positivo. O historico real do repo tem 14
+# As guardas sao o que impede falso positivo. O historico real do repo tem 14
 # environments distintos, incluindo 'Production – smg-estetica', 'Production –
 # sou-manager' e 'Production – soumama.ger'. Por isso:
 #   contains(..., 'smg-barber')  -> so dispara para o projeto deste repo;
@@ -24,18 +24,9 @@ jobs:
   validate-deployment:
     name: deploy validation
     runs-on: ubuntu-latest
-    if: >-
-      github.event.deployment_status.state == 'success' &&
-      contains(github.event.deployment.environment, 'smg-barber') &&
-      !contains(github.event.deployment.environment, 'staging') &&
-      (
-        github.event.deployment.environment == 'Production – smg-barber' ||
-        github.event.deployment.environment == 'Production - smg-barber' ||
-        github.event.deployment.environment == 'Production smg-barber' ||
-        github.event.deployment.environment == 'Production/smg-barber' ||
-        github.event.deployment.environment == 'Production_smg-barber' ||
-        startsWith(github.event.deployment.environment, 'Production')
-      )
+    # Interpolacao formal ${{ }}: o runner avalia o bloco como uma unica
+    # expressao. O event_name evita avaliacao espuria em push/PR.
+    if: ${{ github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && contains(github.event.deployment.environment, 'smg-barber') && !contains(github.event.deployment.environment, 'staging') && (github.event.deployment.environment == 'Production – smg-barber' || github.event.deployment.environment == 'Production - smg-barber' || startsWith(github.event.deployment.environment, 'Production')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

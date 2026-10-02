@@ -38,6 +38,12 @@ function getAllFiles(dir, files = []) {
   return files;
 }
 
+// Em CI o log do runner e limitado (pipe de 64 KB): emitir hundreds de linhas
+// detalhadas faz o processo tomar EPIPE antes de terminar. O total vem primeiro
+// e o dump e truncado, para o runner sempre ler a contagem.
+const CI_MODE = process.argv.includes("--ci");
+const CI_MAX_DETAIL = 20;
+
 const files = getAllFiles(ROOT);
 const violations = [];
 
@@ -64,14 +70,23 @@ for (const file of files) {
 }
 
 if (violations.length > 0) {
-  console.error("\n❌ Repository Guard: .from() calls found in UI layers\n");
-  for (const v of violations) {
-    console.error(`  ${v.file}:${v.line}`);
-    console.error(`    ${v.content}\n`);
-  }
+  // Summary-first: o total vai PRIMEIRO para que o parser do runner o encontre
+  // mesmo se o dump detalhado for truncado por limite de log do CI.
   console.error(
     `Total: ${violations.length} violation(s). UI layers must use Repositories.\n`
   );
+  console.error("❌ Repository Guard: .from() calls found in UI layers\n");
+
+  const shown = CI_MODE ? violations.slice(0, CI_MAX_DETAIL) : violations;
+  for (const v of shown) {
+    console.error(`  ${v.file}:${v.line}`);
+    console.error(`    ${v.content}\n`);
+  }
+  if (shown.length < violations.length) {
+    console.error(
+      `... and ${violations.length - shown.length} more violations omitted in CI log\n`
+    );
+  }
   process.exit(1);
 } else {
   console.log("✅ Repository Guard: No .from() in UI layers");
