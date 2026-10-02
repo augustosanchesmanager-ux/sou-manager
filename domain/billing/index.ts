@@ -6,6 +6,7 @@
  */
 
 export * from './types';
+export * from './contracts';
 export * from './featureKey';
 export * from './planCatalog';
 export * from './featureFlagService';

@@ -47,12 +47,12 @@ import type {
 } from '../domain/events/types';
 import { processSubscription } from '../domain/billing/billingEngine';
 import { PAID_PLANS, type BillingSubscription, type BillingCycleReport } from '../domain/billing/types';
-import {
-  supabaseBillingRepository,
-  type BillingRepository,
-  type Invoice,
-  type RecordAttemptInput,
-} from '../domain/billing/repository';
+import { supabaseBillingRepository } from '../domain/billing/supabaseBillingRepository';
+import type {
+  BillingRepository,
+  Invoice,
+  RecordAttemptInput,
+} from '../domain/billing/contracts';
 
 // ─── Service ─────────────────────────────────────────────────────
 
