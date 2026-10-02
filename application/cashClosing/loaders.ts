@@ -274,16 +274,13 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
 
     const [reversals, payments] = await Promise.all([
         loadReversals(tenantId, transactions.map(t => t.id).filter(Boolean)),
-        // Base liquidada para o repasse: pagamentos ADR-018 nao estornados.
+        // Fail-closed: sem a base liquidada real nao se pode calcular repasse.
+        // Deixar a leitura falhar silenciosamente cairia no fallback legado e
+        // comissionaria fiado como integral.
         comandaPaymentRepository.getPaymentsByComandaIds(
             comandaResult.comandaDetails.map(c => c.comandaId),
             tenantId,
-        ).catch(err => {
-            // Falha de leitura nao pode quebrar o fechamento: sem pagamentos a
-            // agregacao cai no fallback legado (comanda 'paid' = integral).
-            console.warn('[SMG][CASH_CLOSING] Erro ao carregar pagamentos de comanda:', err);
-            return [] as ComandaPaymentRow[];
-        }),
+        ),
     ]);
 
     // Reprocessa os detalhes com a base liquidada real.
