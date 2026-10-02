@@ -19,6 +19,7 @@ import {
     type SangriaSuprimento,
     type CashClosingEntryExtended,
     type ComandaDetail,
+    type ComandaItemDetail,
     type BarberSummary,
     type AgendaSummary,
     type TimelineEvent,
@@ -267,10 +268,17 @@ export function computeDaySummary(params: {
             status: cmd.status,
         }));
 
+        const isProductItem = (i: ComandaItemDetail): boolean => {
+            const raw = i as ComandaItemDetail & { type?: string; item_type?: string; isProduct?: boolean };
+            if (raw.type === 'product' || raw.item_type === 'product' || raw.isProduct === true) return true;
+            if (raw.type === 'service' || raw.item_type === 'service' || raw.isProduct === false) return false;
+            return i.serviceName.includes('Produto');
+        };
+
         const productsSold = barberComandas.flatMap(cmd =>
             cmd.items
-                .filter((i: any) => i.serviceName.includes('Produto'))
-                .map((i: any) => ({
+                .filter(isProductItem)
+                .map((i) => ({
                     name: i.serviceName,
                     quantity: i.quantity,
                     value: i.unitPrice * i.quantity,
@@ -278,8 +286,13 @@ export function computeDaySummary(params: {
         );
 
         const commissionRate = barber.commissionRate;
-        const commissionServices = barber.totalReceived * commissionRate;
-        const commissionProducts = productsSold.reduce((s, p) => s + p.value, 0) * commissionRate;
+        const productsSoldTotal = productsSold.reduce((s, p) => s + p.value, 0);
+        // totalReceived já inclui o valor dos produtos. Sem esta subtração, a
+        // comissão de serviços e a de produtos somariam a mesma base e o
+        // profissional receberia duas vezes pelo balcão.
+        const servicesReceived = Math.max(0, barber.totalReceived - productsSoldTotal);
+        const commissionServices = servicesReceived * commissionRate;
+        const commissionProducts = productsSoldTotal * commissionRate;
 
         const barberTimeline: TimelineEvent[] = [];
         if (barberComandas.length > 0) {
