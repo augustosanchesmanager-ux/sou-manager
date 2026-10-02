@@ -144,3 +144,35 @@ Matriz completa: `docs/audit/P_AUTO_AUDIT_READONLY_20260924.md` §6*; diagnósti
 - Nenhuma mutação remota antes da validação do ISOLATE pelo PO; toggle apenas após STOP #3.
 - Escopo estrito ao manifest do plano (`docs/audit/P_AUTO_STAGED_CHANGE_PLAN_20260927.md`).
 - Nunca misturar: este change-control · guardrail do `deploy-production.yml` · correção/aposentadoria do `deploy-validate.yml` · branch `production`.
+
+---
+
+## Amendment-02: Reconciliação do Auto-Deploy Vercel com Gates Pós-Deploy e Governança de Produção
+
+- **Status:** Aprovado / Homologado pelo PO
+- **Data:** 2026-10-02
+- **Autor / Decisor:** Augusto Barbosa (PO / Lead Architect)
+- **Documento Base:** ADR-026 (Merge ≠ Deploy Prod Gate)
+- **Contexto Operacional:** PRs #107, #109, #110 e #113 (Estabilização da esteira de validação)
+
+### 1. Contexto & Fato Operacional (A Divergência Fática)
+
+O postulado central do ADR-026 estabelecia que o merge na branch main não deveria publicar automaticamente para produção sem o acionamento manual do Gate C+D.
+A realidade da infraestrutura Vercel GitHub Integration ativa no projeto smg-barber impõe que merges em main acionam a esteira de publicação imediatamente.
+Com a correção dos workflows nos PRs #107, #109 e #110, o workflow deploy-validate.yml assumiu o papel de gate reativo de validação pós-deploy, checando a disponibilidade do domínio canônico (barber.soumanager.com) e o health check HTTP 200.
+
+### 2. Decisão Arquitetural: Modelo Operacional Híbrido
+
+1. Reconhecimento da main como Gatilho de Produção: Todo merge em main é tratado com rigor máximo de qualidade pré-merge, pois gera artefato público em minutos.
+2. Reposicionamento do deploy-validate.yml como Gate Pós-Deploy Obrigatório: O workflow valida reativamente o domínio canônico barber.soumanager.com e o health check 200/307/308, abortando com erro em 401/403.
+3. Invariante de Blindagem de Dados: Fica expressamente vedado rodar seeds sintéticos ou testes com escrita via SERVICE_ROLE contra o banco de produção durante a validação pós-deploy. O Step 8 permanece desativado via if: false até a existência de ambiente de staging dedicado.
+
+### 3. Matriz de Tratamento de Incidentes & Rollback
+
+- Falha no Health Check (HTTP ≠ 200): Executar Instant Rollback no painel da Vercel para o deployment anterior íntegro e abrir PR de git revert na main.
+- Timeout no Step 6 (Wait): Verificar status de serviço da Vercel e inspecionar logs de build.
+- Bloqueio 401/403: Desativar proteção acidental de SSO no domínio público de produção.
+
+### 4. Roadmap de Transição (Fase 2)
+
+A transição para um modelo puramente manual de promoção dependerá da configuração de Git Ignored Build Step na Vercel e provisionamento de infraestrutura espelhada para staging.
