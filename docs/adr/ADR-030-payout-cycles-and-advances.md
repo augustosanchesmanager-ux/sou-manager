@@ -79,9 +79,39 @@ Ambas as parcelas **já estão contidas** em `Σ(Comissões Liquidadas no Perío
 
 ### 4. Ciclo de Vida dos Vales (`barber_advances`)
 
-* Todo vale é registrado com vínculo ao profissional (`professional_id`), valor e operador responsável (`created_by`).
-* O lançamento do vale cria uma linha em `public.transactions` com tipo/categoria `advance`, garantindo conciliação física da gaveta no dia da ocorrência — o dinheiro sai do caixa quando o vale é dado, não quando o acerto é fechado.
+* Todo vale é registrado com vínculo ao profissional (`staff_id`), valor e operador responsável (`created_by` — `profiles.id`, pois o operador é sempre um usuário autenticado).
 * Status inicial `pending`. Ao aprovar uma liquidação, os vales selecionados transitam para `deducted` vinculados ao `settlement_id`.
+
+### 4.1 Contrato de Espelhamento Contábil no Caixa (`public.transactions`)
+
+O vale é uma saída física de dinheiro: a gaveta ou a conta bancária sofre o desembolso **no dia da concessão**, não no acerto. Por isso cada vale gera, na mesma transação, um espelho em `public.transactions`.
+
+**Contrato canônico — campos e valores obrigatórios:**
+
+| Campo em `transactions` | Valor | Razão |
+|---|---|---|
+| `type` | `'expense'` | Saída de caixa |
+| `category` | `'vale_comissao'` | **Chave técnica estável**, não texto humano. Garante agregação determinística: `WHERE category = 'vale_comissao' AND tenant_id = ...` |
+| `date` | **Data de competência do caixa** (o dia do expediente em que o desembolso saiu) | É a coluna que o fechamento de caixa concilia. `created_at` é timestamp de gravação e não substitui `date` |
+| `amount` | Valor do vale, positivo | |
+| `description` | `"Vale / Adiantamento - [Nome do Barbeiro]"` | Texto livre, apenas humano |
+| `source_type` | `'barber_advance'` | Âncora da conciliação bidirecional |
+| `source_id` | `barber_advances.id` | Idem |
+| `tenant_id` | `advance.tenant_id` — **obrigatório, nunca nulo** | Ver Cláusula de Fail-Closed abaixo |
+
+**Conciliação bidirecional:**
+
+$$\text{barber\_advances.transaction\_id} \longleftrightarrow \text{transactions.(source\_type, source\_id)}$$
+
+A coluna `category` recebe **exclusivamente** a chave técnica. Rótulos legíveis nunca são gravados nesse campo — `transactions.category` é `TEXT` sem `CHECK` e recebe categorias arbitrárias de despesas operacionais (aluguel, produtos, manutenção); gravá-la com texto humano permitiria divergência de grafia que quebraria a agregação **sem gerar erro**. O índice `idx_transactions_tenant_source` já existente cobre a consulta de conciliação.
+
+**Cláusula de Fail-Closed do Espelhamento.** `public.transactions.tenant_id` é `UUID` **nullable e sem `REFERENCES`** — dívida histórica. Um espelho de vale com `tenant_id` nulo cairia no caixa sem escopo de tenant e **não apareceria em nenhum fechamento multi-tenant**, sem gerar erro. Portanto o lançamento **rejeita** a operação antes de escrever:
+
+```typescript
+if (!advance.tenant_id) {
+  throw new Error('Multi-tenant violation: tenant_id is mandatory for advance mirroring');
+}
+```
 
 ### 5. Periodicidade e Fim de Mês
 
@@ -98,14 +128,14 @@ Ambas as parcelas **já estão contidas** em `Σ(Comissões Liquidadas no Perío
 CREATE TABLE public.barber_payout_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id),
-    professional_id UUID NOT NULL REFERENCES public.profiles(id),
+    staff_id UUID NOT NULL REFERENCES public.staff(id),
     frequency TEXT NOT NULL CHECK (frequency IN ('daily', 'weekly', 'biweekly', 'monthly')),
     payout_weekday INTEGER CHECK (payout_weekday BETWEEN 1 AND 7),   -- ISO 8601: 1=Seg .. 7=Dom
     payout_month_day INTEGER CHECK (payout_month_day BETWEEN 1 AND 31),
     allow_advances BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_barber_payout_config UNIQUE (tenant_id, professional_id),
+    CONSTRAINT uq_barber_payout_config UNIQUE (tenant_id, staff_id),
     CONSTRAINT chk_weekday_only_weekly CHECK (
         frequency = 'daily' OR payout_weekday IS NULL OR frequency IN ('weekly', 'biweekly')
     ),
@@ -118,7 +148,7 @@ CREATE TABLE public.barber_payout_configs (
 CREATE TABLE public.barber_advances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id),
-    professional_id UUID NOT NULL REFERENCES public.profiles(id),
+    staff_id UUID NOT NULL REFERENCES public.staff(id),
     amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
     transaction_id UUID REFERENCES public.transactions(id),
     settlement_id UUID,
@@ -137,7 +167,7 @@ ALTER TABLE public.barber_advances
 CREATE TABLE public.barber_payout_settlements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id),
-    professional_id UUID NOT NULL REFERENCES public.profiles(id),
+    staff_id UUID NOT NULL REFERENCES public.staff(id),
     period_start DATE NOT NULL,
     period_end DATE NOT NULL,
     gross_commission NUMERIC(12, 2) NOT NULL CHECK (gross_commission >= 0),
@@ -149,14 +179,14 @@ CREATE TABLE public.barber_payout_settlements (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_period CHECK (period_end >= period_start),
     CONSTRAINT chk_settlement_window CHECK (period_end > period_start),
-    CONSTRAINT uq_barber_payout_period UNIQUE (tenant_id, professional_id, period_start, period_end),
+    CONSTRAINT uq_barber_payout_period UNIQUE (tenant_id, staff_id, period_start, period_end),
     CONSTRAINT chk_paid_has_timestamp CHECK (status <> 'paid' OR paid_at IS NOT NULL)
 );
 
 -- 4. Idempotência de pagamento: um acerto 'paid' por profissional/ciclo.
 --    Reemitir exige estornar antes.
 CREATE UNIQUE INDEX uq_settlement_paid_period
-    ON public.barber_payout_settlements (tenant_id, professional_id, period_start, period_end)
+    ON public.barber_payout_settlements (tenant_id, staff_id, period_start, period_end)
     WHERE status = 'paid';
 
 -- 5. RLS obrigatório nas três tabelas, via helpers canônicos do projeto
@@ -174,6 +204,15 @@ ALTER TABLE public.barber_payout_settlements ENABLE ROW LEVEL SECURITY;
 3. **Compatibilidade:** o fechamento de caixa diário (`CashClosingPage.tsx`) permanece inalterado em suas regras, fornecendo dados analíticos para as liquidações periódicas.
 4. **Atomicidade:** a aprovação de uma liquidação e a transição dos vales para `deducted` ocorrem na mesma transação. Nunca existe `settlement.status = 'approved'` com vales `pending` já incluídos em `advances_deducted`.
 5. **Imutabilidade do apurado:** uma liquidação `paid` é imutável. Correções exigem estorno (`cancelled`) e nova emissão.
+6. **Identidade canônica:** toda referência a profissional usa `staff.id`, **nunca** `profiles.id`. As Fases A/B/C de comissionamento operam sobre `comandas.staff_id` → `staff.id`; `profiles.id` é identidade de *login* (`auth.users`), distinta e sem vínculo direto com `staff`. Usar `profiles.id` no settlement impediria o cruzamento com as comissões apuradas.
+7. **Defesa em profundidade para `staff` (cláusula obrigatória):** a tabela legada `public.staff` tem RLS habilitada, mas com políticas **permissivas** — `USING (true)` em `SELECT` e `WITH CHECK (true)` nas escritas (`supabase/migrations/20260219183612_create_initial_schema.sql:73-76`). Ela **não isola tenant**. Portanto **nenhuma** consulta de validação, cálculo ou amarração com `staff_id` pode assumir isolamento vindo da RLS: o filtro de tenant é obrigatório e explícito.
+
+   ```sql
+   -- obrigatório: staff.id E staff.tenant_id
+   WHERE s.id = :staff_id AND s.tenant_id = :tenant_id
+   ```
+
+   Sem esse filtro, um `staff_id` conhecido de outro tenant resolve a linha e a liquidação apura comissão de profissional alheio. Esta é defense-in-depth: a correção definitiva das políticas de `staff` é dívida separada e **não** faz parte do escopo deste ADR.
 
 ---
 
