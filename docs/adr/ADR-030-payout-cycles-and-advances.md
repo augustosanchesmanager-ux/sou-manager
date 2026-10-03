@@ -68,14 +68,16 @@ Propriedades confirmadas:
 
 $$\text{Repasse Líquido} = \sum(\text{Comissões Liquidadas no Período}) - \sum(\text{Vales Pendentes do Profissional}) + \sum(\text{Bônus / Diárias})$$
 
-**Desdobramento analítico (apresentação, não cálculo).** Para transparência no extrato, a comissão do período pode ser decomposta por origem:
+**Desdobramento analítico: DEFERIDO, NÃO HABILITADO (Decisão C).**
 
-| Parcela | Critério de classificação |
-|---|---|
-| Comissão de atendimentos do ciclo | `comanda_payments.created_at` **e** `comandas.attended_at` (ou `created_at`) no mesmo ciclo |
-| Comissão de fiado anterior liquidado | `comanda_payments.created_at` no ciclo atual, mas `comandas.attended_at` < início do ciclo |
+O desdobramento por origem do atendimento ("comissões de atendimentos do ciclo" vs. "comissões de fiado anterior liquidado") está **deferred**. Motivo: exigiria ancorar a classificação em `comandas.attended_at`, **coluna que não existe** — `attended_at` foi implementado exclusivamente em `public.appointments` (`supabase/migrations/20260829000000_attended_at.sql:9-10`) e nunca foi espelhada em `comandas`. O ADR-020 D-1 já havia ressalvado essa decisão como pendente ("se necessário, espelhada em `comandas` — decidir no G1/schema design"), e o schema seguiu apenas com `appointments`.
 
-Ambas as parcelas **já estão contidas** em `Σ(Comissões Liquidadas no Período)`. O desdobramento é exclusivamentePRESENTacional — a soma das parcelas deve reconciliar exatamente com o total.
+Alternativas descartadas na decisão:
+
+* **Espelhar `attended_at` em `comandas`** — exigiria redesenhar RPCs de checkout, tratar comandas com múltiplos profissionais e criar migrations de dados complexas, fora do escopo deste ADR.
+* **Classificar via JOIN com `appointments`** — quebra em atendimentos de balcão (*walk-ins* sem agendamento prévio na grade) e introduz cardinalidade $N:N$ e heurística frágil.
+
+**Consequência:** a liquidação opera em **regime de caixa puro**. O repasse é apurado exclusivamente por `comanda_payments.created_at` dentro do intervalo do acerto, sem qualquer dependência de `attended_at`. O gestor visualiza o total consolidado; a transparente de "quando o serviço foi cortado" fica para ADR posterior que trate a questão na dimensionalidade correta.
 
 ### 4. Ciclo de Vida dos Vales (`barber_advances`)
 
@@ -113,7 +115,25 @@ if (!advance.tenant_id) {
 }
 ```
 
-### 5. Periodicidade e Fim de Mês
+### 5. Harmonização Canônica com o ADR-020 (Direito × Desembolso)
+
+Não há contradição entre o ADR-020 e este ADR. Eles governam **duas dimensões ortogonais** do mesmo fato econômico:
+
+| Dimensão | ADR que governa | Ancoragem | Pergunta que responde |
+|---|---|---|---|
+| **Fato gerador / Elegibilidade** | ADR-020 | `public.appointments.attended_at` | O barbeiro **tem direito** a essa comissão? |
+| **Gatilho de desembolso / Liquidação** | ADR-030 (este) | `public.comanda_payments.created_at` | **Quando** o caixa permite pagar? |
+
+O ADR-020 **provisiona o direito** (o serviço foi comprovadamente prestado — evita comissão sobre agendamento cancelado ou fantasma). O ADR-030 **dispara o desembolso** (a barbearia não transfere dinheiro que não recebeu).
+
+**Cenário de referência — atendimento em 28/09, fiado pago em 05/10:**
+
+1. Pelo **ADR-020**: o fato gerador existiu em 28/09. A comissão é legítima e foi atribuída ao colaborador; nas Fases A/B/C ela permanece registrada como `pendingCommission`.
+2. Pelo **ADR-030**: o dinheiro só entrou no caixa em 05/10. O repasse é liquidado no ciclo do pagamento.
+
+**Prevalência canônica:** o ADR-020 governa **a legitimidade do crédito** (quem trabalhou); o ADR-030 governa **a data do desembolso financeiro** (quando o caixa permite pagar). São cumulativos, não concorrentes — um não substitui o outro.
+
+### 6. Periodicidade e Fim de Mês
 
 * `payout_frequency` ∈ `daily` | `weekly` | `biweekly` | `monthly`.
 * `payout_weekday` segue **ISO 8601** (`1` = Segunda … `7` = Domingo), alinhado a `EXTRACT(ISODOW FROM ...)` no PostgreSQL e `date-fns/getISODay()` no frontend. O acerto padrão da operação é `2` (terça-feira).
@@ -227,14 +247,16 @@ ALTER TABLE public.barber_payout_settlements ENABLE ROW LEVEL SECURITY;
 **Riscos / custos**
 - Três tabelas novas + RLS +índice parcial → exige migration em ambiente controlado.
 - `Payroll.tsx` perde comportamento de demonstração (vales mockados); risco de quebra visual na rota.
-- Classificação do desdobramento analítico depende de `comandas.attended_at` ter preenchimento confiável — **verificar cobertura antes de habilitar o desdobramento**.
 - Períodos longos elevam o custo da agregação sobre `comanda_payments`; mitigável com `idx_comanda_payments_tenant (tenant_id, created_at DESC)`, já existente.
+- O extrato não decompõe a comissão por origem do atendimento (Decisão C). O gestor vê o total consolidado do ciclo, sem a separação "atendimentos do ciclo" vs. "fiado anterior liquidado".
 
 ---
 
 ## Pendências para Aceitação
 
-- [ ] Validar em produção se `comandas.attended_at` tem cobertura suficiente para o desdobramento analítico.
+- [ ] Executar o diagnóstico de volumetria de `comanda_payments` em produção (SQL Editor) — define se o balcão já persiste na ADR-018.
+- [ ] Executar o diagnóstico de inconsistência de `attended_at` em `public.appointments` (violações D-1) — não bloqueia este ADR, mas alimenta a qualidade do dado operacional.
 - [ ] Definir o comportamento quando o profissional é admitido no meio de um ciclo em aberto.
 - [ ] Definir política de arredondamento quando `gross_commission` é fracionário ao longo do período.
 - [ ] Definir se vale cancelado (`cancelled`) retorna valor ao caixa via `transactions` estorno, e em qual fluxo.
+- [ ] Definir o escopo de uma ADR futura para o desdobramento analítico por origem do atendimento, caso seja desejado.
