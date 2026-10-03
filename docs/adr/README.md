@@ -33,6 +33,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-025](./ADR-025-smg-pr-approve-bootstrap.md) | Proposed | Bootstrap do Mecanismo `smg-pr-approve` — Exceção Formal de Governança (R5.3-GOV-BOOTSTRAP, 2026-09-21) |
 | [ADR-026](./ADR-026-merge-not-equal-deploy-prod-gate.md) | Accepted (Amendment-01, Amendment-02) | `MERGE ≠ DEPLOY PROD` — Gate C+D (2026-09-24; Amd-01 2026-09-27; Amd-02 CD híbrido Vercel 2026-10-02) |
 | [ADR-027](./ADR-027-billing-contracts-type-segregation.md) | Accepted | Segregação de Contratos de Billing e Desacoplamento de Tipos de Tenant (ADR-027, 2026-10-02) |
+| [ADR-030](./ADR-030-payout-cycles-and-advances.md) | Proposed | Ciclos de Repasse, Gestão de Vales e Refatoração de Folha — SMG-PAYOUT-SCHEDULES (2026-10-03) |
 
 ---
 
