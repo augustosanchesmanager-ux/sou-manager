@@ -79,10 +79,9 @@ const DailyAudit: React.FC<DailyAuditProps> = ({ audit, loading }) => {
                     />
                     <AuditItem
                         icon={<AlertCircle size={14} />}
-                        label="Pagamentos Pendentes"
-                        value={audit.pendingPayments}
-                        sublabel={audit.pendingPaymentsTotal > 0 ? formatCurrency(audit.pendingPaymentsTotal) : undefined}
-                        tone={audit.pendingPayments > 0 ? 'warning' : 'default'}
+                        label="Fiado / A Receber"
+                        value={formatCurrency(audit.fiadoTotal)}
+                        tone={audit.fiadoTotal > 0 ? 'warning' : 'default'}
                     />
                 </div>
                 <div>

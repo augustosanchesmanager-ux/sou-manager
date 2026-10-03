@@ -38,6 +38,9 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
 
     const countedValue = parseFloat(countedCash) || 0;
     const cashDifference = countedValue - barber.conference.expectedCash;
+    const pendingReceived = barber.pendingReceived ?? 0;
+    const pendingCommission = barber.pendingCommission ?? 0;
+    const openTotal = barber.openTotal ?? 0;
 
     const tabs = [
         { id: 'financial' as const, label: 'Financeiro', icon: <Scissors size={12} /> },
@@ -69,23 +72,85 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
             {/* Financial Tab */}
             {activeTab === 'financial' && (
                 <div className="space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {[
-                            { label: 'Produzido', value: barber.totalProduced, tone: 'default' },
-                            { label: 'Recebido', value: barber.totalReceived, tone: 'default' },
-                            { label: 'Comissao', value: barber.commission, tone: 'accent' },
-                            { label: 'Repasse', value: barber.repasse, tone: 'default' },
+                            { label: 'Produção Bruta', value: barber.totalProduced, tone: 'neutral' as const },
+                            {
+                                label: 'Fiado (A Receber)',
+                                value: pendingReceived,
+                                tone: pendingReceived > 0 ? ('warning' as const) : ('neutral' as const),
+                            },
+                            { label: 'Base Liquidada', value: barber.totalReceived, tone: 'neutral' as const },
+                            { label: 'Comissão Apurada Hoje', value: barber.commission, tone: 'success' as const },
+                            {
+                                label: 'Comissão Retida',
+                                value: pendingCommission,
+                                tone: pendingCommission > 0 ? ('warning' as const) : ('neutral' as const),
+                            },
                         ].map(item => (
-                            <div key={item.label} className="rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark p-2.5">
-                                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">{item.label}</p>
-                                <p className={`mt-0.5 text-sm font-extrabold ${
-                                    item.tone === 'accent' ? 'text-primary' : 'text-slate-900 dark:text-white'
-                                }`}>
+                            <div
+                                key={item.label}
+                                className={`rounded-lg border p-2.5 ${
+                                    item.tone === 'warning'
+                                        ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20'
+                                        : item.tone === 'success'
+                                          ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                                          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-border-dark'
+                                }`}
+                            >
+                                <p
+                                    className={`text-[9px] font-black uppercase tracking-[0.14em] ${
+                                        item.tone === 'warning'
+                                            ? 'text-amber-600 dark:text-amber-400'
+                                            : item.tone === 'success'
+                                              ? 'text-emerald-700 dark:text-emerald-400'
+                                              : 'text-slate-500 dark:text-slate-400'
+                                    }`}
+                                >
+                                    {item.label}
+                                </p>
+                                <p
+                                    className={`mt-0.5 text-sm font-extrabold ${
+                                        item.tone === 'warning'
+                                            ? 'text-amber-700 dark:text-amber-300'
+                                            : item.tone === 'success'
+                                              ? 'text-emerald-700 dark:text-emerald-400'
+                                              : 'text-slate-900 dark:text-white'
+                                    }`}
+                                >
                                     {formatCurrency(item.value)}
                                 </p>
                             </div>
                         ))}
                     </div>
+
+                    {pendingReceived > 0 && (
+                        <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-400">
+                            Valores a prazo (fiado) não geram repasse imediato. A comissão retida será
+                            liberada automaticamente na liquidação das comandas.
+                        </p>
+                    )}
+
+                    {openTotal > 0 && (
+                        <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            Valor em comandos ainda abertos:{' '}
+                            <span className="font-extrabold text-slate-700 dark:text-slate-300">
+                                {formatCurrency(openTotal)}
+                            </span>
+                            . Não entra na produção apurada.
+                        </p>
+                    )}
+
+                    {barber.repasse !== undefined && (
+                        <div className="flex items-baseline justify-between rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-border-dark px-3 py-2">
+                            <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                Repasse apurado
+                            </span>
+                            <span className="text-sm font-extrabold text-primary">
+                                {formatCurrency(barber.repasse)}
+                            </span>
+                        </div>
+                    )}
 
                     {barber.discounts > 0 && (
                         <div className="grid grid-cols-2 gap-2">

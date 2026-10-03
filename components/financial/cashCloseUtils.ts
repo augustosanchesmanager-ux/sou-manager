@@ -123,6 +123,7 @@ export interface DailyAuditData {
     reversedComandas: number;
     pendingPayments: number;
     pendingPaymentsTotal: number;
+    fiadoTotal: number;
     reaberturas: number;
     manualReceivables: number;
     manualExpenses: number;
@@ -258,6 +259,27 @@ export const buildPaymentMethodRows = (
         expected: incomeByMethod[method] || 0,
     }));
 };
+
+export interface BarberSettlementPdfInput {
+    totalProduced: number;
+    totalReceived: number;
+    pendingReceived: number;
+    pendingCommission: number;
+    commission: number;
+}
+
+export const BARBER_SETTLEMENT_FOOTNOTE =
+    'Valor apurado e creditado no saldo do profissional. O pagamento efetivo segue o ciclo de repasse cadastrado (diario, semanal, quinzenal ou mensal).';
+
+export const buildBarberSettlementLines = (barber: BarberSettlementPdfInput): string[] => [
+    'APURACAO DO DIA',
+    `Producao Bruta: ${formatCurrency(barber.totalProduced)}`,
+    `(-) Fiado / Valores a Receber: ${formatCurrency(barber.pendingReceived)}`,
+    `(=) Base Efetiva de Liquidacao: ${formatCurrency(barber.totalReceived)}`,
+    `Total de Comissao Apurada no Dia: ${formatCurrency(barber.commission)}`,
+    `Comissao Retida (Fiado a Receber): ${formatCurrency(barber.pendingCommission)}`,
+    `Comissao Liquida Apurada Hoje: ${formatCurrency(barber.commission)}`,
+];
 
 export const buildBarberSummaries = (
     comandas: ComandaDetail[],

@@ -27,6 +27,8 @@ import {
     generateCSVContent,
     downloadCSV,
     generatePreviewText,
+    buildBarberSettlementLines,
+    BARBER_SETTLEMENT_FOOTNOTE,
 } from '../components/financial/cashCloseUtils';
 import { escapeHtml } from '../shared/strings';
 import { useAuth } from '../context/AuthContext';
@@ -283,7 +285,7 @@ const CashClosingPage: React.FC = () => {
         }
     }, [closing.handleCloseCash]);
 
-    const handleExportBarberPDF = useCallback((barber: { staffName: string; totalProduced: number; commission: number; clientsServed: { clientName: string; serviceName: string; value: number }[] }) => {
+    const handleExportBarberPDF = useCallback((barber: { staffName: string; totalProduced: number; totalReceived: number; pendingReceived: number; pendingCommission: number; commission: number; clientsServed: { clientName: string; serviceName: string; value: number }[] }) => {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 14;
@@ -301,9 +303,25 @@ const CashClosingPage: React.FC = () => {
         addText(`FECHAMENTO - ${barber.staffName}`, { fontSize: 12, fontStyle: 'bold', align: 'center' });
         y += 2;
         addText(`Data: ${formattedFilterDate}`);
-        addText(`Producao: ${formatCurrency(barber.totalProduced)}`);
-        addText(`Comissao: ${formatCurrency(barber.commission)}`);
-        y += 4;
+        y += 2;
+        buildBarberSettlementLines(barber).forEach(line => {
+            const isHeader = line === 'APURACAO DO DIA';
+            const isTotal = line.startsWith('Comissao Liquida');
+            addText(line, {
+                fontSize: isHeader ? 9 : 10,
+                fontStyle: isHeader || isTotal ? 'bold' : 'normal',
+            });
+        });
+        y += 2;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.text(
+            doc.splitTextToSize(BARBER_SETTLEMENT_FOOTNOTE, pageWidth - 2 * margin),
+            margin,
+            y,
+        );
+        y += 10;
 
         if (barber.clientsServed.length > 0) {
             doc.setFontSize(10);
@@ -394,8 +412,14 @@ const CashClosingPage: React.FC = () => {
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="size-5 text-rose-600 dark:text-rose-300 shrink-0" />
                         <div>
-                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Erro ao carregar.</p>
-                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{closing.loadError}</p>
+                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">
+                                Não foi possível consolidar o fechamento de caixa
+                            </p>
+                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">
+                                Ocorreu uma falha ao carregar os registros financeiros. Para
+                                a sua segurança e integridade dos repasses aos profissionais, os
+                                cálculos foram temporariamente suspensos.
+                            </p>
                         </div>
                     </div>
                     <button

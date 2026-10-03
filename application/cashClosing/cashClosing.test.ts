@@ -126,6 +126,7 @@ const makeAudit = (overrides: Partial<DailyAuditData> = {}): DailyAuditData => (
   reversedComandas: 0,
   pendingPayments: 0,
   pendingPaymentsTotal: 0,
+  fiadoTotal: 0,
   reaberturas: 0,
   manualReceivables: 0,
   manualExpenses: 0,
