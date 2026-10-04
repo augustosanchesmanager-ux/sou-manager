@@ -21,6 +21,10 @@
 
 import { roundCents, sumCents } from '../../domain/payout/money';
 import { consumeAdvancesFifo } from '../../domain/payout/advanceDeduction';
+import {
+    assertTransition,
+    requiresUnlink,
+} from '../../domain/payout/settlementStateMachine';
 import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import type {
     BarberAdvance,
@@ -144,6 +148,92 @@ export class PayoutService {
 
     async listPendingAdvances(tenantId: string, staffId: string): Promise<BarberAdvance[]> {
         return this.repository.listPendingAdvances(tenantId, staffId);
+    }
+
+    // ── FSM de liquidação ────────────────────────────────────────────
+
+    /**
+     * draft → approved. Trava os valores para conferência do gestor.
+     */
+    async approveSettlement(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement> {
+        const current = await this.requireSettlement(tenantId, settlementId);
+        assertTransition(current.status, 'approve');
+        return this.repository.updateSettlementStatus(tenantId, settlementId, 'approved');
+    }
+
+    /**
+     * approved (ou draft) → paid. `paymentMethod` é obrigatório e
+     * `paidAt` é carimbado aqui; o banco reforça via `chk_paid_has_timestamp`.
+     *
+     * Concorrência: `uq_settlement_paid_period` é índice parcial único sobre
+     * `status = 'paid'`, então um segundo pagamento do mesmo período falha
+     * no banco, não aqui.
+     */
+    async markSettlementAsPaid(
+        tenantId: string,
+        settlementId: string,
+        payload: { paymentMethod: string; paidAt?: string },
+    ): Promise<BarberPayoutSettlement> {
+        if (!payload.paymentMethod || payload.paymentMethod.trim() === '') {
+            throw new Error('Metodo de pagamento obrigatorio para liquidar acerto');
+        }
+
+        const current = await this.requireSettlement(tenantId, settlementId);
+        assertTransition(current.status, 'markAsPaid');
+
+        return this.repository.updateSettlementStatus(tenantId, settlementId, 'paid', {
+            paidAt: payload.paidAt ?? new Date().toISOString(),
+            paymentMethod: payload.paymentMethod.trim(),
+        });
+    }
+
+    /**
+     * draft | approved → cancelled, com desvinculação dos vales consumidos.
+     *
+     * `paid` é terminal e não chega aqui: `assertTransition` recusa, e a RPC
+     * `unlink_advances_from_settlement` recusa de novo — defesa em
+     * profundidade para uma chamada direta a SQL.
+     */
+    async cancelSettlement(
+        tenantId: string,
+        settlementId: string,
+        reason: string,
+    ): Promise<{ settlement: BarberPayoutSettlement; unlinkedAdvances: number }> {
+        if (!reason || reason.trim() === '') {
+            throw new Error('Motivo obrigatorio para cancelar liquidacao');
+        }
+
+        const current = await this.requireSettlement(tenantId, settlementId);
+        assertTransition(current.status, 'cancel');
+
+        let unlinkedAdvances = 0;
+        if (requiresUnlink(current.status, 'cancel')) {
+            const result = await this.repository.unlinkAdvancesFromSettlement(
+                tenantId,
+                settlementId,
+                reason.trim(),
+            );
+            unlinkedAdvances = result.unlinkedAdvances;
+        }
+
+        const settlement = await this.repository.updateSettlementStatus(
+            tenantId,
+            settlementId,
+            'cancelled',
+        );
+
+        return { settlement, unlinkedAdvances };
+    }
+
+    private async requireSettlement(
+        tenantId: string,
+        settlementId: string,
+    ): Promise<BarberPayoutSettlement> {
+        const found = await this.repository.getSettlementById(tenantId, settlementId);
+        if (!found) {
+            throw new Error(`Liquidacao ${settlementId} nao encontrada para este tenant`);
+        }
+        return found;
     }
 }
 

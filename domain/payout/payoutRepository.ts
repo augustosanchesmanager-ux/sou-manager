@@ -317,6 +317,70 @@ export class PayoutRepository {
         return rows.map(mapSettlement);
     }
 
+    async getSettlementById(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement | null> {
+        const result = await this.db.from('barber_payout_settlements')
+            .select(SETTLEMENT_COLUMNS)
+            .eq('tenant_id', tenantId)
+            .eq('id', settlementId)
+            .maybeSingle();
+
+        if (result.error) this.fail(result.error, 'getSettlementById');
+        if (!result.data) return null;
+        return mapSettlement(result.data as SettlementRow);
+    }
+
+    /**
+     * Transição de status. Autorizada pela policy `barber_payout_settlements_write`
+     * (FOR ALL, gestor do tenant) — por isso não há RPC para approve/pay.
+     *
+     * As regras da FSM são validadas na camada de domínio
+     * (`settlementStateMachine`) antes de chegar aqui. `paid_at` é carimbado
+     * por este UPDATE; o banco exige via `chk_paid_has_timestamp`.
+     */
+    async updateSettlementStatus(
+        tenantId: string,
+        settlementId: string,
+        status: BarberPayoutSettlement['status'],
+        extra: { paidAt?: string | null; paymentMethod?: string | null } = {},
+    ): Promise<BarberPayoutSettlement> {
+        const payload: Record<string, unknown> = { status };
+        if (extra.paidAt !== undefined) payload.paid_at = extra.paidAt;
+        if (extra.paymentMethod !== undefined) payload.payment_method = extra.paymentMethod;
+
+        const result = await this.db.from('barber_payout_settlements')
+            .update(payload)
+            .eq('id', settlementId)
+            .eq('tenant_id', tenantId)
+            .select(SETTLEMENT_COLUMNS)
+            .single();
+
+        return mapSettlement(this.data(result, 'updateSettlementStatus') as SettlementRow);
+    }
+
+    /**
+     * Delegado à RPC `unlink_advances_from_settlement`, que recusa acerto
+     * `paid`. O UPDATE direto é impossível: `barber_advances` não tem policy
+     * de UPDATE (append-only).
+     */
+    async unlinkAdvancesFromSettlement(
+        tenantId: string,
+        settlementId: string,
+        motivo: string,
+    ): Promise<{ unlinkedAdvances: number; message: string }> {
+        const { data, error } = await this.db.rpc('unlink_advances_from_settlement', {
+            p_tenant_id: tenantId,
+            p_settlement_id: settlementId,
+            p_motivo: motivo,
+        });
+
+        if (error) this.fail(error, 'unlinkAdvancesFromSettlement');
+        const payload = (data ?? {}) as { unlinked_advances?: number; message?: string };
+        return {
+            unlinkedAdvances: payload.unlinked_advances ?? 0,
+            message: payload.message ?? '',
+        };
+    }
+
     // ── Base liquidada (regime de caixa) ─────────────────────────────
 
     /**
