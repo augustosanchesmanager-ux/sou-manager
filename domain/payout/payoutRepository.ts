@@ -25,6 +25,7 @@ import type {
     BarberAdvance,
     BarberPayoutConfig,
     BarberPayoutSettlement,
+    CancelSettlementResult,
     CreateSettlementDraftInput,
     PayoutFrequency,
 } from './types';
@@ -69,6 +70,7 @@ interface SettlementRow {
     status: BarberPayoutSettlement['status'];
     paid_at: string | null;
     payment_method: string | null;
+    cancel_reason: string | null;
     created_at: string;
 }
 
@@ -79,7 +81,7 @@ const ADVANCE_COLUMNS =
     'id, tenant_id, staff_id, amount, transaction_id, settlement_id, reversed_at, reversal_motivo, issued_at, notes, created_by, created_at';
 
 const SETTLEMENT_COLUMNS =
-    'id, tenant_id, staff_id, period_start, period_end, gross_commission, advances_deducted, bonuses_added, net_payout, status, paid_at, payment_method, created_at';
+    'id, tenant_id, staff_id, period_start, period_end, gross_commission, advances_deducted, bonuses_added, net_payout, status, paid_at, payment_method, cancel_reason, created_at';
 
 export interface ComandaPaymentPeriodRow {
     comanda_id: string;
@@ -358,25 +360,29 @@ export class PayoutRepository {
     }
 
     /**
-     * Delegado à RPC `unlink_advances_from_settlement`, que recusa acerto
-     * `paid`. O UPDATE direto é impossível: `barber_advances` não tem policy
-     * de UPDATE (append-only).
+     * Delegado à RPC `cancel_payout_settlement`, que executa desvinculação
+     * e mudança de status numa única transação. O UPDATE direto em
+     * `barber_advances` é impossível: não há policy de UPDATE (append-only).
+     * A RPC substituiu `unlink_advances_from_settlement`, removida para não
+     * deixar código morto com SECURITY DEFINER no schema.
      */
-    async unlinkAdvancesFromSettlement(
+    async cancelSettlement(
         tenantId: string,
         settlementId: string,
         motivo: string,
-    ): Promise<{ unlinkedAdvances: number; message: string }> {
-        const { data, error } = await this.db.rpc('unlink_advances_from_settlement', {
+    ): Promise<CancelSettlementResult> {
+        const { data, error } = await this.db.rpc('cancel_payout_settlement', {
             p_tenant_id: tenantId,
             p_settlement_id: settlementId,
             p_motivo: motivo,
         });
 
-        if (error) this.fail(error, 'unlinkAdvancesFromSettlement');
-        const payload = (data ?? {}) as { unlinked_advances?: number; message?: string };
+        if (error) this.fail(error, 'cancelSettlement');
+        const payload = (data ?? {}) as Partial<CancelSettlementResult>;
         return {
-            unlinkedAdvances: payload.unlinked_advances ?? 0,
+            success: payload.success ?? true,
+            unlinkedAdvances: payload.unlinkedAdvances ?? 0,
+            idempotent: payload.idempotent ?? false,
             message: payload.message ?? '',
         };
     }
@@ -441,6 +447,7 @@ function mapSettlement(row: SettlementRow): BarberPayoutSettlement {
         status: row.status,
         paidAt: row.paid_at,
         paymentMethod: row.payment_method,
+        cancelReason: row.cancel_reason,
         createdAt: row.created_at,
     };
 }
