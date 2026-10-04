@@ -10,10 +10,10 @@ export interface CheckoutSettlementInput {
   supabase: any;
   paymentMethod: string;
   paidAmount: number;
-paymentDateReal?: string;
-    source?: string;
-    notes?: string | null;
-    idempotencyKey?: string | null;
+  paymentDateReal?: string;
+  source?: string;
+  notes?: string | null;
+  idempotencyKey?: string | null;
     /**
      * ADR-018: quando true, a baixa também grava em `comanda_payments`,
      * tornando o regime de caixa verificável.
