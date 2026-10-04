@@ -272,4 +272,94 @@ describe('D7 — settleCheckoutComandaAndEnqueue', () => {
       }),
     );
   });
+
+  describe('ADR-018 — comanda_payments na baixa de comanda', () => {
+    it('sends p_record_comanda_payment true when requested', async () => {
+      mockRpc.mockResolvedValue({
+        data: { success: true, comanda_id: 'comanda-1', transaction_id: 'txn-1', status: 'paid' },
+        error: null,
+      });
+
+      await settleCheckoutComandaAndEnqueue({
+        ...baseInput,
+        outbox: baseOutbox,
+        recordComandaPayment: true,
+      });
+
+      expect(mockRpc).toHaveBeenCalledWith(
+        'finance_settle_comanda_and_enqueue',
+        expect.objectContaining({ p_record_comanda_payment: true }),
+      );
+    });
+
+    it('defaults to false when flag absent', async () => {
+      // Default false mantém baixa administrativa e liquidação de clube
+      // fora do payoutService: omitir o parâmetro não pode virar true.
+      mockRpc.mockResolvedValue({
+        data: { success: true, comanda_id: 'comanda-1', transaction_id: 'txn-1', status: 'paid' },
+        error: null,
+      });
+
+      await settleCheckoutComandaAndEnqueue({
+        ...baseInput,
+        outbox: baseOutbox,
+      });
+
+      expect(mockRpc).toHaveBeenCalledWith(
+        'finance_settle_comanda_and_enqueue',
+        expect.objectContaining({ p_record_comanda_payment: false }),
+      );
+    });
+
+    it('coerces explicit undefined to false', async () => {
+      mockRpc.mockResolvedValue({
+        data: { success: true, comanda_id: 'comanda-1', transaction_id: 'txn-1', status: 'paid' },
+        error: null,
+      });
+
+      await settleCheckoutComandaAndEnqueue({
+        ...baseInput,
+        outbox: baseOutbox,
+        recordComandaPayment: undefined,
+      });
+
+      const [, params] = mockRpc.mock.calls[0];
+      expect(params.p_record_comanda_payment).toBe(false);
+    });
+
+    it('keeps settlement idempotency key free of the derived suffix', async () => {
+      // A chave de comanda_payments é derivada no banco com
+      // '::comanda_payment'; o cliente não envia essa derivação.
+      mockRpc.mockResolvedValue({
+        data: { success: true, comanda_id: 'comanda-1', transaction_id: 'txn-1', status: 'paid' },
+        error: null,
+      });
+
+      await settleCheckoutComandaAndEnqueue({
+        ...baseInput,
+        outbox: baseOutbox,
+        recordComandaPayment: true,
+      });
+
+      const [, params] = mockRpc.mock.calls[0];
+      expect(params.p_idempotency_key).not.toContain('::comanda_payment');
+    });
+
+    it('still enqueues outbox payload when recording payment', async () => {
+      mockRpc.mockResolvedValue({
+        data: { success: true, comanda_id: 'comanda-1', transaction_id: 'txn-1', status: 'paid' },
+        error: null,
+      });
+
+      await settleCheckoutComandaAndEnqueue({
+        ...baseInput,
+        outbox: baseOutbox,
+        recordComandaPayment: true,
+      });
+
+      const [, params] = mockRpc.mock.calls[0];
+      expect(params.p_outbox_event_id).toBe(baseOutbox.eventId);
+      expect(params.p_outbox_event_type).toBe('CheckoutCompleted');
+    });
+  });
 });

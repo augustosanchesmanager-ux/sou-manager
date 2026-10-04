@@ -601,6 +601,12 @@ class CheckoutApplicationServiceImpl {
                 source: 'checkout',
                 notes: settlementNotes,
                 idempotencyKey: `finance-settle-${comandaId}-${idempotencyKey}`,
+                // ADR-018: o fechamento normal de comanda no balcao e
+                // quitacao em dinheiro e deve gerar linha em
+                // comanda_payments. Baixa de clube e rotinas
+                // administrativas NAO sao quitacao em caixa e ficam de
+                // fora, para nao alimentar o payoutService.
+                recordComandaPayment: req.paymentStatus === 'paid' && !req.isLegacyClubSettlement,
                 incomeCategory: req.incomeCategory,
                 description: req.paymentMethod === 'other' && req.paymentDescription
                     ? `${req.internalSettlementTitle} - Cliente: ${req.client.name} (${req.paymentDescription})`
