@@ -69,7 +69,18 @@ export interface BarberPayoutSettlement {
     status: SettlementStatus;
     paidAt: string | null;
     paymentMethod: string | null;
+    /** Preenchido pela RPC `cancel_payout_settlement` ao cancelar. */
+    cancelReason: string | null;
     createdAt: string;
+}
+
+export interface CancelSettlementResult {
+    success: boolean;
+    /** Vales efetivamente devolvidos a `pending`. */
+    unlinkedAdvances: number;
+    /** Verdadeiro quando o acerto já estava cancelado (retentativa). */
+    idempotent: boolean;
+    message: string;
 }
 
 export interface CreateSettlementDraftInput {

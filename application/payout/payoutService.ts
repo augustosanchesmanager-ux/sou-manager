@@ -23,12 +23,12 @@ import { roundCents, sumCents } from '../../domain/payout/money';
 import { consumeAdvancesFifo } from '../../domain/payout/advanceDeduction';
 import {
     assertTransition,
-    requiresUnlink,
 } from '../../domain/payout/settlementStateMachine';
 import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import type {
     BarberAdvance,
     BarberPayoutSettlement,
+    CancelSettlementResult,
     SettlementComputation,
 } from '../../domain/payout/types';
 
@@ -188,41 +188,55 @@ export class PayoutService {
     }
 
     /**
-     * draft | approved → cancelled, com desvinculação dos vales consumidos.
+     * draft | approved → cancelled.
      *
-     * `paid` é terminal e não chega aqui: `assertTransition` recusa, e a RPC
-     * `unlink_advances_from_settlement` recusa de novo — defesa em
-     * profundidade para uma chamada direta a SQL.
+     * Uma única chamada: a RPC `cancel_payout_settlement` executa
+     * desvinculação e mudança de status na mesma transação. Duas chamadas
+     * separadas deixariam uma janela em que os vales voltam a `pending`
+     * enquanto o acerto segue aberto com `advances_deducted` já persistido.
+     *
+     * `paid` é terminal e não chega ao repositório: `assertTransition`
+     * recusa, e a RPC recusa de novo — defesa em profundidade para uma
+     * chamada direta a SQL.
      */
     async cancelSettlement(
         tenantId: string,
         settlementId: string,
         reason: string,
-    ): Promise<{ settlement: BarberPayoutSettlement; unlinkedAdvances: number }> {
+    ): Promise<{ settlement: BarberPayoutSettlement; result: CancelSettlementResult }> {
         if (!reason || reason.trim() === '') {
             throw new Error('Motivo obrigatorio para cancelar liquidacao');
         }
 
         const current = await this.requireSettlement(tenantId, settlementId);
-        assertTransition(current.status, 'cancel');
 
-        let unlinkedAdvances = 0;
-        if (requiresUnlink(current.status, 'cancel')) {
-            const result = await this.repository.unlinkAdvancesFromSettlement(
-                tenantId,
-                settlementId,
-                reason.trim(),
-            );
-            unlinkedAdvances = result.unlinkedAdvances;
+        // Idempotencia de retentativa ANTES da FSM: `cancelled` e terminal e
+        // `assertTransition` lancaria, o que anularia a idempotencia por
+        // desenho da RPC. Um retry apos falha de rede e o cenario mais
+        // provavel, entao e resolvido aqui sem chamar a RPC — nao ha nada a
+        // desvincular.
+        if (current.status === 'cancelled') {
+            return {
+                settlement: current,
+                result: {
+                    success: true,
+                    unlinkedAdvances: 0,
+                    idempotent: true,
+                    message: 'Liquidacao ja cancelada.',
+                },
+            };
         }
 
-        const settlement = await this.repository.updateSettlementStatus(
+        assertTransition(current.status, 'cancel');
+
+        const result = await this.repository.cancelSettlement(
             tenantId,
             settlementId,
-            'cancelled',
+            reason.trim(),
         );
 
-        return { settlement, unlinkedAdvances };
+        const settlement = await this.requireSettlement(tenantId, settlementId);
+        return { settlement, result };
     }
 
     private async requireSettlement(
