@@ -1,12 +1,12 @@
 {
   "version": "1.1",
   "created": "2026-07-24",
-  "updated": "2026-10-01",
+  "updated": "2026-10-04",
   "description": "Architecture baseline — violations must not increase. Known technical debt is allowed to sit in the baseline and must ratchet down over time.",
-  "repositoryViolations": 227,
+  "repositoryViolations": 222,
   "forbiddenImports": 0,
   "circularImports": 0,
-  "notes": "repositoryViolations=227 is legacy debt in pages/components/hooks. forbiddenImports and circularImports were ratcheted to 0 by ADR-027: TenantStatus is canonical in domain/tenant/types (src/lib/supabase/tenant re-exports for compatibility), and billing contracts moved to domain/billing/contracts.ts which both implementations depend on. Ratchet: each value may only go down, never up.",
+  "notes": "repositoryViolations=222 is legacy debt in pages/components/hooks. Ratcheted 227->222 by ADR-030 Payroll refactor: pages/Payroll.tsx removed 5 direct .from() calls (2x transactions, staff, comanda_items, comandas) and now consumes payoutService through the usePayoutService hook. forbiddenImports and circularImports were ratcheted to 0 by ADR-027: TenantStatus is canonical in domain/tenant/types (src/lib/supabase/tenant re-exports for compatibility), and billing contracts moved to domain/billing/contracts.ts which both implementations depend on. Ratchet: each value may only go down, never up.",
   "debt": {
     "repositoryViolations": "Legacy .from() calls in UI layers (pages/components/hooks). Front: UI sanitize."
   }

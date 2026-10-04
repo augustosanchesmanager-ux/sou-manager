@@ -74,6 +74,20 @@ export interface BarberPayoutSettlement {
     createdAt: string;
 }
 
+export interface StaffProfile {
+    id: string;
+    name: string;
+    role: string;
+    avatar: string;
+    /**
+     * Taxa como fração (0.4 = 40%). A conversão de `commission_rate`
+     * persistida em inteiro percentual é feita pelo helper canônico
+     * `getEffectiveCommissionRate` na camada de apresentação — o domínio
+     * recebe a fração já normalizada.
+     */
+    commissionRate: number;
+}
+
 export interface CancelSettlementResult {
     success: boolean;
     /** Vales efetivamente devolvidos a `pending`. */

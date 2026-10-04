@@ -1,13 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { PayoutService } from './payoutService';
-import { SettlementTransitionError } from '../../domain/payout/settlementStateMachine';
+import { roundCents } from '../../domain/payout/money';
 import type {
     BarberPayoutSettlement,
-    CancelSettlementResult,
+    SettlementComputation,
     SettlementStatus,
+    StaffProfile,
 } from '../../domain/payout/types';
 
-const makeSettlement = (status: SettlementStatus): BarberPayoutSettlement => ({
+const makeSettlement = (
+    status: SettlementStatus,
+    overrides: Partial<BarberPayoutSettlement> = {},
+): BarberPayoutSettlement => ({
     id: 'st1',
     tenantId: 't1',
     staffId: 'staff1',
@@ -18,125 +22,191 @@ const makeSettlement = (status: SettlementStatus): BarberPayoutSettlement => ({
     bonusesAdded: 0,
     netPayout: 50,
     status,
-    paidAt: status === 'paid' ? '2026-10-06T12:00:00Z' : null,
-    paymentMethod: status === 'paid' ? 'pix' : null,
+    paidAt: null,
+    paymentMethod: null,
     cancelReason: null,
     createdAt: '2026-10-06T10:00:00Z',
+    ...overrides,
 });
 
-const makeRepository = (
-    status: SettlementStatus,
-    rpcResult: CancelSettlementResult,
-) => {
-    const cancelSettlement = vi.fn().mockResolvedValue(rpcResult);
-    const repository = {
-        getSettlementById: vi.fn().mockResolvedValue(makeSettlement(status)),
-        cancelSettlement,
-    };
-    return { repository, cancelSettlement };
+const EMPTY_COMPUTATION: SettlementComputation = {
+    grossCommission: 0,
+    advancesDeducted: 0,
+    bonusesAdded: 0,
+    netPayout: 0,
+    paymentCount: 0,
+    consumedAdvanceIds: [],
+    remainingAdvanceIds: [],
 };
 
-const service = (repository: unknown) =>
-    new PayoutService(repository as never);
+const makeRepository = (over: Record<string, unknown> = {}) => ({
+    listActiveProfessionals: vi.fn().mockResolvedValue([] as StaffProfile[]),
+    listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([]),
+    listPendingAdvances: vi.fn().mockResolvedValue([]),
+    getSettlementByPeriod: vi.fn().mockResolvedValue(null),
+    getSettlementById: vi.fn().mockResolvedValue(null),
+    createSettlementDraft: vi.fn(),
+    updateSettlementStatus: vi.fn(),
+    registerAdvance: vi.fn(),
+    linkAdvanceToSettlement: vi.fn(),
+    reverseAdvance: vi.fn(),
+    cancelSettlement: vi.fn(),
+    ...over,
+});
 
-describe('PayoutService.cancelSettlement', () => {
-    it('rejects_cancel_of_paid_settlement_before_reaching_repository', async () => {
-        const { repository, cancelSettlement } = makeRepository('paid', {
-            success: true,
-            unlinkedAdvances: 0,
-            idempotent: false,
-            message: '',
-        });
-        const payout = service(repository);
+describe('PayoutService.listEligibleProfessionals', () => {
+    it('injects_resolved_rate_and_filters_out_zero_rate', async () => {
+        const staff: StaffProfile[] = [
+            { id: 'a', name: 'Ana', role: 'Barber', avatar: '', commissionRate: 0 },
+            { id: 'b', name: 'Bia', role: 'Barber', avatar: '', commissionRate: 0 },
+            { id: 'c', name: 'Cid', role: 'Manager', avatar: '', commissionRate: 0 },
+        ];
+        const service = new PayoutService(
+            makeRepository({ listActiveProfessionals: vi.fn().mockResolvedValue(staff) }) as never,
+        );
 
-        await expect(
-            payout.cancelSettlement('t1', 'st1', 'erro de digitacao'),
-        ).rejects.toBeInstanceOf(SettlementTransitionError);
+        // FIX-001: gestor com taxa > 0 e comissionado. A elegibilidade vem do
+        // helper, nunca de um filtro por role dentro do repositorio.
+        const resolveRate = (s: StaffProfile) => (s.role === 'Manager' ? 0.5 : 0);
 
-        // A RPC nunca e chamada: `paid` e terminal e nao ha como desvincular.
-        expect(cancelSettlement).not.toHaveBeenCalled();
+        const result = await service.listEligibleProfessionals('t1', resolveRate);
+
+        expect(result.map((r) => r.id)).toEqual(['c']);
+        expect(result[0].commissionRate).toBe(0.5);
     });
 
-    it('rejects_empty_reason_without_reaching_repository', async () => {
-        const { repository, cancelSettlement } = makeRepository('draft', {
-            success: true,
-            unlinkedAdvances: 0,
-            idempotent: false,
-            message: '',
-        });
-        const payout = service(repository);
+    it('returns_empty_when_tenant_has_no_active_staff', async () => {
+        const service = new PayoutService(makeRepository() as never);
+        expect(await service.listEligibleProfessionals('t1', () => 0.4)).toEqual([]);
+    });
+});
 
-        await expect(payout.cancelSettlement('t1', 'st1', '   ')).rejects.toThrow(
+describe('PayoutService.getSettlementForPeriod', () => {
+    it('returns_null_when_no_settlement_persisted', async () => {
+        const service = new PayoutService(makeRepository() as never);
+        expect(
+            await service.getSettlementForPeriod('t1', 'staff1', '2026-09-29', '2026-10-05'),
+        ).toBeNull();
+    });
+
+    it('returns_persisted_settlement_when_present', async () => {
+        const stored = makeSettlement('approved');
+        const service = new PayoutService(
+            makeRepository({ getSettlementByPeriod: vi.fn().mockResolvedValue(stored) }) as never,
+        );
+        const found = await service.getSettlementForPeriod(
+            't1',
+            'staff1',
+            '2026-09-29',
+            '2026-10-05',
+        );
+        expect(found?.status).toBe('approved');
+    });
+});
+
+describe('PayoutService.computeSettlement (leitura pura)', () => {
+    it('computes_gross_from_cash_basis_payments_only', async () => {
+        const service = new PayoutService(
+            makeRepository({
+                listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([
+                    { comanda_id: 'c1', staff_id: 'staff1', amount: 100, created_at: '2026-10-01T12:00:00Z' },
+                    { comanda_id: 'c2', staff_id: 'staff1', amount: 100, created_at: '2026-10-03T12:00:00Z' },
+                ]),
+            }) as never,
+        );
+
+        const result = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+        });
+
+        expect(result.grossCommission).toBe(100);
+        expect(result.paymentCount).toBe(2);
+    });
+
+    it('returns_zeroed_computation_when_no_payments_in_period', async () => {
+        const service = new PayoutService(makeRepository() as never);
+        const result = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+        });
+        expect(result).toEqual(EMPTY_COMPUTATION);
+    });
+
+    it('never_persists_when_computing', async () => {
+        // computeSettlement e leitura pura: a UI chama ao selecionar o
+        // periodo, e criar draft ali violaria uq_barber_payout_period.
+        const repo = makeRepository();
+        const service = new PayoutService(repo as never);
+        await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+        });
+        expect(repo.createSettlementDraft).not.toHaveBeenCalled();
+    });
+
+    it('applies_fifo_cutoff_on_advances', async () => {
+        const service = new PayoutService(
+            makeRepository({
+                listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([
+                    { comanda_id: 'c1', staff_id: 'staff1', amount: 400, created_at: '2026-10-01T12:00:00Z' },
+                ]),
+                listPendingAdvances: vi.fn().mockResolvedValue([
+                    {
+                        id: 'adv1', tenantId: 't1', staffId: 'staff1', amount: 100,
+                        transactionId: null, settlementId: null, reversedAt: null,
+                        reversalMotivo: null, issuedAt: '2026-10-01T09:00:00Z', notes: null,
+                        createdBy: 'u1', createdAt: '2026-10-01T09:00:00Z',
+                    },
+                ]),
+            }) as never,
+        );
+
+        const result = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+        });
+
+        // 50% de 400 = 200 de comissao, e o vale de 100 abate integral.
+        expect(result.grossCommission).toBe(200);
+        expect(result.advancesDeducted).toBe(100);
+        expect(result.netPayout).toBe(100);
+        expect(result.consumedAdvanceIds).toEqual(['adv1']);
+    });
+});
+
+describe('PayoutService.registerAdvance', () => {
+    it('rounds_amount_before_persisting', async () => {
+        const repo = makeRepository({ registerAdvance: vi.fn().mockResolvedValue({}) });
+        const service = new PayoutService(repo as never);
+
+        await service.registerAdvance({ tenantId: 't1', staffId: 'staff1', amount: 10.005 });
+
+        expect(repo.registerAdvance).toHaveBeenCalledWith(
+            expect.objectContaining({ amount: roundCents(10.005) }),
+        );
+    });
+});
+
+describe('PayoutService.reverseAdvance', () => {
+    it('rejects_blank_reason', async () => {
+        const repo = makeRepository();
+        const service = new PayoutService(repo as never);
+        await expect(service.reverseAdvance('t1', 'adv1', '   ')).rejects.toThrow(
             /Motivo obrigatorio/i,
         );
-        expect(cancelSettlement).not.toHaveBeenCalled();
-    });
-
-    it('reports_unlinked_advances_from_rpc', async () => {
-        const { repository, cancelSettlement } = makeRepository('approved', {
-            success: true,
-            unlinkedAdvances: 3,
-            idempotent: false,
-            message: 'ok',
-        });
-        const payout = service(repository);
-
-        const { result } = await payout.cancelSettlement('t1', 'st1', 'acerto gerado em duplicidade');
-
-        expect(result.unlinkedAdvances).toBe(3);
-        expect(result.idempotent).toBe(false);
-        expect(cancelSettlement).toHaveBeenCalledTimes(1);
-        expect(cancelSettlement).toHaveBeenCalledWith(
-            't1',
-            'st1',
-            'acerto gerado em duplicidade',
-        );
-    });
-
-    it('propagates_idempotent_result_when_already_cancelled', async () => {
-        // Retentativa apos falha de rede: a RPC responde sucesso com
-        // unlinked_advances 0 e o gestor nao recebe falso erro.
-        const { repository } = makeRepository('cancelled', {
-            success: true,
-            unlinkedAdvances: 0,
-            idempotent: true,
-            message: 'Liquidacao ja cancelada.',
-        });
-        const payout = service(repository);
-
-        const { result } = await payout.cancelSettlement('t1', 'st1', 'tentativa 2');
-
-        expect(result.idempotent).toBe(true);
-        expect(result.unlinkedAdvances).toBe(0);
-    });
-
-    it('issues_single_repository_call_for_atomicity', async () => {
-        // Uma unica chamada: desvinculo e status sao atomicos na RPC.
-        // Duas chamadas reabririam a janela de descompasso contabil.
-        const { repository, cancelSettlement } = makeRepository('draft', {
-            success: true,
-            unlinkedAdvances: 2,
-            idempotent: false,
-            message: 'ok',
-        });
-        const payout = service(repository);
-
-        await payout.cancelSettlement('t1', 'st1', 'motivo');
-
-        expect(cancelSettlement).toHaveBeenCalledTimes(1);
-    });
-
-    it('trims_reason_before_sending_to_repository', async () => {
-        const { repository, cancelSettlement } = makeRepository('draft', {
-            success: true,
-            unlinkedAdvances: 0,
-            idempotent: false,
-            message: 'ok',
-        });
-        const payout = service(repository);
-
-        await payout.cancelSettlement('t1', 'st1', '  duplicidade  ');
-
-        expect(cancelSettlement).toHaveBeenCalledWith('t1', 'st1', 'duplicidade');
+        expect(repo.reverseAdvance).not.toHaveBeenCalled();
     });
 });

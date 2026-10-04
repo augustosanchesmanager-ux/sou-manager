@@ -30,6 +30,7 @@ import type {
     BarberPayoutSettlement,
     CancelSettlementResult,
     SettlementComputation,
+    StaffProfile,
 } from '../../domain/payout/types';
 
 export interface ComputeSettlementParams {
@@ -239,7 +240,40 @@ export class PayoutService {
         return { settlement, result };
     }
 
-    private async requireSettlement(
+    /**
+ * Acerto persistido para o par (profissional, período), ou null se ainda
+ * não foi gerado. É o que a UI usa para decidir entre mostrar a
+ * pré-visualização ou os valores efetivos.
+ */
+async getSettlementForPeriod(
+    tenantId: string,
+    staffId: string,
+    periodStart: string,
+    periodEnd: string,
+): Promise<BarberPayoutSettlement | null> {
+    return this.repository.getSettlementByPeriod(tenantId, staffId, periodStart, periodEnd);
+}
+
+/**
+ * Profissionais elegíveis a repasse no tenant.
+ *
+ * A taxa chega ao repositório já normalizada em fração pela camada de
+ * apresentação, via `getEffectiveCommissionRate` — que é o helper canônico
+ * e concentra a regra FIX-001 (gestor com `commission_rate > 0` é
+ * comissionado). Reimplementar essa conversão aqui criaria duas fontes de
+ * verdade para a taxa, e divergência nisso é money.
+ */
+async listEligibleProfessionals(
+    tenantId: string,
+    resolveRate: (staff: StaffProfile) => number,
+): Promise<StaffProfile[]> {
+    const staff = await this.repository.listActiveProfessionals(tenantId);
+    return staff
+        .map((s) => ({ ...s, commissionRate: resolveRate(s) }))
+        .filter((s) => s.commissionRate > 0);
+}
+
+private async requireSettlement(
         tenantId: string,
         settlementId: string,
     ): Promise<BarberPayoutSettlement> {

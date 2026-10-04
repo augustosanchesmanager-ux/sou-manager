@@ -28,6 +28,7 @@ import type {
     CancelSettlementResult,
     CreateSettlementDraftInput,
     PayoutFrequency,
+    StaffProfile,
 } from './types';
 
 interface ConfigRow {
@@ -72,6 +73,14 @@ interface SettlementRow {
     payment_method: string | null;
     cancel_reason: string | null;
     created_at: string;
+}
+
+interface StaffProfileRow {
+    id: string;
+    name: string | null;
+    role: string | null;
+    avatar: string | null;
+    commission_rate: number | string | null;
 }
 
 const CONFIG_COLUMNS =
@@ -283,7 +292,36 @@ export class PayoutRepository {
 
     // ── Liquidações ─────────────────────────────────────────────────
 
-    async createSettlementDraft(
+    /**
+ * Profissionais ativos do tenant para os quais o repasse é apurável.
+ *
+ * O filtro de `role` NÃO é aplicado aqui: `receivesCommission` decide
+ * elegibilidade e, por decisão FIX-001, gestor com `commission_rate > 0`
+ * também é comissionado. Filtrar por `role = 'Barber'` aqui excluiria esse
+ * caso. A elegibilidade é resolvida na camada de apresentação, que já usa o
+ * helper canônico.
+ *
+ * `tenant_id` é filtro explícito e obrigatório: `public.staff` tem RLS
+ * permissiva (USING (true)) e não isola tenant por conta própria.
+ */
+async listActiveProfessionals(tenantId: string): Promise<StaffProfile[]> {
+    const result = await this.db.from('staff')
+        .select('id, name, role, avatar, commission_rate')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+    const rows = this.data(result, 'listActiveProfessionals') as StaffProfileRow[];
+    return rows.map((row) => ({
+        id: row.id,
+        name: row.name ?? '',
+        role: row.role ?? 'Profissional',
+        avatar: row.avatar ?? '',
+        commissionRate: Number(row.commission_rate ?? 0),
+    }));
+}
+
+async createSettlementDraft(
         input: CreateSettlementDraftInput,
     ): Promise<BarberPayoutSettlement> {
         const result = await this.db.from('barber_payout_settlements')
@@ -319,7 +357,26 @@ export class PayoutRepository {
         return rows.map(mapSettlement);
     }
 
-    async getSettlementById(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement | null> {
+    async getSettlementByPeriod(
+        tenantId: string,
+        staffId: string,
+        periodStart: string,
+        periodEnd: string,
+    ): Promise<BarberPayoutSettlement | null> {
+        const result = await this.db.from('barber_payout_settlements')
+            .select(SETTLEMENT_COLUMNS)
+            .eq('tenant_id', tenantId)
+            .eq('staff_id', staffId)
+            .eq('period_start', periodStart)
+            .eq('period_end', periodEnd)
+            .maybeSingle();
+
+        if (result.error) this.fail(result.error, 'getSettlementByPeriod');
+        if (!result.data) return null;
+        return mapSettlement(result.data as SettlementRow);
+    }
+
+async getSettlementById(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement | null> {
         const result = await this.db.from('barber_payout_settlements')
             .select(SETTLEMENT_COLUMNS)
             .eq('tenant_id', tenantId)
