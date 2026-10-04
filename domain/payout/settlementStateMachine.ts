@@ -14,8 +14,8 @@
  *       └──── cancel ────────┴──► cancelled  [desvincula vales]
  *
  * A função é pura e não conhece banco: a mesma regra é replicada na RPC
- * `unlink_advances_from_settlement` para que uma chamada direta a SQL não
- * consiga contornar a restrição.
+ * `cancel_payout_settlement` para que uma chamada direta a SQL não consiga
+ * contornar a restrição.
  */
 
 import type { SettlementStatus } from './types';
