@@ -14,6 +14,16 @@ export interface CheckoutSettlementInput {
   source?: string;
   notes?: string | null;
   idempotencyKey?: string | null;
+    /**
+     * ADR-018: quando true, a baixa também grava em `comanda_payments`,
+     * tornando o regime de caixa verificável.
+     *
+     * Default FALSE por decisão de negócio: baixa administrativa, liquidação
+     * de clube e rotina de inventário não são quitação em dinheiro no
+     * balcão, e não devem alimentar o `payoutService`. Só o fechamento
+     * normal de comanda pelo checkout envia `true`.
+     */
+    recordComandaPayment?: boolean;
   client?: any;
   appointmentId?: string | null;
   clientDb?: any;
@@ -79,6 +89,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
   source = 'checkout',
   notes,
   idempotencyKey,
+  recordComandaPayment,
   outbox,
 }: CheckoutSettlementInput & { outbox: OutboxEnqueueData }): Promise<CheckoutSettlementResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
@@ -104,6 +115,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
       p_outbox_payload: outbox.payload,
       p_outbox_metadata: outbox.metadata,
       p_outbox_targets: outbox.targets || null,
+      p_record_comanda_payment: recordComandaPayment === true,
     }),
   );
 
