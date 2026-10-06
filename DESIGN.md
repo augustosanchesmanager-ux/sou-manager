@@ -2,9 +2,11 @@
 name: SOU MANA.GER Barber
 description: Sistema operacional premium para barbearias, com gestao real, rotina acolhedora e assinatura SMG tech.
 colors:
-  primary-boutique-gold: "#E5A158"
-  primary-gold-hover: "#D97706"
-  primary-gold-light: "#FDE68A"
+  primary-boutique-gold: "#B88A44"
+  primary-gold-hover: "#9A6F2D"
+  primary-gold-light: "#E3C382"
+  operational-blue: "#007BFF"
+  operational-bright: "#00D2FF"
   smg-electric-blue: "#00D2FF"
   smg-medium-blue: "#007BFF"
   smg-deep-blue: "#003366"
@@ -14,14 +16,14 @@ colors:
   danger-red: "#EF4444"
   action-orange: "#F97316"
   teal-service: "#14B8A6"
-  background-light: "#FAFAF9"
+  background-light: "#F4F8FB"
   surface-light: "#FFFFFF"
   app-shell-light: "#F7F7F5"
-  background-dark: "#0A0A0A"
+  background-dark: "#06111F"
   app-shell-dark: "#0F0F11"
-  surface-dark: "#121212"
-  card-dark: "#1A1A1A"
-  border-dark: "#262626"
+  surface-dark: "#0B1828"
+  card-dark: "#102033"
+  border-dark: "#1C3550"
   text-strong: "#171717"
   text-inverse-soft: "#F5F5F5"
 typography:
@@ -102,7 +104,7 @@ components:
 
 **Creative North Star: "The Smart Barber Atelier"**
 
-The SOU MANA.GER interface is a working atelier for barbershop management: precise enough for finance and command flows, warm enough for daily use at the counter, and branded enough to feel unmistakably SMG. The system currently uses a boutique gold accent over warm light surfaces and charcoal dark mode, while the official SMG rebrand introduces a deep tech-blue direction for stronger corporate moments.
+The SOU MANA.GER interface is a working atelier for barbershop management: precise enough for finance and command flows, warm enough for daily use at the counter, and branded enough to feel unmistakably SMG. The system uses an aged-brass voice over warm light surfaces and deep dark mode, while SMG blue is restricted to operational signal (links, agenda, informational states) and never used as brand decoration.
 
 This is a product interface, not a marketing stage. Density is allowed because owners and managers need agenda, comandas, cash flow, team status, recurring memberships and real indicators in one operational rhythm. The UI should feel premium through alignment, spacing, hierarchy and state clarity, never through decorative effects that slow the task down.
 
@@ -110,24 +112,24 @@ It explicitly rejects generic ERP behavior, generic SaaS dashboards, fake metric
 
 **Key Characteristics:**
 - Dense but calm product surfaces for real work.
-- Boutique warmth from gold, ivory and charcoal.
-- SMG tech authority from deep blue, electric blue and strict hierarchy.
+- Barber warmth from aged brass, ivory and deep charcoal.
+- SMG blue reserved for operational signal: links, agenda and informational states.
 - Clear states for agenda, payment, finance, support and recurring memberships.
 - Real data, honest empty states and actionable errors.
 
 ## 2. Colors
 
-The palette is a hybrid: the current app speaks in boutique gold and warm neutrals, while the SMG brand layer brings a deep-blue technology signature for corporate and rebrand-aligned surfaces.
+The palette is barber-first: aged brass carries the brand voice across light and deep-dark surfaces, while SMG blue is an operational signal, never decoration.
 
 ### Primary
-- **Boutique Gold**: The current operational primary. Use for primary actions, active navigation, notification badges, focus rings and selected states. Its role is rare and directional, not decorative.
-- **Aged Gold Hover**: The active or hover tone for Boutique Gold. Use when a primary control needs a warmer pressed state.
-- **Soft Gold Highlight**: A light highlight for subtle borders, icons and small accents. Use sparingly so premium does not become noisy.
+- **Aged Brass**: The operational primary. Use for primary actions, active navigation, notification badges, focus rings and selected states. Its role is rare and directional, not decorative.
+- **Brass Dark**: The pressed tone for Aged Brass. Use when a primary control needs a darker hover or active state, and for brass text on light surfaces.
+- **Brass Light**: A light highlight for subtle borders, icons and small accents. Use sparingly so premium does not become noisy.
 
 ### Secondary
-- **SMG Electric Blue**: Official innovation signal from the rebrand. Use for SMG-branded moments, splash states, brand headers and future tech-forward surfaces.
-- **SMG Medium Blue**: Bridge tone for gradients, hover transitions and brand-led UI accents.
-- **SMG Deep Blue**: Authority base for corporate brand surfaces, dark hero backgrounds and high-confidence presentation areas.
+- **Operational Blue**: Links, agenda affordances and informational states. The only sanctioned blue for product surfaces.
+- **Operational Bright**: Realce operacional pontual onde o azul precisa de mais energia (ex.: indicador ativo). Nunca como voz de marca.
+- **SMG Deep Blue**: Authority base kept for corporate brand surfaces and high-confidence presentation areas outside the operational product.
 
 ### Tertiary
 - **Success Emerald**: Positive financial movement, completed states and successful settlement.
@@ -153,7 +155,7 @@ The palette is a hybrid: the current app speaks in boutique gold and warm neutra
 
 **The Real Signal Rule.** Color must communicate state, hierarchy or brand. Do not spend accent color on decoration.
 
-**The Blue Brand Layer Rule.** SMG blues are for brand authority and future rebrand alignment; do not replace every operational gold affordance until the surrounding component system is updated with it.
+**The Operational Blue Rule.** SMG blue is an operational signal (links, agenda, informational states). Never use blue as brand voice, hero background or decorative gradient. Brass carries the brand.
 
 ## 3. Typography
 
@@ -195,8 +197,8 @@ The system uses a hybrid of tonal layering, borders and soft shadows. Light mode
 Buttons are confident, compact and task-first.
 
 - **Shape:** Gently rounded rectangles (8px for shared Button, 12px to 16px for larger app actions).
-- **Primary:** Boutique Gold background, soft white text, bold body typography, standard padding (10px 16px).
-- **Hover / Focus:** Gold darkens on hover. Focus should use a clear primary ring, commonly `focus:ring-2 focus:ring-primary/20`.
+- **Primary:** Aged Brass background, soft white text, bold body typography, standard padding (10px 16px).
+- **Hover / Focus:** Brass darkens on hover. Focus should use a clear primary ring, commonly `focus:ring-2 focus:ring-primary/20`.
 - **Secondary / Ghost / Tertiary:** Secondary uses light or dark surfaces with a thin border. Ghost buttons stay transparent until hover. Danger, success and warning variants use semantic color only when the action itself is semantic.
 
 ### Chips
@@ -237,7 +239,7 @@ Financial KPI cards combine label, icon, value, trend chip and helper text. Use 
 ### Do:
 
 - **Do** preserve the product register: dense, predictable surfaces for owners, managers, receptionists and professionals.
-- **Do** use Boutique Gold for current primary product actions and SMG blues for brand-aligned technology moments.
+- **Do** use Aged Brass for primary product actions and Operational Blue only for links, agenda and informational states.
 - **Do** make barber-specific workflows visible: agenda, chair, professional, client, comanda, checkout, membership and recurrence.
 - **Do** show real data when a real source exists; otherwise show an honest empty state or actionable error.
 - **Do** keep focus states, hover states and disabled states explicit on every interactive component.

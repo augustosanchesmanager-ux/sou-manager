@@ -67,7 +67,8 @@ const OperationalSetup = lazy(() => import('./pages/onboarding/OperationalSetup'
 const Welcome = lazy(() => import('./pages/onboarding/Welcome'));
 const SmartReturn = lazy(() => import('./pages/SmartReturn'));
 const StrategicDashboard = lazy(() => import('./pages/StrategicDashboard'));
-const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
+// PO 2026-10-06: rota mockada desativada (dados ficticios). Arquivo preservado para migracao. Ver ADR-031.
+// const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Support = lazy(() => import('./pages/Support'));
@@ -277,7 +278,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/support" element={<Support />} />
 
             <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
-            <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} />
+            {/* PO 2026-10-06: rota mockada desativada (dados ficticios). Ver ADR-031. */}
+            {/* <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} /> */}
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />

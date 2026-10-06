@@ -20,13 +20,17 @@
   --color-card-dark: #102033;
   --color-border-dark: #1C3550;
 
-  /* Cores Primárias — O "Acento Boutique" Elite */
-  --color-primary: #E5A158;
-  /* Gold vibrante/Âmbar claro (Vivo sem ser Neon Extremo) */
-  --color-primary-dark: #D97706;
-  /* Um subtom de Ouro Envelhecido pro hover */
-  --color-primary-light: #FDE68A;
-  /* Reluzente/Destaque fino */
+  /* Cores Primárias — Latão Envelhecido, voz da marca barber (PO 2026-10-06, ADR-031) */
+  --color-primary: #B88A44;
+  /* Tom de latão para texto sobre fundo claro e hover de controles primários */
+  --color-primary-dark: #9A6F2D;
+  /* Latão claro para realces sutis: bordas, ícones e pequenos acentos */
+  --color-primary-light: #E3C382;
+
+  /* Azul SMG restrito a sinal operacional: links, agenda e estados
+     informativos. Nunca usar como decoração ou voz de marca. */
+  --color-operational: #007BFF;
+  --color-operational-bright: #00D2FF;
 
   --color-accent: #10B981;
   /* Esmeralda para pontos positivos e conclusões */

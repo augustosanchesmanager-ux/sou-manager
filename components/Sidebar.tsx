@@ -339,7 +339,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       icon: 'shield_person',
       items: [
         { name: 'Administração Geral', icon: 'shield_person', path: '/superadmin' },
-        { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
+        // PO 2026-10-06: link mockado oculto (dados ficticios). Ver ADR-031.
+        // { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
         { name: 'Event Versioning', icon: 'schema', path: '/event-versioning' },
       ]
     });
