@@ -211,10 +211,14 @@ END $$;
 -- ────────────────────────────────────────────────────────────────────────────
 -- 6) VALIDACAO (fail-loud) — invariante violada = EXCEPTION = rollback total
 --    da transacao (nunca fica estado parcial).
+--    Verificacoes de privilegio SEM string de assinatura: resolucao direta via
+--    pg_proc p.oid + has_function_privilege(role, p.oid, 'EXECUTE') — nenhum
+--    parsing de tipo/parametro em texto (nada de to_regprocedure / assinatura
+--    textual nas assercoes).
 -- ────────────────────────────────────────────────────────────────────────────
 DO $$
 DECLARE
-  v_sig text;
+  v_rec record;
   v_fail text := '';
 BEGIN
   -- 6.1 policies reescritas existem e deixaram de ser permissivas
@@ -240,9 +244,8 @@ BEGIN
   END IF;
 
   -- 6.2 RPCs do frontend seguem executaveis por authenticated (nao quebra o Barber)
-  FOR v_sig IN
-    SELECT format('%I.%I(%s)', n.nspname, p.proname,
-                  pg_get_function_identity_arguments(p.oid))
+  FOR v_rec IN
+    SELECT p.oid, n.nspname, p.proname
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public'
@@ -251,15 +254,15 @@ BEGIN
                          'create_commission_reversal',
                          'provision_new_tenant')
   LOOP
-    IF NOT has_function_privilege('authenticated', v_sig, 'EXECUTE') THEN
-      v_fail := v_fail || format(E'\n  - authenticated SEM acesso a % (quebraria o frontend)', v_sig);
+    IF NOT has_function_privilege('authenticated', v_rec.oid, 'EXECUTE') THEN
+      v_fail := v_fail || format(E'\n  - authenticated SEM acesso a %I.%I (oid %s) — quebraria o frontend',
+                                 v_rec.nspname, v_rec.proname, v_rec.oid);
     END IF;
   END LOOP;
 
   -- 6.3 RPCs de worker bloqueadas p/ anon/authenticated e preservadas p/ D8
-  FOR v_sig IN
-    SELECT format('%I.%I(%s)', n.nspname, p.proname,
-                  pg_get_function_identity_arguments(p.oid))
+  FOR v_rec IN
+    SELECT p.oid, n.nspname, p.proname
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public'
@@ -269,15 +272,18 @@ BEGIN
                          'recover_stale_processing',
                          'upsert_worker_heartbeat')
   LOOP
-    IF has_function_privilege('anon', v_sig, 'EXECUTE') THEN
-      v_fail := v_fail || format(E'\n  - anon ainda executa %', v_sig);
+    IF has_function_privilege('anon', v_rec.oid, 'EXECUTE') THEN
+      v_fail := v_fail || format(E'\n  - anon ainda executa %I.%I (oid %s)',
+                                 v_rec.nspname, v_rec.proname, v_rec.oid);
     END IF;
-    IF has_function_privilege('authenticated', v_sig, 'EXECUTE') THEN
-      v_fail := v_fail || format(E'\n  - authenticated ainda executa %', v_sig);
+    IF has_function_privilege('authenticated', v_rec.oid, 'EXECUTE') THEN
+      v_fail := v_fail || format(E'\n  - authenticated ainda executa %I.%I (oid %s)',
+                                 v_rec.nspname, v_rec.proname, v_rec.oid);
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'worker_dispatcher')
-       AND NOT has_function_privilege('worker_dispatcher', v_sig, 'EXECUTE') THEN
-      v_fail := v_fail || format(E'\n  - worker_dispatcher perdeu % (quebraria o worker D8)', v_sig);
+       AND NOT has_function_privilege('worker_dispatcher', v_rec.oid, 'EXECUTE') THEN
+      v_fail := v_fail || format(E'\n  - worker_dispatcher perdeu %I.%I (oid %s) — quebraria o worker D8',
+                                 v_rec.nspname, v_rec.proname, v_rec.oid);
     END IF;
   END LOOP;
 
