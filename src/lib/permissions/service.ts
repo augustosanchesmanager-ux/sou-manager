@@ -45,7 +45,8 @@ export async function fetchRolePermissions(
 
   const { data, error } = await supabase.rpc('get_role_permissions', {
     p_tenant_id: tenantId,
-    p_role: role,
+    // DB contract: role_permissions stores lowercase roles; RPC filters case-sensitively.
+    p_role: role.toLowerCase(),
   });
 
   if (error) {
@@ -79,7 +80,7 @@ export async function saveRolePermissions(
 
   const { error } = await supabase.rpc('upsert_role_permissions', {
     p_tenant_id: tenantId,
-    p_role: role,
+    p_role: role.toLowerCase(),
     p_permissions: payload,
   });
 
@@ -100,7 +101,7 @@ export async function resetRolePermissions(
 
   const { error } = await supabase.rpc('reset_role_permissions_to_default', {
     p_tenant_id: tenantId,
-    p_role: role,
+    p_role: role.toLowerCase(),
   });
 
   if (error) {
