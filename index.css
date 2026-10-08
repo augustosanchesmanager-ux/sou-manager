@@ -12,7 +12,6 @@
   /* App Background & Surfaces (Light Mode) */
   --color-cream: #FAF6EE;
   --color-card: #FFFFFF;
-
   /* Paired surface tokens (light defaults; explicit dark values below, warm per DESIGN.md) */
   --color-background-light: #FAF6EE;
   --color-surface-light: #FFFFFF;
