@@ -8,6 +8,7 @@ import Button from './ui/Button';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { isAppModuleEnabled, getFeatureForModule } from '../src/lib/apps/modules';
 import { useFeatureFlags } from '../src/hooks/useFeatureFlags';
+import { CHANGELOG_VERSION } from '../src/lib/changelog';
 import type { AppModuleSlug } from '../domain/shared/app';
 
 interface SidebarProps {
@@ -15,6 +16,8 @@ interface SidebarProps {
   onClose: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onOpenReleaseNotes?: () => void;
+  releaseNotesUnseen?: boolean;
 }
 
 interface ChildItem {
@@ -49,7 +52,7 @@ interface MenuCategory {
   compact?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse, onOpenReleaseNotes, releaseNotesUnseen = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user, accessRole, canAccessSuperAdmin, appSlug } = useAuth();
@@ -601,6 +604,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               </div>
             )}
           </button>
+
+          {onOpenReleaseNotes && (
+            <button
+              onClick={onOpenReleaseNotes}
+              title={`Novidades da versão ${CHANGELOG_VERSION}`}
+              className={`w-full flex items-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-ink-soft hover:text-ink hover:bg-gold-pale transition-colors ${isCollapsed ? 'justify-center px-0' : 'justify-center px-3'}`}
+            >
+              <span>v{CHANGELOG_VERSION}</span>
+              {releaseNotesUnseen && (
+                <span className="size-1.5 rounded-full bg-primary" />
+              )}
+            </button>
+          )}
         </div>
 
 
