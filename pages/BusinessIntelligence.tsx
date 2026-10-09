@@ -286,7 +286,7 @@ const BusinessIntelligence: React.FC = () => {
     return (
         <div className="min-h-screen bg-cream space-y-6 animate-fade-in pb-10">
             {/* Header */}
-            <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-line bg-card p-5 shadow-sm">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
                         <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gold-soft px-3 py-1 text-[11px] font-bold text-gold-deep">
@@ -300,12 +300,12 @@ const BusinessIntelligence: React.FC = () => {
                             Receita, custos, equipe, produtos e agenda em uma leitura real da barbearia para dono e gerente decidirem sem ruído.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap rounded-xl border border-line bg-white p-1 shadow-sm">
+                    <div className="flex items-center gap-2 flex-wrap rounded-xl border border-line bg-card p-1 shadow-sm">
                     {(['today', '7d', '30d', '90d'] as const).map(p => (
                         <button 
                             key={p} 
                             onClick={() => setPeriod(p)} 
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-gold text-night shadow-md' : 'text-ink-soft bg-white hover:bg-gold-pale hover:text-ink border border-line'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-gold text-night shadow-md' : 'text-ink-soft bg-card hover:bg-gold-pale hover:text-ink border border-line'}`}
                         >
                             {periodLabels[p]}
                         </button>
@@ -361,7 +361,7 @@ const BusinessIntelligence: React.FC = () => {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Revenue Evolution - NOVO GRÁFICO COM GRADIENTE METÁLICO */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-line shadow-sm">
+                <div className="lg:col-span-2 bg-card p-6 rounded-xl border border-line shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-base font-bold text-ink flex items-center gap-2">
                             <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">show_chart</span>
@@ -384,7 +384,7 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
 
                 {/* Distribution Pie */}
-                <div className="bg-white p-6 rounded-xl border border-line shadow-sm">
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-6">
                         <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">pie_chart</span>
                         Formas de Pagamento
@@ -430,7 +430,7 @@ const BusinessIntelligence: React.FC = () => {
             {/* Operational Chart + Top Services */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Attendance Breakdown */}
-                <div className="bg-white p-6 rounded-xl border border-line shadow-sm">
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
                         <span className="material-symbols-outlined text-[#178A50] text-lg bg-[#F0FDF4] p-1.5 rounded-lg">bar_chart</span>
                         Indicadores de Agendamento
@@ -476,7 +476,7 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
 
                 {/* Top Services */}
-                <div className="bg-white p-6 rounded-xl border border-line shadow-sm">
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
                         <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">content_cut</span>
                         Serviços Mais Vendidos
@@ -543,21 +543,21 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* NEW SECTION: Vendas de Produtos */}
             {productSales.length > 0 && (
-                <div className="bg-white rounded-2xl border border-line p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <ProductSalesChart data={productSales} showTrend />
                 </div>
             )}
 
             {/* NEW SECTION: Timeline de Agendamentos */}
             {appointmentTimeline.length > 0 && (
-                <div className="bg-white rounded-2xl border border-line p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <AppointmentTimeline data={appointmentTimeline} maxItems={8} />
                 </div>
             )}
 
             {/* NEW SECTION: Despesas por Categoria */}
             {expenseData.length > 0 && (
-                <div className="bg-white rounded-2xl border border-line p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="size-10 rounded-xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center text-[#C92A2A]">
                             <span className="material-symbols-outlined">receipt_long</span>
@@ -577,7 +577,7 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Insights Section */}
             {data.insights.length > 0 && (
-                <div className="rounded-xl border border-line bg-white p-6">
+                <div className="rounded-xl border border-line bg-card p-6">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="size-10 rounded-xl bg-gold-soft border border-primary-light/40 flex items-center justify-center text-gold-deep">
                             <span className="material-symbols-outlined">psychology</span>
@@ -599,7 +599,7 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Cancellation Analysis Section */}
             {cancellationData.total > 0 && (
-                <div className="bg-white rounded-2xl border border-line p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="size-10 rounded-xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center text-[#C92A2A]">
                             <span className="material-symbols-outlined">event_busy</span>
@@ -713,7 +713,7 @@ const BusinessIntelligence: React.FC = () => {
 
             {data.loading && (
                 <div className="fixed inset-0 bg-[#0B0B0C]/20 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
+                    <div className="bg-card p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gold"></div>
                         <p className="text-sm font-bold text-ink">Carregando dados...</p>
                     </div>

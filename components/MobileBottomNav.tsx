@@ -113,8 +113,8 @@ const MobileBottomNav: React.FC = () => {
   return (
     <>
       {isQuickMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm" onClick={() => setIsQuickMenuOpen(false)}>
-          <div className="absolute bottom-24 inset-x-4 rounded-2xl border border-line bg-white p-3 shadow-smg-shell" onClick={(e) => e.stopPropagation()}>
+        <div className="lg:hidden fixed inset-0 z-40 bg-night/40 backdrop-blur-sm" onClick={() => setIsQuickMenuOpen(false)}>
+          <div className="absolute bottom-24 inset-x-4 rounded-2xl border border-line bg-card p-3 shadow-smg-shell" onClick={(e) => e.stopPropagation()}>
             <p className="px-2 py-1 text-[10px] font-black uppercase text-primary-dark">Ações rápidas</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {quickActions.map((action) => (
@@ -133,7 +133,7 @@ const MobileBottomNav: React.FC = () => {
       )}
 
       <div className="lg:hidden fixed inset-x-0 bottom-4 z-40 px-4">
-        <div className="mx-auto max-w-md rounded-full border border-line bg-white/95 px-4 py-2 shadow-smg-shell backdrop-blur-xl">
+        <div className="mx-auto max-w-md rounded-full border border-line bg-card/95 px-4 py-2 shadow-smg-shell backdrop-blur-xl">
           <div className="grid grid-cols-5 items-center">
             {navItems.slice(0, 2).map((item) => (
               <button

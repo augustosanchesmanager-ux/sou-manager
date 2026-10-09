@@ -13,6 +13,14 @@
   --color-cream: #FAF6EE;
   --color-card: #FFFFFF;
 
+  /* Paired surface tokens (light defaults; explicit dark values below, warm per DESIGN.md) */
+  --color-background-light: #FAF6EE;
+  --color-surface-light: #FFFFFF;
+  --color-background-dark: #14110B;
+  --color-surface-dark: #171310;
+  --color-card-dark: #1A1610;
+  --color-border-dark: #2D2618;
+
   /* Text Colors (Warm Neutrals) */
   --color-ink: #191611;
   --color-ink-soft: #6B6252;
@@ -30,6 +38,18 @@
   /* Status / Charts ONLY — never used as brand voice */
   --color-success: #178A50;
   --color-danger: #C92A2A;
+
+  /* Accent (AA 5.48:1 on light) + single gold pill/border token */
+  --color-accent: #047857;
+  --color-gold: #D99A2B;
+
+  /* Barber identity chips (barber-1 replaces removed blue) */
+  --color-barber-1: #8B5CF6;
+  --color-barber-2: #10B981;
+  --color-barber-3: #F59E0B;
+  --color-barber-4: #EF4444;
+  --color-barber-5: #F97316;
+  --color-barber-6: #14B8A6;
 
   /* Legacy navy tokens repointed to warm neutrals (kept for out-of-scope compilation) */
   --color-smg-ink: #14110B;
@@ -50,6 +70,22 @@
 }
 
 @variant dark (&:where(.dark, .dark *));
+
+/* ===== Dark Mode Token Flip =====
+   Unlayered on purpose: @theme lives in @layer theme, so this wins when .dark
+   is on <html>. Flips only semantic light tokens; -dark tokens, night, primary,
+   gold and barber chips stay put (already dark-safe / self-contained). */
+:root.dark {
+  --color-cream: #14110B;
+  --color-card: #1A1610;
+  --color-ink: #F5F1E6;
+  --color-ink-soft: #A79C8A;
+  --color-line: #2D2618;
+  --color-gold-pale: #241E12;
+  --color-gold-soft: #3A2E17;
+  --color-primary-dark: #E0B872;
+  --color-accent: #34D399;
+}
 
 /* ===== Repaginada Base ===== */
 body {
@@ -169,6 +205,15 @@ option {
   --color-primary-light: #D8C994;
   --color-background-light: #F8F5ED;
   --color-surface-light: #FFFFFF;
+  /* Guard: keep light values even when :root.dark is active (element decl beats inherited root) */
+  --color-cream: #FAF6EE;
+  --color-card: #FFFFFF;
+  --color-ink: #191611;
+  --color-ink-soft: #6B6252;
+  --color-line: #E8DFC9;
+  --color-gold-pale: #FCF6E7;
+  --color-gold-soft: #F7E7C2;
+  --color-accent: #047857;
   --shadow-elite: 0 10px 28px rgba(111, 104, 69, 0.08);
   --shadow-elite-md: 0 16px 42px rgba(111, 104, 69, 0.14);
   background-color: #F8F5ED;

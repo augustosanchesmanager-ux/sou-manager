@@ -37,9 +37,9 @@ const toneTileStyles: Record<MetricTone, string> = {
 };
 
 const trendConfig: Record<MetricTrendDirection, { icon: string; text: string }> = {
-    up: { icon: 'trending_up', text: 'text-[#178A50]' },
-    down: { icon: 'trending_down', text: 'text-[#C92A2A]' },
-    flat: { icon: 'minimize', text: 'text-[#6B6252]' },
+    up: { icon: 'trending_up', text: 'text-success' },
+    down: { icon: 'trending_down', text: 'text-danger' },
+    flat: { icon: 'minimize', text: 'text-ink-soft' },
 };
 
 const MetricCard: React.FC<MetricCardProps> = ({
@@ -58,14 +58,14 @@ const MetricCard: React.FC<MetricCardProps> = ({
     const valueSize = density === 'compact' ? 'text-2xl' : 'text-3xl';
     const padding = density === 'compact' ? 'p-4' : 'p-5';
     const progressPercent = progress ? Math.min(100, Math.max(0, Math.round(progress.percent))) : 0;
-    const progressBarTone = 'bg-[#D99A2B]';
+    const progressBarTone = 'bg-primary';
 
-    const cardClasses = `w-full rounded-2xl border border-[#E8DFC9] bg-white text-left transition-shadow duration-200 ${padding} ${onClick ? 'cursor-pointer hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D99A2B]' : ''} ${className}`;
+    const cardClasses = `w-full rounded-2xl border border-line bg-card text-left transition-shadow duration-200 ${padding} ${onClick ? 'cursor-pointer hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''} ${className}`;
 
     const content = (
         <>
             <div className="flex items-start justify-between gap-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6B6252]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">
                     {label}
                 </p>
                 {icon ? (
@@ -77,7 +77,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
                     </span>
                 ) : null}
             </div>
-            <p className={`mt-2 font-black tracking-tight text-[#191611] ${valueSize}`}>
+            <p className={`mt-2 font-black tracking-tight text-ink ${valueSize}`}>
                 {value}
             </p>
             {trend || helper ? (
@@ -91,18 +91,18 @@ const MetricCard: React.FC<MetricCardProps> = ({
                         </span>
                     ) : null}
                     {helper ? (
-                        <span className="text-xs font-medium text-[#6B6252]">{helper}</span>
+                        <span className="text-xs font-medium text-ink-soft">{helper}</span>
                     ) : null}
                 </div>
             ) : null}
             {progress ? (
                 <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-[11px] text-[#6B6252]">
+                    <div className="mb-1 flex justify-between text-[11px] text-ink-soft">
                         <span>{progress.label}</span>
-                        <span className="font-black text-[#191611]">{progressPercent}%</span>
+                        <span className="font-black text-ink">{progressPercent}%</span>
                     </div>
                     <div
-                        className="h-1.5 overflow-hidden rounded-full bg-[#E8DFC9]"
+                        className="h-1.5 overflow-hidden rounded-full bg-line"
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}

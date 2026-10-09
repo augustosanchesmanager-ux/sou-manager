@@ -253,7 +253,7 @@ const StrategicDashboard: React.FC = () => {
       </div>
 
       {data.loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/30 p-4">
           <div className="rounded-2xl border border-line bg-card p-6 text-center shadow-smg-shell">
             <div className="mx-auto size-9 animate-spin rounded-full border-4 border-gold-soft border-t-primary" />
             <p className="mt-3 text-sm font-bold text-ink">Carregando dados reais...</p>

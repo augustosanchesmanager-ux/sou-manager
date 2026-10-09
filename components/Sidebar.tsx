@@ -232,14 +232,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   const navIconActiveClass = 'text-primary-dark';
   const navSectionActiveClass = 'text-primary-dark';
   const navSectionIdleClass = 'text-ink-soft/70 group-hover:text-ink';
-  const sidebarShellClass = 'bg-white border-line shadow-smg-shell';
-  const collapsedLogoClass = 'bg-white border border-line text-primary-dark shadow-smg-shell';
+  const sidebarShellClass = 'bg-card border-line shadow-smg-shell';
+  const collapsedLogoClass = 'bg-card border border-line text-primary-dark shadow-smg-shell';
   const tooltipClass = 'bg-ink text-cream';
   const tooltipArrowClass = 'border-r-ink';
-  const footerClass = 'border-line bg-white';
+  const footerClass = 'border-line bg-card';
   const profileButtonClass = isCollapsed
     ? 'p-1.5 border-transparent hover:bg-gold-pale'
-    : 'p-3 bg-white border-line hover:border-primary';
+    : 'p-3 bg-card border-line hover:border-primary';
   const profileAvatarClass = canAccessSuperAdmin
     ? 'bg-gold-soft border-primary-light text-primary-dark'
     : 'bg-gold-pale border-primary-light text-primary-dark';
@@ -327,7 +327,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   return (
     <>
       <div
-        className={`fixed inset-0 bg-ink/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-night/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
 
@@ -721,7 +721,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             </div>
           </div>
           {isUpdatingPlan && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="absolute inset-0 bg-card/60 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           )}

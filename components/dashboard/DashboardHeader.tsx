@@ -82,15 +82,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     },
   ];
 
-  const heroClassName = 'relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-cream via-white to-gold-pale p-5 text-ink shadow-smg-shell sm:p-6';
+  const heroClassName = 'relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-cream via-card to-gold-pale p-5 text-ink shadow-smg-shell sm:p-6';
   const badgeClassName = 'inline-flex items-center gap-2 rounded-full border border-primary-light/50 bg-gold-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-primary-dark';
   const greetingClassName = 'flex items-center gap-2 text-sm font-bold text-ink-soft';
   const titleClassName = 'max-w-2xl text-3xl font-black leading-tight text-ink sm:text-4xl';
   const bodyClassName = 'max-w-2xl text-sm font-medium leading-6 text-ink-soft';
   const primaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-black text-night shadow-smg-glow transition hover:from-primary-dark hover:to-primary focus:outline-none focus:ring-2 focus:ring-primary/40';
-  const secondaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-black text-ink transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
-  const periodButtonClassName = 'flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 text-left transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
-  const focusButtonClassName = 'rounded-2xl border border-line bg-white p-2.5 text-left transition hover:border-primary-light hover:bg-gold-soft focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-3';
+  const secondaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm font-black text-ink transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
+  const periodButtonClassName = 'flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-card px-4 py-3 text-left transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
+  const focusButtonClassName = 'rounded-2xl border border-line bg-card p-2.5 text-left transition hover:border-primary-light hover:bg-gold-soft focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-3';
 
   return (
     <section className={heroClassName}>
@@ -154,7 +154,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </button>
 
             {isPeriodOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
+              <div className="absolute right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-card shadow-xl">
                 {(Object.entries(PERIOD_LABELS) as Array<[DashboardPeriod, string]>).map(([key, label]) => (
                   <button
                     key={key}
