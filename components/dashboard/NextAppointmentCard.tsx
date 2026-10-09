@@ -10,10 +10,10 @@ interface NextAppointmentCardProps {
 }
 
 const STATUS_COLORS: Record<string, { dot: string; badge: string }> = {
-  confirmed: { dot: appointmentDotColors.confirmed || 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200' },
-  pending: { dot: appointmentDotColors.pending || 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200' },
-  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-300', badge: 'bg-slate-100 text-slate-500 border-slate-200' },
-  completed: { dot: appointmentDotColors.completed || 'bg-blue-500', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200' },
+  confirmed: { dot: appointmentDotColors.confirmed || 'bg-success', badge: 'bg-success/10 text-success border-success/30' },
+  pending: { dot: appointmentDotColors.pending || 'bg-primary', badge: 'bg-primary/10 text-primary-dark border-primary/30' },
+  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-400', badge: 'bg-slate-100 text-slate-500 border-slate-200' },
+  completed: { dot: appointmentDotColors.completed || 'bg-ink-soft', badge: 'bg-ink-soft/10 text-ink-soft border-ink-soft/30' },
 };
 
 const formatTime = (isoString: string) => {
@@ -52,13 +52,13 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+      <div className="bg-card border border-line rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-primary">my_location</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Próximo atendimento</h3>
+          <span className="material-symbols-outlined text-primary-dark">my_location</span>
+          <h3 className="font-bold text-ink">Próximo atendimento</h3>
         </div>
         <div className="animate-pulse space-y-3">
-          <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+          <div className="h-16 bg-gold-pale rounded-xl" />
         </div>
       </div>
     );
@@ -66,21 +66,21 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
 
   if (!next) {
     return (
-      <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+      <div className="bg-card border border-line rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-primary">my_location</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Próximo atendimento</h3>
+          <span className="material-symbols-outlined text-primary-dark">my_location</span>
+          <h3 className="font-bold text-ink">Próximo atendimento</h3>
         </div>
         <div className="text-center py-4">
-          <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">event_busy</span>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+          <span className="material-symbols-outlined text-4xl text-ink-soft">event_busy</span>
+          <p className="text-sm text-ink-soft mt-2">
             Nenhum próximo atendimento encontrado.
           </p>
         </div>
         {onNewAppointment && (
           <button
             onClick={onNewAppointment}
-            className="w-full mt-3 py-2.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="w-full mt-3 py-2.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary-dark font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Novo agendamento
@@ -94,10 +94,10 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
   const statusLabel = appointmentStatusLabels[next.status as keyof typeof appointmentStatusLabels] || 'Pendente';
 
   return (
-    <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+    <div className="bg-card border border-line rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-primary">my_location</span>
-        <h3 className="font-bold text-slate-900 dark:text-white">Próximo atendimento</h3>
+        <span className="material-symbols-outlined text-primary-dark">my_location</span>
+        <h3 className="font-bold text-ink">Próximo atendimento</h3>
       </div>
 
       <div className="flex items-start gap-3">
@@ -105,7 +105,7 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl font-black text-slate-900 dark:text-white">
+            <span className="text-xl font-black text-ink">
               {formatTime(next.start_time)}
             </span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${status.badge}`}>
@@ -113,10 +113,10 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
             </span>
           </div>
 
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+          <p className="text-sm font-semibold text-ink truncate">
             {next.client_name}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+          <p className="text-xs text-ink-soft truncate">
             {next.service_name}
             {next.staff_name && (
               <>
@@ -128,10 +128,10 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700 flex gap-2">
+      <div className="mt-4 pt-3 border-t border-line flex gap-2">
         <Link
           to="/schedule"
-          className="flex-1 py-2 text-center text-xs font-bold text-primary hover:bg-primary/10 rounded-lg transition-colors"
+          className="flex-1 py-2 text-center text-xs font-black text-primary hover:bg-primary/10 rounded-lg transition-colors"
         >
           Ver na agenda
         </Link>
