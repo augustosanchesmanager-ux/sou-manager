@@ -112,6 +112,21 @@ export interface DashboardData {
   openComandasCount?: number;
 }
 
+export interface TodayDashboardKPIs {
+  totalToday: number;
+  faturamento: number;
+  emAtendimento: number;
+  pendentes: number;
+  cancelados: number;
+  concluidos: number;
+}
+
+export interface TodayDashboardData {
+  todayAppointments: DashboardAppointment[];
+  kpis: TodayDashboardKPIs;
+  todayRange: { start: string; end: string };
+}
+
 export interface QuickAppointmentPayload {
   clientId?: string | null;
   clientName: string;

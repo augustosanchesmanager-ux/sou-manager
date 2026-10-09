@@ -1,5 +1,6 @@
 export { useDashboardData } from './hooks/useDashboardData';
 export { useDashboardActions } from './hooks/useDashboardActions';
+export { fetchTodayDashboardData } from './queries';
 export { MetricsPanel } from './components/MetricsPanel';
 export { SmartReturnWidget } from './components/SmartReturnWidget';
 export { QuickAppointmentCard } from './components/QuickAppointmentCard';
@@ -25,6 +26,7 @@ export type {
   QuickAppointmentPayload,
   QuickAppointmentResult,
   UpcomingBirthday,
+  TodayDashboardData,
 } from './types';
 
 export type {

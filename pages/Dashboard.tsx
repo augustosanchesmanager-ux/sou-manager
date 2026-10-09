@@ -10,11 +10,13 @@ import {
   QuickScheduleModal,
   useDashboardActions,
   useDashboardData,
+  fetchTodayDashboardData,
   type DashboardAppointment,
   type DashboardPeriod,
   type NewClientFormState,
   type QuickAppointmentFormState,
   type Client,
+  type TodayDashboardData,
 } from '../src/modules/dashboard';
 import {
   DashboardHeader,
@@ -23,6 +25,9 @@ import {
   DashboardWidgets,
   TodayPendings,
   TodayCashCard,
+  QuickActionsBar,
+  DayTimeline,
+  TodayKPIGrid,
 } from '../components/dashboard';
 
 const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
@@ -60,12 +65,16 @@ const DEFAULT_QUICK_APPOINTMENT_DATETIME = getDefaultQuickAppointmentDateTime();
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, appSlug, tenantId } = useAuth();
+  const { user, appSlug, tenantId, accessRole } = useAuth();
   const labels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
   const [period, setPeriod] = useState<DashboardPeriod>('today');
   const { data, loading, error, reload } = useDashboardData(period);
   const { createClient, createQuickAppointment, completeAppointment, cancelAppointment, busyState } = useDashboardActions();
+
+  const [todayData, setTodayData] = useState<TodayDashboardData | null>(null);
+  const [todayLoading, setTodayLoading] = useState(true);
+  const [todayError, setTodayError] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -90,6 +99,47 @@ const Dashboard: React.FC = () => {
       setToast({ message: error, type: 'error' });
     }
   }, [error]);
+
+  useEffect(() => {
+    if (todayError) {
+      setToast({ message: todayError, type: 'error' });
+    }
+  }, [todayError]);
+
+  useEffect(() => {
+    if (data.staffList.length > 0 && !formData.staffId) {
+      setFormData((current) => ({ ...current, staffId: data.staffList[0].id }));
+    }
+  }, [data.staffList, formData.staffId]);
+
+  useEffect(() => {
+    if (data.servicesList.length > 0 && !formData.serviceId) {
+      setFormData((current) => ({ ...current, serviceId: data.servicesList[0].id }));
+    }
+  }, [data.servicesList, formData.serviceId]);
+
+  const fetchTodayData = React.useCallback(async () => {
+    if (!tenantId) return;
+    setTodayLoading(true);
+    setTodayError(null);
+    try {
+      const role = accessRole === 'barber' ? 'barber' : accessRole === 'receptionist' ? 'receptionist' : 'manager';
+      const result = await fetchTodayDashboardData({
+        tenantId,
+        userId: user?.id ?? null,
+        role,
+      });
+      setTodayData(result);
+    } catch (err: any) {
+      setTodayError(err?.message || 'Erro ao carregar dados do dia');
+    } finally {
+      setTodayLoading(false);
+    }
+  }, [tenantId, user?.id, accessRole]);
+
+  useEffect(() => {
+    fetchTodayData();
+  }, [fetchTodayData]);
 
   useEffect(() => {
     if (data.staffList.length > 0 && !formData.staffId) {
@@ -121,6 +171,7 @@ const Dashboard: React.FC = () => {
       setNewClientForm({ name: '', phone: '', email: '' });
       setToast({ message: `Cliente "${createdClient.name}" cadastrado!`, type: 'success' });
       await reload();
+      fetchTodayData();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao cadastrar cliente.', type: 'error' });
     }
@@ -144,6 +195,7 @@ const Dashboard: React.FC = () => {
       setShowQuickScheduleModal(false);
       setToast({ message: 'Agendamento confirmado!', type: 'success' });
       await reload();
+      fetchTodayData();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao criar agendamento.', type: 'error' });
     }
@@ -156,6 +208,7 @@ const Dashboard: React.FC = () => {
       await cancelAppointment(id);
       setToast({ message: 'Agendamento cancelado.', type: 'info' });
       await reload();
+      fetchTodayData();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao cancelar agendamento.', type: 'error' });
     } finally {
@@ -170,6 +223,7 @@ const Dashboard: React.FC = () => {
       await completeAppointment(id);
       setToast({ message: 'Agendamento concluído!', type: 'success' });
       await reload();
+      fetchTodayData();
     } catch (nextError: any) {
       setToast({ message: nextError?.message || 'Erro ao concluir agendamento.', type: 'error' });
     } finally {
@@ -208,6 +262,9 @@ const Dashboard: React.FC = () => {
   }));
   const tenantName = user?.user_metadata?.tenant_name || (isEsteticaApp ? 'sua clínica' : 'sua barbearia');
 
+  const isBarberRole = accessRole === 'barber';
+  const isReceptionistRole = accessRole === 'receptionist';
+
   return (
     <div className="space-y-6 animate-fade-in pb-20 bg-cream min-h-screen">
       <DashboardHeader
@@ -225,22 +282,51 @@ const Dashboard: React.FC = () => {
 
       {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
 
-      <KPIGrid metrics={metricValues} period={period} appSlug={appSlug} />
+      {/* Faixa de Atalhos Rápidos */}
+      <QuickActionsBar appSlug={appSlug} />
+
+      {/* Grid 6 KPIs do Dia */}
+      {todayData && (
+        <TodayKPIGrid
+          kpis={todayData.kpis}
+          onKpiClick={(type) => {
+            if (type === 'faturamento') navigate('/comandas');
+            if (type === 'totalToday' || type === 'emAtendimento' || type === 'pendentes' || type === 'cancelados' || type === 'concluidos') {
+              navigate('/schedule');
+            }
+          }}
+        />
+      )}
 
       {/* Row 2: Operation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left column */}
+        {/* Left column: Timeline da Agenda do Dia */}
         <div className="space-y-4">
-          <AppointmentTimeline
-            appSlug={appSlug}
-            appointments={data.appointments}
-            loading={loading}
-            onSelectAppointment={(apt) => {
-              setSelectedAppointment(apt);
-              setIsDetailModalOpen(true);
-            }}
-            onNewAppointment={() => setShowQuickScheduleModal(true)}
-          />
+          {todayData ? (
+            <DayTimeline
+              appSlug={appSlug}
+              appointments={todayData.todayAppointments}
+              loading={todayLoading}
+              onSelectAppointment={(apt) => {
+                setSelectedAppointment(apt);
+                setIsDetailModalOpen(true);
+              }}
+            />
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+              <div className="animate-pulse space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                    <div className="h-12 w-12 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right column */}

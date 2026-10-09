@@ -9,6 +9,7 @@ import {
   normalizeServiceRecord,
 } from './selectors';
 import { shouldAppearOnSchedule } from '../../lib/staff/roles';
+import { getTodayRangeInSaoPaulo } from './timezone';
 import type {
   DashboardClient,
   DashboardData,
@@ -16,6 +17,7 @@ import type {
   DashboardProfile,
   DashboardService,
   DashboardStaff,
+  TodayDashboardData,
 } from './types';
 
 export type DashboardUserRole = 'barber' | 'receptionist' | 'manager' | 'superadmin' | 'unknown';
@@ -370,5 +372,86 @@ export const fetchDashboardData = async ({
     ),
     profile: (profileRes.data as DashboardProfile | null) || null,
     openComandasCount: openComandasRes.count || 0,
+  };
+};
+
+/**
+ * Busca dados operacionais do dia (agenda completa + 6 KPIs).
+ * Usa timezone America/Sao_Paulo para definir "hoje".
+ * Respeita escopo de barbeiro (staff_id) quando role === 'barber'.
+ */
+export const fetchTodayDashboardData = async ({
+  tenantId,
+  userId,
+  role,
+}: {
+  tenantId: string;
+  userId?: string | null;
+  role?: DashboardUserRole;
+}): Promise<TodayDashboardData> => {
+  const appointmentsClient = getClientForTable('appointments', APP_SLUG_FOR_DASHBOARD);
+  const comandasClient = getClientForTable('comandas', APP_SLUG_FOR_DASHBOARD);
+  const todayRange = getTodayRangeInSaoPaulo();
+  const isBarber = role === 'barber' && userId;
+
+  let appointmentsQuery = appointmentsClient
+    .from('appointments')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('hidden_from_schedule', false)
+    .gte('start_time', todayRange.start)
+    .lte('start_time', todayRange.end)
+    .order('start_time', { ascending: true });
+
+  if (isBarber) {
+    appointmentsQuery = appointmentsQuery.eq('staff_id', userId);
+  }
+
+  const appointmentsRes = await appointmentsQuery;
+  logSupabaseError('today.appointments', appointmentsRes.error);
+
+  let comandasQuery = comandasClient
+    .from('comandas')
+    .select('total, amount, closed_at, updated_at')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'paid')
+    .gte('closed_at', todayRange.start)
+    .lte('closed_at', todayRange.end);
+
+  if (isBarber) {
+    comandasQuery = comandasQuery.eq('staff_id', userId);
+  }
+
+  const comandasRes = await comandasQuery;
+  logSupabaseError('today.comandas_paid', comandasRes.error);
+
+  const clientPhoneMap: Record<string, string> = {};
+
+  const todayAppointments = (appointmentsRes.data || []).map((apt: any) =>
+    normalizeAppointmentRecord(apt)
+  );
+
+  const totalToday = todayAppointments.length;
+  const emAtendimento = todayAppointments.filter((a) => a.status === 'in_progress').length;
+  const pendentes = todayAppointments.filter((a) => a.status === 'pending').length;
+  const cancelados = todayAppointments.filter((a) => a.status === 'cancelled').length;
+  const concluidos = todayAppointments.filter((a) => a.status === 'completed').length;
+
+  const faturamento = (comandasRes.data || []).reduce((sum: number, c: any) => {
+    const value = c.total ?? c.amount ?? 0;
+    return sum + Number(value || 0);
+  }, 0);
+
+  return {
+    todayAppointments,
+    kpis: {
+      totalToday,
+      faturamento,
+      emAtendimento,
+      pendentes,
+      cancelados,
+      concluidos,
+    },
+    todayRange,
   };
 };
