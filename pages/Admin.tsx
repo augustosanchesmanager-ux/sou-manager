@@ -5,6 +5,7 @@ import { supabase } from '../services/supabaseClient';
 import { tenantLifecycleService } from '../application/tenantLifecycle';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import MetricCard, { type MetricTone } from '../components/ui/MetricCard';
 
 const Admin: React.FC = () => {
     const { user, loading, canAccessSuperAdmin } = useAuth();
@@ -212,8 +213,8 @@ const Admin: React.FC = () => {
     const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
 
     if (loading) return (
-        <div className="min-h-[400px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+        <div className="min-h-[400px] flex items-center justify-center bg-[#FAF6EE]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]"></div>
         </div>
     );
 
@@ -229,28 +230,25 @@ const Admin: React.FC = () => {
     );
 
     return (
-        <div className="space-y-8 max-w-[1600px] w-full mx-auto animate-fade-in pb-12">
+        <div className="space-y-8 max-w-[1600px] w-full mx-auto animate-fade-in pb-12 bg-[#FAF6EE] min-h-screen">
 
             {/* ─── Header ─────────────────────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-3xl bg-[#0a0a0a] border border-amber-500/20 p-8 shadow-2xl shadow-amber-500/5">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
-                <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-[100px] -mr-48 -mt-48 pointer-events-none" />
-
+            <div className="relative overflow-hidden rounded-3xl bg-white border border-[#E8DFC9] p-8 shadow-lg shadow-[#E8DFC9]/50">
                 <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Premium Access</span>
-                            <span className="text-amber-500/50 text-[10px] font-bold uppercase tracking-widest">Protocolo SOU-99</span>
+                            <span className="px-2 py-0.5 rounded bg-[#FCF6E7] text-[10px] font-black uppercase text-[#A96F14] tracking-widest">Premium Access</span>
+                            <span className="text-[#6B6252] text-[10px] font-bold uppercase tracking-widest">Protocolo SOU-99</span>
                         </div>
-                        <h2 className="text-4xl font-black tracking-tighter text-white">Central de Comando SaaS</h2>
-                        <p className="text-slate-400 mt-1 font-medium max-w-xl">Bem-vindo, {user?.user_metadata?.first_name || 'Administrador'}. Você possui autoridade total sobre o ecossistema SOU MANA.GER.</p>
+                        <h2 className="text-4xl font-black tracking-tighter text-[#191611]">Central de Comando SaaS</h2>
+                        <p className="text-[#6B6252] mt-1 font-medium max-w-xl">Bem-vindo, {user?.user_metadata?.first_name || 'Administrador'}. Você possui autoridade total sobre o ecossistema SOU MANA.GER.</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button onClick={() => setIsConsoleOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-black border border-amber-500/30 rounded-xl text-xs font-bold text-amber-500 hover:bg-amber-500/10 transition-all">
-                            <span className="material-symbols-outlined text-[18px]">terminal</span>
+                        <button onClick={() => setIsConsoleOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-white border border-[#E8DFC9] rounded-xl text-xs font-bold text-[#6B6252] hover:bg-[#FCF6E7] hover:border-[#D99A2B] transition-all">
+                            <span className="material-symbols-outlined text-[18px] text-[#A96F14]">terminal</span>
                             Console de Logs
                         </button>
-                        <button onClick={() => setIsGlobalSettingsOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-black rounded-xl text-xs font-black hover:bg-amber-500 transition-all shadow-lg shadow-amber-500/20">
+                        <button onClick={() => setIsGlobalSettingsOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-[#0B0B0C] rounded-xl text-xs font-black hover:from-[#D99A2B] hover:to-[#A96F14] transition-all shadow-lg shadow-[#D99A2B]/30">
                             <span className="material-symbols-outlined text-[18px]">settings_system_daydream</span>
                             Configurações Globais
                         </button>
@@ -258,7 +256,7 @@ const Admin: React.FC = () => {
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex items-center gap-8 mt-12 border-b border-white/5 overflow-x-auto">
+                <div className="flex items-center gap-8 mt-12 border-b border-[#E8DFC9] overflow-x-auto">
                     {[
                         { id: 'overview', label: 'Visão Geral' },
                         { id: 'shops', label: 'Barbearias' },
@@ -269,9 +267,9 @@ const Admin: React.FC = () => {
                         { id: 'requests', label: 'Pedidos de Acesso' },
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                            className={`pb-4 px-2 text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}>
+                            className={`pb-4 px-2 text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-[#A96F14]' : 'text-[#6B6252] hover:text-[#191611]'}`}>
                             {tab.label}
-                            {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />}
+                            {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#A96F14] shadow-[0_0_8px_rgba(169,111,20,0.3)]" />}
                         </button>
                     ))}
                 </div>
@@ -282,77 +280,76 @@ const Admin: React.FC = () => {
                 <div className="space-y-8 animate-fade-in">
                     {isLoadingData ? (
                         <div className="flex items-center justify-center py-20">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500" />
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#D99A2B]" />
                         </div>
                     ) : (
                         <>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {[
-                                    { icon: 'analytics', label: 'Volume Transacionado', value: fmt(kpis.revenue), badge: 'TOTAL', badgeColor: 'text-amber-500 bg-amber-500/10' },
-                                    { icon: 'storefront', label: 'Barbearias Cadastradas', value: kpis.totalShops.toString(), badge: 'UNIDADES', badgeColor: 'text-blue-400 bg-blue-500/10' },
-                                    { icon: 'group', label: 'Total de Usuários', value: kpis.totalUsers.toString(), badge: 'SISTEMA', badgeColor: 'text-emerald-500 bg-emerald-500/10' },
-                                    { icon: 'support_agent', label: 'Chamados Abertos', value: kpis.activeTickets.toString(), badge: 'SUPORTE', badgeColor: kpis.activeTickets > 0 ? 'text-red-400 bg-red-500/10' : 'text-slate-500 bg-white/5' },
-                                ].map((kpi, i) => (
-                                    <div key={i} className="bg-black border border-white/10 p-6 rounded-2xl hover:border-amber-500/50 transition-all shadow-xl">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
-                                                <span className="material-symbols-outlined">{kpi.icon}</span>
-                                            </div>
-                                            <span className={`text-[10px] font-black py-1 px-2 rounded-full ${kpi.badgeColor}`}>{kpi.badge}</span>
-                                        </div>
-                                        <p className="text-slate-500 text-xs font-black uppercase tracking-widest">{kpi.label}</p>
-                                        <h3 className="text-3xl font-black mt-2 text-white tracking-tighter">{kpi.value}</h3>
-                                    </div>
+                                    { icon: 'analytics', label: 'Volume Transacionado', value: fmt(kpis.revenue), helper: 'TOTAL', tone: 'brass' },
+                                    { icon: 'storefront', label: 'Barbearias Cadastradas', value: kpis.totalShops.toString(), helper: 'UNIDADES', tone: 'info' },
+                                    { icon: 'group', label: 'Total de Usuários', value: kpis.totalUsers.toString(), helper: 'SISTEMA', tone: 'positive' },
+                                    { icon: 'support_agent', label: 'Chamados Abertos', value: kpis.activeTickets.toString(), helper: 'SUPORTE', tone: kpis.activeTickets > 0 ? 'negative' : 'neutral' },
+                                ].map((kpi: { icon: string; label: string; value: string; helper: string; tone: MetricTone }, i) => (
+                                    <MetricCard
+                                        key={i}
+                                        label={kpi.label}
+                                        value={kpi.value}
+                                        helper={kpi.helper}
+                                        icon={kpi.icon}
+                                        tone={kpi.tone}
+                                        density="comfortable"
+                                    />
                                 ))}
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 {/* Últimos chamados abertos */}
-                                <div className="bg-black border border-white/10 p-8 rounded-3xl">
-                                    <h4 className="text-xl font-black text-white tracking-tight mb-6">Últimos Chamados em Aberto</h4>
+                                <div className="bg-white border border-[#E8DFC9] p-8 rounded-3xl">
+                                    <h4 className="text-xl font-black text-[#191611] tracking-tight mb-6">Últimos Chamados em Aberto</h4>
                                     {tickets.filter(t => t.status === 'open').slice(0, 5).length === 0 ? (
-                                        <div className="flex flex-col items-center py-8 text-slate-600">
-                                            <span className="material-symbols-outlined text-4xl mb-2">check_circle</span>
-                                            <p className="text-sm font-bold">Nenhum chamado aberto</p>
+                                        <div className="flex flex-col items-center py-8 text-[#6B6252]">
+                                            <span className="material-symbols-outlined text-4xl mb-2 text-[#178A50]">check_circle</span>
+                                            <p className="text-sm font-bold text-[#191611]">Nenhum chamado aberto</p>
                                         </div>
                                     ) : tickets.filter(t => t.status === 'open').slice(0, 5).map((t: any, i: number) => (
-                                        <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-white/5 hover:border-amber-500/20 transition-all mb-3">
-                                            <div className="size-8 rounded-full bg-amber-500/10 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-amber-500 text-sm">support_agent</span>
+                                        <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-[#E8DFC9] hover:border-[#D99A2B]/30 transition-all mb-3">
+                                            <div className="size-8 rounded-full bg-[#FCF6E7] flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-[#A96F14] text-sm">support_agent</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold text-white truncate">{t.subject}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold uppercase">#{t.id?.slice(0, 8)}</p>
+                                                <p className="text-sm font-bold text-[#191611] truncate">{t.subject}</p>
+                                                <p className="text-[10px] text-[#6B6252] font-bold uppercase">#{t.id?.slice(0, 8)}</p>
                                             </div>
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-500">ABERTO</span>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-[#FCF6E7] text-[#A96F14]">ABERTO</span>
                                         </div>
                                     ))}
-                                    <button onClick={() => setActiveTab('tickets')} className="w-full mt-2 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] transition-all">
+                                    <button onClick={() => setActiveTab('tickets')} className="w-full mt-2 py-2.5 bg-[#FCF6E7] hover:bg-[#F7E7C2] border border-[#E8DFC9] rounded-xl text-[10px] font-black uppercase text-[#6B6252] tracking-[0.2em] transition-all">
                                         Ver Todos os Chamados
                                     </button>
                                 </div>
 
                                 {/* Últimas barbearias */}
-                                <div className="bg-black border border-white/10 p-8 rounded-3xl">
-                                    <h4 className="text-xl font-black text-white tracking-tight mb-6">Barbearias Recentes</h4>
+                                <div className="bg-white border border-[#E8DFC9] p-8 rounded-3xl">
+                                    <h4 className="text-xl font-black text-[#191611] tracking-tight mb-6">Barbearias Recentes</h4>
                                     {shops.slice(0, 5).length === 0 ? (
-                                        <div className="flex flex-col items-center py-8 text-slate-600">
-                                            <span className="material-symbols-outlined text-4xl mb-2">storefront</span>
-                                            <p className="text-sm font-bold">Nenhuma barbearia cadastrada</p>
+                                        <div className="flex flex-col items-center py-8 text-[#6B6252]">
+                                            <span className="material-symbols-outlined text-4xl mb-2 text-[#D99A2B]">storefront</span>
+                                            <p className="text-sm font-bold text-[#191611]">Nenhuma barbearia cadastrada</p>
                                         </div>
                                     ) : shops.slice(0, 5).map((s: any, i: number) => (
-                                        <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-white/5 hover:border-amber-500/20 transition-all mb-3">
-                                            <div className="size-8 rounded-full bg-white/5 flex items-center justify-center font-black text-xs text-amber-500 border border-amber-500/20">
+                                        <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-[#E8DFC9] hover:border-[#D99A2B]/30 transition-all mb-3">
+                                            <div className="size-8 rounded-full bg-[#FCF6E7] flex items-center justify-center font-black text-xs text-[#A96F14] border border-[#E8DFC9]">
                                                 {s.name?.[0] || '?'}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold text-white truncate">{s.name}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold">{s.owner} · {s.staff} colaboradores</p>
+                                                <p className="text-sm font-bold text-[#191611] truncate">{s.name}</p>
+                                                <p className="text-[10px] text-[#6B6252] font-bold">{s.owner} · {s.staff} colaboradores</p>
                                             </div>
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${s.plan === 'premium' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{s.plan}</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${s.plan === 'premium' ? 'bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-[#0B0B0C]' : 'bg-[#FCF6E7] text-[#6B6252]'}`}>{s.plan}</span>
                                         </div>
                                     ))}
-                                    <button onClick={() => setActiveTab('shops')} className="w-full mt-2 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] transition-all">
+                                    <button onClick={() => setActiveTab('shops')} className="w-full mt-2 py-2.5 bg-[#FCF6E7] hover:bg-[#F7E7C2] border border-[#E8DFC9] rounded-xl text-[10px] font-black uppercase text-[#6B6252] tracking-[0.2em] transition-all">
                                         Ver Todas as Unidades
                                     </button>
                                 </div>
@@ -365,33 +362,33 @@ const Admin: React.FC = () => {
             {/* ─── BARBEARIAS ─────────────────────────────────────────── */}
             {activeTab === 'shops' && (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="bg-white border border-[#E8DFC9] rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
+                        <div className="p-8 border-b border-[#E8DFC9] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
-                                <h4 className="text-xl font-black text-white tracking-tight">Todas as Unidades em Operação</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">{shops.length} barbearia(s) cadastrada(s) no ecossistema.</p>
+                                <h4 className="text-xl font-black text-[#191611] tracking-tight">Todas as Unidades em Operação</h4>
+                                <p className="text-sm text-[#6B6252] font-medium mt-1">{shops.length} barbearia(s) cadastrada(s) no ecossistema.</p>
                             </div>
                             <div className="flex gap-2">
                                 <input type="text" placeholder="Buscar por nome..." value={searchShop} onChange={e => setSearchShop(e.target.value)}
-                                    className="bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-bold text-white outline-none focus:border-amber-500/50" />
-                                <button onClick={() => setIsNewUnitOpen(true)} className="px-5 py-2.5 bg-amber-500 text-black rounded-xl text-xs font-black hover:bg-amber-400 transition-all">Nova Unidade</button>
+                                    className="bg-white border border-[#E8DFC9] rounded-xl py-2 px-4 text-xs font-bold text-[#191611] outline-none focus:border-[#D99A2B] focus:ring-1 focus:ring-[#D99A2B]" />
+                                <button onClick={() => setIsNewUnitOpen(true)} className="px-5 py-2.5 bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-[#0B0B0C] rounded-xl text-xs font-black hover:from-[#D99A2B] hover:to-[#A96F14] transition-all shadow-lg shadow-[#D99A2B]/30">Nova Unidade</button>
                             </div>
                         </div>
 
                         {isLoadingData ? (
                             <div className="py-16 flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]" />
                             </div>
                         ) : filteredShops.length === 0 ? (
-                            <div className="py-16 text-center text-slate-500">
-                                <span className="material-symbols-outlined text-4xl mb-2 block">storefront</span>
-                                <p className="text-sm font-bold">Nenhuma barbearia encontrada.</p>
+                            <div className="py-16 text-center text-[#6B6252]">
+                                <span className="material-symbols-outlined text-4xl mb-2 block text-[#D99A2B]">storefront</span>
+                                <p className="text-sm font-bold text-[#191611]">Nenhuma barbearia encontrada.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
-                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                        <tr className="bg-[#FCF6E7] text-[10px] font-black text-[#6B6252] uppercase tracking-[0.2em]">
                                             <th className="px-8 py-5">Unidade</th>
                                             <th className="px-8 py-5">Proprietário</th>
                                             <th className="px-8 py-5">Plano</th>
@@ -402,27 +399,27 @@ const Admin: React.FC = () => {
                                             <th className="px-8 py-5 text-right">Ações</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-[#E8DFC9]">
                                         {filteredShops.map((shop, i) => (
-                                            <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                                            <tr key={i} className="group hover:bg-[#FCF6E7]/50 transition-colors">
                                                 <td className="px-8 py-6">
-                                                    <p className="text-sm font-black text-white">{shop.name}</p>
-                                                    <p className="text-[10px] text-amber-500/50 font-bold uppercase tracking-widest mt-0.5">{shop.tenant_id?.slice(0, 8)}</p>
+                                                    <p className="text-sm font-black text-[#191611]">{shop.name}</p>
+                                                    <p className="text-[10px] text-[#A96F14]/70 font-bold uppercase tracking-widest mt-0.5">{shop.tenant_id?.slice(0, 8)}</p>
                                                 </td>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-400">{shop.owner}</td>
+                                                <td className="px-8 py-6 text-sm font-bold text-[#6B6252]">{shop.owner}</td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${shop.plan === 'premium' ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-400'}`}>{shop.plan || 'free'}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${shop.plan === 'premium' ? 'bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-[#0B0B0C]' : 'bg-[#FCF6E7] text-[#6B6252]'}`}>{shop.plan || 'free'}</span>
                                                 </td>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-400">{shop.staff} membros</td>
-                                                <td className="px-8 py-6 text-sm font-bold text-emerald-400">{fmt(shop.revenue)}</td>
-                                                <td className="px-8 py-6 text-xs font-bold text-slate-500">{shop.last}</td>
+                                                <td className="px-8 py-6 text-sm font-bold text-[#6B6252]">{shop.staff} membros</td>
+                                                <td className="px-8 py-6 text-sm font-bold text-[#178A50]">{fmt(shop.revenue)}</td>
+                                                <td className="px-8 py-6 text-xs font-bold text-[#6B6252]">{shop.last}</td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>{shop.status}</span>
+                                                    <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-[#178A50] bg-[#D4F4E2]' : 'text-[#A96F14] bg-[#FCF6E7]'}`}>{shop.status}</span>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <button onClick={() => openShopPanel(shop)} className="px-3 py-1.5 bg-amber-500/10 text-[10px] font-black uppercase text-amber-500 rounded-lg hover:bg-amber-500 hover:text-black transition-all tracking-widest border border-amber-500/20">Painel</button>
-                                                        <button onClick={() => { if (window.confirm(`Suspender "${shop.name}"?`)) showToast(`${shop.name} suspenso.`); }} className="px-3 py-1.5 bg-red-500/10 text-[10px] font-black uppercase text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all tracking-widest">Suspender</button>
+                                                        <button onClick={() => openShopPanel(shop)} className="px-3 py-1.5 bg-white border border-[#E8DFC9] text-[10px] font-black uppercase text-[#6B6252] rounded-lg hover:bg-[#FCF6E7] hover:border-[#D99A2B] transition-all tracking-widest">Painel</button>
+                                                        <button onClick={() => { if (window.confirm(`Suspender "${shop.name}"?`)) showToast(`${shop.name} suspenso.`); }} className="px-3 py-1.5 bg-white border border-[#C92A2A]/30 text-[10px] font-black uppercase text-[#C92A2A] rounded-lg hover:bg-[#C92A2A] hover:text-white transition-all tracking-widest">Suspender</button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -438,25 +435,25 @@ const Admin: React.FC = () => {
             {/* ─── USUÁRIOS ───────────────────────────────────────────── */}
             {activeTab === 'users' && (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="bg-white border border-[#E8DFC9] rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
+                        <div className="p-8 border-b border-[#E8DFC9] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
-                                <h4 className="text-xl font-black text-white tracking-tight">Diretório Global de Usuários</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">{allUsers.length} usuário(s) no sistema.</p>
+                                <h4 className="text-xl font-black text-[#191611] tracking-tight">Diretório Global de Usuários</h4>
+                                <p className="text-sm text-[#6B6252] font-medium mt-1">{allUsers.length} usuário(s) no sistema.</p>
                             </div>
                             <input type="text" placeholder="Buscar por nome ou e-mail..." value={searchUser} onChange={e => setSearchUser(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-bold text-white outline-none focus:border-amber-500/50" />
+                                className="bg-white border border-[#E8DFC9] rounded-xl py-2 px-4 text-xs font-bold text-[#191611] outline-none focus:border-[#D99A2B] focus:ring-1 focus:ring-[#D99A2B]" />
                         </div>
 
                         {isLoadingData ? (
                             <div className="py-16 flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]" />
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
-                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                        <tr className="bg-[#FCF6E7] text-[10px] font-black text-[#6B6252] uppercase tracking-[0.2em]">
                                             <th className="px-8 py-5">Usuário</th>
                                             <th className="px-8 py-5">E-mail / ID</th>
                                             <th className="px-8 py-5">Cargo</th>
@@ -464,26 +461,26 @@ const Admin: React.FC = () => {
                                             <th className="px-8 py-5 text-right">Ações</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-[#E8DFC9]">
                                         {filteredUsers.map((u, i) => (
-                                            <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                                            <tr key={i} className="group hover:bg-[#FCF6E7]/50 transition-colors">
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="size-8 rounded-full bg-white/5 flex items-center justify-center font-black text-xs text-slate-400 border border-white/10">
+                                                        <div className="size-8 rounded-full bg-[#FCF6E7] flex items-center justify-center font-black text-xs text-[#A96F14] border border-[#E8DFC9]">
                                                             {u.name?.[0]?.toUpperCase() || '?'}
                                                         </div>
-                                                        <p className="text-sm font-black text-white">{u.name}</p>
+                                                        <p className="text-sm font-black text-[#191611]">{u.name}</p>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-500">{u.email}</td>
+                                                <td className="px-8 py-6 text-sm font-bold text-[#6B6252]">{u.email}</td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${u.role === 'Super Admin' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-white/10 text-slate-400'}`}>{u.role}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${u.role === 'Super Admin' ? 'bg-[#FCF6E7] text-[#A96F14] border border-[#E8DFC9]' : 'bg-[#FCF6E7] text-[#6B6252]'}`}>{u.role}</span>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Verificado' || u.auth === 'Ativo' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>{u.auth}</span>
+                                                    <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Verificado' || u.auth === 'Ativo' ? 'text-[#178A50] bg-[#D4F4E2]' : 'text-[#A96F14] bg-[#FCF6E7]'}`}>{u.auth}</span>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
-                                                    <button onClick={() => showToast(`Ação para ${u.name} em breve.`)} className="material-symbols-outlined text-slate-600 hover:text-white transition-colors">more_horiz</button>
+                                                    <button onClick={() => showToast(`Ação para ${u.name} em breve.`)} className="material-symbols-outlined text-[#6B6252] hover:text-[#191611] transition-colors">more_horiz</button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -499,26 +496,26 @@ const Admin: React.FC = () => {
             {activeTab === 'system' && (
                 <div className="space-y-8 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-black border border-white/10 p-8 rounded-3xl">
-                            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Database (Supabase)</h4>
+                        <div className="bg-white border border-[#E8DFC9] p-8 rounded-3xl shadow-lg shadow-[#E8DFC9]/50">
+                            <h4 className="text-[#191611] font-black uppercase tracking-widest text-xs mb-6">Database (Supabase)</h4>
                             <div className="space-y-4">
                                 {[
                                     { label: 'Barbearias', icon: 'storefront', value: kpis.totalShops },
                                     { label: 'Usuários Totais', icon: 'group', value: kpis.totalUsers },
                                     { label: 'Chamados Abertos', icon: 'support_agent', value: kpis.activeTickets },
                                 ].map((item, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                                    <div key={i} className="flex items-center justify-between p-3 bg-[#FCF6E7] rounded-xl">
                                         <div className="flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-amber-500 text-sm">{item.icon}</span>
-                                            <span className="text-xs font-bold text-slate-400">{item.label}</span>
+                                            <span className="material-symbols-outlined text-[#A96F14] text-sm">{item.icon}</span>
+                                            <span className="text-xs font-bold text-[#6B6252]">{item.label}</span>
                                         </div>
-                                        <span className="text-sm font-black text-white">{item.value}</span>
+                                        <span className="text-sm font-black text-[#191611]">{item.value}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <div className="bg-black border border-white/10 p-8 rounded-3xl lg:col-span-2">
-                            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Stack Técnica</h4>
+                        <div className="bg-white border border-[#E8DFC9] p-8 rounded-3xl lg:col-span-2 shadow-lg shadow-[#E8DFC9]/50">
+                            <h4 className="text-[#191611] font-black uppercase tracking-widest text-xs mb-6">Stack Técnica</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 {[
                                     { label: 'Frontend', value: 'React + Vite + TypeScript', icon: 'code' },
@@ -526,12 +523,12 @@ const Admin: React.FC = () => {
                                     { label: 'Auth', value: 'Supabase Auth (JWT)', icon: 'verified_user' },
                                     { label: 'Deploy', value: 'Verificar variável de ambiente', icon: 'cloud' },
                                 ].map((item, i) => (
-                                    <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <div key={i} className="p-4 bg-[#FCF6E7] rounded-xl border border-[#E8DFC9]">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-amber-500 text-sm">{item.icon}</span>
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{item.label}</p>
+                                            <span className="material-symbols-outlined text-[#A96F14] text-sm">{item.icon}</span>
+                                            <p className="text-[10px] font-black text-[#6B6252] uppercase tracking-widest">{item.label}</p>
                                         </div>
-                                        <p className="text-sm font-bold text-white">{item.value}</p>
+                                        <p className="text-sm font-bold text-[#191611]">{item.value}</p>
                                     </div>
                                 ))}
                             </div>
@@ -543,25 +540,25 @@ const Admin: React.FC = () => {
             {/* ─── CHAMADOS ───────────────────────────────────────────── */}
             {activeTab === 'tickets' && (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5">
-                            <h4 className="text-xl font-black text-white tracking-tight">Fila de Suporte Ativa</h4>
-                            <p className="text-sm text-slate-500 font-medium mt-1">{tickets.length} chamado(s) no total.</p>
+                    <div className="bg-white border border-[#E8DFC9] rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
+                        <div className="p-8 border-b border-[#E8DFC9]">
+                            <h4 className="text-xl font-black text-[#191611] tracking-tight">Fila de Suporte Ativa</h4>
+                            <p className="text-sm text-[#6B6252] font-medium mt-1">{tickets.length} chamado(s) no total.</p>
                         </div>
                         {isLoadingData ? (
                             <div className="py-16 flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]" />
                             </div>
                         ) : tickets.length === 0 ? (
-                            <div className="py-16 text-center text-slate-500">
-                                <span className="material-symbols-outlined text-4xl mb-2 block">inbox</span>
-                                <p className="text-sm font-bold">Nenhum chamado encontrado.</p>
+                            <div className="py-16 text-center text-[#6B6252]">
+                                <span className="material-symbols-outlined text-4xl mb-2 block text-[#D99A2B]">inbox</span>
+                                <p className="text-sm font-bold text-[#191611]">Nenhum chamado encontrado.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
-                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                        <tr className="bg-[#FCF6E7] text-[10px] font-black text-[#6B6252] uppercase tracking-[0.2em]">
                                             <th className="px-8 py-5">Protocolo / Assunto</th>
                                             <th className="px-8 py-5">Usuário</th>
                                             <th className="px-8 py-5">Status</th>
@@ -569,30 +566,30 @@ const Admin: React.FC = () => {
                                             <th className="px-8 py-5 text-right">Intervenção</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-[#E8DFC9]">
                                         {tickets.map((t, i) => (
-                                            <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                                            <tr key={i} className="group hover:bg-[#FCF6E7]/50 transition-colors">
                                                 <td className="px-8 py-6">
-                                                    <p className="text-sm font-black text-white">{t.subject}</p>
-                                                    <p className="text-[10px] text-amber-500/50 font-bold uppercase tracking-widest mt-0.5">#{t.id?.slice(0, 8)}</p>
+                                                    <p className="text-sm font-black text-[#191611]">{t.subject}</p>
+                                                    <p className="text-[10px] text-[#A96F14]/70 font-bold uppercase tracking-widest mt-0.5">#{t.id?.slice(0, 8)}</p>
                                                 </td>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-400">{t.user_id?.slice(0, 8)}…</td>
+                                                <td className="px-8 py-6 text-sm font-bold text-[#6B6252]">{t.user_id?.slice(0, 8)}…</td>
                                                 <td className="px-8 py-6">
                                                     {t.status === 'open' && (
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-500">Aberto</span>
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-[#FCF6E7] text-[#A96F14]">Aberto</span>
                                                     )}
                                                     {(t.status === 'responded' || t.status === 'awaiting_response') && (
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-blue-500/20 text-blue-400 animate-pulse">Aguardando Resposta</span>
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-[#FCF6E7] text-[#A96F14] animate-pulse">Aguardando Resposta</span>
                                                     )}
                                                     {t.status === 'closed' && (
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-white/10 text-slate-500">Encerrado</span>
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-[#FCF6E7] text-[#6B6252]">Encerrado</span>
                                                     )}
                                                     {!['open', 'responded', 'awaiting_response', 'closed'].includes(t.status) && (
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-white/10 text-slate-500">{t.status}</span>
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-[#FCF6E7] text-[#6B6252]">{t.status}</span>
                                                     )}
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${t.priority === 'high' ? 'bg-red-500/20 text-red-500' : 'bg-white/10 text-slate-400'}`}>{t.priority || 'normal'}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${t.priority === 'high' ? 'bg-[#FEECEC] text-[#C92A2A]' : 'bg-[#FCF6E7] text-[#6B6252]'}`}>{t.priority || 'normal'}</span>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex items-center justify-end gap-2">
@@ -602,7 +599,7 @@ const Admin: React.FC = () => {
                                                                 const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', t.id).order('created_at', { ascending: true });
                                                                 setMessages(data || []);
                                                                 setIsTicketModalOpen(true);
-                                                            }} className="px-4 py-2 bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-500/30 hover:bg-amber-500 hover:text-black transition-all">
+                                                            }} className="px-4 py-2 bg-white border border-[#E8DFC9] text-[10px] font-black uppercase text-[#6B6252] rounded-lg hover:bg-[#FCF6E7] hover:border-[#D99A2B] transition-all tracking-widest">
                                                                 Responder
                                                             </button>
                                                         )}
@@ -616,12 +613,12 @@ const Admin: React.FC = () => {
                                                                 } else {
                                                                     showToast('Erro ao encerrar chamado.', 'error');
                                                                 }
-                                                            }} className="px-4 py-2 bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-red-500/30 hover:bg-red-500 hover:text-white transition-all">
+                                                            }} className="px-4 py-2 bg-white border border-[#C92A2A]/30 text-[10px] font-black uppercase text-[#C92A2A] rounded-lg hover:bg-[#C92A2A] hover:text-white transition-all tracking-widest">
                                                                 Encerrar
                                                             </button>
                                                         )}
                                                         {t.status === 'closed' && (
-                                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Finalizado</span>
+                                                            <span className="text-[10px] font-black text-[#6B6252] uppercase tracking-widest">Finalizado</span>
                                                         )}
                                                     </div>
                                                 </td>
@@ -640,20 +637,20 @@ const Admin: React.FC = () => {
                 <div className="space-y-8 animate-fade-in">
                     {/* Badge de alerta se houver pendentes */}
                     {requests.length > 0 && (
-                        <div className="flex items-center gap-4 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
-                            <span className="material-symbols-outlined text-amber-500 text-3xl animate-pulse">notification_important</span>
+                        <div className="flex items-center gap-4 p-5 bg-[#FCF6E7] border border-[#E8DFC9] rounded-2xl">
+                            <span className="material-symbols-outlined text-[#A96F14] text-3xl animate-pulse">notification_important</span>
                             <div>
-                                <p className="text-sm font-black text-white">{requests.length} cadastro(s) aguardando sua aprovação</p>
-                                <p className="text-xs text-slate-400 mt-0.5">Esses usuários estão vendo a tela "Aguardando Aprovação" e não conseguem acessar o sistema.</p>
+                                <p className="text-sm font-black text-[#191611]">{requests.length} cadastro(s) aguardando sua aprovação</p>
+                                <p className="text-xs text-[#6B6252] mt-0.5">Esses usuários estão vendo a tela "Aguardando Aprovação" e não conseguem acessar o sistema.</p>
                             </div>
                         </div>
                     )}
 
-                    <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                    <div className="bg-white border border-[#E8DFC9] rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
+                        <div className="p-8 border-b border-[#E8DFC9] flex items-center justify-between">
                             <div>
-                                <h4 className="text-xl font-black text-white tracking-tight">Cadastros Aguardando Aprovação</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">
+                                <h4 className="text-xl font-black text-[#191611] tracking-tight">Cadastros Aguardando Aprovação</h4>
+                                <p className="text-sm text-[#6B6252] font-medium mt-1">
                                     Novos donos de barbearia que se cadastraram e ainda não tiveram acesso liberado.
                                 </p>
                             </div>
@@ -662,53 +659,53 @@ const Admin: React.FC = () => {
                                 supabase.from('profiles').select('id, tenant_id, created_at, status')
                                     .eq('status', 'pending').order('created_at', { ascending: false })
                                     .then(({ data }) => { setRequests(data || []); setIsLoadingData(false); });
-                            }} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs font-black text-slate-400 hover:text-white transition-all">
-                                <span className="material-symbols-outlined text-sm">refresh</span>
+                            }} className="flex items-center gap-2 px-4 py-2 bg-white border border-[#E8DFC9] rounded-lg text-xs font-black text-[#6B6252] hover:bg-[#FCF6E7] hover:border-[#D99A2B] transition-all">
+                                <span className="material-symbols-outlined text-sm text-[#A96F14]">refresh</span>
                                 Atualizar
                             </button>
                         </div>
                         {isLoadingData ? (
                             <div className="py-16 flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]" />
                             </div>
                         ) : requests.length === 0 ? (
-                            <div className="py-20 text-center text-slate-500">
-                                <span className="material-symbols-outlined text-5xl mb-3 block text-emerald-500/50">task_alt</span>
-                                <p className="text-base font-black text-white">Nenhum cadastro pendente</p>
-                                <p className="text-sm text-slate-500 mt-1">Todos os usuários já têm acesso liberado.</p>
+                            <div className="py-20 text-center text-[#6B6252]">
+                                <span className="material-symbols-outlined text-5xl mb-3 block text-[#178A50]/50">task_alt</span>
+                                <p className="text-base font-black text-[#191611]">Nenhum cadastro pendente</p>
+                                <p className="text-sm text-[#6B6252] mt-1">Todos os usuários já têm acesso liberado.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
-                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                        <tr className="bg-[#FCF6E7] text-[10px] font-black text-[#6B6252] uppercase tracking-[0.2em]">
                                             <th className="px-8 py-5">Usuário / ID</th>
                                             <th className="px-8 py-5">Cadastrado em</th>
                                             <th className="px-8 py-5">Status</th>
                                             <th className="px-8 py-5 text-right">Ação</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-[#E8DFC9]">
                                         {requests.map((r: any, i: number) => (
-                                            <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                                            <tr key={i} className="group hover:bg-[#FCF6E7]/50 transition-colors">
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                                                            <span className="material-symbols-outlined text-amber-500 text-lg">person</span>
+                                                        <div className="size-9 rounded-xl bg-[#FCF6E7] border border-[#E8DFC9] flex items-center justify-center">
+                                                            <span className="material-symbols-outlined text-[#A96F14] text-lg">person</span>
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-black text-white font-mono">{r.id?.slice(0, 16)}…</p>
-                                                            <p className="text-[10px] text-amber-500/50 font-bold uppercase tracking-widest mt-0.5">
+                                                            <p className="text-sm font-black text-[#191611] font-mono">{r.id?.slice(0, 16)}…</p>
+                                                            <p className="text-[10px] text-[#A96F14]/70 font-bold uppercase tracking-widest mt-0.5">
                                                                 Tenant: {r.tenant_id?.slice(0, 12) || '—'}
                                                             </p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-sm font-bold text-slate-400">
+                                                <td className="px-8 py-6 text-sm font-bold text-[#6B6252]">
                                                     {r.created_at ? new Date(r.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-500 animate-pulse">
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-[#FCF6E7] text-[#A96F14] animate-pulse">
                                                         Aguardando
                                                     </span>
                                                 </td>
@@ -726,7 +723,7 @@ const Admin: React.FC = () => {
                                                                     showToast(`Erro ao aprovar: ${error.message}`, 'error');
                                                                 }
                                                             }}
-                                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-emerald-500/30 hover:bg-emerald-500 hover:text-black transition-all"
+                                                            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#178A50]/30 text-[10px] font-black uppercase tracking-widest rounded-lg text-[#178A50] hover:bg-[#178A50] hover:text-white transition-all"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">check_circle</span>
                                                             Aprovar
@@ -744,7 +741,7 @@ const Admin: React.FC = () => {
                                                                     showToast(`Erro: ${error.message}`, 'error');
                                                                 }
                                                             }}
-                                                            className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-red-500/30 hover:bg-red-500 hover:text-white transition-all"
+                                                            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#C92A2A]/30 text-[10px] font-black uppercase tracking-widest rounded-lg text-[#C92A2A] hover:bg-[#C92A2A] hover:text-white transition-all"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">cancel</span>
                                                             Rejeitar
@@ -767,22 +764,22 @@ const Admin: React.FC = () => {
                     <div className="space-y-8 animate-fade-in">
 
                         {/* Matriz de Planos */}
-                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                            <div className="p-8 border-b border-white/5">
-                                <h4 className="text-xl font-black text-white tracking-tight">Matriz de Planos &amp; Funcionalidades</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">Planos em definição — esta matriz reflete a estrutura atual prevista.</p>
+<div className="bg-white border border-line rounded-3xl overflow-hidden shadow-smg-shell">
+                            <div className="p-8 border-b border-line">
+                                <h4 className="text-xl font-black text-ink tracking-tight">Matriz de Planos & Funcionalidades</h4>
+                                <p className="text-sm text-ink-soft font-medium mt-1">Planos em definição — esta matriz reflete a estrutura atual prevista.</p>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead>
-                                        <tr className="bg-white/5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                        <tr className="bg-gold-pale text-[10px] font-black text-ink-soft uppercase tracking-[0.2em]">
                                             <th className="px-8 py-5">Funcionalidade</th>
                                             <th className="px-8 py-5 text-center">Free</th>
                                             <th className="px-8 py-5 text-center">Professional</th>
-                                            <th className="px-8 py-5 text-center text-amber-500">Premium</th>
+                                            <th className="px-8 py-5 text-center text-primary-dark">Premium</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-line">
                                         {[
                                             { feature: 'Agendamentos Iniciais', free: true, pro: true, premium: true },
                                             { feature: 'Cadastro de Clientes Premium', free: true, pro: true, premium: true },
@@ -795,18 +792,18 @@ const Admin: React.FC = () => {
                                             { feature: 'Gestão Multiloja (Dashboard)', free: false, pro: false, premium: true },
                                             { feature: 'Suporte Prioritário VIP', free: false, pro: false, premium: true },
                                         ].map((row, i) => (
-                                            <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                                                <td className="px-8 py-4 text-sm font-bold text-white">{row.feature}</td>
-                                                <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
-                                                <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
-                                                <td className="px-8 py-4 text-center">{row.premium ? <span className="material-symbols-outlined text-amber-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-slate-700 text-lg">cancel</span>}</td>
+                                            <tr key={i} className="hover:bg-gold-pale/50 transition-colors">
+                                                <td className="px-8 py-4 text-sm font-bold text-ink">{row.feature}</td>
+                                                <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.premium ? <span className="material-symbols-outlined text-primary-dark text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="p-4 border-t border-white/5 bg-amber-500/5">
-                                <p className="text-xs text-amber-500/70 font-bold flex items-center gap-2">
+                            <div className="p-4 border-t border-line bg-gold-pale">
+                                <p className="text-xs text-primary-dark font-bold flex items-center gap-2">
                                     <span className="material-symbols-outlined text-sm">info</span>
                                     A limitação por plano será ativada no código com base nos planos finalizados.
                                 </p>
@@ -814,27 +811,27 @@ const Admin: React.FC = () => {
                         </div>
 
                         {/* Plano por Barbearia */}
-                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                            <div className="p-8 border-b border-white/5">
-                                <h4 className="text-xl font-black text-white tracking-tight">Plano por Barbearia</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">Altere o plano de cada tenant diretamente.</p>
+                        <div className="bg-white border border-line rounded-3xl overflow-hidden shadow-smg-shell">
+                            <div className="p-8 border-b border-line">
+                                <h4 className="text-xl font-black text-ink tracking-tight">Plano por Barbearia</h4>
+                                <p className="text-sm text-ink-soft font-medium mt-1">Altere o plano de cada tenant diretamente.</p>
                             </div>
                             {shops.length === 0 ? (
-                                <div className="py-12 flex flex-col items-center gap-3 text-slate-600">
+                                <div className="py-12 flex flex-col items-center gap-3 text-ink-soft">
                                     <span className="material-symbols-outlined text-4xl">storefront</span>
                                     <p className="text-sm font-bold">Carregue a aba Barbearias antes.</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-white/5">
+                                <div className="divide-y divide-line">
                                     {shops.map((shop, i) => (
-                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
+                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-gold-pale/50 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-black text-amber-500 text-sm">
+                                                <div className="size-9 rounded-xl bg-gold-soft border border-primary-light/40 flex items-center justify-center font-black text-primary-dark text-sm">
                                                     {shop.name?.[0] || '?'}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-black text-white">{shop.name}</p>
-                                                    <p className="text-[10px] text-slate-500 font-bold">{shop.owner} · {shop.staff} membros</p>
+                                                    <p className="text-sm font-black text-ink">{shop.name}</p>
+                                                    <p className="text-[10px] text-ink-soft font-bold">{shop.owner} · {shop.staff} membros</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -842,7 +839,7 @@ const Admin: React.FC = () => {
                                                     id={`plan-select-${i}-${shop.id}`}
                                                     title="Plano da barbearia"
                                                     defaultValue={shop.plan || 'free'}
-                                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
+                                                    className="bg-gold-pale border border-primary-light/40 rounded-lg px-3 py-2 text-xs font-black text-ink outline-none focus:border-primary-light/50"
                                                 >
                                                     <option value="free">Free</option>
                                                     <option value="pro">Professional</option>
@@ -867,11 +864,11 @@ const Admin: React.FC = () => {
                                                         }
                                                         setIsLoadingData(false);
                                                     }}
-                                                    className="px-4 py-2 bg-amber-500 text-black text-[10px] font-black uppercase rounded-lg hover:bg-amber-400 active:scale-95 transition-all font-mono"
+                                                    className="px-4 py-2 bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-night text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all font-mono"
                                                 >
                                                     Salvar
                                                 </button>
-                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>{shop.status}</span>
+                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${shop.status === 'Ativo' ? 'text-emerald-500 bg-[#DFF2E5]' : 'text-primary-soft bg-gold-pale'}`}>{shop.status}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -880,27 +877,27 @@ const Admin: React.FC = () => {
                         </div>
 
                         {/* Permissões por Colaborador */}
-                        <div className="bg-black border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-                            <div className="p-8 border-b border-white/5">
-                                <h4 className="text-xl font-black text-white tracking-tight">Permissões por Colaborador</h4>
-                                <p className="text-sm text-slate-500 font-medium mt-1">Altere o cargo de cada barbeiro/recepcionista (salvo diretamente no banco).</p>
+                        <div className="bg-white border border-line rounded-3xl overflow-hidden shadow-smg-shell">
+                            <div className="p-8 border-b border-line">
+                                <h4 className="text-xl font-black text-ink tracking-tight">Permissões por Colaborador</h4>
+                                <p className="text-sm text-ink-soft font-medium mt-1">Altere o cargo de cada barbeiro/recepcionista (salvo diretamente no banco).</p>
                             </div>
                             {allUsers.filter(u => u.source === 'staff').length === 0 ? (
-                                <div className="py-12 text-center text-slate-600">
+                                <div className="py-12 text-center text-ink-soft">
                                     <span className="material-symbols-outlined text-4xl mb-2 block">group</span>
                                     <p className="text-sm font-bold">Acesse a aba Usuários primeiro para carregar os dados.</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-white/5">
+                                <div className="divide-y divide-line">
                                     {allUsers.filter(u => u.source === 'staff').map((u, i) => (
-                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-white/[0.02] transition-colors">
+                                        <div key={i} className="flex items-center justify-between px-8 py-5 hover:bg-gold-pale/50 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className="size-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-sm text-slate-400">
+                                                <div className="size-9 rounded-xl bg-gold-pale border border-line flex items-center justify-center font-black text-sm text-ink-soft">
                                                     {u.name?.[0]?.toUpperCase() || '?'}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-black text-white">{u.name}</p>
-                                                    <p className="text-[10px] text-slate-500 font-bold">{u.email || '—'}</p>
+                                                    <p className="text-sm font-black text-ink">{u.name}</p>
+                                                    <p className="text-[10px] text-ink-soft font-bold">{u.email || '—'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -908,7 +905,7 @@ const Admin: React.FC = () => {
                                                     id={`role-select-${u.id}`}
                                                     title="Cargo do colaborador"
                                                     defaultValue={u.role || 'Barber'}
-                                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs font-black text-white [color-scheme:dark] outline-none focus:border-amber-500/50"
+                                                    className="bg-gold-pale border border-line rounded-lg px-3 py-2 text-xs font-black text-ink outline-none focus:border-primary/50"
                                                 >
                                                     <option value="Barber">Barbeiro</option>
                                                     <option value="Receptionist">Recepcionista</option>
@@ -922,11 +919,11 @@ const Admin: React.FC = () => {
                                                         if (!error) showToast(`Cargo de "${u.name}" → ${newRole}.`);
                                                         else showToast('Erro ao atualizar cargo.', 'error');
                                                     }}
-                                                    className="px-3 py-2 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-lg hover:bg-emerald-400 transition-all font-mono"
+                                                    className="px-3 py-2 bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-night text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all font-mono"
                                                 >
                                                     Salvar
                                                 </button>
-                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Ativo' || u.auth === 'Verificado' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-500 bg-white/5'}`}>{u.auth}</span>
+                                                <span className={`text-[10px] font-black py-1 px-2 rounded ${u.auth === 'Ativo' || u.auth === 'Verificado' ? 'text-success bg-[#DFF2E5]' : 'text-ink-soft bg-gold-pale'}`}>{u.auth}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -942,13 +939,13 @@ const Admin: React.FC = () => {
             {/* Ticket Modal */}
             <Modal isOpen={isTicketModalOpen} onClose={() => setIsTicketModalOpen(false)} title={`Chamado: ${selectedTicket?.subject}`} maxWidth="lg">
                 <div className="flex flex-col flex-1 min-h-0">
-                    <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl mb-4 text-sm text-slate-400 italic">{selectedTicket?.description}</div>
+                    <div className="p-4 bg-[#FCF6E7] border border-[#E8DFC9] rounded-xl mb-4 text-sm text-[#6B6252] italic">{selectedTicket?.description}</div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-4 max-h-[300px]">
                         {messages.map((m: any) => (
                             <div key={m.id} className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[80%] p-3 rounded-2xl ${m.sender_id === user?.id ? 'bg-amber-600 text-black rounded-tr-none font-bold' : 'bg-white/10 text-slate-200 rounded-tl-none'}`}>
+                                <div className={`max-w-[80%] p-3 rounded-2xl ${m.sender_id === user?.id ? 'bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-[#0B0B0C] rounded-tr-none font-bold' : 'bg-white text-[#191611] rounded-tl-none border border-[#E8DFC9]'}`}>
                                     <p className="text-sm">{m.message}</p>
-                                    <p className={`text-[9px] mt-1 uppercase font-black ${m.sender_id === user?.id ? 'text-black/50' : 'text-slate-500'}`}>{new Date(m.created_at).toLocaleTimeString()}</p>
+                                    <p className={`text-[9px] mt-1 uppercase font-black ${m.sender_id === user?.id ? 'text-[#0B0B0C]/50' : 'text-[#6B6252]'}`}>{new Date(m.created_at).toLocaleTimeString()}</p>
                                 </div>
                             </div>
                         ))}
@@ -956,7 +953,7 @@ const Admin: React.FC = () => {
                     </div>
                     <div className="flex gap-2 mt-auto pt-4">
                         <input type="text" placeholder="Digite a resposta..." value={reply} onChange={e => setReply(e.target.value)}
-                            className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-amber-500/50" />
+                            className="flex-1 bg-white border border-[#E8DFC9] rounded-xl py-3 px-4 text-sm text-[#191611] outline-none focus:border-[#D99A2B] focus:ring-1 focus:ring-[#D99A2B]" />
                         <Button onClick={async () => {
                             if (!reply.trim() || !selectedTicket) return;
                             const { data, error } = await supabase.from('ticket_messages').insert({ ticket_id: selectedTicket.id, sender_id: user!.id, message: reply }).select().single();
@@ -970,17 +967,17 @@ const Admin: React.FC = () => {
                             }
                         }} disabled={!reply.trim()} variant="warning" size="sm">Enviar</Button>
                     </div>
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-[#E8DFC9]">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-500 uppercase font-black">Status:</span>
+                            <span className="text-[10px] text-[#6B6252] uppercase font-black">Status:</span>
                             {(selectedTicket?.status === 'awaiting_response' || selectedTicket?.status === 'responded') && (
-                                <span className="text-[10px] font-black text-blue-400 uppercase bg-blue-500/10 px-2 py-0.5 rounded animate-pulse">Aguardando Resposta</span>
+                                <span className="text-[10px] font-black text-[#A96F14] uppercase bg-[#FCF6E7] px-2 py-0.5 rounded animate-pulse">Aguardando Resposta</span>
                             )}
                             {selectedTicket?.status === 'open' && (
-                                <span className="text-[10px] font-black text-amber-500 uppercase bg-amber-500/10 px-2 py-0.5 rounded">Aberto</span>
+                                <span className="text-[10px] font-black text-[#A96F14] uppercase bg-[#FCF6E7] px-2 py-0.5 rounded">Aberto</span>
                             )}
                             {selectedTicket?.status === 'closed' && (
-                                <span className="text-[10px] font-black text-slate-500 uppercase bg-white/5 px-2 py-0.5 rounded">Encerrado</span>
+                                <span className="text-[10px] font-black text-[#6B6252] uppercase bg-[#F1ECE0] px-2 py-0.5 rounded">Encerrado</span>
                             )}
                         </div>
                         {selectedTicket?.status !== 'closed' && (
@@ -990,7 +987,7 @@ const Admin: React.FC = () => {
                                 setTickets(prev => prev.map(tk => tk.id === selectedTicket.id ? { ...tk, status: 'closed' } : tk));
                                 setIsTicketModalOpen(false);
                                 showToast('Chamado encerrado com sucesso.');
-                            }} className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-red-500 hover:text-white transition-all">
+                            }} className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#C92A2A]/30 text-[#C92A2A] text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-[#C92A2A] hover:text-white transition-all">
                                 <span className="material-symbols-outlined text-sm">cancel</span>
                                 Encerrar Chamado
                             </button>
@@ -1001,12 +998,12 @@ const Admin: React.FC = () => {
 
             {/* Console de Logs */}
             <Modal isOpen={isConsoleOpen} onClose={() => setIsConsoleOpen(false)} title="Console de Logs do Sistema" maxWidth="lg">
-                <div className="bg-black rounded-xl p-4 font-mono text-xs space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                    <div className="flex gap-3"><span className="text-slate-600">{new Date().toLocaleTimeString()}</span><span className="text-emerald-500">[INFO]</span><span className="text-slate-300">Sistema iniciado com sucesso.</span></div>
-                    <div className="flex gap-3"><span className="text-slate-600">{new Date().toLocaleTimeString()}</span><span className="text-emerald-500">[INFO]</span><span className="text-slate-300">Conexão com Supabase estabelecida.</span></div>
-                    <div className="flex gap-3"><span className="text-slate-600">{new Date().toLocaleTimeString()}</span><span className="text-emerald-500">[INFO]</span><span className="text-slate-300">Sessão ativa: {user?.email}</span></div>
-                    <div className="flex gap-3"><span className="text-slate-600">{new Date().toLocaleTimeString()}</span><span className="text-emerald-500">[INFO]</span><span className="text-slate-300">Total barbearias: {kpis.totalShops} | Usuários: {kpis.totalUsers} | Chamados: {kpis.activeTickets}</span></div>
-                    <div className="flex gap-3 animate-pulse"><span className="text-slate-600">{new Date().toLocaleTimeString()}</span><span className="text-emerald-500">[INFO]</span><span className="text-slate-300">Aguardando eventos do sistema...</span></div>
+                <div className="bg-white border border-[#E8DFC9] rounded-xl p-4 font-mono text-xs space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <div className="flex gap-3"><span className="text-[#6B6252]">{new Date().toLocaleTimeString()}</span><span className="text-[#178A50]">[INFO]</span><span className="text-[#191611]">Sistema iniciado com sucesso.</span></div>
+                    <div className="flex gap-3"><span className="text-[#6B6252]">{new Date().toLocaleTimeString()}</span><span className="text-[#178A50]">[INFO]</span><span className="text-[#191611]">Conexão com Supabase estabelecida.</span></div>
+                    <div className="flex gap-3"><span className="text-[#6B6252]">{new Date().toLocaleTimeString()}</span><span className="text-[#178A50]">[INFO]</span><span className="text-[#191611]">Sessão ativa: {user?.email}</span></div>
+                    <div className="flex gap-3"><span className="text-[#6B6252]">{new Date().toLocaleTimeString()}</span><span className="text-[#178A50]">[INFO]</span><span className="text-[#191611]">Total barbearias: {kpis.totalShops} | Usuários: {kpis.totalUsers} | Chamados: {kpis.activeTickets}</span></div>
+                    <div className="flex gap-3 animate-pulse"><span className="text-[#6B6252]">{new Date().toLocaleTimeString()}</span><span className="text-[#178A50]">[INFO]</span><span className="text-[#191611]">Aguardando eventos do sistema...</span></div>
                 </div>
             </Modal>
 
@@ -1018,13 +1015,13 @@ const Admin: React.FC = () => {
                         { label: 'Notificações Push Globais', desc: 'Enviar anúncios para todos os tenants', action: 'ENVIAR', color: 'amber' },
                         { label: 'Protocolo de Backup', desc: 'Backup manual do banco de dados', action: 'INICIAR', color: 'emerald' },
                     ].map((item, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                        <div key={i} className="flex items-center justify-between p-4 bg-white border border-[#E8DFC9] rounded-xl">
                             <div>
-                                <p className="text-sm font-bold text-white">{item.label}</p>
-                                <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                                <p className="text-sm font-bold text-[#191611]">{item.label}</p>
+                                <p className="text-xs text-[#6B6252] mt-0.5">{item.desc}</p>
                             </div>
                             <button onClick={() => { showToast(`${item.label}: ação executada.`); setIsGlobalSettingsOpen(false); }}
-                                className={`px-4 py-1.5 bg-${item.color}-500/10 border border-${item.color}-500/30 text-${item.color}-500 text-xs font-black rounded-lg hover:bg-${item.color}-500 hover:text-${item.color === 'amber' ? 'black' : 'white'} transition-all`}>
+                                className={`px-4 py-1.5 bg-${item.color}-500/10 border border-${item.color}-500/30 text-${item.color}-500 text-xs font-black rounded-lg hover:bg-${item.color}-500 hover:text-${item.color === 'amber' ? '#0B0B0C' : 'white'} transition-all`}>
                                 {item.action}
                             </button>
                         </div>
@@ -1050,25 +1047,25 @@ const Admin: React.FC = () => {
                         { label: 'E-mail do Proprietário', key: 'email', type: 'email', placeholder: 'dono@email.com' },
                     ].map(field => (
                         <div key={field.key}>
-                            <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">{field.label}</label>
+                            <label className="block text-xs font-bold uppercase text-[#6B6252] mb-1.5">{field.label}</label>
                             <input required type={field.type} value={(newUnitForm as any)[field.key]}
                                 onChange={e => setNewUnitForm({ ...newUnitForm, [field.key]: e.target.value })}
                                 placeholder={field.placeholder}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white outline-none focus:border-amber-500/50" />
+                                className="w-full bg-white border border-[#E8DFC9] rounded-lg p-3 text-sm text-[#191611] outline-none focus:border-[#D99A2B] focus:ring-1 focus:ring-[#D99A2B]" />
                         </div>
                     ))}
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">Plano</label>
+                        <label className="block text-xs font-bold uppercase text-[#6B6252] mb-1.5">Plano</label>
                         <select title="Selecione o plano" value={newUnitForm.plan} onChange={e => setNewUnitForm({ ...newUnitForm, plan: e.target.value })}
-                            className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg p-3 text-sm text-white outline-none [color-scheme:dark]">
+                            className="w-full bg-white border border-[#E8DFC9] rounded-lg p-3 text-sm text-[#191611] outline-none focus:border-[#D99A2B] focus:ring-1 focus:ring-[#D99A2B]">
                             <option value="free">Free</option>
                             <option value="pro">Professional</option>
                             <option value="premium">Premium</option>
                         </select>
                     </div>
                     <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={() => setIsNewUnitOpen(false)} className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-400 bg-white/5 hover:bg-white/10 transition-colors">Cancelar</button>
-                        <button type="submit" disabled={newUnitLoading} className="flex-1 py-3 rounded-lg text-sm font-black text-black bg-amber-500 hover:bg-amber-400 transition-all disabled:opacity-50">{newUnitLoading ? 'Registrando...' : 'Registrar Unidade'}</button>
+                        <button type="button" onClick={() => setIsNewUnitOpen(false)} className="flex-1 py-3 rounded-lg text-sm font-bold text-[#6B6252] bg-white border border-[#E8DFC9] hover:bg-[#FCF6E7] transition-colors">Cancelar</button>
+                        <button type="submit" disabled={newUnitLoading} className="flex-1 py-3 rounded-lg text-sm font-black text-[#0B0B0C] bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] hover:from-[#D99A2B] hover:to-[#A96F14] transition-all disabled:opacity-50">{newUnitLoading ? 'Registrando...' : 'Registrar Unidade'}</button>
                     </div>
                 </form>
             </Modal>
@@ -1077,24 +1074,24 @@ const Admin: React.FC = () => {
             <Modal isOpen={isPanelOpen} onClose={() => setIsPanelOpen(false)} title={`Painel — ${selectedShop?.name || 'Barbearia'}`} maxWidth="lg">
                 {isPanelLoading ? (
                     <div className="py-12 flex flex-col items-center justify-center gap-3">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Carregando dados do tenant...</p>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D99A2B]" />
+                        <p className="text-xs text-[#6B6252] font-bold uppercase tracking-widest">Carregando dados do tenant...</p>
                     </div>
                 ) : (
                     <div className="space-y-6">
                         {/* KPI Row */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
-                                { label: 'Equipe', value: panelData.staff.length, icon: 'group', bg: 'bg-blue-500/10', border: 'border-blue-500/30', color: 'text-blue-500' },
-                                { label: 'Clientes', value: panelData.clients, icon: 'person', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', color: 'text-emerald-500' },
-                                { label: 'Agendamentos', value: panelData.appointments, icon: 'calendar_month', bg: 'bg-violet-500/10', border: 'border-violet-500/30', color: 'text-violet-500' },
-                                { label: 'Faturamento', value: fmt(panelData.revenue), icon: 'payments', bg: 'bg-amber-500/10', border: 'border-amber-500/30', color: 'text-amber-500' },
+                                { label: 'Equipe', value: panelData.staff.length, icon: 'group', bg: 'bg-[#FCF6E7]', border: 'border-[#E8DFC9]', color: 'text-[#A96F14]' },
+                                { label: 'Clientes', value: panelData.clients, icon: 'person', bg: 'bg-[#DFF2E5]', border: 'border-[#178A50]/30', color: 'text-[#178A50]' },
+                                { label: 'Agendamentos', value: panelData.appointments, icon: 'calendar_month', bg: 'bg-[#FCF6E7]', border: 'border-[#E8DFC9]', color: 'text-[#6B6252]' },
+                                { label: 'Faturamento', value: fmt(panelData.revenue), icon: 'payments', bg: 'bg-[#FCF6E7]', border: 'border-[#E8DFC9]', color: 'text-[#A96F14]' },
                             ].map((kpi, i) => (
                                 <div key={i} className={`${kpi.bg} border ${kpi.border} rounded-2xl p-4 flex flex-col items-center gap-2`}>
                                     <div className={`w-10 h-10 rounded-xl ${kpi.bg} border ${kpi.border} flex items-center justify-center`}>
                                         <span className={`material-symbols-outlined text-xl ${kpi.color}`}>{kpi.icon}</span>
                                     </div>
-                                    <p className="text-xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+                                    <p className="text-xl font-black text-[#191611]">{kpi.value}</p>
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${kpi.color}`}>{kpi.label}</p>
                                 </div>
                             ))}
@@ -1102,22 +1099,22 @@ const Admin: React.FC = () => {
 
                         {/* Staff List */}
                         <div>
-                            <h5 className="text-xs font-black uppercase text-slate-400 tracking-widest mb-3">Equipe</h5>
+                            <h5 className="text-xs font-black uppercase text-[#6B6252] tracking-widest mb-3">Equipe</h5>
                             {panelData.staff.length === 0 ? (
-                                <p className="text-sm text-slate-600 text-center py-4">Nenhum colaborador cadastrado.</p>
+                                <p className="text-sm text-[#6B6252] text-center py-4">Nenhum colaborador cadastrado.</p>
                             ) : (
                                 <div className="space-y-2">
                                     {panelData.staff.map((s: any) => (
-                                        <div key={s.id} className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                                        <div key={s.id} className="flex items-center justify-between px-4 py-3 bg-white border border-[#E8DFC9] rounded-xl">
                                             <div className="flex items-center gap-3">
-                                                <div className="size-7 rounded-full bg-white/10 flex items-center justify-center text-xs font-black text-slate-400">
+                                                <div className="size-7 rounded-full bg-[#FCF6E7] flex items-center justify-center text-xs font-black text-[#A96F14]">
                                                     {s.name?.[0]?.toUpperCase()}
                                                 </div>
-                                                <p className="text-sm font-bold text-white">{s.name}</p>
+                                                <p className="text-sm font-bold text-[#191611]">{s.name}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-black uppercase text-slate-500 bg-white/5 px-2 py-0.5 rounded">{s.role}</span>
-                                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${s.status === 'active' ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-500 bg-white/5'}`}>{s.status}</span>
+                                                <span className="text-[10px] font-black uppercase text-[#6B6252] bg-[#FCF6E7] px-2 py-0.5 rounded">{s.role}</span>
+                                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${s.status === 'active' ? 'text-[#178A50] bg-[#DFF2E5]' : 'text-[#6B6252] bg-[#FCF6E7]'}`}>{s.status}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -1128,15 +1125,15 @@ const Admin: React.FC = () => {
                         {/* Recent Transactions */}
                         {panelData.recentTx.length > 0 && (
                             <div>
-                                <h5 className="text-xs font-black uppercase text-slate-400 tracking-widest mb-3">Últimas Transações</h5>
+                                <h5 className="text-xs font-black uppercase text-[#6B6252] tracking-widest mb-3">Últimas Transações</h5>
                                 <div className="space-y-2">
                                     {panelData.recentTx.map((tx: any, i: number) => (
-                                        <div key={i} className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-xl border border-white/5">
+                                        <div key={i} className="flex items-center justify-between px-4 py-3 bg-white border border-[#E8DFC9] rounded-xl">
                                             <div>
-                                                <p className="text-sm font-bold text-white">{tx.description || 'Receita'}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold">{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR') : '—'}</p>
+                                                <p className="text-sm font-bold text-[#191611]">{tx.description || 'Receita'}</p>
+                                                <p className="text-[10px] text-[#6B6252] font-bold">{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR') : '—'}</p>
                                             </div>
-                                            <span className="text-sm font-black text-emerald-400">+ {fmt(Number(tx.amount) || 0)}</span>
+                                            <span className="text-sm font-black text-[#178A50]">+ {fmt(Number(tx.amount) || 0)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -1144,9 +1141,9 @@ const Admin: React.FC = () => {
                         )}
 
                         {/* Info */}
-                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                            <p className="text-xs font-bold text-amber-500/80">Tenant ID: <span className="font-mono text-amber-500">{selectedShop?.tenant_id}</span></p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">Proprietário: {selectedShop?.owner} · Plano: <span className="text-white uppercase">{selectedShop?.plan}</span></p>
+                        <div className="p-4 bg-[#FCF6E7] border border-[#E8DFC9] rounded-xl">
+                            <p className="text-xs font-bold text-[#A96F14]/80">Tenant ID: <span className="font-mono text-[#A96F14]">{selectedShop?.tenant_id}</span></p>
+                            <p className="text-xs font-bold text-[#6B6252] mt-1">Proprietário: {selectedShop?.owner} · Plano: <span className="text-[#191611] uppercase">{selectedShop?.plan}</span></p>
                         </div>
                     </div>
                 )}
