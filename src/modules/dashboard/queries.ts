@@ -412,7 +412,7 @@ export const fetchTodayDashboardData = async ({
 
   let comandasQuery = comandasClient
     .from('comandas')
-    .select('total, amount, closed_at, updated_at')
+    .select('total, closed_at')
     .eq('tenant_id', tenantId)
     .eq('status', 'paid')
     .gte('closed_at', todayRange.start)
@@ -438,7 +438,7 @@ export const fetchTodayDashboardData = async ({
   const concluidos = todayAppointments.filter((a) => a.status === 'completed').length;
 
   const faturamento = (comandasRes.data || []).reduce((sum: number, c: any) => {
-    const value = c.total ?? c.amount ?? 0;
+    const value = c.total ?? 0;
     return sum + Number(value || 0);
   }, 0);
 
