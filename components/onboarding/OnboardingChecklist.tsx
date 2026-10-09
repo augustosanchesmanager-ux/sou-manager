@@ -41,14 +41,14 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ tenantId }) =
 
   if (!progress) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">rocket_launch</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Comece por aqui</h3>
+          <span className="material-symbols-outlined text-primary-dark">rocket_launch</span>
+          <h3 className="font-bold text-ink">Comece por aqui</h3>
         </div>
         <div className="animate-pulse space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-4 rounded bg-slate-200 dark:bg-slate-700" />
+            <div key={i} className="h-4 rounded bg-gold-pale" />
           ))}
         </div>
       </div>
@@ -60,28 +60,28 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ tenantId }) =
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-[#1A1A1A]">
-      <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-700">
+    <div className="overflow-hidden rounded-2xl border border-line bg-card">
+      <div className="flex items-center justify-between border-b border-line p-5">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">rocket_launch</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Comece por aqui</h3>
+          <span className="material-symbols-outlined text-primary-dark">rocket_launch</span>
+          <h3 className="font-bold text-ink">Comece por aqui</h3>
         </div>
-        <span className="text-xs font-black text-primary">{progress.percent}%</span>
+        <span className="text-xs font-black text-primary-dark">{progress.percent}%</span>
       </div>
 
-      <div className="border-b border-slate-100 p-5 dark:border-slate-700">
-        <div className="h-1.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
+      <div className="border-b border-line p-5">
+        <div className="h-1.5 bg-line rounded-full overflow-hidden">
           <div
             className="h-full bg-primary rounded-full transition-all duration-500"
             style={{ width: `${progress.percent}%` }}
           />
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
+        <p className="mt-2 text-[11px] text-ink-soft">
           {progress.doneCount} de {progress.totalCount} passos — monte sua barbearia para receber os primeiros clientes.
         </p>
       </div>
 
-      <div className="divide-y divide-slate-100 dark:divide-slate-700">
+      <div className="divide-y divide-line">
         {progress.items.map((item) => {
           const meta = ITEM_META[item.key] ?? { icon: 'check_circle' };
           return (
@@ -89,20 +89,20 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ tenantId }) =
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                    item.done ? 'bg-emerald-500/10' : 'bg-slate-100 dark:bg-slate-800'
+                    item.done ? 'bg-success/10' : 'bg-gold-pale'
                   }`}
                 >
                   {item.done ? (
-                    <span className="material-symbols-outlined text-base text-emerald-500">check_circle</span>
+                    <span className="material-symbols-outlined text-base text-success">check_circle</span>
                   ) : (
-                    <span className="material-symbols-outlined text-base text-slate-400">{meta.icon}</span>
+                    <span className="material-symbols-outlined text-base text-ink-soft">{meta.icon}</span>
                   )}
                 </div>
                 <span
                   className={`text-sm ${
                     item.done
-                      ? 'font-semibold text-slate-400 line-through'
-                      : 'font-semibold text-slate-700 dark:text-slate-300'
+                      ? 'font-semibold text-ink-soft line-through'
+                      : 'font-semibold text-ink'
                   }`}
                 >
                   {item.label}
@@ -111,7 +111,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ tenantId }) =
               {!item.done && meta.link && (
                 <Link
                   to={meta.link}
-                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary/80"
+                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary-dark"
                 >
                   Começar
                   <span className="material-symbols-outlined text-sm">arrow_forward</span>
