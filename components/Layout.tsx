@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Logo from './Logo';
@@ -11,16 +11,26 @@ import MobileBottomNav, { isMobileBottomNavRoute } from './MobileBottomNav';
 import { useNotifications } from '../src/hooks/useNotifications';
 import OfflineStatusBanner from '../src/components/offline/OfflineStatusBanner';
 import StatusBanner from './billing/StatusBanner';
+import ReleaseNotesModal from './ReleaseNotesModal';
+import { hasUnseenChangelog } from '../src/lib/changelog';
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
+  const [releaseNotesUnseen, setReleaseNotesUnseen] = useState(() => hasUnseenChangelog());
   const { user, appSlug } = useAuth();
   const notificationsController = useNotifications('unread');
   const { unreadCount } = notificationsController;
   const isEsteticaApp = appSlug === 'estetica';
+
+  useEffect(() => {
+    if (hasUnseenChangelog()) {
+      setIsReleaseNotesOpen(true);
+    }
+  }, []);
 
   const fallbackDisplayName = isEsteticaApp ? 'Minha Estética' : 'Minha Barbearia';
   const displayName = user?.user_metadata?.shop_name || user?.user_metadata?.first_name || fallbackDisplayName;
@@ -41,6 +51,8 @@ const Layout: React.FC = () => {
         onClose={() => setIsSidebarOpen(false)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onOpenReleaseNotes={() => setIsReleaseNotesOpen(true)}
+        releaseNotesUnseen={releaseNotesUnseen}
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -154,6 +166,14 @@ const Layout: React.FC = () => {
             onClose={() => setIsNotificationsOpen(false)}
           />
         </Modal>
+
+        <ReleaseNotesModal
+          isOpen={isReleaseNotesOpen}
+          onClose={() => {
+            setIsReleaseNotesOpen(false);
+            setReleaseNotesUnseen(hasUnseenChangelog());
+          }}
+        />
 
         {/* Widget de Suporte Flutuante */}
         <SupportWidget avoidBottomNav={showMobileBottomNav} />
