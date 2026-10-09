@@ -72,7 +72,7 @@ const PublishStep: React.FC<PublishStepProps> = ({
         <div className="divide-y divide-slate-100 dark:divide-border-dark">
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Barbearia</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{summary.shopName}</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white">{summary.shopName}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Link público</span>
@@ -80,19 +80,19 @@ const PublishStep: React.FC<PublishStepProps> = ({
           </div>
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Telefone</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{summary.phone || '—'}</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white">{summary.phone || '—'}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Endereço</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white text-right">{summary.address || '—'}</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white text-right">{summary.address || '—'}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Cadeiras</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{summary.chairCount}</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white">{summary.chairCount}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-xs text-slate-400">Fuso horário</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{summary.timezone}</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white">{summary.timezone}</span>
           </div>
           <div className="px-5 py-3">
             <span className="text-xs text-slate-400">Horário de funcionamento</span>
@@ -145,7 +145,7 @@ const PublishStep: React.FC<PublishStepProps> = ({
               >
                 {visibility === 'public' && <span className="size-2 rounded-full bg-primary" />}
               </span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white">Público</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-white">Público</span>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
               Seu link fica disponível para clientes agendarem.
@@ -168,7 +168,7 @@ const PublishStep: React.FC<PublishStepProps> = ({
               >
                 {visibility === 'draft' && <span className="size-2 rounded-full bg-primary" />}
               </span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white">Rascunho</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-white">Rascunho</span>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
               Publicar depois. Visível apenas para você.

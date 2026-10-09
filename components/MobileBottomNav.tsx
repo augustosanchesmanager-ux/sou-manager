@@ -146,7 +146,7 @@ const MobileBottomNav: React.FC = () => {
                     : 'text-ink-soft hover:bg-gold-pale hover:text-ink rounded-full'
                 }`}
               >
-                <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                <span className="material-symbols-outlined text-lg">{item.icon}</span>
                 <span className="text-[9px] font-medium leading-none mt-0.5">{item.label}</span>
               </button>
             ))}
@@ -156,7 +156,7 @@ const MobileBottomNav: React.FC = () => {
               className="mx-auto -mt-8 flex size-14 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-primary to-primary-dark text-white shadow-smg-glow transition-transform active:scale-95"
               aria-label={isQuickMenuOpen ? 'Fechar ações rápidas' : 'Abrir ações rápidas'}
             >
-              <span className="material-symbols-outlined text-[24px]">add</span>
+              <span className="material-symbols-outlined text-xl">add</span>
             </button>
 
             {navItems.slice(2).map((item) => (
@@ -170,7 +170,7 @@ const MobileBottomNav: React.FC = () => {
                     : 'text-ink-soft hover:bg-gold-pale hover:text-ink rounded-full'
                 }`}
               >
-                <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                <span className="material-symbols-outlined text-lg">{item.icon}</span>
                 <span className="text-[9px] font-medium leading-none mt-0.5">{item.label}</span>
               </button>
             ))}

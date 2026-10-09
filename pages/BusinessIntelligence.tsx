@@ -293,7 +293,7 @@ const BusinessIntelligence: React.FC = () => {
                             <span className="material-symbols-outlined text-sm">monitoring</span>
                             SMG BI OPERACIONAL
                         </div>
-                        <h2 className="text-2xl font-black text-ink md:text-3xl">
+                        <h2 className="text-xl font-black text-ink">
                             Visão do Negócio
                         </h2>
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
@@ -364,7 +364,7 @@ const BusinessIntelligence: React.FC = () => {
                 <div className="lg:col-span-2 bg-card p-6 rounded-xl border border-line shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-base font-bold text-ink flex items-center gap-2">
-                            <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">show_chart</span>
+                            <span className="material-symbols-outlined text-gold-deep text-base bg-gold-soft p-1.5 rounded-lg">show_chart</span>
                             Evolução do Faturamento
                         </h3>
                         <span className="text-[10px] font-bold text-ink-soft uppercase">Últimos 6 Meses</span>
@@ -386,7 +386,7 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Distribution Pie */}
                 <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-6">
-                        <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">pie_chart</span>
+                        <span className="material-symbols-outlined text-gold-deep text-base bg-gold-soft p-1.5 rounded-lg">pie_chart</span>
                         Formas de Pagamento
                     </h3>
                     <div className="h-[240px] w-full">
@@ -432,7 +432,7 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Attendance Breakdown */}
                 <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-[#178A50] text-lg bg-[#F0FDF4] p-1.5 rounded-lg">bar_chart</span>
+                        <span className="material-symbols-outlined text-[#178A50] text-base bg-[#F0FDF4] p-1.5 rounded-lg">bar_chart</span>
                         Indicadores de Agendamento
                     </h3>
                     <div className="space-y-4">
@@ -478,7 +478,7 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Top Services */}
                 <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
                     <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">content_cut</span>
+                        <span className="material-symbols-outlined text-gold-deep text-base bg-gold-soft p-1.5 rounded-lg">content_cut</span>
                         Serviços Mais Vendidos
                     </h3>
                     {data.analytics.topServices.length > 0 ? (
@@ -523,7 +523,7 @@ const BusinessIntelligence: React.FC = () => {
             {data.analytics.topProfessionals.length > 0 && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                        <h3 className="text-base font-bold text-ink flex items-center gap-2">
                             <span className="material-symbols-outlined text-gold-deep bg-gold-soft p-1.5 rounded-lg">groups</span>
                             Performance da Equipe
                         </h3>
@@ -563,7 +563,7 @@ const BusinessIntelligence: React.FC = () => {
                             <span className="material-symbols-outlined">receipt_long</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-ink">Despesas por Categoria</h3>
+                            <h3 className="text-base font-bold text-ink">Despesas por Categoria</h3>
                             <p className="text-xs text-ink-soft">Visão detalhada dos custos operacionais</p>
                         </div>
                     </div>
@@ -583,7 +583,7 @@ const BusinessIntelligence: React.FC = () => {
                             <span className="material-symbols-outlined">psychology</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-ink">Insights Automáticos</h3>
+                            <h3 className="text-base font-bold text-ink">Insights Automáticos</h3>
                             <p className="text-xs text-ink-soft">Inteligência gerada a partir dos seus dados reais.</p>
                         </div>
                     </div>
@@ -605,7 +605,7 @@ const BusinessIntelligence: React.FC = () => {
                             <span className="material-symbols-outlined">event_busy</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-ink">Análise de Cancelamentos</h3>
+                            <h3 className="text-base font-bold text-ink">Análise de Cancelamentos</h3>
                             <p className="text-xs text-ink-soft">{cancellationData.total} agendamentos cancelados/no-show no período</p>
                         </div>
                     </div>

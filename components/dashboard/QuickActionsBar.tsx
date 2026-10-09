@@ -69,8 +69,8 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({ appSlug }) => 
           : 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary';
 
         const labelClassName = isPrimary
-          ? 'text-sm font-black text-ink'
-          : 'text-sm font-bold text-ink';
+          ? 'text-xs font-bold text-ink'
+          : 'text-xs font-bold text-ink';
 
         return (
           <button
