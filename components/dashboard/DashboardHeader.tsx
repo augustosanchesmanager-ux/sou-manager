@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
+import { getTimeOfDayGreeting, formatDateInSaoPaulo } from '../../src/modules/dashboard/timezone';
 
 interface DashboardHeaderProps {
   appSlug?: string | null;
@@ -47,12 +48,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const labels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
 
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return { icon: 'wb_sunny', text: 'Bom dia' };
-    if (hour < 18) return { icon: 'wb_twilight', text: 'Boa tarde' };
-    return { icon: 'nights_stay', text: 'Boa noite' };
-  }, []);
+  const greeting = useMemo(() => getTimeOfDayGreeting(), []);
+  const todayFormatted = useMemo(() => formatDateInSaoPaulo(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }), []);
 
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'gestor';
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
@@ -109,6 +106,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <span className="material-symbols-outlined text-[18px] text-primary-dark">{greeting.icon}</span>
               {greeting.text}, {displayName}
             </div>
+            <p className={`text-xs font-medium ${isEsteticaApp ? 'text-[#6F6758]' : 'text-ink-soft'}`}>
+              {todayFormatted.charAt(0).toUpperCase() + todayFormatted.slice(1)}
+            </p>
             <h1 className={titleClassName}>
               {isEsteticaApp ? 'Resumo da operação de hoje.' : 'Sua barbearia em tempo real.'}
             </h1>
