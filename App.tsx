@@ -63,7 +63,6 @@ const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
 const Settings = lazy(() => import('./pages/Settings'));
 const ShopSetup = lazy(() => import('./pages/onboarding/ShopSetup'));
-const OperationalSetup = lazy(() => import('./pages/onboarding/OperationalSetup'));
 const Welcome = lazy(() => import('./pages/onboarding/Welcome'));
 const SmartReturn = lazy(() => import('./pages/SmartReturn'));
 const StrategicDashboard = lazy(() => import('./pages/StrategicDashboard'));
@@ -265,7 +264,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/onboarding/provision" element={<Provision />} />
           <Route path="/onboarding/welcome" element={<Welcome />} />
           <Route path="/onboarding/shop-setup" element={<ShopSetup />} />
-          <Route path="/onboarding/operational-setup" element={<OperationalSetup />} />
+          <Route path="/onboarding/operational-setup" element={<Navigate to="/onboarding/shop-setup" replace />} />
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />

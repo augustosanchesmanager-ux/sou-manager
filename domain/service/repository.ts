@@ -83,6 +83,28 @@ class ServiceRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'get service price');
     }
   }
+
+  async createMany(
+    tenantId: string,
+    rows: Array<{ name: string; category: string; price: number; duration: number }>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    try {
+      const result = await this.from().insert(
+        rows.map((row) => ({
+          tenant_id: tenantId,
+          name: row.name,
+          category: row.category,
+          price: row.price,
+          duration: row.duration,
+          active: true,
+        })),
+      );
+      this.extractData(result, 'create services');
+    } catch (err) {
+      this.throwOnError(err, 'create services');
+    }
+  }
 }
 
 export interface ServiceRepository extends IRepository<ServiceRecord> {
@@ -91,6 +113,10 @@ export interface ServiceRepository extends IRepository<ServiceRecord> {
   exists(id: string, tenantId: string): Promise<boolean>;
   listActive(tenantId: string): Promise<ServiceRecord[]>;
   getPrice(id: string): Promise<number | null>;
+  createMany(
+    tenantId: string,
+    rows: Array<{ name: string; category: string; price: number; duration: number }>,
+  ): Promise<void>;
 }
 
 export const serviceRepository = new ServiceRepositoryImpl();

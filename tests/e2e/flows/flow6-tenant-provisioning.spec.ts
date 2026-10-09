@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { WelcomePage } from '../pages/WelcomePage';
 import { ShopSetupPage } from '../pages/ShopSetupPage';
-import { OperationalSetupPage } from '../pages/OperationalSetupPage';
 import { LoginPage } from '../pages/LoginPage';
 import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin';
 
@@ -22,8 +21,8 @@ import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin
  *   3. Provision.tsx calls the authenticated RPC provision_new_tenant (the
  *      security-fixed one — rejects auth.uid() == NULL) and lands on
  *      /onboarding/welcome;
- *   4. Welcome (Bloco 1) -> ShopSetup (Bloco 2) -> OperationalSetup (Bloco 3)
- *      -> complete_onboarding -> /dashboard.
+ *   4. Welcome -> ShopSetup (3 passos in-page: empresa/endereço -> horários +
+ *      catálogo -> publicação) -> complete_onboarding -> /dashboard.
  *
  * The UI signup flow (register -> verify-email) is covered SEPARATELY by
  * flow6a-signup-ui.spec.ts (gated, non-blocking) because the environment uses
@@ -41,7 +40,7 @@ test.describe('Flow 6 — Tenant Provisioning (Phase 6.0.2)', () => {
 
   test.skip(!enabled, 'Requires E2E_PROVISIONING=1 and real Supabase in .env.local');
 
-  test('create confirmed user -> login -> provision -> welcome -> shop-setup -> operational-setup -> dashboard', async ({ page }) => {
+  test('create confirmed user -> login -> provision -> welcome -> shop-setup (3 steps) -> dashboard', async ({ page }) => {
     test.setTimeout(150_000);
 
     // 1. Create the user directly via the Admin API (confirmed email). The app
@@ -74,33 +73,31 @@ test.describe('Flow 6 — Tenant Provisioning (Phase 6.0.2)', () => {
     await expect(welcome.planBadge).toBeVisible();
     await welcome.begin();
 
-    // 4. Shop setup (Bloco 2): step 1 (phone required) -> step 2 (address +
-    //    chairs) -> step 3 (timezone/currency) -> /onboarding/operational-setup.
+    // 4. Shop setup (3 passos in-page): passo 1 (empresa + endereço + regional)
+    //    -> passo 2 (horários + catálogo) -> passo 3 (publicação).
     const shopSetup = new ShopSetupPage(page);
-    await expect(shopSetup.phoneInput).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep1({ phone: '(11) 99999-9999', cnpj: '12.345.678/0001-90' });
-    await expect(shopSetup.zipInput).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep2({
+    await expect(shopSetup.step1Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep1({
+      phone: '(11) 99999-9999',
+      cnpj: '12.345.678/0001-90',
       zip: '01310-100',
       street: 'Av. Paulista',
       number: '1000',
       city: 'São Paulo',
       state: 'SP',
       chairCount: 2,
+      timezone: 'America/Sao_Paulo',
+      currency: 'BRL',
     });
-    await expect(shopSetup.timezoneSelect).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep3({ timezone: 'America/Sao_Paulo', currency: 'BRL' });
 
-    // 5. Operational setup (Bloco 3): keep defaults, finish -> complete_onboarding
-    //    -> /dashboard.
-    await page.waitForURL(/#\/onboarding\/operational-setup/, { timeout: 20_000 });
-    const operational = new OperationalSetupPage(page);
-    await expect(operational.heading).toBeVisible({ timeout: 15_000 });
-    await operational.setInterval(30);
-    await operational.setDuration(60);
-    await operational.setHorizon(30);
-    await expect.poll(() => operational.isStaffScheduleEnabled()).toBe(true);
-    await operational.finish();
+    // 5. Passo 2: mantém defaults operacionais e valida a agenda por barbeiro.
+    await expect(shopSetup.step2Heading).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => shopSetup.isStaffScheduleEnabled()).toBe(true);
+    await shopSetup.completeStep2({ interval: 30, duration: 60, horizon: 30 });
+
+    // 6. Passo 3: publicar -> complete_onboarding -> /dashboard.
+    await expect(shopSetup.step3Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.publish();
 
     // Expected: /dashboard. The app refreshes TenantContext after
     // complete_onboarding (so status becomes 'active' before navigating). We

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { WelcomePage } from '../pages/WelcomePage';
 import { ShopSetupPage } from '../pages/ShopSetupPage';
-import { OperationalSetupPage } from '../pages/OperationalSetupPage';
 import { LoginPage } from '../pages/LoginPage';
 import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin';
 
@@ -13,9 +12,10 @@ import { createConfirmedUser, deleteUserByEmail } from '../helpers/supabaseAdmin
  *   -> finalizar onboarding -> Dashboard -> checklist persistente.
  *
  * Este cenário cobre a jornada inteira do NOVO tenant na UX nova:
- *   provision (Admin API, confirmado) -> Welcome (Bloco 1) -> ShopSetup
- *   (Bloco 2) -> OperationalSetup (Bloco 3) -> Dashboard com OnboardingChecklist
- *   (Bloco 4) — "Loja criada" marcado, links dos demais itens funcionais.
+ *   provision (Admin API, confirmado) -> Welcome -> ShopSetup (3 passos
+ *   in-page: empresa/endereço -> horários + catálogo -> publicação) -> Dashboard
+ *   com OnboardingChecklist — "Loja criada" marcado, links dos demais itens
+ *   funcionais.
  *
  * Também valida que as rotas legadas /onboarding/role e
  * /onboarding/professional-setup foram removidas (fallback para /).
@@ -60,28 +60,34 @@ test.describe('Flow 7 — Onboarding Completo (Phase 6.0.2)', () => {
     await expect(page.getByText(/Vamos configurar a E2E Onboarding Barbershop/)).toBeVisible();
     await welcome.begin();
 
-    // 4. Bloco 2 — ShopSetup: 3 passos até operacional.
+    // 4. Wizard de onboarding (3 passos), tudo em /onboarding/shop-setup.
+    //    Passo 1 "Sua Barbearia": dados da empresa + endereço + regional.
     const shopSetup = new ShopSetupPage(page);
-    await expect(shopSetup.shopNameInput).toBeVisible({ timeout: 15_000 });
+    await expect(shopSetup.step1Heading).toBeVisible({ timeout: 15_000 });
+    await expect(shopSetup.shopNameInput).toBeVisible();
     await expect(shopSetup.shopNameInput).toHaveValue('E2E Onboarding Barbershop');
-    await shopSetup.completeStep1({ phone: '(11) 98888-7777', cnpj: '98.765.432/0001-10' });
-    await expect(shopSetup.zipInput).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep2({
+    await shopSetup.completeStep1({
+      phone: '(11) 98888-7777',
+      cnpj: '98.765.432/0001-10',
       zip: '20040-020',
       street: 'Rua da Carioca',
       number: '55',
       city: 'Rio de Janeiro',
       state: 'RJ',
       chairCount: 5,
+      timezone: 'America/Sao_Paulo',
+      currency: 'BRL',
     });
-    await expect(shopSetup.timezoneSelect).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep3({ timezone: 'America/Sao_Paulo', currency: 'BRL' });
 
-    // 5. Bloco 3 — OperationalSetup: defaults + finalizar -> /dashboard.
-    await page.waitForURL(/#\/onboarding\/operational-setup/, { timeout: 20_000 });
-    const operational = new OperationalSetupPage(page);
-    await expect(operational.heading).toBeVisible({ timeout: 15_000 });
-    await operational.finish();
+    // 5. Passo 2 "Como você atende": mantém defaults (horários + catálogo
+    //    inicial de serviços) e avança. O catálogo vazio é semeado no servidor.
+    await expect(shopSetup.step2Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep2();
+
+    // 6. Passo 3 "Publicação": resumo + "Publicar agora" -> complete_onboarding
+    //    -> /dashboard.
+    await expect(shopSetup.step3Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.publish();
     await page.waitForURL(/#\/dashboard/, { timeout: 20_000 });
 
     // 6. Bloco 4 — Checklist no dashboard: visível com "Loja criada" marcado.

@@ -1,95 +1,118 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { completeOnboardingService } from '../../application/onboarding';
+import { serviceRepository } from '../../domain/service/repository';
+import type { TenantSettings, BusinessHours } from '../../domain/tenantSettings/types';
+import ShopDetailsStep, { type ShopDetailsForm } from './steps/ShopDetailsStep';
+import ServiceCatalogStep, {
+    DAYS,
+    DEFAULT_WEEK,
+    createDefaultServiceRows,
+    type OperationalForm,
+    type ServiceRow,
+} from './steps/ServiceCatalogStep';
+import PublishStep, {
+    type PublishSummary,
+    type PublishVisibility,
+} from './steps/PublishStep';
 
-const CHAIR_OPTIONS = [
-    { value: 2, label: '1 a 3 Cadeiras' },
-    { value: 5, label: '4 a 7 Cadeiras' },
-    { value: 10, label: '8+ Cadeiras' },
-];
+type WizardStep = 1 | 2 | 3;
 
-const TIMEZONES = [
-    { value: 'America/Sao_Paulo', label: 'Brasília (UTC-3)' },
-    { value: 'America/Fortaleza', label: 'Fortaleza (UTC-3)' },
-    { value: 'America/Recife', label: 'Recife (UTC-3)' },
-    { value: 'America/Belem', label: 'Belém (UTC-3)' },
-    { value: 'America/Bahia', label: 'Salvador (UTC-3)' },
-    { value: 'America/Manaus', label: 'Manaus (UTC-4)' },
-    { value: 'America/Cuiaba', label: 'Cuiabá (UTC-4)' },
-    { value: 'America/Porto_Velho', label: 'Porto Velho (UTC-4)' },
-    { value: 'America/Boa_Vista', label: 'Boa Vista (UTC-4)' },
-    { value: 'America/Rio_Branco', label: 'Rio Branco (UTC-5)' },
-    { value: 'America/Noronha', label: 'Fernando de Noronha (UTC-2)' },
-];
-
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-const DEFAULT_WEEK = {
-    sun: { open: '09:00', close: '18:00' },
-    mon: { open: '09:00', close: '19:00' },
-    tue: { open: '09:00', close: '19:00' },
-    wed: { open: '09:00', close: '19:00' },
-    thu: { open: '09:00', close: '19:00' },
-    fri: { open: '09:00', close: '20:00' },
-    sat: { open: '09:00', close: '19:00' },
+const STEP_COPY: Record<WizardStep, { title: string; subtitle: string }> = {
+    1: { title: 'Sua Barbearia', subtitle: 'Preencha as informações do seu negócio.' },
+    2: { title: 'Como você atende', subtitle: 'Defina horários e o catálogo inicial de serviços.' },
+    3: { title: 'Publicação', subtitle: 'Revise os dados e escolha como publicar.' },
 };
 
 /**
- * Bloco 2 — Configuração da Empresa (Fase 6.0.2).
+ * Onboarding — wizard de 3 passos (Fase 6.0.2, reestruturação).
  *
- * Dados obrigatórios para o sistema funcionar: telefone, CNPJ (opcional),
- * endereço, timezone, moeda e quantidade de cadeiras.
+ * Passo 1 "Sua Barbearia": dados da empresa + endereço + regional.
+ * Passo 2 "Como você atende": horário de funcionamento + catálogo inicial.
+ * Passo 3 "Publicação": resumo + visibilidade (Público/Rascunho).
  *
- * Persistência progressiva via saveCompanyStep (RPC save_onboarding_step).
- * Suporta retomada: se o tenant já salvou a etapa, os campos vêm preenchidos.
+ * Todo o estado do formulário vive neste shell para que "Voltar" entre os
+ * passos nunca perca dados digitados. A persistência progressiva acontece em
+ * saveCompanyStep (passo 1), saveOperationalStep + ensureInitialCatalog
+ * (passo 2) e complete (passo 3, caminho Público).
  */
 const ShopSetup: React.FC = () => {
     const navigate = useNavigate();
-    const { tenantId, tenant, tenantSlug } = useAuth();
-    const [step, setStep] = useState(1);
+    const { tenantId, tenant, tenantSlug, refreshTenant } = useAuth();
+    const [step, setStep] = useState<WizardStep>(1);
+    const [settings, setSettings] = useState<TenantSettings | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Company data (Step 1)
-    const [phone, setPhone] = useState('');
-    const [cnpj, setCnpj] = useState('');
+    const [shopForm, setShopForm] = useState<ShopDetailsForm>({
+        phone: '',
+        cnpj: '',
+        addressZip: '',
+        addressStreet: '',
+        addressNumber: '',
+        addressCity: '',
+        addressState: '',
+        chairCount: 2,
+        timezone: 'America/Sao_Paulo',
+        currency: 'BRL',
+    });
 
-    // Address + Operational data (Step 2)
-    const [addressZip, setAddressZip] = useState('');
-    const [addressStreet, setAddressStreet] = useState('');
-    const [addressNumber, setAddressNumber] = useState('');
-    const [addressCity, setAddressCity] = useState('');
-    const [addressState, setAddressState] = useState('');
-    const [chairCount, setChairCount] = useState<number>(2);
+    // Operational + catalog data (Step 2)
+    const [operational, setOperational] = useState<OperationalForm>({
+        week: DEFAULT_WEEK,
+        intervalMinutes: 30,
+        durationMinutes: 60,
+        bookingHorizonDays: 30,
+        staffOwnedSchedule: true,
+    });
+    const [serviceRows, setServiceRows] = useState<ServiceRow[]>(() => createDefaultServiceRows());
+    const [servicesLoading, setServicesLoading] = useState(true);
+    const [existingServicesCount, setExistingServicesCount] = useState(0);
 
-    // Regional (Step 3)
-    const [timezone, setTimezone] = useState('America/Sao_Paulo');
-    const [currency, setCurrency] = useState('BRL');
+    // Visibility (Step 3)
+    const [visibility, setVisibility] = useState<PublishVisibility>('public');
 
-    // Resume
+    // Resume — empresa + operacional. Mantém a proteção de corrida do
+    // ShopSetup original: os functional updaters só preenchem campos que ainda
+    // estão no valor inicial, então um fetch que resolve depois do usuário
+    // digitar não apaga o telefone digitado em tenants recém-provisionados
+    // (tenant_settings.phone ainda NULL).
     useEffect(() => {
         if (!tenantId) return;
         let cancelled = false;
         void (async () => {
             try {
-                const settings = await completeOnboardingService.getSettings(tenantId);
-                if (cancelled || !settings) return;
+                const current = await completeOnboardingService.getSettings(tenantId);
+                if (cancelled || !current) return;
+                setSettings(current);
                 // Functional updaters: só preenchem campos que ainda estão no
                 // valor inicial. Se o usuário já digitou (fetch resolveu
                 // depois), o valor digitado é preservado — evita o race que
                 // apagava o telefone digitado em tenants recém-provisionados
                 // (tenant_settings.phone ainda NULL).
-                setPhone((prev) => (prev === '' ? (settings.phone ?? '') : prev));
-                setCnpj((prev) => (prev === '' ? (settings.cnpj ?? '') : prev));
-                setAddressZip((prev) => (prev === '' ? (settings.address_zip ?? '') : prev));
-                setAddressStreet((prev) => (prev === '' ? (settings.address_street ?? '') : prev));
-                setAddressNumber((prev) => (prev === '' ? (settings.address_number ?? '') : prev));
-                setAddressCity((prev) => (prev === '' ? (settings.address_city ?? '') : prev));
-                setAddressState((prev) => (prev === '' ? (settings.address_state ?? '') : prev));
-                setChairCount((prev) => (prev === 2 ? (settings.chair_count ?? 2) : prev));
-                setTimezone((prev) => (prev === 'America/Sao_Paulo' ? (settings.timezone || 'America/Sao_Paulo') : prev));
-                setCurrency((prev) => (prev === 'BRL' ? (settings.currency || 'BRL') : prev));
+                setShopForm((prev) => ({
+                    ...prev,
+                    phone: prev.phone === '' ? (current.phone ?? '') : prev.phone,
+                    cnpj: prev.cnpj === '' ? (current.cnpj ?? '') : prev.cnpj,
+                    addressZip: prev.addressZip === '' ? (current.address_zip ?? '') : prev.addressZip,
+                    addressStreet: prev.addressStreet === '' ? (current.address_street ?? '') : prev.addressStreet,
+                    addressNumber: prev.addressNumber === '' ? (current.address_number ?? '') : prev.addressNumber,
+                    addressCity: prev.addressCity === '' ? (current.address_city ?? '') : prev.addressCity,
+                    addressState: prev.addressState === '' ? (current.address_state ?? '') : prev.addressState,
+                    chairCount: prev.chairCount === 2 ? (current.chair_count ?? 2) : prev.chairCount,
+                    timezone: prev.timezone === 'America/Sao_Paulo' ? (current.timezone || 'America/Sao_Paulo') : prev.timezone,
+                    currency: prev.currency === 'BRL' ? (current.currency || 'BRL') : prev.currency,
+                }));
+                setOperational((prev) => ({
+                    ...prev,
+                    week: current.business_hours ? { ...DEFAULT_WEEK, ...current.business_hours } : prev.week,
+                    intervalMinutes: current.appointment_interval_minutes ?? prev.intervalMinutes,
+                    durationMinutes: current.default_appointment_duration_minutes ?? prev.durationMinutes,
+                    bookingHorizonDays: current.booking_horizon_days ?? prev.bookingHorizonDays,
+                    staffOwnedSchedule: current.staff_owned_schedule ?? prev.staffOwnedSchedule,
+                }));
             } catch {
                 // Segue com campos vazios — o prefill é otimização, não requisito.
             }
@@ -99,12 +122,52 @@ const ShopSetup: React.FC = () => {
         };
     }, [tenantId]);
 
-    const handleSaveCompany = async () => {
+    // Resume — catálogo existente (decide entre o editor e o aviso "já está
+    // no ar"; a contagem também gate do seed idempotente no passo 2).
+    useEffect(() => {
+        if (!tenantId) {
+            setServicesLoading(false);
+            return;
+        }
+        let cancelled = false;
+        void (async () => {
+            try {
+                const services = await serviceRepository.list(tenantId);
+                if (!cancelled) setExistingServicesCount(services.length);
+            } catch {
+                // Sem catálogo conhecido seguimos com o editor (contagem 0).
+            } finally {
+                if (!cancelled) setServicesLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [tenantId]);
+
+    const handleBack = () => {
+        setError(null);
+        if (step === 1) {
+            navigate('/onboarding/welcome');
+            return;
+        }
+        setStep((prev) => (prev === 3 ? 2 : 1));
+    };
+
+    const buildBusinessHours = (): BusinessHours => {
+        const businessHours: BusinessHours = {};
+        for (const day of DAYS) {
+            businessHours[day.key] = operational.week[day.key] ?? null;
+        }
+        return businessHours;
+    };
+
+    const handleShopContinue = async () => {
         if (!tenantId) {
             setError('Tenant não identificado. Faça login novamente.');
             return;
         }
-        if (!phone.trim()) {
+        if (!shopForm.phone.trim()) {
             setError('Informe o telefone / WhatsApp da barbearia.');
             return;
         }
@@ -115,24 +178,151 @@ const ShopSetup: React.FC = () => {
         try {
             await completeOnboardingService.saveCompanyStep({
                 tenantId,
-                phone: phone.trim(),
-                cnpj: cnpj.trim() || undefined,
-                addressStreet: addressStreet.trim() || undefined,
-                addressNumber: addressNumber.trim() || undefined,
-                addressCity: addressCity.trim() || undefined,
-                addressState: addressState.trim() || undefined,
-                addressZip: addressZip.trim() || undefined,
-                timezone,
-                currency,
+                phone: shopForm.phone.trim(),
+                cnpj: shopForm.cnpj.trim() || undefined,
+                addressStreet: shopForm.addressStreet.trim() || undefined,
+                addressNumber: shopForm.addressNumber.trim() || undefined,
+                addressCity: shopForm.addressCity.trim() || undefined,
+                addressState: shopForm.addressState.trim() || undefined,
+                addressZip: shopForm.addressZip.trim() || undefined,
+                timezone: shopForm.timezone,
+                currency: shopForm.currency,
             });
 
-            navigate('/onboarding/operational-setup');
-        } catch (err: any) {
-            setError(err.message || 'Erro ao salvar dados da empresa');
+            // Relê o registro persistido: o passo 3 (complete) reutiliza o
+            // payload a partir de settings, exatamente como o OperationalSetup
+            // original relia ao remontar. Sem o refetch, o telefone recém-salvo
+            // ficaria ausente no payload em tenant novo.
+            const refreshed = await completeOnboardingService.getSettings(tenantId);
+            if (refreshed) setSettings(refreshed);
+
+            setStep(2);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erro ao salvar dados da empresa');
         } finally {
             setLoading(false);
         }
     };
+
+    const handleCatalogContinue = async () => {
+        if (!tenantId) {
+            setError('Tenant não identificado. Faça login novamente.');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            await completeOnboardingService.saveOperationalStep({
+                tenantId,
+                businessHours: buildBusinessHours(),
+                appointmentIntervalMinutes: operational.intervalMinutes,
+                defaultAppointmentDurationMinutes: operational.durationMinutes,
+                bookingHorizonDays: operational.bookingHorizonDays,
+                staffOwnedSchedule: operational.staffOwnedSchedule,
+            });
+
+            // Semeia o catálogo só quando o tenant ainda não tinha serviços (é
+            // o caso em que o passo 2 mostra o editor). ensureInitialCatalog
+            // reconfere a contagem no servidor e é idempotente.
+            if (existingServicesCount === 0) {
+                await completeOnboardingService.ensureInitialCatalog({
+                    tenantId,
+                    services: serviceRows
+                        .map((row) => ({
+                            name: row.name.trim(),
+                            category: row.category,
+                            price: Number(row.price),
+                            duration: Number(row.duration),
+                        }))
+                        .filter((row) => row.name !== '' && Number.isFinite(row.price) && Number.isFinite(row.duration)),
+                });
+            }
+
+            setStep(3);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erro ao salvar configurações operacionais');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePublish = async () => {
+        if (!tenantId) {
+            setError('Tenant não identificado. Faça login novamente.');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            await completeOnboardingService.complete({
+                tenantId,
+                phone: settings?.phone ?? '',
+                cnpj: settings?.cnpj ?? undefined,
+                addressStreet: settings?.address_street ?? undefined,
+                addressNumber: settings?.address_number ?? undefined,
+                addressCity: settings?.address_city ?? undefined,
+                addressState: settings?.address_state ?? undefined,
+                addressZip: settings?.address_zip ?? undefined,
+                chairCount: settings?.chair_count ?? undefined,
+                businessHours: buildBusinessHours(),
+            });
+
+            // O complete_onboarding ativa o tenant no banco; sem refrescar o
+            // contexto, o ProtectedRoute ainda vê status 'draft' e redireciona
+            // de volta para o onboarding (regressão stale-draft).
+            await refreshTenant();
+
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erro ao finalizar onboarding');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveDraft = () => {
+        setError(null);
+        // O tenant permanece 'draft' (complete_onboarding não é chamado). O
+        // AuthorizationService resolve o nível 'onboarding' e redireciona
+        // qualquer rota fora do onboarding de volta para /onboarding/welcome —
+        // inclusive /dashboard. Enviamos direto para o welcome, onde o usuário
+        // pode retomar de onde parou.
+        navigate('/onboarding/welcome');
+    };
+
+    const summary: PublishSummary = useMemo(
+        () => ({
+            shopName: tenant?.name ?? '',
+            publicLink: `${window.location.origin}/#/c/${tenantSlug ?? ''}`,
+            phone: shopForm.phone,
+            address: [
+                shopForm.addressStreet,
+                shopForm.addressNumber,
+                shopForm.addressCity,
+                shopForm.addressState,
+            ]
+                .filter((part) => part.trim() !== '')
+                .join(', '),
+            chairCount: shopForm.chairCount,
+            timezone: shopForm.timezone,
+            services: serviceRows
+                .filter((row) => row.name.trim() !== '')
+                .map((row) => ({
+                    name: row.name.trim(),
+                    price: Number(row.price) || 0,
+                    duration: Number(row.duration) || 0,
+                })),
+            businessHours: DAYS.flatMap((day) => {
+                const hours = operational.week[day.key];
+                return hours ? [{ label: day.label, open: hours.open, close: hours.close }] : [];
+            }),
+        }),
+        [tenant?.name, tenantSlug, shopForm, operational.week, serviceRows],
+    );
 
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col lg:flex-row">
@@ -155,209 +345,82 @@ const ShopSetup: React.FC = () => {
 
             <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative">
                 <button
-                    onClick={() => navigate('/onboarding/welcome')}
+                    onClick={handleBack}
                     className="absolute top-6 left-6 lg:top-12 lg:left-12 flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors text-sm font-bold"
                 >
                     <span className="material-symbols-outlined">arrow_back</span> Voltar
                 </button>
 
-                <div className="w-full max-w-md animate-fade-in">
+                <div className="w-full max-w-lg animate-fade-in">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">Dados da Barbearia</h1>
-                        <p className="text-slate-500 dark:text-slate-400">Preencha as informações do seu negócio.</p>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">
+                            {STEP_COPY[step].title}
+                        </h1>
+                        <p className="text-slate-500 dark:text-slate-400">{STEP_COPY[step].subtitle}</p>
                     </div>
 
-                    {error && (
+                    {error && step !== 3 && (
                         <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3 rounded-lg text-center font-bold mb-5">
                             {error}
                         </div>
                     )}
 
-                    {step === 1 && (
-                        <div className="space-y-5">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Nome fantasia</label>
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={tenant?.name ?? ''}
-                                    className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-400 dark:text-slate-500 font-medium cursor-not-allowed"
-                                />
-                                <p className="text-[10px] text-slate-400 ml-1">Definido no cadastro. Pode ser alterado depois nas configurações.</p>
-                            </div>
+                    <div key={step} className="animate-fade-in">
+                        {step === 1 && (
+                            <ShopDetailsStep
+                                shopName={tenant?.name ?? ''}
+                                tenantSlug={tenantSlug}
+                                form={shopForm}
+                                onChange={(patch) => setShopForm((prev) => ({ ...prev, ...patch }))}
+                                onContinue={handleShopContinue}
+                                loading={loading}
+                            />
+                        )}
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Telefone / WhatsApp</label>
-                                <input
-                                    type="tel"
-                                    required
-                                    placeholder="(11) 99999-9999"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                />
-                            </div>
+                        {step === 2 && (
+                            <ServiceCatalogStep
+                                operational={operational}
+                                onOperationalChange={(patch) => setOperational((prev) => ({ ...prev, ...patch }))}
+                                onToggleDay={(key) => setOperational((prev) => ({
+                                    ...prev,
+                                    week: {
+                                        ...prev.week,
+                                        [key]: prev.week[key]
+                                            ? null
+                                            : (DEFAULT_WEEK[key] ?? { open: '09:00', close: '19:00' }),
+                                    },
+                                }))}
+                                onUpdateDayTime={(key, field, value) => setOperational((prev) => {
+                                    const current = prev.week[key] ?? { open: '09:00', close: '19:00' };
+                                    return { ...prev, week: { ...prev.week, [key]: { ...current, [field]: value } } };
+                                })}
+                                servicesLoading={servicesLoading}
+                                existingServicesCount={existingServicesCount}
+                                serviceRows={serviceRows}
+                                onRowsChange={setServiceRows}
+                                onAddRow={() => setServiceRows((prev) => [
+                                    ...prev,
+                                    { key: `custom-${prev.length}-${Date.now()}`, name: '', category: 'Cabelo', price: '', duration: '30' },
+                                ])}
+                                onRemoveRow={(key) => setServiceRows((prev) => prev.filter((row) => row.key !== key))}
+                                onContinue={handleCatalogContinue}
+                                loading={loading}
+                            />
+                        )}
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">CNPJ (Opcional)</label>
-                                <input
-                                    type="text"
-                                    placeholder="00.000.000/0001-00"
-                                    value={cnpj}
-                                    onChange={(e) => setCnpj(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                />
-                            </div>
-
-                            <button
-                                onClick={() => setStep(2)}
-                                className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 mt-4"
-                            >
-                                Continuar
-                                <span className="material-symbols-outlined">arrow_forward</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {step === 2 && (
-                        <div className="space-y-5 animate-fade-in">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">CEP</label>
-                                <input
-                                    type="text"
-                                    placeholder="00000-000"
-                                    value={addressZip}
-                                    onChange={(e) => setAddressZip(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="col-span-1 sm:col-span-2 space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Rua</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Rua..."
-                                        value={addressStreet}
-                                        onChange={(e) => setAddressStreet(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Número</label>
-                                    <input
-                                        type="text"
-                                        placeholder="123"
-                                        value={addressNumber}
-                                        onChange={(e) => setAddressNumber(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Cidade</label>
-                                    <input
-                                        type="text"
-                                        placeholder="São Paulo"
-                                        value={addressCity}
-                                        onChange={(e) => setAddressCity(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Estado</label>
-                                    <input
-                                        type="text"
-                                        placeholder="SP"
-                                        maxLength={2}
-                                        value={addressState}
-                                        onChange={(e) => setAddressState(e.target.value.toUpperCase())}
-                                        className="w-full bg-slate-50 dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Quantidade de Cadeiras</label>
-                                <select
-                                    value={chairCount}
-                                    onChange={(e) => setChairCount(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium appearance-none [color-scheme:light] dark:[color-scheme:dark]"
-                                >
-                                    {CHAIR_OPTIONS.map((opt) => (
-                                        <option key={opt.value} value={opt.value} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
-                                            {opt.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={() => setStep(1)}
-                                    className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined">arrow_back</span> Voltar
-                                </button>
-                                <button
-                                    onClick={() => setStep(3)}
-                                    className="flex-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
-                                >
-                                    Continuar
-                                    <span className="material-symbols-outlined">arrow_forward</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 3 && (
-                        <div className="space-y-5 animate-fade-in">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Fuso Horário</label>
-                                <select
-                                    value={timezone}
-                                    onChange={(e) => setTimezone(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium appearance-none [color-scheme:light] dark:[color-scheme:dark]"
-                                >
-                                    {TIMEZONES.map((tz) => (
-                                        <option key={tz.value} value={tz.value} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
-                                            {tz.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Moeda</label>
-                                <select
-                                    value={currency}
-                                    onChange={(e) => setCurrency(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl py-4 px-4 text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-medium appearance-none [color-scheme:light] dark:[color-scheme:dark]"
-                                >
-                                    <option value="BRL" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Real (R$)</option>
-                                </select>
-                            </div>
-
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={() => setStep(2)}
-                                    className="flex-1 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined">arrow_back</span> Voltar
-                                </button>
-                                <button
-                                    onClick={handleSaveCompany}
-                                    disabled={loading}
-                                    className="flex-1 bg-primary text-white font-bold py-4 rounded-xl hover:bg-primary/90 shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {loading ? 'Salvando...' : 'Salvar empresa'}
-                                    {!loading && <span className="material-symbols-outlined">arrow_forward</span>}
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                        {step === 3 && (
+                            <PublishStep
+                                summary={summary}
+                                tenantStatus={tenant?.status ?? null}
+                                visibility={visibility}
+                                onVisibilityChange={setVisibility}
+                                onPublish={handlePublish}
+                                onSaveDraft={handleSaveDraft}
+                                loading={loading}
+                                error={error}
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
