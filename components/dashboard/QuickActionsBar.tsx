@@ -61,16 +61,16 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({ appSlug }) => 
             : action.label;
 
         const cardClassName = isPrimary
-          ? 'relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 transition hover:border-primary/50 hover:shadow-[0_8px_24px_rgba(229,161,88,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30'
-          : 'rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-primary/30 hover:shadow-lg dark:border-slate-700 dark:bg-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-primary/20';
+          ? 'relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 transition hover:border-primary/50 hover:shadow-[0_8px_24px_rgba(217,154,43,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30'
+          : 'rounded-2xl border border-line bg-card p-4 transition hover:border-primary/30 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20';
 
         const iconClassName = isPrimary
-          ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary/80 to-primary-dark text-white shadow-[0_4px_16px_rgba(229,161,88,0.35)]'
-          : 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light';
+          ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary/80 to-primary-dark text-white shadow-[0_4px_16px_rgba(217,154,43,0.35)]'
+          : 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary';
 
         const labelClassName = isPrimary
-          ? 'text-sm font-black text-slate-900 dark:text-white'
-          : 'text-sm font-bold text-slate-700 dark:text-slate-200';
+          ? 'text-sm font-black text-ink'
+          : 'text-sm font-bold text-ink';
 
         return (
           <button

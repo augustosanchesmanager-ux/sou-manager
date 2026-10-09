@@ -106,7 +106,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <span className="material-symbols-outlined text-[18px] text-primary-dark">{greeting.icon}</span>
               {greeting.text}, {displayName}
             </div>
-            <p className={`text-xs font-medium ${isEsteticaApp ? 'text-[#6F6758]' : 'text-slate-400'}`}>
+            <p className={`text-xs font-medium ${isEsteticaApp ? 'text-[#6F6758]' : 'text-ink-soft'}`}>
               {todayFormatted.charAt(0).toUpperCase() + todayFormatted.slice(1)}
             </p>
             <h1 className={titleClassName}>

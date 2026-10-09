@@ -313,14 +313,14 @@ const Dashboard: React.FC = () => {
               }}
             />
           ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+            <div className="rounded-2xl border border-line bg-card p-5">
               <div className="animate-pulse space-y-3">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                    <div className="h-12 w-12 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                  <div key={i} className="flex items-center gap-3 rounded-lg bg-gold-pale p-3">
+                    <div className="h-12 w-12 rounded-lg bg-line" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-2 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-3/4 rounded bg-line" />
+                      <div className="h-2 w-1/2 rounded bg-line" />
                     </div>
                   </div>
                 ))}
