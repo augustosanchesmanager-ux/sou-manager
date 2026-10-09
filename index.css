@@ -20,6 +20,14 @@
   --color-card-dark: #1A1610;
   --color-border-dark: #2D2618;
 
+  /* Paired surface tokens (light defaults; explicit dark values below, warm per DESIGN.md) */
+  --color-background-light: #FAF6EE;
+  --color-surface-light: #FFFFFF;
+  --color-background-dark: #14110B;
+  --color-surface-dark: #171310;
+  --color-card-dark: #1A1610;
+  --color-border-dark: #2D2618;
+
   /* Text Colors (Warm Neutrals) */
   --color-ink: #191611;
   --color-ink-soft: #6B6252;
