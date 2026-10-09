@@ -19,24 +19,24 @@ const buildPendingItems = (appSlug?: string | null) => {
     key: 'comandas',
     label: isEsteticaApp ? `${labels.orderPlural} abertos` : 'Comandas abertas',
     icon: 'receipt_long',
-    iconBg: 'bg-amber-500/10',
-    iconColor: 'text-amber-600 dark:text-amber-400',
+    iconBg: 'bg-primary/10',
+    iconColor: 'text-primary-dark',
     link: '/comandas',
   },
   {
     key: 'pending',
     label: isEsteticaApp ? 'Atendimentos pendentes' : 'Agendamentos pendentes',
     icon: 'pending_actions',
-    iconBg: 'bg-blue-500/10',
-    iconColor: 'text-blue-600 dark:text-blue-400',
+    iconBg: 'bg-primary/10',
+    iconColor: 'text-primary-dark',
     link: '/schedule',
   },
   {
     key: 'returns',
     label: isEsteticaApp ? 'Clientes para retorno' : 'Retornos sugeridos',
     icon: 'person_search',
-    iconBg: 'bg-emerald-500/10',
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    iconBg: 'bg-success/10',
+    iconColor: 'text-success',
     link: '/smart-return',
   },
   ];
@@ -58,16 +58,16 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-amber-500">warning</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Pendências de hoje</h3>
+          <span className="material-symbols-outlined text-primary-dark">warning</span>
+          <h3 className="font-bold text-ink">Pendências de hoje</h3>
         </div>
         <div className="animate-pulse space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-              <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="h-4 w-8 rounded bg-slate-200 dark:bg-slate-700" />
+            <div key={i} className="flex items-center justify-between rounded-lg bg-gold-pale p-3">
+              <div className="h-4 w-2/3 rounded bg-gold-soft" />
+              <div className="h-4 w-8 rounded bg-gold-soft" />
             </div>
           ))}
         </div>
@@ -76,19 +76,19 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-[#1A1A1A]">
-      <div className="flex items-center gap-2 border-b border-slate-100 p-5 dark:border-slate-700">
-        <span className="material-symbols-outlined text-amber-500">warning</span>
-        <h3 className="font-bold text-slate-900 dark:text-white">Pendências de hoje</h3>
+    <div className="overflow-hidden rounded-2xl border border-line bg-card">
+      <div className="flex items-center gap-2 border-b border-line p-5">
+        <span className="material-symbols-outlined text-primary-dark">warning</span>
+        <h3 className="font-bold text-ink">Pendências de hoje</h3>
       </div>
 
-      <div className="divide-y divide-slate-100 dark:divide-slate-700">
+      <div className="divide-y divide-line">
         {pendingItems.map((item) => {
           const count = counts[item.key] || 0;
           return (
             <div
               key={item.key}
-              className="flex items-center justify-between p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              className="flex items-center justify-between p-4 transition hover:bg-gold-pale"
             >
               <div className="flex items-center gap-3">
                 <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.iconBg}`}>
@@ -96,17 +96,17 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
                     {item.icon}
                   </span>
                 </div>
-                <span className="text-sm text-slate-700 dark:text-slate-300">
+                <span className="text-sm text-ink-soft">
                   {item.label}
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                <span className="text-sm font-bold text-ink">
                   {count}
                 </span>
                 <Link
                   to={item.link}
-                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary/80"
+                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary-dark"
                 >
                   Ver
                   <span className="material-symbols-outlined text-sm">arrow_forward</span>

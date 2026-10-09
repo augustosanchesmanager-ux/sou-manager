@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -7,11 +7,12 @@ import { useTheme } from '../context/ThemeContext';
 import { useSearchParams } from 'react-router-dom';
 import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
-import { RevenueAreaChart, MetricCard, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
+import { RevenueAreaChart, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
+import MetricCard from '../components/ui/MetricCard';
 import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
 
-const COLORS = ['#007BFF', '#00D2FF', '#10B981', '#B88A44', '#EF4444', '#14B8A6', '#64748B', '#003366'];
+const COLORS = ['#D99A2B', '#A96F14', '#178A50', '#F3D9A4', '#C92A2A', '#F7E7C2', '#E8DFC9', '#6B6252'];
 
 const periodLabels = {
     today: 'Hoje',
@@ -74,20 +75,20 @@ const BusinessIntelligence: React.FC = () => {
                             categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(e.amount || 0);
                         });
                         const expenseColors: Record<string, string> = {
-                            'Aluguel': '#EF4444',
-                            'Cartão de Crédito': '#F97316',
-                            'Software': '#007BFF',
-                            'Produtos Cabelo': '#10B981',
+                            'Aluguel': '#C92A2A',
+                            'Cartão de Crédito': '#D99A2B',
+                            'Software': '#A96F14',
+                            'Produtos Cabelo': '#178A50',
                             'Produtos Barba': '#14B8A6',
-                            'Funcionário': '#007BFF',
-                            'Veículo': '#00D2FF',
-                            'Contas Particulares': '#64748B',
+                            'Funcionário': '#D99A2B',
+                            'Veículo': '#F3D9A4',
+                            'Contas Particulares': '#6B6252',
                             'Luz': '#F59E0B',
                             'Água': '#84CC16',
-                            'Internet': '#00D2FF',
+                            'Internet': '#F7E7C2',
                             'Marketing': '#B88A44',
-                            'Fornecedor': '#475569',
-                            'Outros': '#64748B'
+                            'Fornecedor': '#E8DFC9',
+                            'Outros': '#6B6252'
                         };
                         setExpenseData(Object.entries(categoryTotals).map(([category, amount]) => ({
                             category,
@@ -260,21 +261,13 @@ const BusinessIntelligence: React.FC = () => {
         fetchAll();
     }, [tenantId, period]);
 
-    // Calculate revenue trend data for modal
-    const revenueTrendData = useMemo(() => {
-        if (!data.analytics.revenueEvolution || data.analytics.revenueEvolution.length === 0) {
-            return [];
-        }
-        return data.analytics.revenueEvolution.map((r: any) => r.income);
-    }, [data.analytics.revenueEvolution]);
-
     if (data.error) {
         return (
             <div className="p-6">
-                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+                <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#C92A2A] p-4 rounded-lg">
                     <p className="font-bold">Erro ao carregar dados</p>
                     <p className="text-sm">{data.error}</p>
-                    <button onClick={reload} className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold">
+                    <button onClick={reload} className="mt-2 px-4 py-2 bg-[#C92A2A] text-white rounded-lg text-sm font-bold">
                         Tentar novamente
                     </button>
                 </div>
@@ -283,36 +276,36 @@ const BusinessIntelligence: React.FC = () => {
     }
 
     const tooltipStyle = {
-        backgroundColor: theme === 'dark' ? '#1F1F1F' : '#fff',
-        borderColor: theme === 'dark' ? '#333' : '#e2e8f0',
+        backgroundColor: '#fff',
+        borderColor: '#E8DFC9',
         borderRadius: '8px',
-        fontSize: '12px'
+        fontSize: '12px',
+        color: '#191611'
     };
 
     return (
-        <div className="space-y-6 animate-fade-in pb-10">
+        <div className="min-h-screen bg-cream space-y-6 animate-fade-in pb-10">
             {/* Header */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_54%,#f7f2ea_100%)] p-5 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182f_0%,#08284d_58%,#14100a_100%)]">
-                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+            <div className="rounded-2xl border border-line bg-card p-5 shadow-sm">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-3xl">
-                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#007BFF]/20 bg-white/75 px-3 py-1 text-[11px] font-bold text-[#003366] shadow-sm dark:border-[#00D2FF]/25 dark:bg-white/10 dark:text-[#9DEBFF]">
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gold-soft px-3 py-1 text-[11px] font-bold text-gold-deep">
                             <span className="material-symbols-outlined text-sm">monitoring</span>
                             SMG BI OPERACIONAL
                         </div>
-                        <h2 className="text-2xl font-black text-slate-950 dark:text-white md:text-3xl">
+                        <h2 className="text-2xl font-black text-ink md:text-3xl">
                             Visão do Negócio
                         </h2>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
                             Receita, custos, equipe, produtos e agenda em uma leitura real da barbearia para dono e gerente decidirem sem ruído.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap rounded-xl border border-white/70 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-white/10">
+                    <div className="flex items-center gap-2 flex-wrap rounded-xl border border-line bg-card p-1 shadow-sm">
                     {(['today', '7d', '30d', '90d'] as const).map(p => (
                         <button 
                             key={p} 
                             onClick={() => setPeriod(p)} 
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-[#007BFF] text-white shadow-md shadow-[#007BFF]/20' : 'text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p ? 'bg-gold text-night shadow-md' : 'text-ink-soft bg-card hover:bg-gold-pale hover:text-ink border border-line'}`}
                         >
                             {periodLabels[p]}
                         </button>
@@ -323,54 +316,62 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Financial KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <MetricCard 
-                    title="Faturamento"
+                <MetricCard
+                    label="Faturamento"
                     value={formatCurrency(data.financial.revenue)}
-                    trend={data.financial.revenueGrowth}
-                    trendLabel="vs período anterior"
-                    sparklineData={revenueTrendData.slice(-10)}
+                    trend={{
+                        direction: data.financial.revenueGrowth > 0 ? 'up' : data.financial.revenueGrowth < 0 ? 'down' : 'flat',
+                        label: `${data.financial.revenueGrowth >= 0 ? '+' : ''}${data.financial.revenueGrowth.toFixed(1)}%`,
+                    }}
+                    helper="vs período anterior"
                     icon="payments"
-                    color="blue"
-                    variant="featured"
+                    tone="info"
+                    density="comfortable"
                 />
-                <MetricCard 
-                    title="Ticket Médio"
+                <MetricCard
+                    label="Ticket Médio"
                     value={formatCurrency(data.financial.avgTicket)}
-                    trend={data.financial.avgTicketGrowth}
-                    trendLabel="por atendimento"
+                    trend={{
+                        direction: data.financial.avgTicketGrowth > 0 ? 'up' : data.financial.avgTicketGrowth < 0 ? 'down' : 'flat',
+                        label: `${data.financial.avgTicketGrowth >= 0 ? '+' : ''}${data.financial.avgTicketGrowth.toFixed(1)}%`,
+                    }}
+                    helper="por atendimento"
                     icon="receipt_long"
-                    color="cyan"
+                    tone="info"
+                    density="compact"
                 />
-                <MetricCard 
-                    title="Resultado"
+                <MetricCard
+                    label="Resultado"
                     value={formatCurrency(data.financial.profit)}
-                    subtitle={`Margem ${data.financial.profitMargin.toFixed(1)}%`}
+                    helper={`Margem ${data.financial.profitMargin.toFixed(1)}%`}
                     icon="savings"
-                    color={data.financial.profit >= 0 ? 'emerald' : 'rose'}
+                    tone={data.financial.profit >= 0 ? 'positive' : 'negative'}
+                    density="compact"
                 />
-                <MetricCard 
-                    title="Despesas"
+                <MetricCard
+                    label="Despesas"
                     value={formatCurrency(data.financial.expenses)}
-                    subtitle="custos totais"
+                    helper="custos totais"
                     icon="trending_down"
-                    color="amber"
+                    tone="warning"
+                    density="compact"
                 />
             </div>
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Revenue Evolution - NOVO GRÁFICO COM GRADIENTE METÁLICO */}
-                <div className="lg:col-span-2 bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
+                <div className="lg:col-span-2 bg-card p-6 rounded-xl border border-line shadow-sm">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-blue-500 text-lg">show_chart</span>
+                        <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                            <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">show_chart</span>
                             Evolução do Faturamento
                         </h3>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Últimos 6 Meses</span>
+                        <span className="text-[10px] font-bold text-ink-soft uppercase">Últimos 6 Meses</span>
                     </div>
                     <div className="h-[280px] w-full min-h-[280px]">
                         {data.loading ? (
-                            <div className="h-full flex items-center justify-center text-slate-400">Carregando...</div>
+                            <div className="h-full flex items-center justify-center text-ink-soft">Carregando...</div>
                         ) : (
                             <RevenueAreaChart 
                                 data={data.analytics.revenueEvolution} 
@@ -383,9 +384,9 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
 
                 {/* Distribution Pie */}
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-6">
-                        <span className="material-symbols-outlined text-[#007BFF] text-lg">pie_chart</span>
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
+                    <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-6">
+                        <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">pie_chart</span>
                         Formas de Pagamento
                     </h3>
                     <div className="h-[240px] w-full">
@@ -401,7 +402,7 @@ const BusinessIntelligence: React.FC = () => {
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados</div>
+                            <div className="h-full flex items-center justify-center text-ink-soft text-sm">Sem dados</div>
                         )}
                     </div>
                 </div>
@@ -409,32 +410,43 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Client + Operational KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <MetricCard title="Novos Clientes" value={String(data.clients.newClients)} trend={data.clients.newClientsGrowth} trendLabel="no período" icon="person_add" color="blue" />
-                <MetricCard title="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} subtitle={`${data.clients.inactiveClients60Days} inativos`} icon="sync" color="cyan" />
-                <MetricCard title="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : 'Sem histórico'} subtitle="entre visitas" icon="calendar_month" color="emerald" />
-                <MetricCard title="Agendamentos" value={String(data.operations.totalAppointments)} subtitle={`${data.operations.completedAppointments} concluídos`} icon="event_available" color="cyan" />
+                <MetricCard
+                    label="Novos Clientes"
+                    value={String(data.clients.newClients)}
+                    trend={{
+                        direction: data.clients.newClientsGrowth > 0 ? 'up' : data.clients.newClientsGrowth < 0 ? 'down' : 'flat',
+                        label: `${data.clients.newClientsGrowth >= 0 ? '+' : ''}${data.clients.newClientsGrowth.toFixed(1)}%`,
+                    }}
+                    helper="no período"
+                    icon="person_add"
+                    tone="info"
+                    density="compact"
+                />
+                <MetricCard label="Taxa de Retenção" value={`${data.clients.retentionRate.toFixed(0)}%`} helper={`${data.clients.inactiveClients60Days} inativos`} icon="sync" tone="info" density="compact" />
+                <MetricCard label="Frequência Média" value={data.clients.avgFrequencyDays > 0 ? `${data.clients.avgFrequencyDays.toFixed(0)} dias` : 'Sem histórico'} helper="entre visitas" icon="calendar_month" tone="positive" density="compact" />
+                <MetricCard label="Agendamentos" value={String(data.operations.totalAppointments)} helper={`${data.operations.completedAppointments} concluídos`} icon="event_available" tone="info" density="compact" />
             </div>
 
             {/* Operational Chart + Top Services */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Attendance Breakdown */}
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-emerald-500 text-lg">bar_chart</span>
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
+                    <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined text-[#178A50] text-lg bg-[#F0FDF4] p-1.5 rounded-lg">bar_chart</span>
                         Indicadores de Agendamento
                     </h3>
                     <div className="space-y-4">
                         {[
-                            { label: 'Comparecimento', pct: data.operations.completedRate, color: 'bg-emerald-500' },
-                            { label: 'Cancelamento', pct: data.operations.cancelledRate, color: 'bg-amber-500' },
-                            { label: 'Faltas (No-Show)', pct: data.operations.noShowRate, color: 'bg-red-500' },
+                            { label: 'Comparecimento', pct: data.operations.completedRate, color: 'bg-[#178A50]' },
+                            { label: 'Cancelamento', pct: data.operations.cancelledRate, color: 'bg-[#D99A2B]' },
+                            { label: 'Faltas (No-Show)', pct: data.operations.noShowRate, color: 'bg-[#C92A2A]' },
                         ].map(item => (
                             <div key={item.label}>
-                                <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                <div className="flex justify-between text-xs font-bold text-ink-soft mb-1">
                                     <span>{item.label}</span>
                                     <span>{item.pct.toFixed(1)}%</span>
                                 </div>
-                                <div className="w-full h-2.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                <div className="w-full h-2.5 bg-[#F7E7C2] rounded-full overflow-hidden">
                                     <div className={`h-full ${item.color} rounded-full transition-all duration-700`} style={{ width: `${Math.min(item.pct, 100)}%` }} />
                                 </div>
                             </div>
@@ -443,18 +455,18 @@ const BusinessIntelligence: React.FC = () => {
 
                     {/* Staff Ranking */}
                     {data.analytics.topProfessionals.length > 0 && (
-                        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-border-dark">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Performance da Equipe</h4>
+                        <div className="mt-6 pt-4 border-t border-line">
+                            <h4 className="text-xs font-bold text-ink-soft uppercase mb-3">Performance da Equipe</h4>
                             <div className="space-y-2">
                                 {data.analytics.topProfessionals.slice(0, 5).map((s, i) => (
-                                    <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5">
+                                    <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-gold-pale">
                                         <div className="flex items-center gap-2">
-                                            <span className={`size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-amber-800/60'}`}>{i + 1}</span>
-                                            <span className="text-sm font-bold text-slate-900 dark:text-white">{s.name}</span>
+                                            <span className={`size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-[#D99A2B]' : i === 1 ? 'bg-[#E8DFC9]' : 'bg-[#A96F14]'}`}>{i + 1}</span>
+                                            <span className="text-sm font-bold text-ink">{s.name}</span>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-sm font-bold text-emerald-500">{formatCurrency(s.revenue)}</p>
-                                            <p className="text-[10px] text-slate-400">{s.appointments} atend. • TM {formatCurrency(s.avgTicket)}</p>
+                                            <p className="text-sm font-bold text-[#178A50]">{formatCurrency(s.revenue)}</p>
+                                            <p className="text-[10px] text-ink-soft">{s.appointments} atend. • TM {formatCurrency(s.avgTicket)}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -464,44 +476,44 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
 
                 {/* Top Services */}
-                <div className="bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-[#B88A44] text-lg">content_cut</span>
+                <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
+                    <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined text-gold-deep text-lg bg-gold-soft p-1.5 rounded-lg">content_cut</span>
                         Serviços Mais Vendidos
                     </h3>
                     {data.analytics.topServices.length > 0 ? (
                         <div className="h-[220px] w-full mb-4">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={data.analytics.topServices} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme === 'dark' ? '#333' : '#e2e8f0'} />
-                                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 11 }} />
-                                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 11 }} width={120} />
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E8DFC9" />
+                                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#6B6252", fontSize: 11 }} />
+                                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#6B6252", fontSize: 11 }} width={120} />
                                     <Tooltip contentStyle={tooltipStyle} />
-                                    <Bar dataKey="count" name="Atendimentos" fill="#B88A44" radius={[0, 4, 4, 0]} barSize={16} />
+                                    <Bar dataKey="count" name="Atendimentos" fill="#D99A2B" radius={[0, 4, 4, 0]} barSize={16} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="h-[220px] flex items-center justify-center text-slate-400 text-sm">Sem dados de serviços</div>
+                        <div className="h-[220px] flex items-center justify-center text-ink-soft text-sm">Sem dados de serviços</div>
                     )}
 
                     {/* Top Clients Ranking */}
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-border-dark">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm text-amber-500">workspace_premium</span>
+                    <div className="mt-4 pt-4 border-t border-line">
+                        <h4 className="text-xs font-bold text-ink-soft uppercase mb-3 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm text-gold-deep">workspace_premium</span>
                             Top 5 Clientes (LTV)
                         </h4>
                         <div className="space-y-2">
                             {data.analytics.topClients.map((c, i) => (
-                                <div key={c.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5">
+                                <div key={c.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gold-pale">
                                     <div className="flex items-center gap-2">
-                                        <span className={`size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-amber-800/60'}`}>{i + 1}</span>
-                                        <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[140px]">{c.name}</span>
+                                        <span className={`size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-[#D99A2B]' : i === 1 ? 'bg-[#E8DFC9]' : 'bg-[#A96F14]'}`}>{i + 1}</span>
+                                        <span className="text-sm font-bold text-ink truncate max-w-[140px]">{c.name}</span>
                                     </div>
-                                    <span className="text-sm font-bold text-emerald-500">{formatCurrency(c.ltv)}</span>
+                                    <span className="text-sm font-bold text-[#178A50]">{formatCurrency(c.ltv)}</span>
                                 </div>
                             ))}
-                            {data.analytics.topClients.length === 0 && <p className="text-xs text-slate-400 text-center">Sem dados</p>}
+                            {data.analytics.topClients.length === 0 && <p className="text-xs text-ink-soft text-center">Sem dados</p>}
                         </div>
                     </div>
                 </div>
@@ -511,11 +523,11 @@ const BusinessIntelligence: React.FC = () => {
             {data.analytics.topProfessionals.length > 0 && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#B88A44]">groups</span>
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                            <span className="material-symbols-outlined text-gold-deep bg-gold-soft p-1.5 rounded-lg">groups</span>
                             Performance da Equipe
                         </h3>
-                        <span className="text-xs text-slate-400">Comandas pagas e atendimentos concluídos</span>
+                        <span className="text-xs text-ink-soft">Comandas pagas e atendimentos concluídos</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {data.analytics.topProfessionals.slice(0, 6).map((staff: any, index: number) => (
@@ -531,28 +543,28 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* NEW SECTION: Vendas de Produtos */}
             {productSales.length > 0 && (
-                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <ProductSalesChart data={productSales} showTrend />
                 </div>
             )}
 
             {/* NEW SECTION: Timeline de Agendamentos */}
             {appointmentTimeline.length > 0 && (
-                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <AppointmentTimeline data={appointmentTimeline} maxItems={8} />
                 </div>
             )}
 
             {/* NEW SECTION: Despesas por Categoria */}
             {expenseData.length > 0 && (
-                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="size-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center shadow-lg shadow-rose-500/30">
-                            <span className="material-symbols-outlined text-white">receipt_long</span>
+                        <div className="size-10 rounded-xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center text-[#C92A2A]">
+                            <span className="material-symbols-outlined">receipt_long</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Despesas por Categoria</h3>
-                            <p className="text-xs text-slate-500">Visão detalhada dos custos operacionais</p>
+                            <h3 className="text-lg font-bold text-ink">Despesas por Categoria</h3>
+                            <p className="text-xs text-ink-soft">Visão detalhada dos custos operacionais</p>
                         </div>
                     </div>
                     <ExpenseChart 
@@ -565,20 +577,20 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Insights Section */}
             {data.insights.length > 0 && (
-                <div className="rounded-xl border border-[#007BFF]/20 bg-[linear-gradient(135deg,rgba(0,123,255,0.08),rgba(0,210,255,0.06),rgba(184,138,68,0.08))] p-6">
+                <div className="rounded-xl border border-line bg-card p-6">
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="size-10 rounded-xl bg-[linear-gradient(135deg,#007BFF,#00D2FF)] flex items-center justify-center shadow-lg shadow-[#007BFF]/25">
-                            <span className="material-symbols-outlined text-white">psychology</span>
+                        <div className="size-10 rounded-xl bg-gold-soft border border-primary-light/40 flex items-center justify-center text-gold-deep">
+                            <span className="material-symbols-outlined">psychology</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Insights Automáticos</h3>
-                            <p className="text-xs text-slate-500">Inteligência gerada a partir dos seus dados reais.</p>
+                            <h3 className="text-lg font-bold text-ink">Insights Automáticos</h3>
+                            <p className="text-xs text-ink-soft">Inteligência gerada a partir dos seus dados reais.</p>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {data.insights.map((txt, i) => (
-                            <div key={i} className="bg-white/70 dark:bg-white/5 backdrop-blur-sm border border-white/30 dark:border-white/10 p-3.5 rounded-lg">
-                                <p className="text-sm text-slate-700 dark:text-slate-300">{txt}</p>
+                            <div key={i} className="bg-gold-pale border border-line p-3.5 rounded-lg">
+                                <p className="text-sm text-ink">{txt}</p>
                             </div>
                         ))}
                     </div>
@@ -587,43 +599,43 @@ const BusinessIntelligence: React.FC = () => {
 
             {/* Cancellation Analysis Section */}
             {cancellationData.total > 0 && (
-                <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 shadow-lg">
+                <div className="bg-card rounded-2xl border border-line p-6 shadow-lg">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="size-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center shadow-lg shadow-rose-500/30">
-                            <span className="material-symbols-outlined text-white">event_busy</span>
+                        <div className="size-10 rounded-xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center text-[#C92A2A]">
+                            <span className="material-symbols-outlined">event_busy</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Análise de Cancelamentos</h3>
-                            <p className="text-xs text-slate-500">{cancellationData.total} agendamentos cancelados/no-show no período</p>
+                            <h3 className="text-lg font-bold text-ink">Análise de Cancelamentos</h3>
+                            <p className="text-xs text-ink-soft">{cancellationData.total} agendamentos cancelados/no-show no período</p>
                         </div>
                     </div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* By Reason Breakdown */}
                         <div>
-                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Por Motivo</h4>
+                            <h4 className="text-sm font-bold text-ink-soft mb-4">Por Motivo</h4>
                             <div className="space-y-3">
                                 {cancellationData.byReason.map((item) => {
                                     const reasonColors: Record<string, string> = {
-                                        'no_show': 'bg-red-500',
-                                        'client_request': 'bg-amber-500',
-                                        'error_registration': 'bg-slate-500',
-                                        'reschedule': 'bg-blue-500',
-                                        'other': 'bg-slate-400',
+                                        'no_show': 'bg-[#C92A2A]',
+                                        'client_request': 'bg-[#D99A2B]',
+                                        'error_registration': 'bg-[#6B6252]',
+                                        'reschedule': 'bg-[#D99A2B]',
+                                        'other': 'bg-[#E8DFC9]',
                                     };
                                     return (
                                         <div key={item.reason}>
-                                            <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                            <div className="flex justify-between text-xs font-medium text-ink-soft mb-1">
                                                 <span className="flex items-center gap-2">
-                                                    <span className={`size-2 rounded-full ${reasonColors[item.reason] || 'bg-slate-400'}`} />
+                                                    <span className={`size-2 rounded-full ${reasonColors[item.reason] || 'bg-[#E8DFC9]'}`} />
                                                     {item.label}
                                                 </span>
                                                 <span>{item.count} ({item.percentage.toFixed(1)}%)</span>
                                             </div>
-                                            <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full ${reasonColors[item.reason] || 'bg-slate-400'} rounded-full transition-all duration-700`} 
-                                                    style={{ width: `${item.percentage}%`}} 
+                                            <div className="w-full h-2 bg-[#F7E7C2] rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full ${reasonColors[item.reason] || 'bg-[#E8DFC9]'} rounded-full transition-all duration-700`}
+                                                    style={{ width: `${item.percentage}%` }}
                                                 />
                                             </div>
                                         </div>
@@ -633,8 +645,8 @@ const BusinessIntelligence: React.FC = () => {
                             
                             {/* Error registrations don't count for metrics */}
                             {cancellationData.byReason.find(r => r.reason === 'error_registration') && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                                    <p className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                                <div className="mt-4 p-3 bg-[#F7E7C2] border border-[#E8DFC9] rounded-lg">
+                                    <p className="text-xs text-[#A96F14] flex items-center gap-2">
                                         <span className="material-symbols-outlined text-sm">info</span>
                                         Erros de cadastro não impactam métricas de cancelamento
                                     </p>
@@ -644,30 +656,30 @@ const BusinessIntelligence: React.FC = () => {
                         
                         {/* Recovery Section */}
                         <div>
-                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Recuperação de Clientes</h4>
+                            <h4 className="text-sm font-bold text-ink-soft mb-4">Recuperação de Clientes</h4>
                             
-                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                            <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl p-4">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="size-10 rounded-full bg-[#25D366]/20 flex items-center justify-center">
-                                        <svg viewBox="0 0 24 24" fill="#25D366" className="size-5">
+                                    <div className="size-10 rounded-full bg-[#178A50]/20 flex items-center justify-center">
+                                        <svg viewBox="0 0 24 24" fill="#178A50" className="size-5">
                                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.559 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                                         </svg>
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-green-800 dark:text-green-300">
+                                        <p className="text-sm font-bold text-[#178A50]">
                                             Tentar recuperar clientes
                                         </p>
-                                        <p className="text-xs text-green-600 dark:text-green-400">
+                                        <p className="text-xs text-[#178A50]">
                                             {cancellationData.byReason.filter(r => ['no_show', 'client_request', 'other'].includes(r.reason)).reduce((sum, r) => sum + r.count, 0)} clientes podem ser recuperados
                                         </p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-green-700 dark:text-green-400 mb-3">
+                                <p className="text-xs text-[#178A50] mb-3">
                                     Agendamentos cancelados por não comparecimento ou solicitação do cliente podem ser recuperados via WhatsApp com mensagem automática personalizada.
                                 </p>
                                 <button 
                                     onClick={() => window.location.href = '/schedule?filter=cancelled'}
-                                    className="w-full px-4 py-2 rounded-lg bg-[#25D366] text-white text-sm font-bold hover:bg-[#20b857] transition-colors"
+                                    className="w-full px-4 py-2 rounded-lg bg-[#178A50] text-white text-sm font-bold hover:bg-[#157A45] transition-colors"
                                 >
                                     Ver agendamentos cancelados
                                 </button>
@@ -675,17 +687,17 @@ const BusinessIntelligence: React.FC = () => {
                             
                             {/* Top professionals with most cancellations */}
                             {cancellationData.byReason.length > 0 && cancellationData.total > 3 && (
-                                <div className="mt-4 p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-border-dark">
-                                    <p className="text-xs font-bold text-slate-500 uppercase mb-2">Dica</p>
-                                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                                <div className="mt-4 p-4 bg-gold-pale rounded-xl border border-line">
+                                    <p className="text-xs font-bold text-ink-soft uppercase mb-2">Dica</p>
+                                    <p className="text-sm text-ink">
                                         {cancellationData.byReason[0]?.reason === 'no_show' && (
                                             <>
-                                                <span className="font-bold text-rose-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% das ausências</span>. Considere enviar lembretes 1 dia antes via WhatsApp para reduzir faltas.
+                                                <span className="font-bold text-[#C92A2A]">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% das ausências</span>. Considere enviar lembretes 1 dia antes via WhatsApp para reduzir faltas.
                                             </>
                                         )}
                                         {cancellationData.byReason[0]?.reason === 'client_request' && (
                                             <>
-                                                <span className="font-bold text-amber-600">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% por solicitação</span>. Pergunte o motivo para entender padrões e melhorar o serviço.
+                                                <span className="font-bold text-[#D99A2B]">{(cancellationData.byReason[0]?.percentage || 0).toFixed(0)}% por solicitação</span>. Pergunte o motivo para entender padrões e melhorar o serviço.
                                             </>
                                         )}
                                         {!['no_show', 'client_request'].includes(cancellationData.byReason[0]?.reason || '') && (
@@ -700,10 +712,10 @@ const BusinessIntelligence: React.FC = () => {
             )}
 
             {data.loading && (
-                <div className="fixed inset-0 bg-black/20 dark:bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-card-dark p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">Carregando dados...</p>
+                <div className="fixed inset-0 bg-[#0B0B0C]/20 flex items-center justify-center z-50">
+                    <div className="bg-card p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gold"></div>
+                        <p className="text-sm font-bold text-ink">Carregando dados...</p>
                     </div>
                 </div>
             )}

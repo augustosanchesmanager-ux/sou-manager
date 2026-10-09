@@ -209,7 +209,7 @@ const Dashboard: React.FC = () => {
   const tenantName = user?.user_metadata?.tenant_name || (isEsteticaApp ? 'sua clínica' : 'sua barbearia');
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
+    <div className="space-y-6 animate-fade-in pb-20 bg-cream min-h-screen">
       <DashboardHeader
         appSlug={appSlug}
         period={period}

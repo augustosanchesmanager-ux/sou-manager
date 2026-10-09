@@ -227,44 +227,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             ? 'Manager'
             : '';
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
-  const navActiveClass = isEsteticaApp
-    ? 'bg-[#EFE8D8] text-[#2E2B24] ring-1 ring-[#D8C994]/70 shadow-[0_10px_24px_rgba(111,104,69,0.13)]'
-    : 'bg-[#EAF7FF] dark:bg-[#0D2238] text-[#003366] dark:text-[#F5FCFF] ring-1 ring-[#00D2FF]/25 shadow-[0_8px_24px_rgba(0,123,255,0.10)]';
-  const navIdleClass = isEsteticaApp
-    ? 'text-[#6F6758] hover:bg-[#EFE8D8]/70 hover:text-[#2E2B24]'
-    : 'text-slate-600 dark:text-[#A7B8C8] hover:bg-[#F7FBFE] dark:hover:bg-[#102033] hover:text-[#003366] dark:hover:text-[#F5FCFF]';
-  const navIconActiveClass = isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-[#00D2FF]';
-  const navSectionActiveClass = isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-[#00D2FF]';
-  const navSectionIdleClass = isEsteticaApp
-    ? 'text-[#9B9368]/70 group-hover:text-[#6F6845]'
-    : 'text-slate-400 dark:text-[#A7B8C8]/60 group-hover:text-[#003366] dark:group-hover:text-[#A7B8C8]';
-  const sidebarShellClass = isEsteticaApp
-    ? 'bg-[#F8F5ED] border-[#DDD2B6] shadow-[0_24px_70px_rgba(111,104,69,0.18)] lg:shadow-[0_18px_50px_rgba(111,104,69,0.12)]'
-    : 'bg-white dark:bg-[#071426] border-[#D9EAF5] dark:border-[#14304A] shadow-[0_24px_70px_rgba(0,51,102,0.18)] lg:shadow-[0_18px_50px_rgba(0,51,102,0.10)]';
-  const collapsedLogoClass = isEsteticaApp
-    ? 'bg-[#F8F5ED] border border-[#D8C994] text-[#6F6845] shadow-[0_12px_24px_rgba(111,104,69,0.16)]'
-    : 'bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white shadow-[0_0_22px_rgba(0,210,255,0.24)]';
-  const tooltipClass = isEsteticaApp
-    ? 'bg-[#2E2B24] text-[#F8F5ED]'
-    : 'bg-[#003366] dark:bg-[#EAF7FF] text-white dark:text-[#003366]';
-  const tooltipArrowClass = isEsteticaApp
-    ? 'border-r-[#2E2B24]'
-    : 'border-r-[#003366] dark:border-r-[#EAF7FF]';
-  const footerClass = isEsteticaApp
-    ? 'border-[#DDD2B6] bg-[#F8F5ED]'
-    : 'border-[#D9EAF5] dark:border-[#14304A] bg-white dark:bg-[#071426]';
-  const profileButtonClass = isEsteticaApp
-    ? isCollapsed
-      ? 'p-1.5 border-transparent hover:bg-[#EFE8D8]'
-      : 'p-3 bg-white border-[#DDD2B6] hover:border-[#D8C994]'
-    : isCollapsed
-      ? 'p-1.5 border-transparent hover:bg-[#F7FBFE] dark:hover:bg-[#102033]'
-      : 'p-3 bg-[#F7FBFE] dark:bg-[#0B1828] border-[#D9EAF5] dark:border-[#14304A] hover:border-[#00D2FF]/45 dark:hover:border-[#00D2FF]/50';
+  const navActiveClass = 'bg-gold-soft text-primary-dark ring-1 ring-primary-light shadow-smg-shell';
+  const navIdleClass = 'text-ink-soft hover:bg-gold-pale hover:text-ink';
+  const navIconActiveClass = 'text-primary-dark';
+  const navSectionActiveClass = 'text-primary-dark';
+  const navSectionIdleClass = 'text-ink-soft/70 group-hover:text-ink';
+  const sidebarShellClass = 'bg-card border-line shadow-smg-shell';
+  const collapsedLogoClass = 'bg-card border border-line text-primary-dark shadow-smg-shell';
+  const tooltipClass = 'bg-ink text-cream';
+  const tooltipArrowClass = 'border-r-ink';
+  const footerClass = 'border-line bg-card';
+  const profileButtonClass = isCollapsed
+    ? 'p-1.5 border-transparent hover:bg-gold-pale'
+    : 'p-3 bg-card border-line hover:border-primary';
   const profileAvatarClass = canAccessSuperAdmin
-    ? 'bg-amber-100 dark:bg-amber-500/10 border-amber-300 dark:border-[#C6A45A] text-amber-600'
-    : isEsteticaApp
-      ? 'bg-[#EFE8D8] border-[#D8C994] text-[#6F6845]'
-      : 'bg-[#EAF7FF] dark:bg-[#0D2238] border-[#00D2FF]/35 text-[#007BFF] dark:text-[#00D2FF]';
+    ? 'bg-gold-soft border-primary-light text-primary-dark'
+    : 'bg-gold-pale border-primary-light text-primary-dark';
   const planOptions = isEsteticaApp
     ? [
         { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agenda e Clientes', icon: 'bolt', color: 'slate' },
@@ -339,7 +317,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       icon: 'shield_person',
       items: [
         { name: 'Administração Geral', icon: 'shield_person', path: '/superadmin' },
-        { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
+        // PO 2026-10-06: link mockado oculto (dados ficticios). Ver ADR-031.
+        // { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
         { name: 'Event Versioning', icon: 'schema', path: '/event-versioning' },
       ]
     });
@@ -348,7 +327,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-night/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
 
@@ -370,7 +349,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               S
             </div>
           )}
-          <button onClick={onClose} className={`lg:hidden transition-colors ${isEsteticaApp ? 'text-[#6F6758] hover:text-[#6F6845]' : 'text-slate-500 hover:text-[#007BFF] dark:hover:text-[#00D2FF]'}`} aria-label="Fechar menu">
+          <button onClick={onClose} className={`lg:hidden transition-colors text-ink-soft hover:text-ink`} aria-label="Fechar menu">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -413,17 +392,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                 onClick={() => toggleGroup(category.title)}
                 className={`
                  flex items-center px-2 py-1 mb-1 transition-all duration-300 group focus:outline-none
-                 ${isCollapsed ? 'justify-center mx-auto' : `justify-between w-full rounded-lg ${isEsteticaApp ? 'hover:bg-[#EFE8D8]/70' : 'hover:bg-[#F7FBFE] dark:hover:bg-[#102033]'}`}
+                 ${isCollapsed ? 'justify-center mx-auto' : `justify-between w-full rounded-lg hover:bg-gold-pale`}
                 `}
                 disabled={isCollapsed}
               >
                 {isCollapsed ? (
-                  <div className={`w-6 border-b-2 mt-2 ${isEsteticaApp ? 'border-[#DDD2B6]' : 'border-[#D9EAF5] dark:border-[#14304A]'}`} />
+                  <div className="w-6 border-b-2 mt-2 border-line" />
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
                       <span className={`material-symbols-outlined text-[16px] transition-colors
-                        ${expandedGroups.includes(category.title) ? navSectionActiveClass : 'text-slate-400 dark:text-[#A7B8C8]/50'}
+                        ${expandedGroups.includes(category.title) ? navSectionActiveClass : 'text-ink-soft/50'}
                       `}>
                         {category.icon}
                       </span>
@@ -434,7 +413,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                       </span>
                     </div>
                     <span className={`material-symbols-outlined text-[14px] transition-transform duration-300
-                      ${expandedGroups.includes(category.title) ? `rotate-180 ${navSectionActiveClass}` : 'text-slate-400 dark:text-[#A7B8C8]/50 group-hover:text-slate-500'}
+                      ${expandedGroups.includes(category.title) ? `rotate-180 ${navSectionActiveClass}` : 'text-ink-soft/50 group-hover:text-ink'}
                     `}>
                       expand_more
                     </span>
@@ -469,7 +448,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                             {!isCollapsed && <span className={`text-sm ${groupActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
                           </div>
                           {!isCollapsed && (
-                            <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${isExpanded ? `rotate-180 ${navIconActiveClass}` : isEsteticaApp ? 'text-[#9B9368]/70' : 'text-slate-400 dark:text-[#A7B8C8]'}`}>
+                            <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${isExpanded ? `rotate-180 ${navIconActiveClass}` : 'text-ink-soft/50'}`}>
                               expand_more
                             </span>
                           )}
@@ -486,7 +465,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
                         {/* Submenu */}
                         <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] ${isExpanded && !isCollapsed ? 'max-h-[800px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                          <div className={`flex flex-col gap-0.5 relative ml-6 pl-3 border-l-2 ${isEsteticaApp ? 'border-[#DDD2B6]' : 'border-[#D9EAF5] dark:border-[#14304A]'}`}>
+                          <div className={`flex flex-col gap-0.5 relative ml-6 pl-3 border-l-2 border-line`}>
                             {item.children.map(child => {
                               if ('type' in child && child.type === 'subgroup') {
                                 // Nested subgroup omitted for brevity, but easily added if needed back
@@ -501,11 +480,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                                   onClick={onClose}
                                   className={`flex items-center w-full px-3 py-2 rounded-lg transition-all text-sm relative group/subitem
                                   ${isChildActive
-                                      ? isEsteticaApp ? 'text-[#6F6845] font-bold bg-[#EFE8D8]' : 'text-[#007BFF] dark:text-[#00D2FF] font-bold bg-[#EAF7FF] dark:bg-[#0D2238]'
-                                      : isEsteticaApp ? 'text-[#6F6758] hover:text-[#2E2B24] hover:bg-[#EFE8D8]/70' : 'text-slate-500 dark:text-[#A7B8C8] hover:text-[#003366] dark:hover:text-white hover:bg-[#F7FBFE] dark:hover:bg-[#102033]'}
+                                      ? 'text-primary-dark font-bold bg-gold-soft'
+                                      : 'text-ink-soft hover:text-ink hover:bg-gold-pale'}
                                   `}
                                 >
-                                  {isChildActive && <div className={`absolute -left-[14px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${isEsteticaApp ? 'bg-[#D8C994]' : 'bg-[#00D2FF]'}`} />}
+                                  {isChildActive && <div className="absolute -left-[14px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary" />}
                                   {simpleChild.name}
                                 </Link>
                               );
@@ -604,14 +583,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             {!isCollapsed && (
               <>
                 <div className="flex flex-col text-left truncate flex-1 leading-tight">
-                  <p className={`text-sm font-bold truncate display-font ${isEsteticaApp ? 'text-[#2E2B24]' : 'text-slate-900 dark:text-[#F5F5F5]'}`}>
+                  <p className="text-sm font-bold truncate display-font text-ink">
                     {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name || ''}` : 'Utilizador'}
                   </p>
-                  <p className={`text-[11px] truncate font-medium mt-0.5 ${isEsteticaApp ? 'text-[#6F6758]' : 'text-slate-500 dark:text-[#A7AFB7]'}`}>
+                  <p className="text-[11px] truncate font-medium mt-0.5 text-ink-soft">
                     {user?.email || 'usuario@email.com'}
                   </p>
                 </div>
-                <span className={`material-symbols-outlined text-sm shrink-0 transition-colors ${isEsteticaApp ? 'text-[#9B9368] group-hover:text-[#6F6845]' : 'text-slate-400 dark:text-[#A7B8C8] group-hover:text-[#007BFF] dark:group-hover:text-[#00D2FF]'}`}>more_vert</span>
+                <span className="material-symbols-outlined text-sm shrink-0 transition-colors text-ink-soft/50 group-hover:text-ink">more_vert</span>
               </>
             )}
 
@@ -635,42 +614,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           <div className="space-y-3">
             <button
               onClick={() => { setIsProfileModalOpen(false); navigate('/settings'); }}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-100 dark:border-white/5 hover:border-[#00D2FF]/35 hover:bg-[#EAF7FF] dark:hover:bg-[#0D2238] transition-all group"
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-line hover:border-primary hover:bg-gold-pale transition-all group"
             >
-              <div className="size-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-[#007BFF] dark:group-hover:text-[#00D2FF] transition-colors">
+              <div className="size-10 rounded-full bg-gold-pale flex items-center justify-center text-primary-dark group-hover:scale-110 transition-transform">
                 <span className="material-symbols-outlined">person</span>
               </div>
               <div className="text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Meu Perfil</p>
-                <p className="text-[10px] text-slate-500">Gerenciar dados e segurança</p>
+                <p className="text-sm font-bold text-ink">Meu Perfil</p>
+                <p className="text-[10px] text-ink-soft">Gerenciar dados e segurança</p>
               </div>
-              <span className="material-symbols-outlined text-slate-400 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
+              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
             </button>
 
             <button
               onClick={() => setIsPlanModalOpen(true)}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-100 dark:border-white/5 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group"
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-line hover:border-primary hover:bg-gold-pale transition-all group"
             >
-              <div className="size-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+              <div className="size-10 rounded-full bg-gold-pale flex items-center justify-center text-primary-dark group-hover:scale-110 transition-transform">
                 <span className="material-symbols-outlined">workspace_premium</span>
               </div>
               <div className="text-left">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Mudar de Plano</p>
-                <p className="text-[10px] text-slate-500">Upgrade ou gerenciar assinatura</p>
+                <p className="text-sm font-bold text-ink">Mudar de Plano</p>
+                <p className="text-[10px] text-ink-soft">Upgrade ou gerenciar assinatura</p>
               </div>
-              <span className="material-symbols-outlined text-slate-400 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
+              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-100 dark:border-red-900/20 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all group"
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-danger/20 hover:bg-danger/5 hover:border-danger transition-all group"
             >
-              <div className="size-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-red-500">
+              <div className="size-10 rounded-full bg-danger/10 flex items-center justify-center text-danger">
                 <span className="material-symbols-outlined">logout</span>
               </div>
               <div className="text-left">
-                <p className="text-sm font-bold text-red-600">Sair do Sistema</p>
-                <p className="text-[10px] text-red-400">Encerrar sua sessão atual</p>
+                <p className="text-sm font-bold text-danger">Sair do Sistema</p>
+                <p className="text-[10px] text-danger/70">Encerrar sua sessão atual</p>
               </div>
             </button>
           </div>
@@ -685,17 +664,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         >
           <div className="flex flex-col gap-6">
             {/* Billing Toggle */}
-            <div className="flex items-center justify-center gap-3 py-2 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 mx-auto px-4">
-              <span className={`text-[10px] font-black uppercase ${billingCycle === 'monthly' ? 'text-primary' : 'text-slate-500'}`}>Mensal</span>
+            <div className="flex items-center justify-center gap-3 py-2 bg-gold-pale rounded-2xl border border-line mx-auto px-4">
+              <span className={`text-[10px] font-black uppercase ${billingCycle === 'monthly' ? 'text-primary-dark' : 'text-ink-soft'}`}>Mensal</span>
               <button
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className="w-10 h-5 bg-slate-200 dark:bg-white/10 rounded-full relative p-0.5 transition-all"
+                className="w-10 h-5 bg-line rounded-full relative p-0.5 transition-all"
               >
                 <div className={`size-4 rounded-full bg-primary transition-all duration-300 ${billingCycle === 'annual' ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-black uppercase ${billingCycle === 'annual' ? 'text-primary' : 'text-slate-500'}`}>Anual</span>
-                <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase">-17%</span>
+                <span className={`text-[10px] font-black uppercase ${billingCycle === 'annual' ? 'text-primary-dark' : 'text-ink-soft'}`}>Anual</span>
+                <span className="bg-success/10 text-success text-[8px] font-black px-1.5 py-0.5 rounded border border-success/20 uppercase">-17%</span>
               </div>
             </div>
 
@@ -708,32 +687,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                   disabled={isUpdatingPlan || (user?.user_metadata?.plan === p.id && !billingCycle)}
                   className={`flex flex-col items-center p-6 rounded-2xl border transition-all text-center relative overflow-hidden group
                     ${user?.user_metadata?.plan?.includes(p.id)
-                      ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20'
-                      : 'border-slate-100 dark:border-white/5 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-white/5'}
+                      ? 'border-success bg-success/5 ring-1 ring-success/20'
+                      : 'border-line hover:border-primary hover:bg-gold-pale'}
                   `}
                 >
                   {user?.user_metadata?.plan?.includes(p.id) && (
                     <div className="absolute top-0 right-0 p-2">
-                      <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+                      <span className="material-symbols-outlined text-success text-sm">check_circle</span>
                     </div>
                   )}
                   <div className={`size-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110
-                    ${p.id === 'premium' ? 'bg-amber-500/10 text-amber-600' :
-                      p.id === 'pro' ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}
+                    ${p.id === 'premium' ? 'bg-gold-soft text-primary-dark' :
+                      p.id === 'pro' ? 'bg-gold-pale text-primary-dark' : 'bg-gold-pale text-ink-soft'}
                   `}>
                     <span className="material-symbols-outlined text-3xl">{p.icon}</span>
                   </div>
-                  <h4 className="font-black text-slate-900 dark:text-white uppercase">{p.name}</h4>
-                  <p className="text-lg font-bold text-primary mt-1">
+                  <h4 className="font-black text-ink uppercase">{p.name}</h4>
+                  <p className="text-lg font-bold text-primary-dark mt-1">
                     R$ {billingCycle === 'monthly' ? p.monthlyPrice : p.annualPrice}
-                    <span className="text-[10px] text-slate-500 uppercase font-black ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
+                    <span className="text-[10px] text-ink-soft uppercase font-black ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-2 font-medium leading-tight">{p.desc}</p>
+                  <p className="text-[10px] text-ink-soft mt-2 font-medium leading-tight">{p.desc}</p>
 
                   <div className={`w-full mt-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all
                     ${user?.user_metadata?.plan?.includes(p.id)
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400 group-hover:bg-primary group-hover:text-white'}
+                      ? 'bg-success text-white'
+                      : 'bg-line text-ink-soft group-hover:bg-primary group-hover:text-white'}
                   `}>
                     {user?.user_metadata?.plan?.includes(p.id) ? 'Plano Atual' : 'Selecionar'}
                   </div>
@@ -742,7 +721,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             </div>
           </div>
           {isUpdatingPlan && (
-            <div className="absolute inset-0 bg-white/60 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="absolute inset-0 bg-card/60 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           )}
