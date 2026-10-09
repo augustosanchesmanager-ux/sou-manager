@@ -3,6 +3,8 @@
  *
  * RESPONSABILIDADE: Orquestra o onboarding de um novo tenant (Fase 6.0.2).
  *   - Salva passos de configuração progressivamente (empresa → operacional)
+ *   - Semeia o catálogo inicial de serviços (ensureInitialCatalog) de forma
+ *     idempotente: só insere quando o tenant ainda não possui serviços
  *   - Valida dados obrigatórios antes de cada passo
  *   - Finaliza: RPC complete_onboarding (atomic: settings + tenant.status + profile.onboarding_completed)
  *   - Publica domínio TenantOnboardingCompleted via EventBus → Outbox
@@ -32,6 +34,7 @@
 
 import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { tenantSettingsRepository } from '../domain/tenantSettings/repository';
+import { serviceRepository } from '../domain/service/repository';
 import type { TenantSettings, BusinessHours } from '../domain/tenantSettings/types';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
@@ -84,6 +87,23 @@ export interface SaveOperationalStepRequest {
   defaultAppointmentDurationMinutes?: number;
   bookingHorizonDays?: number;
   staffOwnedSchedule?: boolean;
+}
+
+export interface InitialCatalogRow {
+  name: string;
+  category: string;
+  price: number;
+  duration: number;
+}
+
+export interface EnsureInitialCatalogRequest {
+  tenantId: string;
+  services: InitialCatalogRow[];
+}
+
+export interface EnsureInitialCatalogResult {
+  seeded: boolean;
+  count: number;
 }
 
 export interface ValidationResult {
@@ -205,6 +225,18 @@ class CompleteOnboardingServiceImpl {
     if (error) {
       throw new Error(`Erro ao salvar configurações operacionais: ${error.message}`);
     }
+  }
+
+  async ensureInitialCatalog(req: EnsureInitialCatalogRequest): Promise<EnsureInitialCatalogResult> {
+    const existing = await serviceRepository.list(req.tenantId);
+    const count = existing.length;
+
+    if (count > 0 || req.services.length === 0) {
+      return { seeded: false, count };
+    }
+
+    await serviceRepository.createMany(req.tenantId, req.services);
+    return { seeded: true, count: req.services.length };
   }
 
   async complete(req: CompleteOnboardingRequest): Promise<void> {

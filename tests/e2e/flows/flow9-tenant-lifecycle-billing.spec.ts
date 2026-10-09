@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { WelcomePage } from '../pages/WelcomePage';
 import { ShopSetupPage } from '../pages/ShopSetupPage';
-import { OperationalSetupPage } from '../pages/OperationalSetupPage';
 import { LoginPage } from '../pages/LoginPage';
 import { createConfirmedUser, deleteUserByEmail, getAdminClient } from '../helpers/supabaseAdmin';
 import { signInAsUser } from '../helpers/supabaseUser';
@@ -51,33 +50,29 @@ test.describe('Flow 9 — Tenant Lifecycle Billing (Phase 6.0.4.4)', () => {
     await loginPage.submitButton.click();
     await page.waitForURL(/#\/onboarding\/welcome/, { timeout: 60_000 });
 
-    // 3. Complete onboarding (Blocos 1-3) -> /dashboard.
+    // 3. Complete onboarding (wizard de 3 passos in-page) -> /dashboard.
     const welcome = new WelcomePage(page);
     await expect(welcome.heading).toBeVisible({ timeout: 10_000 });
     await welcome.begin();
 
     const shopSetup = new ShopSetupPage(page);
-    await expect(shopSetup.phoneInput).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep1({ phone: '(11) 98888-7777', cnpj: '98.765.432/0001-10' });
-    await expect(shopSetup.zipInput).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep2({
+    await expect(shopSetup.step1Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep1({
+      phone: '(11) 98888-7777',
+      cnpj: '98.765.432/0001-10',
       zip: '01310-100',
       street: 'Av. Paulista',
       number: '1500',
       city: 'São Paulo',
       state: 'SP',
       chairCount: 2,
+      timezone: 'America/Sao_Paulo',
+      currency: 'BRL',
     });
-    await expect(shopSetup.timezoneSelect).toBeVisible({ timeout: 15_000 });
-    await shopSetup.completeStep3({ timezone: 'America/Sao_Paulo', currency: 'BRL' });
-
-    await page.waitForURL(/#\/onboarding\/operational-setup/, { timeout: 20_000 });
-    const operational = new OperationalSetupPage(page);
-    await expect(operational.heading).toBeVisible({ timeout: 15_000 });
-    await operational.setInterval(30);
-    await operational.setDuration(60);
-    await operational.setHorizon(30);
-    await operational.finish();
+    await expect(shopSetup.step2Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.completeStep2({ interval: 30, duration: 60, horizon: 30 });
+    await expect(shopSetup.step3Heading).toBeVisible({ timeout: 15_000 });
+    await shopSetup.publish();
 
     await page.waitForURL(/#\/dashboard/, { timeout: 20_000 });
     await expect(page).toHaveURL(/#\/dashboard/);

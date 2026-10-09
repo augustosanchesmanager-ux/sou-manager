@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
+import { useViaCep } from '../src/hooks/useViaCep';
 import {
     REFUND_METHODS,
     DEFAULT_REFUND_METHOD,
@@ -93,9 +94,7 @@ const Settings: React.FC = () => {
     const { user, tenantId, accessRole: authAccessRole } = useAuth();
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    const [cepLoading, setCepLoading] = useState(false);
-    const [cepMessage, setCepMessage] = useState<string | null>(null);
-    const [lastFetchedCep, setLastFetchedCep] = useState('');
+    const { loading: cepLoading, message: cepMessage, fetchAddress } = useViaCep();
     const notificationPreferences = useNotificationPreferences();
     const [notificationsMessage, setNotificationsMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -166,42 +165,23 @@ const Settings: React.FC = () => {
 
     useEffect(() => {
         const zipDigits = cleanDigits(profile.zip_code);
-        if (zipDigits.length !== 8 || zipDigits === lastFetchedCep) {
+        if (zipDigits.length !== 8) {
             return;
         }
 
         let isCancelled = false;
 
         const fetchCep = async () => {
-            setCepLoading(true);
-            setCepMessage(null);
-            try {
-                const response = await fetch(`https://viacep.com.br/ws/${zipDigits}/json/`);
-                const data = await response.json();
+            const address = await fetchAddress(zipDigits);
+            if (isCancelled || !address) return;
 
-                if (isCancelled) return;
-
-                if (!response.ok || data?.erro) {
-                    setCepMessage('CEP não encontrado. Preencha o endereço manualmente.');
-                    return;
-                }
-
-                setProfile((prev) => ({
-                    ...prev,
-                    street: prev.street || data.logradouro || '',
-                    neighborhood: prev.neighborhood || data.bairro || '',
-                    city: prev.city || data.localidade || '',
-                    state: (prev.state && prev.state !== 'SP') ? prev.state : (data.uf || prev.state || 'SP'),
-                }));
-                setLastFetchedCep(zipDigits);
-                setCepMessage('Endereço preenchido automaticamente pelo CEP.');
-            } catch {
-                if (!isCancelled) {
-                    setCepMessage('Não foi possível consultar o CEP agora. Continue com preenchimento manual.');
-                }
-            } finally {
-                if (!isCancelled) setCepLoading(false);
-            }
+            setProfile((prev) => ({
+                ...prev,
+                street: prev.street || address.street || '',
+                neighborhood: prev.neighborhood || address.neighborhood || '',
+                city: prev.city || address.city || '',
+                state: (prev.state && prev.state !== 'SP') ? prev.state : (address.state || prev.state || 'SP'),
+            }));
         };
 
         void fetchCep();
@@ -209,7 +189,7 @@ const Settings: React.FC = () => {
         return () => {
             isCancelled = true;
         };
-    }, [profile.zip_code, lastFetchedCep]);
+    }, [profile.zip_code, fetchAddress]);
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();

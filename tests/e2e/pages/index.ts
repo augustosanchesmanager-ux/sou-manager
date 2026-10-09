@@ -3,7 +3,6 @@ export { LoginPage } from './LoginPage';
 export { RegisterPage } from './RegisterPage';
 export { ShopSetupPage } from './ShopSetupPage';
 export { WelcomePage } from './WelcomePage';
-export { OperationalSetupPage } from './OperationalSetupPage';
 export { SchedulePage } from './SchedulePage';
 export { CheckoutPage } from './CheckoutPage';
 export { CashClosingPage } from './CashClosingPage';
