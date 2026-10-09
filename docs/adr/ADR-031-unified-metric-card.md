@@ -35,3 +35,18 @@ Per-screen metric redesigns keep reproducing the same generic SaaS template, and
 - Template-level visual changes require updating one file instead of eleven.
 - P0 migration is a separate authorized front; this ADR plus the base component are its entry gate.
 - SupabaseMonitoring stays unreachable until it is fed real data or removed; re-enabling it without real data contradicts this ADR.
+
+## Amendment-01 — Light cream + single gold identity (2026-10-08)
+
+**Status:** Proposed (pending PO confirmation)
+
+The PO rejected the aged-brass dark palette recorded above ("Nao gostei das cores") and supplied a Provly-inspired reference. The visual identity is therefore amended:
+
+1. **Identity:** light cream (`--color-cream` #FAF6EE) base with a **single gold** (`--color-primary` #D99A2B, dark `#A96F14`, light `#F3D9A4`) as the brand voice. White cards (`--color-card`) on cream, ink text (`--color-ink` #191611, soft `#6B6252`), hairline borders (`--color-line` #E8DFC9).
+2. **Blue fully removed.** SMG blue / `operational` tokens are deleted from the design system. No decorative or signal blue anywhere in the P0 surfaces. Operational color is gold; success/danger (`#178A50` / `#C92A2A`) reserved for status and charts only.
+3. **Light is the default.** `ThemeProvider` default changed `'dark'` → `'light'`. Dark mode remains available but is no longer the first impression.
+4. **CTA convention:** gold gradient (`from-[#E8B04B] to-[#C98A1F]`) with night text, buttons only — never on cards or tiles.
+5. **Scope:** P0 screens (Dashboard, BusinessIntelligence, StrategicDashboard, Admin), the desktop Sidebar (white, gold active pill) and the mobile bottom bar (restyled in place; items and role logic unchanged). Kiosk / `.theme-estetica` / D8 worker are out of scope.
+6. **No logic change:** metric calculation, filters, hooks, RPCs and data fetching are untouched. This is a visual-only front.
+
+This amendment supersedes the "aged brass … SMG blue restricted to operational signal" sentence in the Context above. Migration validated by `npm run build` (exit 0), `tsc --noEmit` (only pre-existing `comandaSync.ts` errors), and a zero-blue-token grep across all P0 files.
