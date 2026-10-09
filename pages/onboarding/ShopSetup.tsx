@@ -334,7 +334,7 @@ const ShopSetup: React.FC = () => {
                         <span className="material-symbols-outlined text-emerald-400 text-sm">rocket_launch</span>
                         <span className="text-sm font-bold text-white tracking-wide">PASSO {step} DE 3</span>
                     </div>
-                    <h2 className="text-5xl font-black text-white tracking-tight leading-tight mb-6">
+                    <h2 className="text-3xl font-black text-white tracking-tight leading-tight mb-6">
                         Leve sua barbearia para o próximo nível.
                     </h2>
                     <p className="text-slate-300 text-lg leading-relaxed">
@@ -353,7 +353,7 @@ const ShopSetup: React.FC = () => {
 
                 <div className="w-full max-w-lg animate-fade-in">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">
                             {STEP_COPY[step].title}
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400">{STEP_COPY[step].subtitle}</p>

@@ -82,7 +82,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const heroClassName = 'relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-cream via-card to-gold-pale p-5 text-ink shadow-smg-shell sm:p-6';
   const badgeClassName = 'inline-flex items-center gap-2 rounded-full border border-primary-light/50 bg-gold-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-primary-dark';
   const greetingClassName = 'flex items-center gap-2 text-sm font-bold text-ink-soft';
-  const titleClassName = 'max-w-2xl text-3xl font-black leading-tight text-ink sm:text-4xl';
+  const titleClassName = 'max-w-2xl text-2xl font-black leading-tight text-ink';
   const bodyClassName = 'max-w-2xl text-sm font-medium leading-6 text-ink-soft';
   const primaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-black text-night shadow-smg-glow transition hover:from-primary-dark hover:to-primary focus:outline-none focus:ring-2 focus:ring-primary/40';
   const secondaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm font-black text-ink transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
@@ -144,8 +144,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               className={periodButtonClassName}
             >
               <span>
-                <span className="block text-[11px] font-black uppercase tracking-[0.16em] text-ink-soft">Período</span>
-                <span className="mt-1 block text-sm font-black text-ink">{PERIOD_LABELS[period]}</span>
+<span className="block text-[11px] font-black uppercase tracking-[0.16em] text-ink-soft">Período</span>
+<span className="mt-1 block text-xs font-bold text-ink">{PERIOD_LABELS[period]}</span>
               </span>
               <span className="flex items-center gap-2 text-xs font-bold text-ink-soft">
                 {PERIOD_HINTS[period]}
@@ -156,18 +156,18 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             {isPeriodOpen && (
               <div className="absolute right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-card shadow-xl">
                 {(Object.entries(PERIOD_LABELS) as Array<[DashboardPeriod, string]>).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      onPeriodChange(key);
-                      setIsPeriodOpen(false);
-                    }}
-                    className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm font-bold transition ${
-                      period === key
-                        ? 'bg-gold-soft text-primary-dark'
-                        : 'text-ink-soft hover:bg-gold-pale'
-                    }`}
-                  >
+<button
+                      key={key}
+                      onClick={() => {
+                        onPeriodChange(key);
+                        setIsPeriodOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between px-4 py-3 text-left text-xs font-bold transition ${
+                        period === key
+                          ? 'bg-gold-soft text-primary-dark'
+                          : 'text-ink-soft hover:bg-gold-pale'
+                      }`}
+                    >
                     {label}
                     {period === key && <span className="material-symbols-outlined text-base text-primary-dark">check</span>}
                   </button>
@@ -184,7 +184,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 className={focusButtonClassName}
               >
                 <span className={`material-symbols-outlined text-[20px] ${item.tone}`}>{item.icon}</span>
-                <span className="mt-2 block text-xl font-black sm:text-2xl text-ink">{item.value}</span>
+                <span className="mt-2 block text-lg font-black text-ink">{item.value}</span>
                 <span className="mt-1 block text-[10px] font-bold leading-3 sm:text-[11px] sm:leading-4 text-ink-soft">{item.label}</span>
               </button>
             ))}

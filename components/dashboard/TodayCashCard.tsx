@@ -57,7 +57,7 @@ export const TodayCashCard: React.FC<TodayCashCardProps> = ({ loading, income, e
           {rows.map((row) => (
             <div key={row.label} className="rounded-xl border border-line bg-gold-pale p-3">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-ink-soft">{row.label}</p>
-              <p className={`mt-1 text-sm font-black leading-tight ${row.tone}`}>{formatCurrency(row.value)}</p>
+              <p className={`mt-1 text-xs font-bold leading-tight ${row.tone}`}>{formatCurrency(row.value)}</p>
             </div>
           ))}
         </div>

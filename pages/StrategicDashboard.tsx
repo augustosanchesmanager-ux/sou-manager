@@ -146,7 +146,7 @@ const StrategicDashboard: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs font-black uppercase tracking-widest text-primary">{dateStr}</p>
-              <h2 className="mt-2 text-3xl font-black text-ink sm:text-4xl">
+              <h2 className="mt-2 text-2xl font-black text-ink">
                 Cockpit do dono
               </h2>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-ink-soft">

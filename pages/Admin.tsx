@@ -240,7 +240,7 @@ const Admin: React.FC = () => {
                             <span className="px-2 py-0.5 rounded bg-gold-pale text-[10px] font-black uppercase text-primary-dark tracking-widest">Premium Access</span>
                             <span className="text-ink-soft text-[10px] font-bold uppercase tracking-widest">Protocolo SOU-99</span>
                         </div>
-                        <h2 className="text-4xl font-black tracking-tighter text-ink">Central de Comando SaaS</h2>
+                        <h2 className="text-2xl font-black tracking-tighter text-ink">Central de Comando SaaS</h2>
                         <p className="text-ink-soft mt-1 font-medium max-w-xl">Bem-vindo, {user?.user_metadata?.first_name || 'Administrador'}. Você possui autoridade total sobre o ecossistema SOU MANA.GER.</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -306,10 +306,10 @@ const Admin: React.FC = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 {/* Últimos chamados abertos */}
                                 <div className="bg-card border border-line p-8 rounded-3xl">
-                                    <h4 className="text-xl font-black text-ink tracking-tight mb-6">Últimos Chamados em Aberto</h4>
+                                    <h4 className="text-lg font-black text-ink tracking-tight mb-6">Últimos Chamados em Aberto</h4>
                                     {tickets.filter(t => t.status === 'open').slice(0, 5).length === 0 ? (
                                         <div className="flex flex-col items-center py-8 text-ink-soft">
-                                            <span className="material-symbols-outlined text-4xl mb-2 text-success">check_circle</span>
+                                            <span className="material-symbols-outlined text-3xl mb-2 text-success">check_circle</span>
                                             <p className="text-sm font-bold text-ink">Nenhum chamado aberto</p>
                                         </div>
                                     ) : tickets.filter(t => t.status === 'open').slice(0, 5).map((t: any, i: number) => (
@@ -331,10 +331,10 @@ const Admin: React.FC = () => {
 
                                 {/* Últimas barbearias */}
                                 <div className="bg-card border border-line p-8 rounded-3xl">
-                                    <h4 className="text-xl font-black text-ink tracking-tight mb-6">Barbearias Recentes</h4>
+                                    <h4 className="text-lg font-black text-ink tracking-tight mb-6">Barbearias Recentes</h4>
                                     {shops.slice(0, 5).length === 0 ? (
                                         <div className="flex flex-col items-center py-8 text-ink-soft">
-                                            <span className="material-symbols-outlined text-4xl mb-2 text-primary">storefront</span>
+                                            <span className="material-symbols-outlined text-3xl mb-2 text-primary">storefront</span>
                                             <p className="text-sm font-bold text-ink">Nenhuma barbearia cadastrada</p>
                                         </div>
                                     ) : shops.slice(0, 5).map((s: any, i: number) => (
@@ -365,7 +365,7 @@ const Admin: React.FC = () => {
                     <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
                         <div className="p-8 border-b border-line flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
-                                <h4 className="text-xl font-black text-ink tracking-tight">Todas as Unidades em Operação</h4>
+                                <h4 className="text-lg font-black text-ink tracking-tight">Todas as Unidades em Operação</h4>
                                 <p className="text-sm text-ink-soft font-medium mt-1">{shops.length} barbearia(s) cadastrada(s) no ecossistema.</p>
                             </div>
                             <div className="flex gap-2">
@@ -381,7 +381,7 @@ const Admin: React.FC = () => {
                             </div>
                         ) : filteredShops.length === 0 ? (
                             <div className="py-16 text-center text-ink-soft">
-                                <span className="material-symbols-outlined text-4xl mb-2 block text-primary">storefront</span>
+                                <span className="material-symbols-outlined text-3xl mb-2 block text-primary">storefront</span>
                                 <p className="text-sm font-bold text-ink">Nenhuma barbearia encontrada.</p>
                             </div>
                         ) : (
@@ -438,7 +438,7 @@ const Admin: React.FC = () => {
                     <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
                         <div className="p-8 border-b border-line flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
-                                <h4 className="text-xl font-black text-ink tracking-tight">Diretório Global de Usuários</h4>
+                                <h4 className="text-lg font-black text-ink tracking-tight">Diretório Global de Usuários</h4>
                                 <p className="text-sm text-ink-soft font-medium mt-1">{allUsers.length} usuário(s) no sistema.</p>
                             </div>
                             <input type="text" placeholder="Buscar por nome ou e-mail..." value={searchUser} onChange={e => setSearchUser(e.target.value)}
@@ -542,7 +542,7 @@ const Admin: React.FC = () => {
                 <div className="space-y-8 animate-fade-in">
                     <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
                         <div className="p-8 border-b border-line">
-                            <h4 className="text-xl font-black text-ink tracking-tight">Fila de Suporte Ativa</h4>
+                            <h4 className="text-lg font-black text-ink tracking-tight">Fila de Suporte Ativa</h4>
                             <p className="text-sm text-ink-soft font-medium mt-1">{tickets.length} chamado(s) no total.</p>
                         </div>
                         {isLoadingData ? (
@@ -551,7 +551,7 @@ const Admin: React.FC = () => {
                             </div>
                         ) : tickets.length === 0 ? (
                             <div className="py-16 text-center text-ink-soft">
-                                <span className="material-symbols-outlined text-4xl mb-2 block text-primary">inbox</span>
+                                <span className="material-symbols-outlined text-3xl mb-2 block text-primary">inbox</span>
                                 <p className="text-sm font-bold text-ink">Nenhum chamado encontrado.</p>
                             </div>
                         ) : (
@@ -638,7 +638,7 @@ const Admin: React.FC = () => {
                     {/* Badge de alerta se houver pendentes */}
                     {requests.length > 0 && (
                         <div className="flex items-center gap-4 p-5 bg-gold-pale border border-line rounded-2xl">
-                            <span className="material-symbols-outlined text-primary-dark text-3xl animate-pulse">notification_important</span>
+                            <span className="material-symbols-outlined text-primary-dark text-xl animate-pulse">notification_important</span>
                             <div>
                                 <p className="text-sm font-black text-ink">{requests.length} cadastro(s) aguardando sua aprovação</p>
                                 <p className="text-xs text-ink-soft mt-0.5">Esses usuários estão vendo a tela "Aguardando Aprovação" e não conseguem acessar o sistema.</p>
@@ -649,7 +649,7 @@ const Admin: React.FC = () => {
                     <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-lg shadow-[#E8DFC9]/50">
                         <div className="p-8 border-b border-line flex items-center justify-between">
                             <div>
-                                <h4 className="text-xl font-black text-ink tracking-tight">Cadastros Aguardando Aprovação</h4>
+                                <h4 className="text-lg font-black text-ink tracking-tight">Cadastros Aguardando Aprovação</h4>
                                 <p className="text-sm text-ink-soft font-medium mt-1">
                                     Novos donos de barbearia que se cadastraram e ainda não tiveram acesso liberado.
                                 </p>
@@ -670,7 +670,7 @@ const Admin: React.FC = () => {
                             </div>
                         ) : requests.length === 0 ? (
                             <div className="py-20 text-center text-ink-soft">
-                                <span className="material-symbols-outlined text-5xl mb-3 block text-success/50">task_alt</span>
+                                <span className="material-symbols-outlined text-3xl mb-3 block text-success/50">task_alt</span>
                                 <p className="text-base font-black text-ink">Nenhum cadastro pendente</p>
                                 <p className="text-sm text-ink-soft mt-1">Todos os usuários já têm acesso liberado.</p>
                             </div>
@@ -691,7 +691,7 @@ const Admin: React.FC = () => {
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-3">
                                                         <div className="size-9 rounded-xl bg-gold-pale border border-line flex items-center justify-center">
-                                                            <span className="material-symbols-outlined text-primary-dark text-lg">person</span>
+                                                            <span className="material-symbols-outlined text-primary-dark text-base">person</span>
                                                         </div>
                                                         <div>
                                                             <p className="text-sm font-black text-ink font-mono">{r.id?.slice(0, 16)}…</p>
@@ -794,9 +794,9 @@ const Admin: React.FC = () => {
                                         ].map((row, i) => (
                                             <tr key={i} className="hover:bg-gold-pale/50 transition-colors">
                                                 <td className="px-8 py-4 text-sm font-bold text-ink">{row.feature}</td>
-                                                <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
-                                                <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
-                                                <td className="px-8 py-4 text-center">{row.premium ? <span className="material-symbols-outlined text-primary-dark text-lg">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-lg">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.free ? <span className="material-symbols-outlined text-emerald-500 text-base">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-base">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.pro ? <span className="material-symbols-outlined text-emerald-500 text-base">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-base">cancel</span>}</td>
+                                                <td className="px-8 py-4 text-center">{row.premium ? <span className="material-symbols-outlined text-primary-dark text-base">check_circle</span> : <span className="material-symbols-outlined text-ink-soft text-base">cancel</span>}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -813,12 +813,12 @@ const Admin: React.FC = () => {
                         {/* Plano por Barbearia */}
                         <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-smg-shell">
                             <div className="p-8 border-b border-line">
-                                <h4 className="text-xl font-black text-ink tracking-tight">Plano por Barbearia</h4>
+                                <h4 className="text-lg font-black text-ink tracking-tight">Plano por Barbearia</h4>
                                 <p className="text-sm text-ink-soft font-medium mt-1">Altere o plano de cada tenant diretamente.</p>
                             </div>
                             {shops.length === 0 ? (
                                 <div className="py-12 flex flex-col items-center gap-3 text-ink-soft">
-                                    <span className="material-symbols-outlined text-4xl">storefront</span>
+                                    <span className="material-symbols-outlined text-3xl">storefront</span>
                                     <p className="text-sm font-bold">Carregue a aba Barbearias antes.</p>
                                 </div>
                             ) : (
@@ -879,12 +879,12 @@ const Admin: React.FC = () => {
                         {/* Permissões por Colaborador */}
                         <div className="bg-card border border-line rounded-3xl overflow-hidden shadow-smg-shell">
                             <div className="p-8 border-b border-line">
-                                <h4 className="text-xl font-black text-ink tracking-tight">Permissões por Colaborador</h4>
+                                <h4 className="text-lg font-black text-ink tracking-tight">Permissões por Colaborador</h4>
                                 <p className="text-sm text-ink-soft font-medium mt-1">Altere o cargo de cada barbeiro/recepcionista (salvo diretamente no banco).</p>
                             </div>
                             {allUsers.filter(u => u.source === 'staff').length === 0 ? (
                                 <div className="py-12 text-center text-ink-soft">
-                                    <span className="material-symbols-outlined text-4xl mb-2 block">group</span>
+                                    <span className="material-symbols-outlined text-3xl mb-2 block">group</span>
                                     <p className="text-sm font-bold">Acesse a aba Usuários primeiro para carregar os dados.</p>
                                 </div>
                             ) : (
@@ -1089,9 +1089,9 @@ const Admin: React.FC = () => {
                             ].map((kpi, i) => (
                                 <div key={i} className={`${kpi.bg} border ${kpi.border} rounded-2xl p-4 flex flex-col items-center gap-2`}>
                                     <div className={`w-10 h-10 rounded-xl ${kpi.bg} border ${kpi.border} flex items-center justify-center`}>
-                                        <span className={`material-symbols-outlined text-xl ${kpi.color}`}>{kpi.icon}</span>
+                                        <span className={`material-symbols-outlined text-lg ${kpi.color}`}>{kpi.icon}</span>
                                     </div>
-                                    <p className="text-xl font-black text-[#191611]">{kpi.value}</p>
+                                    <p className="text-lg font-black text-[#191611]">{kpi.value}</p>
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${kpi.color}`}>{kpi.label}</p>
                                 </div>
                             ))}
@@ -1152,7 +1152,7 @@ const Admin: React.FC = () => {
             {/* Toast */}
             {toast && (
                 <div className={`fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-xl text-sm font-bold shadow-2xl animate-fade-in flex items-center gap-2 ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                    <span className="material-symbols-outlined text-lg">{toast.type === 'success' ? 'check_circle' : 'error'}</span>
+                    <span className="material-symbols-outlined text-base">{toast.type === 'success' ? 'check_circle' : 'error'}</span>
                     {toast.msg}
                 </div>
             )}

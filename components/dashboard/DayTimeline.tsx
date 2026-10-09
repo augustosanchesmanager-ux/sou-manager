@@ -61,7 +61,7 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({
   if (appointments.length === 0) {
     return (
       <div className="rounded-2xl border border-line bg-card p-6 text-center">
-        <span className="material-symbols-outlined text-4xl text-ink-soft">event_busy</span>
+        <span className="material-symbols-outlined text-3xl text-ink-soft">event_busy</span>
         <p className="mt-2 text-sm font-bold text-ink">
           {isEsteticaApp ? 'Nenhum atendimento agendado para hoje.' : 'Nenhum agendamento para hoje.'}
         </p>

@@ -330,7 +330,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           {(!isCollapsed || !window.matchMedia('(min-width: 1024px)').matches) ? (
             <Logo />
           ) : (
-            <div className={`size-8 rounded-xl flex items-center justify-center font-black text-xl shrink-0 ${collapsedLogoClass}`}>
+            <div className={`size-8 rounded-xl flex items-center justify-center font-black text-lg shrink-0 ${collapsedLogoClass}`}>
               S
             </div>
           )}
@@ -356,7 +356,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                         `}
                       >
                         <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-[20px] ${isCompactActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
+                          <span className={`material-symbols-outlined text-lg ${isCompactActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
                           {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isCompactActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
                         </div>
                       </Link>
@@ -386,7 +386,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-[16px] transition-colors
+                      <span className={`material-symbols-outlined text-base transition-colors
                         ${expandedGroups.includes(category.title) ? navSectionActiveClass : 'text-ink-soft/50'}
                       `}>
                         {category.icon}
@@ -397,7 +397,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                         {category.title}
                       </span>
                     </div>
-                    <span className={`material-symbols-outlined text-[14px] transition-transform duration-300
+                    <span className={`material-symbols-outlined text-sm transition-transform duration-300
                       ${expandedGroups.includes(category.title) ? `rotate-180 ${navSectionActiveClass}` : 'text-ink-soft/50 group-hover:text-ink'}
                     `}>
                       expand_more
@@ -429,11 +429,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                         `}
                         >
                           <div className="flex items-center gap-3">
-                            <span className={`material-symbols-outlined text-[20px] ${groupActive ? navIconActiveClass : ''}`}>{item.icon}</span>
+                            <span className={`material-symbols-outlined text-lg ${groupActive ? navIconActiveClass : ''}`}>{item.icon}</span>
                             {!isCollapsed && <span className={`text-sm ${groupActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
                           </div>
                           {!isCollapsed && (
-                            <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${isExpanded ? `rotate-180 ${navIconActiveClass}` : 'text-ink-soft/50'}`}>
+                            <span className={`material-symbols-outlined text-base transition-transform duration-300 ${isExpanded ? `rotate-180 ${navIconActiveClass}` : 'text-ink-soft/50'}`}>
                               expand_more
                             </span>
                           )}
@@ -493,7 +493,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                           `}
                       >
                         <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-[20px] ${isSingleActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
+                          <span className={`material-symbols-outlined text-lg ${isSingleActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
                           {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isSingleActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
                         </div>
                       </Link>
@@ -532,7 +532,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                           `}
                 >
                   <div className="flex items-center gap-3">
-                    <span className={`material-symbols-outlined text-[20px] transition-colors duration-300 ${isSystemActive ? navIconActiveClass : ''}`}>{item.icon}</span>
+                    <span className={`material-symbols-outlined text-lg transition-colors duration-300 ${isSystemActive ? navIconActiveClass : ''}`}>{item.icon}</span>
                     {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isSystemActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
                   </div>
                 </Link>
@@ -560,7 +560,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               `}
               style={{ backgroundImage: user?.user_metadata?.avatar ? `url(${user?.user_metadata?.avatar})` : 'none' }}>
               {!user?.user_metadata?.avatar && (
-                <span className="material-symbols-outlined text-xl">
+                <span className="material-symbols-outlined text-lg">
                   {canAccessSuperAdmin ? 'workspace_premium' : 'person'}
                 </span>
               )}
@@ -568,7 +568,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             {!isCollapsed && (
               <>
                 <div className="flex flex-col text-left truncate flex-1 leading-tight">
-                  <p className="text-sm font-bold truncate display-font text-ink">
+                  <p className="text-xs font-bold truncate display-font text-ink">
                     {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name || ''}` : 'Utilizador'}
                   </p>
                   <p className="text-[11px] truncate font-medium mt-0.5 text-ink-soft">
@@ -698,10 +698,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                     ${p.id === 'premium' ? 'bg-gold-soft text-primary-dark' :
                       p.id === 'pro' ? 'bg-gold-pale text-primary-dark' : 'bg-gold-pale text-ink-soft'}
                   `}>
-                    <span className="material-symbols-outlined text-3xl">{p.icon}</span>
+                    <span className="material-symbols-outlined text-xl">{p.icon}</span>
                   </div>
                   <h4 className="font-black text-ink uppercase">{p.name}</h4>
-                  <p className="text-lg font-bold text-primary-dark mt-1">
+                  <p className="text-base font-bold text-primary-dark mt-1">
                     R$ {billingCycle === 'monthly' ? p.monthlyPrice : p.annualPrice}
                     <span className="text-[10px] text-ink-soft uppercase font-black ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
                   </p>

@@ -80,7 +80,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}</h4>
         </div>
 
-        <p className="text-2xl font-black text-ink">{returningClients.length}</p>
+        <p className="text-xl font-black text-ink">{returningClients.length}</p>
         <p className="text-xs text-ink-soft">
           {returningClients.length === 1 ? 'cliente para retorno' : 'clientes para retorno'}
         </p>
@@ -133,7 +133,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <h4 className="text-sm font-bold text-ink">Aniversários</h4>
         </div>
 
-        <p className="text-2xl font-black text-ink">{birthdaysToday.length}</p>
+        <p className="text-xl font-black text-ink">{birthdaysToday.length}</p>
         <p className="text-xs text-ink-soft">aniversariantes hoje</p>
         {birthdaysTomorrow.length > 0 && (
           <p className="mt-2 text-xs font-bold text-success">
@@ -162,7 +162,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}</h4>
         </div>
 
-        <p className="text-2xl font-black text-ink">
+        <p className="text-xl font-black text-ink">
           {activeTeam}<span className="text-ink-soft">/{totalTeam}</span>
         </p>
         <p className="text-xs text-ink-soft">{professionalPluralLabel.toLowerCase()} ativos</p>
@@ -188,7 +188,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <h4 className="text-sm font-bold text-ink">Base de {clientPluralLabel.toLowerCase()}</h4>
         </div>
 
-        <p className="text-2xl font-black text-ink">{totalClients}</p>
+        <p className="text-xl font-black text-ink">{totalClients}</p>
         <p className="text-xs text-ink-soft">
           {totalClients === 1 ? `${clientLabel.toLowerCase()} cadastrado` : `${clientPluralLabel.toLowerCase()} cadastrados`}
         </p>

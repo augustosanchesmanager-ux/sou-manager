@@ -92,7 +92,7 @@ const Layout: React.FC = () => {
             </button>
 
             <div className="relative w-full hidden md:block">
-              <span className={`material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-xl ${isEsteticaApp ? 'text-[#9B9368]' : 'text-slate-400 dark:text-ink-soft'}`}>search</span>
+              <span className={`material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg ${isEsteticaApp ? 'text-[#9B9368]' : 'text-slate-400 dark:text-ink-soft'}`}>search</span>
               <input
                 className={`w-full border rounded-lg py-2 pl-10 pr-4 text-sm outline-none transition-colors ${
                   isEsteticaApp
@@ -139,7 +139,7 @@ const Layout: React.FC = () => {
                     : 'bg-[#EAF7FF] dark:bg-card-dark border-[#00D2FF]/35 dark:border-gold/40 shadow-[0_0_18px_rgba(0,210,255,0.14)] dark:shadow-[0_0_18px_rgba(217,154,43,0.14)]'
                 }`}
               >
-                <span className={`material-symbols-outlined text-xl ${isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-primary'}`}>person</span>
+                <span className={`material-symbols-outlined text-lg ${isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-primary'}`}>person</span>
               </div>
             </div>
           </div>

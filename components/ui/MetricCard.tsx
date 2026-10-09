@@ -55,7 +55,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     className = '',
 }) => {
     const trendStyle = trend ? trendConfig[trend.direction] : null;
-    const valueSize = density === 'compact' ? 'text-2xl' : 'text-3xl';
+    const valueSize = density === 'compact' ? 'text-xl' : 'text-2xl';
     const padding = density === 'compact' ? 'p-4' : 'p-5';
     const progressPercent = progress ? Math.min(100, Math.max(0, Math.round(progress.percent))) : 0;
     const progressBarTone = 'bg-primary';
@@ -73,7 +73,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
                         aria-hidden="true"
                         className={`flex size-9 items-center justify-center rounded-xl border ${toneTileStyles[tone]}`}
                     >
-                        <span className="material-symbols-outlined text-xl">{icon}</span>
+                        <span className="material-symbols-outlined text-lg">{icon}</span>
                     </span>
                 ) : null}
             </div>
