@@ -65,33 +65,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
-  // Menu Definition structure
+  // Menu Definition structure — 5 functional blocks (Frente E IA taxonomy).
   const menuCategories: MenuCategory[] = [
     {
-      title: 'INÍCIO',
+      title: 'HOME',
       icon: 'dashboard',
       compact: true,
       items: [
-        { name: isEsteticaApp ? 'Dashboard' : 'Início', icon: 'dashboard', path: '/dashboard', module: 'dashboard' }
-      ]
-    },
-    {
-      title: 'NEGÓCIOS',
-      icon: 'business_center',
-      items: [
-        { name: 'Painel Estratégico', icon: 'insights', path: '/strategic-dashboard', module: 'dashboard', hideFromEsteticaMenu: true },
-        { name: 'Visão do Negócio', icon: 'query_stats', path: '/bi', module: 'dashboard', hideFromEsteticaMenu: true },
-        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
-        {
-          name: labels.package,
-          icon: 'workspace_premium',
-          module: 'chef_club',
-          children: [
-            { name: 'Planos', path: '/chef-club-plans', module: 'chef_club' },
-            { name: 'Assinaturas', path: '/chef-club-subscriptions', module: 'chef_club' },
-            { name: labels.credits, path: '/chef-club-subscriptions', module: 'chef_club' },
-          ]
-        }
+        { name: 'Painel do Dia', icon: 'dashboard', path: '/dashboard', module: 'dashboard' }
       ]
     },
     {
@@ -99,47 +80,51 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       icon: 'sync_alt',
       items: [
         { name: isEsteticaApp ? 'Agenda' : 'Agendamentos', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
-        { name: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
         { name: labels.orderPlural, icon: 'receipt', path: '/comandas', module: 'comandas' },
         { name: isEsteticaApp ? labels.checkout : 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv', module: 'checkout', hideFromEsteticaMenu: true },
-        { name: 'Operações Diárias', icon: 'assignment', path: '/operations', module: 'dashboard', hideFromEsteticaMenu: true },
+        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
       ]
     },
     {
-      title: 'ADMINISTRAÇÃO',
-      icon: 'admin_panel_settings',
+      title: 'CADASTROS',
+      icon: 'group',
       items: [
+        { name: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
+        { name: isEsteticaApp ? 'Equipe' : 'Equipe/Barbeiros', icon: 'groups', path: '/team', module: 'team' },
         { name: labels.servicePlural, icon: 'content_cut', path: '/services', module: 'services' },
         { name: isEsteticaApp ? 'Produtos / Estoque' : 'Produtos', icon: 'inventory_2', path: '/products', module: 'products' },
-        { name: labels.professionalPlural, icon: 'groups', path: '/team', module: 'team' },
         { name: 'Categorias', icon: 'category', path: '/categories', module: 'products', hideFromEsteticaMenu: true },
-        { name: 'Kiosk', icon: 'tablet_android', path: '/kiosk-admin', module: 'kiosk' },
-        { name: 'Portal', icon: 'public', path: '/portal-admin', module: 'portal' },
         { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
-        { name: 'Perfis de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
+        { name: 'Clube dos Chefes', icon: 'workspace_premium', path: '/chef-club-subscriptions', module: 'chef_club' },
       ]
     },
     {
       title: 'FINANCEIRO',
       icon: 'payments',
       items: [
-        { name: isEsteticaApp ? 'Financeiro' : 'Visão Geral', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
-        { name: 'Fluxo de Caixa',          icon: 'swap_horiz',            path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
-        { name: 'Contas a Receber',        icon: 'request_quote',         path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Recibos',                 icon: 'receipt_long',           path: '/receipts', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Contas a Pagar',         icon: 'event_busy',             path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Recebimentos do Clube',  icon: 'workspace_premium',      path: '/chef-club-receivables', module: 'chef_club' },
-        { name: 'Conferência de Caixa',   icon: 'lock',                   path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
-        { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: 'percent', path: '/commissions', module: 'commissions' },
-        { name: isEsteticaApp ? 'Relatórios' : 'Relatórios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+        { name: isEsteticaApp ? 'Financeiro' : 'Caixa/Movimentações', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
+        { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Contas a Receber', icon: 'request_quote', path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
+        { name: isEsteticaApp ? 'Repasses' : 'Comissões/Repasses', icon: 'percent', path: '/commissions', module: 'commissions' },
+      ]
+    },
+    {
+      title: 'RELATÓRIOS & BI',
+      icon: 'summarize',
+      items: [
+        { name: 'Relatórios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Desempenho de Barbeiros', icon: 'trending_up', path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
       ]
     }
   ];
 
   // System items go at the bottom
   const systemItems: MenuItem[] = [
+    { name: 'Dados da Unidade', icon: 'settings', path: '/settings', module: 'settings' },
+    { name: 'Portal de Agendamento', icon: 'public', path: '/portal-admin', module: 'portal' },
+    { name: 'Permissões de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
     { name: 'Offline seguro', icon: 'sync_problem', path: '/offline-sync' },
-    { name: 'Configurações', icon: 'settings', path: '/settings', module: 'settings' },
     { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },
   ];
 
@@ -279,10 +264,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
   // Filter based on role
   const filteredCategories = menuCategories.map(category => {
-    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'INÍCIO' && category.title !== 'DASHBOARD') {
-      if (category.title === 'ADMINISTRAÇÃO') {
-        return null;
-      }
+    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'HOME') {
       return null;
     }
     // Deep clone and filter items
