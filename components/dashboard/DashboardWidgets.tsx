@@ -30,7 +30,7 @@ const buildWhatsAppUrl = (client: ReturningClient, businessName: string): string
 const WidgetLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
   <Link
     to={to}
-    className="mt-4 inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-blue-600"
+    className="mt-4 inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary-dark"
   >
     {children}
     <span className="material-symbols-outlined text-sm">arrow_forward</span>
@@ -61,10 +61,10 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
     return (
       <div className={gridClassName}>
         {(isEsteticaApp ? [1, 2, 3] : [1, 2, 3, 4]).map((i) => (
-          <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+          <div key={i} className="rounded-2xl border border-line bg-card p-5">
             <div className="animate-pulse space-y-3">
-              <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="h-8 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-4 w-1/2 rounded bg-gold-pale" />
+              <div className="h-8 w-3/4 rounded bg-gold-pale" />
             </div>
           </div>
         ))}
@@ -74,40 +74,40 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
 
   return (
     <div className={gridClassName}>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#007BFF]">psychology</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}</h4>
+          <span className="material-symbols-outlined text-primary-dark">psychology</span>
+          <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}</h4>
         </div>
 
-        <p className="text-2xl font-black text-slate-900 dark:text-white">{returningClients.length}</p>
-        <p className="text-xs text-slate-500">
+        <p className="text-2xl font-black text-ink">{returningClients.length}</p>
+        <p className="text-xs text-ink-soft">
           {returningClients.length === 1 ? 'cliente para retorno' : 'clientes para retorno'}
         </p>
 
-        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+        <div className="mt-3 border-t border-line pt-3">
           {returningClients.length > 0 ? (
             <div className="max-h-24 space-y-2 overflow-y-auto">
               {returningClients.slice(0, 3).map((client) => {
                 const waUrl = buildWhatsAppUrl(client, businessName);
                 return (
                   <div key={client.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-slate-600 dark:text-slate-300">{client.name}</span>
+                    <span className="truncate text-ink-soft">{client.name}</span>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400">{client.daysSinceVisit}d</span>
+                      <span className="text-[10px] text-ink-soft">{client.daysSinceVisit}d</span>
                       {waUrl ? (
                         <a
                           href={waUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-900/25 dark:text-emerald-300"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-success/10 text-success transition hover:bg-success/20"
                           title={`Enviar WhatsApp para ${client.name}`}
                         >
                           <span className="material-symbols-outlined text-sm">chat</span>
                         </a>
                       ) : (
                         <span
-                          className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600"
+                          className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full bg-slate-100 text-slate-300"
                           title="Sem telefone cadastrado"
                         >
                           <span className="material-symbols-outlined text-sm">chat</span>
@@ -119,7 +119,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
               })}
             </div>
           ) : (
-            <p className="text-xs italic text-slate-400">{isEsteticaApp ? 'Nenhum cliente para retorno agora.' : 'Nenhum cliente para retorno agora.'}</p>
+            <p className="text-xs italic text-ink-soft">{isEsteticaApp ? 'Nenhum cliente para retorno agora.' : 'Nenhum cliente para retorno agora.'}</p>
           )}
         </div>
 
@@ -127,26 +127,26 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
       </div>
 
       {!isEsteticaApp && (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-rose-500">cake</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Aniversários</h4>
+          <h4 className="text-sm font-bold text-ink">Aniversários</h4>
         </div>
 
-        <p className="text-2xl font-black text-slate-900 dark:text-white">{birthdaysToday.length}</p>
-        <p className="text-xs text-slate-500">aniversariantes hoje</p>
+        <p className="text-2xl font-black text-ink">{birthdaysToday.length}</p>
+        <p className="text-xs text-ink-soft">aniversariantes hoje</p>
         {birthdaysTomorrow.length > 0 && (
-          <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+          <p className="mt-2 text-xs font-bold text-success">
             +{birthdaysTomorrow.length} amanhã
           </p>
         )}
 
         {birthdaysToday.length > 0 && (
-          <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 dark:border-slate-700">
+          <div className="mt-3 space-y-1 border-t border-line pt-3">
             {birthdaysToday.slice(0, 3).map((name) => (
               <div key={name} className="flex items-center gap-2 text-xs">
                 <span className="h-2 w-2 rounded-full bg-rose-500" />
-                <span className="text-slate-600 dark:text-slate-300">{name}</span>
+                <span className="text-ink-soft">{name}</span>
               </div>
             ))}
           </div>
@@ -156,23 +156,23 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
       </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#00D2FF]">groups</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">{isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}</h4>
+          <span className="material-symbols-outlined text-primary-dark">groups</span>
+          <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}</h4>
         </div>
 
-        <p className="text-2xl font-black text-slate-900 dark:text-white">
-          {activeTeam}<span className="text-slate-400">/{totalTeam}</span>
+        <p className="text-2xl font-black text-ink">
+          {activeTeam}<span className="text-ink-soft">/{totalTeam}</span>
         </p>
-        <p className="text-xs text-slate-500">{professionalPluralLabel.toLowerCase()} ativos</p>
+        <p className="text-xs text-ink-soft">{professionalPluralLabel.toLowerCase()} ativos</p>
 
-        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+        <div className="mt-3 border-t border-line pt-3">
           <div className="flex flex-wrap items-center gap-1.5">
             {teamStatus.map((member) => (
               <span
                 key={member.id}
-                className={`h-3 w-3 rounded-full ${member.active ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}
+                className={`h-3 w-3 rounded-full ${member.active ? 'bg-success' : 'bg-slate-300'}`}
                 title={member.name}
               />
             ))}
@@ -182,18 +182,18 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         <WidgetLink to="/team">{isEsteticaApp ? 'Ver profissionais' : 'Ver equipe'}</WidgetLink>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1A1A1A]">
+      <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#E5A158]">group</span>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Base de {clientPluralLabel.toLowerCase()}</h4>
+          <span className="material-symbols-outlined text-primary-dark">group</span>
+          <h4 className="text-sm font-bold text-ink">Base de {clientPluralLabel.toLowerCase()}</h4>
         </div>
 
-        <p className="text-2xl font-black text-slate-900 dark:text-white">{totalClients}</p>
-        <p className="text-xs text-slate-500">
+        <p className="text-2xl font-black text-ink">{totalClients}</p>
+        <p className="text-xs text-ink-soft">
           {totalClients === 1 ? `${clientLabel.toLowerCase()} cadastrado` : `${clientPluralLabel.toLowerCase()} cadastrados`}
         </p>
 
-        <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs font-medium leading-5 text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
+        <div className="mt-3 rounded-xl bg-gold-pale p-3 text-xs font-medium leading-5 text-ink-soft">
           {isEsteticaApp
             ? 'Cadastros alimentam agenda, atendimentos e retornos.'
             : 'Cadastros alimentam agenda, comanda, retorno inteligente e Club dos Chefes.'}

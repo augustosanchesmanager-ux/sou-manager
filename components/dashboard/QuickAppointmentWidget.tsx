@@ -61,25 +61,25 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
         onClick={() => setIsMinimized(false)}
         className="w-full p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-between hover:bg-primary/20 transition-colors"
       >
-        <div className="flex items-center gap-2 text-primary">
+        <div className="flex items-center gap-2 text-primary-dark">
           <span className="material-symbols-outlined">add_circle</span>
           <span className="font-bold text-sm">Novo Agendamento</span>
         </div>
-        <span className="material-symbols-outlined text-primary">expand_less</span>
+        <span className="material-symbols-outlined text-primary-dark">expand_less</span>
       </button>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
-      <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+    <div className="bg-card border border-line rounded-2xl overflow-hidden">
+      <div className="p-5 border-b border-line flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">bolt</span>
-          <h3 className="font-bold text-slate-900 dark:text-white">Novo Agendamento</h3>
+          <span className="material-symbols-outlined text-primary-dark">bolt</span>
+          <h3 className="font-bold text-ink">Novo Agendamento</h3>
         </div>
         <button
           onClick={() => setIsMinimized(true)}
-          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          className="p-1 text-ink-soft hover:text-ink transition-colors"
         >
           <span className="material-symbols-outlined text-sm">expand_less</span>
         </button>
@@ -87,11 +87,11 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
 
       <form onSubmit={onSubmit} className="p-5 space-y-4">
         <div className="relative">
-          <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+          <label className="text-[10px] uppercase font-black tracking-widest text-ink-soft block mb-2">
             Cliente
           </label>
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft">
               search
             </span>
             <input
@@ -104,21 +104,21 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
               }}
               onFocus={() => setShowClientSuggestions(true)}
               placeholder="Buscar cliente..."
-              className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+              className="w-full pl-10 pr-10 py-3 bg-gold-pale border border-line rounded-xl text-sm text-ink placeholder:text-ink-soft focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
             <button
               type="button"
               onClick={onOpenNewClientModal}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary-dark hover:bg-primary/10 rounded-lg transition-colors"
             >
               <span className="material-symbols-outlined text-lg">add</span>
             </button>
           </div>
 
           {showClientSuggestions && formData.clientSearch && (
-            <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-50 w-full mt-1 bg-card border border-line rounded-xl shadow-xl max-h-48 overflow-y-auto">
               {filteredClients.length === 0 ? (
-                <div className="p-3 text-center text-sm text-slate-500">
+                <div className="p-3 text-center text-sm text-ink-soft">
                   Nenhum cliente encontrado
                 </div>
               ) : (
@@ -134,10 +134,10 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
                       });
                       setShowClientSuggestions(false);
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="w-full px-3 py-2 text-left hover:bg-gold-pale transition-colors"
                   >
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{client.name}</p>
-                    <p className="text-xs text-slate-500">{client.phone}</p>
+                    <p className="text-sm font-medium text-ink">{client.name}</p>
+                    <p className="text-xs text-ink-soft">{client.phone}</p>
                   </button>
                 ))
               )}
@@ -147,19 +147,19 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="relative" ref={serviceRef}>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label className="text-[10px] uppercase font-black tracking-widest text-ink-soft block mb-2">
               Serviço
             </label>
             <button
               type="button"
               onClick={() => setShowServiceDropdown(!showServiceDropdown)}
-              className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-left text-sm text-slate-900 dark:text-white flex items-center justify-between"
+              className="w-full px-3 py-3 bg-gold-pale border border-line rounded-xl text-left text-sm text-ink flex items-center justify-between"
             >
               {selectedService?.name || 'Selecionar...'}
               <span className="material-symbols-outlined text-sm">expand_more</span>
             </button>
             {showServiceDropdown && (
-              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+              <div className="absolute z-50 w-full mt-1 bg-card border border-line rounded-xl shadow-xl max-h-40 overflow-y-auto">
                 {servicesList.map((service) => (
                   <button
                     key={service.id}
@@ -168,7 +168,7 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
                       setFormData({ ...formData, serviceId: service.id });
                       setShowServiceDropdown(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gold-pale transition-colors"
                   >
                     {service.name}
                   </button>
@@ -178,19 +178,19 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
           </div>
 
           <div className="relative" ref={staffRef}>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label className="text-[10px] uppercase font-black tracking-widest text-ink-soft block mb-2">
               Profissional
             </label>
             <button
               type="button"
               onClick={() => setShowStaffDropdown(!showStaffDropdown)}
-              className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-left text-sm text-slate-900 dark:text-white flex items-center justify-between"
+              className="w-full px-3 py-3 bg-gold-pale border border-line rounded-xl text-left text-sm text-ink flex items-center justify-between"
             >
               {selectedStaff?.name || 'Selecionar...'}
               <span className="material-symbols-outlined text-sm">expand_more</span>
             </button>
             {showStaffDropdown && (
-              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+              <div className="absolute z-50 w-full mt-1 bg-card border border-line rounded-xl shadow-xl max-h-40 overflow-y-auto">
                 {staffList.map((staff) => (
                   <button
                     key={staff.id}
@@ -199,7 +199,7 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
                       setFormData({ ...formData, staffId: staff.id });
                       setShowStaffDropdown(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gold-pale transition-colors"
                   >
                     {staff.name}
                   </button>
@@ -211,25 +211,25 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label className="text-[10px] uppercase font-black tracking-widest text-ink-soft block mb-2">
               Data
             </label>
             <input
               type="date"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary/50"
+              className="w-full px-3 py-3 bg-gold-pale border border-line rounded-xl text-sm text-ink focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label className="text-[10px] uppercase font-black tracking-widest text-ink-soft block mb-2">
               Horário
             </label>
             <input
               type="time"
               value={formData.time}
               onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-              className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:border-primary/50"
+              className="w-full px-3 py-3 bg-gold-pale border border-line rounded-xl text-sm text-ink focus:outline-none focus:border-primary/50"
             />
           </div>
         </div>
@@ -237,7 +237,7 @@ export const QuickAppointmentWidget: React.FC<QuickAppointmentWidgetProps> = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary text-night font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <span className="material-symbols-outlined animate-spin">sync</span>
