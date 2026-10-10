@@ -35,6 +35,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-027](./ADR-027-billing-contracts-type-segregation.md) | Accepted | Segregação de Contratos de Billing e Desacoplamento de Tipos de Tenant (ADR-027, 2026-10-02) |
 | [ADR-030](./ADR-030-payout-cycles-and-advances.md) | Proposed | Ciclos de Repasse, Gestão de Vales e Refatoração de Folha — SMG-PAYOUT-SCHEDULES (2026-10-03) |
 | [ADR-031](./ADR-031-unified-metric-card.md) | Proposed (Amendment-01) | Componente unificado de métricas + identidade creme/dourado claro (2026-10-06; Amd-01 2026-10-08) |
+| [ADR-032](./ADR-032-public-online-booking.md) | Proposed | Agendamento Online Público — Booking Web Anônimo (P.02-BOOKING-PUBLIC, 2026-10-09) |
 
 ---
 
