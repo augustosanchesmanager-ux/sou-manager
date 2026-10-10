@@ -79,6 +79,7 @@ const PortalApp = lazy(() => import('./pages/portal/PortalApp'));
 const PortalLanding = lazy(() => import('./pages/portal/PortalLanding'));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
 const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'));
+const PublicBookingPage = lazy(() => import('./src/pages/public/booking/PublicBookingPage'));
 
 const RouteFallback: React.FC = () => (
   <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
@@ -259,6 +260,10 @@ const AppRoutes: React.FC = () => {
         <Route path="/c/:tenantSlug/login" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalLogin /></PortalAuthProvider></ModuleRoute>} />
         <Route path="/c/:tenantSlug/app" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalApp /></PortalAuthProvider></ModuleRoute>} />
         <Route path="/c/:tenantSlug/app/schedule" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalSchedule /></PortalAuthProvider></ModuleRoute>} />
+
+        {/* Public Booking Routes (no auth required) */}
+        <Route path="/agendar/:tenantSlug" element={<PublicBookingPage />} />
+        <Route path="/booking/:tenantSlug" element={<Navigate to="/agendar/:tenantSlug" replace />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/provision" element={<Provision />} />
