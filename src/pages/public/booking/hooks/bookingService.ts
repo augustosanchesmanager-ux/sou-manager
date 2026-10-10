@@ -30,16 +30,19 @@ const RPC_NAMES = {
   CANCEL_BOOKING: 'cancel_public_booking',
 } as const;
 
-// Check if we should use mock (dev mode with VITE_BOOKING_MOCK !== 'false')
-const shouldUseMock = (): boolean => {
-  // In demo mode (no Supabase env), always use mock
+// Check if we should use mock (dev mode, Vercel preview, or no backend support)
+const isMockEnabled = (): boolean => {
   if (import.meta.env.DEV) {
     const mockFlag = import.meta.env.VITE_BOOKING_MOCK;
-    // Default to mock in dev unless explicitly disabled
     if (mockFlag === 'false') return false;
     return true;
   }
-  return false;
+  // Vercel preview: RPCs not yet deployed on Supabase (Sprint 1 pending) — mock required for homologation
+  if (window.location.hostname.includes('vercel.app')) return true;
+  const hasBackendSupport = Boolean(
+    import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+  );
+  return !hasBackendSupport;
 };
 
 // Check if error is "function not found" (PostgreSQL error code 42883)
@@ -57,7 +60,7 @@ const isFunctionNotFoundError = (error: unknown): boolean => {
 export async function getPublicTenantProfile(
   tenantIdentifier: string
 ): Promise<PublicTenantProfile | null> {
-  if (shouldUseMock()) {
+  if (isMockEnabled()) {
     return mockGetPublicTenantProfile(tenantIdentifier);
   }
 
@@ -79,8 +82,7 @@ export async function getPublicTenantProfile(
     // RPC returns null if tenant not found or booking disabled
     return data as PublicTenantProfile | null;
   } catch (err) {
-    // Network or other errors - fall back to mock in dev
-    if (import.meta.env.DEV && isFunctionNotFoundError(err)) {
+    if (isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockGetPublicTenantProfile(tenantIdentifier);
     }
@@ -98,7 +100,7 @@ export async function getPublicAvailableSlots(
   serviceIds: string[],
   date: string
 ): Promise<PublicAvailableSlotsResponse> {
-  if (shouldUseMock()) {
+  if (isMockEnabled()) {
     return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
   }
 
@@ -121,7 +123,7 @@ export async function getPublicAvailableSlots(
 
     return data as PublicAvailableSlotsResponse;
   } catch (err) {
-    if (import.meta.env.DEV && isFunctionNotFoundError(err)) {
+    if (isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
     }
@@ -136,7 +138,7 @@ export async function getPublicAvailableSlots(
 export async function createPublicBooking(
   request: CreatePublicBookingRequest
 ): Promise<CreatePublicBookingResult> {
-  if (shouldUseMock()) {
+  if (isMockEnabled()) {
     return mockCreatePublicBooking(request);
   }
 
@@ -165,7 +167,7 @@ export async function createPublicBooking(
 
     return data as CreatePublicBookingResult;
   } catch (err) {
-    if (import.meta.env.DEV && isFunctionNotFoundError(err)) {
+    if (isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockCreatePublicBooking(request);
     }
@@ -181,7 +183,7 @@ export async function cancelPublicBooking(
   tenantIdentifier: string,
   publicToken: string
 ): Promise<{ appointment_id: string; status: 'cancelled'; cancelled_at: string; cancelled: true; idempotent: boolean }> {
-  if (shouldUseMock()) {
+  if (isMockEnabled()) {
     return mockCancelPublicBooking(tenantIdentifier, publicToken);
   }
 
@@ -203,7 +205,7 @@ export async function cancelPublicBooking(
 
     return data as { appointment_id: string; status: 'cancelled'; cancelled_at: string; cancelled: true; idempotent: boolean };
   } catch (err) {
-    if (import.meta.env.DEV && isFunctionNotFoundError(err)) {
+    if (isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockCancelPublicBooking(tenantIdentifier, publicToken);
     }
@@ -262,5 +264,5 @@ function mapPostgresError(error: unknown): PublicBookingError {
 // ============================================================================
 
 export function isUsingMock(): boolean {
-  return shouldUseMock();
+  return isMockEnabled();
 }
