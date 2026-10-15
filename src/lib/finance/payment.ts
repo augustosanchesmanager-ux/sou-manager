@@ -21,7 +21,7 @@ const withRpcTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
 // NÃO altera status da comanda, attended_at, nem comissão.
 // Gate: recepção + gestão. Idempotente via idempotency_key.
 
-export type ComandaPaymentType = 'anticipado' | 'parcial' | 'total';
+export type ComandaPaymentType = 'anticipado' | 'no_atendimento' | 'posterior' | 'parcial' | 'final';
 
 export interface RegisterComandaPaymentInput {
   tenantId: string;
@@ -58,7 +58,7 @@ export const registerComandaPayment = async ({
 }: RegisterComandaPaymentInput): Promise<RegisterComandaPaymentResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para registro de pagamento.');
   if (!comandaId) throw new Error('comanda_id obrigatório para registro de pagamento.');
-  if (!paymentType) throw new Error('Tipo de pagamento obrigatório (anticipado, parcial ou total).');
+  if (!paymentType) throw new Error('Tipo de pagamento obrigatório (anticipado, no_atendimento, posterior, parcial ou final).');
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('Valor do pagamento deve ser maior que zero.');
   }
