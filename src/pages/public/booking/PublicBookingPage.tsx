@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { usePublicBooking } from './hooks/usePublicBooking';
 import BookingHeader from './BookingHeader';
 import StepServices from './StepServices';
@@ -322,22 +322,6 @@ const PublicBookingPage: React.FC = () => {
           {renderStepContent()}
         </div>
 
-        {/* Navigation Buttons (for non-success steps) */}
-        {currentStep !== 'success' && (
-          <div className="flex items-center mt-6 pt-4 border-t border-line">
-            <button
-              type="button"
-              onClick={goToPrevStep}
-              disabled={stepIndex === 0 || isLoading}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-line bg-white dark:bg-card-dark text-ink font-medium transition-all hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Voltar"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              Voltar
-            </button>
-          </div>
-        )}
-
         {/* Success step actions rendered inside BookingSuccessVoucher */}
       </main>
 
@@ -347,7 +331,9 @@ const PublicBookingPage: React.FC = () => {
           totalDuration={totalDuration}
           totalPrice={totalPrice}
           canAdvance={canAdvance}
+          canBack={stepIndex > 0}
           onAdvance={handleAdvance}
+          onBack={goToPrevStep}
           isLoading={isLoading}
           ctaText={stepIndex === totalSteps - 1 ? 'Confirmar agendamento' : 'Avançar'}
           formatDuration={formatDuration}

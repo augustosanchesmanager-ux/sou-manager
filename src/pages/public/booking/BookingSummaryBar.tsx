@@ -4,13 +4,15 @@
  */
 
 import React from 'react';
-import { ArrowRight, Clock, Tag, Loader2 } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Clock, Tag, Loader2 } from 'lucide-react';
 
 interface BookingSummaryBarProps {
   totalDuration: number;
   totalPrice: number;
   canAdvance: boolean;
+  canBack: boolean;
   onAdvance: () => void;
+  onBack: () => void;
   isLoading?: boolean;
   ctaText?: string;
   formatDuration: (minutes: number) => string;
@@ -21,7 +23,9 @@ const BookingSummaryBar: React.FC<BookingSummaryBarProps> = ({
   totalDuration,
   totalPrice,
   canAdvance,
+  canBack,
   onAdvance,
+  onBack,
   isLoading,
   ctaText = 'Avançar',
   formatDuration,
@@ -35,7 +39,7 @@ const BookingSummaryBar: React.FC<BookingSummaryBarProps> = ({
       aria-label="Resumo do agendamento"
     >
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-3">
+        <div className="flex items-center justify-between gap-4 mb-4">
           {/* Duration */}
           <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
             <Clock className="w-4 h-4 flex-shrink-0" />
@@ -49,30 +53,44 @@ const BookingSummaryBar: React.FC<BookingSummaryBarProps> = ({
           </div>
         </div>
 
-        {/* CTA Button */}
-        <button
-          type="button"
-          onClick={onAdvance}
-          disabled={!canAdvance || isLoading}
-          className={`w-full py-4 rounded-2xl font-black text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed ${
-            canAdvance && !isLoading
-              ? 'bg-gradient-to-r from-primary to-primary-dark text-night shadow-lg shadow-primary/30 hover:from-primary/90 hover:to-primary-dark/90 hover:-translate-y-0.5'
-              : 'bg-line text-ink-soft'
-          }`}
-          aria-disabled={!canAdvance || isLoading}
-        >
-          {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Processando...
-            </span>
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              {ctaText}
-              <ArrowRight className="w-5 h-5" />
-            </span>
+        <div className="flex items-center gap-3">
+          {canBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={isLoading}
+              className="flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border-2 border-line bg-white dark:bg-card-dark text-ink font-bold text-sm transition-all hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Voltar"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              Voltar
+            </button>
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={onAdvance}
+            disabled={!canAdvance || isLoading}
+            className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed ${
+              canAdvance && !isLoading
+                ? 'bg-gradient-to-r from-primary to-primary-dark text-night shadow-lg shadow-primary/30 hover:from-primary/90 hover:to-primary-dark/90 hover:-translate-y-0.5'
+                : 'bg-line text-ink-soft'
+            }`}
+            aria-disabled={!canAdvance || isLoading}
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processando...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                {ctaText}
+                <ArrowRight className="w-5 h-5" />
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
