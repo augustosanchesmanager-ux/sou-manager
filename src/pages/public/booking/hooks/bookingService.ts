@@ -30,16 +30,19 @@ const RPC_NAMES = {
   CANCEL_BOOKING: 'cancel_public_booking',
 } as const;
 
-// Check if we should use mock (dev mode, Vercel preview, or no backend support)
+const PRODUCTION_HOSTNAMES = ['soumanager.com'];
+
+const isProductionHostname = (): boolean =>
+  PRODUCTION_HOSTNAMES.some((domain) => window.location.hostname.includes(domain));
+
 const isMockEnabled = (): boolean => {
   if (import.meta.env.DEV) {
     const mockFlag = import.meta.env.VITE_BOOKING_MOCK;
     if (mockFlag === 'false') return false;
     return true;
   }
-  if (import.meta.env.VITE_VERCEL_ENV === 'preview') return true;
   if (import.meta.env.VITE_ENABLE_BOOKING_MOCK === 'true') return true;
-  if (window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('soumanager.com')) return true;
+  if (import.meta.env.PROD && !isProductionHostname()) return true;
   const hasBackendSupport = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
   );
