@@ -63,20 +63,10 @@ export async function mockGetPublicTenantProfile(
 ): Promise<PublicTenantProfile | null> {
   await simulateLatency();
 
-  // Match by slug or ID
-  const normalized = tenantIdentifier.trim().toLowerCase();
-  const mockSlug = MOCK_TENANT_PROFILE.slug.toLowerCase();
-  const mockId = MOCK_TENANT_PROFILE.tenant_id.toLowerCase();
-
-  if (normalized !== mockSlug && normalized !== mockId) {
-    return null; // Not found - per SPEC, return NULL not exception
-  }
-
   if (!MOCK_TENANT_PROFILE.booking_enabled) {
-    return null; // Booking disabled - hide profile
+    return null;
   }
 
-  // Return a deep copy to prevent mutation
   return JSON.parse(JSON.stringify(MOCK_TENANT_PROFILE));
 }
 
@@ -91,15 +81,6 @@ export async function mockGetPublicAvailableSlots(
   date: string
 ): Promise<PublicAvailableSlotsResponse> {
   await simulateLatency();
-
-  // Validate tenant
-  const normalized = tenantIdentifier.trim().toLowerCase();
-  const mockSlug = MOCK_TENANT_PROFILE.slug.toLowerCase();
-  const mockId = MOCK_TENANT_PROFILE.tenant_id.toLowerCase();
-
-  if (normalized !== mockSlug && normalized !== mockId) {
-    throw createBookingError('slot_occupied', 'Tenant não encontrado');
-  }
 
   if (!MOCK_TENANT_PROFILE.booking_enabled) {
     throw createBookingError('slot_occupied', 'Agendamentos desativados para esta barbearia');
@@ -159,15 +140,6 @@ export async function mockCreatePublicBooking(
         public_token: null,
       };
     }
-  }
-
-  // Validate tenant
-  const normalized = request.tenant_identifier.trim().toLowerCase();
-  const mockSlug = MOCK_TENANT_PROFILE.slug.toLowerCase();
-  const mockId = MOCK_TENANT_PROFILE.tenant_id.toLowerCase();
-
-  if (normalized !== mockSlug && normalized !== mockId) {
-    throw createBookingError('slot_occupied', 'Tenant não encontrado');
   }
 
   if (!MOCK_TENANT_PROFILE.booking_enabled) {
