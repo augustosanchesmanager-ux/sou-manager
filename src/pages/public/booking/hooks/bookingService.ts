@@ -37,8 +37,9 @@ const isMockEnabled = (): boolean => {
     if (mockFlag === 'false') return false;
     return true;
   }
-  // Vercel preview: RPCs not yet deployed on Supabase (Sprint 1 pending) — mock required for homologation
-  if (window.location.hostname.includes('vercel.app')) return true;
+  if (import.meta.env.VITE_VERCEL_ENV === 'preview') return true;
+  if (import.meta.env.VITE_ENABLE_BOOKING_MOCK === 'true') return true;
+  if (window.location.hostname.includes('vercel.app') && !window.location.hostname.includes('soumanager.com')) return true;
   const hasBackendSupport = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
   );
@@ -52,6 +53,8 @@ const isFunctionNotFoundError = (error: unknown): boolean => {
   // Supabase wraps Postgres errors with code property
   return err.code === '42883' || err.code === 'P0001' || (err.message && String(err.message).includes('function') && String(err.message).includes('does not exist'));
 };
+
+const allowMockFallback = (): boolean => isMockEnabled();
 
 // ============================================================================
 // RPC 1: get_public_tenant_profile
@@ -82,7 +85,7 @@ export async function getPublicTenantProfile(
     // RPC returns null if tenant not found or booking disabled
     return data as PublicTenantProfile | null;
   } catch (err) {
-    if (isFunctionNotFoundError(err)) {
+    if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockGetPublicTenantProfile(tenantIdentifier);
     }
@@ -123,7 +126,7 @@ export async function getPublicAvailableSlots(
 
     return data as PublicAvailableSlotsResponse;
   } catch (err) {
-    if (isFunctionNotFoundError(err)) {
+    if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
     }
@@ -167,7 +170,7 @@ export async function createPublicBooking(
 
     return data as CreatePublicBookingResult;
   } catch (err) {
-    if (isFunctionNotFoundError(err)) {
+    if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockCreatePublicBooking(request);
     }
@@ -205,7 +208,7 @@ export async function cancelPublicBooking(
 
     return data as { appointment_id: string; status: 'cancelled'; cancelled_at: string; cancelled: true; idempotent: boolean };
   } catch (err) {
-    if (isFunctionNotFoundError(err)) {
+    if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
       return mockCancelPublicBooking(tenantIdentifier, publicToken);
     }

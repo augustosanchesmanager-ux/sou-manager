@@ -287,7 +287,7 @@ const PublicBookingPage: React.FC = () => {
       )}
 
       {/* Mock mode indicator */}
-      {isUsingMock && import.meta.env.DEV && (
+      {isUsingMock && (
         <div className="fixed top-4 right-4 z-40 px-4 pointer-events-none">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-xs font-medium border border-amber-200 dark:border-amber-800">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
