@@ -30,19 +30,16 @@ const RPC_NAMES = {
   CANCEL_BOOKING: 'cancel_public_booking',
 } as const;
 
-const PRODUCTION_HOSTNAMES = ['soumanager.com'];
-
-const isProductionHostname = (): boolean =>
-  PRODUCTION_HOSTNAMES.some((domain) => window.location.hostname.includes(domain));
-
 const isMockEnabled = (): boolean => {
-  if (import.meta.env.DEV) {
-    const mockFlag = import.meta.env.VITE_BOOKING_MOCK;
-    if (mockFlag === 'false') return false;
-    return true;
-  }
+  // Explicit opt-in or override via environment variable
   if (import.meta.env.VITE_ENABLE_BOOKING_MOCK === 'true') return true;
-  if (import.meta.env.PROD && !isProductionHostname()) return true;
+  if (import.meta.env.VITE_BOOKING_MOCK === 'true') return true;
+
+  if (import.meta.env.VITE_ENABLE_BOOKING_MOCK === 'false' || import.meta.env.VITE_BOOKING_MOCK === 'false') {
+    return false;
+  }
+
+  // Fallback to mock only if Supabase environment credentials are not configured
   const hasBackendSupport = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
   );
@@ -53,8 +50,8 @@ const isMockEnabled = (): boolean => {
 const isFunctionNotFoundError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
   const err = error as Record<string, unknown>;
-  // Supabase wraps Postgres errors with code property
-  return err.code === '42883' || err.code === 'P0001' || (err.message && String(err.message).includes('function') && String(err.message).includes('does not exist'));
+  // Supabase wraps Postgres errors with code property. 42883 = undefined_function.
+  return err.code === '42883' || (typeof err.message === 'string' && err.message.includes('function') && err.message.includes('does not exist'));
 };
 
 const allowMockFallback = (): boolean => isMockEnabled();
