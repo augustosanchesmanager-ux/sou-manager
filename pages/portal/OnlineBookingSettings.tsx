@@ -12,8 +12,11 @@ const OnlineBookingSettings: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Link público canônico do agendamento direto (sem login)
-  const publicBookingUrl = `https://barber.soumanager.com/#/agendar/${tenantSlug || 'sua-barbearia'}`;
+  // Link público canônico do agendamento direto (dinâmico conforme o ambiente: staging, dev ou prod)
+  const baseUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '')
+    : 'https://barber.soumanager.com';
+  const publicBookingUrl = `${baseUrl}/#/agendar/${tenantSlug || 'sua-barbearia'}`;
 
   // Opções de horários de 06:00 até 23:00
   const hourOptions = Array.from({ length: 18 }, (_, i) => i + 6);

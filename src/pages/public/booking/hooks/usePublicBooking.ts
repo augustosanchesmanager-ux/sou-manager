@@ -44,7 +44,7 @@ const INITIAL_STATE: Omit<BookingState, 'tenantProfile' | 'idempotencyKey' | 'sl
   clientNotes: '',
   bookingResult: null,
   currentStep: 'services',
-  isLoading: false,
+  isLoading: true,
   error: null,
 };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useResolvedClient } from '@/src/hooks/useResolvedClient';
 import {
@@ -32,8 +32,11 @@ export function useAccountsPayable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const repository = createAccountsPayableRepository(supabase);
-  const service = createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null);
+  const repository = useMemo(() => createAccountsPayableRepository(supabase), [supabase]);
+  const service = useMemo(
+    () => createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null),
+    [repository, tenantId, user?.id]
+  );
   const lastFiltersRef = useRef<AccountsPayableFilters | undefined>(undefined);
 
   // Recurring Bills
@@ -50,7 +53,7 @@ export function useAccountsPayable() {
     } catch (err) {
       setError(extractError(err));
     }
-  }, [tenantId]);
+  }, [tenantId, service]);
 
   const fetchAccountsPayable = useCallback(async (
     filtersOrMonth?: AccountsPayableFilters | number,
@@ -79,7 +82,7 @@ export function useAccountsPayable() {
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, service]);
 
   const ensureCurrentMonthInstances = useCallback(async (month?: number, year?: number) => {
     if (!tenantId) return;
