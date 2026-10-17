@@ -60,9 +60,44 @@ const AccountsPayableWidget: React.FC = () => {
     notes: '',
   });
 
+  // Competence State
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
+  const currentMonthLabel = `${monthNames[selectedMonth - 1]} ${selectedYear}`;
+  const isCurrentMonth = selectedMonth === (now.getMonth() + 1) && selectedYear === now.getFullYear();
+
+  const handlePrevMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear((y) => y - 1);
+    } else {
+      setSelectedMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear((y) => y + 1);
+    } else {
+      setSelectedMonth((m) => m + 1);
+    }
+  };
+
+  const handleResetToCurrentMonth = () => {
+    setSelectedMonth(now.getMonth() + 1);
+    setSelectedYear(now.getFullYear());
+  };
+
   useEffect(() => {
-    fetchAccountsPayable();
-  }, [fetchAccountsPayable]);
+    fetchAccountsPayable({ competence_month: selectedMonth, competence_year: selectedYear });
+  }, [fetchAccountsPayable, selectedMonth, selectedYear]);
 
   // Filter by tab
   const filteredAP = accountsPayable.filter((ap) => {
@@ -76,12 +111,26 @@ const AccountsPayableWidget: React.FC = () => {
   const pendingTotal = accountsPayable
     .filter((ap) => ap.status === 'pending')
     .reduce((sum, ap) => sum + ap.amount, 0);
-  const overdueTotal = accountsPayable
-    .filter((ap) => ap.is_overdue)
-    .reduce((sum, ap) => sum + ap.amount, 0);
+  const pendingCount = accountsPayable.filter((ap) => ap.status === 'pending').length;
+
   const paidTotal = accountsPayable
     .filter((ap) => ap.status === 'paid')
     .reduce((sum, ap) => sum + ap.amount, 0);
+  const paidCount = accountsPayable.filter((ap) => ap.status === 'paid').length;
+
+  const overdueBills = accountsPayable.filter((ap) => ap.is_overdue);
+  const overdueTotal = overdueBills.reduce((sum, ap) => sum + ap.amount, 0);
+  const overdueCount = overdueBills.length;
+
+  const getDaysDiff = (dateStr: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+    const target = new Date(year, month - 1, day);
+    target.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - target.getTime();
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
+  };
 
   const handleCreateRecurringBill = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,11 +315,20 @@ const AccountsPayableWidget: React.FC = () => {
         </span>
       );
     }
-    if (ap.is_overdue) {
+    const daysDiff = getDaysDiff(ap.due_date);
+    if (ap.is_overdue || daysDiff > 0) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border bg-red-500/10 text-red-500 border-red-500/20">
-          <span className="size-1.5 rounded-full bg-red-500"></span>
-          Vencida
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30">
+          <span className="size-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+          {daysDiff > 0 ? `Vencida há ${daysDiff} ${daysDiff === 1 ? 'dia' : 'dias'}` : 'Vencida'}
+        </span>
+      );
+    }
+    if (daysDiff === 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
+          <span className="size-1.5 rounded-full bg-amber-500"></span>
+          Vence hoje
         </span>
       );
     }
@@ -330,24 +388,108 @@ const AccountsPayableWidget: React.FC = () => {
         </div>
       </div>
 
+      {/* Competence Navigation Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 p-3 bg-slate-50 dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-slate-400 text-lg">calendar_month</span>
+          <span className="text-xs font-bold uppercase text-slate-500">Competência:</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Mês anterior"
+          >
+            <span className="material-symbols-outlined text-sm">chevron_left</span>
+          </button>
+          <span className="text-sm font-bold text-slate-900 dark:text-white px-3 min-w-[140px] text-center">
+            {currentMonthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Próximo mês"
+          >
+            <span className="material-symbols-outlined text-sm">chevron_right</span>
+          </button>
+          {!isCurrentMonth && (
+            <button
+              type="button"
+              onClick={handleResetToCurrentMonth}
+              className="text-[11px] font-bold text-primary hover:underline ml-2"
+            >
+              Mês atual
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">A Pagar</p>
-          <p className="text-lg font-black text-amber-700 dark:text-amber-300">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-amber-50 dark:bg-amber-500/10 p-3.5 rounded-xl border border-amber-200/60 dark:border-amber-500/20">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Total a Pagar</p>
+            <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
+          </div>
+          <p className="text-xl font-black text-amber-700 dark:text-amber-300">
             R$ {pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
-        </div>
-        <div className="bg-red-50 dark:bg-red-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">Vencidas</p>
-          <p className="text-lg font-black text-red-700 dark:text-red-300">
-            R$ {overdueTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+            {pendingCount} conta(s) pendente(s)
           </p>
         </div>
-        <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Pagas</p>
-          <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+
+        <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3.5 rounded-xl border border-emerald-200/60 dark:border-emerald-500/20">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Pago</p>
+            <span className="material-symbols-outlined text-emerald-500 text-base">check_circle</span>
+          </div>
+          <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">
             R$ {paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
+            {paidCount} conta(s) liquidada(s)
+          </p>
+        </div>
+
+        <div
+          className={`p-3.5 rounded-xl border transition-colors ${
+            overdueCount > 0
+              ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/30'
+              : 'bg-slate-50 dark:bg-white/[0.02] border-slate-200 dark:border-white/10'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <p
+              className={`text-[10px] font-bold uppercase tracking-wide ${
+                overdueCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'
+              }`}
+            >
+              Vencidas
+            </p>
+            <span
+              className={`material-symbols-outlined text-base ${
+                overdueCount > 0 ? 'text-rose-500' : 'text-slate-400'
+              }`}
+            >
+              {overdueCount > 0 ? 'warning' : 'verified'}
+            </span>
+          </div>
+          <p
+            className={`text-xl font-black ${
+              overdueCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            R$ {overdueTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+          <p
+            className={`text-[11px] mt-0.5 ${
+              overdueCount > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-400'
+            }`}
+          >
+            {overdueCount > 0 ? `${overdueCount} conta(s) em atraso` : 'Nenhuma conta vencida'}
           </p>
         </div>
       </div>

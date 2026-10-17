@@ -7,6 +7,7 @@ import {
   AccountPayable,
   AccountPayableWithOverdue,
   AccountPayableStatus,
+  AccountsPayableFilters,
   PayAccountPayableResult,
   CancelAccountPayableResult,
   CreateAccountPayableFromRecurringResult,
@@ -21,7 +22,7 @@ export interface AccountsPayableApplicationService {
   getRecurringBills(): Promise<RecurringBill[]>;
 
   // Accounts Payable
-  listAccountsPayable(filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }): Promise<AccountPayableWithOverdue[]>;
+  listAccountsPayable(filters?: AccountsPayableFilters): Promise<AccountPayableWithOverdue[]>;
   getAccountsPayableById(id: string): Promise<AccountPayableWithOverdue | null>;
   createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
   editAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;

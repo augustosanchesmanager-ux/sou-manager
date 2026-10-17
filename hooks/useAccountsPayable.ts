@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useResolvedClient } from '@/src/hooks/useResolvedClient';
 import {
@@ -6,6 +6,7 @@ import {
   AccountPayable,
   AccountPayableWithOverdue,
   AccountPayableStatus,
+  AccountsPayableFilters,
 } from '@/domain/accountsPayable/types';
 import { createAccountsPayableRepository } from '@/domain/accountsPayable/repository';
 import { createAccountsPayableApplicationService } from '@/domain/accountsPayable/service';
@@ -33,6 +34,7 @@ export function useAccountsPayable() {
 
   const repository = createAccountsPayableRepository(supabase);
   const service = createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null);
+  const lastFiltersRef = useRef<AccountsPayableFilters | undefined>(undefined);
 
   // Recurring Bills
   const [recurringBills, setRecurringBills] = useState<RecurringBill[]>([]);
@@ -50,11 +52,26 @@ export function useAccountsPayable() {
     }
   }, [tenantId]);
 
-  const fetchAccountsPayable = useCallback(async (filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }) => {
+  const fetchAccountsPayable = useCallback(async (
+    filtersOrMonth?: AccountsPayableFilters | number,
+    optionalYear?: number
+  ) => {
     if (!tenantId) return;
     try {
       setLoading(true);
       setError(null);
+      let filters: AccountsPayableFilters | undefined;
+      if (typeof filtersOrMonth === 'number') {
+        filters = {
+          competence_month: filtersOrMonth,
+          competence_year: optionalYear,
+        };
+      } else if (filtersOrMonth !== undefined) {
+        filters = filtersOrMonth;
+      } else {
+        filters = lastFiltersRef.current;
+      }
+      lastFiltersRef.current = filters;
       const items = await service.listAccountsPayable(filters);
       setAccountsPayable(items);
     } catch (err) {
