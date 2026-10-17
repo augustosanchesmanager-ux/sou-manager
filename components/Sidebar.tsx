@@ -104,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       items: [
         { name: isEsteticaApp ? 'Financeiro' : 'Caixa/Movimentações', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
         { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Fechamento de Caixa', icon: 'lock', path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Receber', icon: 'request_quote', path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
         { name: isEsteticaApp ? 'Repasses' : 'Comissões/Repasses', icon: 'percent', path: '/commissions', module: 'commissions' },
