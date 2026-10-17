@@ -33,6 +33,15 @@ const AccountsPayableWidget: React.FC = () => {
   const [isRecurringSubmitting, setIsRecurringSubmitting] = useState(false);
   const [recurringIdempotencyKey, setRecurringIdempotencyKey] = useState<string | null>(null);
 
+  // Pay Modal State
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [payingAP, setPayingAP] = useState<AccountPayableWithOverdue | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [payForm, setPayForm] = useState({
+    paid_at: new Date().toISOString().split('T')[0],
+    payment_method: 'Dinheiro',
+  });
+
   // Recurring Bill Form
   const [billForm, setBillForm] = useState({
     name: '',
@@ -175,12 +184,31 @@ const AccountsPayableWidget: React.FC = () => {
     }
   };
 
-  const handlePay = async (apId: string) => {
+  const openPayModal = (ap: AccountPayableWithOverdue) => {
+    setPayingAP(ap);
+    setPayForm({
+      paid_at: new Date().toISOString().split('T')[0],
+      payment_method: 'Dinheiro',
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const handleConfirmPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingAP) return;
+    setIsPaying(true);
     try {
-      const result = await payAccountPayable(apId);
+      const paidAtIso = payForm.paid_at
+        ? new Date(`${payForm.paid_at}T12:00:00Z`).toISOString()
+        : new Date().toISOString();
+      const result = await payAccountPayable(payingAP.id, payForm.payment_method, paidAtIso);
       setToast({ message: result.message || 'Baixa realizada com sucesso!', type: 'success' });
+      setIsPayModalOpen(false);
+      setPayingAP(null);
     } catch {
-      setToast({ message: 'Erro ao dar baixa', type: 'error' });
+      setToast({ message: 'Erro ao dar baixa na conta', type: 'error' });
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -399,7 +427,7 @@ const AccountsPayableWidget: React.FC = () => {
                   </span>
                   {ap.status === 'pending' && (
                     <>
-                      <button onClick={() => handlePay(ap.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold transition-colors" title="Dar baixa">
+                      <button onClick={() => openPayModal(ap)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold transition-colors" title="Dar baixa">
                         BAIXAR
                       </button>
                       <button onClick={() => openEditAPModal(ap)} className="text-slate-400 hover:text-primary p-1" title="Editar">
@@ -594,6 +622,82 @@ const AccountsPayableWidget: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Pay Modal */}
+      <Modal
+        isOpen={isPayModalOpen}
+        onClose={() => { if (!isPaying) { setIsPayModalOpen(false); setPayingAP(null); } }}
+        title="Confirmar Pagamento"
+        maxWidth="sm"
+      >
+        {payingAP && (
+          <form onSubmit={handleConfirmPay} className="space-y-4">
+            <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/10">
+              <p className="text-xs text-slate-500 uppercase font-bold">Despesa</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{payingAP.name}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 dark:border-white/10">
+                <span className="text-xs text-slate-500">Valor a liquidar</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  R$ {payingAP.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data do Pagamento</label>
+              <input
+                type="date"
+                required
+                value={payForm.paid_at}
+                onChange={(e) => setPayForm({ ...payForm, paid_at: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Forma de Pagamento</label>
+              <select
+                value={payForm.payment_method}
+                onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none"
+              >
+                <option value="Dinheiro">Dinheiro (Caixa Físico)</option>
+                <option value="PIX">PIX</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Boleto">Boleto Bancário</option>
+                <option value="Transferência">Transferência / TED</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            {payForm.payment_method === 'Dinheiro' && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                <span className="material-symbols-outlined text-sm mt-0.5">info</span>
+                <span>Esta despesa será registrada como saída no <strong>Fechamento de Caixa Físico</strong> da data informada.</span>
+              </div>
+            )}
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                disabled={isPaying}
+                onClick={() => { setIsPayModalOpen(false); setPayingAP(null); }}
+                className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isPaying}
+                className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPaying ? 'Processando...' : 'Confirmar Baixa'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

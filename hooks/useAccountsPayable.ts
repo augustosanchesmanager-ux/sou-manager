@@ -130,16 +130,16 @@ export function useAccountsPayable() {
     }
   }, [fetchAccountsPayable]);
 
-  const payAccountPayable = useCallback(async (apId: string) => {
+  const payAccountPayable = useCallback(async (apId: string, paymentMethod?: string, paidAt?: string) => {
     try {
-      const result = await service.payAccountPayable(apId);
+      const result = await service.payAccountPayable(apId, paymentMethod, paidAt);
       await fetchAccountsPayable();
       return result;
     } catch (err) {
       setError(extractError(err));
       throw err;
     }
-  }, [fetchAccountsPayable]);
+  }, [fetchAccountsPayable, service]);
 
   const cancelAccountPayable = useCallback(async (apId: string) => {
     try {

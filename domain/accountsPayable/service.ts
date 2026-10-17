@@ -27,7 +27,7 @@ export interface AccountsPayableApplicationService {
   editAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // Actions
-  payAccountPayable(apId: string): Promise<PayAccountPayableResult>;
+  payAccountPayable(apId: string, paymentMethod?: string, paidAt?: string): Promise<PayAccountPayableResult>;
   cancelAccountPayable(apId: string): Promise<CancelAccountPayableResult>;
 
   // Recurrence generation
@@ -92,8 +92,8 @@ export function createAccountsPayableApplicationService(
     },
 
     // Actions
-    async payAccountPayable(apId) {
-      return repository.payAccountPayable(apId);
+    async payAccountPayable(apId, paymentMethod, paidAt) {
+      return repository.payAccountPayable(apId, paymentMethod, paidAt);
     },
 
     async cancelAccountPayable(apId) {

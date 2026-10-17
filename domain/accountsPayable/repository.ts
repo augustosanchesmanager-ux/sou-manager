@@ -41,7 +41,7 @@ export interface AccountsPayableRepository {
   updateAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // RPCs
-  payAccountPayable(apId: string): Promise<PayAccountPayableResult>;
+  payAccountPayable(apId: string, paymentMethod?: string, paidAt?: string): Promise<PayAccountPayableResult>;
   cancelAccountPayable(apId: string): Promise<CancelAccountPayableResult>;
   createAccountsPayableFromRecurring(recurringBillId: string, month: number, year: number): Promise<CreateAccountPayableFromRecurringResult>;
 }
@@ -167,9 +167,11 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
     },
 
     // RPCs
-    async payAccountPayable(apId) {
+    async payAccountPayable(apId, paymentMethod, paidAt) {
       const { data, error } = await supabase.rpc('pay_account_payable', {
-        ap_id: apId,
+        p_ap_id: apId,
+        p_payment_method: paymentMethod || 'Não informado',
+        p_paid_at: paidAt || new Date().toISOString(),
       });
 
       if (error) throw error;
