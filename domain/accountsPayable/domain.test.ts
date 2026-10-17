@@ -145,4 +145,32 @@ describe('P0.4 — Accounts Payable domain logic', () => {
       expect(ap.created_by).toBeNull();
     });
   });
+
+  describe('Manual recurrence generation (Frente 4.3)', () => {
+    it('generateRecurringInstances targets specific month and year', async () => {
+      const createdCalls: Array<{ id: string; month: number; year: number }> = [];
+      const mockRepo = {
+        getRecurringBillsByTenant: async () => [
+          { id: 'bill-1', is_active: true } as any,
+          { id: 'bill-2', is_active: false } as any,
+          { id: 'bill-3', is_active: true } as any,
+        ],
+        createAccountsPayableFromRecurring: async (id: string, month: number, year: number) => {
+          createdCalls.push({ id, month, year });
+          return { success: true, created: true };
+        },
+      } as any;
+
+      const { createAccountsPayableApplicationService } = await import('./service');
+      const service = createAccountsPayableApplicationService(mockRepo, 'tenant-1');
+      const result = await service.generateRecurringInstances(12, 2026);
+
+      expect(result.created).toBe(2);
+      expect(result.total).toBe(2);
+      expect(createdCalls).toEqual([
+        { id: 'bill-1', month: 12, year: 2026 },
+        { id: 'bill-3', month: 12, year: 2026 },
+      ]);
+    });
+  });
 });

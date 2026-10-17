@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useResolvedClient } from '@/src/hooks/useResolvedClient';
 import {
@@ -6,6 +6,7 @@ import {
   AccountPayable,
   AccountPayableWithOverdue,
   AccountPayableStatus,
+  AccountsPayableFilters,
 } from '@/domain/accountsPayable/types';
 import { createAccountsPayableRepository } from '@/domain/accountsPayable/repository';
 import { createAccountsPayableApplicationService } from '@/domain/accountsPayable/service';
@@ -31,8 +32,12 @@ export function useAccountsPayable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const repository = createAccountsPayableRepository(supabase);
-  const service = createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null);
+  const repository = useMemo(() => createAccountsPayableRepository(supabase), [supabase]);
+  const service = useMemo(
+    () => createAccountsPayableApplicationService(repository, tenantId || '', user?.id ?? null),
+    [repository, tenantId, user?.id]
+  );
+  const lastFiltersRef = useRef<AccountsPayableFilters | undefined>(undefined);
 
   // Recurring Bills
   const [recurringBills, setRecurringBills] = useState<RecurringBill[]>([]);
@@ -48,13 +53,28 @@ export function useAccountsPayable() {
     } catch (err) {
       setError(extractError(err));
     }
-  }, [tenantId]);
+  }, [tenantId, service]);
 
-  const fetchAccountsPayable = useCallback(async (filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }) => {
+  const fetchAccountsPayable = useCallback(async (
+    filtersOrMonth?: AccountsPayableFilters | number,
+    optionalYear?: number
+  ) => {
     if (!tenantId) return;
     try {
       setLoading(true);
       setError(null);
+      let filters: AccountsPayableFilters | undefined;
+      if (typeof filtersOrMonth === 'number') {
+        filters = {
+          competence_month: filtersOrMonth,
+          competence_year: optionalYear,
+        };
+      } else if (filtersOrMonth !== undefined) {
+        filters = filtersOrMonth;
+      } else {
+        filters = lastFiltersRef.current;
+      }
+      lastFiltersRef.current = filters;
       const items = await service.listAccountsPayable(filters);
       setAccountsPayable(items);
     } catch (err) {
@@ -62,17 +82,29 @@ export function useAccountsPayable() {
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, service]);
 
-  const ensureCurrentMonthInstances = useCallback(async () => {
+  const ensureCurrentMonthInstances = useCallback(async (month?: number, year?: number) => {
     if (!tenantId) return;
     try {
-      await service.ensureCurrentMonthInstances();
+      await service.ensureCurrentMonthInstances(month, year);
       await fetchAccountsPayable();
     } catch (err) {
       setError(extractError(err));
     }
-  }, [tenantId, fetchAccountsPayable]);
+  }, [tenantId, fetchAccountsPayable, service]);
+
+  const generateRecurringForMonth = useCallback(async (month: number, year: number) => {
+    if (!tenantId) return { created: 0, total: 0 };
+    try {
+      const result = await service.generateRecurringInstances(month, year);
+      await fetchAccountsPayable({ competence_month: month, competence_year: year });
+      return result;
+    } catch (err) {
+      setError(extractError(err));
+      throw err;
+    }
+  }, [tenantId, service, fetchAccountsPayable]);
 
   const createRecurringBill = useCallback(async (data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }) => {
     try {
@@ -130,16 +162,16 @@ export function useAccountsPayable() {
     }
   }, [fetchAccountsPayable]);
 
-  const payAccountPayable = useCallback(async (apId: string) => {
+  const payAccountPayable = useCallback(async (apId: string, paymentMethod?: string, paidAt?: string) => {
     try {
-      const result = await service.payAccountPayable(apId);
+      const result = await service.payAccountPayable(apId, paymentMethod, paidAt);
       await fetchAccountsPayable();
       return result;
     } catch (err) {
       setError(extractError(err));
       throw err;
     }
-  }, [fetchAccountsPayable]);
+  }, [fetchAccountsPayable, service]);
 
   const cancelAccountPayable = useCallback(async (apId: string) => {
     try {
@@ -173,5 +205,6 @@ export function useAccountsPayable() {
     payAccountPayable,
     cancelAccountPayable,
     ensureCurrentMonthInstances,
+    generateRecurringForMonth,
   };
 }

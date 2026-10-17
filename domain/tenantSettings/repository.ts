@@ -42,6 +42,9 @@ const toTenantSettings = (row: Record<string, unknown>): TenantSettings => ({
   default_appointment_duration_minutes: (row.default_appointment_duration_minutes as number) ?? 60,
   booking_horizon_days: (row.booking_horizon_days as number) ?? 30,
   staff_owned_schedule: (row.staff_owned_schedule as boolean) ?? true,
+  work_start_time: (row.work_start_time as string) ?? null,
+  work_end_time: (row.work_end_time as string) ?? null,
+  booking_enabled: (row.booking_enabled as boolean) ?? null,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });
@@ -94,11 +97,40 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'Erro ao salvar configurações do tenant');
     }
   }
+
+  async updateWorkingHours(
+    tenantId: string,
+    hours: { work_start_time: string; work_end_time: string; booking_enabled?: boolean }
+  ): Promise<TenantSettings> {
+    try {
+      const result = await this.from()
+        .upsert(
+          {
+            tenant_id: tenantId,
+            work_start_time: hours.work_start_time,
+            work_end_time: hours.work_end_time,
+            booking_enabled: hours.booking_enabled ?? true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'tenant_id' }
+        )
+        .select()
+        .single();
+      const data = this.extractData(result, 'Erro ao salvar horários de atendimento');
+      return toTenantSettings(data as Record<string, unknown>);
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao salvar horários de atendimento');
+    }
+  }
 }
 
 export interface TenantSettingsRepository {
   getByTenantId(tenantId: string): Promise<TenantSettings | null>;
   upsert(input: CreateTenantSettingsInput): Promise<TenantSettings>;
+  updateWorkingHours(
+    tenantId: string,
+    hours: { work_start_time: string; work_end_time: string; booking_enabled?: boolean }
+  ): Promise<TenantSettings>;
 }
 
 export const tenantSettingsRepository: TenantSettingsRepository = new TenantSettingsRepositoryImpl();

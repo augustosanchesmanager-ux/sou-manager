@@ -31,6 +31,9 @@ export interface TenantSettings {
   default_appointment_duration_minutes: number;
   booking_horizon_days: number;
   staff_owned_schedule: boolean;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
+  booking_enabled?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,4 +63,7 @@ export interface CreateTenantSettingsInput {
   default_appointment_duration_minutes?: number | null;
   booking_horizon_days?: number | null;
   staff_owned_schedule?: boolean | null;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
+  booking_enabled?: boolean | null;
 }

@@ -7,6 +7,7 @@ import {
   AccountPayable,
   AccountPayableWithOverdue,
   AccountPayableStatus,
+  AccountsPayableFilters,
   PayAccountPayableResult,
   CancelAccountPayableResult,
   CreateAccountPayableFromRecurringResult,
@@ -21,17 +22,18 @@ export interface AccountsPayableApplicationService {
   getRecurringBills(): Promise<RecurringBill[]>;
 
   // Accounts Payable
-  listAccountsPayable(filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }): Promise<AccountPayableWithOverdue[]>;
+  listAccountsPayable(filters?: AccountsPayableFilters): Promise<AccountPayableWithOverdue[]>;
   getAccountsPayableById(id: string): Promise<AccountPayableWithOverdue | null>;
   createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
   editAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // Actions
-  payAccountPayable(apId: string): Promise<PayAccountPayableResult>;
+  payAccountPayable(apId: string, paymentMethod?: string, paidAt?: string): Promise<PayAccountPayableResult>;
   cancelAccountPayable(apId: string): Promise<CancelAccountPayableResult>;
 
   // Recurrence generation
-  ensureCurrentMonthInstances(): Promise<void>;
+  ensureCurrentMonthInstances(month?: number, year?: number): Promise<void>;
+  generateRecurringInstances(month?: number, year?: number): Promise<{ created: number; total: number }>;
   createAccountPayableFromRecurring(recurringBillId: string, month: number, year: number): Promise<CreateAccountPayableFromRecurringResult>;
 }
 
@@ -92,8 +94,8 @@ export function createAccountsPayableApplicationService(
     },
 
     // Actions
-    async payAccountPayable(apId) {
-      return repository.payAccountPayable(apId);
+    async payAccountPayable(apId, paymentMethod, paidAt) {
+      return repository.payAccountPayable(apId, paymentMethod, paidAt);
     },
 
     async cancelAccountPayable(apId) {
@@ -101,22 +103,29 @@ export function createAccountsPayableApplicationService(
     },
 
     // Recurrence generation
-    async ensureCurrentMonthInstances() {
+    async generateRecurringInstances(month?: number, year?: number) {
       const bills = await repository.getRecurringBillsByTenant(tenantId);
       const now = new Date();
-      const month = now.getMonth() + 1;
-      const year = now.getFullYear();
+      const targetMonth = month ?? (now.getMonth() + 1);
+      const targetYear = year ?? now.getFullYear();
 
+      let createdCount = 0;
       for (const bill of bills) {
         if (!bill.is_active) continue;
 
         try {
-          await repository.createAccountsPayableFromRecurring(bill.id, month, year);
+          const res = await repository.createAccountsPayableFromRecurring(bill.id, targetMonth, targetYear);
+          if (res?.created) createdCount++;
         } catch (error) {
           // Log but don't fail — idempotência via UNIQUE constraint
           console.error(`Failed to create instance for bill ${bill.id}:`, error);
         }
       }
+      return { created: createdCount, total: bills.filter((b) => b.is_active).length };
+    },
+
+    async ensureCurrentMonthInstances(month?: number, year?: number) {
+      await this.generateRecurringInstances(month, year);
     },
 
     async createAccountPayableFromRecurring(recurringBillId, month, year) {

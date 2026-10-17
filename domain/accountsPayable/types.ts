@@ -18,6 +18,14 @@ export interface RecurringBill {
 
 export type AccountPayableStatus = 'pending' | 'paid' | 'cancelled';
 
+export interface AccountsPayableFilters {
+  status?: AccountPayableStatus;
+  competenceMonth?: number;
+  competenceYear?: number;
+  competence_month?: number;
+  competence_year?: number;
+}
+
 export interface AccountPayable {
   id: string;
   tenant_id: string;
