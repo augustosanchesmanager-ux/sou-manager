@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../services/supabaseClient';
+import { tenantSettingsRepository } from '../../domain/tenantSettings/repository';
 
 const OnlineBookingSettings: React.FC = () => {
   const { tenantId, tenantSlug } = useAuth();
@@ -32,16 +32,7 @@ const OnlineBookingSettings: React.FC = () => {
 
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('tenant_settings')
-          .select('work_start_time, work_end_time, booking_enabled')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('[OnlineBookingSettings] Erro ao carregar configurações:', error);
-          return;
-        }
+        const data = await tenantSettingsRepository.getByTenantId(tenantId);
 
         if (!isCancelled && data) {
           if (data.work_start_time) {
@@ -103,20 +94,11 @@ const OnlineBookingSettings: React.FC = () => {
     const workEndTime = `${String(endHour).padStart(2, '0')}:00:00`;
 
     try {
-      const { error } = await supabase
-        .from('tenant_settings')
-        .upsert(
-          {
-            tenant_id: tenantId,
-            work_start_time: workStartTime,
-            work_end_time: workEndTime,
-            booking_enabled: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'tenant_id' }
-        );
-
-      if (error) throw error;
+      await tenantSettingsRepository.updateWorkingHours(tenantId, {
+        work_start_time: workStartTime,
+        work_end_time: workEndTime,
+        booking_enabled: true,
+      });
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
