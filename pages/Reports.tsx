@@ -33,6 +33,7 @@ interface SaleRecord {
   total: number;
   status: string;
   created_at: string;
+  closed_at?: string | null;
   staff_names: string[];
 }
 
@@ -198,12 +199,13 @@ const Reports: React.FC = () => {
 
       let comandasQuery = clubSupabase
         .from('comandas')
-        .select('id, client_id, status, total, created_at, staff_id, clients(name)')
+        .select('id, client_id, status, total, created_at, closed_at, staff_id, clients(name)')
         .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false })
+        .eq('status', 'paid')
+        .order('closed_at', { ascending: false })
         .limit(200);
-      if (from) comandasQuery = comandasQuery.gte('created_at', from);
-      if (to) comandasQuery = comandasQuery.lte('created_at', to);
+      if (from) comandasQuery = comandasQuery.gte('closed_at', from);
+      if (to) comandasQuery = comandasQuery.lte('closed_at', to);
 
       const [comandasRes, staffRes] = await Promise.all([
         comandasQuery,
@@ -225,6 +227,7 @@ const Reports: React.FC = () => {
         total: Number(comanda.total || 0),
         status: String(comanda.status || ''),
         created_at: comanda.created_at,
+        closed_at: comanda.closed_at,
         staff_names: comanda.staff_id && staffById.has(comanda.staff_id)
           ? [staffById.get(comanda.staff_id) as string]
           : [],
@@ -339,7 +342,7 @@ const Reports: React.FC = () => {
                 <tbody>
                   {sales.map((sale) => (
                     <tr key={sale.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{fmtDateTime(sale.created_at)}</td>
+                      <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{fmtDateTime(sale.closed_at || sale.created_at)}</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">{sale.client_name}</td>
                       <td className="px-4 py-2.5 font-bold text-slate-900 dark:text-white">{fmt(sale.total)}</td>
                       <td className="px-4 py-2.5">
