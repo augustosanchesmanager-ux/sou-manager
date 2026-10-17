@@ -81,15 +81,27 @@ export function useAccountsPayable() {
     }
   }, [tenantId]);
 
-  const ensureCurrentMonthInstances = useCallback(async () => {
+  const ensureCurrentMonthInstances = useCallback(async (month?: number, year?: number) => {
     if (!tenantId) return;
     try {
-      await service.ensureCurrentMonthInstances();
+      await service.ensureCurrentMonthInstances(month, year);
       await fetchAccountsPayable();
     } catch (err) {
       setError(extractError(err));
     }
-  }, [tenantId, fetchAccountsPayable]);
+  }, [tenantId, fetchAccountsPayable, service]);
+
+  const generateRecurringForMonth = useCallback(async (month: number, year: number) => {
+    if (!tenantId) return { created: 0, total: 0 };
+    try {
+      const result = await service.generateRecurringInstances(month, year);
+      await fetchAccountsPayable({ competence_month: month, competence_year: year });
+      return result;
+    } catch (err) {
+      setError(extractError(err));
+      throw err;
+    }
+  }, [tenantId, service, fetchAccountsPayable]);
 
   const createRecurringBill = useCallback(async (data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }) => {
     try {
@@ -190,5 +202,6 @@ export function useAccountsPayable() {
     payAccountPayable,
     cancelAccountPayable,
     ensureCurrentMonthInstances,
+    generateRecurringForMonth,
   };
 }

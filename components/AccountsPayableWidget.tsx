@@ -20,6 +20,7 @@ const AccountsPayableWidget: React.FC = () => {
     editAccountPayable,
     payAccountPayable,
     cancelAccountPayable,
+    generateRecurringForMonth,
   } = useAccountsPayable();
 
   const [activeTab, setActiveTab] = useState<TabType>('pending');
@@ -32,6 +33,7 @@ const AccountsPayableWidget: React.FC = () => {
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [isRecurringSubmitting, setIsRecurringSubmitting] = useState(false);
   const [recurringIdempotencyKey, setRecurringIdempotencyKey] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Pay Modal State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
@@ -270,6 +272,28 @@ const AccountsPayableWidget: React.FC = () => {
     }
   };
 
+  const handleGenerateRecurring = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await generateRecurringForMonth(selectedMonth, selectedYear);
+      if (result.created > 0) {
+        setToast({
+          message: `${result.created} conta(s) recorrente(s) gerada(s) para ${currentMonthLabel}!`,
+          type: 'success',
+        });
+      } else {
+        setToast({
+          message: `As contas fixas de ${currentMonthLabel} já foram geradas anteriormente.`,
+          type: 'info',
+        });
+      }
+    } catch {
+      setToast({ message: 'Erro ao gerar contas recorrentes do mês.', type: 'error' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const openEditBillModal = (bill: RecurringBill) => {
     setEditingBill(bill);
     setBillForm({
@@ -370,12 +394,24 @@ const AccountsPayableWidget: React.FC = () => {
           <span className="material-symbols-outlined text-primary">account_balance</span>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Contas a Pagar</h3>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={isGenerating}
+            onClick={handleGenerateRecurring}
+            className="bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-200/60 dark:border-white/10"
+            title={`Gerar contas fixas para ${currentMonthLabel}`}
+          >
+            <span className={`material-symbols-outlined text-sm ${isGenerating ? 'animate-spin' : ''}`}>
+              autorenew
+            </span>
+            {isGenerating ? 'Gerando...' : 'Gerar Contas Fixas'}
+          </button>
           <button
             onClick={() => { setEditingBill(null); setBillForm({ name: '', amount: '', due_day: '10', category: 'Outros', notes: '' }); setRecurringIdempotencyKey(crypto.randomUUID()); setIsRecurringModalOpen(true); }}
             className="bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
           >
-            <span className="material-symbols-outlined text-sm">autorenew</span>
+            <span className="material-symbols-outlined text-sm">repeat</span>
             + Recorrência
           </button>
           <button
