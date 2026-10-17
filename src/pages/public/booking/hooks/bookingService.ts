@@ -154,8 +154,8 @@ export async function createPublicBooking(
       p_start_time: request.start_time,
       p_client_name: request.client_name,
       p_client_phone: request.client_phone,
-      p_notes: request.client_notes,
-      p_idempotency_key: request.idempotency_key,
+      p_notes: request.client_notes ?? null,
+      p_idempotency_key: request.idempotency_key ?? null,
     });
 
     if (error) {

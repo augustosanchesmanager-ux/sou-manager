@@ -11,6 +11,7 @@ import type {
   PublicAvailableSlotsResponse,
   PublicSlot,
   CreatePublicBookingResult,
+  CreatePublicBookingRequest,
   CreatePublicBookingService,
   CreatePublicBookingStaff,
 } from './types';
@@ -184,16 +185,7 @@ export function createMockAvailableSlotsResponse(
 // ============================================================================
 
 export function createMockBookingResult(
-  request: {
-    tenant_identifier: string;
-    staff_id: string;
-    service_ids: string[];
-    start_time: string;
-    client_name: string;
-    client_phone: string;
-    client_notes: string | null;
-    idempotency_key: string | null;
-  },
+  request: CreatePublicBookingRequest,
   isIdempotent = false
 ): CreatePublicBookingResult {
   const services = request.service_ids.map((id) => {

@@ -89,8 +89,8 @@ export interface CreatePublicBookingRequest {
   start_time: string; // ISO 8601 with timezone
   client_name: string;
   client_phone: string;
-  client_notes: string | null;
-  idempotency_key: string | null;
+  client_notes?: string | null;
+  idempotency_key?: string | null;
 }
 
 export interface CreatePublicBookingResult {
