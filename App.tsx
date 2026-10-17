@@ -75,6 +75,7 @@ const Team = lazy(() => import('./pages/Team'));
 const KioskClientPage = lazy(() => import('./pages/kiosk/KioskClientPage'));
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const PortalAdmin = lazy(() => import('./pages/portal/PortalAdmin'));
+const OnlineBookingSettings = lazy(() => import('./pages/portal/OnlineBookingSettings'));
 const PortalApp = lazy(() => import('./pages/portal/PortalApp'));
 const PortalLanding = lazy(() => import('./pages/portal/PortalLanding'));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
@@ -288,6 +289,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
+            <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />

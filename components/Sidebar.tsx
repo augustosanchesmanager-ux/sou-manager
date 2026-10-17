@@ -123,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   // System items go at the bottom
   const systemItems: MenuItem[] = [
     { name: 'Dados da Unidade', icon: 'settings', path: '/settings', module: 'settings' },
-    { name: 'Portal de Agendamento', icon: 'public', path: '/portal-admin', module: 'portal' },
+    { name: 'Config. Online', icon: 'public', path: '/booking-settings', module: 'portal' },
     { name: 'Permissões de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
     { name: 'Offline seguro', icon: 'sync_problem', path: '/offline-sync' },
     { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },
