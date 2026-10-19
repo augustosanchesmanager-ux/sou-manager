@@ -104,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       items: [
         { name: isEsteticaApp ? 'Financeiro' : 'Caixa/Movimentações', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
         { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Fechamento de Caixa', icon: 'lock', path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Receber', icon: 'request_quote', path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
         { name: isEsteticaApp ? 'Repasses' : 'Comissões/Repasses', icon: 'percent', path: '/commissions', module: 'commissions' },
@@ -122,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   // System items go at the bottom
   const systemItems: MenuItem[] = [
     { name: 'Dados da Unidade', icon: 'settings', path: '/settings', module: 'settings' },
-    { name: 'Portal de Agendamento', icon: 'public', path: '/portal-admin', module: 'portal' },
+    { name: 'Config. Online', icon: 'public', path: '/booking-settings', module: 'portal' },
     { name: 'Permissões de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
     { name: 'Offline seguro', icon: 'sync_problem', path: '/offline-sync' },
     { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },

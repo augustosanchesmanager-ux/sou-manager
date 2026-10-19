@@ -111,13 +111,9 @@ const PublicBookingPage: React.FC = () => {
       if (currentStep !== 'services' && currentStep !== 'success') {
         event.preventDefault();
         goToPrevStep();
-        // Push a new state to keep history consistent
-        history.pushState(null, '', window.location.href);
       }
     };
 
-    // Push initial state
-    history.pushState(null, '', window.location.href);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [currentStep, goToPrevStep]);

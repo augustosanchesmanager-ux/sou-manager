@@ -13,6 +13,7 @@ interface Service {
   price: number;
   duration: number;
   active: boolean;
+  show_in_booking?: boolean;
 }
 
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
@@ -49,7 +50,7 @@ const Services: React.FC = () => {
   // Form
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: '', category: 'Cabelo', price: '', duration: '30', active: true });
+  const [form, setForm] = useState({ name: '', category: 'Cabelo', price: '', duration: '30', active: true, show_in_booking: true });
 
   const fetchServices = useCallback(async () => {
     if (!tenantId) {
@@ -90,7 +91,7 @@ const Services: React.FC = () => {
 
   const openNewForm = () => {
     setEditingService(null);
-    setForm({ name: '', category: 'Cabelo', price: '', duration: '30', active: true });
+    setForm({ name: '', category: 'Cabelo', price: '', duration: '30', active: true, show_in_booking: true });
     setView('form');
   };
 
@@ -102,6 +103,7 @@ const Services: React.FC = () => {
       price: service.price.toString(),
       duration: service.duration.toString(),
       active: service.active,
+      show_in_booking: service.show_in_booking ?? true,
     });
     setView('form');
   };
@@ -114,6 +116,7 @@ const Services: React.FC = () => {
       price: parseFloat(form.price) || 0,
       duration: parseInt(form.duration) || 30,
       active: form.active,
+      show_in_booking: form.show_in_booking,
       tenant_id: tenantId
     };
 
@@ -223,6 +226,26 @@ const Services: React.FC = () => {
               </div>
             </div>
 
+            {/* Visibilidade no Agendamento Online */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 flex items-center justify-between">
+              <div>
+                <span className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-primary text-lg">public</span>
+                  Disponível no Agendamento Online
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Se desativado, o serviço não aparecerá na vitrine pública para clientes.
+                </p>
+              </div>
+              <label className="flex items-center cursor-pointer ml-4">
+                <div
+                  className={`relative w-12 h-6 rounded-full transition-colors ${form.show_in_booking ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}
+                  onClick={() => setForm({ ...form, show_in_booking: !form.show_in_booking })}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.show_in_booking ? 'left-[26px]' : 'left-0.5'}`}></div>
+                </div>
+              </label>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => { setView('list'); setEditingService(null); }}
                 className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
@@ -290,7 +313,21 @@ const Services: React.FC = () => {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{displayName}</h4>
-                  <span className="text-[10px] font-bold uppercase text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{getCategoryLabel(service.category)}</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{getCategoryLabel(service.category)}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        (service.show_in_booking ?? true)
+                          ? 'text-primary bg-primary/10'
+                          : 'text-amber-500 bg-amber-500/10'
+                      }`}
+                      title={(service.show_in_booking ?? true) ? 'Visível no agendamento online' : 'Oculto no agendamento online'}>
+                      <span className="material-symbols-outlined text-[13px]">
+                        {(service.show_in_booking ?? true) ? 'public' : 'lock'}
+                      </span>
+                      {(service.show_in_booking ?? true) ? 'Online' : 'Interno'}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEditForm(service)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">

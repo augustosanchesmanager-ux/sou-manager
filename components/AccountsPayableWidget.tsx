@@ -20,6 +20,7 @@ const AccountsPayableWidget: React.FC = () => {
     editAccountPayable,
     payAccountPayable,
     cancelAccountPayable,
+    generateRecurringForMonth,
   } = useAccountsPayable();
 
   const [activeTab, setActiveTab] = useState<TabType>('pending');
@@ -32,6 +33,16 @@ const AccountsPayableWidget: React.FC = () => {
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [isRecurringSubmitting, setIsRecurringSubmitting] = useState(false);
   const [recurringIdempotencyKey, setRecurringIdempotencyKey] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Pay Modal State
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [payingAP, setPayingAP] = useState<AccountPayableWithOverdue | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [payForm, setPayForm] = useState({
+    paid_at: new Date().toISOString().split('T')[0],
+    payment_method: 'Dinheiro',
+  });
 
   // Recurring Bill Form
   const [billForm, setBillForm] = useState({
@@ -51,9 +62,44 @@ const AccountsPayableWidget: React.FC = () => {
     notes: '',
   });
 
+  // Competence State
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+
+  const monthNames = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
+  const currentMonthLabel = `${monthNames[selectedMonth - 1]} ${selectedYear}`;
+  const isCurrentMonth = selectedMonth === (now.getMonth() + 1) && selectedYear === now.getFullYear();
+
+  const handlePrevMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear((y) => y - 1);
+    } else {
+      setSelectedMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear((y) => y + 1);
+    } else {
+      setSelectedMonth((m) => m + 1);
+    }
+  };
+
+  const handleResetToCurrentMonth = () => {
+    setSelectedMonth(now.getMonth() + 1);
+    setSelectedYear(now.getFullYear());
+  };
+
   useEffect(() => {
-    fetchAccountsPayable();
-  }, [fetchAccountsPayable]);
+    fetchAccountsPayable({ competence_month: selectedMonth, competence_year: selectedYear });
+  }, [fetchAccountsPayable, selectedMonth, selectedYear]);
 
   // Filter by tab
   const filteredAP = accountsPayable.filter((ap) => {
@@ -67,12 +113,26 @@ const AccountsPayableWidget: React.FC = () => {
   const pendingTotal = accountsPayable
     .filter((ap) => ap.status === 'pending')
     .reduce((sum, ap) => sum + ap.amount, 0);
-  const overdueTotal = accountsPayable
-    .filter((ap) => ap.is_overdue)
-    .reduce((sum, ap) => sum + ap.amount, 0);
+  const pendingCount = accountsPayable.filter((ap) => ap.status === 'pending').length;
+
   const paidTotal = accountsPayable
     .filter((ap) => ap.status === 'paid')
     .reduce((sum, ap) => sum + ap.amount, 0);
+  const paidCount = accountsPayable.filter((ap) => ap.status === 'paid').length;
+
+  const overdueBills = accountsPayable.filter((ap) => ap.is_overdue);
+  const overdueTotal = overdueBills.reduce((sum, ap) => sum + ap.amount, 0);
+  const overdueCount = overdueBills.length;
+
+  const getDaysDiff = (dateStr: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+    const target = new Date(year, month - 1, day);
+    target.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - target.getTime();
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
+  };
 
   const handleCreateRecurringBill = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,12 +235,31 @@ const AccountsPayableWidget: React.FC = () => {
     }
   };
 
-  const handlePay = async (apId: string) => {
+  const openPayModal = (ap: AccountPayableWithOverdue) => {
+    setPayingAP(ap);
+    setPayForm({
+      paid_at: new Date().toISOString().split('T')[0],
+      payment_method: 'Dinheiro',
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const handleConfirmPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingAP) return;
+    setIsPaying(true);
     try {
-      const result = await payAccountPayable(apId);
+      const paidAtIso = payForm.paid_at
+        ? new Date(`${payForm.paid_at}T12:00:00Z`).toISOString()
+        : new Date().toISOString();
+      const result = await payAccountPayable(payingAP.id, payForm.payment_method, paidAtIso);
       setToast({ message: result.message || 'Baixa realizada com sucesso!', type: 'success' });
+      setIsPayModalOpen(false);
+      setPayingAP(null);
     } catch {
-      setToast({ message: 'Erro ao dar baixa', type: 'error' });
+      setToast({ message: 'Erro ao dar baixa na conta', type: 'error' });
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -190,6 +269,28 @@ const AccountsPayableWidget: React.FC = () => {
       setToast({ message: result.message || 'Conta cancelada.', type: 'info' });
     } catch {
       setToast({ message: 'Erro ao cancelar conta', type: 'error' });
+    }
+  };
+
+  const handleGenerateRecurring = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await generateRecurringForMonth(selectedMonth, selectedYear);
+      if (result.created > 0) {
+        setToast({
+          message: `${result.created} conta(s) recorrente(s) gerada(s) para ${currentMonthLabel}!`,
+          type: 'success',
+        });
+      } else {
+        setToast({
+          message: `As contas fixas de ${currentMonthLabel} já foram geradas anteriormente.`,
+          type: 'info',
+        });
+      }
+    } catch {
+      setToast({ message: 'Erro ao gerar contas recorrentes do mês.', type: 'error' });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -238,11 +339,20 @@ const AccountsPayableWidget: React.FC = () => {
         </span>
       );
     }
-    if (ap.is_overdue) {
+    const daysDiff = getDaysDiff(ap.due_date);
+    if (ap.is_overdue || daysDiff > 0) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border bg-red-500/10 text-red-500 border-red-500/20">
-          <span className="size-1.5 rounded-full bg-red-500"></span>
-          Vencida
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30">
+          <span className="size-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+          {daysDiff > 0 ? `Vencida há ${daysDiff} ${daysDiff === 1 ? 'dia' : 'dias'}` : 'Vencida'}
+        </span>
+      );
+    }
+    if (daysDiff === 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
+          <span className="size-1.5 rounded-full bg-amber-500"></span>
+          Vence hoje
         </span>
       );
     }
@@ -284,12 +394,24 @@ const AccountsPayableWidget: React.FC = () => {
           <span className="material-symbols-outlined text-primary">account_balance</span>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Contas a Pagar</h3>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={isGenerating}
+            onClick={handleGenerateRecurring}
+            className="bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-200/60 dark:border-white/10"
+            title={`Gerar contas fixas para ${currentMonthLabel}`}
+          >
+            <span className={`material-symbols-outlined text-sm ${isGenerating ? 'animate-spin' : ''}`}>
+              autorenew
+            </span>
+            {isGenerating ? 'Gerando...' : 'Gerar Contas Fixas'}
+          </button>
           <button
             onClick={() => { setEditingBill(null); setBillForm({ name: '', amount: '', due_day: '10', category: 'Outros', notes: '' }); setRecurringIdempotencyKey(crypto.randomUUID()); setIsRecurringModalOpen(true); }}
             className="bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
           >
-            <span className="material-symbols-outlined text-sm">autorenew</span>
+            <span className="material-symbols-outlined text-sm">repeat</span>
             + Recorrência
           </button>
           <button
@@ -302,24 +424,108 @@ const AccountsPayableWidget: React.FC = () => {
         </div>
       </div>
 
+      {/* Competence Navigation Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4 p-3 bg-slate-50 dark:bg-white/[0.03] rounded-xl border border-slate-200/80 dark:border-white/10">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-slate-400 text-lg">calendar_month</span>
+          <span className="text-xs font-bold uppercase text-slate-500">Competência:</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Mês anterior"
+          >
+            <span className="material-symbols-outlined text-sm">chevron_left</span>
+          </button>
+          <span className="text-sm font-bold text-slate-900 dark:text-white px-3 min-w-[140px] text-center">
+            {currentMonthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors"
+            title="Próximo mês"
+          >
+            <span className="material-symbols-outlined text-sm">chevron_right</span>
+          </button>
+          {!isCurrentMonth && (
+            <button
+              type="button"
+              onClick={handleResetToCurrentMonth}
+              className="text-[11px] font-bold text-primary hover:underline ml-2"
+            >
+              Mês atual
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">A Pagar</p>
-          <p className="text-lg font-black text-amber-700 dark:text-amber-300">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-amber-50 dark:bg-amber-500/10 p-3.5 rounded-xl border border-amber-200/60 dark:border-amber-500/20">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Total a Pagar</p>
+            <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
+          </div>
+          <p className="text-xl font-black text-amber-700 dark:text-amber-300">
             R$ {pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
-        </div>
-        <div className="bg-red-50 dark:bg-red-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">Vencidas</p>
-          <p className="text-lg font-black text-red-700 dark:text-red-300">
-            R$ {overdueTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+            {pendingCount} conta(s) pendente(s)
           </p>
         </div>
-        <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-lg">
-          <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Pagas</p>
-          <p className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+
+        <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3.5 rounded-xl border border-emerald-200/60 dark:border-emerald-500/20">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Pago</p>
+            <span className="material-symbols-outlined text-emerald-500 text-base">check_circle</span>
+          </div>
+          <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">
             R$ {paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
+            {paidCount} conta(s) liquidada(s)
+          </p>
+        </div>
+
+        <div
+          className={`p-3.5 rounded-xl border transition-colors ${
+            overdueCount > 0
+              ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/30'
+              : 'bg-slate-50 dark:bg-white/[0.02] border-slate-200 dark:border-white/10'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <p
+              className={`text-[10px] font-bold uppercase tracking-wide ${
+                overdueCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'
+              }`}
+            >
+              Vencidas
+            </p>
+            <span
+              className={`material-symbols-outlined text-base ${
+                overdueCount > 0 ? 'text-rose-500' : 'text-slate-400'
+              }`}
+            >
+              {overdueCount > 0 ? 'warning' : 'verified'}
+            </span>
+          </div>
+          <p
+            className={`text-xl font-black ${
+              overdueCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            R$ {overdueTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </p>
+          <p
+            className={`text-[11px] mt-0.5 ${
+              overdueCount > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-400'
+            }`}
+          >
+            {overdueCount > 0 ? `${overdueCount} conta(s) em atraso` : 'Nenhuma conta vencida'}
           </p>
         </div>
       </div>
@@ -399,7 +605,7 @@ const AccountsPayableWidget: React.FC = () => {
                   </span>
                   {ap.status === 'pending' && (
                     <>
-                      <button onClick={() => handlePay(ap.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold transition-colors" title="Dar baixa">
+                      <button onClick={() => openPayModal(ap)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[10px] font-bold transition-colors" title="Dar baixa">
                         BAIXAR
                       </button>
                       <button onClick={() => openEditAPModal(ap)} className="text-slate-400 hover:text-primary p-1" title="Editar">
@@ -594,6 +800,82 @@ const AccountsPayableWidget: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Pay Modal */}
+      <Modal
+        isOpen={isPayModalOpen}
+        onClose={() => { if (!isPaying) { setIsPayModalOpen(false); setPayingAP(null); } }}
+        title="Confirmar Pagamento"
+        maxWidth="sm"
+      >
+        {payingAP && (
+          <form onSubmit={handleConfirmPay} className="space-y-4">
+            <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/10">
+              <p className="text-xs text-slate-500 uppercase font-bold">Despesa</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{payingAP.name}</p>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 dark:border-white/10">
+                <span className="text-xs text-slate-500">Valor a liquidar</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  R$ {payingAP.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data do Pagamento</label>
+              <input
+                type="date"
+                required
+                value={payForm.paid_at}
+                onChange={(e) => setPayForm({ ...payForm, paid_at: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Forma de Pagamento</label>
+              <select
+                value={payForm.payment_method}
+                onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none"
+              >
+                <option value="Dinheiro">Dinheiro (Caixa Físico)</option>
+                <option value="PIX">PIX</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Boleto">Boleto Bancário</option>
+                <option value="Transferência">Transferência / TED</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            {payForm.payment_method === 'Dinheiro' && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                <span className="material-symbols-outlined text-sm mt-0.5">info</span>
+                <span>Esta despesa será registrada como saída no <strong>Fechamento de Caixa Físico</strong> da data informada.</span>
+              </div>
+            )}
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                disabled={isPaying}
+                onClick={() => { setIsPayModalOpen(false); setPayingAP(null); }}
+                className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isPaying}
+                className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPaying ? 'Processando...' : 'Confirmar Baixa'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

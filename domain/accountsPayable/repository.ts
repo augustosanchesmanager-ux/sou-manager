@@ -7,6 +7,7 @@ import {
   RecurringBill,
   AccountPayable,
   AccountPayableStatus,
+  AccountsPayableFilters,
   PayAccountPayableResult,
   CancelAccountPayableResult,
   CreateAccountPayableFromRecurringResult,
@@ -35,13 +36,13 @@ export interface AccountsPayableRepository {
   getRecurringBillById(id: string): Promise<RecurringBill | null>;
 
   // Accounts Payable
-  getAccountsPayableByTenant(tenantId: string, filters?: { status?: AccountPayableStatus; competenceMonth?: number; competenceYear?: number }): Promise<AccountPayable[]>;
+  getAccountsPayableByTenant(tenantId: string, filters?: AccountsPayableFilters): Promise<AccountPayable[]>;
   getAccountsPayableById(id: string): Promise<AccountPayable | null>;
   createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
   updateAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // RPCs
-  payAccountPayable(apId: string): Promise<PayAccountPayableResult>;
+  payAccountPayable(apId: string, paymentMethod?: string, paidAt?: string): Promise<PayAccountPayableResult>;
   cancelAccountPayable(apId: string): Promise<CancelAccountPayableResult>;
   createAccountsPayableFromRecurring(recurringBillId: string, month: number, year: number): Promise<CreateAccountPayableFromRecurringResult>;
 }
@@ -113,14 +114,18 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
         .select('*')
         .eq('tenant_id', tenantId);
 
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
+      const status = filters?.status;
+      const month = filters?.competenceMonth ?? filters?.competence_month;
+      const year = filters?.competenceYear ?? filters?.competence_year;
+
+      if (status) {
+        query = query.eq('status', status);
       }
-      if (filters?.competenceMonth) {
-        query = query.eq('competence_month', filters.competenceMonth);
+      if (month !== undefined && month !== null) {
+        query = query.eq('competence_month', month);
       }
-      if (filters?.competenceYear) {
-        query = query.eq('competence_year', filters.competenceYear);
+      if (year !== undefined && year !== null) {
+        query = query.eq('competence_year', year);
       }
 
       const { data, error } = await query.order('due_date', { ascending: true });
@@ -167,9 +172,11 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
     },
 
     // RPCs
-    async payAccountPayable(apId) {
+    async payAccountPayable(apId, paymentMethod, paidAt) {
       const { data, error } = await supabase.rpc('pay_account_payable', {
-        ap_id: apId,
+        p_ap_id: apId,
+        p_payment_method: paymentMethod || 'Não informado',
+        p_paid_at: paidAt || new Date().toISOString(),
       });
 
       if (error) throw error;
