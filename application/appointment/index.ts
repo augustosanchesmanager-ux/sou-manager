@@ -33,6 +33,8 @@ import type {
     RescheduleAppointmentParams,
     ChangeStatusParams,
     ResolveFinalPriceParams,
+    ComandaSyncResult,
+    ComandaSyncStatus,
 } from './types';
 import { AppointmentError } from './types';
 import { createAppointment, updateAppointment, cancelAppointment, resolveFinalPrice } from './lifecycle';
@@ -45,7 +47,7 @@ class AppointmentApplicationServiceImpl {
         return createAppointment(params);
     }
 
-    async updateAppointment(params: UpdateAppointmentParams): Promise<void> {
+    async updateAppointment(params: UpdateAppointmentParams): Promise<ComandaSyncResult> {
         return updateAppointment(params);
     }
 
@@ -57,7 +59,7 @@ class AppointmentApplicationServiceImpl {
         return changeStatus(params);
     }
 
-    async rescheduleAppointment(params: RescheduleAppointmentParams): Promise<void> {
+    async rescheduleAppointment(params: RescheduleAppointmentParams): Promise<ComandaSyncResult> {
         return rescheduleAppointment(params);
     }
 
@@ -87,5 +89,7 @@ export type {
     RescheduleAppointmentParams,
     ChangeStatusParams,
     ResolveFinalPriceParams,
+    ComandaSyncResult,
+    ComandaSyncStatus,
 };
 export { AppointmentError };

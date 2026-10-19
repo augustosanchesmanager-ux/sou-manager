@@ -27,6 +27,24 @@ vi.mock('../../domain/comanda/repository', () => ({
   },
 }));
 
+const mockComandaItemList = vi.fn();
+const mockComandaItemUpdate = vi.fn();
+
+vi.mock('../../domain/comanda/item-repository', () => ({
+  comandaItemRepository: {
+    list: (...args: unknown[]) => mockComandaItemList(...args),
+    update: (...args: unknown[]) => mockComandaItemUpdate(...args),
+  },
+}));
+
+const mockComandaPayments = vi.fn();
+
+vi.mock('../../domain/comanda/comandaPaymentRepository', () => ({
+  comandaPaymentRepository: {
+    getPaymentsByComandaIds: (...args: unknown[]) => mockComandaPayments(...args),
+  },
+}));
+
 const mockRpc = vi.fn();
 const mockFromChain = vi.fn();
 
@@ -346,14 +364,15 @@ describe('AppointmentApplicationService', () => {
         mockComandaList.mockResolvedValue([{ id: 'com-1' }, { id: 'com-2' }]);
         mockComandaUpdate.mockResolvedValue(undefined);
 
-        await updateAppointment({
+        const result = await updateAppointment({
           tenantId: 'tenant-1',
           appointmentId: 'apt-1',
           updates: { staff_id: 'staff-2' },
           syncComandaStaff: true,
         });
 
-        expect(mockComandaList).toHaveBeenCalledWith('tenant-1', { appointmentId: 'apt-1', status: 'open' });
+        expect(result.status).toBe('synced');
+        expect(mockComandaList).toHaveBeenCalledWith('tenant-1', { appointmentId: 'apt-1' });
         expect(mockComandaUpdate).toHaveBeenCalledTimes(2);
         expect(mockComandaUpdate).toHaveBeenCalledWith('com-1', { staff_id: 'staff-2' }, 'tenant-1');
         expect(mockComandaUpdate).toHaveBeenCalledWith('com-2', { staff_id: 'staff-2' }, 'tenant-1');
@@ -385,7 +404,7 @@ describe('AppointmentApplicationService', () => {
             updates: { staff_id: 'staff-2' },
             syncComandaStaff: true,
           }),
-        ).resolves.toBeUndefined();
+        ).resolves.toEqual({ status: 'no_comanda' });
       });
 
       it('should_skip_comanda_sync_when_no_staff_id_in_updates', async () => {
@@ -399,6 +418,58 @@ describe('AppointmentApplicationService', () => {
         });
 
         expect(mockComandaList).not.toHaveBeenCalled();
+      });
+
+      it('should_block_service_or_staff_update_when_linked_comanda_is_paid', async () => {
+        mockAppointmentGet.mockResolvedValue(makeAppointment({ staff_id: 'staff-1', price: 50 }));
+        mockComandaList.mockResolvedValue([{ id: 'com-paid', status: 'paid', total: 50 }]);
+
+        const result = await updateAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          updates: { staff_id: 'staff-2', price: 80 },
+          syncComandaStaff: true,
+        });
+
+        expect(result.status).toBe('blocked_closed');
+        expect(result.comandaId).toBe('com-paid');
+        expect(mockAppointmentUpdate).not.toHaveBeenCalled();
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should_allow_notes_only_update_when_linked_comanda_is_paid', async () => {
+        mockAppointmentGet.mockResolvedValue(makeAppointment({
+          staff_id: 'staff-1',
+          service_id: 'svc-1',
+          service_name: 'Corte',
+          price: 50,
+          start_time: '2026-07-23T10:00:00',
+          notes: 'antiga',
+        }));
+        mockAppointmentUpdate.mockResolvedValue(undefined);
+        mockComandaList.mockResolvedValue([{ id: 'com-paid', status: 'paid', total: 50 }]);
+
+        const result = await updateAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          updates: {
+            staff_id: 'staff-1',
+            service_id: 'svc-1',
+            service_name: 'Corte',
+            price: 50,
+            start_time: '2026-07-23T10:00:00',
+            notes: 'nova observação',
+          },
+          syncComandaStaff: true,
+        });
+
+        expect(result.status).toBe('no_comanda');
+        expect(mockAppointmentUpdate).toHaveBeenCalledWith(
+          'apt-1',
+          expect.objectContaining({ notes: 'nova observação' }),
+          'tenant-1',
+        );
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
       });
     });
 
@@ -836,7 +907,25 @@ describe('AppointmentApplicationService', () => {
             newStartTime: '2026-07-24T14:00:00',
             newEndTime: '2026-07-24T14:30:00',
           }),
-        ).resolves.toBeUndefined();
+        ).resolves.toEqual({ status: 'no_comanda' });
+      });
+
+      it('should_block_reschedule_staff_change_when_linked_comanda_is_paid', async () => {
+        mockAppointmentGet.mockResolvedValue(makeAppointment({ staff_id: 'staff-1' }));
+        mockComandaList.mockResolvedValue([{ id: 'com-paid', status: 'paid', total: 50 }]);
+
+        const result = await rescheduleAppointment({
+          tenantId: 't-1',
+          appointmentId: 'apt-1',
+          newStaffId: 'staff-2',
+          newStartTime: '2026-07-24T14:00:00',
+          newEndTime: '2026-07-24T14:30:00',
+        });
+
+        expect(result.status).toBe('blocked_closed');
+        expect(result.comandaId).toBe('com-paid');
+        expect(mockAppointmentUpdate).not.toHaveBeenCalled();
+        expect(mockComandaUpdate).not.toHaveBeenCalled();
       });
     });
 

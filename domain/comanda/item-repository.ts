@@ -19,6 +19,10 @@ export interface ComandaItemRow {
   staff_id: string | null;
 }
 
+export type UpdateComandaItemInput = Partial<
+  Pick<ComandaItemRow, 'service_id' | 'product_name' | 'quantity' | 'unit_price' | 'staff_id'>
+>;
+
 class ComandaItemRepositoryImpl extends SupabaseRepository {
   private readonly defaultAppSlug: AppSlug;
 
@@ -42,6 +46,19 @@ class ComandaItemRepositoryImpl extends SupabaseRepository {
       return this.extractData<ComandaItemRow[]>(result, 'list comanda items by comanda ids');
     } catch (err) {
       this.throwOnError(err, 'list comanda items by comanda ids');
+    }
+  }
+
+  async update(id: string, input: UpdateComandaItemInput, tenantId: string, appSlug?: AppSlug): Promise<void> {
+    try {
+      const slug = appSlug || this.defaultAppSlug;
+      const result = await createSupabaseClient(this.tableName, slug).from(this.tableName)
+        .update(input)
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+      this.extractData(result, 'update comanda item');
+    } catch (err) {
+      this.throwOnError(err, 'update comanda item');
     }
   }
 
@@ -113,6 +130,7 @@ class ComandaItemRepositoryImpl extends SupabaseRepository {
 export interface ComandaItemRepository {
   list(comandaId: string, tenantId: string): Promise<ComandaItemRow[]>;
   listByComandaIds(comandaIds: string[], tenantId: string, appSlug?: AppSlug): Promise<ComandaItemRow[]>;
+  update(id: string, input: UpdateComandaItemInput, tenantId: string, appSlug?: AppSlug): Promise<void>;
   listForCommission(comandaIds: string[], tenantId: string): Promise<Array<Record<string, unknown>>>;
   backupByComandaId(comandaId: string, tenantId: string): Promise<ComandaItemRow[]>;
   deleteByComandaId(comandaId: string, tenantId: string): Promise<void>;

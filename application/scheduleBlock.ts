@@ -21,6 +21,7 @@
 
 import { scheduleBlocksApi, detectBlockConflicts, type ScheduleBlock, type ScheduleBlockInput } from '../services/scheduleBlocksApi';
 import { appointmentRepository } from '../domain/appointment/repository';
+import { cancelAppointment } from './appointment/lifecycle';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -195,14 +196,14 @@ class ScheduleBlockApplicationServiceImpl {
 
             for (const apt of impacted.appointments) {
                 try {
-                    await appointmentRepository.cancel(apt.id, {
-                        status: 'cancelled',
-                        cancellation_reason: `Cancelado por bloqueio: ${blockData.reason}`,
-                        cancellation_type: 'other',
-                        hidden_from_schedule: false,
-                        cancelled_at: new Date().toISOString(),
-                        cancelled_by_user_id: userId,
-                    }, tenantId);
+                    await cancelAppointment({
+                        tenantId,
+                        appointmentId: apt.id,
+                        cancellationType: 'other',
+                        cancellationReason: `Cancelado por bloqueio: ${blockData.reason}`,
+                        userId,
+                        paymentDecision: 'remarcar',
+                    });
                 } catch (err) {
                     console.warn('[SMG][SCHEDULE_BLOCK] Falha ao cancelar agendamento impactado:', {
                         appointmentId: apt.id,

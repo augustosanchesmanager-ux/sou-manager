@@ -949,13 +949,21 @@ const Schedule: React.FC = () => {
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
     const datePart = apt.startTime.split('T')[0];
-    const matchedService = servicesList.find((service) => service.name === apt.service);
+    const rawServiceNames = (apt.service || '')
+      .split(',')
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean);
+    const matchedServices = servicesList.filter(
+      (service) =>
+        service.name === apt.service ||
+        rawServiceNames.includes(service.name.trim().toLowerCase()),
+    );
 
     setFormData({
       client: apt.client,
       clientPhone: apt.clientPhone,
       service: apt.service,
-      serviceIds: matchedService ? [matchedService.id] : [],
+      serviceIds: matchedServices.map((service) => service.id),
       staffId: apt.staffId,
       date: datePart,
       start: apt.start,
@@ -1053,7 +1061,7 @@ const Schedule: React.FC = () => {
 
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
 
-      await appointmentApplicationService.rescheduleAppointment({
+      const syncResult = await appointmentApplicationService.rescheduleAppointment({
         tenantId,
         appointmentId: apt.id,
         newStaffId: dropStaffId,
@@ -1062,7 +1070,27 @@ const Schedule: React.FC = () => {
         newEndTime: newEndTimeLine.toISOString(),
       });
 
-      setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
+      if (syncResult.status === 'blocked_closed') {
+        setToast({
+          message:
+            syncResult.message ||
+            'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+          type: 'error',
+        });
+        fetchAppointments();
+        return;
+      }
+
+      if (syncResult.status === 'blocked_payment') {
+        setToast({
+          message:
+            syncResult.message ||
+            'Agendamento atualizado. A comanda possui pagamentos registrados e seus valores foram preservados.',
+          type: 'info',
+        });
+      } else {
+        setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
+      }
       fetchAppointments();
     } catch (err) {
       console.error('Error dragging appointment:', err);
@@ -1306,12 +1334,23 @@ const Schedule: React.FC = () => {
       }
 
       if (payload.existing_appointments_action === 'cancel' && impacted.length > 0) {
-        const impactedIds = impacted.map((apt) => apt.id);
-        await supabase
-          .from('appointments')
-          .update({ status: 'cancelled' })
-          .in('id', impactedIds)
-          .eq('tenant_id', tenantId);
+        for (const apt of impacted) {
+          try {
+            await appointmentApplicationService.cancelAppointment({
+              tenantId,
+              appointmentId: apt.id,
+              cancellationType: 'other',
+              cancellationReason: `Cancelado por bloqueio: ${payload.reason}`,
+              userId: user?.id || '',
+              paymentDecision: 'remarcar',
+            });
+          } catch (cancelErr) {
+            console.warn('[SMG][SCHEDULE][BLOCK] Falha ao cancelar agendamento impactado:', {
+              appointmentId: apt.id,
+              error: cancelErr,
+            });
+          }
+        }
       }
 
       if (payload.existing_appointments_action === 'review' && impacted.length > 0) {
@@ -1466,14 +1505,19 @@ const Schedule: React.FC = () => {
       const updatedAppointmentDate = updatedStartIso;
 
       // UPDATE EXISTING
+      let syncResult;
       try {
-        await appointmentApplicationService.updateAppointment({
+        syncResult = await appointmentApplicationService.updateAppointment({
           tenantId,
           appointmentId: editingAppointmentId,
           updates: {
             staff_id: formData.staffId || null,
+            staff_name: selectedStaff?.name || '',
+            service_id: selectedServices.length === 1 ? selectedService.id : undefined,
+            service_name: selectedServicesLabel,
             start_time: updatedStartIso,
             end_time: endTimeLine.toISOString(),
+            duration: Number(formData.duration),
             price: selectedServicesTotalPrice,
             notes: formData.notes.trim(),
           },
@@ -1483,6 +1527,16 @@ const Schedule: React.FC = () => {
         const message = updateErr instanceof AppointmentError ? updateErr.message : 'Erro ao atualizar agendamento.';
         console.error('Erro ao atualizar agendamento:', updateErr);
         setError(`Erro ao atualizar agendamento: ${message}`);
+        return;
+      }
+
+      if (syncResult.status === 'blocked_closed') {
+        const blockedMsg =
+          syncResult.message ||
+          'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.';
+        setError(blockedMsg);
+        setToast({ message: blockedMsg, type: 'error' });
+        await fetchAppointments();
         return;
       }
 
@@ -1505,7 +1559,28 @@ const Schedule: React.FC = () => {
           : apt
       ));
 
-      setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+      if (syncResult.status === 'synced' && syncResult.comandaId) {
+        setOpenComandasByAppointment((prev) => {
+          const next = { ...prev };
+          if (syncResult.comandaStatus === 'open') {
+            next[editingAppointmentId] = syncResult.comandaId!;
+          } else if (syncResult.comandaStatus === 'blocked') {
+            delete next[editingAppointmentId];
+          }
+          return next;
+        });
+      }
+
+      if (syncResult.status === 'blocked_payment') {
+        setToast({
+          message:
+            syncResult.message ||
+            'Agendamento atualizado. A comanda possui pagamentos registrados e seus valores foram preservados.',
+          type: 'info',
+        });
+      } else {
+        setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+      }
     } else {
       let finalPrice = selectedServicesTotalPrice;
 
