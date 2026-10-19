@@ -21,8 +21,10 @@ import type {
     UpdateAppointmentParams,
     CancelAppointmentParams,
     ResolveFinalPriceParams,
+    ComandaSyncResult,
 } from './types';
 import { AppointmentError } from './types';
+import { syncComandaForAppointmentUpdate } from './comandaSync';
 
 // ─── RPC Client (for appointment creation RPCs) ──────────────────
 
@@ -154,34 +156,93 @@ export async function createAppointment(params: CreateAppointmentParams): Promis
     };
 }
 
-export async function updateAppointment(params: UpdateAppointmentParams): Promise<void> {
+export async function updateAppointment(params: UpdateAppointmentParams): Promise<ComandaSyncResult> {
     const { tenantId, appointmentId, updates, syncComandaStaff } = params;
 
     if (!appointmentId) {
         throw new AppointmentError('ID do agendamento é obrigatório.', 'VALIDATION_ERROR');
     }
 
+    const hasSyncFields =
+        updates.staff_id !== undefined ||
+        updates.service_id !== undefined ||
+        updates.service_name !== undefined ||
+        updates.price !== undefined ||
+        updates.start_time !== undefined;
+
+    if (!syncComandaStaff || !hasSyncFields) {
+        await appointmentRepository.update(appointmentId, updates, tenantId);
+        return { status: 'no_comanda' };
+    }
+
+    let previous = null;
+    try {
+        previous = (await appointmentRepository.get(appointmentId, tenantId)) ?? null;
+    } catch {
+        previous = null;
+    }
+
+    const hasProtectedChanges = previous
+        ? (updates.staff_id !== undefined && updates.staff_id !== previous.staff_id) ||
+          (updates.service_id !== undefined && updates.service_id !== previous.service_id) ||
+          (updates.service_name !== undefined && updates.service_name !== previous.service_name) ||
+          (updates.price !== undefined && Number(updates.price) !== Number(previous.price))
+        : updates.staff_id !== undefined ||
+          updates.service_id !== undefined ||
+          updates.service_name !== undefined ||
+          updates.price !== undefined;
+
+    const hasScheduleChanges = previous
+        ? updates.start_time !== undefined && updates.start_time !== previous.start_time
+        : updates.start_time !== undefined;
+
+    if (!hasProtectedChanges && !hasScheduleChanges) {
+        await appointmentRepository.update(appointmentId, updates, tenantId);
+        return { status: 'no_comanda' };
+    }
+
+    let comandas: Awaited<ReturnType<typeof comandaRepository.list>> = [];
+    try {
+        comandas = (await comandaRepository.list(tenantId, { appointmentId })) || [];
+    } catch (err) {
+        console.warn('[SMG][APPOINTMENT][UPDATE] Falha ao listar comandas vinculadas:', {
+            appointmentId,
+            error: err,
+        });
+    }
+
+    const paidComanda = comandas.find((c) => c.status === 'paid');
+    if (paidComanda && hasProtectedChanges) {
+        if (updates.notes !== undefined && (!previous || updates.notes !== previous.notes)) {
+            await appointmentRepository.update(appointmentId, { notes: updates.notes }, tenantId);
+        }
+        return {
+            status: 'blocked_closed',
+            comandaId: paidComanda.id,
+            message: 'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+        };
+    }
+
     await appointmentRepository.update(appointmentId, updates, tenantId);
 
-    if (syncComandaStaff && updates.staff_id) {
-        const comandas = await comandaRepository.list(tenantId, {
+    try {
+        return await syncComandaForAppointmentUpdate({
+            tenantId,
             appointmentId,
-            status: 'open',
+            staffId: updates.staff_id,
+            serviceId: updates.service_id,
+            serviceName: updates.service_name,
+            unitPrice: updates.price,
+            startTime: updates.start_time,
+            previousAppointment: previous,
+            comandas,
         });
-
-        for (const comanda of comandas) {
-            try {
-                await comandaRepository.update(comanda.id, {
-                    staff_id: updates.staff_id,
-                }, tenantId);
-            } catch (err) {
-                console.warn('[SMG][APPOINTMENT][UPDATE] Falha ao sync comanda:', {
-                    comandaId: comanda.id,
-                    appointmentId,
-                    error: err,
-                });
-            }
-        }
+    } catch (err) {
+        console.warn('[SMG][APPOINTMENT][UPDATE] Falha ao sync comanda:', {
+            appointmentId,
+            error: err,
+        });
+        return { status: 'no_comanda' };
     }
 }
 

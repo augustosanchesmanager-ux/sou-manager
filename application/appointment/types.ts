@@ -42,13 +42,26 @@ export interface UpdateAppointmentParams {
     tenantId: string;
     appointmentId: string;
     updates: {
-        staff_id?: string;
+        staff_id?: string | null;
+        staff_name?: string;
+        service_id?: string | null;
+        service_name?: string;
         start_time?: string;
         end_time?: string;
+        duration?: number;
         price?: number;
         notes?: string;
     };
     syncComandaStaff?: boolean;
+}
+
+export type ComandaSyncStatus = 'synced' | 'no_comanda' | 'blocked_closed' | 'blocked_payment';
+
+export interface ComandaSyncResult {
+    status: ComandaSyncStatus;
+    comandaId?: string;
+    comandaStatus?: 'open' | 'blocked';
+    message?: string;
 }
 
 export interface ResolveFinalPriceParams {

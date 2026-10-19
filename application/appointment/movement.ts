@@ -9,8 +9,10 @@ import { comandaRepository } from '../../domain/comanda/repository';
 import type {
     RescheduleAppointmentParams,
     ChangeStatusParams,
+    ComandaSyncResult,
 } from './types';
 import { AppointmentError } from './types';
+import { syncComandaForAppointmentUpdate } from './comandaSync';
 
 export async function changeStatus(params: ChangeStatusParams): Promise<void> {
     const { tenantId, appointmentId, newStatus } = params;
@@ -34,11 +36,38 @@ export async function changeStatus(params: ChangeStatusParams): Promise<void> {
     await appointmentRepository.updateStatus(appointmentId, newStatus, tenantId);
 }
 
-export async function rescheduleAppointment(params: RescheduleAppointmentParams): Promise<void> {
+export async function rescheduleAppointment(params: RescheduleAppointmentParams): Promise<ComandaSyncResult> {
     const { tenantId, appointmentId, newStaffId, newStaffName, newStartTime, newEndTime } = params;
 
     if (!appointmentId) {
         throw new AppointmentError('ID do agendamento é obrigatório.', 'VALIDATION_ERROR');
+    }
+
+    let previous = null;
+    try {
+        previous = (await appointmentRepository.get(appointmentId, tenantId)) ?? null;
+    } catch {
+        previous = null;
+    }
+
+    let comandas: Awaited<ReturnType<typeof comandaRepository.list>> = [];
+    try {
+        comandas = (await comandaRepository.list(tenantId, { appointmentId })) || [];
+    } catch (err) {
+        console.warn('[SMG][APPOINTMENT][RESCHEDULE] Falha ao listar comandas vinculadas:', {
+            appointmentId,
+            error: err,
+        });
+    }
+
+    const paidComanda = comandas.find((c) => c.status === 'paid');
+    const isChangingStaff = !previous || previous.staff_id !== newStaffId;
+    if (paidComanda && isChangingStaff) {
+        return {
+            status: 'blocked_closed',
+            comandaId: paidComanda.id,
+            message: 'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+        };
     }
 
     await appointmentRepository.update(appointmentId, {
@@ -48,23 +77,21 @@ export async function rescheduleAppointment(params: RescheduleAppointmentParams)
         end_time: newEndTime,
     }, tenantId);
 
-    const comandas = await comandaRepository.list(tenantId, {
-        appointmentId,
-        status: 'open',
-    });
-
-    for (const comanda of comandas) {
-        try {
-            await comandaRepository.update(comanda.id, {
-                staff_id: newStaffId,
-            }, tenantId);
-        } catch (err) {
-            console.warn('[SMG][APPOINTMENT][RESCHEDULE] Falha ao sync comanda:', {
-                comandaId: comanda.id,
-                appointmentId,
-                error: err,
-            });
-        }
+    try {
+        return await syncComandaForAppointmentUpdate({
+            tenantId,
+            appointmentId,
+            staffId: newStaffId,
+            startTime: newStartTime,
+            previousAppointment: previous,
+            comandas,
+        });
+    } catch (err) {
+        console.warn('[SMG][APPOINTMENT][RESCHEDULE] Falha ao sync comanda:', {
+            appointmentId,
+            error: err,
+        });
+        return { status: 'no_comanda' };
     }
 }
 
