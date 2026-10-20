@@ -123,7 +123,12 @@ async function runCycle(url: string, jwt: string, maxTargets: number): Promise<C
         if (rec.commissionValue <= 0) continue;
         const { data: exists, error: existsErr } = await supabase.rpc(
           'exists_commission_record',
-          { p_staff_id: rec.staffId, p_comanda_id: rec.comandaId, p_tenant_id: rec.tenantId },
+          {
+            p_staff_id: rec.staffId,
+            p_comanda_id: rec.comandaId,
+            p_tenant_id: rec.tenantId,
+            p_comanda_item_id: rec.comandaItemId ?? null,
+          },
         );
         if (existsErr) throw new Error(`idempotency check failed: ${existsErr.message}`);
         if (exists) { report.skipped++; continue; }

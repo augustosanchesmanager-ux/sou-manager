@@ -309,6 +309,37 @@ describe('createCommissionRecordHandler — Idempotency', () => {
     expect(result.error).toContain('Idempotency check failed');
     expect(deps.commissionRecordRepository.create).not.toHaveBeenCalled();
   });
+
+  it('should_pass_comanda_item_id_to_existsByStaffComanda_and_idempotency_key (ADR-034)', async () => {
+    const deps = makeDeps({
+      commissionRecordRepository: {
+        create: vi.fn().mockResolvedValue({ id: 'rec-new' }),
+        existsByStaffComanda: vi.fn().mockResolvedValue(false),
+        list: vi.fn(), get: vi.fn(), calculateDailyNet: vi.fn(), createReversal: vi.fn(),
+      } as any,
+    });
+    const handler = createCommissionRecordHandler(deps);
+
+    const result = await handler.execute(
+      { comandaId: 'com-1', tenantId: 'tenant-1', receivedValue: 100 } as any,
+      makeContext({ eventId: 'evt_123', idempotencyKey: 'evt_123_create_commission_record' }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(deps.commissionRecordRepository.existsByStaffComanda).toHaveBeenCalledWith(
+      'staff-1',
+      'com-1',
+      'tenant-1',
+      'item-1',
+    );
+    expect(deps.commissionRecordRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotency_key: 'evt_123_create_commission_record_staff-1_item-1',
+        comanda_item_id: 'item-1',
+      }),
+      'tenant-1',
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════

@@ -231,7 +231,7 @@ export const calculateCommissionRecordsFromContext = (
         participantShare,
         payoutType: participant.payout_type || 'percentage',
         affectsCommission: !!participant.affects_commission,
-        idempotencyKey: `${baseIdem}_${staffId}`,
+        idempotencyKey: `${baseIdem}_${staffId}_${item.id}`,
         eventId: event_id(context) || '',
         eventType: source_event || '',
       });

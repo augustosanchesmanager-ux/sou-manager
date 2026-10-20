@@ -117,22 +117,28 @@ export class CommissionRecordRepository extends SupabaseRepository {
   }
 
   /**
-   * Check if a commission record exists for a given staff+comanda.
+   * Check if a commission record exists for a given staff+comanda (and optionally item).
    */
   async existsByStaffComanda(
     staffId: string,
     comandaId: string,
     tenantId: string,
+    comandaItemId?: string,
   ): Promise<boolean> {
     try {
-      const result = await this.from()
+      let query = this.from()
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('staff_id', staffId)
         .eq('comanda_id', comandaId)
         .eq('record_type', 'commission')
-        .eq('status', 'active')
-        .limit(1);
+        .eq('status', 'active');
+
+      if (comandaItemId) {
+        query = query.eq('comanda_item_id', comandaItemId);
+      }
+
+      const result = await query.limit(1);
 
       const data = this.extractData<Array<{ id: string }>>(result, 'existsByStaffComanda commission_record');
       return data.length > 0;

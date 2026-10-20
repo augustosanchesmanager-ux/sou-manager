@@ -37,6 +37,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-031](./ADR-031-unified-metric-card.md) | Proposed (Amendment-01) | Componente unificado de métricas + identidade creme/dourado claro (2026-10-06; Amd-01 2026-10-08) |
 | [ADR-032](./ADR-032-public-online-booking.md) | Proposed | Agendamento Online Público — Booking Web Anônimo (P.02-BOOKING-PUBLIC, 2026-10-09) |
 | [ADR-033](./ADR-033-commission-reopen-cycles-and-status-transition.md) | Accepted | Ciclos de Comissão em Comandas Reabertas e Transição de Status no Ledger D7/D8 (C1, 2026-10-20) |
+| [ADR-034](./ADR-034-item-granularity-in-commission-records.md) | Accepted | Granularidade por Item no Ledger de Comissões D7/D8 (C2, 2026-10-20) |
 
 ---
 
