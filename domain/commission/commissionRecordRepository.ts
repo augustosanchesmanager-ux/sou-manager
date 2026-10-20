@@ -131,6 +131,7 @@ export class CommissionRecordRepository extends SupabaseRepository {
         .eq('staff_id', staffId)
         .eq('comanda_id', comandaId)
         .eq('record_type', 'commission')
+        .eq('status', 'active')
         .limit(1);
 
       const data = this.extractData<Array<{ id: string }>>(result, 'existsByStaffComanda commission_record');
