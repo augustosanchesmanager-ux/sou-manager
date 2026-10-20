@@ -15,6 +15,8 @@ CREATE UNIQUE INDEX idx_commission_records_staff_item
   WHERE record_type = 'commission' AND status = 'active';
 
 -- ── 2. Atualizar RPC exists_commission_record para suportar comanda_item_id ───
+DROP FUNCTION IF EXISTS public.exists_commission_record(UUID, UUID, UUID);
+
 CREATE OR REPLACE FUNCTION public.exists_commission_record(
   p_staff_id        UUID,
   p_comanda_id      UUID,
