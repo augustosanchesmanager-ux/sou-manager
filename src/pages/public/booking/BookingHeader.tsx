@@ -1,15 +1,68 @@
 /**
  * BookingHeader - Banner/logo area for the public booking page.
- * Shows logo (or monogram fallback), name, address with maps link, social tags.
+ * Shows logo (or monogram fallback), name, address with maps link, and social/location chips.
  */
 
 import React from 'react';
-import { MapPin, Instagram, MessageCircle, Globe, ExternalLink } from 'lucide-react';
+import { MapPin, Instagram, MessageCircle, ExternalLink } from 'lucide-react';
 import type { PublicTenantProfile } from './hooks/types';
 
 interface BookingHeaderProps {
   tenant: PublicTenantProfile;
 }
+
+const buildSafeInstagramUrl = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const secureUrl = trimmed.replace(/^http:\/\//i, 'https://');
+    try {
+      const parsed = new URL(secureUrl);
+      return parsed.protocol === 'https:' ? parsed.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const handle = trimmed
+    .replace(/^@+/, '')
+    .replace(/^(www\.)?instagram\.com\//i, '')
+    .replace(/\/+$/, '')
+    .trim();
+
+  if (!handle) return null;
+  return `https://instagram.com/${encodeURIComponent(handle)}`;
+};
+
+const buildSafeWhatsAppUrl = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  const normalized =
+    digits.length === 10 || digits.length === 11
+      ? `55${digits}`
+      : digits;
+  return `https://wa.me/${normalized}`;
+};
+
+const buildSafeHttpsUrl = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const candidate = /^https?:\/\//i.test(trimmed)
+    ? trimmed.replace(/^http:\/\//i, 'https://')
+    : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+};
 
 const BookingHeader: React.FC<BookingHeaderProps> = ({ tenant }) => {
   // Generate monogram from tenant name
@@ -23,33 +76,20 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({ tenant }) => {
 
   const monogram = getMonogram(tenant.name);
 
-  // Build Google Maps URL
-  const mapsUrl = tenant.address
+  // Resolve sanitized URLs from explicit columns with fallback to social_links
+  const instagramUrl = buildSafeInstagramUrl(
+    tenant.instagram_url || tenant.social_links?.instagram
+  );
+  const whatsappUrl = buildSafeWhatsAppUrl(
+    tenant.whatsapp_number || tenant.social_links?.whatsapp
+  );
+  const explicitMapsUrl = buildSafeHttpsUrl(
+    tenant.maps_url || tenant.social_links?.maps_url
+  );
+  const fallbackAddressMapsUrl = tenant.address
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address)}`
     : null;
-
-  // Social links
-  const socialLinks = tenant.social_links
-    ? [
-        tenant.social_links.instagram && {
-          label: 'Instagram',
-          href: `https://instagram.com/${tenant.social_links.instagram.replace('@', '')}`,
-          icon: Instagram,
-        },
-        tenant.social_links.whatsapp && {
-          label: 'WhatsApp',
-          href: `https://wa.me/${tenant.social_links.whatsapp.replace(/\D/g, '')}`,
-          icon: MessageCircle,
-        },
-        tenant.social_links.website && {
-          label: 'Site',
-          href: tenant.social_links.website.startsWith('http')
-            ? tenant.social_links.website
-            : `https://${tenant.social_links.website}`,
-          icon: Globe,
-        },
-      ].filter(Boolean)
-    : [];
+  const mapsUrl = explicitMapsUrl || fallbackAddressMapsUrl;
 
   return (
     <header className="relative bg-cream border-b border-line px-4 py-4">
@@ -85,7 +125,7 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({ tenant }) => {
             href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 text-sm text-ink-soft hover:text-primary transition-colors mb-4"
+            className="flex items-center justify-center gap-1.5 text-sm text-ink-soft hover:text-primary transition-colors mb-2"
             aria-label={`Ver no Google Maps: ${tenant.address}`}
           >
             <MapPin className="w-4 h-4 flex-shrink-0" />
@@ -94,25 +134,54 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({ tenant }) => {
           </a>
         )}
 
-        {/* Social tags */}
-        {socialLinks.length > 0 && (
-          <div className="flex items-center justify-center gap-2 flex-wrap" role="list" aria-label="Redes sociais">
-            {socialLinks.map((social, index) => {
-              const Icon = social!.icon;
-              return (
-                <a
-                  key={index}
-                  href={social!.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-line bg-white/80 dark:bg-card-dark/80 text-xs font-medium text-ink-soft hover:border-primary/50 hover:text-primary transition-all"
-                  aria-label={social!.label}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{social!.label}</span>
-                </a>
-              );
-            })}
+        {/* Social & Location Chips (SMG Barber Dark/Gold Minimalist Palette) */}
+        {(whatsappUrl || instagramUrl || explicitMapsUrl) && (
+          <div
+            className="flex items-center justify-center gap-2 pt-2 flex-wrap"
+            role="list"
+            aria-label="Canais de atendimento e localização"
+          >
+            {/* WhatsApp */}
+            {whatsappUrl && (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir conversa no WhatsApp"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:border-emerald-500/50 hover:text-emerald-300 hover:bg-zinc-800/80 transition-all duration-200"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>WhatsApp</span>
+              </a>
+            )}
+
+            {/* Instagram */}
+            {instagramUrl && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir perfil no Instagram"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:border-pink-500/50 hover:text-pink-300 hover:bg-zinc-800/80 transition-all duration-200"
+              >
+                <Instagram className="w-3.5 h-3.5 text-pink-400" />
+                <span>Instagram</span>
+              </a>
+            )}
+
+            {/* Google Maps / Como Chegar */}
+            {explicitMapsUrl && (
+              <a
+                href={explicitMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir localização no Google Maps"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium tracking-wide bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:border-amber-500/50 hover:text-amber-300 hover:bg-zinc-800/80 transition-all duration-200"
+              >
+                <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                <span>Como chegar</span>
+              </a>
+            )}
           </div>
         )}
       </div>

@@ -45,6 +45,9 @@ const toTenantSettings = (row: Record<string, unknown>): TenantSettings => ({
   work_start_time: (row.work_start_time as string) ?? null,
   work_end_time: (row.work_end_time as string) ?? null,
   booking_enabled: (row.booking_enabled as boolean) ?? null,
+  instagram_url: (row.instagram_url as string) ?? null,
+  whatsapp_number: (row.whatsapp_number as string) ?? null,
+  maps_url: (row.maps_url as string) ?? null,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });
@@ -100,26 +103,46 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
 
   async updateWorkingHours(
     tenantId: string,
-    hours: { work_start_time: string; work_end_time: string; booking_enabled?: boolean }
+    hours: {
+      work_start_time: string;
+      work_end_time: string;
+      booking_enabled?: boolean;
+      instagram_url?: string | null;
+      whatsapp_number?: string | null;
+      maps_url?: string | null;
+    }
   ): Promise<TenantSettings> {
+    if (!tenantId || !tenantId.trim()) {
+      throw new Error('Identificador do tenant é obrigatório para atualizar as configurações.');
+    }
+
     try {
+      const payload: Record<string, unknown> = {
+        tenant_id: tenantId,
+        work_start_time: hours.work_start_time,
+        work_end_time: hours.work_end_time,
+        booking_enabled: hours.booking_enabled ?? true,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (hours.instagram_url !== undefined) {
+        payload.instagram_url = hours.instagram_url;
+      }
+      if (hours.whatsapp_number !== undefined) {
+        payload.whatsapp_number = hours.whatsapp_number;
+      }
+      if (hours.maps_url !== undefined) {
+        payload.maps_url = hours.maps_url;
+      }
+
       const result = await this.from()
-        .upsert(
-          {
-            tenant_id: tenantId,
-            work_start_time: hours.work_start_time,
-            work_end_time: hours.work_end_time,
-            booking_enabled: hours.booking_enabled ?? true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'tenant_id' }
-        )
+        .upsert(payload, { onConflict: 'tenant_id' })
         .select()
         .single();
-      const data = this.extractData(result, 'Erro ao salvar horários de atendimento');
+      const data = this.extractData(result, 'Erro ao salvar configurações de agendamento');
       return toTenantSettings(data as Record<string, unknown>);
     } catch (err) {
-      this.throwOnError(err, 'Erro ao salvar horários de atendimento');
+      this.throwOnError(err, 'Erro ao salvar configurações de agendamento');
     }
   }
 }
@@ -129,7 +152,14 @@ export interface TenantSettingsRepository {
   upsert(input: CreateTenantSettingsInput): Promise<TenantSettings>;
   updateWorkingHours(
     tenantId: string,
-    hours: { work_start_time: string; work_end_time: string; booking_enabled?: boolean }
+    hours: {
+      work_start_time: string;
+      work_end_time: string;
+      booking_enabled?: boolean;
+      instagram_url?: string | null;
+      whatsapp_number?: string | null;
+      maps_url?: string | null;
+    }
   ): Promise<TenantSettings>;
 }
 

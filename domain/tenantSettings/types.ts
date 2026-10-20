@@ -34,6 +34,9 @@ export interface TenantSettings {
   work_start_time?: string | null;
   work_end_time?: string | null;
   booking_enabled?: boolean | null;
+  instagram_url?: string | null;
+  whatsapp_number?: string | null;
+  maps_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,4 +69,7 @@ export interface CreateTenantSettingsInput {
   work_start_time?: string | null;
   work_end_time?: string | null;
   booking_enabled?: boolean | null;
+  instagram_url?: string | null;
+  whatsapp_number?: string | null;
+  maps_url?: string | null;
 }
