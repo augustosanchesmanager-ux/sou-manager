@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import Button from './ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
@@ -43,10 +42,12 @@ interface ComandaItemType {
 interface ComandaSidebarProps {
     comanda: ComandaItemType | null;
     financialHistory?: ComandaFinancialHistory | null;
+    canManageFinancialReversal?: boolean;
     onClose: () => void;
     onCancel: () => void;
     onPrint: () => void;
     onCheckout: () => void;
+    onReopenPaid?: () => void;
 }
 
 interface ComandaFinancialReversal {
@@ -131,12 +132,13 @@ const getConsumptionType = (comanda: ComandaItemType, servicePluralLabel = 'Serv
 const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     comanda,
     financialHistory,
+    canManageFinancialReversal = false,
     onClose,
     onCancel,
     onPrint,
     onCheckout,
+    onReopenPaid,
 }) => {
-    const navigate = useNavigate();
     const { appSlug } = useAuth();
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
@@ -356,7 +358,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                 </div>
 
                 <div className="grid gap-2">
-                    {comanda.status === 'open' ? (
+                    {comanda.status === 'open' && (
                         <Button
                             onClick={onCheckout}
                             leftIcon="point_of_sale"
@@ -364,15 +366,26 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                         >
                             {isEsteticaApp ? `Finalizar ${orderLabelLower}` : 'Fechar comanda'}
                         </Button>
-                    ) : (
-                        <Button
-                            variant="secondary"
-                            onClick={() => navigate(`/checkout/${comanda.id}`)}
-                            leftIcon="edit"
-                            className="w-full justify-center"
-                        >
-                            Reabrir edição
-                        </Button>
+                    )}
+                    {comanda.status === 'paid' && (
+                        canManageFinancialReversal && onReopenPaid && financialHistory && financialHistory.reversalStatus === 'none' && financialHistory.reversibleAmount > 0 ? (
+                            <Button
+                                variant="secondary"
+                                onClick={onReopenPaid}
+                                leftIcon="undo"
+                                className="w-full justify-center border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                            >
+                                Estornar e reabrir {orderLabelLower}
+                            </Button>
+                        ) : (
+                            <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                                {canManageFinancialReversal
+                                    ? financialHistory && financialHistory.reversalStatus !== 'none'
+                                        ? `Baixa financeira já possui estorno registrado (${financialHistory.reversalStatus === 'full' ? 'total' : 'parcial'}).`
+                                        : 'Baixa sem lançamento financeiro reversível (fechamento administrativo ou saldo zero).'
+                                    : `${orderLabel} finalizado. Apenas gestores podem estornar a baixa financeira para reabrir a edição.`}
+                            </div>
+                        )
                     )}
                     <Button
                         variant="secondary"
