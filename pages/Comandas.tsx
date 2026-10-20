@@ -29,6 +29,8 @@ import {
 import type { ComandaStatus } from '../shared/status/comanda';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
+import { createReversalKey, reverseFinancialTransaction } from '../src/lib/finance/reversal';
+import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
@@ -58,6 +60,7 @@ interface ServiceExecutionParticipantRow {
 
 interface Comanda {
     id: string;
+    tenant_id?: string | null;
     client_id: string;
     staff_id?: string | null;
     appointment_id?: string | null;
@@ -114,6 +117,7 @@ interface ComandaTransactionRow {
     id: string;
     tenant_id?: string | null;
     source_id?: string | null;
+    type?: string | null;
     amount: number | string | null;
     payment_method?: string | null;
     date?: string | null;
@@ -164,6 +168,14 @@ const CANCEL_TYPE_OPTIONS = [
     { value: 'client_gave_up', label: 'Cliente desistiu' },
     { value: 'appointment_cancelled', label: 'Agendamento cancelado' },
     { value: 'other', label: 'Outro' },
+] as const;
+
+const REOPEN_REASON_OPTIONS = [
+    { value: 'baixa_indevida', label: 'Baixa indevida' },
+    { value: 'erro_forma_pagamento', label: 'Erro na forma de pagamento' },
+    { value: 'erro_operacional', label: 'Erro operacional (itens/profissional/valor)' },
+    { value: 'cobranca_duplicada', label: 'Cobrança duplicada' },
+    { value: 'outro', label: 'Outro motivo auditado' },
 ] as const;
 
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
@@ -391,8 +403,15 @@ const Comandas: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [cancelReasonOther, setCancelReasonOther] = useState('');
+    const [reopenComanda, setReopenComanda] = useState<Comanda | null>(null);
+    const [reopenReasonType, setReopenReasonType] = useState<string>('baixa_indevida');
+    const [reopenReasonNote, setReopenReasonNote] = useState('');
+    const [reopenConfirmed, setReopenConfirmed] = useState(false);
+    const [reopenIdempotencyKey, setReopenIdempotencyKey] = useState<string | null>(null);
+    const [reopening, setReopening] = useState(false);
     const [filtersModalOpen, setFiltersModalOpen] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const canManageFinancialReversal = isManagerLikeRole(accessRole, canAccessSuperAdmin);
 
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
@@ -514,11 +533,11 @@ const Comandas: React.FC = () => {
                 return acc;
             }, {} as Record<string, ComandaItem[]>);
 
-            const transactionsSelect = 'id, tenant_id, source_id, amount, payment_method, date, created_at, status';
+            const transactionsSelect = 'id, tenant_id, source_id, type, amount, payment_method, date, created_at, status';
             const { data: transactionRows, error: transactionsError } = await batchedIn<ComandaTransactionRow>(
                 client, 'transactions', transactionsSelect, 'source_id', comandaIds,
                 (q) => {
-                    let filtered = q.eq('source_type', 'comanda');
+                    let filtered = q.eq('source_type', 'comanda').eq('type', 'income');
                     if (resolvedTenantId) filtered = filtered.eq('tenant_id', resolvedTenantId);
                     return filtered;
                 },
@@ -532,7 +551,7 @@ const Comandas: React.FC = () => {
                 setFinancialHistoryByComandaId({});
             } else {
                 const transactions = ((transactionRows || []) as ComandaTransactionRow[])
-                    .filter((transaction) => Boolean(transaction.id) && Boolean(transaction.source_id));
+                    .filter((transaction) => Boolean(transaction.id) && Boolean(transaction.source_id) && (!transaction.type || transaction.type === 'income'));
                 const transactionIds = transactions.map((transaction) => transaction.id);
                 const reversedByTransactionId = new Map<string, number>();
                 const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
@@ -1095,17 +1114,18 @@ const Comandas: React.FC = () => {
     const handleDelete = async (comanda: Comanda) => {
         if (!tenantId && !canAccessSuperAdmin) return;
 
+        if (comanda.status === 'paid') {
+            setToast({
+                message: `${orderLabel} já ${isEsteticaApp ? 'finalizado' : 'pago'} não pode ser anulado diretamente. Utilize o fluxo de Estorno e Reabertura.`,
+                type: 'error',
+            });
+            return;
+        }
+
         const reason = cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim();
         if (!reason) {
             setToast({ message: 'Informe o motivo do cancelamento.', type: 'error' });
             return;
-        }
-
-        if (comanda.status === 'paid') {
-            const confirmed = window.confirm(
-                `Este ${orderLabelLower} foi finalizado. Anulá-lo pode afetar ${financialImpactCopy}.\n\nTem certeza que deseja anular?`
-            );
-            if (!confirmed) return;
         }
 
         const isHiddenFinancial = ['operational_error', 'test', 'duplicate'].includes(cancelReason);
@@ -1156,6 +1176,127 @@ const Comandas: React.FC = () => {
             setToast({ message: `Não foi possível anular o ${orderLabelLower}. Nenhuma baixa ou transaction foi criada. ${error.message || ''}`.trim(), type: 'error' });
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const openReopenPaidModal = (comanda: Comanda) => {
+        if (!canManageFinancialReversal) {
+            setToast({ message: `Apenas gestores podem estornar e reabrir um ${orderLabelLower} finalizado.`, type: 'error' });
+            return;
+        }
+        const history = financialHistoryByComandaId[comanda.id];
+        if (!history || !history.transactionId || history.reversibleAmount <= 0 || history.reversalStatus !== 'none') {
+            setToast({
+                message: `Este ${orderLabelLower} não possui lançamento financeiro integral disponível para estorno automático.`,
+                type: 'error',
+            });
+            return;
+        }
+        setReopenComanda(comanda);
+        setReopenReasonType('baixa_indevida');
+        setReopenReasonNote('');
+        setReopenConfirmed(false);
+        setReopenIdempotencyKey(createReversalKey(history.transactionId));
+    };
+
+    const closeReopenPaidModal = () => {
+        if (reopening) return;
+        setReopenComanda(null);
+        setReopenReasonType('baixa_indevida');
+        setReopenReasonNote('');
+        setReopenConfirmed(false);
+        setReopenIdempotencyKey(null);
+    };
+
+    const handleConfirmReopenPaidComanda = async (openCheckoutAfter: boolean) => {
+        if (!reopenComanda) return;
+        if (!canManageFinancialReversal) {
+            setToast({ message: `Apenas gestores podem estornar e reabrir ${orderPluralLower} finalizados.`, type: 'error' });
+            return;
+        }
+
+        const history = financialHistoryByComandaId[reopenComanda.id];
+        if (!history || !history.transactionId || history.reversibleAmount <= 0 || history.reversalStatus !== 'none') {
+            setToast({
+                message: 'Transação financeira original não encontrada ou sem saldo integral para estorno.',
+                type: 'error',
+            });
+            return;
+        }
+
+        if (!reopenReasonType || !reopenReasonNote.trim()) {
+            setToast({ message: 'Informe o motivo e a observação obrigatória para auditoria do estorno.', type: 'error' });
+            return;
+        }
+
+        if (!reopenConfirmed) {
+            setToast({ message: 'Confirme a ciência do estorno financeiro auditado antes de continuar.', type: 'error' });
+            return;
+        }
+
+        setReopening(true);
+        try {
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+            const effectiveTenantId = canAccessSuperAdmin
+                ? (tenantId || reopenComanda.tenant_id || null)
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'reverse and reopen comanda',
+                }).tenantId;
+
+            if (!effectiveTenantId) {
+                setToast({ message: 'Contexto de tenant inválido para estorno financeiro.', type: 'error' });
+                return;
+            }
+
+            const targetComandaId = reopenComanda.id;
+            await reverseFinancialTransaction({
+                tenantId: effectiveTenantId,
+                originalTransactionId: history.transactionId,
+                supabase,
+                reversalType: 'wrong_settlement',
+                amount: history.reversibleAmount,
+                reasonType: reopenReasonType,
+                reasonNote: reopenReasonNote.trim(),
+                refundMethod: null,
+                reversalDate: new Date().toISOString(),
+                idempotencyKey: reopenIdempotencyKey || createReversalKey(history.transactionId),
+            });
+
+            setReopenComanda(null);
+            setReopenReasonType('baixa_indevida');
+            setReopenReasonNote('');
+            setReopenConfirmed(false);
+            setReopenIdempotencyKey(null);
+
+            if (openCheckoutAfter) {
+                setToast({
+                    message: `Baixa estornada com sucesso. Redirecionando para o checkout do ${orderLabelLower}...`,
+                    type: 'success',
+                });
+                navigate(`/checkout/${targetComandaId}`);
+                return;
+            }
+
+            setToast({
+                message: `Baixa estornada e ${orderLabelLower} reaberto para edição.`,
+                type: 'success',
+            });
+            await fetchData();
+        } catch (error: any) {
+            logSupabaseError('[Comandas] Erro ao estornar e reabrir comanda paga', error, {
+                comandaId: reopenComanda.id,
+                transactionId: history.transactionId,
+            });
+            setToast({
+                message: error?.message || `Não foi possível estornar a baixa do ${orderLabelLower}. Nenhuma alteração foi aplicada.`,
+                type: 'error',
+            });
+        } finally {
+            setReopening(false);
         }
     };
 
@@ -1514,10 +1655,12 @@ const Comandas: React.FC = () => {
                     <ComandaSidebar
                         comanda={selectedComanda}
                         financialHistory={financialHistoryByComandaId[selectedComanda.id] || null}
+                        canManageFinancialReversal={canManageFinancialReversal}
                         onClose={() => setSelectedComandaId(null)}
                         onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
                         onPrint={() => selectedComanda && handlePrint(selectedComanda)}
                         onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
+                        onReopenPaid={() => selectedComanda && openReopenPaidModal(selectedComanda)}
                     />
                 </aside>
             )}
@@ -1612,9 +1755,9 @@ const Comandas: React.FC = () => {
                 {deleteComanda && (
                     <div className="space-y-4">
                         {deleteComanda.status === 'paid' && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                                <p className="text-xs font-medium text-amber-800">
-                                    ⚠️ Este {orderLabelLower} está <strong>{isEsteticaApp ? 'FINALIZADO' : 'PAGO'}</strong>. Anulá-lo pode afetar {financialImpactCopy}.
+                            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-500/30 dark:bg-rose-500/10">
+                                <p className="text-xs font-medium text-rose-800 dark:text-rose-200">
+                                    Este {orderLabelLower} está <strong>{isEsteticaApp ? 'FINALIZADO' : 'PAGO'}</strong> e não pode ser anulado diretamente. Utilize o fluxo de <strong>Estornar e reabrir</strong>.
                                 </p>
                             </div>
                         )}
@@ -1651,12 +1794,132 @@ const Comandas: React.FC = () => {
                         )}
                         <div className="flex gap-2">
                             <Button variant="secondary" onClick={() => { setDeleteComanda(null); setCancelReason(''); setCancelReasonOther(''); }} disabled={deleting} className="flex-1">Voltar</Button>
-                            <Button variant="danger" onClick={() => deleteComanda && handleDelete(deleteComanda)} disabled={deleting || !(cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim())} className="flex-1">
+                            <Button variant="danger" onClick={() => deleteComanda && handleDelete(deleteComanda)} disabled={deleting || deleteComanda.status === 'paid' || !(cancelReason === CANCEL_REASON_OTHER ? cancelReasonOther.trim() : cancelReason.trim())} className="flex-1">
                                 {deleting ? 'Anulando...' : 'Confirmar Anulação'}
                             </Button>
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            <Modal
+                isOpen={!!reopenComanda}
+                onClose={closeReopenPaidModal}
+                title={`Estornar Baixa e Reabrir ${orderLabel}`}
+                maxWidth="lg"
+            >
+                {reopenComanda && (() => {
+                    const reopenHistory = financialHistoryByComandaId[reopenComanda.id] || null;
+                    return (
+                        <div className="space-y-4">
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                <p className="font-bold">Reversão contábil auditada (wrong_settlement)</p>
+                                <p className="mt-1 leading-relaxed">
+                                    A transação original de entrada será preservada. O sistema registrará uma saída reversa no Fluxo de Caixa, estornará comissões vinculadas e reabrirá o {orderLabelLower} com status <strong>{isEsteticaApp ? 'Aberto' : 'Aberta'}</strong>.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        {orderLabel} e Cliente
+                                    </p>
+                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                                        #{getDisplayId(reopenComanda.id)} — {reopenComanda.clients.name}
+                                    </p>
+                                    {reopenHistory && (
+                                        <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                                            Tx: {reopenHistory.transactionId}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Valor do Estorno
+                                    </p>
+                                    <p className="mt-1 text-lg font-black text-amber-600 dark:text-amber-400">
+                                        {formatCurrency(reopenHistory ? reopenHistory.reversibleAmount : reopenComanda.total)}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                        Forma original: {reopenHistory?.paymentMethod || reopenComanda.payment_method || NOT_INFORMED_FALLBACK}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                                        Motivo do estorno
+                                    </label>
+                                    <select
+                                        value={reopenReasonType}
+                                        onChange={(e) => setReopenReasonType(e.target.value)}
+                                        disabled={reopening}
+                                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                    >
+                                        {REOPEN_REASON_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                                        Observação obrigatória para auditoria
+                                    </label>
+                                    <textarea
+                                        value={reopenReasonNote}
+                                        onChange={(e) => setReopenReasonNote(e.target.value)}
+                                        disabled={reopening}
+                                        rows={3}
+                                        placeholder={`Descreva por que a baixa deste ${orderLabelLower} está sendo estornada e reaberta...`}
+                                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-xs text-slate-600 dark:border-white/10 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    checked={reopenConfirmed}
+                                    onChange={(e) => setReopenConfirmed(e.target.checked)}
+                                    disabled={reopening}
+                                    className="mt-0.5 size-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                />
+                                <span>
+                                    Confirmo que esta ação registrará uma saída reversa auditada no financeiro, reverterá comissões geradas pela baixa anterior e reabrirá o {orderLabelLower} para edição.
+                                </span>
+                            </label>
+
+                            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:flex-row sm:justify-end">
+                                <Button
+                                    variant="secondary"
+                                    onClick={closeReopenPaidModal}
+                                    disabled={reopening}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    leftIcon="lock_open"
+                                    onClick={() => handleConfirmReopenPaidComanda(false)}
+                                    disabled={reopening || !reopenReasonNote.trim() || !reopenConfirmed}
+                                >
+                                    {reopening ? 'Processando...' : 'Apenas Estornar e Reabrir'}
+                                </Button>
+                                <Button
+                                    leftIcon="point_of_sale"
+                                    onClick={() => handleConfirmReopenPaidComanda(true)}
+                                    disabled={reopening || !reopenReasonNote.trim() || !reopenConfirmed}
+                                >
+                                    {reopening ? 'Processando...' : 'Estornar e Abrir Checkout'}
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })()}
             </Modal>
         </div>
     );
