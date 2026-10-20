@@ -12,6 +12,12 @@ BEGIN;
 -- ============================================================================
 
 ALTER TABLE public.tenant_settings
+  ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS min_booking_notice_minutes INTEGER NOT NULL DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS auto_confirm_online_bookings BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS public_cancel_window_minutes INTEGER NOT NULL DEFAULT 120,
+  ADD COLUMN IF NOT EXISTS work_start_time TIME DEFAULT '07:00:00',
+  ADD COLUMN IF NOT EXISTS work_end_time TIME DEFAULT '20:00:00',
   ADD COLUMN IF NOT EXISTS instagram_url TEXT NULL,
   ADD COLUMN IF NOT EXISTS whatsapp_number TEXT NULL,
   ADD COLUMN IF NOT EXISTS maps_url TEXT NULL;
