@@ -43,6 +43,7 @@ const Team: React.FC = () => {
     const [invitations, setInvitations] = useState<InvitationView[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingInvites, setLoadingInvites] = useState(false);
+    const [copyingId, setCopyingId] = useState<string | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [search, setSearch] = useState('');
@@ -345,6 +346,28 @@ const Team: React.FC = () => {
         }
     };
 
+    const handleCopyInviteLink = async (invitationId: string) => {
+        try {
+            setCopyingId(invitationId);
+            const { data: token, error } = await supabase.rpc('get_team_invitation_token', {
+                p_invitation_id: invitationId,
+            });
+            if (error || !token) {
+                console.error('COPY INVITE LINK ERROR:', error);
+                setToast({ message: 'Não foi possível obter o link do convite.', type: 'error' });
+                return;
+            }
+            const inviteUrl = `${window.location.origin}/#/accept-invite/${token}`;
+            await navigator.clipboard.writeText(inviteUrl);
+            setToast({ message: 'Link do convite copiado!', type: 'success' });
+        } catch (err) {
+            console.error('CLIPBOARD ERROR:', err);
+            setToast({ message: 'Erro ao copiar o link para a área de transferência.', type: 'error' });
+        } finally {
+            setCopyingId(null);
+        }
+    };
+
     const handleResendInvite = async (id: string, email: string) => {
         try {
             const { data: sessionData } = await supabase.auth.getSession();
@@ -409,6 +432,11 @@ const Team: React.FC = () => {
                                         </p>
                                     </div>
                                     <div className="flex gap-1">
+                                        <button onClick={() => handleCopyInviteLink(inv.id)}
+                                            disabled={copyingId === inv.id}
+                                            className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Copiar link do convite">
+                                            <span className="material-symbols-outlined text-lg">{copyingId === inv.id ? 'hourglass_empty' : 'content_copy'}</span>
+                                        </button>
                                         <button onClick={() => handleResendInvite(inv.id, inv.email)}
                                             className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Reenviar convite">
                                             <span className="material-symbols-outlined text-lg">refresh</span>
