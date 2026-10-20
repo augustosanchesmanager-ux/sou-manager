@@ -263,6 +263,7 @@ export const createCommissionRecordHandler = (
             staffId,
             comandaId,
             tenantId,
+            item.id,
           );
         } catch (error) {
           // Persistence error while checking idempotency (Case D):
@@ -270,14 +271,14 @@ export const createCommissionRecordHandler = (
           const errorMsg =
             error instanceof Error ? error.message : String(error);
           console.error(
-            `[COMMISSION_RECORD_HANDLER] Idempotency check failed for staff ${staffId} + comanda ${comandaId}:`,
+            `[COMMISSION_RECORD_HANDLER] Idempotency check failed for staff ${staffId} + comanda ${comandaId} + item ${item.id}:`,
             errorMsg,
           );
           return { success: false, error: `Idempotency check failed: ${errorMsg}` };
         }
         if (alreadyExists) {
           console.log(
-            `[COMMISSION_RECORD_HANDLER] Record already exists for staff ${staffId} + comanda ${comandaId} — skipping`,
+            `[COMMISSION_RECORD_HANDLER] Record already exists for staff ${staffId} + comanda ${comandaId} + item ${item.id} — skipping`,
           );
           continue;
         }
@@ -299,7 +300,7 @@ export const createCommissionRecordHandler = (
               participant_share: participantShare,
               payout_type: participant.payout_type,
               affects_commission: participant.affects_commission,
-              idempotency_key: `${context.idempotencyKey}_${staffId}`,
+              idempotency_key: `${context.idempotencyKey}_${staffId}_${item.id}`,
               event_id: context.eventId,
               event_type: context.sourceEvent,
             },

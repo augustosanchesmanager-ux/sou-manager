@@ -116,7 +116,7 @@ describe('D8 equivalence (B): worker calculate == certified rule', () => {
     expect(r.participantShare).toBeCloseTo(1.0, 6);
     expect(r.payoutType).toBe('percentage');
     expect(r.affectsCommission).toBe(true);
-    expect(r.idempotencyKey).toBe('evt_test_A_0001_create_commission_record_aaaaaaa1-0000-0000-0000-000000000001');
+    expect(r.idempotencyKey).toBe('evt_test_A_0001_create_commission_record_aaaaaaa1-0000-0000-0000-000000000001_dddddddd-0000-0000-0000-0000000000a1');
     expect(r.eventId).toBe('evt_test_A_0001');
     expect(r.eventType).toBe('CheckoutCompleted');
   });

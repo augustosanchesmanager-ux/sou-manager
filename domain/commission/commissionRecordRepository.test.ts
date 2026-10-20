@@ -188,7 +188,7 @@ describe('CommissionRecordRepository', () => {
   });
 
   describe('existsByStaffComanda', () => {
-    it('should return true when active record exists', async () => {
+    it('should return true when active record exists without item filter', async () => {
       mockDb.chainable.data = [{ id: 'rec-1' }];
       mockDb.chainable.error = null;
 
@@ -200,6 +200,22 @@ describe('CommissionRecordRepository', () => {
       expect(mockDb.chainable.eq).toHaveBeenCalledWith('comanda_id', COMANDA_ID);
       expect(mockDb.chainable.eq).toHaveBeenCalledWith('record_type', 'commission');
       expect(mockDb.chainable.eq).toHaveBeenCalledWith('status', 'active');
+      expect(mockDb.chainable.limit).toHaveBeenCalledWith(1);
+    });
+
+    it('should filter by comanda_item_id when item ID is provided (ADR-034)', async () => {
+      mockDb.chainable.data = [{ id: 'rec-2' }];
+      mockDb.chainable.error = null;
+
+      const result = await repo.existsByStaffComanda(STAFF_ID, COMANDA_ID, TENANT_ID, 'item-123');
+
+      expect(result).toBe(true);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('staff_id', STAFF_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('comanda_id', COMANDA_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('record_type', 'commission');
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('status', 'active');
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('comanda_item_id', 'item-123');
       expect(mockDb.chainable.limit).toHaveBeenCalledWith(1);
     });
 

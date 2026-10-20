@@ -732,7 +732,7 @@ describe('B3.4-E Integrity', () => {
   });
 
   describe('idempotency key format', () => {
-    it('should_format_create_key_as_eventId_create_commission_record_staffId', async () => {
+    it('should_format_create_key_as_eventId_create_commission_record_staffId_itemId', async () => {
       const deps = makeCreateDeps();
       const handler = createCommissionRecordHandler(deps);
 
@@ -742,7 +742,7 @@ describe('B3.4-E Integrity', () => {
       );
 
       const callArgs = (deps.commissionRecordRepository.create as any).mock.calls[0][0];
-      expect(callArgs.idempotency_key).toBe('evt_ABC_create_commission_record_staff-1');
+      expect(callArgs.idempotency_key).toBe('evt_ABC_create_commission_record_staff-1_item-1');
     });
   });
 
@@ -915,6 +915,49 @@ describe('B3.4-E Integrity', () => {
       const activeCommissions = records.filter((r) => r.record_type === 'commission' && r.status === 'active');
       expect(activeCommissions).toHaveLength(1);
       expect(activeCommissions[0].id).toBe('rec-3');
+    });
+  });
+
+  describe('multiple items per staff in same comanda (ADR-034)', () => {
+    it('should create independent commission records for each service of the same staff', async () => {
+      const item1 = makeItem({ id: 'item-corte', unit_price: 50 });
+      const item2 = makeItem({ id: 'item-barba', unit_price: 30 });
+      const part1 = makeParticipant({ id: 'part-1', comanda_item_id: 'item-corte', staff_id: 'staff-1' });
+      const part2 = makeParticipant({ id: 'part-2', comanda_item_id: 'item-barba', staff_id: 'staff-1' });
+
+      const createdRecords: any[] = [];
+      const deps = makeCreateDeps({
+        comandaItemRepository: {
+          listByComandaIds: vi.fn().mockResolvedValue([item1, item2]),
+        },
+        participantRepository: {
+          listByComandaItemIds: vi.fn().mockResolvedValue([part1, part2]),
+        },
+        commissionRecordRepository: {
+          create: vi.fn().mockImplementation(async (input: any) => {
+            createdRecords.push(input);
+            return { id: `rec-${createdRecords.length}`, ...input };
+          }),
+          existsByStaffComanda: vi.fn().mockResolvedValue(false),
+        } as any,
+      });
+
+      const handler = createCommissionRecordHandler(deps);
+      const ctx = makeContext({ eventId: 'evt_multi', idempotencyKey: 'evt_multi_create_commission' });
+
+      const res = await handler.execute(
+        { comandaId: 'com-1', tenantId: 'tenant-1', receivedValue: 80 } as any,
+        ctx,
+      );
+
+      expect(res.success).toBe(true);
+      expect(createdRecords).toHaveLength(2);
+      expect(createdRecords[0].comanda_item_id).toBe('item-corte');
+      expect(createdRecords[0].idempotency_key).toBe('evt_multi_create_commission_staff-1_item-corte');
+      expect(createdRecords[1].comanda_item_id).toBe('item-barba');
+      expect(createdRecords[1].idempotency_key).toBe('evt_multi_create_commission_staff-1_item-barba');
+      expect(deps.commissionRecordRepository.existsByStaffComanda).toHaveBeenCalledWith('staff-1', 'com-1', 'tenant-1', 'item-corte');
+      expect(deps.commissionRecordRepository.existsByStaffComanda).toHaveBeenCalledWith('staff-1', 'com-1', 'tenant-1', 'item-barba');
     });
   });
 });
