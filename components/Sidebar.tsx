@@ -1,10 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
+import {
+  Home,
+  LayoutDashboard,
+  CalendarDays,
+  FileText,
+  Users,
+  Package,
+  CircleDollarSign,
+  BarChart3,
+  Briefcase,
+  Settings,
+  MonitorDot,
+  Bell,
+  Sparkles,
+  LifeBuoy,
+  ChevronDown,
+  ChevronRight,
+  Menu,
+  X,
+  MoreVertical,
+  Receipt,
+  ShoppingBag,
+  UserCheck,
+  Scissors,
+  Tags,
+  Crown,
+  Percent,
+  TrendingUp,
+  BrainCircuit,
+  Truck,
+  ShoppingCart,
+  Wallet,
+  ArrowRightLeft,
+  Lock,
+  FileSpreadsheet,
+  CreditCard,
+  PieChart,
+  Activity,
+  Gift,
+  TabletSmartphone,
+  Globe,
+  ShieldCheck,
+  RefreshCw,
+  Eye,
+  GitBranch,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
-import Logo from './Logo';
 import Modal from './ui/Modal';
-import Button from './ui/Button';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { isAppModuleEnabled, getFeatureForModule } from '../src/lib/apps/modules';
 import { useFeatureFlags } from '../src/hooks/useFeatureFlags';
@@ -18,170 +63,280 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
   onOpenReleaseNotes?: () => void;
   releaseNotesUnseen?: boolean;
+  unreadNotificationsCount?: number;
+  onOpenNotifications?: () => void;
 }
 
-interface ChildItem {
+interface SubMenuItem {
   name: string;
-  path: string;
-  module?: AppModuleSlug;
-  hideFromEsteticaMenu?: boolean;
-}
-
-interface SubGroup {
-  type: 'subgroup';
-  name: string;
-  icon: string;
-  items: ChildItem[];
-}
-
-type ChildOrSubGroup = ChildItem | SubGroup;
-
-interface MenuItem {
-  name: string;
+  icon: LucideIcon;
   path?: string;
-  icon: string;
+  onClick?: () => void;
+  badge?: number | string;
+  dot?: boolean;
   module?: AppModuleSlug;
   hideFromEsteticaMenu?: boolean;
-  children?: ChildOrSubGroup[];
+  operationalAllowed?: boolean;
 }
 
-interface MenuCategory {
-  title: string;
-  icon: string;
-  items: MenuItem[];
-  compact?: boolean;
+interface MenuEntry {
+  name: string;
+  icon: LucideIcon;
+  type: 'item' | 'group';
+  path?: string;
+  module?: AppModuleSlug;
+  operationalAllowed?: boolean;
+  items?: SubMenuItem[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false, onToggleCollapse, onOpenReleaseNotes, releaseNotesUnseen = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  isOpen,
+  onClose,
+  isCollapsed = false,
+  onToggleCollapse,
+  onOpenReleaseNotes,
+  releaseNotesUnseen = false,
+  unreadNotificationsCount = 0,
+  onOpenNotifications,
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user, accessRole, canAccessSuperAdmin, appSlug } = useAuth();
   const labels = getBusinessLabels(appSlug);
   const { can } = useFeatureFlags();
   const isEsteticaApp = appSlug === 'estetica';
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+  // Desktop open state is inverse of isCollapsed; if parent doesn't control it, keep internal fallback
+  const [internalOpen, setInternalOpen] = useState(true);
+  const isDesktopExpanded = onToggleCollapse ? !isCollapsed : internalOpen;
+
+  const handleDesktopToggle = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setInternalOpen((prev) => !prev);
+    }
+  };
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    Principal: true,
+    Sistema: false,
+  });
+
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
-  // Menu Definition structure — 5 functional blocks (Frente E IA taxonomy).
-  const menuCategories: MenuCategory[] = [
+  const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
+
+  const isModuleAllowed = (moduleName?: AppModuleSlug) => {
+    if (!moduleName) return true;
+    if (!isAppModuleEnabled(appSlug, moduleName)) return false;
+
+    const feature = getFeatureForModule(moduleName);
+    return feature ? can(feature) : true;
+  };
+
+  const isSubItemVisible = (item: SubMenuItem) => {
+    if (isEsteticaApp && item.hideFromEsteticaMenu) return false;
+    if (isOperationalOnly && !item.operationalAllowed) return false;
+    return isModuleAllowed(item.module);
+  };
+
+  const rawMenuStructure: MenuEntry[] = [
     {
-      title: 'HOME',
-      icon: 'dashboard',
-      compact: true,
-      items: [
-        { name: 'Painel do Dia', icon: 'dashboard', path: '/dashboard', module: 'dashboard' }
-      ]
+      name: 'Home',
+      icon: Home,
+      type: 'item',
+      path: '/dashboard',
+      module: 'dashboard',
+      operationalAllowed: true,
     },
     {
-      title: 'OPERAÇÃO',
-      icon: 'sync_alt',
+      name: 'Principal',
+      icon: LayoutDashboard,
+      type: 'group',
+      operationalAllowed: true,
       items: [
-        { name: isEsteticaApp ? 'Agenda' : 'Agendamentos', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
-        { name: labels.orderPlural, icon: 'receipt', path: '/comandas', module: 'comandas' },
-        { name: isEsteticaApp ? labels.checkout : 'Checkout / PDV', icon: 'point_of_sale', path: '/checkout?mode=pdv', module: 'checkout', hideFromEsteticaMenu: true },
-        { name: 'Motor de Retorno', icon: 'psychology', path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
-      ]
+        { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', module: 'dashboard', operationalAllowed: true },
+        { name: isEsteticaApp ? 'Agenda' : 'Agenda', icon: CalendarDays, path: '/schedule', module: 'schedule', operationalAllowed: true },
+        { name: labels.orderPlural, icon: Receipt, path: '/comandas', module: 'comandas', operationalAllowed: true },
+        {
+          name: isEsteticaApp ? labels.checkout : 'Checkout / PDV',
+          icon: ShoppingBag,
+          path: '/checkout?mode=pdv',
+          module: 'checkout',
+          hideFromEsteticaMenu: true,
+          operationalAllowed: true,
+        },
+      ],
     },
     {
-      title: 'CADASTROS',
-      icon: 'group',
+      name: 'Cadastros',
+      icon: FileText,
+      type: 'group',
       items: [
-        { name: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
-        { name: isEsteticaApp ? 'Equipe' : 'Equipe/Barbeiros', icon: 'groups', path: '/team', module: 'team' },
-        { name: labels.servicePlural, icon: 'content_cut', path: '/services', module: 'services' },
-        { name: isEsteticaApp ? 'Produtos / Estoque' : 'Produtos', icon: 'inventory_2', path: '/products', module: 'products' },
-        { name: 'Categorias', icon: 'category', path: '/categories', module: 'products', hideFromEsteticaMenu: true },
-        { name: 'Fornecedores', icon: 'local_shipping', path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
-        { name: 'Clube dos Chefes', icon: 'workspace_premium', path: '/chef-club-subscriptions', module: 'chef_club' },
-      ]
+        { name: labels.clientPlural, icon: Users, path: '/clients', module: 'clients' },
+        { name: isEsteticaApp ? 'Profissionais' : 'Profissionais', icon: UserCheck, path: '/team', module: 'team' },
+        { name: labels.servicePlural, icon: Scissors, path: '/services', module: 'services' },
+        { name: 'Produtos', icon: Package, path: '/products', module: 'products' },
+        { name: 'Categorias', icon: Tags, path: '/categories', module: 'products', hideFromEsteticaMenu: true },
+      ],
     },
     {
-      title: 'FINANCEIRO',
-      icon: 'payments',
+      name: 'Gestão',
+      icon: Users,
+      type: 'group',
       items: [
-        { name: isEsteticaApp ? 'Financeiro' : 'Caixa/Movimentações', icon: 'account_balance_wallet', path: '/financial-overview', module: 'financial' },
-        { name: 'Fluxo de Caixa', icon: 'swap_horiz', path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
-        { name: 'Fechamento de Caixa', icon: 'lock', path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Contas a Receber', icon: 'request_quote', path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Contas a Pagar', icon: 'event_busy', path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
-        { name: isEsteticaApp ? 'Repasses' : 'Comissões/Repasses', icon: 'percent', path: '/commissions', module: 'commissions' },
-      ]
+        { name: 'Assinaturas (Clube)', icon: Crown, path: '/chef-club-subscriptions', module: 'chef_club' },
+        { name: 'Planos do Clube', icon: Sparkles, path: '/chef-club-plans', module: 'chef_club' },
+        { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
+        { name: 'Performance', icon: TrendingUp, path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Motor de Retorno', icon: BrainCircuit, path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
+      ],
     },
     {
-      title: 'RELATÓRIOS & BI',
-      icon: 'summarize',
+      name: 'Estoque',
+      icon: Package,
+      type: 'group',
       items: [
-        { name: 'Relatórios', icon: 'summarize', path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
-        { name: 'Desempenho de Barbeiros', icon: 'trending_up', path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
-      ]
-    }
+        { name: 'Controle de Estoque', icon: Package, path: '/products', module: 'products' },
+        { name: 'Fornecedores', icon: Truck, path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
+        { name: 'Pedidos de Compra', icon: ShoppingCart, path: '/orders', module: 'orders', hideFromEsteticaMenu: true },
+      ],
+    },
+    {
+      name: 'Financeiro',
+      icon: CircleDollarSign,
+      type: 'group',
+      items: [
+        { name: 'Visão Geral', icon: Wallet, path: '/financial-overview', module: 'financial' },
+        { name: 'Fluxo de Caixa', icon: ArrowRightLeft, path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Folha de Pagamento', icon: Users, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
+      ],
+    },
+    {
+      name: 'Relatórios',
+      icon: BarChart3,
+      type: 'group',
+      items: [
+        { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
+      ],
+    },
+    {
+      name: 'Negócio',
+      icon: Briefcase,
+      type: 'group',
+      items: [
+        { name: 'Operações', icon: Activity, path: '/operations', module: 'dashboard' },
+        { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
+        { name: 'Totem / Kiosk', icon: TabletSmartphone, path: '/kiosk-admin', module: 'kiosk' },
+        { name: 'Portal do Cliente', icon: Globe, path: '/portal-admin', module: 'portal' },
+      ],
+    },
+    {
+      name: 'Configurações',
+      icon: Settings,
+      type: 'group',
+      items: [
+        { name: 'Geral da Unidade', icon: Settings, path: '/settings', module: 'settings' },
+        { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
+        { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
+        { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
+      ],
+    },
+    {
+      name: 'Sistema',
+      icon: MonitorDot,
+      type: 'group',
+      operationalAllowed: true,
+      items: [
+        {
+          name: 'Avisos',
+          icon: Bell,
+          badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined,
+          onClick: () => {
+            onClose();
+            onOpenNotifications?.();
+          },
+          operationalAllowed: true,
+        },
+        {
+          name: 'Novidades',
+          icon: Sparkles,
+          dot: releaseNotesUnseen,
+          onClick: () => {
+            onClose();
+            onOpenReleaseNotes?.();
+          },
+          operationalAllowed: true,
+        },
+        ...(!isOperationalOnly
+          ? [{ name: 'Observabilidade', icon: Eye, path: '/observability' } as SubMenuItem]
+          : []),
+        ...(canAccessSuperAdmin
+          ? [
+              { name: 'Super Admin', icon: ShieldCheck, path: '/superadmin' } as SubMenuItem,
+              { name: 'Event Versioning', icon: GitBranch, path: '/event-versioning' } as SubMenuItem,
+            ]
+          : []),
+      ],
+    },
   ];
 
-  // System items go at the bottom
-  const systemItems: MenuItem[] = [
-    { name: 'Dados da Unidade', icon: 'settings', path: '/settings', module: 'settings' },
-    { name: 'Config. Online', icon: 'public', path: '/booking-settings', module: 'portal' },
-    { name: 'Permissões de Acesso', icon: 'admin_panel_settings', path: '/access-control' },
-    { name: 'Offline seguro', icon: 'sync_problem', path: '/offline-sync' },
-    { name: 'Suporte', icon: 'support_agent', path: '/support', hideFromEsteticaMenu: true },
-  ];
-
-  // Auto-expand group if current path is inside it
-  useEffect(() => {
-    const currentPath = location.pathname;
-
-    const checkExpandables = (items: MenuItem[] | ChildOrSubGroup[]) => {
-      items.forEach(item => {
-        if ('children' in item && item.children) {
-          const hasActiveChild = checkIsGroupActive(item.children);
-          if (hasActiveChild && !expandedGroups.includes(item.name)) {
-            setExpandedGroups(prev => [...prev, item.name]);
-          }
-          checkExpandables(item.children); // recursively check
-        } else if ('type' in item && item.type === 'subgroup') {
-          const hasActiveChild = item.items.some(i => i.path === currentPath);
-          if (hasActiveChild && !expandedGroups.includes(item.name)) {
-            setExpandedGroups(prev => [...prev, item.name]);
-          }
-        }
-      });
-    };
-
-    menuCategories.forEach(category => {
-      // Check if category has active child
-      const hasActiveChild = category.items.some(item => {
-        if (item.path && isActive(item.path)) return true;
-        if (item.children && checkIsGroupActive(item.children)) return true;
-        return false;
-      });
-      if (hasActiveChild && !expandedGroups.includes(category.title)) {
-        setExpandedGroups(prev => [...prev, category.title]);
+  // Filter menu structure according to role and active tenant features
+  const menuStructure = rawMenuStructure
+    .map((entry) => {
+      if (entry.type === 'item') {
+        if (isOperationalOnly && !entry.operationalAllowed) return null;
+        if (!isModuleAllowed(entry.module)) return null;
+        return entry;
       }
-      checkExpandables(category.items);
+
+      const visibleSubItems = (entry.items || []).filter(isSubItemVisible);
+      if (visibleSubItems.length === 0) return null;
+
+      return {
+        ...entry,
+        items: visibleSubItems,
+      };
+    })
+    .filter(Boolean) as MenuEntry[];
+
+  const isPathActive = (path?: string) => {
+    if (!path) return false;
+    const cleanTarget = path.split('?')[0];
+    return location.pathname === cleanTarget;
+  };
+
+  // Auto-expand group containing current active route
+  useEffect(() => {
+    menuStructure.forEach((entry) => {
+      if (entry.type === 'group' && entry.items) {
+        const hasActiveChild = entry.items.some((sub) => isPathActive(sub.path));
+        if (hasActiveChild) {
+          setExpandedGroups((prev) => (prev[entry.name] ? prev : { ...prev, [entry.name]: true }));
+        }
+      }
     });
   }, [location.pathname]);
 
-  const toggleGroup = (name: string) => {
-    if (isCollapsed && onToggleCollapse) {
-      onToggleCollapse(); // expand sidebar if user clicks a group
+  const toggleGroup = (groupName: string) => {
+    if (!isDesktopExpanded && onToggleCollapse) {
+      onToggleCollapse();
+      setExpandedGroups((prev) => ({ ...prev, [groupName]: true }));
+      return;
     }
-    setExpandedGroups(prev =>
-      prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]
-    );
-  };
-
-  const isActive = (path: string) => location.pathname === path.split('?')[0];
-
-  const checkIsGroupActive = (children: ChildOrSubGroup[]): boolean => {
-    return children.some(child => {
-      if ('type' in child && child.type === 'subgroup') {
-        return child.items.some(i => i.path === location.pathname);
-      }
-      return (child as ChildItem).path === location.pathname;
-    });
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName],
+    }));
   };
 
   const handleLogout = async () => {
@@ -193,7 +348,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     setIsUpdatingPlan(true);
     try {
       const { error } = await supabase.auth.updateUser({
-        data: { plan: newPlan }
+        data: { plan: newPlan },
       });
       if (error) throw error;
       setIsPlanModalOpen(false);
@@ -206,32 +361,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     }
   };
 
-  const userRole = canAccessSuperAdmin
-    ? 'Super Admin'
-    : accessRole === 'barber'
-      ? 'Barber'
-      : accessRole === 'receptionist'
-        ? 'Receptionist'
-        : accessRole === 'manager'
-            ? 'Manager'
-            : '';
-  const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
-  const navActiveClass = 'bg-gold-soft text-primary-dark ring-1 ring-primary-light shadow-smg-shell';
-  const navIdleClass = 'text-ink-soft hover:bg-gold-pale hover:text-ink';
-  const navIconActiveClass = 'text-primary-dark';
-  const navSectionActiveClass = 'text-primary-dark';
-  const navSectionIdleClass = 'text-ink-soft/70 group-hover:text-ink';
-  const sidebarShellClass = 'bg-card border-line shadow-smg-shell';
-  const collapsedLogoClass = 'bg-card border border-line text-primary-dark shadow-smg-shell';
-  const tooltipClass = 'bg-ink text-cream';
-  const tooltipArrowClass = 'border-r-ink';
-  const footerClass = 'border-line bg-card';
-  const profileButtonClass = isCollapsed
-    ? 'p-1.5 border-transparent hover:bg-gold-pale'
-    : 'p-3 bg-card border-line hover:border-primary';
-  const profileAvatarClass = canAccessSuperAdmin
-    ? 'bg-gold-soft border-primary-light text-primary-dark'
-    : 'bg-gold-pale border-primary-light text-primary-dark';
   const planOptions = isEsteticaApp
     ? [
         { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agenda e Clientes', icon: 'bolt', color: 'slate' },
@@ -243,367 +372,337 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
         { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
       ];
-  const isModuleAllowed = (moduleName?: AppModuleSlug) => {
-    if (!moduleName) return true;
-    if (!isAppModuleEnabled(appSlug, moduleName)) return false;
 
-    // 6.0.5.3 — gate de plano: módulo com feature correspondente só aparece
-    // quando a flag EFETIVA do tenant está habilitada.
-    const feature = getFeatureForModule(moduleName);
-    return feature ? can(feature) : true;
-  };
-  const isMenuItemVisible = (item: MenuItem | ChildItem) =>
-    !(isEsteticaApp && item.hideFromEsteticaMenu);
-  const isChildAllowed = (child: ChildOrSubGroup): boolean => {
-    if ('type' in child && child.type === 'subgroup') {
-      return child.items.some((item) => isMenuItemVisible(item) && isModuleAllowed(item.module));
-    }
+  const userDisplayName = user?.user_metadata?.first_name
+    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}`.trim()
+    : user?.user_metadata?.shop_name || 'Adm smg';
 
-    const item = child as ChildItem;
-    return isMenuItemVisible(item) && isModuleAllowed(item.module);
-  };
+  const userEmail = user?.email || 'adm.smg@outlook.com';
 
-  // Filter based on role
-  const filteredCategories = menuCategories.map(category => {
-    if (userRole === 'Barber' && category.title !== 'OPERAÇÃO' && category.title !== 'HOME') {
-      return null;
-    }
-    // Deep clone and filter items
-    const filteredItems = category.items.map(item => {
-      if (!isMenuItemVisible(item)) {
-        return null;
-      }
+  const userInitials = userDisplayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part: string) => part[0]?.toUpperCase())
+    .join('') || 'AS';
 
-      if (!isModuleAllowed(item.module)) {
-        return null;
-      }
+  const productSubtitle = isEsteticaApp ? 'Aesthetic Intelligence' : 'Barber Intelligence';
 
-      if (userRole === 'Barber' && item.children) {
-        // remove specific children logic here if needed
-        return { ...item, children: item.children.filter(isChildAllowed) };
-      }
-
-      if (item.children) {
-        const filteredChildren = item.children.filter(isChildAllowed);
-        if (filteredChildren.length === 0) return null;
-        return { ...item, children: filteredChildren };
-      }
-
-      return item;
-    }).filter(Boolean) as MenuItem[];
-
-    if (filteredItems.length === 0) return null;
-
-    return { ...category, items: filteredItems };
-  }).filter(Boolean) as MenuCategory[];
-
-  if (canAccessSuperAdmin) {
-    filteredCategories.push({
-      title: 'MASTER',
-      icon: 'shield_person',
-      items: [
-        { name: 'Administração Geral', icon: 'shield_person', path: '/superadmin' },
-        // PO 2026-10-06: link mockado oculto (dados ficticios). Ver ADR-031.
-        // { name: 'Monitoramento Supabase', icon: 'monitor_heart', path: '/admin/supabase-monitoring' },
-        { name: 'Event Versioning', icon: 'schema', path: '/event-versioning' },
-      ]
-    });
-  }
+  // In mobile drawer, always render expanded content
+  const showLabels = isDesktopExpanded || isOpen;
 
   return (
     <>
+      {/* Mobile Backdrop Overlay */}
       <div
-        className={`fixed inset-0 bg-night/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-night/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={onClose}
       />
 
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50
-        border-r lg:border ${sidebarShellClass}
-        flex flex-col h-screen shrink-0 transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
-        overflow-visible
-        lg:my-4 lg:ml-4 lg:h-[calc(100vh-2rem)] lg:rounded-[2rem]
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
-        ${isCollapsed ? 'lg:w-[80px]' : 'lg:w-[280px] w-[280px]'}
-      `}>
-        <div className={`p-5 flex items-center justify-between lg:justify-start gap-3 h-16 shrink-0 ${isCollapsed ? 'lg:justify-center' : ''}`}>
-          {(!isCollapsed || !window.matchMedia('(min-width: 1024px)').matches) ? (
-            <Logo />
-          ) : (
-            <div className={`size-8 rounded-xl flex items-center justify-center font-black text-lg shrink-0 ${collapsedLogoClass}`}>
-              S
-            </div>
-          )}
-          <button onClick={onClose} className={`lg:hidden transition-colors text-ink-soft hover:text-ink`} aria-label="Fechar menu">
-            <span className="material-symbols-outlined">close</span>
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          flex h-screen bg-[#F1ECE0] dark:bg-[#15130F] text-[#6B6252] dark:text-[#A89D8B] font-sans
+          transition-all duration-300 shrink-0
+          ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
+          ${isDesktopExpanded ? 'lg:w-72' : 'lg:w-20'}
+        `}
+      >
+        {/* Sidebar Container */}
+        <div className="flex flex-col h-full w-full border-r border-[#EFE9D8] dark:border-[#262017] relative">
+          {/* Desktop Floating Toggle Button */}
+          <button
+            type="button"
+            onClick={handleDesktopToggle}
+            title={isDesktopExpanded ? 'Recolher menu' : 'Expandir menu'}
+            aria-label={isDesktopExpanded ? 'Recolher menu' : 'Expandir menu'}
+            className="hidden lg:flex absolute -right-3 top-8 bg-[#A96F14] text-[#F7E7C2] rounded-full p-1 shadow-md hover:bg-[#c28827] transition-colors z-30 cursor-pointer"
+          >
+            {isDesktopExpanded ? <X size={16} /> : <Menu size={16} />}
           </button>
-        </div>
 
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar overflow-x-hidden">
-          {filteredCategories.map((category, idx) => (
-            <div key={idx} className="flex flex-col gap-1">
-              {category.compact ? (
-                category.items.map((item) => {
-                  const isCompactActive = item.path ? isActive(item.path) : false;
-                  return (
-                    <div key={item.path || item.name} className="relative group/menuitem">
-                      <Link
-                        to={item.path!}
-                        onClick={onClose}
-                        className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
-                          ${isCompactActive ? navActiveClass : navIdleClass}
-                          ${isCollapsed ? 'justify-center' : 'justify-start'}
-                        `}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-lg ${isCompactActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
-                          {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isCompactActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
-                        </div>
-                      </Link>
+          {/* Mobile Close Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar menu"
+            className="lg:hidden absolute right-4 top-8 text-[#6B6252] dark:text-[#A89D8B] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] p-1 rounded-lg transition-colors z-30"
+          >
+            <X size={20} />
+          </button>
 
-                      {isCollapsed && (
-                        <div className={`absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none ${tooltipClass}`}>
-                          {item.name}
-                          <div className={`absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ${tooltipArrowClass}`}></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <>
-              {/* Category Title Toggle */}
-              <button
-                onClick={() => toggleGroup(category.title)}
-                className={`
-                 flex items-center px-2 py-1 mb-1 transition-all duration-300 group focus:outline-none
-                 ${isCollapsed ? 'justify-center mx-auto' : `justify-between w-full rounded-lg hover:bg-gold-pale`}
-                `}
-                disabled={isCollapsed}
-              >
-                {isCollapsed ? (
-                  <div className="w-6 border-b-2 mt-2 border-line" />
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-base transition-colors
-                        ${expandedGroups.includes(category.title) ? navSectionActiveClass : 'text-ink-soft/50'}
-                      `}>
-                        {category.icon}
-                      </span>
-                      <span className={`text-[10px] font-black uppercase transition-colors
-                        ${expandedGroups.includes(category.title) ? navSectionActiveClass : navSectionIdleClass}
-                      `}>
-                        {category.title}
-                      </span>
-                    </div>
-                    <span className={`material-symbols-outlined text-sm transition-transform duration-300
-                      ${expandedGroups.includes(category.title) ? `rotate-180 ${navSectionActiveClass}` : 'text-ink-soft/50 group-hover:text-ink'}
-                    `}>
-                      expand_more
+          {/* Logo Area */}
+          <div
+            onClick={() => {
+              onClose();
+              navigate('/dashboard');
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                onClose();
+                navigate('/dashboard');
+              }
+            }}
+            className={`flex items-center h-24 border-b border-[#EFE9D8] dark:border-[#262017] overflow-hidden shrink-0 cursor-pointer select-none ${
+              showLabels ? 'px-6' : 'justify-center'
+            }`}
+          >
+            {showLabels ? (
+              <div className="flex items-center space-x-3">
+                {/* Chip Logo Container */}
+                <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
+                  {/* Chip Base */}
+                  <div className="absolute w-8 h-8 bg-gradient-to-br from-[#F7E7C2] to-[#E8DFC9] dark:from-[#2D2417] dark:to-[#1E1810] rounded-lg shadow-sm border border-[#A96F14]/20 z-10"></div>
+                  {/* Chip Core */}
+                  <div className="absolute w-3.5 h-3.5 bg-gradient-to-br from-[#A96F14] to-[#7a4f0d] rounded-sm shadow-inner z-20"></div>
+                  {/* Simulated Circuits */}
+                  <div className="absolute w-full h-[2px] bg-[#A96F14] top-1/2 -translate-y-1/2 z-0 opacity-50"></div>
+                  <div className="absolute h-full w-[2px] bg-[#A96F14] left-1/2 -translate-x-1/2 z-0 opacity-50"></div>
+                </div>
+
+                <div className="flex flex-col">
+                  <div className="flex items-baseline space-x-1">
+                    <span className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-[#c28827] to-[#855307] dark:from-[#E2A63B] dark:to-[#A96F14] leading-none drop-shadow-sm display-font">
+                      SMG
                     </span>
+                  </div>
+                  <span className="text-[0.6rem] font-bold tracking-widest text-[#A96F14] dark:text-[#E2A63B] uppercase mt-0.5 whitespace-nowrap">
+                    {productSubtitle}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-10 h-10 flex items-center justify-center">
+                <div className="absolute w-8 h-8 bg-gradient-to-br from-[#F7E7C2] to-[#E8DFC9] dark:from-[#2D2417] dark:to-[#1E1810] rounded-lg shadow-sm border border-[#A96F14]/20 z-10"></div>
+                <div className="absolute w-3.5 h-3.5 bg-gradient-to-br from-[#A96F14] to-[#7a4f0d] rounded-sm shadow-inner z-20"></div>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex-1 overflow-y-auto py-4 flex flex-col px-3 custom-scrollbar">
+            {menuStructure.map((menuItem) => {
+              // Render single top-level item (Home)
+              if (menuItem.type === 'item' && menuItem.path) {
+                const Icon = menuItem.icon;
+                const isActive = isPathActive(menuItem.path);
+                return (
+                  <Link
+                    key={menuItem.name}
+                    to={menuItem.path}
+                    onClick={onClose}
+                    className={`flex items-center w-full rounded-lg transition-colors mb-1
+                      ${
+                        isActive
+                          ? 'bg-[#E7DFC6]/60 dark:bg-[#A96F14]/20 text-[#A96F14] dark:text-[#E2A63B] font-semibold'
+                          : 'text-[#6B6252] dark:text-[#A89D8B] hover:bg-[#EFE9D8]/60 dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2]'
+                      }
+                      ${showLabels ? 'px-3 py-2.5' : 'p-2.5 justify-center'}
+                    `}
+                    title={!showLabels ? menuItem.name : ''}
+                  >
+                    <Icon size={20} className="shrink-0" />
+                    {showLabels && <span className="ml-3 text-sm">{menuItem.name}</span>}
+                  </Link>
+                );
+              }
+
+              // Render group item
+              if (menuItem.type === 'group') {
+                const Icon = menuItem.icon;
+                const isExpanded = Boolean(expandedGroups[menuItem.name]);
+                const hasItems = Boolean(menuItem.items && menuItem.items.length > 0);
+                const hasActiveChild = Boolean(menuItem.items?.some((sub) => isPathActive(sub.path)));
+
+                return (
+                  <div key={menuItem.name} className="mb-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(menuItem.name)}
+                      className={`flex items-center w-full rounded-lg transition-colors cursor-pointer
+                        ${
+                          isExpanded || hasActiveChild
+                            ? 'bg-[#EFE9D8]/60 dark:bg-[#262017]/80 text-[#1F1D1A] dark:text-[#F3EEE2] font-medium'
+                            : 'text-[#6B6252] dark:text-[#A89D8B] hover:bg-[#EFE9D8]/40 dark:hover:bg-[#262017]/50 hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2]'
+                        }
+                        ${showLabels ? 'px-3 py-2.5' : 'p-2.5 justify-center'}
+                      `}
+                      title={!showLabels ? menuItem.name : ''}
+                    >
+                      <Icon
+                        size={20}
+                        className={`shrink-0 ${hasActiveChild ? 'text-[#A96F14] dark:text-[#E2A63B]' : ''}`}
+                      />
+
+                      {showLabels && (
+                        <>
+                          <span className="ml-3 text-sm flex-1 text-left">{menuItem.name}</span>
+                          {hasItems &&
+                            (isExpanded ? (
+                              <ChevronDown size={16} className="opacity-70" />
+                            ) : (
+                              <ChevronRight size={16} className="opacity-70" />
+                            ))}
+                        </>
+                      )}
+                    </button>
+
+                    {/* Sub-items */}
+                    {showLabels && isExpanded && hasItems && (
+                      <div className="mt-1 flex flex-col space-y-1 relative pl-7">
+                        {/* Vertical line connecting sub-items */}
+                        <div className="absolute left-[22px] top-0 bottom-2 w-px bg-[#E3DCB8] dark:bg-[#342B1C]"></div>
+
+                        {menuItem.items!.map((subItem) => {
+                          const SubIcon = subItem.icon;
+                          const isSubActive = isPathActive(subItem.path);
+
+                          const itemClasses = `flex items-center w-full rounded-lg px-3 py-2 transition-colors relative z-10 cursor-pointer
+                            ${
+                              isSubActive
+                                ? 'bg-[#E7DFC6]/60 dark:bg-[#A96F14]/20 text-[#A96F14] dark:text-[#E2A63B] font-semibold'
+                                : 'text-[#6B6252] dark:text-[#A89D8B] hover:bg-[#EFE9D8]/50 dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2]'
+                            }
+                          `;
+
+                          const content = (
+                            <>
+                              <SubIcon
+                                size={18}
+                                className={`shrink-0 mr-3 ${
+                                  isSubActive
+                                    ? 'text-[#A96F14] dark:text-[#E2A63B]'
+                                    : 'text-[#6B6252]/70 dark:text-[#A89D8B]/70'
+                                }`}
+                              />
+                              <span className="text-sm flex-1 text-left truncate">{subItem.name}</span>
+
+                              {subItem.badge !== undefined && (
+                                <span className="bg-[#050505] dark:bg-[#E2A63B] text-[#F7E7C2] dark:text-[#15130F] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  {subItem.badge}
+                                </span>
+                              )}
+                              {subItem.dot && (
+                                <span className="size-2 rounded-full bg-[#A96F14] dark:bg-[#E2A63B]" />
+                              )}
+                            </>
+                          );
+
+                          if (subItem.path) {
+                            return (
+                              <Link
+                                key={`${subItem.name}-${subItem.path}`}
+                                to={subItem.path}
+                                onClick={onClose}
+                                className={itemClasses}
+                              >
+                                {content}
+                              </Link>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key={subItem.name}
+                              type="button"
+                              onClick={subItem.onClick}
+                              className={itemClasses}
+                            >
+                              {content}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+          </nav>
+
+          {/* Bottom Area */}
+          <div className="border-t border-[#EFE9D8] dark:border-[#262017] flex flex-col bg-[#F1ECE0] dark:bg-[#15130F] shrink-0">
+            {/* Bottom Links */}
+            <div className="py-2 px-3 flex flex-col gap-1">
+              {onOpenReleaseNotes && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenReleaseNotes();
+                  }}
+                  title={`Novidades da versão v${CHANGELOG_VERSION}`}
+                  className={`flex items-center w-full rounded-lg text-[#6B6252]/80 dark:text-[#A89D8B]/80 hover:bg-[#EFE9D8] dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] transition-colors cursor-pointer ${
+                    showLabels ? 'px-3 py-2' : 'p-2 justify-center'
+                  }`}
+                >
+                  <Sparkles size={18} className="shrink-0" />
+                  {showLabels && (
+                    <span className="ml-3 text-sm flex-1 text-left">v{CHANGELOG_VERSION}</span>
+                  )}
+                  {releaseNotesUnseen && (
+                    <span className="size-2 rounded-full bg-[#A96F14] dark:bg-[#E2A63B]" />
+                  )}
+                </button>
+              )}
+
+              {!isEsteticaApp && (
+                <Link
+                  to="/support"
+                  onClick={onClose}
+                  title={!showLabels ? 'Precisa de ajuda?' : ''}
+                  className={`flex items-center w-full rounded-lg text-[#6B6252]/80 dark:text-[#A89D8B]/80 hover:bg-[#EFE9D8] dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] transition-colors ${
+                    showLabels ? 'px-3 py-2' : 'p-2 justify-center'
+                  }`}
+                >
+                  <LifeBuoy size={18} className="shrink-0" />
+                  {showLabels && <span className="ml-3 text-sm">Precisa de ajuda?</span>}
+                </Link>
+              )}
+            </div>
+
+            {/* User Profile */}
+            <div className="p-3">
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(true)}
+                title={!showLabels ? 'Minha Conta' : ''}
+                className={`flex items-center w-full rounded-xl transition-colors cursor-pointer hover:bg-[#EFE9D8] dark:hover:bg-[#262017] text-left ${
+                  showLabels ? 'p-2' : 'p-2 justify-center bg-[#EFE9D8]/60 dark:bg-[#262017]'
+                }`}
+              >
+                <div
+                  className="w-10 h-10 rounded-full bg-[#E8DFC9] dark:bg-[#262017] border border-[#D99A2B]/30 flex items-center justify-center text-[#6B6252] dark:text-[#F3EEE2] font-bold text-sm shrink-0 bg-cover bg-center"
+                  style={{
+                    backgroundImage: user?.user_metadata?.avatar ? `url(${user.user_metadata.avatar})` : 'none',
+                  }}
+                >
+                  {!user?.user_metadata?.avatar && userInitials}
+                </div>
+
+                {showLabels && (
+                  <>
+                    <div className="ml-3 flex flex-col flex-1 overflow-hidden">
+                      <span className="text-sm font-bold text-[#050505] dark:text-[#F3EEE2] truncate">
+                        {userDisplayName}
+                      </span>
+                      <span className="text-xs text-[#6B6252] dark:text-[#A89D8B] truncate">{userEmail}</span>
+                    </div>
+                    <MoreVertical size={16} className="text-[#6B6252]/70 dark:text-[#A89D8B]/70 shrink-0 ml-1" />
                   </>
                 )}
               </button>
-
-              {/* Category Items Accordion */}
-              <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] flex flex-col gap-1
-                ${expandedGroups.includes(category.title) || isCollapsed ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}
-              `}>
-
-                {/* Category Items */}
-                {category.items.map((item) => {
-
-                  // Group Item
-                  if (item.children) {
-                    const isExpanded = expandedGroups.includes(item.name);
-                    const groupActive = checkIsGroupActive(item.children);
-
-                    return (
-                      <div key={item.name} className="flex flex-col relative group/menuitem">
-                        <button
-                          onClick={() => toggleGroup(item.name)}
-                          className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
-                          ${groupActive ? navActiveClass : navIdleClass}
-                          ${isCollapsed ? 'justify-center' : 'justify-between'}
-                        `}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className={`material-symbols-outlined text-lg ${groupActive ? navIconActiveClass : ''}`}>{item.icon}</span>
-                            {!isCollapsed && <span className={`text-sm ${groupActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
-                          </div>
-                          {!isCollapsed && (
-                            <span className={`material-symbols-outlined text-base transition-transform duration-300 ${isExpanded ? `rotate-180 ${navIconActiveClass}` : 'text-ink-soft/50'}`}>
-                              expand_more
-                            </span>
-                          )}
-                        </button>
-
-                        {/* Tooltip for collapsed mode */}
-                        {isCollapsed && (
-                          <div className={`absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none ${tooltipClass}`}>
-                            {item.name}
-                            {/* Arrow */}
-                            <div className={`absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ${tooltipArrowClass}`}></div>
-                          </div>
-                        )}
-
-                        {/* Submenu */}
-                        <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] ${isExpanded && !isCollapsed ? 'max-h-[800px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                          <div className={`flex flex-col gap-0.5 relative ml-6 pl-3 border-l-2 border-line`}>
-                            {item.children.map(child => {
-                              if ('type' in child && child.type === 'subgroup') {
-                                // Nested subgroup omitted for brevity, but easily added if needed back
-                                return null;
-                              }
-                              const simpleChild = child as ChildItem;
-                              const isChildActive = isActive(simpleChild.path);
-                              return (
-                                <Link
-                                  key={`${simpleChild.name}-${simpleChild.path}`}
-                                  to={simpleChild.path}
-                                  onClick={onClose}
-                                  className={`flex items-center w-full px-3 py-2 rounded-lg transition-all text-sm relative group/subitem
-                                  ${isChildActive
-                                      ? 'text-primary-dark font-bold bg-gold-soft'
-                                      : 'text-ink-soft hover:text-ink hover:bg-gold-pale'}
-                                  `}
-                                >
-                                  {isChildActive && <div className="absolute -left-[14px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary" />}
-                                  {simpleChild.name}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Single Item
-                  const isSingleActive = isActive(item.path!);
-                  return (
-                    <div key={`${item.name}-${item.path}`} className="relative group/menuitem">
-                      <Link
-                        to={item.path!}
-                        onClick={onClose}
-                        className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
-                          ${isSingleActive ? navActiveClass : navIdleClass}
-                          ${isCollapsed ? 'justify-center' : 'justify-start'}
-                          `}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-lg ${isSingleActive ? navIconActiveClass : ''} transition-colors duration-300`}>{item.icon}</span>
-                          {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isSingleActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
-                        </div>
-                      </Link>
-
-                      {/* Tooltip for collapsed mode */}
-                      {isCollapsed && (
-                        <div className={`absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none ${tooltipClass}`}>
-                          {item.name}
-                          <div className={`absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ${tooltipArrowClass}`}></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-                </>
-              )}
             </div>
-          ))}
-        </nav>
-
-        {/* System Settings (Sticky Bottom) */}
-        <div className={`mt-auto shrink-0 flex flex-col gap-1 p-3 border-t transition-all ${footerClass} ${isCollapsed ? 'items-center' : ''}`}>
-          {systemItems.filter((item) => isMenuItemVisible(item) && isModuleAllowed(item.module)).map(item => {
-            const isSystemActive = isActive(item.path!);
-            if (item.name === 'Configurações' && isOperationalOnly) return null;
-
-            return (
-              <div key={item.path} className="relative group/menuitem w-full">
-                <Link
-                  to={item.path!}
-                  onClick={onClose}
-                  className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all relative overflow-hidden
-                          ${isSystemActive ? navActiveClass : navIdleClass}
-                          ${isCollapsed ? 'justify-center' : 'justify-start'}
-                          `}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`material-symbols-outlined text-lg transition-colors duration-300 ${isSystemActive ? navIconActiveClass : ''}`}>{item.icon}</span>
-                    {!isCollapsed && <span className={`text-sm transition-all duration-300 ${isSystemActive ? 'font-bold' : 'font-medium'}`}>{item.name}</span>}
-                  </div>
-                </Link>
-
-                {/* Tooltip for collapsed mode */}
-                {isCollapsed && (
-                  <div className={`absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 text-xs font-bold rounded-lg opacity-0 invisible group-hover/menuitem:opacity-100 group-hover/menuitem:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none ${tooltipClass}`}>
-                    {item.name}
-                    <div className={`absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ${tooltipArrowClass}`}></div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-
-          <button
-            onClick={() => setIsProfileModalOpen(true)}
-            className={`w-full mt-2 rounded-2xl flex items-center gap-3 transition-all border group relative text-left
-                ${profileButtonClass}
-            `}
-          >
-            <div className={`rounded-full flex items-center justify-center border-2 transition-transform group-hover:scale-105 shrink-0 bg-cover bg-center
-               ${isCollapsed ? 'size-9' : 'size-11'}
-               ${profileAvatarClass}
-              `}
-              style={{ backgroundImage: user?.user_metadata?.avatar ? `url(${user?.user_metadata?.avatar})` : 'none' }}>
-              {!user?.user_metadata?.avatar && (
-                <span className="material-symbols-outlined text-lg">
-                  {canAccessSuperAdmin ? 'workspace_premium' : 'person'}
-                </span>
-              )}
-            </div>
-            {!isCollapsed && (
-              <>
-                <div className="flex flex-col text-left truncate flex-1 leading-tight">
-                  <p className="text-xs font-bold truncate display-font text-ink">
-                    {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name || ''}` : 'Utilizador'}
-                  </p>
-                  <p className="text-[11px] truncate font-medium mt-0.5 text-ink-soft">
-                    {user?.email || 'usuario@email.com'}
-                  </p>
-                </div>
-                <span className="material-symbols-outlined text-sm shrink-0 transition-colors text-ink-soft/50 group-hover:text-ink">more_vert</span>
-              </>
-            )}
-
-            {isCollapsed && (
-              <div className={`absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 text-xs font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-xl pointer-events-none ${tooltipClass}`}>
-                Meu Perfil
-                <div className={`absolute top-1/2 -left-1 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ${tooltipArrowClass}`}></div>
-              </div>
-            )}
-          </button>
-
-          {onOpenReleaseNotes && (
-            <button
-              onClick={onOpenReleaseNotes}
-              title={`Novidades da versão ${CHANGELOG_VERSION}`}
-              className={`w-full flex items-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide text-ink-soft hover:text-ink hover:bg-gold-pale transition-colors ${isCollapsed ? 'justify-center px-0' : 'justify-center px-3'}`}
-            >
-              <span>v{CHANGELOG_VERSION}</span>
-              {releaseNotesUnseen && (
-                <span className="size-1.5 rounded-full bg-primary" />
-              )}
-            </button>
-          )}
+          </div>
         </div>
 
-
-        {/* Modals reused from original */}
+        {/* Modal Minha Conta */}
         <Modal
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
@@ -612,7 +711,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
         >
           <div className="space-y-3">
             <button
-              onClick={() => { setIsProfileModalOpen(false); navigate('/settings'); }}
+              onClick={() => {
+                setIsProfileModalOpen(false);
+                navigate('/settings');
+              }}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-line hover:border-primary hover:bg-gold-pale transition-all group"
             >
               <div className="size-10 rounded-full bg-gold-pale flex items-center justify-center text-primary-dark group-hover:scale-110 transition-transform">
@@ -622,7 +724,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                 <p className="text-sm font-bold text-ink">Meu Perfil</p>
                 <p className="text-[10px] text-ink-soft">Gerenciar dados e segurança</p>
               </div>
-              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
+              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">
+                chevron_right
+              </span>
             </button>
 
             <button
@@ -636,7 +740,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                 <p className="text-sm font-bold text-ink">Mudar de Plano</p>
                 <p className="text-[10px] text-ink-soft">Upgrade ou gerenciar assinatura</p>
               </div>
-              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">chevron_right</span>
+              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">
+                chevron_right
+              </span>
             </button>
 
             <button
@@ -662,32 +768,50 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           maxWidth="md"
         >
           <div className="flex flex-col gap-6">
-            {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-3 py-2 bg-gold-pale rounded-2xl border border-line mx-auto px-4">
-              <span className={`text-[10px] font-black uppercase ${billingCycle === 'monthly' ? 'text-primary-dark' : 'text-ink-soft'}`}>Mensal</span>
+              <span
+                className={`text-[10px] font-black uppercase ${
+                  billingCycle === 'monthly' ? 'text-primary-dark' : 'text-ink-soft'
+                }`}
+              >
+                Mensal
+              </span>
               <button
                 onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
                 className="w-10 h-5 bg-line rounded-full relative p-0.5 transition-all"
               >
-                <div className={`size-4 rounded-full bg-primary transition-all duration-300 ${billingCycle === 'annual' ? 'translate-x-5' : 'translate-x-0'}`} />
+                <div
+                  className={`size-4 rounded-full bg-primary transition-all duration-300 ${
+                    billingCycle === 'annual' ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
               </button>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-black uppercase ${billingCycle === 'annual' ? 'text-primary-dark' : 'text-ink-soft'}`}>Anual</span>
-                <span className="bg-success/10 text-success text-[8px] font-black px-1.5 py-0.5 rounded border border-success/20 uppercase">-17%</span>
+                <span
+                  className={`text-[10px] font-black uppercase ${
+                    billingCycle === 'annual' ? 'text-primary-dark' : 'text-ink-soft'
+                  }`}
+                >
+                  Anual
+                </span>
+                <span className="bg-success/10 text-success text-[8px] font-black px-1.5 py-0.5 rounded border border-success/20 uppercase">
+                  -17%
+                </span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Modals code kept practically identical to preserve component logic */}
               {planOptions.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => handleChangePlan(`${p.id}${billingCycle === 'annual' ? '_annual' : ''}`)}
                   disabled={isUpdatingPlan || (user?.user_metadata?.plan === p.id && !billingCycle)}
                   className={`flex flex-col items-center p-6 rounded-2xl border transition-all text-center relative overflow-hidden group
-                    ${user?.user_metadata?.plan?.includes(p.id)
-                      ? 'border-success bg-success/5 ring-1 ring-success/20'
-                      : 'border-line hover:border-primary hover:bg-gold-pale'}
+                    ${
+                      user?.user_metadata?.plan?.includes(p.id)
+                        ? 'border-success bg-success/5 ring-1 ring-success/20'
+                        : 'border-line hover:border-primary hover:bg-gold-pale'
+                    }
                   `}
                 >
                   {user?.user_metadata?.plan?.includes(p.id) && (
@@ -695,24 +819,37 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                       <span className="material-symbols-outlined text-success text-sm">check_circle</span>
                     </div>
                   )}
-                  <div className={`size-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110
-                    ${p.id === 'premium' ? 'bg-gold-soft text-primary-dark' :
-                      p.id === 'pro' ? 'bg-gold-pale text-primary-dark' : 'bg-gold-pale text-ink-soft'}
-                  `}>
+                  <div
+                    className={`size-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110
+                    ${
+                      p.id === 'premium'
+                        ? 'bg-gold-soft text-primary-dark'
+                        : p.id === 'pro'
+                          ? 'bg-gold-pale text-primary-dark'
+                          : 'bg-gold-pale text-ink-soft'
+                    }
+                  `}
+                  >
                     <span className="material-symbols-outlined text-xl">{p.icon}</span>
                   </div>
                   <h4 className="font-black text-ink uppercase">{p.name}</h4>
                   <p className="text-base font-bold text-primary-dark mt-1">
                     R$ {billingCycle === 'monthly' ? p.monthlyPrice : p.annualPrice}
-                    <span className="text-[10px] text-ink-soft uppercase font-black ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
+                    <span className="text-[10px] text-ink-soft uppercase font-black ml-1">
+                      /{billingCycle === 'monthly' ? 'mês' : 'ano'}
+                    </span>
                   </p>
                   <p className="text-[10px] text-ink-soft mt-2 font-medium leading-tight">{p.desc}</p>
 
-                  <div className={`w-full mt-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all
-                    ${user?.user_metadata?.plan?.includes(p.id)
-                      ? 'bg-success text-white'
-                      : 'bg-line text-ink-soft group-hover:bg-primary group-hover:text-white'}
-                  `}>
+                  <div
+                    className={`w-full mt-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all
+                    ${
+                      user?.user_metadata?.plan?.includes(p.id)
+                        ? 'bg-success text-white'
+                        : 'bg-line text-ink-soft group-hover:bg-primary group-hover:text-white'
+                    }
+                  `}
+                  >
                     {user?.user_metadata?.plan?.includes(p.id) ? 'Plano Atual' : 'Selecionar'}
                   </div>
                 </button>

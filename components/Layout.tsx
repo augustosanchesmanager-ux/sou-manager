@@ -53,6 +53,8 @@ const Layout: React.FC = () => {
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onOpenReleaseNotes={() => setIsReleaseNotesOpen(true)}
         releaseNotesUnseen={releaseNotesUnseen}
+        unreadNotificationsCount={unreadCount}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -73,22 +75,6 @@ const Layout: React.FC = () => {
               aria-label="Abrir menu"
             >
               <span className="material-symbols-outlined">menu</span>
-            </button>
-
-            {/* Desktop Collapse Button */}
-            <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className={`hidden lg:flex p-2 -ml-2 rounded-lg transition-colors ${
-                isEsteticaApp
-                  ? 'text-[#6F6758] hover:text-[#6F6845] hover:bg-[#EFE8D8]'
-                  : 'text-slate-500 dark:text-ink-soft hover:text-[#007BFF] dark:hover:text-primary hover:bg-white dark:hover:bg-card-dark'
-              }`}
-              title={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
-              aria-label={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
-            >
-              <span className="material-symbols-outlined">
-                {isSidebarCollapsed ? 'menu_open' : 'menu'}
-              </span>
             </button>
 
             <div className="relative w-full hidden md:block">
