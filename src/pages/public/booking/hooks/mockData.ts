@@ -27,10 +27,14 @@ export const MOCK_TENANT_PROFILE: PublicTenantProfile = {
   logo_url: null,
   address: 'Rua das Palmeiras, 123 - Vila Madalena, São Paulo - SP, 05432-010',
   phone: '(11) 99999-8888',
+  instagram_url: 'https://instagram.com/barbearia_domze',
+  whatsapp_number: '5511999998888',
+  maps_url: 'https://www.google.com/maps/search/?api=1&query=Rua%20das%20Palmeiras%2C%20123%20-%20Vila%20Madalena%2C%20S%C3%A3o%20Paulo',
   social_links: {
     instagram: 'barbearia_domze',
     whatsapp: '5511999998888',
     website: 'https://barbeariadomze.com.br',
+    maps_url: 'https://www.google.com/maps/search/?api=1&query=Rua%20das%20Palmeiras%2C%20123%20-%20Vila%20Madalena%2C%20S%C3%A3o%20Paulo',
   },
   booking_enabled: true,
   booking_rules: {

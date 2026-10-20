@@ -77,7 +77,7 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
   const buildWhatsAppUrl = useCallback(() => {
     const servicesText = result.services.map(s => s.name).join(', ');
     const message = `Olá! Acabei de agendar ${servicesText} para ${dateDisplay.dayLabel ? `${dateDisplay.dayLabel} (${dateDisplay.weekday}, ${dateDisplay.day})` : `${dateDisplay.weekday}, ${dateDisplay.day}`} às ${timeStr} com ${result.staff.name} pelo site. Nome: ${clientName || 'Não informado'}.`;
-    const phone = tenant.social_links?.whatsapp || tenant.phone || '';
+    const phone = tenant.whatsapp_number || tenant.social_links?.whatsapp || tenant.phone || '';
     const cleanPhone = phone.replace(/\D/g, '');
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   }, [result, tenant, clientName, dateDisplay, timeStr]);

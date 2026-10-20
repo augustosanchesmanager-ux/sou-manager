@@ -13,42 +13,47 @@ interface DateRangeFilterProps {
   showPresets?: boolean;
 }
 
+const formatLocalYMD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const getPresetDates = (preset: DatePreset, currentStart?: string, currentEnd?: string): { start: string; end: string } => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
   switch (preset) {
     case 'today': {
-      return { start: today.toISOString().split('T')[0], end: today.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(today), end: formatLocalYMD(today) };
     }
     case 'yesterday': {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      return { start: yesterday.toISOString().split('T')[0], end: yesterday.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(yesterday), end: formatLocalYMD(yesterday) };
     }
     case 'last_7_days': {
       const start = new Date(today);
       start.setDate(start.getDate() - 7);
       const end = new Date(today);
       end.setDate(end.getDate() - 1);
-      return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(start), end: formatLocalYMD(end) };
     }
     case 'this_month': {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(start), end: formatLocalYMD(end) };
     }
     case 'last_month': {
       const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
       const end = new Date(today.getFullYear(), today.getMonth(), 0);
-      return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(start), end: formatLocalYMD(end) };
     }
     case 'this_year': {
       const start = new Date(today.getFullYear(), 0, 1);
       const end = new Date(today.getFullYear(), 11, 31);
-      return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+      return { start: formatLocalYMD(start), end: formatLocalYMD(end) };
     }
     case 'custom':
     default:

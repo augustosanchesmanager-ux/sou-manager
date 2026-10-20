@@ -15,6 +15,9 @@ export interface PublicTenantProfile {
   logo_url: string | null;
   address: string | null;
   phone: string | null;
+  instagram_url?: string | null;
+  whatsapp_number?: string | null;
+  maps_url?: string | null;
   social_links: PublicSocialLinks | null;
   booking_enabled: boolean;
   booking_rules: PublicBookingRules;
@@ -26,6 +29,7 @@ export interface PublicSocialLinks {
   instagram: string;
   whatsapp: string;
   website: string;
+  maps_url?: string;
 }
 
 export interface PublicBookingRules {
