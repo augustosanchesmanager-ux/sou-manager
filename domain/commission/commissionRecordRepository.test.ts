@@ -188,16 +188,22 @@ describe('CommissionRecordRepository', () => {
   });
 
   describe('existsByStaffComanda', () => {
-    it('should return true when record exists', async () => {
+    it('should return true when active record exists', async () => {
       mockDb.chainable.data = [{ id: 'rec-1' }];
       mockDb.chainable.error = null;
 
       const result = await repo.existsByStaffComanda(STAFF_ID, COMANDA_ID, TENANT_ID);
 
       expect(result).toBe(true);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('staff_id', STAFF_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('comanda_id', COMANDA_ID);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('record_type', 'commission');
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('status', 'active');
+      expect(mockDb.chainable.limit).toHaveBeenCalledWith(1);
     });
 
-    it('should return false when no record exists', async () => {
+    it('should return false when no active record exists', async () => {
       mockDb.chainable.data = [];
       mockDb.chainable.error = null;
 

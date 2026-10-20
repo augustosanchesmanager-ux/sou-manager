@@ -829,4 +829,92 @@ describe('B3.4-E Integrity', () => {
       expect(callArgs.eventType).toBe('CheckoutReverted');
     });
   });
+
+  describe('reopen and settlement reversal cycle (ADR-033)', () => {
+    it('should allow new commission creation on second checkout after previous cycle was reversed', async () => {
+      // Shared in-memory simulation of commission_records
+      const records: CommissionRecord[] = [];
+
+      const sharedRepo = {
+        existsByStaffComanda: vi.fn().mockImplementation(async (staffId: string, comandaId: string) => {
+          return records.some(
+            (r) => r.staff_id === staffId && r.comanda_id === comandaId && r.record_type === 'commission' && r.status === 'active',
+          );
+        }),
+        create: vi.fn().mockImplementation(async (input: any) => {
+          const rec = makeRecord({
+            id: `rec-${records.length + 1}`,
+            staff_id: input.staff_id,
+            comanda_id: input.comanda_id,
+            commission_value: input.commission_value,
+            status: 'active',
+          });
+          records.push(rec);
+          return rec;
+        }),
+        list: vi.fn().mockImplementation(async (_tenantId: string, options: any) => {
+          return records.filter((r) => {
+            if (options?.comanda_id && r.comanda_id !== options.comanda_id) return false;
+            if (options?.record_type && r.record_type !== options.record_type) return false;
+            return true;
+          });
+        }),
+        createReversal: vi.fn().mockImplementation(async (params: any) => {
+          const orig = records.find((r) => r.id === params.originalRecordId);
+          if (orig) {
+            orig.status = 'reversed';
+          }
+          const rev = makeRecord({
+            id: `rev-${records.length + 1}`,
+            record_type: 'reversal' as any,
+            original_record_id: params.originalRecordId,
+            commission_value: params.commissionValue,
+            status: 'active',
+          });
+          records.push(rev);
+          return { success: true, reversal_id: rev.id };
+        }),
+      };
+
+      const createDeps = makeCreateDeps({ commissionRecordRepository: sharedRepo as any });
+      const createHandler = createCommissionRecordHandler(createDeps);
+
+      const reverseDeps = makeReverseDeps({ commissionRecordRepository: sharedRepo as any });
+      const reverseHandler = createReverseCommissionHandler(reverseDeps);
+
+      // ── Step 1: First checkout (R$ 50 base -> R$ 20 commission) ──
+      const ctx1 = makeContext({ eventId: 'evt_chk_1', idempotencyKey: 'evt_chk_1_create_commission' });
+      const res1 = await createHandler.execute(
+        { comandaId: 'com-1', tenantId: 'tenant-1', receivedValue: 50 } as any,
+        ctx1,
+      );
+      expect(res1.success).toBe(true);
+      expect(records).toHaveLength(1);
+      expect(records[0].commission_value).toBe(20);
+      expect(records[0].status).toBe('active');
+
+      // ── Step 2: Settlement reversal & reopen (wrong_settlement) ──
+      const revCtx = makeContext({ eventId: 'evt_rev_1', idempotencyKey: 'evt_rev_1_reverse_commission', sourceEvent: 'CheckoutReverted' });
+      const revRes = await reverseHandler.execute(
+        makeReverseData({ comandaId: 'com-1', tenantId: 'tenant-1', reversedAmount: 50, originalCommission: 20, originalReceivedValue: 50 }) as any,
+        revCtx,
+      );
+      expect(revRes.success).toBe(true);
+      expect(records).toHaveLength(2);
+      expect(records[0].status).toBe('reversed'); // ADR-033: marked reversed
+
+      // ── Step 3: Second checkout with updated total ──
+      const ctx2 = makeContext({ eventId: 'evt_chk_2', idempotencyKey: 'evt_chk_2_create_commission' });
+      const res2 = await createHandler.execute(
+        { comandaId: 'com-1', tenantId: 'tenant-1', receivedValue: 50 } as any,
+        ctx2,
+      );
+      expect(res2.success).toBe(true);
+      expect(records).toHaveLength(3);
+
+      const activeCommissions = records.filter((r) => r.record_type === 'commission' && r.status === 'active');
+      expect(activeCommissions).toHaveLength(1);
+      expect(activeCommissions[0].id).toBe('rec-3');
+    });
+  });
 });
