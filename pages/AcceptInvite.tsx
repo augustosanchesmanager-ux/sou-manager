@@ -64,25 +64,63 @@ const AcceptInvite: React.FC = () => {
     setNeedsEmailConfirmation(false);
 
     try {
-      if (!session) {
+      if (session) {
+        if (password) {
+          if (password.length < 6) {
+            setError('A senha deve ter pelo menos 6 caracteres.');
+            setSubmitting(false);
+            return;
+          }
+          const { error: pwdErr } = await supabase.auth.updateUser({ password });
+          if (pwdErr) {
+            console.warn('Could not update password during invite acceptance:', pwdErr);
+          }
+        }
+      } else {
         if (!password || password.length < 6) {
           setError('A senha deve ter pelo menos 6 caracteres.');
           setSubmitting(false);
           return;
         }
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: invite.email,
-          password,
-          options: {
-            data: { first_name: firstName, last_name: lastName },
-            emailRedirectTo: `${window.location.origin}/#/accept-invite/${token}`,
-          },
-        });
-        if (signUpError) throw signUpError;
 
-        if (!data.session) {
-          setNeedsEmailConfirmation(true);
-          return;
+        // Prepara a conta do usuário no Auth vinculada ao token do convite
+        const { data: prepData, error: prepError } = await supabase.rpc('prepare_invite_user', {
+          p_token: token,
+          p_password: password,
+        });
+
+        if (prepError) {
+          throw new Error(prepError.message || 'Erro ao validar dados do convite.');
+        }
+
+        if (prepData?.user_exists) {
+          // Usuário já existia no Auth (ex: criado no disparo do convite)
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: invite.email,
+            password,
+          });
+          if (signInError) throw signInError;
+        } else {
+          // Usuário ainda não existia no Auth
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: invite.email,
+            password,
+            options: {
+              data: { first_name: firstName, last_name: lastName },
+            },
+          });
+          if (signUpError) throw signUpError;
+
+          if (!signUpData.session) {
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+              email: invite.email,
+              password,
+            });
+            if (signInError) {
+              setNeedsEmailConfirmation(true);
+              return;
+            }
+          }
         }
       }
 
@@ -185,14 +223,25 @@ const AcceptInvite: React.FC = () => {
                   </div>
                 </div>
 
-                {!session && (
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha</label>
-                    <input type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Mínimo 6 caracteres" />
-                    <p className="text-[10px] text-slate-400 mt-1">Você criará sua conta usando o e-mail do convite.</p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                    {session ? 'Defina sua senha de acesso (opcional)' : 'Senha'}
+                  </label>
+                  <input
+                    type="password"
+                    required={!session}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {session
+                      ? 'Defina a senha que você usará para entrar no sistema nos próximos acessos.'
+                      : 'Você criará sua conta usando o e-mail do convite.'}
+                  </p>
+                </div>
 
                 {error && (
                   <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 rounded-lg px-3 py-2">
