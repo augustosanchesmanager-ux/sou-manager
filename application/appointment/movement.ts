@@ -60,13 +60,13 @@ export async function rescheduleAppointment(params: RescheduleAppointmentParams)
         });
     }
 
-    const paidComanda = comandas.find((c) => c.status === 'paid');
+    const finalizedComanda = comandas.find((c) => ['paid', 'closed', 'billed'].includes(c.status));
     const isChangingStaff = !previous || previous.staff_id !== newStaffId;
-    if (paidComanda && isChangingStaff) {
+    if (finalizedComanda && isChangingStaff) {
         return {
             status: 'blocked_closed',
-            comandaId: paidComanda.id,
-            message: 'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+            comandaId: finalizedComanda.id,
+            message: 'Comanda vinculada já foi finalizada/liquidada. Ajustes de serviço, valor ou profissional exigem reabertura contábil prévia da comanda.',
         };
     }
 

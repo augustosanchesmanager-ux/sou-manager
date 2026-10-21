@@ -124,7 +124,7 @@ describe('syncComandaForAppointmentUpdate', () => {
     mockComandaPayments.mockResolvedValue([]);
     mockComandaItemList.mockResolvedValue([
       makeItem(),
-      makeItem({ id: 'item-2', service_id: 'svc-extra', product_name: 'Pomada', quantity: 2, unit_price: 20, staff_id: 'staff-1' }),
+      makeItem({ id: 'item-2', service_id: null, product_name: 'Pomada', quantity: 2, unit_price: 20, staff_id: 'staff-1' }),
     ]);
     mockComandaItemUpdate.mockResolvedValue(undefined);
     mockComandaUpdate.mockResolvedValue(undefined);
@@ -335,5 +335,83 @@ describe('syncComandaForAppointmentUpdate', () => {
     expect(mockComandaItemUpdate).toHaveBeenCalledTimes(2);
     expect(mockComandaItemUpdate).toHaveBeenCalledWith('item-svc-1', { staff_id: 'staff-2' }, 'tenant-1');
     expect(mockComandaItemUpdate).toHaveBeenCalledWith('item-svc-2', { staff_id: 'staff-2' }, 'tenant-1');
+  });
+
+  it('should_block_sync_when_comanda_is_closed_or_billed', async () => {
+    // Arrange: comanda vinculada com status 'closed'.
+    mockAppointmentGet.mockResolvedValue(makePreviousAppointment());
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'closed', total: 50 })]);
+
+    // Act.
+    const resultClosed = await syncComandaForAppointmentUpdate({
+      tenantId: 'tenant-1',
+      appointmentId: 'apt-1',
+      staffId: 'staff-2',
+    });
+
+    expect(resultClosed.status).toBe('blocked_closed');
+    expect(resultClosed.message).toContain('reabertura contábil prévia');
+
+    // Arrange: comanda vinculada com status 'billed'.
+    mockComandaList.mockResolvedValue([makeComanda({ status: 'billed', total: 50 })]);
+
+    const resultBilled = await syncComandaForAppointmentUpdate({
+      tenantId: 'tenant-1',
+      appointmentId: 'apt-1',
+      staffId: 'staff-2',
+    });
+
+    expect(resultBilled.status).toBe('blocked_closed');
+  });
+
+  it('should_sync_staff_and_service_together_updating_service_item_and_preserving_counter_products', async () => {
+    // Arrange: troca simultânea de profissional e serviço numa comanda que também possui produto de balcão.
+    mockAppointmentGet.mockResolvedValue(makePreviousAppointment({ service_id: 'svc-1' }));
+    mockComandaList.mockResolvedValue([makeComanda({ total: 75 })]);
+    mockComandaPayments.mockResolvedValue([]);
+    mockComandaItemList.mockResolvedValue([
+      makeItem({ id: 'item-svc-1', service_id: 'svc-1', product_name: 'Corte', unit_price: 50, staff_id: 'staff-1' }),
+      makeItem({ id: 'item-prod-1', service_id: null, product_name: 'Pomada', unit_price: 25, staff_id: 'staff-balcao' }),
+    ]);
+    mockComandaItemUpdate.mockResolvedValue(undefined);
+    mockComandaUpdate.mockResolvedValue(undefined);
+
+    // Act: troca simultânea de profissional e serviço.
+    const result = await syncComandaForAppointmentUpdate({
+      tenantId: 'tenant-1',
+      appointmentId: 'apt-1',
+      staffId: 'staff-2',
+      serviceId: 'svc-2',
+      serviceName: 'Barba',
+      unitPrice: 40,
+    });
+
+    expect(result.status).toBe('synced');
+    // Deve atualizar item de serviço in-place
+    expect(mockComandaItemUpdate).toHaveBeenCalledWith(
+      'item-svc-1',
+      expect.objectContaining({
+        staff_id: 'staff-2',
+        service_id: 'svc-2',
+        product_name: 'Barba',
+        unit_price: 40,
+      }),
+      'tenant-1',
+    );
+    // Produto de balcão NÃO deve ser atualizado
+    expect(mockComandaItemUpdate).not.toHaveBeenCalledWith(
+      'item-prod-1',
+      expect.anything(),
+      expect.anything(),
+    );
+    // Comanda atualizada com novo total e novo staff_id
+    expect(mockComandaUpdate).toHaveBeenCalledWith(
+      'com-1',
+      expect.objectContaining({
+        staff_id: 'staff-2',
+        total: 65, // 40 (novo serviço) + 25 (produto existente)
+      }),
+      'tenant-1',
+    );
   });
 });
