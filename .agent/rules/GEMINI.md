@@ -147,15 +147,13 @@ When user's prompt is NOT in English:
 
 ## TIER 1: CODE RULES (When Writing Code)
 
-### 📱 Project Type Routing
+### 💻 Project Type Routing (SMG Barber - Web SPA)
 
-| Project Type                           | Primary Agent         | Skills                        |
-| -------------------------------------- | --------------------- | ----------------------------- |
-| **MOBILE** (iOS, Android, RN, Flutter) | `mobile-developer`    | mobile-design                 |
-| **WEB** (Next.js, React web)           | `frontend-specialist` | frontend-design               |
-| **BACKEND** (API, server, DB)          | `backend-specialist`  | api-patterns, database-design |
-
-> 🔴 **Mobile + frontend-specialist = WRONG.** Mobile = mobile-developer ONLY.
+| Domain                        | Primary Agent         | Skills                                                  |
+| ----------------------------- | --------------------- | ------------------------------------------------------- |
+| **FRONTEND / UI** (React/Vite)| `frontend-specialist` | frontend-design, tailwind-patterns, nextjs-react-expert |
+| **BACKEND / DB** (Supabase/PG)| `backend-specialist`  | api-patterns, database-design, nodejs-best-practices    |
+| **GOVERNANCE / PLANNING**     | `orchestrator`        | architecture, plan-writing, clean-code                  |
 
 ### 🛑 Socratic Gate
 
@@ -182,40 +180,17 @@ When user's prompt is NOT in English:
 
 ### 🏁 Final Checklist Protocol
 
-**Trigger:** When the user says "son kontrolleri yap", "final checks", "çalıştır tüm testleri", or similar phrases.
+**Trigger:** When the user says "son kontrolleri yap", "final checks", "verificar projeto", "rodar validação", or similar phrases.
 
 | Task Stage       | Command                                            | Purpose                        |
 | ---------------- | -------------------------------------------------- | ------------------------------ |
-| **Manual Audit** | `python .agent/scripts/checklist.py .`             | Priority-based project audit   |
-| **Pre-Deploy**   | `python .agent/scripts/checklist.py . --url <URL>` | Full Suite + Performance + E2E |
-
-**Priority Execution Order:**
-
-1. **Security** → 2. **Lint** → 3. **Schema** → 4. **Tests** → 5. **UX** → 6. **Seo** → 7. **Lighthouse/E2E**
+| **Verification** | `npm run smg:verify`                               | Full Native Node.js Validation |
+| **CI Protocol**  | `npm run architecture:ci`                          | Architecture & Baseline Gate   |
 
 **Rules:**
 
-- **Completion:** A task is NOT finished until `checklist.py` returns success.
-- **Reporting:** If it fails, fix the **Critical** blockers first (Security/Lint).
-
-**Available Scripts (12 total):**
-
-| Script                     | Skill                 | When to Use         |
-| -------------------------- | --------------------- | ------------------- |
-| `security_scan.py`         | vulnerability-scanner | Always on deploy    |
-| `dependency_analyzer.py`   | vulnerability-scanner | Weekly / Deploy     |
-| `lint_runner.py`           | lint-and-validate     | Every code change   |
-| `test_runner.py`           | testing-patterns      | After logic change  |
-| `schema_validator.py`      | database-design       | After DB change     |
-| `ux_audit.py`              | frontend-design       | After UI change     |
-| `accessibility_checker.py` | frontend-design       | After UI change     |
-| `seo_checker.py`           | seo-fundamentals      | After page change   |
-| `bundle_analyzer.py`       | performance-profiling | Before deploy       |
-| `mobile_audit.py`          | mobile-design         | After mobile change |
-| `lighthouse_audit.py`      | performance-profiling | Before deploy       |
-| `playwright_runner.py`     | webapp-testing        | Before deploy       |
-
-> 🔴 **Agents & Skills can invoke ANY script** via `python .agent/skills/<skill>/scripts/<script>.py`
+- **Completion:** A task is NOT finished until `npm run smg:verify` returns exit code 0.
+- **Reporting:** If it fails, fix the blockers first before requesting any commit gate.
 
 ### 🎭 Gemini Mode Mapping
 
@@ -243,9 +218,8 @@ When user's prompt is NOT in English:
 | Task         | Read                            |
 | ------------ | ------------------------------- |
 | Web UI/UX    | `.agent/frontend-specialist.md` |
-| Mobile UI/UX | `.agent/mobile-developer.md`    |
 
-**These agents contain:**
+**This agent contains:**
 
 - Purple Ban (no violet/purple colors)
 - Template Ban (no standard layouts)
@@ -260,14 +234,11 @@ When user's prompt is NOT in English:
 
 ### Agents & Skills
 
-- **Masters**: `orchestrator`, `project-planner`, `security-auditor` (Cyber/Audit), `backend-specialist` (API/DB), `frontend-specialist` (UI/UX), `mobile-developer`, `debugger`, `game-developer`
-- **Key Skills**: `clean-code`, `brainstorming`, `app-builder`, `frontend-design`, `mobile-design`, `plan-writing`, `behavioral-modes`
+- **Masters**: `orchestrator`, `project-planner`, `security-auditor` (Cyber/Audit), `backend-specialist` (API/DB), `frontend-specialist` (UI/UX), `debugger`, `test-engineer`
+- **Key Skills**: `clean-code`, `brainstorming`, `app-builder`, `frontend-design`, `plan-writing`, `behavioral-modes`
 
 ### Key Scripts
 
-- **Verify**: `.agent/scripts/verify_all.py`, `.agent/scripts/checklist.py`
-- **Scanners**: `security_scan.py`, `dependency_analyzer.py`
-- **Audits**: `ux_audit.py`, `mobile_audit.py`, `lighthouse_audit.py`, `seo_checker.py`
-- **Test**: `playwright_runner.py`, `test_runner.py`
+- **Verify**: `npm run smg:verify`, `npm run architecture:ci`
 
 ---

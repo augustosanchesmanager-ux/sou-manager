@@ -1,176 +1,129 @@
 ---
-description: Deployment command for production releases. Pre-flight checks and deployment execution.
+description: Deployment command and governance protocol for SMG releases. Enforces SMG Change Control and PO authorization gates.
 ---
 
-# /deploy - Production Deployment
+# /deploy - SMG Production Deployment Governance
 
 $ARGUMENTS
 
 ---
 
-## Purpose
+## 🛑 MANDATORY GOVERNANCE GATE (ADR-026 & SMG PROTOCOL)
 
-This command handles production deployment with pre-flight checks, deployment execution, and verification.
+> **CRITICAL INVARIANT:** `MERGE ≠ DEPLOY PROD` (ADR-026).
+> An agent is **STRICTLY FORBIDDEN** from running automated production deployments (e.g. `vercel --prod`) or bypassing tests.
+> Every deployment requires:
+> 1. Complete validation passing through `npm run smg:verify` and CI gates.
+> 2. Explicit, documented and individual authorization from the human Product Owner (**Augusto**).
+> 3. Execution exclusively through the formal `smg-deploy` gate protocol.
 
 ---
 
 ## Sub-commands
 
 ```
-/deploy            - Interactive deployment wizard
-/deploy check      - Run pre-deployment checks only
-/deploy preview    - Deploy to preview/staging
-/deploy production - Deploy to production
-/deploy rollback   - Rollback to previous version
+/deploy check      - Run pre-deployment local verification (npm run smg:verify)
+/deploy status     - Check CI and environment gate status
+/deploy request    - Generate formal Deployment Authorization Request for PO (Augusto)
 ```
+
+> **BANNED:** Flags such as `--skip-tests` or direct CLI deployment execution are strictly prohibited.
 
 ---
 
-## Pre-Deployment Checklist
+## Pre-Deployment Verification Checklist
 
-Before any deployment:
+Before requesting any deployment authorization to the PO:
 
 ```markdown
-## 🚀 Pre-Deploy Checklist
+## 🛡️ SMG Pre-Deploy Checklist
 
-### Code Quality
-- [ ] No TypeScript errors (`npx tsc --noEmit`)
-- [ ] ESLint passing (`npx eslint .`)
-- [ ] All tests passing (`npm test`)
+### Code Quality & Type Safety
+- [ ] TypeScript compilation passing (`npx tsc --noEmit`)
+- [ ] Architecture guards passing (`node scripts/architecture/check.mjs --ci --baseline`)
+- [ ] Unit test suite passing (`npm test`)
 
-### Security
-- [ ] No hardcoded secrets
-- [ ] Environment variables documented
-- [ ] Dependencies audited (`npm audit`)
+### Security & Multi-tenancy
+- [ ] No hardcoded secrets or credentials detected
+- [ ] Database migrations strictly enforce `tenant_id` and RLS
+- [ ] No direct bypass of Supabase RLS policies
 
-### Performance
-- [ ] Bundle size acceptable
-- [ ] No console.log statements
-- [ ] Images optimized
+### Governance
+- [ ] Change isolated in dedicated branch
+- [ ] Working tree clean (`git status --short`)
+- [ ] `git diff --check` cleanly passed
+- [ ] Explicit PO deployment authorization recorded
 
-### Documentation
-- [ ] README updated
-- [ ] CHANGELOG updated
-- [ ] API docs current
-
-### Ready to deploy? (y/n)
+### Ready to submit for PO Approval? (STOP/GATE)
 ```
 
 ---
 
-## Deployment Flow
+## Deployment Governance Flow
 
 ```
-┌─────────────────┐
-│  /deploy        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Pre-flight     │
-│  checks         │
-└────────┬────────┘
-         │
-    Pass? ──No──► Fix issues
-         │
-        Yes
-         │
-         ▼
-┌─────────────────┐
-│  Build          │
-│  application    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Deploy to      │
-│  platform       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Health check   │
-│  & verify       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  ✅ Complete    │
-└─────────────────┘
+┌─────────────────────────────────┐
+│  /deploy check                  │
+│  (npm run smg:verify)           │
+└────────────────┬────────────────┘
+                 │
+            Pass? ──No──► STOP & Fix issues
+                 │
+                Yes
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│  Generate PO Deployment Request │
+│  (smg-deploy evidence record)   │
+└────────────────┬────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│  🛑 STOP GATE: PO Approval      │
+│  (Augusto must confirm deploy)  │
+└────────────────┬────────────────┘
+                 │
+           Authorized? ──No──► STOP execution
+                 │
+                Yes
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│  Authorized Deploy Promotion    │
+│  (Executed via approved CI/CD)  │
+└────────────────┬────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│  smg-postdeploy Smoke Check     │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## Output Format
+## Output Format: Deployment Authorization Request
 
-### Successful Deploy
+When preparing a deployment for the PO, output the following structured block:
 
 ```markdown
-## 🚀 Deployment Complete
+### DEPLOYMENT AUTHORIZATION REQUEST (ADR-026)
 
-### Summary
-- **Version:** v1.2.3
-- **Environment:** production
-- **Duration:** 47 seconds
-- **Platform:** Vercel
+EVIDENCE:
+- Branch / Commit SHA: <hash>
+- Local Verification: PASS (npm run smg:verify)
+- CI Pipeline Status: PASS
+- Multi-tenant / RLS Impact: <assessed impact>
 
-### URLs
-- 🌐 Production: https://app.example.com
-- 📊 Dashboard: https://vercel.com/project
+INTERPRETATION:
+- Release summary and scope of changes.
 
-### What Changed
-- Added user profile feature
-- Fixed login bug
-- Updated dependencies
+GAP:
+- None identified.
 
-### Health Check
-✅ API responding (200 OK)
-✅ Database connected
-✅ All services healthy
-```
+DECISION REQUIRED (PO - Augusto):
+- [ ] APPROVED: Proceed with production deployment.
+- [ ] REJECTED: Deployment blocked.
 
-### Failed Deploy
-
-```markdown
-## ❌ Deployment Failed
-
-### Error
-Build failed at step: TypeScript compilation
-
-### Details
-```
-error TS2345: Argument of type 'string' is not assignable...
-```
-
-### Resolution
-1. Fix TypeScript error in `src/services/user.ts:45`
-2. Run `npm run build` locally to verify
-3. Try `/deploy` again
-
-### Rollback Available
-Previous version (v1.2.2) is still active.
-Run `/deploy rollback` if needed.
-```
-
----
-
-## Platform Support
-
-| Platform | Command | Notes |
-|----------|---------|-------|
-| Vercel | `vercel --prod` | Auto-detected for Next.js |
-| Railway | `railway up` | Needs Railway CLI |
-| Fly.io | `fly deploy` | Needs flyctl |
-| Docker | `docker compose up -d` | For self-hosted |
-
----
-
-## Examples
-
-```
-/deploy
-/deploy check
-/deploy preview
-/deploy production --skip-tests
-/deploy rollback
+STATUS:
+- STOP — Waiting for explicit PO decision.
 ```
