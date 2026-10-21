@@ -194,6 +194,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAccessRole(authContext.accessRole);
                 setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
                 setProfileStatus(authContext.profileStatus);
+
+                // Auto-detecção de convite pendente para usuário recém-autenticado sem tenant/perfil
+                if (!authContext.tenantId && authContext.accessRole === 'unknown') {
+                    try {
+                        const { data: inviteToken } = await supabase.rpc('get_my_pending_invite_token');
+                        if (inviteToken && typeof window !== 'undefined' && !window.location.hash.includes('/accept-invite/')) {
+                            window.location.hash = `#/accept-invite/${inviteToken}`;
+                        }
+                    } catch (e) {
+                        console.warn('[AuthContext] Failed to check pending invite token:', e);
+                    }
+                }
             } catch (err) {
                 console.error('Failed to load auth session context:', err);
                 if (isMounted && requestId === requestCounter) {
