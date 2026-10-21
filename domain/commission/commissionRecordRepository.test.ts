@@ -336,4 +336,27 @@ describe('CommissionRecordRepository', () => {
       expect(result.error).toContain('Network error');
     });
   });
+
+  describe('listByComandaIds', () => {
+    it('should return empty array when comandaIds is empty', async () => {
+      const result = await repo.listByComandaIds(TENANT_ID, []);
+      expect(result).toEqual([]);
+      expect(mockDb.mockFrom).not.toHaveBeenCalled();
+    });
+
+    it('should query commission_records with IN filter and optional staffId', async () => {
+      const mockRecords = [makeRecord({ id: 'rec-1', comanda_id: 'c1' })];
+      mockDb.chainable.data = mockRecords;
+      mockDb.chainable.error = null;
+      mockDb.chainable.in = vi.fn().mockReturnValue(mockDb.chainable);
+
+      const result = await repo.listByComandaIds(TENANT_ID, ['c1', 'c2'], STAFF_ID);
+
+      expect(mockDb.mockFrom).toHaveBeenCalledWith('commission_records');
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
+      expect(mockDb.chainable.in).toHaveBeenCalledWith('comanda_id', ['c1', 'c2']);
+      expect(mockDb.chainable.eq).toHaveBeenCalledWith('staff_id', STAFF_ID);
+      expect(result).toEqual(mockRecords);
+    });
+  });
 });

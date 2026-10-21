@@ -24,7 +24,11 @@ export const APP_SCHEMA_MAP: Record<AppSlug, AppSchemaName> = {
 export const CORE_PUBLIC_TABLES = new Set<string>([
   'apps',
   'audit_logs',
+  'barber_advances',
+  'barber_payout_configs',
+  'barber_payout_settlements',
   'comanda_payments',
+  'commission_records',
   'financial_reversals',
   'notifications',
   'otp_requests',
@@ -66,10 +70,14 @@ export const DOMAIN_TABLES = new Set<string>([
 
 export const TENANT_GUARDED_TABLES = new Set<string>([
   'appointments',
+  'barber_advances',
+  'barber_payout_configs',
+  'barber_payout_settlements',
   'clients',
   'comanda_items',
   'comanda_payments',
   'comandas',
+  'commission_records',
   'customer_credits',
   'customer_plans',
   'customer_subscription_receivables',

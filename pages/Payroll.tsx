@@ -337,6 +337,13 @@ const Payroll: React.FC = () => {
                 </button>
             </div>
 
+            <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-border-dark rounded-xl p-3.5 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+                <span className="material-symbols-outlined text-emerald-500 text-lg">verified</span>
+                <span>
+                    <strong>Regime de Caixa (ADR-030):</strong> Apuração baseada na data de liquidação dos pagamentos (<code className="text-slate-700 dark:text-slate-300 font-mono">comanda_payments</code> com status = 'paid'), expurgando estornos (<code className="text-slate-700 dark:text-slate-300 font-mono">C1</code>) e consolidando múltiplos serviços por comanda (<code className="text-slate-700 dark:text-slate-300 font-mono">C2</code>).
+                </span>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -466,7 +473,12 @@ const Payroll: React.FC = () => {
                                                 {(row.commissionRate * 100).toFixed(0)}%
                                             </td>
                                             <td className="px-6 py-4 text-sm font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                                {brl(amounts.gross)}
+                                                <span>{brl(amounts.gross)}</span>
+                                                {row.preview.paymentCount > 0 && (
+                                                    <span className="block text-[10px] font-normal text-slate-400 dark:text-slate-500">
+                                                        {row.preview.paymentCount} item(ns) apurado(s)
+                                                    </span>
+                                                )}
                                             </td>
                                             <td
                                                 className={`px-6 py-4 text-sm font-bold whitespace-nowrap ${
