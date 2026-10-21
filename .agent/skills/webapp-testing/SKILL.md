@@ -8,17 +8,15 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 > Discover and test everything. Leave no route untested.
 
-## 🔧 Runtime Scripts
+## 🔧 Runtime E2E Tests (Playwright)
 
 **Execute these for automated browser testing:**
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `scripts/playwright_runner.py` | Basic browser test | `python scripts/playwright_runner.py https://example.com` |
-| | With screenshot | `python scripts/playwright_runner.py <url> --screenshot` |
-| | Accessibility check | `python scripts/playwright_runner.py <url> --a11y` |
-
-**Requires:** `pip install playwright && playwright install chromium`
+| Command | Purpose | Usage |
+|---|---|---|
+| `npm run test:e2e:smoke` | Run E2E smoke tests | `npm run test:e2e:smoke` |
+| `npm run test:e2e` | Run full Playwright test suite | `npm run test:e2e` |
+| `npm run test:e2e:ui` | Interactive Playwright test UI | `npm run test:e2e:ui` |
 
 ---
 

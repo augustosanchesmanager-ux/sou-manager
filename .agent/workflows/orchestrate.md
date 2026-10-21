@@ -95,12 +95,10 @@ Do you approve? (Y/N)
 | `penetration-tester` | Security | Active testing |
 | `test-engineer` | Testing | Unit, E2E, Coverage |
 | `devops-engineer` | Ops | CI/CD, Docker, Deploy |
-| `mobile-developer` | Mobile | React Native, Flutter |
 | `performance-optimizer` | Speed | Lighthouse, Profiling |
 | `seo-specialist` | SEO | Meta, Schema, Rankings |
 | `documentation-writer` | Docs | README, API docs |
 | `debugger` | Debug | Error analysis |
-| `game-developer` | Games | Unity, Godot |
 | `orchestrator` | Meta | Coordination |
 
 ---
@@ -116,7 +114,6 @@ Identify ALL domains this task touches:
 □ Database     → database-architect
 □ Testing      → test-engineer
 □ DevOps       → devops-engineer
-□ Mobile       → mobile-developer
 □ Performance  → performance-optimizer
 □ SEO          → seo-specialist
 □ Planning     → project-planner
@@ -172,10 +169,9 @@ Use the project-planner agent to create PLAN.md:
 
 
 ### Step 4: Verification (MANDATORY)
-The LAST agent must run appropriate verification scripts:
+The LAST agent must run verification:
 ```bash
-python .agent/skills/vulnerability-scanner/scripts/security_scan.py .
-python .agent/skills/lint-and-validate/scripts/lint_runner.py .
+npm run smg:verify
 ```
 
 ### Step 5: Synthesize Results
@@ -199,11 +195,10 @@ Combine all agent outputs into unified report.
 |---|-------|------------|--------|
 | 1 | project-planner | Task breakdown | ✅ |
 | 2 | frontend-specialist | UI implementation | ✅ |
-| 3 | test-engineer | Verification scripts | ✅ |
+| 3 | test-engineer | Verification gates | ✅ |
 
-### Verification Scripts Executed
-- [x] security_scan.py → Pass/Fail
-- [x] lint_runner.py → Pass/Fail
+### Verification Executed
+- [x] npm run smg:verify → Pass
 
 ### Key Findings
 1. **[Agent 1]**: Finding
@@ -214,7 +209,7 @@ Combine all agent outputs into unified report.
 - [ ] PLAN.md created
 - [ ] Code implemented
 - [ ] Tests passing
-- [ ] Scripts verified
+- [ ] Verification runner passed
 
 ### Summary
 [One paragraph synthesis of all agent work]
@@ -227,7 +222,7 @@ Combine all agent outputs into unified report.
 Before completing orchestration, verify:
 
 1. ✅ **Agent Count:** `invoked_agents >= 3`
-2. ✅ **Scripts Executed:** At least `security_scan.py` ran
+2. ✅ **Verification Executed:** `npm run smg:verify` ran with 0 blocking errors
 3. ✅ **Report Generated:** Orchestration Report with all agents listed
 
 > **If any check fails → DO NOT mark orchestration complete. Invoke more agents or run scripts.**

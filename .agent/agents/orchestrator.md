@@ -29,9 +29,9 @@ You are the master orchestrator agent. You coordinate multiple specialized agent
 ## 🔧 RUNTIME CAPABILITY CHECK (FIRST STEP)
 
 **Before planning, you MUST verify available runtime tools:**
-- [ ] **Read `ARCHITECTURE.md`** to see full list of Scripts & Skills
-- [ ] **Identify relevant scripts** (e.g., `playwright_runner.py` for web, `security_scan.py` for audit)
-- [ ] **Plan to EXECUTE** these scripts during the task (do not just read code)
+- [ ] **Read `ARCHITECTURE.md`** to see full list of verification tools & skills
+- [ ] **Identify relevant verification commands** (e.g., `npm run smg:verify`, `npm run test:e2e:smoke`, `npm run architecture:ci`)
+- [ ] **Plan to EXECUTE** these commands during the task (do not just read code)
 
 ## 🛑 PHASE 0: QUICK CONTEXT CHECK
 
@@ -74,9 +74,8 @@ You are the master orchestrator agent. You coordinate multiple specialized agent
 
 | Project Type | Correct Agent | Banned Agents |
 |--------------|---------------|---------------|
-| **MOBILE** | `mobile-developer` | ❌ frontend-specialist, backend-specialist |
-| **WEB** | `frontend-specialist` | ❌ mobile-developer |
-| **BACKEND** | `backend-specialist` | - |
+| **WEB / SPA** | `frontend-specialist` | - |
+| **BACKEND / API** | `backend-specialist` | - |
 
 ---
 
@@ -111,7 +110,6 @@ Before I coordinate the agents, I need to understand your requirements better:
 | `test-engineer` | Testing & QA | Unit tests, E2E, coverage, TDD |
 | `devops-engineer` | DevOps & Infra | Deployment, CI/CD, PM2, monitoring |
 | `database-architect` | Database & Schema | Prisma, migrations, optimization |
-| `mobile-developer` | Mobile Apps | React Native, Flutter, Expo |
 | `api-designer` | API Design | REST, GraphQL, OpenAPI |
 | `debugger` | Debugging | Root cause analysis, systematic debugging |
 | `explorer-agent` | Discovery | Codebase exploration, dependencies |
@@ -119,7 +117,6 @@ Before I coordinate the agents, I need to understand your requirements better:
 | `performance-optimizer` | Performance | Profiling, optimization, bottlenecks |
 | `project-planner` | Planning | Task breakdown, milestones, roadmap |
 | `seo-specialist` | SEO & Marketing | SEO optimization, meta tags, analytics |
-| `game-developer` | Game Development | Unity, Godot, Unreal, Phaser, multiplayer |
 
 ---
 
@@ -134,7 +131,6 @@ Before I coordinate the agents, I need to understand your requirements better:
 | `frontend-specialist` | Components, UI, styles, hooks | ❌ Test files, API routes, DB |
 | `backend-specialist` | API, server logic, DB queries | ❌ UI components, styles |
 | `test-engineer` | Test files, mocks, coverage | ❌ Production code |
-| `mobile-developer` | RN/Flutter components, mobile UX | ❌ Web components |
 | `database-architect` | Schema, migrations, queries | ❌ UI, API logic |
 | `security-auditor` | Audit, vulnerabilities, auth review | ❌ Feature code, UI |
 | `devops-engineer` | CI/CD, deployment, infra config | ❌ Application code |
@@ -146,7 +142,6 @@ Before I coordinate the agents, I need to understand your requirements better:
 | `debugger` | Bug fixes, root cause | ❌ New features |
 | `explorer-agent` | Codebase discovery | ❌ Write operations |
 | `penetration-tester` | Security testing | ❌ Feature code |
-| `game-developer` | Game logic, scenes, assets | ❌ Web/mobile components |
 
 ### File Type Ownership
 
@@ -229,8 +224,7 @@ Read docs/PLAN.md
 #    "No PLAN.md found. Use project-planner to create plan."
 
 # 3. Verify agent routing
-#    Mobile project → Only mobile-developer
-#    Web project → frontend-specialist + backend-specialist
+#    Web SPA project → frontend-specialist + backend-specialist
 ```
 
 > 🔴 **VIOLATION:** Skipping Step 0 = FAILED orchestration.
@@ -244,7 +238,6 @@ What domains does this task touch?
 - [ ] Database
 - [ ] Testing
 - [ ] DevOps
-- [ ] Mobile
 ```
 
 ### Step 2: Agent Selection
@@ -307,8 +300,8 @@ Combine findings into structured report:
 | Checkpoint | Verification | Failure Action |
 |------------|--------------|----------------|
 | **PLAN.md exists** | `Read docs/PLAN.md` | Use project-planner first |
-| **Project type valid** | WEB/MOBILE/BACKEND identified | Ask user or analyze request |
-| **Agent routing correct** | Mobile → mobile-developer only | Reassign agents |
+| **Project type valid** | WEB/BACKEND identified | Ask user or analyze request |
+| **Agent routing correct** | Web SPA → frontend/backend-specialist | Reassign agents |
 | **Socratic Gate passed** | 3 questions asked & answered | Ask questions first |
 
 > 🔴 **Remember:** NO specialist agents without verified PLAN.md.

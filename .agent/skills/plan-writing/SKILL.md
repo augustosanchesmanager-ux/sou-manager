@@ -83,18 +83,17 @@ This skill provides a framework for breaking down work into clear, actionable ta
 
 ### Principle 4: Scripts Are Project-Specific
 
-> 🔴 **DO NOT copy-paste script commands. Choose based on project type.**
+> 🔴 **DO NOT copy-paste commands blindly. Choose based on project domain.**
 
-| Project Type | Relevant Scripts |
+| Project Domain | Relevant Verification Commands |
 |--------------|------------------|
-| Frontend/React | `ux_audit.py`, `accessibility_checker.py` |
-| Backend/API | `api_validator.py`, `security_scan.py` |
-| Mobile | `mobile_audit.py` |
-| Database | `schema_validator.py` |
-| Full-stack | Mix of above based on what you touched |
+| Frontend/React | `npm run build`, `npm run test:e2e:smoke` |
+| Backend/API | `npm run smg:verify`, `npm run d8:verify` |
+| Database | `npm run smg:verify` (Migrations check) |
+| Architecture / Core | `npm run architecture:ci`, `npm run smg:verify` |
 
-**Wrong:** Adding all scripts to every plan
-**Right:** Only scripts relevant to THIS task
+**Wrong:** Skipping verification gates
+**Right:** Running relevant gates for THIS task
 
 ---
 
