@@ -61,6 +61,43 @@ interface AccessContextResult {
     canAccessSuperAdmin: boolean;
 }
 
+export interface SessionTransitionAction {
+    type: 'SIGN_OUT' | 'SILENT_REFRESH' | 'COLD_BOOT_OR_USER_SWITCH';
+    shouldSetLoading: boolean;
+    shouldFetchAccessContext: boolean;
+}
+
+export const decideSessionTransition = (params: {
+    initialLoadDone: boolean;
+    activeUserId: string | null;
+    nextUserId: string | null;
+    event?: string;
+}): SessionTransitionAction => {
+    if (!params.nextUserId || params.event === 'SIGNED_OUT') {
+        return {
+            type: 'SIGN_OUT',
+            shouldSetLoading: false,
+            shouldFetchAccessContext: false,
+        };
+    }
+
+    const isSameUser = params.initialLoadDone && params.activeUserId === params.nextUserId;
+
+    if (isSameUser) {
+        return {
+            type: 'SILENT_REFRESH',
+            shouldSetLoading: false,
+            shouldFetchAccessContext: params.event !== 'TOKEN_REFRESHED',
+        };
+    }
+
+    return {
+        type: 'COLD_BOOT_OR_USER_SWITCH',
+        shouldSetLoading: true,
+        shouldFetchAccessContext: true,
+    };
+};
+
 const deriveAccessRole = (rawRole: string | null | undefined, isSuperAdmin: boolean): AccessRole => {
     const normalized = (rawRole || '').toLowerCase().trim();
     if (isSuperAdmin) return 'superadmin';
@@ -161,8 +198,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         let isMounted = true;
         let requestCounter = 0;
+        let initialLoadDone = false;
+        let activeUserId: string | null = null;
 
         const clearAuthState = () => {
+            activeUserId = null;
             setResolvedTenantId(null);
             setAccessRole('unknown');
             setCanAccessSuperAdmin(false);
@@ -170,26 +210,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
         };
 
-        const applySession = async (nextSession: Session | null) => {
+        const applySession = async (nextSession: Session | null, event?: string) => {
             const requestId = ++requestCounter;
             if (!isMounted) return;
 
-            setSession(nextSession);
-            setUser(nextSession?.user ?? null);
+            const nextUser = nextSession?.user ?? null;
+            const nextUserId = nextUser?.id ?? null;
 
-            if (!nextSession?.user) {
+            const transition = decideSessionTransition({
+                initialLoadDone,
+                activeUserId,
+                nextUserId,
+                event,
+            });
+
+            if (transition.type === 'SIGN_OUT') {
+                setSession(null);
+                setUser(null);
                 clearAuthState();
+                initialLoadDone = true;
                 setLoading(false);
                 return;
             }
 
+            setSession(nextSession);
+            setUser(nextUser);
+
+            if (transition.type === 'SILENT_REFRESH') {
+                // Background silent refresh: never flip loading to true (avoids unmounting active routes)
+                if (!transition.shouldFetchAccessContext) {
+                    return;
+                }
+
+                try {
+                    const authContext = await fetchAccessContext(nextUserId!);
+                    if (!isMounted || requestId !== requestCounter) return;
+
+                    setResolvedTenantId(authContext.tenantId);
+                    setAccessRole(authContext.accessRole);
+                    setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
+                    setProfileStatus(authContext.profileStatus);
+                } catch (err) {
+                    console.warn('[AuthContext] Background access context refresh failed (retaining current state):', err);
+                }
+                return;
+            }
+
+            // Cold boot or distinct user login: full blocking authorization load
             setLoading(true);
             setAuthError(null);
 
             try {
-                const authContext = await fetchAccessContext(nextSession.user.id);
+                const authContext = await fetchAccessContext(nextUserId);
                 if (!isMounted || requestId !== requestCounter) return;
 
+                activeUserId = nextUserId;
                 setResolvedTenantId(authContext.tenantId);
                 setAccessRole(authContext.accessRole);
                 setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
@@ -213,17 +288,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
             } finally {
                 if (isMounted && requestId === requestCounter) {
+                    initialLoadDone = true;
                     setLoading(false);
                 }
             }
         };
 
         supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-            void applySession(currentSession);
+            void applySession(currentSession, 'INITIAL_SESSION');
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-            void applySession(nextSession);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+            void applySession(nextSession, event);
         });
 
         return () => {
@@ -233,7 +309,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        try {
+            await supabase.auth.signOut();
+        } finally {
+            setSession(null);
+            setUser(null);
+            setResolvedTenantId(null);
+            setAccessRole('unknown');
+            setCanAccessSuperAdmin(false);
+            setProfileStatus(null);
+            setAuthError(null);
+            setLoading(false);
+        }
     };
 
     // Re-resolve o contexto de acesso para o usuário atual.
