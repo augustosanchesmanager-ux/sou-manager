@@ -289,11 +289,13 @@ const getConsumptionTypeForFilter = (comanda: Comanda): ConsumptionType => {
 };
 
 const loadComandasPreferences = (): ComandasPreferences => {
+    const today = new Date();
+    const todayStr = formatDateInputValue(today);
     const defaultPreferences: ComandasPreferences = {
         filterStatus: 'all',
         searchTerm: '',
-        dateFrom: '',
-        dateTo: '',
+        dateFrom: todayStr,
+        dateTo: todayStr,
         quickRange: 'today',
         sortField: 'date',
         sortDirection: 'desc',
@@ -310,16 +312,38 @@ const loadComandasPreferences = (): ComandasPreferences => {
         const rawValue = window.localStorage.getItem(COMANDAS_PREFERENCES_KEY);
         if (!rawValue) return defaultPreferences;
         const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
+        const parsedRange = ['today', '7d', '30d', 'custom', 'all'].includes(parsed.quickRange || '')
+            ? (parsed.quickRange as QuickRange)
+            : defaultPreferences.quickRange;
+
+        let computedDateFrom = typeof parsed.dateFrom === 'string' ? parsed.dateFrom : '';
+        let computedDateTo = typeof parsed.dateTo === 'string' ? parsed.dateTo : '';
+
+        if (!computedDateFrom && !computedDateTo) {
+            if (parsedRange === 'today') {
+                computedDateFrom = todayStr;
+                computedDateTo = todayStr;
+            } else if (parsedRange === '7d') {
+                const start7d = new Date(today);
+                start7d.setDate(start7d.getDate() - 6);
+                computedDateFrom = formatDateInputValue(start7d);
+                computedDateTo = todayStr;
+            } else if (parsedRange === '30d') {
+                const start30d = new Date(today);
+                start30d.setDate(start30d.getDate() - 29);
+                computedDateFrom = formatDateInputValue(start30d);
+                computedDateTo = todayStr;
+            }
+        }
+
         return {
             filterStatus: ['all', 'blocked', 'open', 'paid', 'cancelled'].includes(parsed.filterStatus || '')
                 ? (parsed.filterStatus as 'all' | ComandaStatus)
                 : defaultPreferences.filterStatus,
             searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
-            dateFrom: typeof parsed.dateFrom === 'string' ? parsed.dateFrom : defaultPreferences.dateFrom,
-            dateTo: typeof parsed.dateTo === 'string' ? parsed.dateTo : defaultPreferences.dateTo,
-            quickRange: ['today', '7d', '30d', 'custom', 'all'].includes(parsed.quickRange || '')
-                ? (parsed.quickRange as QuickRange)
-                : defaultPreferences.quickRange,
+            dateFrom: computedDateFrom || defaultPreferences.dateFrom,
+            dateTo: computedDateTo || defaultPreferences.dateTo,
+            quickRange: parsedRange,
             sortField: ['date', 'client', 'status', 'total'].includes(parsed.sortField || '')
                 ? (parsed.sortField as SortField)
                 : defaultPreferences.sortField,
@@ -336,6 +360,108 @@ const loadComandasPreferences = (): ComandasPreferences => {
         };
     } catch {
         return defaultPreferences;
+    }
+};
+
+const fetchSingleComandaFinancialHistory = async (
+    comandaId: string,
+    resolvedTenantId: string | null,
+): Promise<ComandaFinancialHistory | null> => {
+    try {
+        const client = getScopedClient('barber');
+        let transactionsQuery = client
+            .from('transactions')
+            .select('id, tenant_id, source_id, type, amount, payment_method, date, created_at, status')
+            .eq('source_type', 'comanda')
+            .eq('source_id', comandaId)
+            .eq('type', 'income');
+
+        if (resolvedTenantId) {
+            transactionsQuery = transactionsQuery.eq('tenant_id', resolvedTenantId);
+        }
+
+        const { data: transactionRows, error: transactionsError } = await transactionsQuery;
+        if (transactionsError || !transactionRows || transactionRows.length === 0) {
+            return null;
+        }
+
+        const transactions = (transactionRows as ComandaTransactionRow[])
+            .filter((transaction) => Boolean(transaction.id) && (!transaction.type || transaction.type === 'income'));
+
+        if (transactions.length === 0) return null;
+
+        const transactionIds = transactions.map((t) => t.id);
+        const reversedByTransactionId = new Map<string, number>();
+        const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
+
+        let reversalsQuery = supabase
+            .from('financial_reversals')
+            .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+            .in('original_transaction_id', transactionIds);
+
+        if (resolvedTenantId) {
+            reversalsQuery = reversalsQuery.eq('tenant_id', resolvedTenantId);
+        }
+
+        const { data: reversals, error: reversalsError } = await reversalsQuery;
+        if (!reversalsError && reversals) {
+            (reversals as FinancialReversalRow[]).forEach((reversal) => {
+                if (!reversal.original_transaction_id) return;
+                const amount = Math.abs(Number(reversal.amount || 0));
+                reversedByTransactionId.set(
+                    reversal.original_transaction_id,
+                    (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                );
+                const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                current.push({
+                    reversalTransactionId: reversal.reversal_transaction_id || null,
+                    reversalType: reversal.reversal_type || 'reversal',
+                    amount,
+                    reasonType: reversal.reason_type || 'Sem motivo informado',
+                    createdAt: reversal.created_at || null,
+                });
+                reversalsByTransactionId.set(reversal.original_transaction_id, current);
+            });
+        }
+
+        let latestTransaction: ComandaTransactionRow | null = null;
+        for (const transaction of transactions) {
+            if (!latestTransaction) {
+                latestTransaction = transaction;
+                continue;
+            }
+            const curDate = new Date(transaction.date || transaction.created_at || 0).getTime();
+            const prevDate = new Date(latestTransaction.date || latestTransaction.created_at || 0).getTime();
+            if (curDate >= prevDate) {
+                latestTransaction = transaction;
+            }
+        }
+
+        if (!latestTransaction) return null;
+
+        const amount = Number(latestTransaction.amount || 0);
+        const reversedAmount = Math.min(amount, reversedByTransactionId.get(latestTransaction.id) || 0);
+        const reversibleAmount = Math.max(amount - reversedAmount, 0);
+        const reversalStatus: ComandaFinancialHistory['reversalStatus'] = reversedAmount <= 0
+            ? 'none'
+            : reversibleAmount <= 0
+                ? 'full'
+                : 'partial';
+
+        return {
+            transactionId: latestTransaction.id,
+            amount,
+            paymentMethod: latestTransaction.payment_method || NOT_INFORMED_FALLBACK,
+            date: latestTransaction.date || latestTransaction.created_at || null,
+            status: latestTransaction.status || null,
+            reversedAmount,
+            reversibleAmount,
+            reversalStatus,
+            reversals: reversalsByTransactionId.get(latestTransaction.id) || [],
+        };
+    } catch (err) {
+        logSupabaseError('[Comandas] Erro ao carregar historico financeiro sob demanda', err, { comandaId });
+        return null;
     }
 };
 
@@ -441,6 +567,19 @@ const Comandas: React.FC = () => {
             if (resolvedTenantId) query = query.eq('tenant_id', resolvedTenantId);
             if (accessRole === 'barber' && user?.id) query = query.eq('staff_id', user.id);
 
+            const startDate = parseDateInputValue(dateFrom);
+            const endDate = parseDateInputValue(dateTo, true);
+
+            if (startDate) {
+                query = query.gte('created_at', startDate.toISOString());
+            }
+            if (endDate) {
+                query = query.lte('created_at', endDate.toISOString());
+            }
+            if (!startDate && !endDate) {
+                query = query.limit(200);
+            }
+
             const { data, error } = await query;
             if (error) {
                 logSupabaseError('[Comandas] Erro ao buscar comandas', error, { tenantId: resolvedTenantId });
@@ -449,7 +588,6 @@ const Comandas: React.FC = () => {
 
             if (!data || data.length === 0) {
                 setComandas([]);
-                setFinancialHistoryByComandaId({});
                 return;
             }
 
@@ -533,101 +671,6 @@ const Comandas: React.FC = () => {
                 return acc;
             }, {} as Record<string, ComandaItem[]>);
 
-            const transactionsSelect = 'id, tenant_id, source_id, type, amount, payment_method, date, created_at, status';
-            const { data: transactionRows, error: transactionsError } = await batchedIn<ComandaTransactionRow>(
-                client, 'transactions', transactionsSelect, 'source_id', comandaIds,
-                (q) => {
-                    let filtered = q.eq('source_type', 'comanda').eq('type', 'income');
-                    if (resolvedTenantId) filtered = filtered.eq('tenant_id', resolvedTenantId);
-                    return filtered;
-                },
-            );
-
-            if (transactionsError) {
-                logSupabaseError('[Comandas] Erro ao buscar histórico financeiro das comandas', transactionsError, {
-                    comandaCount: comandaIds.length,
-                    tenantId: resolvedTenantId,
-                });
-                setFinancialHistoryByComandaId({});
-            } else {
-                const transactions = ((transactionRows || []) as ComandaTransactionRow[])
-                    .filter((transaction) => Boolean(transaction.id) && Boolean(transaction.source_id) && (!transaction.type || transaction.type === 'income'));
-                const transactionIds = transactions.map((transaction) => transaction.id);
-                const reversedByTransactionId = new Map<string, number>();
-                const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
-
-                if (transactionIds.length > 0) {
-                    let reversalsQuery = supabase
-                        .from('financial_reversals')
-                        .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                        .in('original_transaction_id', transactionIds);
-
-                    if (resolvedTenantId) {
-                        reversalsQuery = reversalsQuery.eq('tenant_id', resolvedTenantId);
-                    }
-
-                    const { data: reversals, error: reversalsError } = await reversalsQuery;
-
-                    if (reversalsError) {
-                        logSupabaseError('[Comandas] Erro ao buscar reversoes financeiras das comandas', reversalsError, {
-                            transactionCount: transactionIds.length,
-                            tenantId: resolvedTenantId,
-                        });
-                    } else {
-                        ((reversals || []) as FinancialReversalRow[]).forEach((reversal) => {
-                            if (!reversal.original_transaction_id) return;
-                            const amount = Math.abs(Number(reversal.amount || 0));
-                            reversedByTransactionId.set(
-                                reversal.original_transaction_id,
-                                (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
-                            );
-                            const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
-                            current.push({
-                                reversalTransactionId: reversal.reversal_transaction_id || null,
-                                reversalType: reversal.reversal_type || 'reversal',
-                                amount,
-                                reasonType: reversal.reason_type || 'Sem motivo informado',
-                                createdAt: reversal.created_at || null,
-                            });
-                            reversalsByTransactionId.set(reversal.original_transaction_id, current);
-                        });
-                    }
-                }
-
-                const historyByComanda = transactions.reduce<Record<string, ComandaFinancialHistory>>((acc, transaction) => {
-                    if (!transaction.source_id) return acc;
-                    const amount = Number(transaction.amount || 0);
-                    const reversedAmount = Math.min(amount, reversedByTransactionId.get(transaction.id) || 0);
-                    const reversibleAmount = Math.max(amount - reversedAmount, 0);
-                    const reversalStatus: ComandaFinancialHistory['reversalStatus'] = reversedAmount <= 0
-                        ? 'none'
-                        : reversibleAmount <= 0
-                            ? 'full'
-                            : 'partial';
-
-                    const current = acc[transaction.source_id];
-                    const transactionDate = transaction.date || transaction.created_at || null;
-                    if (current && new Date(current.date || 0).getTime() >= new Date(transactionDate || 0).getTime()) {
-                        return acc;
-                    }
-
-                    acc[transaction.source_id] = {
-                        transactionId: transaction.id,
-                        amount,
-                        paymentMethod: transaction.payment_method || NOT_INFORMED_FALLBACK,
-                        date: transactionDate,
-                        status: transaction.status || null,
-                        reversedAmount,
-                        reversibleAmount,
-                        reversalStatus,
-                        reversals: reversalsByTransactionId.get(transaction.id) || [],
-                    };
-                    return acc;
-                }, {});
-
-                setFinancialHistoryByComandaId(historyByComanda);
-            }
-
             const hydratedComandas = comandasRows.map((comanda) => {
                 const mappedItems = itemsByComanda[comanda.id] || [];
                 const mappedStaffIds = Array.from(new Set([
@@ -680,14 +723,44 @@ const Comandas: React.FC = () => {
             const message = `Não foi possível carregar ${orderPluralLower}. Nenhuma ação financeira foi aplicada.`;
             setLoadError(message);
             setComandas([]);
-            setFinancialHistoryByComandaId({});
             setToast({ message, type: 'error' });
         } finally {
             setLoading(false);
         }
-    }, [appSlug, canAccessSuperAdmin, schema, tenantId]);
+    }, [appSlug, canAccessSuperAdmin, schema, tenantId, accessRole, user?.id, dateFrom, dateTo]);
 
     useEffect(() => { void fetchData(); }, [fetchData]);
+
+    // Lazy load do histórico financeiro e reversals sob demanda (apenas quando uma comanda é aberta)
+    useEffect(() => {
+        const targetId = selectedComandaId || reopenComanda?.id;
+        if (!targetId || financialHistoryByComandaId[targetId]) return;
+
+        let isMounted = true;
+        const loadHistory = async () => {
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'load financial history',
+                }).tenantId;
+
+            const history = await fetchSingleComandaFinancialHistory(targetId, resolvedTenantId);
+            if (isMounted && history) {
+                setFinancialHistoryByComandaId((prev) => ({
+                    ...prev,
+                    [targetId]: history,
+                }));
+            }
+        };
+
+        void loadHistory();
+        return () => { isMounted = false; };
+    }, [selectedComandaId, reopenComanda?.id, tenantId, canAccessSuperAdmin, appSlug, schema, financialHistoryByComandaId]);
 
     useEffect(() => {
         if (comandas.length === 0 || !tenantId) return;
@@ -833,6 +906,26 @@ const Comandas: React.FC = () => {
         return sortDirection === 'asc' ? comparison : comparison * -1;
     }), [filteredComandas, sortField, sortDirection]);
 
+    const [pageSize, setPageSize] = useState<number>(50);
+    const [currentPage, setCurrentPage] = useState<number>(1);
+
+    const totalPages = Math.max(1, Math.ceil(sortedComandas.length / pageSize));
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(1);
+        }
+    }, [totalPages, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterStatus, searchTerm, dateFrom, dateTo, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
+
+    const paginatedComandas = React.useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return sortedComandas.slice(startIndex, startIndex + pageSize);
+    }, [sortedComandas, currentPage, pageSize]);
+
     useEffect(() => {
         if (!selectedComandaId) {
             return;
@@ -848,7 +941,7 @@ const Comandas: React.FC = () => {
     }, [comandas]);
 
     const selectedComanda = React.useMemo(() => sortedComandas.find((c) => c.id === selectedComandaId) || null, [sortedComandas, selectedComandaId]);
-    const openComandasInView = React.useMemo(() => sortedComandas.filter((c) => c.status === 'open'), [sortedComandas]);
+    const openComandasInView = React.useMemo(() => paginatedComandas.filter((c) => c.status === 'open'), [paginatedComandas]);
     const allOpenInViewSelected = React.useMemo(() => openComandasInView.length > 0 && openComandasInView.every((c) => selectedOpenComandaIds.includes(c.id)), [openComandasInView, selectedOpenComandaIds]);
 
     const tabs = React.useMemo(() => [
@@ -1179,12 +1272,28 @@ const Comandas: React.FC = () => {
         }
     };
 
-    const openReopenPaidModal = (comanda: Comanda) => {
+    const openReopenPaidModal = async (comanda: Comanda) => {
         if (!canManageFinancialReversal) {
             setToast({ message: `Apenas gestores podem estornar e reabrir um ${orderLabelLower} finalizado.`, type: 'error' });
             return;
         }
-        const history = financialHistoryByComandaId[comanda.id];
+        let history = financialHistoryByComandaId[comanda.id];
+        if (!history) {
+            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
+            const resolvedTenantId = canAccessSuperAdmin
+                ? null
+                : requireTenantContext({
+                    tenantId,
+                    appSlug: currentAppSlug,
+                    schema,
+                    table: 'comandas',
+                    operation: 'load financial history for reopen',
+                }).tenantId;
+            history = (await fetchSingleComandaFinancialHistory(comanda.id, resolvedTenantId)) || undefined;
+            if (history) {
+                setFinancialHistoryByComandaId((prev) => ({ ...prev, [comanda.id]: history! }));
+            }
+        }
         if (!history || !history.transactionId || history.reversibleAmount <= 0 || history.reversalStatus !== 'none') {
             setToast({
                 message: `Este ${orderLabelLower} não possui lançamento financeiro integral disponível para estorno automático.`,
@@ -1634,7 +1743,7 @@ const Comandas: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        sortedComandas.map((comanda) => (
+                        paginatedComandas.map((comanda) => (
                             <ComandaListItem
                                 key={comanda.id}
                                 comanda={comanda}
@@ -1648,6 +1757,56 @@ const Comandas: React.FC = () => {
                         ))
                     )}
                 </div>
+
+                {sortedComandas.length > pageSize && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200/60 dark:border-white/10 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center gap-2">
+                            <span>
+                                Exibindo <strong className="text-slate-900 dark:text-white font-semibold">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sortedComandas.length)}</strong> de <strong className="text-slate-900 dark:text-white font-semibold">{sortedComandas.length}</strong> {orderPluralLower}
+                            </span>
+                            <span className="text-slate-300 dark:text-white/20">|</span>
+                            <div className="flex items-center gap-1.5">
+                                <span>Por página:</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                >
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-sm">chevron_left</span>
+                                Anterior
+                            </button>
+                            <span className="px-2 font-medium text-slate-700 dark:text-slate-300">
+                                Página {currentPage} de {totalPages}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Próxima
+                                <span className="material-symbols-outlined text-sm">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </section>
 
             {selectedComanda && (
