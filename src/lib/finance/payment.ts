@@ -31,6 +31,11 @@ export interface RegisterComandaPaymentInput {
   paymentMethod?: string | null;
   motivo?: string | null;
   idempotencyKey?: string | null;
+  terminalId?: string | null;
+  feePercentage?: number | null;
+  feeAmount?: number | null;
+  netAmount?: number | null;
+  estimatedSettlementDate?: string | null;
   supabase: any;
 }
 
@@ -54,6 +59,11 @@ export const registerComandaPayment = async ({
   paymentMethod = null,
   motivo = null,
   idempotencyKey = null,
+  terminalId = null,
+  feePercentage = null,
+  feeAmount = null,
+  netAmount = null,
+  estimatedSettlementDate = null,
   supabase,
 }: RegisterComandaPaymentInput): Promise<RegisterComandaPaymentResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para registro de pagamento.');
@@ -95,6 +105,26 @@ export const registerComandaPayment = async ({
       tenantId,
     });
     throw new Error(ERROR_MESSAGE);
+  }
+
+  // F-10 / ADR-036: Gravação de snapshot contábil imutável na linha de comanda_payments
+  if (terminalId) {
+    try {
+      await supabase
+        .from('comanda_payments')
+        .update({
+          terminal_id: terminalId,
+          fee_percentage: feePercentage,
+          fee_amount: feeAmount,
+          net_amount: netAmount,
+          estimated_settlement_date: estimatedSettlementDate,
+        })
+        .eq('tenant_id', tenantId)
+        .eq('comanda_id', comandaId)
+        .eq('idempotency_key', key);
+    } catch (snapshotErr) {
+      console.warn('[payment] Aviso: Falha não-bloqueante ao registrar snapshot de maquininha:', snapshotErr);
+    }
   }
 
   return {

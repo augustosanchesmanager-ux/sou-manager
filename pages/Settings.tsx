@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
 import { useViaCep } from '../src/hooks/useViaCep';
+import { PaymentTerminalsSection } from '../components/settings/PaymentTerminalsSection';
 import {
     REFUND_METHODS,
     DEFAULT_REFUND_METHOD,
@@ -930,6 +931,9 @@ const Settings: React.FC = () => {
                     </div>
                 </section>
             )}
+
+            {/* F10: Maquininhas de Cartão e Taxas (PDV Avançado) */}
+            {isManagement && <PaymentTerminalsSection />}
 
             {/* Usage Stats Section */}
             <section className="bg-white dark:bg-card-dark p-8 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden relative">

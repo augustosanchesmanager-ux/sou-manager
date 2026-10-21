@@ -145,6 +145,16 @@ export interface FinishRequest {
     // Labels
     internalSettlementTitle: string;
     incomeCategory?: string;
+
+    // F-10 / ADR-036: Terminal fee snapshot
+    terminalSnapshot?: {
+        terminalId: string | null;
+        terminalName?: string | null;
+        feePercentage: number | null;
+        feeAmount: number | null;
+        netAmount: number | null;
+        estimatedSettlementDate: string | null;
+    } | null;
 }
 
 export interface FinishResult {
@@ -624,6 +634,27 @@ class CheckoutApplicationServiceImpl {
                 },
                 outbox: outboxPayload,
             });
+
+            // F-10 / ADR-036: Gravação de snapshot contábil na comanda_payments gerada pela RPC
+            if (req.terminalSnapshot?.terminalId && req.paymentStatus === 'paid') {
+                try {
+                    await (getRpcClient() as any)
+                        .from('comanda_payments')
+                        .update({
+                            terminal_id: req.terminalSnapshot.terminalId,
+                            fee_percentage: req.terminalSnapshot.feePercentage,
+                            fee_amount: req.terminalSnapshot.feeAmount,
+                            net_amount: req.terminalSnapshot.netAmount,
+                            estimated_settlement_date: req.terminalSnapshot.estimatedSettlementDate,
+                        })
+                        .eq('tenant_id', req.tenantId)
+                        .eq('comanda_id', comandaId)
+                        .eq('payment_type', 'final')
+                        .is('reversed_at', null);
+                } catch (snapshotErr) {
+                    console.warn('[checkout] Aviso: Falha não-bloqueante ao registrar snapshot da maquininha:', snapshotErr);
+                }
+            }
         } catch (settleErr: any) {
             console.error('[SMG][CHECKOUT][SETTLE][ERROR] Falha no settlement — comanda pode ter status inconsistente', {
                 comandaId,

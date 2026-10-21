@@ -32,6 +32,9 @@ import {
     registerComandaPayment,
     type ComandaPaymentSummary,
 } from '../src/lib/finance/payment';
+import { usePaymentTerminals } from '../src/hooks/usePaymentTerminals';
+import { PaymentTerminalSelector } from '../components/checkout/PaymentTerminalSelector';
+import { calculateTerminalFee, findMatchingRate } from '../domain/paymentTerminal/calculateFee';
 import {
     buildZeroCloseAuditNote,
     closeZeroAmountComanda,
@@ -364,6 +367,21 @@ const Checkout: React.FC = () => {
     const [registerPaymentDescription, setRegisterPaymentDescription] = useState('');
     const [registerMotivo, setRegisterMotivo] = useState('');
     const [isRegisteringPayment, setIsRegisteringPayment] = useState(false);
+
+    // F-10 / ADR-036: Terminais de pagamento e taxas (PDV Avançado)
+    const { terminals, defaultTerminal } = usePaymentTerminals();
+    const [selectedTerminalId, setSelectedTerminalId] = useState<string | null>(null);
+    const [registerTerminalId, setRegisterTerminalId] = useState<string | null>(null);
+
+    // Pré-seleção inteligente do terminal padrão (1 clique)
+    useEffect(() => {
+        if (defaultTerminal && !selectedTerminalId) {
+            setSelectedTerminalId(defaultTerminal.id);
+        }
+        if (defaultTerminal && !registerTerminalId) {
+            setRegisterTerminalId(defaultTerminal.id);
+        }
+    }, [defaultTerminal, selectedTerminalId, registerTerminalId]);
     const [closureMode, setClosureMode] = useState<ClosureMode>('standard');
     const [closureNote, setClosureNote] = useState('');
     const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
@@ -1282,6 +1300,28 @@ const Checkout: React.FC = () => {
             };
         }
 
+        // F-10 / ADR-036: Snapshot contábil de taxas da maquininha
+        const chosenTerminal = (paymentMethod === 'credit' || paymentMethod === 'debit')
+            ? terminals.find((t) => t.id === selectedTerminalId) || null
+            : null;
+        const matchingRate = chosenTerminal
+            ? findMatchingRate(chosenTerminal.rates, paymentMethod === 'debit' ? 'debit' : 'credit_sight')
+            : null;
+        const feeCalculation = chosenTerminal && matchingRate
+            ? calculateTerminalFee({ amount: total, rate: matchingRate, paymentDate: new Date() })
+            : null;
+
+        const terminalSnapshot = chosenTerminal
+            ? {
+                terminalId: chosenTerminal.id,
+                terminalName: chosenTerminal.name,
+                feePercentage: feeCalculation?.feePercentage ?? null,
+                feeAmount: feeCalculation?.feeAmount ?? null,
+                netAmount: feeCalculation?.netAmount ?? total,
+                estimatedSettlementDate: feeCalculation?.estimatedSettlementDate ?? null,
+            }
+            : null;
+
         // Delegate validation and execution to Application Service
         const finishRequest: FinishRequest = {
             tenantId: tenantId || '',
@@ -1313,6 +1353,7 @@ const Checkout: React.FC = () => {
             discountAuditDraft,
             internalSettlementTitle,
             incomeCategory,
+            terminalSnapshot,
         };
 
         // Pre-validation by service (returns errors without side effects)
@@ -1392,6 +1433,17 @@ const Checkout: React.FC = () => {
 
         setIsRegisteringPayment(true);
         try {
+            // F-10 / ADR-036: Snapshot contábil da maquininha em pagamentos parciais/antecipados
+            const chosenRegTerminal = (registerPaymentMethod === 'credit' || registerPaymentMethod === 'debit')
+                ? terminals.find((t) => t.id === registerTerminalId) || null
+                : null;
+            const regRate = chosenRegTerminal
+                ? findMatchingRate(chosenRegTerminal.rates, registerPaymentMethod === 'debit' ? 'debit' : 'credit_sight')
+                : null;
+            const regCalc = chosenRegTerminal && regRate
+                ? calculateTerminalFee({ amount, rate: regRate, paymentDate: new Date() })
+                : null;
+
             const result = await registerComandaPayment({
                 tenantId,
                 comandaId,
@@ -1401,6 +1453,11 @@ const Checkout: React.FC = () => {
                     ? registerPaymentDescription.trim()
                     : registerPaymentMethod,
                 motivo: registerMotivo.trim() || null,
+                terminalId: chosenRegTerminal?.id || null,
+                feePercentage: regCalc?.feePercentage ?? null,
+                feeAmount: regCalc?.feeAmount ?? null,
+                netAmount: regCalc?.netAmount ?? amount,
+                estimatedSettlementDate: regCalc?.estimatedSettlementDate ?? null,
                 supabase: getScopedClient('barber'),
             });
 
@@ -2030,6 +2087,17 @@ const Checkout: React.FC = () => {
                                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
                                         />
                                     </div>
+                                )}
+
+                                {/* F-10 / ADR-036: Seletor Rápido de Maquininha e Snapshot de Taxas */}
+                                {(paymentMethod === 'credit' || paymentMethod === 'debit') && (
+                                    <PaymentTerminalSelector
+                                        terminals={terminals}
+                                        selectedTerminalId={selectedTerminalId}
+                                        onSelectTerminal={setSelectedTerminalId}
+                                        method={paymentMethod}
+                                        amount={total}
+                                    />
                                 )}
                             </div>
                         )}
@@ -2758,6 +2826,17 @@ const Checkout: React.FC = () => {
                                 onChange={(e) => setRegisterPaymentDescription(e.target.value)}
                                 placeholder="Descreva a forma de pagamento..."
                                 className="mt-2 w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-background-dark px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        )}
+
+                        {/* F-10 / ADR-036: Seletor Rápido de Maquininha no Pagamento Parcial/Antecipado */}
+                        {(registerPaymentMethod === 'credit' || registerPaymentMethod === 'debit') && (
+                            <PaymentTerminalSelector
+                                terminals={terminals}
+                                selectedTerminalId={registerTerminalId}
+                                onSelectTerminal={setRegisterTerminalId}
+                                method={registerPaymentMethod}
+                                amount={parseFloat(registerAmount) || 0}
                             />
                         )}
                     </div>
