@@ -62,6 +62,7 @@ interface CalendarAppointment {
   id: string;
   clientId?: string | null;
   staffId: string;
+  serviceId?: string | null;
   start: number;
   duration: number;
   client: string;
@@ -389,6 +390,15 @@ const Schedule: React.FC = () => {
   }, []);
 
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [editingComandaStatus, setEditingComandaStatus] = useState<string | null>(null);
+
+  const isComandaLocked = React.useMemo(() => {
+    return Boolean(
+      editingAppointmentId &&
+      editingComandaStatus &&
+      ['paid', 'closed', 'billed'].includes(editingComandaStatus)
+    );
+  }, [editingAppointmentId, editingComandaStatus]);
 
   // Form State
   const [formData, setFormData] = useState<NewAppointmentForm>({
@@ -437,6 +447,7 @@ const Schedule: React.FC = () => {
     if (!shouldOpenNew) return;
 
     setEditingAppointmentId(null);
+    setEditingComandaStatus(null);
     setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
     setServiceSearchTerm('');
     setIsModalOpen(true);
@@ -676,6 +687,7 @@ const Schedule: React.FC = () => {
           id: apt.id,
           clientId: apt.client_id || null,
           staffId: apt.staff_id,
+          serviceId: apt.service_id || null,
           start: startHour,
           duration: Number(apt.duration) || 1,
           client: apt.client_name || 'Cliente',
@@ -948,6 +960,19 @@ const Schedule: React.FC = () => {
 
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
+    setEditingComandaStatus(null);
+
+    if (tenantId) {
+      void comandaRepository
+        .findLatestByAppointment(apt.id, tenantId, appSlug)
+        .then((comanda) => {
+          setEditingComandaStatus(comanda?.status || null);
+        })
+        .catch((err) => {
+          console.error('[SMG][SCHEDULE] Erro ao carregar status da comanda vinculada:', err);
+        });
+    }
+
     const datePart = apt.startTime.split('T')[0];
     const rawServiceNames = (apt.service || '')
       .split(',')
@@ -955,6 +980,7 @@ const Schedule: React.FC = () => {
       .filter(Boolean);
     const matchedServices = servicesList.filter(
       (service) =>
+        (apt.serviceId && service.id === apt.serviceId) ||
         service.name === apt.service ||
         rawServiceNames.includes(service.name.trim().toLowerCase()),
     );
@@ -1500,29 +1526,45 @@ const Schedule: React.FC = () => {
 
     try {
       if (editingAppointmentId) {
-      const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
-      const updatedStartIso = startTimeLine.toISOString();
-      const updatedAppointmentDate = updatedStartIso;
+        if (isComandaLocked) {
+          const originalApt = appointments.find((a) => a.id === editingAppointmentId);
+          const isStaffChanged = originalApt && formData.staffId !== originalApt.staffId;
+          const isServiceChanged =
+            originalApt &&
+            ((originalApt.serviceId && selectedServices[0]?.id !== originalApt.serviceId) ||
+              (!originalApt.serviceId && selectedServicesLabel !== originalApt.service));
 
-      // UPDATE EXISTING
-      let syncResult;
-      try {
-        syncResult = await appointmentApplicationService.updateAppointment({
-          tenantId,
-          appointmentId: editingAppointmentId,
-          updates: {
-            staff_id: formData.staffId || null,
-            staff_name: selectedStaff?.name || '',
-            service_id: selectedServices.length === 1 ? selectedService.id : undefined,
-            service_name: selectedServicesLabel,
-            start_time: updatedStartIso,
-            end_time: endTimeLine.toISOString(),
-            duration: Number(formData.duration),
-            price: selectedServicesTotalPrice,
-            notes: formData.notes.trim(),
-          },
-          syncComandaStaff: true,
-        });
+          if (isStaffChanged || isServiceChanged) {
+            setError(
+              'Esta comanda já foi liquidada/finalizada. Alterações de serviço ou profissional exigem reabertura contábil prévia da comanda.',
+            );
+            return;
+          }
+        }
+
+        const endTimeLine = new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+        const updatedStartIso = startTimeLine.toISOString();
+        const updatedAppointmentDate = updatedStartIso;
+
+        // UPDATE EXISTING
+        let syncResult;
+        try {
+          syncResult = await appointmentApplicationService.updateAppointment({
+            tenantId,
+            appointmentId: editingAppointmentId,
+            updates: {
+              staff_id: formData.staffId || null,
+              staff_name: selectedStaff?.name || '',
+              service_id: selectedServices.length > 0 ? selectedServices[0].id : undefined,
+              service_name: selectedServicesLabel,
+              start_time: updatedStartIso,
+              end_time: endTimeLine.toISOString(),
+              duration: Number(formData.duration),
+              price: selectedServicesTotalPrice,
+              notes: formData.notes.trim(),
+            },
+            syncComandaStaff: true,
+          });
       } catch (updateErr) {
         const message = updateErr instanceof AppointmentError ? updateErr.message : 'Erro ao atualizar agendamento.';
         console.error('Erro ao atualizar agendamento:', updateErr);
@@ -1670,6 +1712,7 @@ const Schedule: React.FC = () => {
     setIsModalOpen(false);
     setIsNewClientMode(false);
     setEditingAppointmentId(null);
+    setEditingComandaStatus(null);
     setServiceSearchTerm('');
     setForceOverbook(false);
     setOverbookConflicts([]);
@@ -2246,6 +2289,7 @@ Podemos confirmar? 😄`;
           <button
             onClick={() => {
               setEditingAppointmentId(null);
+    setEditingComandaStatus(null);
               setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
               setChefClubInfo(null);
               setIsModalOpen(true);
@@ -2825,7 +2869,16 @@ Podemos confirmar? 😄`;
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setIsNewClientMode(false); setEditingAppointmentId(null); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
+        onClose={() => {
+          setIsModalOpen(false);
+          setIsNewClientMode(false);
+          setEditingAppointmentId(null);
+          setEditingComandaStatus(null);
+          setChefClubInfo(null);
+          setServiceSearchTerm('');
+          setForceOverbook(false);
+          setError(null);
+        }}
         title={editingAppointmentId ? (isEsteticaApp ? 'Editar atendimento' : 'Editar Agendamento') : (isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento')}
         maxWidth="md"
       >
@@ -2834,6 +2887,20 @@ Podemos confirmar? 😄`;
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
               <span className="material-symbols-outlined text-red-500 text-sm mt-0.5">error</span>
               <p className="text-xs text-red-600 dark:text-red-300 font-medium">{error}</p>
+            </div>
+          )}
+
+          {isComandaLocked && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-500 text-base mt-0.5 shrink-0">lock</span>
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                  Comanda finalizada (Trava Contábil)
+                </p>
+                <p className="text-xs text-amber-600/90 dark:text-amber-400/90 leading-relaxed">
+                  A comanda vinculada já foi finalizada no caixa. Alterações de serviço ou profissional estão bloqueadas e exigem reabertura contábil prévia no módulo de Comandas/Caixa.
+                </p>
+              </div>
             </div>
           )}
 
@@ -2941,7 +3008,12 @@ Podemos confirmar? 😄`;
                 value={serviceSearchTerm}
                 onChange={(e) => setServiceSearchTerm(e.target.value)}
                 placeholder={`Buscar ${serviceLabelLower}...`}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white"
+                disabled={isComandaLocked}
+                className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm outline-none ${
+                  isComandaLocked
+                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed dark:border-white/5 dark:bg-white/5 dark:text-slate-500'
+                    : 'border-slate-200 bg-slate-50 text-slate-900 focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
+                }`}
               />
             </div>
             <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
@@ -2956,8 +3028,11 @@ Podemos confirmar? 😄`;
                     <button
                       key={service.id}
                       type="button"
-                      onClick={() => toggleServiceSelection(service)}
+                      disabled={isComandaLocked}
+                      onClick={() => !isComandaLocked && toggleServiceSelection(service)}
                       className={`flex min-h-[58px] items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition ${
+                        isComandaLocked ? 'cursor-not-allowed opacity-60 ' : ''
+                      }${
                         isSelected
                           ? 'border-primary bg-primary/10 text-primary dark:text-blue-300'
                           : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
@@ -2992,8 +3067,13 @@ Podemos confirmar? 😄`;
             <div className="relative">
               <select
                 value={formData.staffId}
+                disabled={isComandaLocked}
                 onChange={(e) => handleInputChange('staffId', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
+                className={`w-full border rounded-lg p-2.5 text-sm outline-none appearance-none ${
+                  isComandaLocked
+                    ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-50 dark:bg-[#1A1A1A] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary'
+                }`}
               >
                 {staffList.map(r => (
                   <option key={r.id} value={r.id}>{r.name} - {getVisibleRoleLabel(r.role)}</option>
@@ -3109,7 +3189,16 @@ Podemos confirmar? 😄`;
 
           <div className="pt-4 flex justify-end gap-3">
             <button
-              onClick={() => { setIsModalOpen(false); setIsNewClientMode(false); setChefClubInfo(null); setServiceSearchTerm(''); setForceOverbook(false); setError(null); }}
+              onClick={() => {
+                setIsModalOpen(false);
+                setIsNewClientMode(false);
+                setEditingAppointmentId(null);
+                setEditingComandaStatus(null);
+                setChefClubInfo(null);
+                setServiceSearchTerm('');
+                setForceOverbook(false);
+                setError(null);
+              }}
               className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
             >
               Cancelar

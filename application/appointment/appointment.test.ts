@@ -437,6 +437,33 @@ describe('AppointmentApplicationService', () => {
         expect(mockComandaUpdate).not.toHaveBeenCalled();
       });
 
+      it('should_block_service_or_staff_update_when_linked_comanda_is_closed_or_billed', async () => {
+        mockAppointmentGet.mockResolvedValue(makeAppointment({ staff_id: 'staff-1', price: 50 }));
+        mockComandaList.mockResolvedValue([{ id: 'com-closed', status: 'closed', total: 50 }]);
+
+        const resultClosed = await updateAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          updates: { staff_id: 'staff-2' },
+          syncComandaStaff: true,
+        });
+
+        expect(resultClosed.status).toBe('blocked_closed');
+        expect(resultClosed.comandaId).toBe('com-closed');
+
+        mockComandaList.mockResolvedValue([{ id: 'com-billed', status: 'billed', total: 50 }]);
+
+        const resultBilled = await updateAppointment({
+          tenantId: 'tenant-1',
+          appointmentId: 'apt-1',
+          updates: { staff_id: 'staff-2' },
+          syncComandaStaff: true,
+        });
+
+        expect(resultBilled.status).toBe('blocked_closed');
+        expect(resultBilled.comandaId).toBe('com-billed');
+      });
+
       it('should_allow_notes_only_update_when_linked_comanda_is_paid', async () => {
         mockAppointmentGet.mockResolvedValue(makeAppointment({
           staff_id: 'staff-1',

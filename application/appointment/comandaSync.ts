@@ -23,6 +23,7 @@ export interface SyncComandaInput {
 }
 
 const SYNCABLE_STATUSES = new Set(['open', 'blocked']);
+const FINALIZED_STATUSES = new Set(['paid', 'closed', 'billed']);
 const SAO_PAULO_TIMEZONE = 'America/Sao_Paulo';
 
 const toNumber = (value: unknown): number => {
@@ -92,12 +93,13 @@ export async function syncComandaForAppointmentUpdate(input: SyncComandaInput): 
         const currentStatus = comanda.status || 'open';
 
         if (!isSyncableComandaStatus(currentStatus)) {
-            if (!firstBlocked || currentStatus === 'paid') {
+            const isFinalized = FINALIZED_STATUSES.has(currentStatus);
+            if (!firstBlocked || isFinalized) {
                 firstBlocked = {
                     status: 'blocked_closed',
                     comandaId: comanda.id,
-                    message: currentStatus === 'paid'
-                        ? 'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.'
+                    message: isFinalized
+                        ? 'Comanda vinculada já foi finalizada/liquidada. Ajustes de serviço, valor ou profissional exigem reabertura contábil prévia da comanda.'
                         : `Comanda vinculada está com status '${currentStatus}'. Ajuste o valor no balcão.`,
                 };
             }
@@ -157,16 +159,14 @@ export async function syncComandaForAppointmentUpdate(input: SyncComandaInput): 
             await comandaItemRepository.update(linkedItem.id, itemPatch, tenantId);
         }
 
-        const isReplacingService =
-            serviceId !== undefined &&
-            serviceId !== null &&
-            previousServiceId !== null &&
-            serviceId !== previousServiceId;
-
-        if (!isReplacingService && staffId !== undefined && staffId !== null) {
+        // Propagação de staff_id: afeta todos os itens de SERVIÇO da comanda vinculada,
+        // garantindo que trocas de profissional atualizem todos os serviços do agendamento,
+        // preservando estritamente produtos (onde service_id é nulo/indefinido).
+        if (staffId !== undefined && staffId !== null) {
             for (const item of items) {
                 if (linkedItem && item.id === linkedItem.id) continue;
-                if (item.service_id !== null && item.service_id !== undefined && item.staff_id !== staffId) {
+                const isServiceItem = item.service_id !== null && item.service_id !== undefined;
+                if (isServiceItem && item.staff_id !== staffId) {
                     await comandaItemRepository.update(item.id, { staff_id: staffId }, tenantId);
                 }
             }

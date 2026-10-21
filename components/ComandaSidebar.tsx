@@ -375,7 +375,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                                 leftIcon="undo"
                                 className="w-full justify-center border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
                             >
-                                Estornar e reabrir {orderLabelLower}
+                                Reabrir Comanda
                             </Button>
                         ) : (
                             <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
@@ -383,7 +383,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                                     ? financialHistory && financialHistory.reversalStatus !== 'none'
                                         ? `Baixa financeira já possui estorno registrado (${financialHistory.reversalStatus === 'full' ? 'total' : 'parcial'}).`
                                         : 'Baixa sem lançamento financeiro reversível (fechamento administrativo ou saldo zero).'
-                                    : `${orderLabel} finalizado. Apenas gestores podem estornar a baixa financeira para reabrir a edição.`}
+                                    : `${orderLabel} finalizado. Apenas gestores podem estornar a baixa financeira para reabrir a comanda.`}
                             </div>
                         )
                     )}

@@ -211,15 +211,15 @@ export async function updateAppointment(params: UpdateAppointmentParams): Promis
         });
     }
 
-    const paidComanda = comandas.find((c) => c.status === 'paid');
-    if (paidComanda && hasProtectedChanges) {
+    const finalizedComanda = comandas.find((c) => ['paid', 'closed', 'billed'].includes(c.status));
+    if (finalizedComanda && hasProtectedChanges) {
         if (updates.notes !== undefined && (!previous || updates.notes !== previous.notes)) {
             await appointmentRepository.update(appointmentId, { notes: updates.notes }, tenantId);
         }
         return {
             status: 'blocked_closed',
-            comandaId: paidComanda.id,
-            message: 'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+            comandaId: finalizedComanda.id,
+            message: 'Comanda vinculada já foi finalizada/liquidada. Ajustes de serviço, valor ou profissional exigem reabertura contábil prévia da comanda.',
         };
     }
 
