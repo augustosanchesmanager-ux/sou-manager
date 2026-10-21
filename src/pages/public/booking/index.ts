@@ -7,6 +7,9 @@ export { default as StepDateTime } from './StepDateTime';
 export { default as StepClientForm } from './StepClientForm';
 export { default as BookingSummaryBar } from './BookingSummaryBar';
 export { default as BookingSuccessVoucher } from './BookingSuccessVoucher';
+export { LeadCaptureModal } from './LeadCaptureModal';
+export { ServicesCatalogTab } from './ServicesCatalogTab';
+export { AboutUsTab } from './AboutUsTab';
 export { Toast, ToastContainer } from './Toast';
 
 // Hooks

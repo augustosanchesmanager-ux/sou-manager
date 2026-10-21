@@ -419,11 +419,11 @@ export function usePublicBooking() {
     });
   }, []);
 
-  const submitBooking = useCallback(async () => {
+  const submitBooking = useCallback(async (): Promise<CreatePublicBookingResult | null> => {
     const { tenantProfile, selectedServiceIds, selectedStaffId, selectedSlot, clientName, clientPhone, clientNotes, idempotencyKey } = state;
 
     if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
-      return;
+      return null;
     }
 
     if (clientName.trim().length < 3) {
@@ -431,7 +431,7 @@ export function usePublicBooking() {
         ...prev,
         error: { code: 'slot_occupied', message: 'Nome deve ter pelo menos 3 caracteres' } as PublicBookingError,
       }));
-      return;
+      return null;
     }
 
     if (clientPhone.replace(/\D/g, '').length < 10) {
@@ -439,7 +439,7 @@ export function usePublicBooking() {
         ...prev,
         error: { code: 'slot_occupied', message: 'WhatsApp inválido' } as PublicBookingError,
       }));
-      return;
+      return null;
     }
 
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -470,8 +470,9 @@ export function usePublicBooking() {
           idempotencyKey: generateIdempotencyKey(),
         }));
       }
+      return result;
     } catch (err) {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) return null;
 
       const bookingError = err as PublicBookingError;
 
@@ -491,6 +492,7 @@ export function usePublicBooking() {
           error: bookingError,
         }));
       }
+      return null;
     }
   }, [state]);
 
