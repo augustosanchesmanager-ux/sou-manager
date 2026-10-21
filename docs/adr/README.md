@@ -38,6 +38,8 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-032](./ADR-032-public-online-booking.md) | Proposed | Agendamento Online Público — Booking Web Anônimo (P.02-BOOKING-PUBLIC, 2026-10-09) |
 | [ADR-033](./ADR-033-commission-reopen-cycles-and-status-transition.md) | Accepted | Ciclos de Comissão em Comandas Reabertas e Transição de Status no Ledger D7/D8 (C1, 2026-10-20) |
 | [ADR-034](./ADR-034-item-granularity-in-commission-records.md) | Accepted | Granularidade por Item no Ledger de Comissões D7/D8 (C2, 2026-10-20) |
+| [ADR-035](./ADR-035-appointment-comanda-sync-and-post-checkout-lock.md) | Accepted | Sincronização Agendamento × Comanda e Trava Pós-Checkout (2026-10-20) |
+| [ADR-036](./ADR-036-payment-terminals-and-fee-snapshots.md) | Accepted | Cadastro de Maquininhas de Cartão e Snapshot Contábil de Taxas no Checkout (2026-10-21) |
 
 ---
 
