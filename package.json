@@ -20,7 +20,8 @@
     "d8:verify": "node scripts/d8/export-core.mjs --verify",
     "architecture:baseline": "node scripts/architecture/check.mjs --baseline",
     "architecture:strict": "node scripts/architecture/check.mjs --strict",
-    "architecture:deps": "npx depcruise --config .dependency-cruiser.mjs --output-type dot src/ | dot -T svg > architecture.svg"
+    "architecture:deps": "npx depcruise --config .dependency-cruiser.mjs --output-type dot src/ | dot -T svg > architecture.svg",
+    "smg:verify": "node scripts/validation/checklist.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
