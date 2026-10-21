@@ -70,12 +70,21 @@ export class PayoutService {
 
         const rate = normalizeRate(params.commissionRate);
 
-        // Cada parcela Ã© arredondada antes de ser somada. Somar primeiro e
-        // arredondar depois deixaria divergÃªncia entre a soma das parcelas e
-        // o total, que Ã© exatamente o que o CHECK do banco proÃ­be.
-        const grossCommission = sumCents(
-            payments.map((payment) => roundCents(Number(payment.amount) * rate)),
+        // Cada parcela é arredondada antes de ser somada. Somar primeiro e
+        // arredondar depois deixaria divergência entre a soma das parcelas e
+        // o total, que é exatamente o que o CHECK do banco proíbe.
+        // Se a linha já traz commission_value reconciliado do livro-razão (D7/D8/C1/C2),
+        // usamos o valor do ledger diretamente. Se não (fallback legado ou mock de teste),
+        // aplicamos rate sobre amount.
+        const computedGross = sumCents(
+            payments.map((payment) => {
+                if (payment.commission_value !== undefined && payment.commission_value !== null) {
+                    return roundCents(Number(payment.commission_value));
+                }
+                return roundCents(Number(payment.amount) * rate);
+            }),
         );
+        const grossCommission = Math.max(0, computedGross);
 
         const bonusesAdded = roundCents(params.bonusesAdded ?? 0);
 

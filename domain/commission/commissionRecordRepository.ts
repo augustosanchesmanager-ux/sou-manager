@@ -95,6 +95,32 @@ export class CommissionRecordRepository extends SupabaseRepository {
   }
 
   /**
+   * List commission records for multiple comandas.
+   */
+  async listByComandaIds(
+    tenantId: string,
+    comandaIds: string[],
+    staffId?: string,
+  ): Promise<CommissionRecord[]> {
+    if (!comandaIds || comandaIds.length === 0) return [];
+    try {
+      let query = this.from()
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .in('comanda_id', comandaIds);
+
+      if (staffId) {
+        query = query.eq('staff_id', staffId);
+      }
+
+      const result = await query;
+      return this.extractData<CommissionRecord[]>(result, 'listByComandaIds commission_records');
+    } catch (error) {
+      this.throwOnError(error, 'listByComandaIds commission_records');
+    }
+  }
+
+  /**
    * Get a single commission record by ID.
    */
   async get(id: string, tenantId: string): Promise<CommissionRecord | null> {

@@ -127,6 +127,52 @@ describe('PayoutService.computeSettlement (leitura pura)', () => {
         expect(result.paymentCount).toBe(2);
     });
 
+    it('computes_gross_using_ledger_commission_value_when_available', async () => {
+        const service = new PayoutService(
+            makeRepository({
+                listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([
+                    // Ledger reconciled rows already have exact commission_value
+                    { comanda_id: 'c1', staff_id: 'staff1', amount: 100, commission_value: 35, created_at: '2026-10-01T12:00:00Z' },
+                    { comanda_id: 'c2', staff_id: 'staff1', amount: 100, commission_value: 45, created_at: '2026-10-03T12:00:00Z' },
+                ]),
+            }) as never,
+        );
+
+        const result = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5, // Even though rate is 50%, ledger value (35 + 45 = 80) takes precedence
+        });
+
+        expect(result.grossCommission).toBe(80);
+        expect(result.paymentCount).toBe(2);
+    });
+
+    it('supports_multiple_items_for_same_staff_in_comanda_C2', async () => {
+        const service = new PayoutService(
+            makeRepository({
+                listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([
+                    // Two items in the same comanda c1
+                    { comanda_id: 'c1', comanda_item_id: 'i1', staff_id: 'staff1', amount: 60, commission_value: 30, created_at: '2026-10-01T12:00:00Z' },
+                    { comanda_id: 'c1', comanda_item_id: 'i2', staff_id: 'staff1', amount: 40, commission_value: 20, created_at: '2026-10-01T12:00:00Z' },
+                ]),
+            }) as never,
+        );
+
+        const result = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+        });
+
+        expect(result.grossCommission).toBe(50);
+        expect(result.paymentCount).toBe(2);
+    });
+
     it('returns_zeroed_computation_when_no_payments_in_period', async () => {
         const service = new PayoutService(makeRepository() as never);
         const result = await service.computeSettlement({

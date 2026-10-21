@@ -92,11 +92,21 @@ const ADVANCE_COLUMNS =
 const SETTLEMENT_COLUMNS =
     'id, tenant_id, staff_id, period_start, period_end, gross_commission, advances_deducted, bonuses_added, net_payout, status, paid_at, payment_method, cancel_reason, created_at';
 
+import {
+    type FallbackComandaItem,
+    type RawCommissionRecord,
+    reconcileSettledCommissionsToPeriodRows,
+} from './settledCommission';
+
 export interface ComandaPaymentPeriodRow {
     comanda_id: string;
     staff_id: string | null;
     amount: number | string;
     created_at: string;
+    commission_value?: number | string;
+    status?: string;
+    record_type?: string;
+    comanda_item_id?: string | null;
 }
 
 export class PayoutRepository {
@@ -447,12 +457,15 @@ async getSettlementById(tenantId: string, settlementId: string): Promise<BarberP
     // ── Base liquidada (regime de caixa) ─────────────────────────────
 
     /**
-     * Pagamentos NÃO estornados do profissional no período. Esta é a base
-     * do regime de caixa (ADR-030 Decisão C): a competência do repasse é
-     * a data de liquidação, não a data do atendimento.
-     *
-     * `reversed_at IS NULL` é filtrado aqui para que nenhum consumidor
-     * precise repetir a regra — o estorno marca a linha, não a apaga.
+     * Pagamentos NÃO estornados do profissional no período em regime de caixa puro
+     * (ADR-030 Decisão C / C1 ADR-033 / C2 ADR-034):
+     * 1. Filtra comanda_payments com reversed_at IS NULL no período.
+     * 2. Filtra apenas comandas com status = 'paid'.
+     * 3. Reconcilia os lançamentos com o livro-razão (commission_records),
+     *    expurgando comissões estornadas (reversed / reversal) e somando todos
+     *    os itens prestados pelo profissional na comanda.
+     * 4. Executa fallback para comanda_items caso a comanda paga não tenha sido
+     *    processada pelo livro-razão.
      */
     async listSettledPaymentsInPeriod(
         tenantId: string,
@@ -460,16 +473,65 @@ async getSettlementById(tenantId: string, settlementId: string): Promise<BarberP
         periodStartIso: string,
         periodEndIso: string,
     ): Promise<ComandaPaymentPeriodRow[]> {
-        const result = await this.db.from('comanda_payments')
-            .select('comanda_id, staff_id, amount, created_at')
+        // 1. Obter pagamentos liquidados no período (regime de caixa: reversed_at IS NULL)
+        const paymentsRes = await this.db.from('comanda_payments')
+            .select('comanda_id, amount, created_at')
             .eq('tenant_id', tenantId)
-            .eq('staff_id', staffId)
             .is('reversed_at', null)
             .gte('created_at', periodStartIso)
             .lte('created_at', periodEndIso)
             .order('created_at', { ascending: true });
 
-        return this.data(result, 'listSettledPaymentsInPeriod') as ComandaPaymentPeriodRow[];
+        if (paymentsRes.error) this.fail(paymentsRes.error, 'listSettledPaymentsInPeriod:comanda_payments');
+        const payments = (paymentsRes.data || []) as Array<{ comanda_id: string; amount: number | string; created_at: string }>;
+        if (payments.length === 0) return [];
+
+        const comandaIds = Array.from(new Set(payments.map((p) => p.comanda_id).filter(Boolean)));
+        if (comandaIds.length === 0) return [];
+
+        // 2. Filtrar apenas comandas que estão com status = 'paid'
+        const comandasRes = await this.db.from('comandas')
+            .select('id, status')
+            .eq('tenant_id', tenantId)
+            .in('id', comandaIds)
+            .eq('status', 'paid');
+
+        if (comandasRes.error) this.fail(comandasRes.error, 'listSettledPaymentsInPeriod:comandas');
+        const paidComandas = (comandasRes.data || []) as Array<{ id: string; status: string }>;
+        const paidComandaIds = paidComandas.map((c) => c.id);
+        if (paidComandaIds.length === 0) return [];
+
+        // 3. Buscar commission_records do profissional para as comandas pagas
+        const recordsRes = await this.db.from('commission_records')
+            .select('id, comanda_id, comanda_item_id, staff_id, gross_value, net_value, commission_value, status, record_type, original_record_id, created_at')
+            .eq('tenant_id', tenantId)
+            .eq('staff_id', staffId)
+            .in('comanda_id', paidComandaIds);
+
+        if (recordsRes.error) this.fail(recordsRes.error, 'listSettledPaymentsInPeriod:commission_records');
+        const records = (recordsRes.data || []) as RawCommissionRecord[];
+
+        // 4. Comandas pagas sem registro no livro-razão (fallback para comanda_items)
+        const recordedComandaIds = new Set(records.map((r) => r.comanda_id));
+        const unrecordedComandaIds = paidComandaIds.filter((id) => !recordedComandaIds.has(id));
+
+        let fallbackItems: FallbackComandaItem[] = [];
+        if (unrecordedComandaIds.length > 0) {
+            const itemsRes = await this.db.from('comanda_items')
+                .select('id, comanda_id, staff_id, unit_price, quantity, created_at')
+                .eq('tenant_id', tenantId)
+                .eq('staff_id', staffId)
+                .in('comanda_id', unrecordedComandaIds);
+
+            if (!itemsRes.error && itemsRes.data) {
+                fallbackItems = itemsRes.data as FallbackComandaItem[];
+            }
+        }
+
+        return reconcileSettledCommissionsToPeriodRows({
+            records,
+            fallbackItems,
+        });
     }
 }
 
