@@ -193,70 +193,53 @@ skill-name/
 
 ## � Scripts (2)
 
-Master validation scripts that orchestrate skill-level scripts.
+Master validation scripts that orchestrate verification gates.
 
-### Master Scripts
+### Master Verification
 
-| Script          | Purpose                                 | When to Use              |
-| --------------- | --------------------------------------- | ------------------------ |
-| `checklist.py`  | Priority-based validation (Core checks) | Development, pre-commit  |
-| `verify_all.py` | Comprehensive verification (All checks) | Pre-deployment, releases |
+| Script / Command | Purpose | When to Use |
+| --- | --- | --- |
+| `npm run smg:verify` | Native Node.js checklist runner (Typecheck, Arch, Unit, Secrets, Migrations, Lint) | Development, pre-commit, CI gates |
+| `npm run architecture:ci` | Architecture baseline and dependency boundary gate | Pre-commit, CI validation |
 
 ### Usage
 
 ```bash
-# Quick validation during development
-python .agent/scripts/checklist.py .
+# Full verification runner (Native Node.js)
+npm run smg:verify
 
-# Full verification before deployment
-python .agent/scripts/verify_all.py . --url http://localhost:3000
+# Architecture boundary gate
+npm run architecture:ci
 ```
 
-### What They Check
+### What `smg:verify` Checks
 
-**checklist.py** (Core checks):
-
-- Security (vulnerabilities, secrets)
-- Code Quality (lint, types)
-- Schema Validation
-- Test Suite
-- UX Audit
-- SEO Check
-
-**verify_all.py** (Full suite):
-
-- Everything in checklist.py PLUS:
-- Lighthouse (Core Web Vitals)
-- Playwright E2E
-- Bundle Analysis
-- Mobile Audit
-- i18n Check
-
-For details, see [scripts/README.md](scripts/README.md)
+- TypeScript compilation (`tsc --noEmit`)
+- Architecture Guard (imports, circular dependencies, baseline)
+- Unit Tests (`vitest`)
+- Security Secrets Audit (API keys, credentials)
+- Supabase PostgreSQL Migrations (RLS integrity)
+- Linter advisory (`biome check`)
 
 ---
 
 ## 📊 Statistics
 
-| Metric              | Value                         |
-| ------------------- | ----------------------------- |
-| **Total Agents**    | 20                            |
-| **Total Skills**    | 36                            |
-| **Total Workflows** | 11                            |
-| **Total Scripts**   | 2 (master) + 18 (skill-level) |
-| **Coverage**        | ~90% web/mobile development   |
+| Metric | Value |
+| --- | --- |
+| **Active Product** | SMG Barber (Web SPA) |
+| **Validation Runner** | `npm run smg:verify` (Node.js nativo) |
 
 ---
 
 ## 🔗 Quick Reference
 
-| Need     | Agent                 | Skills                                |
-| -------- | --------------------- | ------------------------------------- |
-| Web App  | `frontend-specialist` | react-best-practices, frontend-design |
-| API      | `backend-specialist`  | api-patterns, nodejs-best-practices   |
-| Mobile   | `mobile-developer`    | mobile-design                         |
-| Database | `database-architect`  | database-design, prisma-expert        |
-| Security | `security-auditor`    | vulnerability-scanner                 |
-| Testing  | `test-engineer`       | testing-patterns, webapp-testing      |
-| Debug    | `debugger`            | systematic-debugging                  |
-| Plan     | `project-planner`     | brainstorming, plan-writing           |
+| Need | Agent | Skills |
+| --- | --- | --- |
+| Web App | `frontend-specialist` | react-best-practices, frontend-design |
+| API / Backend | `backend-specialist` | api-patterns, nodejs-best-practices |
+| Database | `backend-specialist` | database-design |
+| Security | `security-auditor` | vulnerability-scanner |
+| Testing | `test-engineer` | testing-patterns, webapp-testing |
+| Debug | `debugger` | systematic-debugging |
+| Plan | `project-planner` | brainstorming, plan-writing |

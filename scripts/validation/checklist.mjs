@@ -101,6 +101,8 @@ function auditSecrets() {
     { name: 'AWS Secret Key', regex: /aws[_-]?secret[_-]?access[_-]?key\s*[=:]\s*["'][A-Za-z0-9/+=]{40}["']/i },
     { name: 'Hardcoded Bearer Token', regex: /bearer\s+eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+/i },
     { name: 'Supabase Service Role Key (Hardcoded)', regex: /service_role\s*[:=]\s*["']eyJ[A-Za-z0-9-_]+/i },
+    { name: 'Google Gemini API Key', regex: /AIzaSy[A-Za-z0-9_-]{33}/ },
+    { name: 'Stripe API Key', regex: /(?:sk_live|rk_live|sk_test|rk_test)_[A-Za-z0-9]{24,}/ },
   ];
 
   const IGNORED_DIRS = new Set([
@@ -124,7 +126,9 @@ function auditSecrets() {
       } else if (entry.isFile()) {
         if (IGNORED_FILES.has(entry.name)) continue;
         const ext = extname(entry.name).toLowerCase();
-        if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.env', '.sql'].includes(ext)) {
+        const isEnvFile = entry.name.startsWith('.env');
+        const isTargetFile = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.sql', '.yaml', '.yml'].includes(ext);
+        if (!isEnvFile && !isTargetFile) {
           continue;
         }
 
@@ -216,8 +220,8 @@ async function main() {
   // Phase 2: Architecture CI Guard [BLOCKING]
   results.push({ name: 'Architecture Guard', ...runCommand('Architecture Guard', 'node', ['scripts/architecture/check.mjs', '--ci', '--baseline'], true) });
 
-  // Phase 3: Core Unit Tests [BLOCKING]
-  results.push({ name: 'Unit Tests', ...runCommand('Unit Tests', 'npx', ['vitest', 'run', 'application/appointment/comandaSync.test.ts'], true) });
+  // Phase 3: Unit Tests Suite [BLOCKING]
+  results.push({ name: 'Unit Tests', ...runCommand('Unit Tests', 'npx', ['vitest', 'run'], true) });
 
   // Phase 4: Secrets Audit [BLOCKING]
   results.push({ name: 'Secrets Audit', ...auditSecrets() });

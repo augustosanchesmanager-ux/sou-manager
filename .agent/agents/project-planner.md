@@ -142,13 +142,12 @@ File:         ./dashboard-analytics.md (project root)
 |----------|-------|--------|-------------|
 | **P0** | Foundation | `database-architect` → `security-auditor` | If project needs DB |
 | **P1** | Core | `backend-specialist` | If project has backend |
-| **P2** | UI/UX | `frontend-specialist` OR `mobile-developer` | Web OR Mobile (not both!) |
+| **P2** | UI/UX | `frontend-specialist` | Web SPA |
 | **P3** | Polish | `test-engineer`, `performance-optimizer`, `seo-specialist` | Based on needs |
 
 > 🔴 **Agent Selection Rule:**
-> - Web app → `frontend-specialist` (NO `mobile-developer`)
-> - Mobile app → `mobile-developer` (NO `frontend-specialist`)
-> - API only → `backend-specialist` (NO frontend, NO mobile)
+> - Web app → `frontend-specialist`
+> - API / Backend → `backend-specialist`
 
 ---
 
@@ -157,9 +156,9 @@ File:         ./dashboard-analytics.md (project root)
 | Step | Action | Command |
 |------|--------|---------|
 | 1 | Checklist | Purple check, Template check, Socratic respected? |
-| 2 | Scripts | `security_scan.py`, `ux_audit.py`, `lighthouse_audit.py` |
+| 2 | Verification Runner | `npm run smg:verify` (Typecheck, Arch, Unit, Secrets, Migrations) |
 | 3 | Build | `npm run build` |
-| 4 | Run & Test | `npm run dev` + manual test |
+| 4 | Run & Test | `npm run dev` + manual/E2E test |
 | 5 | Complete | Mark all `[ ]` → `[x]` in PLAN.md |
 
 > 🔴 **Rule:** DO NOT mark `[x]` without actually running the check!
@@ -186,30 +185,25 @@ Parse the request to understand:
 
 **🔴 PROJECT TYPE DETECTION (MANDATORY)**
 
-Before assigning agents, determine project type:
+Before assigning agents, determine domain focus:
 
-| Trigger | Project Type | Primary Agent | DO NOT USE |
-|---------|--------------|---------------|------------|
-| "mobile app", "iOS", "Android", "React Native", "Flutter", "Expo" | **MOBILE** | `mobile-developer` | ❌ frontend-specialist, backend-specialist |
-| "website", "web app", "Next.js", "React" (web) | **WEB** | `frontend-specialist` | ❌ mobile-developer |
-| "API", "backend", "server", "database" (standalone) | **BACKEND** | `backend-specialist | - |
-
-> 🔴 **CRITICAL:** Mobile project + frontend-specialist = WRONG. Mobile project = mobile-developer ONLY.
+| Trigger | Domain | Primary Agent |
+|---------|--------|---------------|
+| "website", "web app", "React", "SPA", "UI" | **WEB / SPA** | `frontend-specialist` |
+| "API", "backend", "server", "database", "RPC" | **BACKEND** | `backend-specialist` |
 
 ---
 
-**Components by Project Type:**
+**Components by Domain:**
 
-| Component | WEB Agent | MOBILE Agent |
-|-----------|-----------|---------------|
-| Database/Schema | `database-architect` | `mobile-developer` |
-| API/Backend | `backend-specialist` | `mobile-developer` |
-| Auth | `security-auditor` | `mobile-developer` |
-| UI/Styling | `frontend-specialist` | `mobile-developer` |
-| Tests | `test-engineer` | `mobile-developer` |
-| Deploy | `devops-engineer` | `mobile-developer` |
-
-> `mobile-developer` is full-stack for mobile projects.
+| Component | Specialist Agent |
+|-----------|------------------|
+| Database/Schema | `database-architect` / `backend-specialist` |
+| API/Backend | `backend-specialist` |
+| Auth | `security-auditor` |
+| UI/Styling | `frontend-specialist` |
+| Tests | `test-engineer` |
+| Deploy | `devops-engineer` |
 
 ---
 
@@ -294,61 +288,49 @@ Before assigning agents, determine project type:
 | **Task Breakdown** | Detailed tasks (see format below) | INPUT → OUTPUT → VERIFY |
 | **Phase X: Verification** | Mandatory checklist | Definition of done |
 
-### Phase X: Final Verification (MANDATORY SCRIPT EXECUTION)
+### Phase X: Final Verification (MANDATORY VERIFICATION GATES)
 
-> 🔴 **DO NOT mark project complete until ALL scripts pass.**
-> 🔴 **ENFORCEMENT: You MUST execute these Python scripts!**
+> 🔴 **DO NOT mark project complete until ALL gates pass.**
 
-> 💡 **Script paths are relative to `.agent/` directory**
-
-#### 1. Run All Verifications (RECOMMENDED)
+#### 1. Run Master Verification Runner (RECOMMENDED)
 
 ```bash
-# SINGLE COMMAND - Runs all checks in priority order:
-python .agent/scripts/verify_all.py . --url http://localhost:3000
+# SINGLE COMMAND - Native Node.js runner:
+npm run smg:verify
 
-# Priority Order:
-# P0: Security Scan (vulnerabilities, secrets)
-# P1: Color Contrast (WCAG AA accessibility)
-# P1.5: UX Audit (Psychology laws, Fitts, Hick, Trust)
-# P2: Touch Target (mobile accessibility)
-# P3: Lighthouse Audit (performance, SEO)
-# P4: Playwright Tests (E2E)
+# Priority Order inside runner:
+# P0: Typecheck (tsc --noEmit)
+# P0: Architecture Guard (boundaries, circular dependencies)
+# P0: Unit Tests (vitest)
+# P0: Security Secrets Audit
+# P0: Migration Security Audit (PostgreSQL RLS)
+# P1: Linter (biome) (Advisory)
 ```
 
-#### 2. Or Run Individually
+#### 2. Or Run Gates Individually
 
 ```bash
-# P0: Lint & Type Check
-npm run lint && npx tsc --noEmit
+# Typecheck
+npm run typecheck
 
-# P0: Security Scan
-python .agent/skills/vulnerability-scanner/scripts/security_scan.py .
+# Architecture & Boundaries
+npm run architecture:ci
 
-# P1: UX Audit
-python .agent/skills/frontend-design/scripts/ux_audit.py .
+# Unit Tests
+npm run test
 
-# P3: Lighthouse (requires running server)
-python .agent/skills/performance-profiling/scripts/lighthouse_audit.py http://localhost:3000
-
-# P4: Playwright E2E (requires running server)
-python .agent/skills/webapp-testing/scripts/playwright_runner.py http://localhost:3000 --screenshot
-```
-
-#### 3. Build Verification
-```bash
-# For Node.js projects:
+# Build Verification
 npm run build
-# → IF warnings/errors: Fix before continuing
+
+# E2E Smoke Tests (Playwright)
+npm run test:e2e:smoke
 ```
 
-#### 4. Runtime Verification
+#### 3. Runtime Verification
 ```bash
-# Start dev server and test:
+# Start dev server:
 npm run dev
-
-# Optional: Run Playwright tests if available
-python .agent/skills/webapp-testing/scripts/playwright_runner.py http://localhost:3000 --screenshot
+```
 ```
 
 #### 4. Rule Compliance (Manual Check)

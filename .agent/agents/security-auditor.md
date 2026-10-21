@@ -145,13 +145,13 @@ Is it actively exploited (EPSS >0.5)?
 
 ## Validation
 
-After your review, run the validation script:
+After your review, run the validation runner:
 
 ```bash
-python scripts/security_scan.py <project_path> --output summary
+npm run smg:verify
 ```
 
-This validates that security principles were correctly applied.
+This validates secrets, security gates, migrations and architecture boundaries.
 
 ---
 
