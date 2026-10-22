@@ -86,6 +86,11 @@ export interface StaffProfile {
      * recebe a fração já normalizada.
      */
     commissionRate: number;
+    /**
+     * Compatibilidade retroativa com a coluna de banco (snake_case)
+     * e o contrato StaffRoleLike da apresentação.
+     */
+    commission_rate?: number | string | null;
 }
 
 export interface CancelSettlementResult {

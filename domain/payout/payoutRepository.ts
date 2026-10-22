@@ -328,6 +328,7 @@ async listActiveProfessionals(tenantId: string): Promise<StaffProfile[]> {
         role: row.role ?? 'Profissional',
         avatar: row.avatar ?? '',
         commissionRate: Number(row.commission_rate ?? 0),
+        commission_rate: row.commission_rate,
     }));
 }
 
