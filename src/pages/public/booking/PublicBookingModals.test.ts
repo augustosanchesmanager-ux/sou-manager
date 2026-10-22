@@ -15,6 +15,7 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
     category: 'Cabelo',
     duration: 35,
     price: 45,
+    active: true,
     description: 'Corte clássico na tesoura ou máquina com acabamento e toalha quente.',
   };
 
@@ -22,21 +23,18 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
     {
       id: 'staff-1',
       name: 'Dom Pedro Silva',
-      role: 'barber',
       avatar_url: 'https://example.com/avatar.jpg',
       status: 'active',
     },
     {
       id: 'staff-2',
       name: 'Leonardo',
-      role: 'barber',
       avatar_url: null,
       status: 'active',
     },
     {
       id: 'staff-inactive',
       name: 'Antônio Inativo',
-      role: 'barber',
       avatar_url: null,
       status: 'inactive',
     },
@@ -47,11 +45,13 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
       start_time: '2026-10-22T09:00:00-03:00',
       end_time: '2026-10-22T09:35:00-03:00',
       staff_id: 'staff-1',
+      available: true,
     },
     {
       start_time: '2026-10-22T10:00:00-03:00',
       end_time: '2026-10-22T10:35:00-03:00',
       staff_id: 'staff-1',
+      available: true,
     },
   ];
 
