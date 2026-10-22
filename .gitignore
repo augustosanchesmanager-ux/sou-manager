@@ -57,3 +57,7 @@ h4_*.cjs
 h4_*.json
 
 .vercel
+
+# Local design tooling & secondary agent harnesses (untracked)
+.opencode/skills/impeccable/
+.claude/
