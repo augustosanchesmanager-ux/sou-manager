@@ -1,20 +1,28 @@
 /**
- * PublicBookingPage - Redesigned mobile-first booking experience for SMG Barber.
+ * PublicBookingPage - Luxury mobile-first booking experience for SMG Barber.
  * Preserves 100% integration with usePublicBooking() hook and ADR-032 RPC engine.
- * Includes lead capture on first click (Bottom Sheet) and structured WhatsApp confirmation.
+ * Features:
+ * - High-contrast dark luxury visual design (pure white titles, amber accents, crisp neutrals)
+ * - Hero Cover Header with background banner, overlapping avatar, address and direct WhatsApp/Instagram links
+ * - Guided 3-Phase Modal Booking Flow:
+ *     Phase 1: Service Specification + Early Lead Capture (Name + WhatsApp)
+ *     Phase 2: Staff Selection ('Any Staff Available' + active barbers)
+ *     Phase 3: Date & Time Slot Picker + Summary + Booking confirmation
+ * - Structured WhatsApp dispatch with official voucher display on completion
  */
 
 import type React from 'react';
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  Check,
   Clock,
-  Zap,
-  Calendar as CalendarIcon,
+  Sparkles,
   AlertCircle,
   Edit2,
   Loader2,
   ChevronRight,
+  Scissors,
+  CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import { usePublicBooking } from './hooks/usePublicBooking';
 import BookingHeader, {
@@ -26,7 +34,12 @@ import BookingHeader, {
 import { LeadCaptureModal } from './LeadCaptureModal';
 import { ServicesCatalogTab } from './ServicesCatalogTab';
 import { AboutUsTab } from './AboutUsTab';
-import BookingSuccessVoucher, { buildStructuredWhatsAppConfirmationUrl } from './BookingSuccessVoucher';
+import BookingSuccessVoucher, {
+  buildStructuredWhatsAppConfirmationUrl,
+} from './BookingSuccessVoucher';
+import { ServiceSpecificationModal } from './modals/ServiceSpecificationModal';
+import { StaffSelectionModal } from './modals/StaffSelectionModal';
+import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
 import { Toast } from './Toast';
 import type { PublicSlot, PublicService } from './hooks/types';
 
@@ -81,13 +94,15 @@ const PublicBookingPage: React.FC = () => {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<BookingNavigationTab>('agendamento');
 
-  // Lead capture Bottom Sheet state
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [pendingServiceId, setPendingServiceId] = useState<string | null>(null);
-  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  // Guided 3-Phase Modals State
+  const [selectedServiceForModal, setSelectedServiceForModal] = useState<PublicService | null>(null);
+  const [isSpecModalOpen, setIsSpecModalOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [isDateTimeModalOpen, setIsDateTimeModalOpen] = useState(false);
 
-  // Horizontal date carousel ref
-  const dateScrollRef = useRef<HTMLDivElement>(null);
+  // Standalone Lead Capture Modal state (for editing identity directly from bar)
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
   // Restore client lead data from localStorage on mount
   useEffect(() => {
@@ -117,7 +132,9 @@ const PublicBookingPage: React.FC = () => {
   }, [tenantProfile]);
 
   const whatsappUrl = useMemo(() => {
-    return buildSafeWhatsAppUrl(tenantProfile?.whatsapp_number || tenantProfile?.social_links?.whatsapp || tenantProfile?.phone);
+    return buildSafeWhatsAppUrl(
+      tenantProfile?.whatsapp_number || tenantProfile?.social_links?.whatsapp || tenantProfile?.phone
+    );
   }, [tenantProfile]);
 
   const mapsUrl = useMemo(() => {
@@ -157,58 +174,20 @@ const PublicBookingPage: React.FC = () => {
     return list;
   }, [tenantProfile]);
 
-  // Auto-select "Qualquer Profissional" by default when services are picked if none selected
-  useEffect(() => {
-    if (selectedServiceIds.length > 0 && selectedStaffId === null) {
-      selectStaff(ANY_STAFF_ID);
-    }
-  }, [selectedServiceIds.length, selectedStaffId, selectStaff, ANY_STAFF_ID]);
-
-  // Auto-select today as default date once staff is selected and no date is set
-  useEffect(() => {
-    if (selectedStaffId && !selectedDate && dateOptions.length > 0) {
-      selectDate(dateOptions[0].value);
-    }
-  }, [selectedStaffId, selectedDate, dateOptions, selectDate]);
-
-  // Intercept service click for Lead Capture on First Click
-  const handleServiceClick = useCallback((serviceId: string) => {
-    if (!isClientIdentified) {
-      setPendingServiceId(serviceId);
-      setIsLeadModalOpen(true);
-      return;
-    }
-    toggleService(serviceId);
-  }, [isClientIdentified, toggleService]);
-
-  // Handle lead saved from modal
-  const handleLeadSaved = useCallback((name: string, phone: string) => {
-    setClientName(name);
-    setClientPhone(phone);
-    try {
-      localStorage.setItem('smg_client_lead', JSON.stringify({ name, phone }));
-    } catch {
-      // Ignore storage errors
-    }
-    setIsLeadModalOpen(false);
-
-    if (pendingServiceId) {
-      toggleService(pendingServiceId);
-      setPendingServiceId(null);
-    }
-  }, [setClientName, setClientPhone, pendingServiceId, toggleService]);
-
   // Format slot time for display
-  const formatSlotTime = useCallback((isoString: string): string => {
-    const date = new Date(isoString);
-    const timezone = tenantProfile?.booking_rules?.timezone || 'America/Sao_Paulo';
-    return date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: timezone,
-    });
-  }, [tenantProfile]);
+  const formatSlotTime = useCallback(
+    (isoString: string): string => {
+      const date = new Date(isoString);
+      const timezone = tenantProfile?.booking_rules?.timezone || 'America/Sao_Paulo';
+      return date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: timezone,
+      });
+    },
+    [tenantProfile]
+  );
 
   // Flattened available slots for active date
   const availableSlotsList = useMemo(() => {
@@ -219,14 +198,90 @@ const PublicBookingPage: React.FC = () => {
     return list;
   }, [groupedSlots]);
 
-  // Final booking submission with automatic WhatsApp dispatch
-  const handleConfirmBooking = async () => {
-    if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
-      return;
-    }
+  // Handle lead saved from LeadCaptureModal or ServiceSpecificationModal
+  const handleLeadSaved = useCallback(
+    (name: string, phone: string) => {
+      setClientName(name);
+      setClientPhone(phone);
+      try {
+        localStorage.setItem('smg_client_lead', JSON.stringify({ name, phone }));
+      } catch {
+        // Ignore storage errors
+      }
+      setIsLeadModalOpen(false);
+    },
+    [setClientName, setClientPhone]
+  );
 
-    if (!isClientIdentified) {
-      setIsLeadModalOpen(true);
+  // Launch guided 3-phase booking flow starting from service specification
+  const handleOpenServiceModal = useCallback(
+    (service: PublicService) => {
+      setSelectedServiceForModal(service);
+
+      // Ensure this service is selected in hook
+      if (!selectedServiceIds.includes(service.id)) {
+        // Clear previous selections to focus on this single booking
+        for (const id of selectedServiceIds) {
+          toggleService(id);
+        }
+        toggleService(service.id);
+      }
+
+      // Default staff to ANY_STAFF_ID if none selected
+      if (!selectedStaffId) {
+        selectStaff(ANY_STAFF_ID);
+      }
+
+      // Default date to today if none selected
+      if (!selectedDate && dateOptions.length > 0) {
+        selectDate(dateOptions[0].value);
+      }
+
+      setIsSpecModalOpen(true);
+    },
+    [
+      selectedServiceIds,
+      toggleService,
+      selectedStaffId,
+      selectStaff,
+      ANY_STAFF_ID,
+      selectedDate,
+      dateOptions,
+      selectDate,
+    ]
+  );
+
+  // Advance Phase 1 (Service Spec) -> Phase 2 (Staff Selection)
+  const handleProceedToStaff = useCallback(() => {
+    setIsSpecModalOpen(false);
+    setIsStaffModalOpen(true);
+  }, []);
+
+  // Advance Phase 2 (Staff Selection) -> Phase 3 (Date/Time Slot)
+  const handleSelectStaff = useCallback(
+    (staffId: string) => {
+      selectStaff(staffId);
+      setIsStaffModalOpen(false);
+      setIsDateTimeModalOpen(true);
+    },
+    [selectStaff]
+  );
+
+  // Return to Phase 1 from Phase 2
+  const handleBackToSpec = useCallback(() => {
+    setIsStaffModalOpen(false);
+    setIsSpecModalOpen(true);
+  }, []);
+
+  // Return to Phase 2 from Phase 3
+  const handleBackToStaff = useCallback(() => {
+    setIsDateTimeModalOpen(false);
+    setIsStaffModalOpen(true);
+  }, []);
+
+  // Final booking submission with automatic WhatsApp dispatch
+  const handleConfirmBooking = useCallback(async () => {
+    if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
       return;
     }
 
@@ -236,6 +291,9 @@ const PublicBookingPage: React.FC = () => {
       const result = await submitBooking();
 
       if (result) {
+        // Close Phase 3 modal
+        setIsDateTimeModalOpen(false);
+
         // Build structured confirmation message
         const dateStr = result.start_time.split('T')[0];
         const dateDisplay = formatDateForDisplay(dateStr);
@@ -270,15 +328,32 @@ const PublicBookingPage: React.FC = () => {
     } finally {
       setIsSubmittingBooking(false);
     }
-  };
+  }, [
+    tenantProfile,
+    selectedSlot,
+    selectedServiceIds.length,
+    selectedStaffId,
+    submitBooking,
+    formatDateForDisplay,
+    clientName,
+  ]);
+
+  // Active staff name display for Phase 3 summary
+  const selectedStaffName = useMemo(() => {
+    if (selectedStaffId === ANY_STAFF_ID) {
+      return 'Qualquer Profissional (1º livre)';
+    }
+    const staff = availableStaff.find((s) => s.id === selectedStaffId);
+    return staff?.name || 'Qualquer Profissional';
+  }, [selectedStaffId, ANY_STAFF_ID, availableStaff]);
 
   // Loading state
   if (isLoading && !tenantProfile) {
     return (
-      <div className="min-h-screen bg-background-dark flex items-center justify-center p-4">
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
         <div className="text-center space-y-3">
-          <Loader2 className="size-8 text-primary animate-spin mx-auto" />
-          <p className="text-xs text-ink-soft">Carregando barbearia...</p>
+          <Loader2 className="size-8 text-amber-400 animate-spin mx-auto" />
+          <p className="text-xs text-neutral-400 font-medium">Carregando barbearia...</p>
         </div>
       </div>
     );
@@ -287,19 +362,19 @@ const PublicBookingPage: React.FC = () => {
   // Not found state
   if (!tenantProfile) {
     return (
-      <div className="min-h-screen bg-background-dark flex items-center justify-center p-4 text-cream">
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 text-white">
         <div className="text-center max-w-sm space-y-4">
-          <div className="size-16 rounded-2xl bg-card-dark border border-border-dark flex items-center justify-center mx-auto text-ink-soft">
-            <AlertCircle className="size-8" />
+          <div className="size-16 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center mx-auto text-neutral-400">
+            <AlertCircle className="size-8 text-amber-500" />
           </div>
-          <h1 className="font-display font-black text-xl text-cream">Não encontramos essa barbearia</h1>
-          <p className="text-xs text-ink-soft">
+          <h1 className="font-display font-black text-xl text-white">Barbearia não encontrada</h1>
+          <p className="text-xs text-neutral-400">
             Verifique o link informado ou entre em contato direto com o estabelecimento.
           </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded-xl bg-primary text-night font-bold text-xs hover:bg-primary-dark transition-colors cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-amber-500 text-neutral-950 font-bold text-xs hover:bg-amber-400 transition-colors cursor-pointer shadow-lg shadow-amber-500/20"
           >
             Tentar novamente
           </button>
@@ -309,10 +384,9 @@ const PublicBookingPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background-dark flex items-start sm:items-center justify-center p-0 sm:p-4 font-sans text-cream">
+    <div className="min-h-screen bg-neutral-950 flex items-start sm:items-center justify-center p-0 sm:p-4 font-sans text-white">
       {/* Container Mobile Card */}
-      <div className="w-full max-w-sm sm:max-w-md bg-surface-dark text-cream rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border border-border-dark flex flex-col min-h-screen sm:min-h-0 sm:my-6">
-
+      <div className="w-full max-w-sm sm:max-w-md bg-neutral-900 text-white rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border border-neutral-800 flex flex-col min-h-screen sm:min-h-0 sm:my-6">
         {/* Error Toast notification */}
         {error && (
           <div className="fixed top-4 left-4 right-4 z-50 px-4 pointer-events-none">
@@ -351,7 +425,7 @@ const PublicBookingPage: React.FC = () => {
           />
         ) : (
           <>
-            {/* Header with shop identity and navigation tabs */}
+            {/* Header with shop cover, avatar, rating and navigation tabs */}
             <BookingHeader
               tenant={tenantProfile}
               activeTab={activeTab}
@@ -362,22 +436,19 @@ const PublicBookingPage: React.FC = () => {
             />
 
             {/* Main Content Area */}
-            <main className="p-4 sm:p-5 flex-1 bg-surface-dark">
+            <main className="p-4 sm:p-5 flex-1 bg-neutral-900">
               {/* Tab 2: Serviços Catalog */}
               {activeTab === 'servicos' && (
                 <ServicesCatalogTab
                   services={availableServices}
                   selectedIds={selectedServiceIds}
-                  onSelectService={(service: PublicService) => {
-                    handleServiceClick(service.id);
-                    setActiveTab('agendamento');
-                  }}
+                  onSelectService={handleOpenServiceModal}
                   formatPriceBRL={formatPriceBRL}
                 />
               )}
 
               {/* Tab 3: Sobre Nós */}
-              {activeTab === 'sobre' && (
+              {(activeTab === 'sobre' || activeTab === 'contato') && (
                 <AboutUsTab
                   tenant={tenantProfile}
                   mapsUrl={mapsUrl}
@@ -386,334 +457,140 @@ const PublicBookingPage: React.FC = () => {
                 />
               )}
 
-              {/* Tab 4: Contato (Fallback if not opened via direct link) */}
-              {activeTab === 'contato' && (
-                <AboutUsTab
-                  tenant={tenantProfile}
-                  mapsUrl={mapsUrl}
-                  whatsappUrl={whatsappUrl}
-                  instagramUrl={instagramUrl}
-                />
-              )}
-
-              {/* Tab 1: Agendamento Principal (Cascata Fluida) */}
+              {/* Tab 1: Agendamento Principal (Vitrine de Alto Padrão) */}
               {activeTab === 'agendamento' && (
-                <div className="space-y-5">
-                  {/* Client Identification Bar (if identified) */}
+                <div className="space-y-4">
+                  {/* Client Identification Bar */}
                   {isClientIdentified ? (
-                    <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-card-dark border border-border-dark text-xs">
+                    <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-neutral-950 border border-neutral-800 text-xs">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="size-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                        <span className="size-2 rounded-full bg-emerald-400 flex-shrink-0" />
                         <div className="truncate">
-                          <span className="text-ink-soft">Cliente: </span>
-                          <strong className="text-cream truncate">{clientName}</strong>
-                          <span className="text-ink-soft ml-1 truncate">({clientPhoneDisplay})</span>
+                          <span className="text-neutral-400">Cliente: </span>
+                          <strong className="text-white truncate">{clientName}</strong>
+                          <span className="text-neutral-400 ml-1 truncate">({clientPhoneDisplay})</span>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => setIsLeadModalOpen(true)}
-                        className="text-[11px] font-bold text-primary hover:text-primary-light transition-colors flex items-center gap-1 flex-shrink-0 ml-2"
+                        className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 flex-shrink-0 ml-2 cursor-pointer"
                       >
                         <Edit2 size={11} />
                         Alterar
                       </button>
                     </div>
                   ) : (
-                    <div className="px-3.5 py-2 rounded-xl bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center justify-between">
-                      <span>Ao selecionar o serviço, você informará seu WhatsApp para confirmação.</span>
+                    <div className="px-3.5 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span className="text-[11px] leading-snug">
+                        Selecione um serviço abaixo para escolher o profissional e horário.
+                      </span>
                     </div>
                   )}
 
-                  {/* Section 1: Serviços */}
-                  <section>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <h2 className="text-xs font-bold text-ink-soft uppercase tracking-wider">
-                        1. Escolha o(s) Serviço(s)
+                  {/* Section Title */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <Scissors className="w-4 h-4 text-amber-400" />
+                        Serviços Disponíveis
                       </h2>
-                      {selectedServiceIds.length > 0 && (
-                        <span className="text-[11px] font-bold text-primary">
-                          {selectedServiceIds.length} selecionado{selectedServiceIds.length > 1 ? 's' : ''}
-                        </span>
-                      )}
+                      <p className="text-[11px] text-neutral-400">
+                        Toque no serviço para ver detalhes e iniciar o agendamento
+                      </p>
                     </div>
+                    <span className="text-xs font-bold text-amber-400">
+                      {availableServices.length} {availableServices.length === 1 ? 'item' : 'itens'}
+                    </span>
+                  </div>
 
-                    <div className="space-y-2">
-                      {availableServices.map((service) => {
+                  {/* Services Vitrine */}
+                  <div className="space-y-2.5">
+                    {availableServices.length === 0 ? (
+                      <div className="p-8 text-center bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2">
+                        <Scissors className="w-8 h-8 text-neutral-600 mx-auto" />
+                        <p className="text-xs text-neutral-400">Nenhum serviço disponível no momento.</p>
+                      </div>
+                    ) : (
+                      availableServices.map((service) => {
                         const isSelected = selectedServiceIds.includes(service.id);
+
                         return (
                           <button
                             key={service.id}
                             type="button"
-                            onClick={() => handleServiceClick(service.id)}
-                            className={`w-full p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer active:scale-[0.99] ${
+                            onClick={() => handleOpenServiceModal(service)}
+                            className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] flex items-center justify-between gap-3 ${
                               isSelected
-                                ? 'bg-primary/10 border-primary shadow-sm'
-                                : 'bg-card-dark border-border-dark hover:border-primary/40'
+                                ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/40 shadow-md'
+                                : 'bg-neutral-950 border-neutral-800 hover:border-amber-500/50 hover:bg-neutral-950/80'
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {/* Checkbox indicator */}
-                              <div
-                                className={`size-5 rounded-lg border flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  isSelected
-                                    ? 'bg-primary border-primary text-night'
-                                    : 'border-border-dark bg-surface-dark'
-                                }`}
-                              >
-                                {isSelected && <Check size={12} strokeWidth={3} />}
+                              {/* Service Icon / Photo */}
+                              <div className="size-12 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden text-amber-400">
+                                {service.image_url ? (
+                                  <img
+                                    src={service.image_url}
+                                    alt={service.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Scissors className="w-5 h-5 text-amber-400" />
+                                )}
                               </div>
 
                               {/* Service Info */}
                               <div className="min-w-0 flex-1">
-                                <h3 className="font-bold text-xs text-cream truncate">{service.name}</h3>
-                                <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-                                  <span className="flex items-center gap-1 text-ink-soft">
-                                    <Clock size={11} className="text-primary" />
-                                    {service.duration} min
-                                  </span>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-bold text-sm text-white truncate">{service.name}</h3>
                                   {service.category && (
-                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-border-dark text-ink-soft uppercase">
+                                    <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.2 rounded-full bg-neutral-800 text-amber-400">
                                       {service.category}
                                     </span>
                                   )}
                                 </div>
+                                <div className="flex items-center gap-2 mt-1 text-xs">
+                                  <span className="flex items-center gap-1 text-neutral-300 font-medium">
+                                    <Clock size={12} className="text-amber-400" />
+                                    {service.duration} min
+                                  </span>
+                                  <span className="text-neutral-600">•</span>
+                                  <span className="text-amber-400 font-extrabold tabular-nums">
+                                    {formatPriceBRL(service.price)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Price */}
-                            <span className="font-bold text-xs text-cream tabular-nums flex-shrink-0">
-                              {formatPriceBRL(service.price)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Services summary bar */}
-                    {selectedServiceIds.length > 0 && (
-                      <div className="mt-2.5 p-2 rounded-xl bg-background-dark border border-border-dark flex items-center justify-between text-xs">
-                        <span className="text-ink-soft">
-                          Duração: <strong className="text-cream">{formatDuration(totalDuration)}</strong>
-                        </span>
-                        <span className="font-bold text-primary tabular-nums">
-                          Total: {formatPriceBRL(totalPrice)}
-                        </span>
-                      </div>
-                    )}
-                  </section>
-
-                  {/* Section 2: Profissional */}
-                  <section>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <h2 className="text-xs font-bold text-ink-soft uppercase tracking-wider">
-                        2. Profissional
-                      </h2>
-                    </div>
-
-                    <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none snap-x">
-                      {/* Qualquer Profissional Card */}
-                      <button
-                        type="button"
-                        onClick={() => selectStaff(ANY_STAFF_ID)}
-                        className={`relative flex flex-col items-center justify-center p-2 rounded-2xl flex-shrink-0 w-20 text-center transition-all cursor-pointer snap-start ${
-                          selectedStaffId === ANY_STAFF_ID
-                            ? 'ring-2 ring-primary bg-card-dark text-primary'
-                            : 'bg-card-dark/80 border border-border-dark text-ink-soft hover:text-cream'
-                        }`}
-                      >
-                        <div className="size-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-1">
-                          <Zap size={20} />
-                        </div>
-                        <span className="text-[11px] font-bold leading-tight line-clamp-1">Qualquer</span>
-                        <span className="text-[9px] text-ink-soft leading-tight">1º livre</span>
-
-                        {selectedStaffId === ANY_STAFF_ID && (
-                          <span className="absolute top-1 right-1 bg-primary text-night rounded-full p-0.5">
-                            <Check size={8} strokeWidth={3} />
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Barbeiros ativos */}
-                      {availableStaff.map((staff) => {
-                        const isSelected = selectedStaffId === staff.id;
-                        const initials = staff.name
-                          .split(/\s+/)
-                          .slice(0, 2)
-                          .map((n) => n[0])
-                          .join('')
-                          .toUpperCase();
-
-                        return (
-                          <button
-                            key={staff.id}
-                            type="button"
-                            onClick={() => selectStaff(staff.id)}
-                            className={`relative flex flex-col items-center justify-center p-2 rounded-2xl flex-shrink-0 w-20 text-center transition-all cursor-pointer snap-start ${
-                              isSelected
-                                ? 'ring-2 ring-primary bg-card-dark text-cream'
-                                : 'bg-card-dark/80 border border-border-dark text-ink-soft hover:text-cream'
-                            }`}
-                          >
-                            <div className="size-12 rounded-xl overflow-hidden bg-background-dark border border-border-dark flex items-center justify-center mb-1">
-                              {staff.avatar_url ? (
-                                <img
-                                  src={staff.avatar_url}
-                                  alt={staff.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="font-display font-bold text-xs text-primary">{initials}</span>
-                              )}
-                            </div>
-                            <span className="text-[11px] font-medium leading-tight truncate w-full">
-                              {staff.name.split(' ')[0]}
-                            </span>
-                            <span className="text-[9px] text-emerald-400 leading-tight">Ativo</span>
-
-                            {isSelected && (
-                              <span className="absolute top-1 right-1 bg-primary text-night rounded-full p-0.5">
-                                <Check size={8} strokeWidth={3} />
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {/* Section 3: Data */}
-                  <section>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <h2 className="text-xs font-bold text-ink-soft uppercase tracking-wider">
-                        3. Escolha a Data
-                      </h2>
-                    </div>
-
-                    <div
-                      ref={dateScrollRef}
-                      className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x"
-                    >
-                      {dateOptions.map((date) => {
-                        const isSelected = selectedDate === date.value;
-                        return (
-                          <button
-                            key={date.value}
-                            type="button"
-                            onClick={() => selectDate(date.value)}
-                            className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-2xl flex-shrink-0 min-w-[54px] transition-all cursor-pointer snap-start ${
-                              isSelected
-                                ? 'bg-primary text-night font-bold shadow-md shadow-primary/20 scale-[1.02]'
-                                : 'bg-card-dark border border-border-dark text-ink-soft hover:text-cream'
-                            }`}
-                          >
-                            <span className="text-[9px] font-semibold uppercase tracking-tight">
-                              {date.dayLabel || date.weekday}
-                            </span>
-                            <span className="text-sm font-black mt-0.5 tabular-nums">{date.dayNumber}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {/* Section 4: Horários Disponíveis */}
-                  <section>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <h2 className="text-xs font-bold text-ink-soft uppercase tracking-wider">
-                        4. Horários Disponíveis
-                      </h2>
-                      {selectedSlot && (
-                        <span className="text-[11px] font-bold text-primary">
-                          {formatSlotTime(selectedSlot.start_time)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* State: No date selected */}
-                    {!selectedDate ? (
-                      <div className="p-4 rounded-2xl bg-card-dark border border-border-dark text-center">
-                        <CalendarIcon className="size-6 text-ink-soft mx-auto mb-1 opacity-50" />
-                        <p className="text-xs text-ink-soft">Selecione uma data acima para visualizar os horários.</p>
-                      </div>
-                    ) : isLoading ? (
-                      /* State: Loading slots */
-                      <div className="grid grid-cols-3 gap-2 animate-pulse">
-                        {['sk-1', 'sk-2', 'sk-3', 'sk-4', 'sk-5', 'sk-6'].map((slotId) => (
-                          <div key={slotId} className="h-9 bg-card-dark border border-border-dark rounded-xl" />
-                        ))}
-                      </div>
-                    ) : availableSlotsList.length === 0 ? (
-                      /* State: No slots */
-                      <div className="p-4 rounded-2xl bg-card-dark border border-border-dark text-center space-y-1">
-                        <Clock className="size-6 text-ink-soft mx-auto mb-1 opacity-50" />
-                        <p className="text-xs font-semibold text-cream">Nenhum horário livre nesta data</p>
-                        <p className="text-[11px] text-ink-soft">
-                          Tente escolher outro dia ou selecione &quot;Qualquer Profissional&quot;.
-                        </p>
-                      </div>
-                    ) : (
-                      /* State: Slot Grid */
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                        {availableSlotsList.map((slot) => {
-                          const isSelected = selectedSlot?.start_time === slot.start_time;
-                          const timeDisplay = formatSlotTime(slot.start_time);
-
-                          return (
-                            <button
-                              key={slot.start_time}
-                              type="button"
-                              onClick={() => selectSlot(slot)}
-                              className={`py-2 px-2.5 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer active:scale-95 ${
+                            {/* Action Button Indicator */}
+                            <span
+                              className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
                                 isSelected
-                                  ? 'bg-primary/20 text-primary border-primary shadow-sm font-bold'
-                                  : 'bg-card-dark text-cream border-border-dark hover:border-primary/40'
+                                  ? 'bg-amber-500 text-neutral-950 hover:bg-amber-400'
+                                  : 'bg-neutral-800 border border-neutral-700 text-white hover:border-amber-500 hover:text-amber-400'
                               }`}
                             >
-                              {timeDisplay}
-                            </button>
-                          );
-                        })}
-                      </div>
+                              <span>{isSelected ? 'Configurar' : 'Agendar'}</span>
+                              <ChevronRight size={13} />
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
-                  </section>
+                  </div>
 
-                  {/* Section 5: Confirmação e Ação */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleConfirmBooking}
-                      disabled={
-                        selectedServiceIds.length === 0 ||
-                        !selectedStaffId ||
-                        !selectedDate ||
-                        !selectedSlot ||
-                        isSubmittingBooking
-                      }
-                      className={`w-full py-3.5 px-4 font-bold text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer ${
-                        selectedServiceIds.length > 0 && selectedStaffId && selectedDate && selectedSlot
-                          ? 'bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary text-night shadow-primary/25'
-                          : 'bg-card-dark border border-border-dark text-ink-soft/50 cursor-not-allowed'
-                      }`}
-                    >
-                      {isSubmittingBooking ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          <span>Confirmando agendamento...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Confirmar Agendamento</span>
-                          <ChevronRight size={16} />
-                        </>
-                      )}
-                    </button>
-
-                    {/* Hint */}
-                    <p className="text-center text-[10px] text-ink-soft/70 mt-2">
-                      Ao confirmar, seu horário será garantido e abriremos o WhatsApp com seu comprovante.
-                    </p>
+                  {/* Reassurance Features */}
+                  <div className="mt-4 pt-3 border-t border-neutral-800/80 grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
+                    <div className="flex items-center gap-1.5 p-2 rounded-xl bg-neutral-950/40">
+                      <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />
+                      <span>Sem pagamento antecipado</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 p-2 rounded-xl bg-neutral-950/40">
+                      <Sparkles size={13} className="text-amber-400 flex-shrink-0" />
+                      <span>Confirmação no WhatsApp</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -722,19 +599,60 @@ const PublicBookingPage: React.FC = () => {
         )}
       </div>
 
-      {/* Lead Capture Modal / Bottom Sheet */}
+      {/* Phase 1 Modal: Service Specification & Lead Capture */}
+      <ServiceSpecificationModal
+        isOpen={isSpecModalOpen}
+        service={selectedServiceForModal}
+        clientName={clientName}
+        clientPhoneDisplay={clientPhoneDisplay}
+        onSaveLead={handleLeadSaved}
+        onProceedToStaff={handleProceedToStaff}
+        onClose={() => setIsSpecModalOpen(false)}
+        formatPriceBRL={formatPriceBRL}
+      />
+
+      {/* Phase 2 Modal: Staff Selection */}
+      <StaffSelectionModal
+        isOpen={isStaffModalOpen}
+        staffList={availableStaff}
+        selectedStaffId={selectedStaffId}
+        anyStaffId={ANY_STAFF_ID}
+        onSelectStaff={handleSelectStaff}
+        onBack={handleBackToSpec}
+        onClose={() => setIsStaffModalOpen(false)}
+      />
+
+      {/* Phase 3 Modal: Date & Time Slots Selection + Final Confirmation */}
+      <DateTimeBookingModal
+        isOpen={isDateTimeModalOpen}
+        dateOptions={dateOptions}
+        selectedDate={selectedDate}
+        onSelectDate={selectDate}
+        availableSlots={availableSlotsList}
+        selectedSlot={selectedSlot}
+        onSelectSlot={selectSlot}
+        isLoadingSlots={isLoading}
+        serviceName={selectedServiceForModal?.name || 'Serviço Selecionado'}
+        staffName={selectedStaffName}
+        totalPrice={totalPrice > 0 ? totalPrice : (selectedServiceForModal?.price || 0)}
+        totalDuration={totalDuration > 0 ? totalDuration : (selectedServiceForModal?.duration || 30)}
+        isSubmitting={isSubmittingBooking}
+        onConfirmBooking={handleConfirmBooking}
+        onBack={handleBackToStaff}
+        onClose={() => setIsDateTimeModalOpen(false)}
+        formatPriceBRL={formatPriceBRL}
+        formatDuration={formatDuration}
+        formatSlotTime={formatSlotTime}
+      />
+
+      {/* Direct Lead Edit Modal */}
       <LeadCaptureModal
         isOpen={isLeadModalOpen}
         initialName={clientName}
         initialPhoneDisplay={clientPhoneDisplay}
         onSave={handleLeadSaved}
-        onClose={() => {
-          setIsLeadModalOpen(false);
-          setPendingServiceId(null);
-        }}
-        pendingServiceName={
-          pendingServiceId ? availableServices.find((s) => s.id === pendingServiceId)?.name : null
-        }
+        onClose={() => setIsLeadModalOpen(false)}
+        pendingServiceName={selectedServiceForModal?.name}
       />
     </div>
   );

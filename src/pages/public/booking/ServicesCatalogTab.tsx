@@ -1,11 +1,11 @@
 /**
  * ServicesCatalogTab - Catalog view of all available barber services.
- * Allows browsing full services with duration and pricing, selecting to book directly.
+ * Features high-contrast typography, category filter pills, and quick modal trigger.
  */
 
 import type React from 'react';
 import { useState, useMemo } from 'react';
-import { Clock, Tag, Check, Plus, Search, Scissors } from 'lucide-react';
+import { Clock, Tag, Search, Scissors, ChevronRight } from 'lucide-react';
 import type { PublicService } from './hooks/types';
 
 interface ServicesCatalogTabProps {
@@ -49,9 +49,9 @@ export const ServicesCatalogTab: React.FC<ServicesCatalogTabProps> = ({
   if (services.length === 0) {
     return (
       <div className="text-center py-12 px-4">
-        <Scissors className="w-12 h-12 mx-auto text-ink-soft mb-3 opacity-40" />
-        <h3 className="font-bold text-cream text-base">Nenhum serviço cadastrado</h3>
-        <p className="text-xs text-ink-soft mt-1">Esta barbearia ainda não disponibilizou serviços online.</p>
+        <Scissors className="w-12 h-12 mx-auto text-neutral-600 mb-3" />
+        <h3 className="font-bold text-white text-base">Nenhum serviço cadastrado</h3>
+        <p className="text-xs text-neutral-400 mt-1">Esta barbearia ainda não disponibilizou serviços online.</p>
       </div>
     );
   }
@@ -61,15 +61,15 @@ export const ServicesCatalogTab: React.FC<ServicesCatalogTabProps> = ({
       {/* Search & Categories Bar */}
       <div className="space-y-2.5">
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-soft">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
             <Search className="w-4 h-4" />
           </div>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar serviços..."
-            className="w-full pl-10 pr-4 py-2.5 bg-card-dark border border-border-dark rounded-xl text-xs text-cream placeholder:text-ink-soft/60 focus:outline-none focus:border-primary transition-colors"
+            placeholder="Buscar por corte, barba, combo..."
+            className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
           />
         </div>
 
@@ -78,10 +78,10 @@ export const ServicesCatalogTab: React.FC<ServicesCatalogTabProps> = ({
             <button
               type="button"
               onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 selectedCategory === 'all'
-                  ? 'bg-primary text-night'
-                  : 'bg-card-dark text-ink-soft hover:text-cream border border-border-dark'
+                  ? 'bg-amber-500 text-neutral-950 shadow-md'
+                  : 'bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800'
               }`}
             >
               Todos ({services.length})
@@ -91,10 +91,10 @@ export const ServicesCatalogTab: React.FC<ServicesCatalogTabProps> = ({
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === cat
-                    ? 'bg-primary text-night'
-                    : 'bg-card-dark text-ink-soft hover:text-cream border border-border-dark'
+                    ? 'bg-amber-500 text-neutral-950 shadow-md'
+                    : 'bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800'
                 }`}
               >
                 {cat}
@@ -104,71 +104,61 @@ export const ServicesCatalogTab: React.FC<ServicesCatalogTabProps> = ({
         )}
       </div>
 
-      {/* Services List */}
+      {/* Services Vitrine */}
       <ul className="space-y-2.5 list-none p-0 m-0" aria-label="Catálogo de Serviços">
         {filteredServices.map((service) => {
           const isSelected = selectedIds.includes(service.id);
 
           return (
-            <div
-              key={service.id}
-              className={`p-3.5 rounded-2xl border transition-all ${
-                isSelected
-                  ? 'bg-primary/10 border-primary shadow-sm'
-                  : 'bg-card-dark border-border-dark hover:border-primary/40'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
+            <li key={service.id}>
+              <button
+                type="button"
+                className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] flex items-start justify-between gap-3 ${
+                  isSelected
+                    ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/40 shadow-md'
+                    : 'bg-neutral-900 border-neutral-800 hover:border-amber-500/50'
+                }`}
+                onClick={() => onSelectService(service)}
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-cream truncate">{service.name}</h3>
+                    <h3 className="font-bold text-sm text-white truncate">{service.name}</h3>
                     {service.category && (
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-border-dark text-primary">
+                      <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-neutral-800 text-amber-400">
                         {service.category}
                       </span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-3 mt-1.5 text-xs">
-                    <span className="flex items-center gap-1 text-ink-soft font-medium">
-                      <Clock className="w-3.5 h-3.5 text-primary" />
+                    <span className="flex items-center gap-1 text-neutral-300 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
                       {service.duration} min
                     </span>
-                    <span className="flex items-center gap-1 text-cream font-bold tabular-nums">
-                      <Tag className="w-3.5 h-3.5 text-primary" />
+                    <span className="flex items-center gap-1 text-amber-400 font-extrabold tabular-nums">
+                      <Tag className="w-3.5 h-3.5" />
                       {formatPriceBRL(service.price)}
                     </span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => onSelectService(service)}
-                  className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                <span
+                  className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
                     isSelected
-                      ? 'bg-primary text-night'
-                      : 'bg-surface-dark border border-border-dark text-cream hover:border-primary hover:text-primary'
+                      ? 'bg-amber-500 text-neutral-950'
+                      : 'bg-neutral-800 border border-neutral-700 text-white hover:border-amber-500 hover:text-amber-400'
                   }`}
                 >
-                  {isSelected ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      Selecionado
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-3.5 h-3.5" />
-                      Agendar
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+                  <span>{isSelected ? 'Selecionado' : 'Ver detalhes'}</span>
+                  <ChevronRight size={13} />
+                </span>
+              </button>
+            </li>
           );
         })}
 
         {filteredServices.length === 0 && (
-          <p className="text-center text-xs text-ink-soft py-8">
+          <p className="text-center text-xs text-neutral-400 py-8">
             Nenhum serviço encontrado para &quot;{search}&quot;.
           </p>
         )}
