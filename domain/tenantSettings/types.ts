@@ -41,7 +41,19 @@ export interface TenantSettings {
   updated_at: string;
 }
 
-// ─── Business Hours ──────────────────────────────────────────────
+// ─── Business Hours & Branding ───────────────────────────────────
+
+export interface DaySchedule {
+  open: string;
+  close: string;
+}
+
+export interface BrandingSettings {
+  cover_url?: string | null;
+  logo_url?: string | null;
+  slogan?: string | null;
+  about_text?: string | null;
+}
 
 export interface BusinessHours {
   [day: string]: { open: string; close: string } | null;
