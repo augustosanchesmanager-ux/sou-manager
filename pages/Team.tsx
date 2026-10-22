@@ -48,6 +48,24 @@ const Team: React.FC = () => {
 
     const [search, setSearch] = useState('');
 
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+        try {
+            const saved = localStorage.getItem('smg_team_view_mode');
+            return saved === 'table' ? 'table' : 'grid';
+        } catch {
+            return 'grid';
+        }
+    });
+
+    const handleViewModeChange = (mode: 'grid' | 'table') => {
+        setViewMode(mode);
+        try {
+            localStorage.setItem('smg_team_view_mode', mode);
+        } catch {
+            // ignore
+        }
+    };
+
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -453,20 +471,117 @@ const Team: React.FC = () => {
                 </div>
             )}
 
-            {/* Search */}
-            <div className="relative max-w-md">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                <input type="text" placeholder={`Buscar ${memberLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
+            {/* Search and View Mode */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                    <input type="text" placeholder={`Buscar ${memberLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
+                        className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
+                </div>
+                <div className="flex items-center self-end sm:self-auto bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl p-1 shadow-sm">
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('grid')}
+                        aria-label="Visualização em Grade"
+                        title="Visualização em Grade"
+                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+                        <span className="material-symbols-outlined text-base block">grid_view</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleViewModeChange('table')}
+                        aria-label="Visualização em Tabela"
+                        title="Visualização em Tabela"
+                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+                        <span className="material-symbols-outlined text-base block">view_list</span>
+                    </button>
+                </div>
             </div>
 
-            {/* Team Cards */}
+            {/* Team Cards or Table */}
             {loading ? (
                 <div className="p-10 text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre profissionais para organizar agenda e atendimentos.' : 'Nenhum membro encontrado.'}</div>
+            ) : viewMode === 'table' ? (
+                <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr className="border-b border-slate-200 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-xs uppercase tracking-wider text-slate-500 font-bold">
+                                    <th className="py-3.5 px-4">{memberLabel}</th>
+                                    <th className="py-3.5 px-4">Função</th>
+                                    <th className="py-3.5 px-4">{commissionLabel}</th>
+                                    <th className="py-3.5 px-4">Contato</th>
+                                    <th className="py-3.5 px-4 text-center">Status</th>
+                                    <th className="py-3.5 px-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                {filtered.map(member => (
+                                    <tr key={member.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
+                                        <td className="py-3 px-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative shrink-0">
+                                                    <div className="size-9 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center"
+                                                        style={{ backgroundImage: `url(${member.avatar || ''})` }}></div>
+                                                    <span className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white dark:border-card-dark ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="font-semibold text-slate-900 dark:text-white block truncate">{member.name}</span>
+                                                    <span className="text-xs text-slate-400 block truncate sm:hidden">{member.email || 'Sem e-mail'}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+                                                <span className="material-symbols-outlined text-xs text-slate-400">{roleIcons[member.role] || 'person'}</span>
+                                                {roleLabels[member.role] || member.role}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                                            {member.commission_rate}%
+                                        </td>
+                                        <td className="py-3 px-4 text-xs text-slate-500">
+                                            <div className="space-y-0.5">
+                                                {member.email && <div className="truncate max-w-[200px]">{member.email}</div>}
+                                                {member.phone && <div className="text-slate-400">{member.phone}</div>}
+                                                {!member.email && !member.phone && <span className="text-slate-400">-</span>}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                member.status === 'active'
+                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                    : 'bg-slate-100 dark:bg-white/5 text-slate-500'
+                                            }`}>
+                                                {member.status === 'active' ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <button onClick={() => navigate('/schedule')}
+                                                    className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Agenda">
+                                                    <span className="material-symbols-outlined text-lg">calendar_month</span>
+                                                </button>
+                                                <button onClick={() => openEditModal(member)}
+                                                    className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">
+                                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                                </button>
+                                                <button onClick={() => handleDelete(member.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Excluir">
+                                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filtered.map(member => (

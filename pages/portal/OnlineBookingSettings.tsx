@@ -72,29 +72,68 @@ const sanitizeMapsUrl = (raw: string): string | null => {
   }
 };
 
+interface DayConfig {
+  key: string;
+  label: string;
+  shortLabel: string;
+}
+
+const WEEK_DAYS: DayConfig[] = [
+  { key: 'monday', label: 'Segunda-feira', shortLabel: 'Seg' },
+  { key: 'tuesday', label: 'Terça-feira', shortLabel: 'Ter' },
+  { key: 'wednesday', label: 'Quarta-feira', shortLabel: 'Qua' },
+  { key: 'thursday', label: 'Quinta-feira', shortLabel: 'Qui' },
+  { key: 'friday', label: 'Sexta-feira', shortLabel: 'Sex' },
+  { key: 'saturday', label: 'Sábado', shortLabel: 'Sáb' },
+  { key: 'sunday', label: 'Domingo', shortLabel: 'Dom' },
+];
+
+const TIME_OPTIONS: string[] = [];
+for (let h = 6; h <= 23; h++) {
+  const hh = String(h).padStart(2, '0');
+  TIME_OPTIONS.push(`${hh}:00`);
+  TIME_OPTIONS.push(`${hh}:30`);
+}
+
 const OnlineBookingSettings: React.FC = () => {
   const { tenantId, tenantSlug } = useAuth();
+  const [bookingEnabled, setBookingEnabled] = useState<boolean>(true);
   const [startHour, setStartHour] = useState<number>(7);
   const [endHour, setEndHour] = useState<number>(20);
   const [instagramInput, setInstagramInput] = useState<string>('');
   const [whatsappInput, setWhatsappInput] = useState<string>('');
   const [mapsInput, setMapsInput] = useState<string>('');
+
+  // Branding & Identity
+  const [coverUrl, setCoverUrl] = useState<string>('');
+  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [slogan, setSlogan] = useState<string>('');
+  const [aboutText, setAboutText] = useState<string>('');
+
+  // Weekly Schedule
+  const [weeklySchedule, setWeeklySchedule] = useState<{
+    [day: string]: { enabled: boolean; open: string; close: string };
+  }>({
+    monday: { enabled: true, open: '08:00', close: '19:00' },
+    tuesday: { enabled: true, open: '08:00', close: '19:00' },
+    wednesday: { enabled: true, open: '08:00', close: '19:00' },
+    thursday: { enabled: true, open: '08:00', close: '19:00' },
+    friday: { enabled: true, open: '08:00', close: '20:00' },
+    saturday: { enabled: true, open: '08:00', close: '18:00' },
+    sunday: { enabled: false, open: '08:00', close: '14:00' },
+  });
+
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Link público canônico do agendamento direto (dinâmico conforme o ambiente: staging, dev ou prod)
+  // Link público canônico do agendamento direto
   const baseUrl = typeof window !== 'undefined'
     ? `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '')
     : 'https://barber.soumanager.com';
   const publicBookingUrl = `${baseUrl}/#/agendar/${tenantSlug || 'sua-barbearia'}`;
-
-  // Opções de horários de 06:00 até 23:00
-  const hourOptions = Array.from({ length: 18 }, (_, i) => i + 6);
-
-  const formatHourLabel = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
 
   // Leitura inicial das configurações da tabela tenant_settings
   useEffect(() => {
@@ -111,6 +150,9 @@ const OnlineBookingSettings: React.FC = () => {
         const data = await tenantSettingsRepository.getByTenantId(tenantId);
 
         if (!isCancelled && data) {
+          if (data.booking_enabled !== undefined && data.booking_enabled !== null) {
+            setBookingEnabled(Boolean(data.booking_enabled));
+          }
           if (data.work_start_time) {
             const startParsed = parseInt(data.work_start_time.split(':')[0], 10);
             if (!Number.isNaN(startParsed)) setStartHour(startParsed);
@@ -122,6 +164,26 @@ const OnlineBookingSettings: React.FC = () => {
           setInstagramInput(data.instagram_url ?? '');
           setWhatsappInput(data.whatsapp_number ? formatWhatsAppMask(data.whatsapp_number) : '');
           setMapsInput(data.maps_url ?? '');
+
+          if (data.business_hours) {
+            const bh = data.business_hours as Record<string, any>;
+            if (bh._branding) {
+              setCoverUrl(bh._branding.cover_url ?? '');
+              setLogoUrl(bh._branding.logo_url ?? '');
+              setSlogan(bh._branding.slogan ?? '');
+              setAboutText(bh._branding.about_text ?? '');
+            }
+            const updatedWeekly = { ...weeklySchedule };
+            WEEK_DAYS.forEach(({ key }) => {
+              const dayVal = bh[key];
+              if (dayVal === null) {
+                updatedWeekly[key] = { enabled: false, open: '08:00', close: '18:00' };
+              } else if (dayVal && typeof dayVal === 'object' && dayVal.open && dayVal.close) {
+                updatedWeekly[key] = { enabled: true, open: dayVal.open, close: dayVal.close };
+              }
+            });
+            setWeeklySchedule(updatedWeekly);
+          }
         }
       } catch (err) {
         console.error('[OnlineBookingSettings] Falha inesperada ao carregar:', err);
@@ -153,15 +215,30 @@ const OnlineBookingSettings: React.FC = () => {
     }
   };
 
+  const handleDayToggle = (dayKey: string) => {
+    setWeeklySchedule((prev) => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        enabled: !prev[dayKey].enabled,
+      },
+    }));
+  };
+
+  const handleDayTimeChange = (dayKey: string, field: 'open' | 'close', value: string) => {
+    setWeeklySchedule((prev) => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveSuccess(false);
     setSaveError(null);
-
-    if (startHour >= endHour) {
-      setSaveError('O horário de abertura deve ser anterior ao horário de fechamento.');
-      return;
-    }
 
     if (!tenantId) {
       setSaveError('Identificador da unidade não encontrado.');
@@ -186,19 +263,52 @@ const OnlineBookingSettings: React.FC = () => {
       return;
     }
 
+    // Build business_hours JSON
+    const businessHoursPayload: Record<string, any> = {
+      _branding: {
+        cover_url: coverUrl.trim() || null,
+        logo_url: logoUrl.trim() || null,
+        slogan: slogan.trim() || null,
+        about_text: aboutText.trim() || null,
+      },
+    };
+
+    let minHour = 23;
+    let maxHour = 0;
+
+    WEEK_DAYS.forEach(({ key }) => {
+      const dayConfig = weeklySchedule[key];
+      if (dayConfig.enabled) {
+        businessHoursPayload[key] = {
+          open: dayConfig.open,
+          close: dayConfig.close,
+        };
+        const openH = parseInt(dayConfig.open.split(':')[0], 10);
+        const closeH = parseInt(dayConfig.close.split(':')[0], 10);
+        if (!isNaN(openH) && openH < minHour) minHour = openH;
+        if (!isNaN(closeH) && closeH > maxHour) maxHour = closeH;
+      } else {
+        businessHoursPayload[key] = null;
+      }
+    });
+
+    const effectiveStartHour = minHour <= 23 && minHour < maxHour ? minHour : startHour;
+    const effectiveEndHour = maxHour > 0 && maxHour > minHour ? maxHour : endHour;
+
     setSaving(true);
 
-    const workStartTime = `${String(startHour).padStart(2, '0')}:00:00`;
-    const workEndTime = `${String(endHour).padStart(2, '0')}:00:00`;
+    const workStartTime = `${String(effectiveStartHour).padStart(2, '0')}:00:00`;
+    const workEndTime = `${String(effectiveEndHour).padStart(2, '0')}:00:00`;
 
     try {
       const updated = await tenantSettingsRepository.updateWorkingHours(tenantId, {
         work_start_time: workStartTime,
         work_end_time: workEndTime,
-        booking_enabled: true,
+        booking_enabled: bookingEnabled,
         instagram_url: sanitizedInstagram,
         whatsapp_number: sanitizedWhatsApp,
         maps_url: sanitizedMaps,
+        business_hours: businessHoursPayload,
       });
 
       setInstagramInput(updated.instagram_url ?? sanitizedInstagram ?? '');
@@ -208,6 +318,8 @@ const OnlineBookingSettings: React.FC = () => {
           : ''
       );
       setMapsInput(updated.maps_url ?? sanitizedMaps ?? '');
+      setStartHour(effectiveStartHour);
+      setEndHour(effectiveEndHour);
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -228,17 +340,35 @@ const OnlineBookingSettings: React.FC = () => {
             Configurações do Agendamento Online
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Gerencie a vitrine digital da sua barbearia, canais de agendamento e horários de atendimento web.
+            Gerencie a vitrine digital da sua barbearia, identidade visual, horários semanais e canais de contato.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Vitrine Online Ativa
+        {/* Toggle Vitrine Ativa */}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              type="button"
+              onClick={() => setBookingEnabled(!bookingEnabled)}
+              aria-label={bookingEnabled ? 'Desativar vitrine online' : 'Ativar vitrine online'}
+              className={`relative inline-block w-12 h-6 rounded-full transition-colors cursor-pointer ${
+                bookingEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  bookingEnabled ? 'left-[26px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              {bookingEnabled ? 'Vitrine Online Ativa' : 'Vitrine Pausada'}
+            </span>
+          </label>
         </div>
       </header>
 
-      {/* SEÇÃO 1: Links de Divulgação */}
+      {/* SEÇÃO 1: Link de Divulgação */}
       <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:p-7 shadow-sm space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -299,7 +429,7 @@ const OnlineBookingSettings: React.FC = () => {
         </div>
       </section>
 
-      {/* SEÇÃO 2 e 3: Formulário de Horários e Canais de Atendimento */}
+      {/* SEÇÃO 2 a 5: Formulário */}
       {loading ? (
         <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:p-7 shadow-sm">
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
@@ -309,96 +439,215 @@ const OnlineBookingSettings: React.FC = () => {
         </section>
       ) : (
         <form onSubmit={handleSave} className="space-y-8">
-          {/* SEÇÃO 2: Horários de Funcionamento Online */}
+          {/* SEÇÃO 2: Identidade Visual & Branding */}
           <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:p-7 shadow-sm space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">schedule</span>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-2xl">palette</span>
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Horários de Funcionamento Online
+                  Identidade Visual e Vitrine
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Limite os horários disponíveis na vitrine pública. Atendimentos fora dessa janela não aparecerão para clientes.
+                  Personalize a imagem de capa, avatar e apresentação exibidos no agendamento público.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Abertura */}
-              <div className="space-y-2">
-                <label htmlFor="start-hour" className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Abertura da Agenda (Início)
+            {/* Previews Visuais */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Cover Preview */}
+              <div className="md:col-span-2 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Banner Superior (Cover)
                 </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                    wb_sunny
-                  </span>
-                  <select
-                    id="start-hour"
-                    value={startHour}
-                    disabled={saving}
-                    onChange={(e) => setStartHour(Number(e.target.value))}
-                    className="w-full pl-10 pr-8 py-3 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 appearance-none transition-colors disabled:opacity-60"
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={`start-${h}`} value={h}>
-                        {formatHourLabel(h)}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base">
-                    expand_more
-                  </span>
+                <div className="relative h-32 rounded-xl overflow-hidden border border-slate-200 dark:border-border-dark bg-slate-900 flex items-center justify-center group">
+                  {coverUrl ? (
+                    <img
+                      src={coverUrl}
+                      alt="Preview da Capa"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-slate-500 text-xs">
+                      <span className="material-symbols-outlined text-3xl">image</span>
+                      <span>Nenhuma capa configurada (usando padrão escuro)</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
                 </div>
+                <input
+                  type="url"
+                  value={coverUrl}
+                  disabled={saving}
+                  onChange={(e) => setCoverUrl(e.target.value)}
+                  placeholder="https://exemplo.com/banner-barbearia.jpg"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                />
               </div>
 
-              {/* Fechamento */}
-              <div className="space-y-2">
-                <label htmlFor="end-hour" className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Fechamento da Agenda (Término)
+              {/* Logo/Avatar Preview */}
+              <div className="space-y-2 flex flex-col items-center md:items-start">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Logo / Avatar
                 </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                    bedtime
-                  </span>
-                  <select
-                    id="end-hour"
-                    value={endHour}
-                    disabled={saving}
-                    onChange={(e) => setEndHour(Number(e.target.value))}
-                    className="w-full pl-10 pr-8 py-3 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 appearance-none transition-colors disabled:opacity-60"
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={`end-${h}`} value={h}>
-                        {formatHourLabel(h)}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base">
-                    expand_more
-                  </span>
+                <div className="size-24 rounded-full border-2 border-amber-400 p-0.5 overflow-hidden bg-slate-900 flex items-center justify-center shadow-md">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Preview Logo"
+                      className="w-full h-full object-cover rounded-full"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span className="material-symbols-outlined text-amber-400 text-3xl">content_cut</span>
+                  )}
                 </div>
+                <input
+                  type="url"
+                  value={logoUrl}
+                  disabled={saving}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://exemplo.com/logo.png"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                />
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-surface-dark/50 p-4 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-              <span className="material-symbols-outlined text-primary text-base">info</span>
-              <span>
-                Janela diária configurada:{' '}
-                <strong className="text-slate-900 dark:text-white">
-                  {formatHourLabel(startHour)} às {formatHourLabel(endHour)}
-                </strong>{' '}
-                ({Math.max(0, endHour - startHour)} horas de atendimento disponíveis ao público).
-              </span>
+            {/* Slogan & Bio */}
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Slogan / Frase de Impacto
+                </label>
+                <input
+                  type="text"
+                  value={slogan}
+                  disabled={saving}
+                  onChange={(e) => setSlogan(e.target.value)}
+                  placeholder="Ex: Tradição, elegância e o corte perfeito para o seu estilo."
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Apresentação Institucional (Aba "Sobre Nós")
+                </label>
+                <textarea
+                  rows={3}
+                  value={aboutText}
+                  disabled={saving}
+                  onChange={(e) => setAboutText(e.target.value)}
+                  placeholder="Conte um pouco sobre a história da sua barbearia, experiência da equipe e diferenciais de atendimento..."
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary/20 transition-colors resize-none"
+                />
+              </div>
             </div>
           </section>
 
-          {/* SEÇÃO 3: Canais de Atendimento e Localização */}
+          {/* SEÇÃO 3: Grade Semanal de Atendimento */}
           <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:p-7 shadow-sm space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-2xl">calendar_month</span>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Grade Semanal de Atendimento
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Defina os horários de abertura e fechamento para cada dia da semana disponíveis na vitrine pública.
+                </p>
+              </div>
+            </div>
+
+            {/* Tabela de Dias */}
+            <div className="overflow-hidden border border-slate-200 dark:border-border-dark rounded-xl">
+              <div className="divide-y divide-slate-100 dark:divide-white/5">
+                {WEEK_DAYS.map(({ key, label }) => {
+                  const schedule = weeklySchedule[key] || { enabled: false, open: '08:00', close: '18:00' };
+                  return (
+                    <div
+                      key={key}
+                      className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                        schedule.enabled
+                          ? 'bg-white dark:bg-card-dark'
+                          : 'bg-slate-50/70 dark:bg-white/[0.01] opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-[160px]">
+                        <button
+                          type="button"
+                          onClick={() => handleDayToggle(key)}
+                          aria-label={`${schedule.enabled ? 'Fechar' : 'Abrir'} ${label}`}
+                          className={`relative inline-block w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                            schedule.enabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                              schedule.enabled ? 'left-[22px]' : 'left-0.5'
+                            }`}
+                          />
+                        </button>
+                        <span className={`text-sm font-bold ${schedule.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                          {label}
+                        </span>
+                      </div>
+
+                      {schedule.enabled ? (
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 font-medium">De</span>
+                            <select
+                              value={schedule.open}
+                              disabled={saving}
+                              onChange={(e) => handleDayTimeChange(key, 'open', e.target.value)}
+                              className="px-3 py-1.5 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-lg text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {TIME_OPTIONS.map((t) => (
+                                <option key={`${key}-open-${t}`} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 font-medium">Até</span>
+                            <select
+                              value={schedule.close}
+                              disabled={saving}
+                              onChange={(e) => handleDayTimeChange(key, 'close', e.target.value)}
+                              className="px-3 py-1.5 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-lg text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {TIME_OPTIONS.map((t) => (
+                                <option key={`${key}-close-${t}`} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-slate-400 self-start sm:self-auto">
+                          Fechado
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* SEÇÃO 4: Canais de Atendimento e Localização */}
+          <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 sm:p-7 shadow-sm space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-2xl">share_location</span>
               </div>
               <div>
@@ -406,7 +655,7 @@ const OnlineBookingSettings: React.FC = () => {
                   Canais de Atendimento e Localização
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Configure os atalhos de contato e mapa que serão exibidos no cabeçalho da tela pública de agendamento.
+                  Configure os atalhos de contato e mapa exibidos no topo e rodapé da vitrine pública.
                 </p>
               </div>
             </div>
@@ -458,7 +707,7 @@ const OnlineBookingSettings: React.FC = () => {
               {/* Google Maps */}
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="maps-url" className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Google Maps (Link do Local)
+                  Google Maps (Link de Localização)
                 </label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
@@ -498,7 +747,7 @@ const OnlineBookingSettings: React.FC = () => {
               <button
                 type="submit"
                 disabled={saving || loading}
-                className="w-full sm:w-auto px-7 py-3 bg-primary hover:bg-primary/90 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-7 py-3 bg-primary hover:bg-primary/90 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving ? (
                   <>
