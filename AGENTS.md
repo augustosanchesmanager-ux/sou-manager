@@ -79,14 +79,38 @@ Se **não há env do Supabase** e o host é `localhost`/`127.0.0.1`, o app sobe 
 
 ## 3. Governança e autorização
 
+### Governança Unificada (Antigravity + OpenCode) — Frente P02-D
+
+> **Status da Frente P02-D:** **IMPLEMENTADA** no tocante à definição da arquitetura unificada de governança (decisão PO, 2026-10-22).
+
+- **Fonte Única de Verdade (Single Source of Truth):** O arquivo `AGENTS.md` na raiz do projeto é a **Fonte Única de Verdade** normativa para o fluxo de engenharia da SMG, vinculando integralmente tanto o **Antigravity (ambiente principal)** quanto o **OpenCode (ambiente alternativo)**.
+- **Proibição de Duplicação e Espelhamento:** É **expressamente proibida a duplicação ou o espelhamento de arquivos de governança** entre `.agent/` e `.opencode/`. A máquina de estados, o ciclo de transição e os invariantes de governança residem centralizadamente neste `AGENTS.md` (e no contrato formal referenciado em `docs/adr/ADR-028-smg-gate-formal-contract.md`), eliminando qualquer risco de fragmentação ou divergência entre ferramentas.
+- **Isolamento de Infraestrutura (`MERGE ≠ DEPLOY PROD`):** O princípio de que *Merge autorizado não significa Deploy de produção autorizado* é assegurado fisicamente na infraestrutura (configuração do Vercel com auto-deploy de produção desacoplado da branch `main`), além dos gates de CI e do workflow `smg-pr-approve`.
+
+### Authorization Record (Token de Autorização)
+
+Todo Pull Request de transição de fase/subfase ou solicitação formal de aprovação de deploy deve conter obrigatoriamente, no corpo de sua descrição, um bloco YAML estruturado de **Authorization Record**:
+
+```yaml
+authorization_record:
+  ticket: "P02-D"              # identificador da frente ou tarefa (ex: P02-D, H2-8, P-AUTO)
+  authorized_by: "Augusto (PO)" # responsável formal pela deliberação
+  date: "2026-10-22"          # data da autorização formal (YYYY-MM-DD)
+  target_env: "prod"          # ambiente alvo: "local" | "ci" | "staging" | "prod"
+  merge_approved: true        # boolean (true | false)
+  deploy_approved: false      # boolean (true | false) — merge aprovado NÃO autoriza deploy
+```
+
+Nenhum merge em `main` e nenhuma promoção para ambiente de produção pode ser executada sem a presença e validação deste registro estruturado.
+
 ### Papéis
 
 | Responsável | Escopo |
 |---|---|
-| **OpenCode** | Arquitetura, código, testes, docs técnicas, ADRs, CI/CD, automações, validações |
+| **Antigravity / OpenCode** | Arquitetura, código, testes, docs técnicas, ADRs, CI/CD, automações, validações |
 | **Augusto (PO)** | Produtos, módulos, nomenclatura, planos, onboarding, estratégia, domínios, infra, deploy, fornecedores, políticas, LGPD |
 
-Itens comerciais **nunca** são decididos automaticamente pelo OpenCode.
+Itens comerciais **nunca** são decididos automaticamente pelo Antigravity ou OpenCode.
 
 ### Protocolo SMG Change Control (precedência)
 
@@ -215,6 +239,7 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
 | Evidências de fase, Entry Checks, governança | `docs/audit/` |
 | Testes (convenções, builders, mocks) | `tests/README.md` |
 | Protocolo de mudança e skills | `.opencode/SMG_CHANGE_CONTROL.md`, `.opencode/AGENTS.md`, `.opencode/skills/` |
+| Governança unificada e contrato formal | `AGENTS.md` (raiz) · `docs/adr/ADR-028-smg-gate-formal-contract.md` (Frente P02-D IMPLEMENTADA) |
 | Eventos / outbox / replay / observabilidade | `domain/events/`, `src/lib/observability/` (ler o código) |
 | D8 worker + harness | `supabase/functions/worker-dispatcher/`, `tests/d8/` |
 
