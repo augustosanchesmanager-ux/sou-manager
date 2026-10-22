@@ -10,6 +10,9 @@ export { default as BookingSuccessVoucher } from './BookingSuccessVoucher';
 export { LeadCaptureModal } from './LeadCaptureModal';
 export { ServicesCatalogTab } from './ServicesCatalogTab';
 export { AboutUsTab } from './AboutUsTab';
+export { ServiceSpecificationModal } from './modals/ServiceSpecificationModal';
+export { StaffSelectionModal } from './modals/StaffSelectionModal';
+export { DateTimeBookingModal } from './modals/DateTimeBookingModal';
 export { Toast, ToastContainer } from './Toast';
 
 // Hooks

@@ -1,7 +1,7 @@
 /**
  * BookingSuccessVoucher - Ticket-style receipt with perforation detail.
  * Formats structured confirmation for WhatsApp and Google Calendar.
- * Designed with SMG Barber dark luxury palette.
+ * Designed with SMG Barber dark luxury palette with high-contrast typography.
  */
 
 import type React from 'react';
@@ -133,39 +133,39 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
     <div className="w-full max-w-sm mx-auto px-4 py-6 space-y-5 animate-in fade-in duration-300">
       {/* Success Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center size-14 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-950/50">
+        <div className="inline-flex items-center justify-center size-14 rounded-full bg-emerald-950/90 border border-emerald-500/50 text-emerald-400 shadow-xl shadow-emerald-950/60">
           <CheckCircle className="w-7 h-7" />
         </div>
-        <h2 className="font-display font-black text-xl text-cream tracking-tight">Agendamento Confirmado!</h2>
-        <p className="text-xs text-ink-soft">
+        <h2 className="font-display font-black text-xl text-white tracking-tight">Agendamento Confirmado!</h2>
+        <p className="text-xs text-neutral-300">
           Sua reserva foi gravada com sucesso em nosso sistema.
         </p>
       </div>
 
       {/* Ticket Container */}
-      <div className="relative bg-card-dark rounded-2xl border border-border-dark shadow-xl overflow-hidden">
+      <div className="relative bg-neutral-900 rounded-2xl border border-neutral-800 shadow-2xl overflow-hidden">
         {/* Ticket Header */}
-        <div className="p-4 bg-gradient-to-r from-surface-dark to-card-dark border-b border-border-dark flex items-center justify-between">
+        <div className="p-4 bg-gradient-to-r from-neutral-950 to-neutral-900 border-b border-neutral-800 flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Comprovante Digital</span>
-            <p className="font-bold text-sm text-cream truncate">{tenant.name}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Comprovante Digital</span>
+            <p className="font-bold text-sm text-white truncate">{tenant.name}</p>
           </div>
           <div className="text-right">
-            <span className="text-[10px] text-ink-soft uppercase font-bold tracking-wider">Código</span>
-            <p className="font-mono font-bold text-xs text-primary">{bookingCode}</p>
+            <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-wider">Código</span>
+            <p className="font-mono font-black text-xs text-amber-400">{bookingCode}</p>
           </div>
         </div>
 
         {/* Ticket Body */}
         <div className="p-4 space-y-4">
           {/* Date & Time Highlight */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-dark border border-border-dark">
-            <div className="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-950 border border-neutral-800">
+            <div className="size-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-ink-soft tracking-wider">Data e Horário</span>
-              <p className="font-bold text-sm text-cream capitalize">
+              <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">Data e Horário</span>
+              <p className="font-bold text-sm text-white capitalize">
                 {formattedDate} · {timeStr} - {endTimeStr}
               </p>
             </div>
@@ -173,15 +173,15 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
 
           {/* Services List */}
           <div>
-            <span className="text-[10px] text-ink-soft uppercase font-bold tracking-wider mb-2 block">
+            <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-wider mb-2 block">
               Serviço(s) Selecionado(s)
             </span>
             <div className="space-y-1.5">
               {result.services.map((service) => (
-                <div key={service.service_id || service.name} className="flex items-center justify-between text-xs py-1.5 border-b border-border-dark/60 last:border-0">
-                  <span className="font-medium text-cream truncate flex-1 pr-2">{service.name}</span>
-                  <span className="text-ink-soft pr-3">{service.duration} min</span>
-                  <span className="font-bold text-cream tabular-nums">{formatPriceBRL(service.price)}</span>
+                <div key={service.service_id || service.name} className="flex items-center justify-between text-xs py-1.5 border-b border-neutral-800/80 last:border-0">
+                  <span className="font-semibold text-white truncate flex-1 pr-2">{service.name}</span>
+                  <span className="text-neutral-300 pr-3">{service.duration} min</span>
+                  <span className="font-bold text-amber-400 tabular-nums">{formatPriceBRL(service.price)}</span>
                 </div>
               ))}
             </div>
@@ -189,57 +189,57 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
 
           {/* Professional & Client */}
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 bg-surface-dark rounded-xl border border-border-dark/80">
-              <span className="text-[10px] text-ink-soft uppercase font-bold tracking-wider flex items-center gap-1 mb-0.5">
-                <User className="w-3 h-3 text-primary" />
+            <div className="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800">
+              <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-wider flex items-center gap-1 mb-0.5">
+                <User className="w-3 h-3 text-amber-400" />
                 Profissional
               </span>
-              <p className="font-bold text-cream truncate">{result.staff.name}</p>
+              <p className="font-bold text-white truncate">{result.staff.name}</p>
             </div>
-            <div className="p-2.5 bg-surface-dark rounded-xl border border-border-dark/80">
-              <span className="text-[10px] text-ink-soft uppercase font-bold tracking-wider flex items-center gap-1 mb-0.5">
-                <User className="w-3 h-3 text-primary" />
+            <div className="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800">
+              <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-wider flex items-center gap-1 mb-0.5">
+                <User className="w-3 h-3 text-amber-400" />
                 Cliente
               </span>
-              <p className="font-bold text-cream truncate">{clientName || 'Não informado'}</p>
-              {clientPhone && <p className="text-[10px] text-ink-soft truncate">{clientPhone}</p>}
+              <p className="font-bold text-white truncate">{clientName || 'Não informado'}</p>
+              {clientPhone && <p className="text-[10px] text-neutral-400 truncate">{clientPhone}</p>}
             </div>
           </div>
 
           {/* Location */}
           {tenant.address && (
-            <div className="flex items-start gap-2 p-2.5 bg-surface-dark rounded-xl border border-border-dark/80 text-xs">
-              <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 text-xs">
+              <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <span className="text-[10px] text-ink-soft uppercase font-bold tracking-wider block">Endereço</span>
-                <p className="text-xs text-cream truncate">{tenant.address}</p>
+                <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-wider block">Endereço</span>
+                <p className="text-xs text-neutral-200 truncate">{tenant.address}</p>
               </div>
             </div>
           )}
 
           {/* Totals */}
-          <div className="flex items-center justify-between pt-2 border-t border-dashed border-border-dark">
-            <span className="text-xs text-ink-soft">
-              Duração: <strong className="text-cream">{formatDuration(totalDuration)}</strong>
+          <div className="flex items-center justify-between pt-2 border-t border-dashed border-neutral-800">
+            <span className="text-xs text-neutral-300">
+              Duração: <strong className="text-white font-bold">{formatDuration(totalDuration)}</strong>
             </span>
             <div className="text-right">
-              <span className="text-[10px] text-ink-soft uppercase font-bold block">Valor Total</span>
-              <span className="font-black text-base text-primary tabular-nums">{formatPriceBRL(totalPrice)}</span>
+              <span className="text-[10px] text-neutral-400 uppercase font-bold block">Valor Total</span>
+              <span className="font-black text-base text-amber-400 tabular-nums">{formatPriceBRL(totalPrice)}</span>
             </div>
           </div>
 
           {/* Cancellation Notice */}
-          <div className="p-2.5 rounded-xl bg-surface-dark border border-border-dark flex items-start gap-2 text-[11px] text-ink-soft">
-            <Clock className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+          <div className="p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-start gap-2 text-[11px] text-neutral-300">
+            <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
             <p>
-              Cancelamento gratuito em até <strong className="text-cream">{cancelText}</strong> antes do horário.
+              Cancelamento gratuito em até <strong className="text-white font-bold">{cancelText}</strong> antes do horário.
             </p>
           </div>
         </div>
 
         {/* Scissors watermark decoration */}
         <div className="absolute bottom-2 right-2 opacity-5 pointer-events-none" aria-hidden="true">
-          <Scissors className="w-12 h-12 text-cream" />
+          <Scissors className="w-12 h-12 text-white" />
         </div>
       </div>
 
@@ -250,7 +250,7 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
           href={whatsAppUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full py-3.5 px-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 active:scale-[0.99]"
+          className="w-full py-3.5 px-4 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 active:scale-[0.99] cursor-pointer"
         >
           <MessageCircle className="w-4 h-4" />
           Reenviar confirmação no WhatsApp
@@ -261,9 +261,9 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
           href={buildGoogleCalendarUrl()}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full py-3 px-4 rounded-xl bg-card-dark border border-border-dark text-cream hover:border-primary/50 transition-all text-xs font-semibold flex items-center justify-center gap-2"
+          className="w-full py-3 px-4 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:border-amber-500/50 transition-all text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
         >
-          <Calendar className="w-4 h-4 text-primary" />
+          <Calendar className="w-4 h-4 text-amber-400" />
           Adicionar ao Google Agenda
         </a>
 
@@ -271,7 +271,7 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
         <button
           type="button"
           onClick={onNewBooking}
-          className="w-full py-2.5 px-4 rounded-xl text-ink-soft hover:text-cream transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+          className="w-full py-2.5 px-4 rounded-xl text-neutral-400 hover:text-white transition-colors text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <RotateCw className="w-3.5 h-3.5" />
           Fazer outro agendamento

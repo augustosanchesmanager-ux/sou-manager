@@ -13,6 +13,7 @@ export interface PublicTenantProfile {
   name: string;
   slug: string;
   logo_url: string | null;
+  cover_url?: string | null;
   address: string | null;
   phone: string | null;
   instagram_url?: string | null;
@@ -49,6 +50,8 @@ export interface PublicService {
   duration: number;
   active: boolean;
   category: string | null;
+  description?: string | null;
+  image_url?: string | null;
 }
 
 export interface PublicStaff {
