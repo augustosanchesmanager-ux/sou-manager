@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/SMG_CHANGE_CONTROL.md"
+  ],
+  "permission": {
+    "bash": "ask",
+    "edit": "allow",
+    "webfetch": "ask",
+    "external_directory": "ask",
+    "task": "deny"
+  },
+  "skills": {
+    "paths": [
+      ".opencode/skills"
+    ]
+  }
+}
