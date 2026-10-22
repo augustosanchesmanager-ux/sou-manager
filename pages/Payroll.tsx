@@ -11,6 +11,7 @@ import type {
     SettlementStatus,
 } from '../domain/payout/types';
 import { sumCents } from '../domain/payout/money';
+import PayoutReceiptModal from '../components/payroll/PayoutReceiptModal';
 
 type RowStatus = SettlementStatus | 'unsettled';
 
@@ -79,6 +80,8 @@ const Payroll: React.FC = () => {
 
     const [cancelModalRow, setCancelModalRow] = useState<PayrollRow | null>(null);
     const [cancelReason, setCancelReason] = useState('');
+
+    const [receiptModalRow, setReceiptModalRow] = useState<PayrollRow | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !payout || !startDate || !endDate) return;
@@ -269,13 +272,31 @@ const Payroll: React.FC = () => {
         switch (row.status) {
             case 'unsettled':
                 return (
-                    <button onClick={() => handleGenerateDraft(row)} className={btnPrimary}>
-                        GERAR ACERTO
-                    </button>
+                    <div className="flex gap-2 justify-end items-center">
+                        <button
+                            onClick={() => setReceiptModalRow(row)}
+                            className={btnGhost}
+                            title="Visualizar prévia do recibo/demonstrativo"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            Prévia
+                        </button>
+                        <button onClick={() => handleGenerateDraft(row)} className={btnPrimary}>
+                            GERAR ACERTO
+                        </button>
+                    </div>
                 );
             case 'draft':
                 return (
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex gap-2 justify-end items-center">
+                        <button
+                            onClick={() => setReceiptModalRow(row)}
+                            className={btnGhost}
+                            title="Visualizar prévia do recibo/demonstrativo"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            Prévia
+                        </button>
                         <button onClick={() => handleApprove(row)} className={btnPrimary}>
                             APROVAR
                         </button>
@@ -292,7 +313,15 @@ const Payroll: React.FC = () => {
                 );
             case 'approved':
                 return (
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex gap-2 justify-end items-center">
+                        <button
+                            onClick={() => setReceiptModalRow(row)}
+                            className={btnGhost}
+                            title="Visualizar comprovante de conferência"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                            Voucher
+                        </button>
                         <button onClick={() => setPayModalRow(row)} className={btnPrimary}>
                             REGISTRAR PAGAMENTO
                         </button>
@@ -308,8 +337,19 @@ const Payroll: React.FC = () => {
                     </div>
                 );
             case 'paid':
+                return (
+                    <div className="flex gap-2 justify-end items-center">
+                        <button
+                            onClick={() => setReceiptModalRow(row)}
+                            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                            title="Visualizar e Imprimir Recibo Oficial de Quitação"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+                            Recibo
+                        </button>
+                    </div>
+                );
             case 'cancelled':
-                // `paid` e terminal (ADR-030): nenhuma ação de mutação.
                 return (
                     <span className="text-xs text-slate-400 font-bold uppercase">
                         {STATUS_LABEL[row.status]}
@@ -625,6 +665,28 @@ const Payroll: React.FC = () => {
                     </div>
                 </div>
             </Modal>
+
+            {/* Modal Oficial de Recibo / Voucher de Comissões */}
+            <PayoutReceiptModal
+                isOpen={receiptModalRow !== null}
+                onClose={() => setReceiptModalRow(null)}
+                staff={
+                    receiptModalRow
+                        ? {
+                              id: receiptModalRow.staffId,
+                              name: receiptModalRow.professionalName,
+                              role: receiptModalRow.role,
+                              avatar: receiptModalRow.avatar,
+                              commissionRate: receiptModalRow.commissionRate,
+                          }
+                        : null
+                }
+                periodStart={startDate}
+                periodEnd={endDate}
+                settlement={receiptModalRow?.settlement ?? null}
+                preview={receiptModalRow?.preview ?? null}
+                status={receiptModalRow?.status ?? 'unsettled'}
+            />
         </div>
     );
 };
