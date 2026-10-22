@@ -132,6 +132,7 @@ describe('PublicBookingRedesign — Helpers & Formatter Suite', () => {
       expect(decoded).toContain('Profissional: Carlos Barbeiro');
       expect(decoded).toContain('Data: Seg, 25 às 14:00');
       expect(decoded).toContain('Código: A1B2C3D4');
+      expect(decoded).toContain('Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/dompedro?token=token123');
     });
   });
 });

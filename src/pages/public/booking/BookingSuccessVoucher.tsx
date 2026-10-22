@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { useCallback } from 'react';
-import { Calendar, MessageCircle, CheckCircle, Clock, MapPin, User, Scissors, RotateCw } from 'lucide-react';
+import { Calendar, MessageCircle, CheckCircle, Clock, MapPin, User, Scissors, RotateCw, XCircle } from 'lucide-react';
 import type { CreatePublicBookingResult, PublicTenantProfile } from './hooks/types';
 
 interface BookingSuccessVoucherProps {
@@ -15,6 +15,7 @@ interface BookingSuccessVoucherProps {
   clientName: string;
   clientPhone: string;
   onNewBooking: () => void;
+  onCancelBooking?: () => void;
   formatDuration: (minutes: number) => string;
   formatPriceBRL: (price: number) => string;
   formatDateForDisplay: (dateStr: string) => { dayLabel: string; weekday: string; day: string };
@@ -38,16 +39,20 @@ export const buildStructuredWhatsAppConfirmationUrl = (
   const servicesList = result.services.map((s) => s.name).join(', ');
   const code = result.appointment_id.slice(0, 8).toUpperCase();
 
-  const message = [
+  const lines = [
     'Olá, acabei de agendar pelo SMG!',
     `Cliente: ${clientName || 'Não informado'}`,
     `Serviço(s): ${servicesList}`,
     `Profissional: ${result.staff.name}`,
     `Data: ${formattedDate} às ${formattedTime}`,
     `Código: ${code}`,
-  ].join('\n');
+  ];
 
-  return `https://wa.me/${targetNumber}?text=${encodeURIComponent(message)}`;
+  if (result.public_token) {
+    lines.push(`Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/${tenant.slug}?token=${result.public_token}`);
+  }
+
+  return `https://wa.me/${targetNumber}?text=${encodeURIComponent(lines.join('\n'))}`;
 };
 
 const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
@@ -56,6 +61,7 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
   clientName,
   clientPhone,
   onNewBooking,
+  onCancelBooking,
   formatDuration,
   formatPriceBRL,
   formatDateForDisplay,
@@ -276,6 +282,18 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
           <RotateCw className="w-3.5 h-3.5" />
           Fazer outro agendamento
         </button>
+
+        {/* Cancel Action */}
+        {onCancelBooking && result.public_token && (
+          <button
+            type="button"
+            onClick={onCancelBooking}
+            className="w-full py-2 px-4 rounded-xl text-neutral-500 hover:text-rose-400 hover:bg-rose-950/20 border border-transparent hover:border-rose-900/40 transition-all text-[11px] font-medium flex items-center justify-center gap-1.5 cursor-pointer pt-1"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            Cancelar este agendamento
+          </button>
+        )}
       </div>
     </div>
   );
