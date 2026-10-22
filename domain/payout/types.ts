@@ -149,3 +149,17 @@ export interface SettlementComputation {
     /** Vales que seguem pendentes para o próximo ciclo. */
     remainingAdvanceIds: string[];
 }
+
+/**
+ * Item individual discriminado de serviço/produto apurado para o recibo de comissões.
+ */
+export interface PayoutReceiptItem {
+    id: string;
+    comandaId: string;
+    description: string;
+    date: string;
+    quantity: number;
+    unitPrice: number;
+    grossAmount: number;
+    commissionAmount: number;
+}

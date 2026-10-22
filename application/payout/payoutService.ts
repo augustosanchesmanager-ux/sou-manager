@@ -29,6 +29,7 @@ import type {
     BarberAdvance,
     BarberPayoutSettlement,
     CancelSettlementResult,
+    PayoutReceiptItem,
     SettlementComputation,
     StaffProfile,
 } from '../../domain/payout/types';
@@ -280,6 +281,27 @@ async listEligibleProfessionals(
     return staff
         .map((s) => ({ ...s, commissionRate: resolveRate(s) }))
         .filter((s) => s.commissionRate > 0);
+}
+
+/**
+ * Retorna os itens discriminados de serviços liquidados para o recibo de comissões.
+ */
+async getSettledPaymentItems(params: {
+    tenantId: string;
+    staffId: string;
+    periodStart: string;
+    periodEnd: string;
+    commissionRate: number;
+}): Promise<PayoutReceiptItem[]> {
+    const periodStartIso = startOfDayIso(params.periodStart);
+    const periodEndIso = endOfDayIso(params.periodEnd);
+    return this.repository.listSettledPaymentItems(
+        params.tenantId,
+        params.staffId,
+        periodStartIso,
+        periodEndIso,
+        params.commissionRate,
+    );
 }
 
 private async requireSettlement(

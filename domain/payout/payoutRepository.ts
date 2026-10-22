@@ -28,8 +28,10 @@ import type {
     CancelSettlementResult,
     CreateSettlementDraftInput,
     PayoutFrequency,
+    PayoutReceiptItem,
     StaffProfile,
 } from './types';
+import { roundCents } from './money';
 
 interface ConfigRow {
     id: string;
@@ -109,6 +111,46 @@ export interface ComandaPaymentPeriodRow {
     comanda_item_id?: string | null;
 }
 
+/**
+ * Detecta se o erro decorre de tabela, visão ou RPC inexistente no schema.
+ * Permite degradação graciosa quando migrações (como ADR-030) ainda não
+ * foram aplicadas em produção, evitando que a tela de repasse quebre por completo.
+ */
+export function isTableMissingError(error: unknown): boolean {
+    if (!error) return false;
+    const err = error as { code?: string; message?: string; details?: string; hint?: string };
+    const code = err.code ?? '';
+    const message = (err.message ?? '').toLowerCase();
+    const details = (err.details ?? '').toLowerCase();
+
+    // 42P01: Postgres undefined_table
+    // 42883: Postgres undefined_function
+    // PGRST200 / PGRST204 / PGRST205 / PGRST106: relation not in schema cache
+    if (
+        code === '42P01' ||
+        code === '42883' ||
+        code === 'PGRST204' ||
+        code === 'PGRST205' ||
+        code === 'PGRST200' ||
+        code === 'PGRST106'
+    ) {
+        return true;
+    }
+
+    if (
+        message.includes('does not exist') ||
+        message.includes('could not find the table') ||
+        message.includes('schema cache') ||
+        message.includes('relation') ||
+        details.includes('does not exist') ||
+        details.includes('relation')
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
 export class PayoutRepository {
     private readonly db: DatabaseClient;
     private readonly tableName = 'barber_payout';
@@ -146,27 +188,35 @@ export class PayoutRepository {
         tenantId: string,
         staffId: string,
     ): Promise<BarberPayoutConfig | null> {
-        const result = await this.db.from('barber_payout_configs')
-            .select(CONFIG_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('staff_id', staffId)
-            .maybeSingle();
+        try {
+            const result = await this.db.from('barber_payout_configs')
+                .select(CONFIG_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('staff_id', staffId)
+                .maybeSingle();
 
-        if (result.error) this.fail(result.error, 'getConfigByStaff');
-        if (!result.data) return null;
+            if (result.error) {
+                if (isTableMissingError(result.error)) return null;
+                this.fail(result.error, 'getConfigByStaff');
+            }
+            if (!result.data) return null;
 
-        const row = result.data as ConfigRow;
-        return {
-            id: row.id,
-            tenantId: row.tenant_id,
-            staffId: row.staff_id,
-            frequency: row.frequency,
-            payoutWeekday: row.payout_weekday,
-            payoutMonthDay: row.payout_month_day,
-            allowAdvances: row.allow_advances,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at,
-        };
+            const row = result.data as ConfigRow;
+            return {
+                id: row.id,
+                tenantId: row.tenant_id,
+                staffId: row.staff_id,
+                frequency: row.frequency,
+                payoutWeekday: row.payout_weekday,
+                payoutMonthDay: row.payout_month_day,
+                allowAdvances: row.allow_advances,
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            };
+        } catch (err) {
+            if (isTableMissingError(err)) return null;
+            throw err;
+        }
     }
 
     async upsertConfig(
@@ -212,26 +262,44 @@ export class PayoutRepository {
     // ── Vales ────────────────────────────────────────────────────────
 
     async listPendingAdvances(tenantId: string, staffId: string): Promise<BarberAdvance[]> {
-        const result = await this.db.from('barber_advances')
-            .select(ADVANCE_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('staff_id', staffId)
-            .is('settlement_id', null)
-            .is('reversed_at', null)
-            .order('issued_at', { ascending: true });
+        try {
+            const result = await this.db.from('barber_advances')
+                .select(ADVANCE_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('staff_id', staffId)
+                .is('settlement_id', null)
+                .is('reversed_at', null)
+                .order('issued_at', { ascending: true });
 
-        const rows = this.data(result, 'listPendingAdvances') as AdvanceRow[];
-        return rows.map(mapAdvance);
+            if (result.error) {
+                if (isTableMissingError(result.error)) return [];
+                this.fail(result.error, 'listPendingAdvances');
+            }
+            const rows = (result.data || []) as AdvanceRow[];
+            return rows.map(mapAdvance);
+        } catch (err) {
+            if (isTableMissingError(err)) return [];
+            throw err;
+        }
     }
 
     async listAdvancesBySettlement(tenantId: string, settlementId: string): Promise<BarberAdvance[]> {
-        const result = await this.db.from('barber_advances')
-            .select(ADVANCE_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('settlement_id', settlementId);
+        try {
+            const result = await this.db.from('barber_advances')
+                .select(ADVANCE_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('settlement_id', settlementId);
 
-        const rows = this.data(result, 'listAdvancesBySettlement') as AdvanceRow[];
-        return rows.map(mapAdvance);
+            if (result.error) {
+                if (isTableMissingError(result.error)) return [];
+                this.fail(result.error, 'listAdvancesBySettlement');
+            }
+            const rows = (result.data || []) as AdvanceRow[];
+            return rows.map(mapAdvance);
+        } catch (err) {
+            if (isTableMissingError(err)) return [];
+            throw err;
+        }
     }
 
 /**
@@ -358,14 +426,23 @@ async createSettlementDraft(
         tenantId: string,
         staffId: string,
     ): Promise<BarberPayoutSettlement[]> {
-        const result = await this.db.from('barber_payout_settlements')
-            .select(SETTLEMENT_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('staff_id', staffId)
-            .order('period_start', { ascending: false });
+        try {
+            const result = await this.db.from('barber_payout_settlements')
+                .select(SETTLEMENT_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('staff_id', staffId)
+                .order('period_start', { ascending: false });
 
-        const rows = this.data(result, 'listSettlementsByStaff') as SettlementRow[];
-        return rows.map(mapSettlement);
+            if (result.error) {
+                if (isTableMissingError(result.error)) return [];
+                this.fail(result.error, 'listSettlementsByStaff');
+            }
+            const rows = (result.data || []) as SettlementRow[];
+            return rows.map(mapSettlement);
+        } catch (err) {
+            if (isTableMissingError(err)) return [];
+            throw err;
+        }
     }
 
     async getSettlementByPeriod(
@@ -374,29 +451,45 @@ async createSettlementDraft(
         periodStart: string,
         periodEnd: string,
     ): Promise<BarberPayoutSettlement | null> {
-        const result = await this.db.from('barber_payout_settlements')
-            .select(SETTLEMENT_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('staff_id', staffId)
-            .eq('period_start', periodStart)
-            .eq('period_end', periodEnd)
-            .maybeSingle();
+        try {
+            const result = await this.db.from('barber_payout_settlements')
+                .select(SETTLEMENT_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('staff_id', staffId)
+                .eq('period_start', periodStart)
+                .eq('period_end', periodEnd)
+                .maybeSingle();
 
-        if (result.error) this.fail(result.error, 'getSettlementByPeriod');
-        if (!result.data) return null;
-        return mapSettlement(result.data as SettlementRow);
+            if (result.error) {
+                if (isTableMissingError(result.error)) return null;
+                this.fail(result.error, 'getSettlementByPeriod');
+            }
+            if (!result.data) return null;
+            return mapSettlement(result.data as SettlementRow);
+        } catch (err) {
+            if (isTableMissingError(err)) return null;
+            throw err;
+        }
     }
 
-async getSettlementById(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement | null> {
-        const result = await this.db.from('barber_payout_settlements')
-            .select(SETTLEMENT_COLUMNS)
-            .eq('tenant_id', tenantId)
-            .eq('id', settlementId)
-            .maybeSingle();
+    async getSettlementById(tenantId: string, settlementId: string): Promise<BarberPayoutSettlement | null> {
+        try {
+            const result = await this.db.from('barber_payout_settlements')
+                .select(SETTLEMENT_COLUMNS)
+                .eq('tenant_id', tenantId)
+                .eq('id', settlementId)
+                .maybeSingle();
 
-        if (result.error) this.fail(result.error, 'getSettlementById');
-        if (!result.data) return null;
-        return mapSettlement(result.data as SettlementRow);
+            if (result.error) {
+                if (isTableMissingError(result.error)) return null;
+                this.fail(result.error, 'getSettlementById');
+            }
+            if (!result.data) return null;
+            return mapSettlement(result.data as SettlementRow);
+        } catch (err) {
+            if (isTableMissingError(err)) return null;
+            throw err;
+        }
     }
 
     /**
@@ -532,6 +625,125 @@ async getSettlementById(tenantId: string, settlementId: string): Promise<BarberP
         return reconcileSettledCommissionsToPeriodRows({
             records,
             fallbackItems,
+        });
+    }
+
+    /**
+     * Retorna os itens discriminados de serviços liquidados do profissional no período,
+     * reconciliados com o livro-razão e comanda_items, para exibição no recibo oficial.
+     */
+    async listSettledPaymentItems(
+        tenantId: string,
+        staffId: string,
+        periodStartIso: string,
+        periodEndIso: string,
+        commissionRate: number,
+    ): Promise<PayoutReceiptItem[]> {
+        // 1. Obter pagamentos liquidados no período (regime de caixa: reversed_at IS NULL)
+        const paymentsRes = await this.db.from('comanda_payments')
+            .select('comanda_id, amount, created_at')
+            .eq('tenant_id', tenantId)
+            .is('reversed_at', null)
+            .gte('created_at', periodStartIso)
+            .lte('created_at', periodEndIso)
+            .order('created_at', { ascending: true });
+
+        if (paymentsRes.error) this.fail(paymentsRes.error, 'listSettledPaymentItems:comanda_payments');
+        const payments = (paymentsRes.data || []) as Array<{ comanda_id: string; amount: number | string; created_at: string }>;
+        if (payments.length === 0) return [];
+
+        const comandaIds = Array.from(new Set(payments.map((p) => p.comanda_id).filter(Boolean)));
+        if (comandaIds.length === 0) return [];
+
+        // 2. Filtrar apenas comandas que estão com status = 'paid'
+        const comandasRes = await this.db.from('comandas')
+            .select('id, status')
+            .eq('tenant_id', tenantId)
+            .in('id', comandaIds)
+            .eq('status', 'paid');
+
+        if (comandasRes.error) this.fail(comandasRes.error, 'listSettledPaymentItems:comandas');
+        const paidComandas = (comandasRes.data || []) as Array<{ id: string; status: string }>;
+        const paidComandaIds = paidComandas.map((c) => c.id);
+        if (paidComandaIds.length === 0) return [];
+
+        // 3. Buscar comanda_items para obter nome do produto/serviço, quantidade e preço unitário
+        const itemsRes = await this.db.from('comanda_items')
+            .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id, created_at')
+            .eq('tenant_id', tenantId)
+            .in('comanda_id', paidComandaIds);
+
+        const allItems = (!itemsRes.error && itemsRes.data)
+            ? (itemsRes.data as Array<{
+                id: string;
+                comanda_id: string;
+                service_id?: string | null;
+                product_name?: string | null;
+                quantity: number | string;
+                unit_price: number | string;
+                staff_id?: string | null;
+                created_at?: string;
+            }>)
+            : [];
+
+        const itemsById = new Map<string, (typeof allItems)[number]>();
+        for (const item of allItems) {
+            itemsById.set(item.id, item);
+        }
+
+        // 4. Buscar commission_records do profissional para as comandas pagas
+        const recordsRes = await this.db.from('commission_records')
+            .select('id, comanda_id, comanda_item_id, staff_id, gross_value, net_value, commission_value, status, record_type, original_record_id, created_at')
+            .eq('tenant_id', tenantId)
+            .eq('staff_id', staffId)
+            .in('comanda_id', paidComandaIds);
+
+        if (recordsRes.error) this.fail(recordsRes.error, 'listSettledPaymentItems:commission_records');
+        const records = (recordsRes.data || []) as RawCommissionRecord[];
+
+        // 5. Fallback items para comandas sem commission_records
+        const recordedComandaIds = new Set(records.map((r) => r.comanda_id));
+        const unrecordedComandaIds = paidComandaIds.filter((id) => !recordedComandaIds.has(id));
+
+        const fallbackItems: FallbackComandaItem[] = allItems
+            .filter((item) => unrecordedComandaIds.includes(item.comanda_id) && item.staff_id === staffId)
+            .map((item) => ({
+                id: item.id,
+                comanda_id: item.comanda_id,
+                staff_id: item.staff_id || staffId,
+                unit_price: item.unit_price,
+                quantity: item.quantity,
+                created_at: item.created_at,
+            }));
+
+        const reconciledRows = reconcileSettledCommissionsToPeriodRows({
+            records,
+            fallbackItems,
+        });
+
+        const rate = Math.min(Math.max(0, commissionRate), 1);
+
+        return reconciledRows.map((row, index) => {
+            const item = row.comanda_item_id ? itemsById.get(row.comanda_item_id) : undefined;
+            const quantity = Number(item?.quantity ?? 1) || 1;
+            const gross = Number(row.amount);
+            const unitPrice = item ? Number(item.unit_price) : (quantity > 0 ? gross / quantity : gross);
+            const commission = row.commission_value !== undefined && row.commission_value !== null
+                ? Number(row.commission_value)
+                : roundCents(gross * rate);
+
+            const description = item?.product_name || `Atendimento #${row.comanda_id.slice(0, 8)}`;
+
+            return {
+                id: row.comanda_item_id || `${row.comanda_id}-${index}`,
+                comandaId: row.comanda_id,
+                description,
+                date: row.created_at,
+                quantity,
+                unitPrice: roundCents(unitPrice),
+                grossAmount: roundCents(gross),
+                commissionAmount: roundCents(commission),
+            };
         });
     }
 }
