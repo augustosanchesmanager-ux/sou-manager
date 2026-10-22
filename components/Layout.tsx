@@ -13,12 +13,14 @@ import OfflineStatusBanner from '../src/components/offline/OfflineStatusBanner';
 import StatusBanner from './billing/StatusBanner';
 import ReleaseNotesModal from './ReleaseNotesModal';
 import { hasUnseenChangelog } from '../src/lib/changelog';
+import { CommandPalette } from './CommandPalette';
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isReleaseNotesOpen, setIsReleaseNotesOpen] = useState(false);
   const [releaseNotesUnseen, setReleaseNotesUnseen] = useState(() => hasUnseenChangelog());
   const { user, appSlug } = useAuth();
@@ -30,6 +32,18 @@ const Layout: React.FC = () => {
     if (hasUnseenChangelog()) {
       setIsReleaseNotesOpen(true);
     }
+  }, []);
+
+  // Global Ctrl+K / Cmd+K keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const fallbackDisplayName = isEsteticaApp ? 'Minha Estética' : 'Minha Barbearia';
@@ -77,20 +91,37 @@ const Layout: React.FC = () => {
               <span className="material-symbols-outlined">menu</span>
             </button>
 
-            <div className="relative w-full hidden md:block">
+            {/* Desktop & Tablet Search Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className={`relative w-full hidden md:flex items-center justify-between border rounded-xl py-2 pl-10 pr-3 text-sm transition-all cursor-pointer text-left ${
+                isEsteticaApp
+                  ? 'bg-white/90 border-[#DDD2B6] text-[#6F6758]/80 hover:border-[#9B9368]'
+                  : 'bg-white/85 dark:bg-card-dark border-[#D9EAF5] dark:border-border-dark text-slate-500 dark:text-ink-soft hover:border-[#00D2FF]/50 dark:hover:border-primary/50'
+              }`}
+            >
               <span className={`material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg ${isEsteticaApp ? 'text-[#9B9368]' : 'text-slate-400 dark:text-ink-soft'}`}>search</span>
-              <input
-                className={`w-full border rounded-lg py-2 pl-10 pr-4 text-sm outline-none transition-colors ${
-                  isEsteticaApp
-                    ? 'bg-white/90 border-[#DDD2B6] text-[#2E2B24] placeholder:text-[#6F6758]/70 focus:ring-2 focus:ring-[#D8C994]/35 focus:border-[#9B9368]'
-                    : 'bg-white/85 dark:bg-card-dark border-[#D9EAF5] dark:border-border-dark text-slate-700 dark:text-ink placeholder:text-slate-400 dark:placeholder:text-ink-soft focus:ring-2 focus:ring-[#00D2FF]/25 focus:border-[#00D2FF]/50 dark:focus:ring-primary/25 dark:focus:border-primary/50'
-                }`}
-                placeholder="Pesquisar..."
-                type="text"
-              />
-            </div>
+              <span className="truncate">Buscar telas, comandos ou ações...</span>
+              <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-slate-400 dark:text-ink-soft bg-slate-100 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-md">
+                Ctrl K
+              </kbd>
+            </button>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
+            {/* Mobile Search Button */}
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className={`md:hidden p-2 rounded-lg transition-colors cursor-pointer ${
+                isEsteticaApp
+                  ? 'text-[#6F6758] hover:text-[#6F6845] hover:bg-[#EFE8D8]'
+                  : 'text-slate-500 dark:text-ink-soft hover:text-[#007BFF] dark:hover:text-primary hover:bg-white dark:hover:bg-card-dark'
+              }`}
+              aria-label="Abrir busca rápida"
+            >
+              <span className="material-symbols-outlined">search</span>
+            </button>
             <ThemeToggle />
             <button
               onClick={() => setIsNotificationsOpen(true)}
@@ -163,6 +194,12 @@ const Layout: React.FC = () => {
 
         {/* Widget de Suporte Flutuante */}
         <SupportWidget avoidBottomNav={showMobileBottomNav} />
+
+        {/* Global Command Palette (Ctrl + K) */}
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+        />
       </main>
     </div>
   );

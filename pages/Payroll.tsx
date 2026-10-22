@@ -429,7 +429,17 @@ const Payroll: React.FC = () => {
                             ) : filteredRows.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-500">
-                                        Nenhum profissional elegivel encontrado.
+                                        <div className="max-w-md mx-auto space-y-2 py-4">
+                                            <span className="material-symbols-outlined text-4xl text-slate-400">group_off</span>
+                                            <p className="font-semibold text-slate-700 dark:text-slate-300">
+                                                Nenhum profissional elegível encontrado
+                                            </p>
+                                            <p className="text-xs text-slate-400">
+                                                {searchName
+                                                    ? `Nenhum profissional corresponde à busca "${searchName}".`
+                                                    : 'Certifique-se de que há membros com o perfil de Barbeiro ou Gerente ativos em Equipe.'}
+                                            </p>
+                                        </div>
                                     </td>
                                 </tr>
                             ) : (
