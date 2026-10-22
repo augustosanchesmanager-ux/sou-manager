@@ -13,6 +13,7 @@
 
 import type React from 'react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Clock,
   Sparkles,
@@ -40,8 +41,16 @@ import BookingSuccessVoucher, {
 import { ServiceSpecificationModal } from './modals/ServiceSpecificationModal';
 import { StaffSelectionModal } from './modals/StaffSelectionModal';
 import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
+import { PublicBookingCancelModal } from './modals/PublicBookingCancelModal';
 import { ServicesGridSelector } from './components/ServicesGridSelector';
 import { BookingStickyBottomBar } from './components/BookingStickyBottomBar';
+import {
+  ActiveBookingBanner,
+  saveActiveBooking,
+  clearActiveBooking,
+  getSavedActiveBooking,
+  type SavedClientBooking,
+} from './components/ActiveBookingBanner';
 import { Toast } from './Toast';
 import type { PublicSlot, PublicService } from './hooks/types';
 
@@ -107,6 +116,54 @@ const PublicBookingPage: React.FC = () => {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const pendingAdvanceToStaffRef = useRef(false);
+
+  // Cancellation Modal State & Query Param ?token= handling
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelModalToken, setCancelModalToken] = useState('');
+  const [cancelModalDetails, setCancelModalDetails] = useState<{
+    appointmentId?: string;
+    staffName?: string;
+    servicesNames?: string;
+    formattedDateTime?: string;
+  } | null>(null);
+
+  // Check URL query param for ?token= on mount or param change
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    if (tokenParam) {
+      setCancelModalToken(tokenParam);
+      if (tenantProfile?.slug) {
+        const saved = getSavedActiveBooking(tenantProfile.slug);
+        if (saved && saved.publicToken === tokenParam) {
+          setCancelModalDetails({
+            appointmentId: saved.appointmentId,
+            staffName: saved.staffName,
+            servicesNames: saved.servicesNames,
+            formattedDateTime: saved.formattedDateTime,
+          });
+        }
+      }
+      setIsCancelModalOpen(true);
+    }
+  }, [searchParams, tenantProfile?.slug]);
+
+  // Safely close cancel modal without breaking the tenant vitrine
+  const handleCloseCancelModal = useCallback(() => {
+    setIsCancelModalOpen(false);
+    setCancelModalToken('');
+    setCancelModalDetails(null);
+    if (searchParams.has('token')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('token');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  // On successful cancellation: clean storage and clear state
+  const handleCancellationSuccess = useCallback(() => {
+    clearActiveBooking();
+  }, []);
 
   // Restore client lead data from localStorage on mount
   useEffect(() => {
@@ -350,6 +407,20 @@ const PublicBookingPage: React.FC = () => {
           timeZone: timezone,
         });
 
+        // Save active booking for client reminder banner & quick management
+        if (result.public_token) {
+          const servicesNames = result.services.map((s) => s.name).join(', ');
+          saveActiveBooking({
+            tenantSlug: tenantProfile.slug,
+            appointmentId: result.appointment_id,
+            publicToken: result.public_token,
+            servicesNames,
+            staffName: result.staff.name,
+            startTime: result.start_time,
+            formattedDateTime: `${formattedDate} às ${timeStr}`,
+          });
+        }
+
         const targetWhatsAppUrl = buildStructuredWhatsAppConfirmationUrl(
           tenantProfile,
           result,
@@ -473,6 +544,32 @@ const PublicBookingPage: React.FC = () => {
             clientName={clientName}
             clientPhone={clientPhoneDisplay}
             onNewBooking={startNewBooking}
+            onCancelBooking={() => {
+              if (bookingResult.public_token) {
+                const dateStr = bookingResult.start_time.split('T')[0];
+                const dateDisplay = formatDateForDisplay(dateStr);
+                const startDate = new Date(bookingResult.start_time);
+                const timezone = tenantProfile.booking_rules?.timezone || 'America/Sao_Paulo';
+                const timeStr = startDate.toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                  timeZone: timezone,
+                });
+                const formattedDate = dateDisplay.dayLabel
+                  ? `${dateDisplay.dayLabel} (${dateDisplay.weekday}, ${dateDisplay.day}) às ${timeStr}`
+                  : `${dateDisplay.weekday}, ${dateDisplay.day} às ${timeStr}`;
+
+                setCancelModalToken(bookingResult.public_token);
+                setCancelModalDetails({
+                  appointmentId: bookingResult.appointment_id,
+                  staffName: bookingResult.staff.name,
+                  servicesNames: bookingResult.services.map((s) => s.name).join(', '),
+                  formattedDateTime: formattedDate,
+                });
+                setIsCancelModalOpen(true);
+              }
+            }}
             formatDuration={formatDuration}
             formatPriceBRL={formatPriceBRL}
             formatDateForDisplay={formatDateForDisplay}
@@ -514,6 +611,22 @@ const PublicBookingPage: React.FC = () => {
               {/* Tab 1: Agendamento Principal (Vitrine de Alto Padrão) */}
               {activeTab === 'agendamento' && (
                 <div className="space-y-4">
+                  {/* Active Booking Reminder Banner */}
+                  {tenantProfile?.slug && (
+                    <ActiveBookingBanner
+                      tenantSlug={tenantProfile.slug}
+                      onOpenManage={(saved) => {
+                        setCancelModalToken(saved.publicToken);
+                        setCancelModalDetails({
+                          appointmentId: saved.appointmentId,
+                          staffName: saved.staffName,
+                          servicesNames: saved.servicesNames,
+                          formattedDateTime: saved.formattedDateTime,
+                        });
+                        setIsCancelModalOpen(true);
+                      }}
+                    />
+                  )}
                   {/* Client Identification Bar */}
                   {isClientIdentified ? (
                     <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-neutral-950 border border-neutral-800 text-xs">
@@ -652,6 +765,21 @@ const PublicBookingPage: React.FC = () => {
         onClose={() => setIsLeadModalOpen(false)}
         pendingServiceName={selectedServiceForModal?.name}
       />
+
+      {/* Cancellation & Management Modal */}
+      {tenantProfile && (
+        <PublicBookingCancelModal
+          isOpen={isCancelModalOpen}
+          tenantSlug={tenantProfile.slug}
+          tenantName={tenantProfile.name}
+          publicToken={cancelModalToken}
+          bookingDetails={cancelModalDetails}
+          whatsappUrl={whatsappUrl}
+          cancelWindowMinutes={tenantProfile.booking_rules?.public_cancel_window_minutes ?? 120}
+          onSuccess={handleCancellationSuccess}
+          onClose={handleCloseCancelModal}
+        />
+      )}
     </div>
   );
 };
