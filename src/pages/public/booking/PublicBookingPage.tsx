@@ -12,7 +12,7 @@
  */
 
 import type React from 'react';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Clock,
   Sparkles,
@@ -40,6 +40,8 @@ import BookingSuccessVoucher, {
 import { ServiceSpecificationModal } from './modals/ServiceSpecificationModal';
 import { StaffSelectionModal } from './modals/StaffSelectionModal';
 import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
+import { ServicesGridSelector } from './components/ServicesGridSelector';
+import { BookingStickyBottomBar } from './components/BookingStickyBottomBar';
 import { Toast } from './Toast';
 import type { PublicSlot, PublicService } from './hooks/types';
 
@@ -79,6 +81,7 @@ const PublicBookingPage: React.FC = () => {
     bookingResult,
 
     // Summary calculations
+    selectedServices,
     totalDuration,
     totalPrice,
     formatDuration,
@@ -103,6 +106,7 @@ const PublicBookingPage: React.FC = () => {
   // Standalone Lead Capture Modal state (for editing identity directly from bar)
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const pendingAdvanceToStaffRef = useRef(false);
 
   // Restore client lead data from localStorage on mount
   useEffect(() => {
@@ -209,35 +213,34 @@ const PublicBookingPage: React.FC = () => {
         // Ignore storage errors
       }
       setIsLeadModalOpen(false);
+
+      if (pendingAdvanceToStaffRef.current) {
+        pendingAdvanceToStaffRef.current = false;
+        setIsStaffModalOpen(true);
+      }
     },
     [setClientName, setClientPhone]
   );
 
-  // Launch guided 3-phase booking flow starting from service specification
-  const handleOpenServiceModal = useCallback(
+  // Handle toggling services in 2-column grid with multiple selection
+  const handleToggleService = useCallback(
     (service: PublicService) => {
+      const isCurrentlySelected = selectedServiceIds.includes(service.id);
+      toggleService(service.id);
       setSelectedServiceForModal(service);
 
-      // Ensure this service is selected in hook
-      if (!selectedServiceIds.includes(service.id)) {
-        // Clear previous selections to focus on this single booking
-        for (const id of selectedServiceIds) {
-          toggleService(id);
-        }
-        toggleService(service.id);
-      }
-
-      // Default staff to ANY_STAFF_ID if none selected
+      // Default staff and date if not set
       if (!selectedStaffId) {
         selectStaff(ANY_STAFF_ID);
       }
-
-      // Default date to today if none selected
       if (!selectedDate && dateOptions.length > 0) {
         selectDate(dateOptions[0].value);
       }
 
-      setIsSpecModalOpen(true);
+      // First click lead capture if client is not yet identified
+      if (!isCurrentlySelected && !isClientIdentified) {
+        setIsLeadModalOpen(true);
+      }
     },
     [
       selectedServiceIds,
@@ -248,7 +251,45 @@ const PublicBookingPage: React.FC = () => {
       selectedDate,
       dateOptions,
       selectDate,
+      isClientIdentified,
     ]
+  );
+
+  // Handle CTA "Continuar" from Sticky Bottom Bar
+  const handleContinueFromBottomBar = useCallback(() => {
+    if (selectedServiceIds.length === 0) return;
+
+    if (!selectedStaffId) {
+      selectStaff(ANY_STAFF_ID);
+    }
+    if (!selectedDate && dateOptions.length > 0) {
+      selectDate(dateOptions[0].value);
+    }
+
+    if (!isClientIdentified) {
+      pendingAdvanceToStaffRef.current = true;
+      setIsLeadModalOpen(true);
+      return;
+    }
+
+    setIsStaffModalOpen(true);
+  }, [
+    selectedServiceIds.length,
+    selectedStaffId,
+    selectStaff,
+    ANY_STAFF_ID,
+    selectedDate,
+    dateOptions,
+    selectDate,
+    isClientIdentified,
+  ]);
+
+  // Launch guided 3-phase booking flow starting from service specification
+  const handleOpenServiceModal = useCallback(
+    (service: PublicService) => {
+      handleToggleService(service);
+    },
+    [handleToggleService]
   );
 
   // Advance Phase 1 (Service Spec) -> Phase 2 (Staff Selection)
@@ -267,10 +308,9 @@ const PublicBookingPage: React.FC = () => {
     [selectStaff]
   );
 
-  // Return to Phase 1 from Phase 2
+  // Return from Phase 2 (Staff Selection) back to services grid
   const handleBackToSpec = useCallback(() => {
     setIsStaffModalOpen(false);
-    setIsSpecModalOpen(true);
   }, []);
 
   // Return to Phase 2 from Phase 3
@@ -337,6 +377,20 @@ const PublicBookingPage: React.FC = () => {
     formatDateForDisplay,
     clientName,
   ]);
+
+  // Aggregated service name display for Phase 3 summary
+  const serviceNameDisplay = useMemo(() => {
+    if (selectedServices.length === 0) {
+      return selectedServiceForModal?.name || 'Serviço Selecionado';
+    }
+    if (selectedServices.length === 1) {
+      return selectedServices[0].name;
+    }
+    if (selectedServices.length === 2) {
+      return `${selectedServices[0].name} + ${selectedServices[1].name}`;
+    }
+    return `${selectedServices[0].name} (+${selectedServices.length - 1} serviços)`;
+  }, [selectedServices, selectedServiceForModal]);
 
   // Active staff name display for Phase 3 summary
   const selectedStaffName = useMemo(() => {
@@ -436,7 +490,7 @@ const PublicBookingPage: React.FC = () => {
             />
 
             {/* Main Content Area */}
-            <main className="p-4 sm:p-5 flex-1 bg-neutral-900">
+            <main className="p-4 sm:p-5 flex-1 bg-neutral-900 pb-28 sm:pb-32">
               {/* Tab 2: Serviços Catalog */}
               {activeTab === 'servicos' && (
                 <ServicesCatalogTab
@@ -497,7 +551,7 @@ const PublicBookingPage: React.FC = () => {
                         Serviços Disponíveis
                       </h2>
                       <p className="text-[11px] text-neutral-400">
-                        Toque no serviço para ver detalhes e iniciar o agendamento
+                        Selecione um ou mais serviços para agendar
                       </p>
                     </div>
                     <span className="text-xs font-bold text-amber-400">
@@ -505,81 +559,13 @@ const PublicBookingPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Services Vitrine */}
-                  <div className="space-y-2.5">
-                    {availableServices.length === 0 ? (
-                      <div className="p-8 text-center bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2">
-                        <Scissors className="w-8 h-8 text-neutral-600 mx-auto" />
-                        <p className="text-xs text-neutral-400">Nenhum serviço disponível no momento.</p>
-                      </div>
-                    ) : (
-                      availableServices.map((service) => {
-                        const isSelected = selectedServiceIds.includes(service.id);
-
-                        return (
-                          <button
-                            key={service.id}
-                            type="button"
-                            onClick={() => handleOpenServiceModal(service)}
-                            className={`w-full text-left p-3.5 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] flex items-center justify-between gap-3 ${
-                              isSelected
-                                ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/40 shadow-md'
-                                : 'bg-neutral-950 border-neutral-800 hover:border-amber-500/50 hover:bg-neutral-950/80'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {/* Service Icon / Photo */}
-                              <div className="size-12 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden text-amber-400">
-                                {service.image_url ? (
-                                  <img
-                                    src={service.image_url}
-                                    alt={service.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <Scissors className="w-5 h-5 text-amber-400" />
-                                )}
-                              </div>
-
-                              {/* Service Info */}
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-bold text-sm text-white truncate">{service.name}</h3>
-                                  {service.category && (
-                                    <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.2 rounded-full bg-neutral-800 text-amber-400">
-                                      {service.category}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1 text-xs">
-                                  <span className="flex items-center gap-1 text-neutral-300 font-medium">
-                                    <Clock size={12} className="text-amber-400" />
-                                    {service.duration} min
-                                  </span>
-                                  <span className="text-neutral-600">•</span>
-                                  <span className="text-amber-400 font-extrabold tabular-nums">
-                                    {formatPriceBRL(service.price)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Button Indicator */}
-                            <span
-                              className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm ${
-                                isSelected
-                                  ? 'bg-amber-500 text-neutral-950 hover:bg-amber-400'
-                                  : 'bg-neutral-800 border border-neutral-700 text-white hover:border-amber-500 hover:text-amber-400'
-                              }`}
-                            >
-                              <span>{isSelected ? 'Configurar' : 'Agendar'}</span>
-                              <ChevronRight size={13} />
-                            </span>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
+                  {/* 2-Column Grid of Services with Multi-selection */}
+                  <ServicesGridSelector
+                    services={availableServices}
+                    selectedServiceIds={selectedServiceIds}
+                    onToggleService={handleToggleService}
+                    formatPriceBRL={formatPriceBRL}
+                  />
 
                   {/* Reassurance Features */}
                   <div className="mt-4 pt-3 border-t border-neutral-800/80 grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
@@ -595,6 +581,18 @@ const PublicBookingPage: React.FC = () => {
                 </div>
               )}
             </main>
+
+            {/* Sticky Bottom Summary Bar */}
+            {(activeTab === 'agendamento' || activeTab === 'servicos') && (
+              <BookingStickyBottomBar
+                selectedCount={selectedServiceIds.length}
+                totalPrice={totalPrice}
+                totalDuration={totalDuration}
+                onContinue={handleContinueFromBottomBar}
+                formatDuration={formatDuration}
+                formatPriceBRL={formatPriceBRL}
+              />
+            )}
           </>
         )}
       </div>
@@ -632,7 +630,7 @@ const PublicBookingPage: React.FC = () => {
         selectedSlot={selectedSlot}
         onSelectSlot={selectSlot}
         isLoadingSlots={isLoading}
-        serviceName={selectedServiceForModal?.name || 'Serviço Selecionado'}
+        serviceName={serviceNameDisplay}
         staffName={selectedStaffName}
         totalPrice={totalPrice > 0 ? totalPrice : (selectedServiceForModal?.price || 0)}
         totalDuration={totalDuration > 0 ? totalDuration : (selectedServiceForModal?.duration || 30)}
