@@ -181,18 +181,35 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install dependencies
+        if: needs.promote.result == 'success'
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: needs.promote.result == 'success'
+        run: npx playwright install --with-deps chromium
+
+      - name: Write .env.local for E2E helpers
+        if: needs.promote.result == 'success'
+        run: |
+          printf 'VITE_SUPABASE_URL=%s\n' "$VITE_SUPABASE_URL" > .env.local
+          printf 'VITE_SUPABASE_ANON_KEY=%s\n' "$VITE_SUPABASE_ANON_KEY" >> .env.local
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY" >> .env.local
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Smoke E2E contra producao (somente apos promocao real)
         if: needs.promote.result == 'success'
         env:
           CI: "true"
           PLAYWRIGHT_BASE_URL: ${{ needs.resolve-validate.outputs.domain }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run test:e2e:smoke
+        run: npm run test:e2e:smoke
 
       - name: Trilha de auditoria
         if: always()
