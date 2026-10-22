@@ -110,6 +110,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       instagram_url?: string | null;
       whatsapp_number?: string | null;
       maps_url?: string | null;
+      business_hours?: TenantSettings['business_hours'] | Record<string, any>;
     }
   ): Promise<TenantSettings> {
     if (!tenantId || !tenantId.trim()) {
@@ -133,6 +134,9 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       }
       if (hours.maps_url !== undefined) {
         payload.maps_url = hours.maps_url;
+      }
+      if (hours.business_hours !== undefined) {
+        payload.business_hours = hours.business_hours;
       }
 
       const result = await this.from()
@@ -159,6 +163,7 @@ export interface TenantSettingsRepository {
       instagram_url?: string | null;
       whatsapp_number?: string | null;
       maps_url?: string | null;
+      business_hours?: TenantSettings['business_hours'] | Record<string, any>;
     }
   ): Promise<TenantSettings>;
 }

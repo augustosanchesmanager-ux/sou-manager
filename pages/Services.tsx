@@ -49,6 +49,24 @@ const Services: React.FC = () => {
 
   // Form
   const [view, setView] = useState<'list' | 'form'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    try {
+      const saved = localStorage.getItem('smg_services_view_mode');
+      return saved === 'table' ? 'table' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleViewModeChange = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('smg_services_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
+
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [form, setForm] = useState({ name: '', category: 'Cabelo', price: '', duration: '30', active: true, show_in_booking: true });
 
@@ -287,23 +305,125 @@ const Services: React.FC = () => {
           <option value="all" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Todas Categorias</option>
           {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{getCategoryLabel(c)}</option>)}
         </select>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {(['all', 'active', 'inactive'] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === s ? 'bg-primary text-white shadow-md' : 'bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
               {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : 'Inativos'}
             </button>
           ))}
+          <div className="h-6 w-px bg-slate-200 dark:border-border-dark mx-1 hidden sm:block"></div>
+          <div className="flex items-center bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('grid')}
+              aria-label="Visualização em Grade"
+              title="Visualização em Grade"
+              className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+              <span className="material-symbols-outlined text-base block">grid_view</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('table')}
+              aria-label="Visualização em Tabela"
+              title="Visualização em Tabela"
+              className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+              <span className="material-symbols-outlined text-base block">view_list</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Service Cards */}
+      {/* Service Cards or Table */}
       {loading ? (
         <div className="p-10 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre seu primeiro procedimento.' : 'Nenhum serviço encontrado.'}</div>
+      ) : viewMode === 'table' ? (
+        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-xs uppercase tracking-wider text-slate-500 font-bold">
+                  <th className="py-3.5 px-4">{serviceLabel}</th>
+                  <th className="py-3.5 px-4">Categoria</th>
+                  <th className="py-3.5 px-4">Duração</th>
+                  <th className="py-3.5 px-4">Preço</th>
+                  <th className="py-3.5 px-4">Agendamento Online</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {filtered.map(service => {
+                  const displayName = getCatalogDisplayName(service, appSlug);
+                  const isOnline = service.show_in_booking ?? true;
+                  return (
+                    <tr key={service.id} className={`hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors ${!service.active ? 'opacity-60' : ''}`}>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            <span className="material-symbols-outlined text-sm">content_cut</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-900 dark:text-white block">{displayName}</span>
+                            {service.description && (
+                              <span className="text-xs text-slate-400 truncate max-w-xs block">{service.description}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                          {getCategoryLabel(service.category)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                        <span className="inline-flex items-center gap-1 text-xs">
+                          <span className="material-symbols-outlined text-xs text-slate-400">schedule</span>
+                          {service.duration} min
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-emerald-500">
+                        {formatPrice(service.price)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          isOnline ? 'text-primary bg-primary/10' : 'text-amber-500 bg-amber-500/10'
+                        }`}>
+                          <span className="material-symbols-outlined text-xs">{isOnline ? 'public' : 'lock'}</span>
+                          {isOnline ? 'Disponível' : 'Oculto'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(service)}
+                          aria-label={service.active ? `Desativar ${service.name}` : `Ativar ${service.name}`}
+                          title={service.active ? `Desativar ${service.name}` : `Ativar ${service.name}`}
+                          className={`relative inline-block w-11 h-6 rounded-full transition-colors cursor-pointer ${service.active ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${service.active ? 'left-[22px]' : 'left-0.5'}`}></span>
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEditForm(service)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">
+                            <span className="material-symbols-outlined text-lg">edit</span>
+                          </button>
+                          <button onClick={() => handleDelete(service.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Excluir">
+                            <span className="material-symbols-outlined text-lg">delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(service => {
