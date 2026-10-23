@@ -8,6 +8,7 @@ import {
   SHARED_SCHEMA,
 } from './schemas';
 import { planCatalog } from '../../../domain/billing/planCatalog';
+import { redact } from '../observability/redact';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
@@ -1828,7 +1829,7 @@ const client = {
       }
 
       if (fn === 'create_appointment_with_comanda' && isLocalDemoEnabled()) {
-        console.log('[create_appointment_with_comanda] demo RPC called with params:', params);
+        console.log('[create_appointment_with_comanda] demo RPC called with params:', redact(params));
         const p = params as {
           p_tenant_id?: string;
           p_client_id?: string;
@@ -1935,7 +1936,7 @@ const client = {
           service_price: price,
           appointment_status: 'confirmed',
         };
-        console.log('[create_appointment_with_comanda] demo RPC result:', rpcResult, 'db.appointments count:', db.appointments.length);
+        console.log('[create_appointment_with_comanda] demo RPC result:', redact(rpcResult), 'db.appointments count:', db.appointments.length);
 
         return createRpcResult(rpcResult, null);
       }

@@ -17,6 +17,8 @@
  *   });
  */
 
+import { redact } from './redact';
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -229,8 +231,8 @@ class StructuredLogger {
       level,
       category,
       event,
-      context: context || {},
-      data,
+      context: this.sanitize(context || {}) as LogContext,
+      data: this.sanitize(data) as Record<string, unknown> | undefined,
     };
 
     // Extract result from data if present
@@ -251,6 +253,18 @@ class StructuredLogger {
     // Console output in dev mode
     if (import.meta.env.DEV) {
       this.consoleOutput(entry);
+    }
+  }
+
+  /**
+   * Redige PII/segredos antes de persistir ou imprimir.
+   * Fail-open: se a redação falhar, devolve marcador seguro (nunca o original).
+   */
+  private sanitize(value: unknown): unknown {
+    try {
+      return redact(value);
+    } catch {
+      return { redaction_failed: true };
     }
   }
 
