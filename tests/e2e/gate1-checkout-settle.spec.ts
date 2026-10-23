@@ -114,6 +114,11 @@ async function paymentRows(tenantId: string, comandaId: string) {
 }
 
 test.describe('Gate 1 — Liquidação de comanda grava payment_type final', () => {
+  // P0 safety gate: this spec mutates a shared staging environment. Default is SKIP.
+  // Enable only with an explicit, deliberate `E2E_ALLOW_PROD_EXECUTION=true`.
+  const allowSharedExecution = process.env.E2E_ALLOW_PROD_EXECUTION === 'true';
+  test.skip(!allowSharedExecution, 'Execution against production environment is gated');
+
   test('should_settle_comanda_with_final_payment_when_closing_via_checkout', async ({ loggedAdmin }) => {
     test.setTimeout(180_000);
     const { tenantId } = getFixtureState();
