@@ -12,7 +12,7 @@ import { redact } from '../observability/redact';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
-const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
+export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
 const LOCAL_DEMO_STORAGE_KEY = 'soumanager.local.demo.session';
 const LOCAL_DEMO_DB_STORAGE_KEY = 'soumanager.local.demo.db';
 const LOCAL_DEMO_USER_ID = '00000000-0000-0000-0000-000000000001';
