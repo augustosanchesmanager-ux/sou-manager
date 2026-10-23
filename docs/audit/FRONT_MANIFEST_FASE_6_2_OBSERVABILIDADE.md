@@ -19,9 +19,9 @@
 | Escopo desta etapa | INTAKE → AUDIT → CLASSIFY → ISOLATE → IMPLEMENT → VALIDATE (Fase 1 P0) |
 | Escopo excluído | Banco/migrations/RPC/RLS; deploy; alteração de regra de negócio; adoção de vendor externo sem decisão do PO; transporte remoto |
 | Checkpoint | **STOP/GATE após VALIDATE** (aguarda autorização de commit) |
-| Commit de implementação | `feat(observability): add root error boundary, global handlers and pii redaction` |
+| Commit de implementação | `0d50c2e` — `feat(observability): add root error boundary, global handlers and pii redaction` |
 | Validação | `typecheck` 0 · `unit` 102 arquivos / 1813 testes · `build` 0 · `git diff --check` 0 |
-| PR | não criado |
+| PR | **#173** — https://github.com/augustosanchesmanager-ux/sou-manager/pull/173 |
 | Merge SHA | não aplicável |
 | Deploy | não autorizado (MERGE ≠ DEPLOY PROD — ADR-026) |
 | Estado atual | **PR_OPEN — aguarda inspeção final e MERGE AUTHORIZATION** |
@@ -72,9 +72,9 @@ Estruturar telemetria, tratamento de exceções no React e monitoramento de falh
 | 2026-10-23 | VALIDATE | Sisyphus | `typecheck` 0 · `unit` 102/1813 · `build` 0 · `git diff --check` 0 |
 | 2026-10-23 | STOP/GATE | Sisyphus | **PARADO — aguarda autorização de commit** |
 | 2026-10-23 | COMMIT AUTHORIZATION | Augusto (PO) | Autorizado commit, push e abertura de PR; merge permanece bloqueado |
-| 2026-10-23 | COMMIT | Sisyphus | Commit atômico na branch `feat/fase6-6-2-observabilidade` |
+| 2026-10-23 | COMMIT | Sisyphus | `0d50c2e` na branch `feat/fase6-6-2-observabilidade` |
 | 2026-10-23 | PUSH | Sisyphus | Branch publicada em `origin` |
-| 2026-10-23 | PR | Sisyphus | PR aberto apontando para `main` |
+| 2026-10-23 | PR | Sisyphus | PR #173 aberto apontando para `main` |
 
 ## Evidência da Fase 1
 
