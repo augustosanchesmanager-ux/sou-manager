@@ -1,0 +1,113 @@
+# =============================================================================
+# Supabase CLI — config.toml
+# Configuração do Supabase Local CLI para o projeto SOU MANA.GER.
+# Documentação: https://supabase.com/docs/guides/cli/local-development#config-toml
+# =============================================================================
+
+[api]
+# Porta da API REST (PostgREST) em desenvolvimento local
+port = 54321
+
+# Porta do banco PostgreSQL local
+db_port = 54322
+
+# Porta do Supabase Studio (UI local)
+studio_port = 54323
+
+# Porta da função de autenticação (GoTrue)
+inbucket_port = 54324
+
+# Habilita o modo de análise de desempenho (explain)
+analyze = false
+
+# Timeout em segundos para operações da API
+# api_timeout = 30
+
+# Número máximo de conexões simultâneas
+# max_connections = 100
+
+# Limite de tamanho do corpo da requisição (bytes)
+# max_request_body_size = 10485760
+
+[db]
+# Habilita extensions do PostgreSQL por padrão
+# major_version = 16
+
+# Habilita pg_cron (agendamento de jobs no banco)
+# pg_cron = false
+
+# Habilita pg_net (requisições HTTP a partir do banco)
+# pg_net = false
+
+# Habilita pg_vector (busca por similaridade vetorial)
+# pg_vector = false
+
+# Habilita pg_graphql (exposição do schema via GraphQL)
+# pg_graphql = false
+
+# Habilita wallet (funcionalidades de carteira)
+# wallet = false
+
+# Habilita o modo de Anúncio de Schema (anúncio de mudanças de schema)
+# announce = false
+
+[auth]
+# Habilita o provedor de e-mail
+# email_enabled = true
+
+# Habilita o provedor de telefone (SMS)
+# phone_enabled = false
+
+# Habilita login anônimo
+# anonymous_enabled = false
+
+# Habilita confirmação de e-mail obrigatória
+# email_confirmations_enabled = true
+
+# Habilita redefinição de senha
+# password_reset_enabled = true
+
+# Habilita mudança de e-mail
+# email_change_enabled = true
+
+# URL do site para redirecionamento após ações de auth
+# site_url = "http://localhost:3000"
+
+# URLs adicionais de redirecionamento permitidas
+# additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+
+# Expiração do token de refresh (segundos)
+# refresh_token_rotation_enabled = true
+
+# Expiração da sessão (segundos)
+# session_duration = 3600
+
+# Habilita MFA (autenticação multifator)
+# mfa_enabled = false
+
+# Limite de tentativas de login (rate limit)
+# rate_limit_anonymous = 10
+# rate_limit_authenticated = 100
+
+[edge_functions]
+# Pasta onde ficam as Edge Functions
+functions_folder = "supabase/functions"
+
+# Habilita o servidor local de Edge Functions
+# local = true
+
+# Porta do servidor de Edge Functions
+# port = 54321
+
+# Timeout de execução das Edge Functions (segundos)
+# timeout = 30
+
+# =============================================================================
+# Observações do projeto SOU MANA.GER
+# - Não aplicar migrations em produção sem autorização explícita do PO.
+# - Nunca criar secret custom com prefixo SUPABASE_ (a plataforma rejeita).
+# - O worker de outbox (D8) lê SUPABASE_PUBLISHABLE_KEYS (auto-injetado),
+#   APP_URL e EDGE_JWT_SECRET (custom secrets no dashboard Vercel).
+# - pg_cron: registrar jobs com cron.unschedule() + cron.schedule(),
+#   nunca UPDATE direto em cron.job.
+# =============================================================================
