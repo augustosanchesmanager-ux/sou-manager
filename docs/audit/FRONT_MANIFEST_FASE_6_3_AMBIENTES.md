@@ -17,9 +17,9 @@
 | Worktree | `C:\SMG\04_PRODUTOS\SMG_BARBER\sou-manager-fase6-ambientes` |
 | Escopo | Documentação: matriz única de ambientes (dev, preview, demo, staging, produção) |
 | Escopo excluído | Código, banco/migrations/RPC/RLS, deploy, alteração de infraestrutura |
-| Commit | `docs(environments): document matrix of staging and production environments` |
+| Commit | `3c18dce` — `docs(environments): document matrix of staging and production environments` |
 | Validação | revisão de referências + `git diff --check` (docs-only; sem código) |
-| PR | aberto apontando para `main` |
+| PR | **#174** — https://github.com/augustosanchesmanager-ux/sou-manager/pull/174 |
 | Deploy | não autorizado (MERGE ≠ DEPLOY PROD — ADR-026) |
 | Estado atual | **PR_OPEN — aguarda inspeção final e MERGE AUTHORIZATION** |
 
@@ -76,9 +76,9 @@ Documentação aprovada para integração isolada, sem qualquer alteração de c
 | 2026-10-23 | IMPLEMENT | Sisyphus | `docs/ambientes.md` finalizado na worktree |
 | 2026-10-23 | VALIDATE | Sisyphus | Referências íntegras; `git diff --check` limpo |
 | 2026-10-23 | COMMIT AUTHORIZATION | Augusto (PO) | Autorizado commit, push e PR exclusivo |
-| 2026-10-23 | COMMIT | Sisyphus | Commit atômico de documentação |
+| 2026-10-23 | COMMIT | Sisyphus | `3c18dce` na branch `feat/fase6-6-3-ambientes` |
 | 2026-10-23 | PUSH | Sisyphus | Branch publicada em `origin` |
-| 2026-10-23 | PR | Sisyphus | PR exclusivo aberto para `main` |
+| 2026-10-23 | PR | Sisyphus | PR #174 aberto apontando para `main` |
 | 2026-10-23 | STOP/GATE | Sisyphus | **PARADO no gate de merge** |
 
 ## Próxima transição permitida
