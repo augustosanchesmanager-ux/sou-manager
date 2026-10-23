@@ -1,3 +1,5 @@
+import { redact } from '../observability/redact';
+
 type SupabaseErrorLike = {
   message?: string;
   code?: string;
@@ -45,16 +47,20 @@ export const logSupabaseError = (
   extra?: Record<string, unknown>,
 ): void => {
   const payload = extractSupabaseError(error);
+  const safePayload = redact(payload);
+  const safeExtra = extra ? redact(extra) : undefined;
+
   const parts = [`[${context}]`];
-  if (payload.code) parts.push(`code=${payload.code}`);
-  if (payload.status) parts.push(`status=${payload.status}`);
-  parts.push(payload.message);
-  if (payload.details) parts.push(`details=${payload.details}`);
-  if (payload.hint) parts.push(`hint=${payload.hint}`);
-  if (extra) parts.push(JSON.stringify(extra));
+  if (safePayload.code) parts.push(`code=${safePayload.code}`);
+  if (safePayload.status) parts.push(`status=${safePayload.status}`);
+  parts.push(safePayload.message);
+  if (safePayload.details) parts.push(`details=${safePayload.details}`);
+  if (safePayload.hint) parts.push(`hint=${safePayload.hint}`);
+  if (safeExtra) parts.push(JSON.stringify(safeExtra));
+
   console.error(parts.join(' | '), {
-    ...payload,
-    ...(extra || {}),
-    ...(error instanceof Error ? { stack: error.stack } : {}),
+    ...safePayload,
+    ...(safeExtra || {}),
+    ...(error instanceof Error && error.stack ? { stack: redact(error.stack) } : {}),
   });
 };
