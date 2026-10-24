@@ -31,6 +31,12 @@ import {
   scheduleBlocksApi,
   toDateKey,
 } from '../services/scheduleBlocksApi';
+import {
+  QUICK_BLOCK_PRESETS,
+  QuickBlockPresetId,
+  calculatePresetTimes,
+  detectPresetAppointmentConflicts,
+} from '../services/scheduleQuickBlocks';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import { buildWhatsAppUrl } from '../src/lib/utils/phone';
 import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
@@ -365,6 +371,9 @@ const Schedule: React.FC = () => {
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
   const [showPaymentDecisionModal, setShowPaymentDecisionModal] = useState(false);
   const cancelModalRef = useRef<HTMLDivElement>(null);
+
+  // Quick Block Dropdown state per staff in schedule header
+  const [activeQuickBlockMenuStaffId, setActiveQuickBlockMenuStaffId] = useState<string | null>(null);
 
   // P4 — Correção retroativa de attended_at (apenas gestão)
   const isManagementRole = accessRole === 'manager' || accessRole === 'superadmin';
@@ -1303,6 +1312,99 @@ const Schedule: React.FC = () => {
       recurrenceUntil: '',
       actionForExisting: 'keep',
     });
+  };
+
+  /**
+   * Aplica um preset rápido diretamente nos campos do modal de fechamento.
+   */
+  const handleApplyPresetToBlockModal = (presetId: QuickBlockPresetId) => {
+    try {
+      const calculated = calculatePresetTimes(presetId, blockForm.startTime || undefined);
+      setBlockForm(prev => ({
+        ...prev,
+        type: calculated.blockType === 'full_day' ? 'full_day' : 'time_range',
+        startTime: calculated.startTime,
+        endTime: calculated.endTime,
+        reason: calculated.reason,
+      }));
+      setBlockError(null);
+    } catch (err: any) {
+      setBlockError(err?.message || 'Erro ao aplicar preset');
+    }
+  };
+
+  /**
+   * Executa a criação instantânea de um bloqueio a partir do cabeçalho da coluna do barbeiro.
+   * Valida preventivamente contra qualquer agendamento ativo. Se houver conflito, emite alerta bloqueante.
+   */
+  const handleQuickBlockForStaff = async (staffId: string, staffName: string, presetId: QuickBlockPresetId) => {
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para criar bloqueio.', type: 'error' });
+      return;
+    }
+
+    try {
+      const targetDateKey = selectedDateKey || toDateKey(new Date());
+      const calculated = calculatePresetTimes(presetId);
+
+      // 1. Checagem preventiva e estrita de conflitos com agendamentos do barbeiro no dia
+      const conflictCheck = detectPresetAppointmentConflicts(
+        appointments,
+        staffId,
+        targetDateKey,
+        calculated.blockType,
+        calculated.startTime,
+        calculated.endTime
+      );
+
+      if (conflictCheck.hasConflict) {
+        // Bloqueio impedido: não cancela nem sobrescreve cliente
+        setToast({
+          message: `Bloqueio impedido: ${conflictCheck.conflictingAppointments.length} agendamento(s) ativo(s) no horário de ${staffName}. Cancele ou remarque antes.`,
+          type: 'error',
+        });
+        return;
+      }
+
+      // 2. Checagem de sobreposição com blocos já existentes
+      const payload: ScheduleBlockInput = {
+        block_type: calculated.blockType === 'full_day' ? 'full_day' : 'time_range',
+        professional_id: staffId,
+        start_date: targetDateKey,
+        end_date: targetDateKey,
+        start_time: calculated.blockType === 'full_day' ? null : calculated.startTime,
+        end_time: calculated.blockType === 'full_day' ? null : calculated.endTime,
+        reason: `${calculated.reason} (${staffName})`,
+        notes: `Criado via ação rápida da grade (${calculated.preset.label})`,
+        recurrence_type: 'none',
+        recurrence_until: null,
+        existing_appointments_action: 'keep',
+      };
+
+      const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
+      const overlappingBlocks = detectBlockConflicts(activeBlocks, payload);
+      if (overlappingBlocks.length > 0) {
+        setToast({
+          message: `Já existe um bloqueio no mesmo horário para ${staffName}.`,
+          type: 'error',
+        });
+        return;
+      }
+
+      // 3. Persistência
+      await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
+      await fetchScheduleBlocks();
+      setToast({
+        message: `${calculated.preset.label} aplicada com sucesso para ${staffName}!`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.error('[SMG][SCHEDULE][QUICK_BLOCK][ERROR]', err);
+      setToast({
+        message: err?.message || 'Falha ao aplicar bloqueio rápido.',
+        type: 'error',
+      });
+    }
   };
 
   const handleOpenCreateBlockModal = () => {
@@ -2485,13 +2587,61 @@ Podemos confirmar? 😄`;
                     <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
                   ) : (
                     staffList.map(resource => (
-                      <div key={resource.id} className="flex-1 py-4 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-2">
+                      <div key={resource.id} className="flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1.5 relative">
                         <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
                           style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
                         </div>
                         <div className="text-center">
                           <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
                           <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{getVisibleRoleLabel(resource.role)}</p>
+                        </div>
+
+                        {/* Gatilho de Bloqueio Rápido por Coluna */}
+                        <div className="relative mt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveQuickBlockMenuStaffId(prev => prev === resource.id ? null : resource.id);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 transition-colors shadow-xs"
+                            title="Bloqueio rápido de horário"
+                          >
+                            <span className="material-symbols-outlined text-[12px] text-amber-500">lock_clock</span>
+                            Pausa
+                            <span className="material-symbols-outlined text-[10px]">expand_more</span>
+                          </button>
+
+                          {/* Menu Dropdown de Presets Rápidos */}
+                          {activeQuickBlockMenuStaffId === resource.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setActiveQuickBlockMenuStaffId(null)}
+                              />
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl shadow-xl p-1.5 z-50 flex flex-col gap-1 text-left">
+                                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-white/5">
+                                  Bloquear {resource.name.split(' ')[0]}
+                                </div>
+                                {QUICK_BLOCK_PRESETS.map((preset) => (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveQuickBlockMenuStaffId(null);
+                                      void handleQuickBlockForStaff(resource.id, resource.name, preset.id);
+                                    }}
+                                    className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-between transition-colors"
+                                  >
+                                    <span>{preset.label}</span>
+                                    <span className="text-[10px] text-slate-400">
+                                      {preset.durationMinutes ? `${preset.durationMinutes}m` : 'Dia todo'}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -3225,6 +3375,25 @@ Podemos confirmar? 😄`;
               <p className="text-xs text-red-700 dark:text-red-300 font-semibold">{blockError}</p>
             </div>
           )}
+
+          {/* Presets Rápidos de 1 Clique */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Ações Rápidas (Presets)</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {QUICK_BLOCK_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handleApplyPresetToBlockModal(preset.id)}
+                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#1A1A1A] hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 active:scale-95"
+                  title={preset.description}
+                >
+                  <span className="font-semibold text-primary">{preset.label}</span>
+                  <span className="text-[10px] text-slate-400">{preset.durationMinutes ? `${preset.durationMinutes} min` : 'Dia todo'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
