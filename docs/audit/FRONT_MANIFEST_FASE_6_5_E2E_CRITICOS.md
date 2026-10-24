@@ -172,7 +172,7 @@ Etapas isoladas e verificáveis (sem monólito encadeado de execução longa), c
 
 ### Próximo passo autorizado
 
-Implementar Pilar P2 (`checkout-commission-split.spec.ts` com split 70/30 e idempotência) e Pilar P3 (`rls-ui-leak.spec.ts`).
+Consolidação da Subfase 6.5: formalização do commit dos Pilares P2 e P3 e abertura de Pull Request formal com Authorization Record.
 
 ## Log de transições
 
@@ -187,5 +187,10 @@ Implementar Pilar P2 (`checkout-commission-split.spec.ts` com split 70/30 e idem
 | 2026-10-23 | GATE 2 | PO | Autorizada expansão de escopo para botões de Caixa na Dashboard; execução com tenant fixo em staging |
 | 2026-10-23 | IMPLEMENT P1 | Antigravity | DashboardHeader/Dashboard atualizados; Page Object `CashClosingPage` atualizado; spec P1 implementado |
 | 2026-10-23 | VALIDATE P1 | Antigravity | `git diff --check` PASS; `tsc --noEmit` PASS (0 erros) |
+| 2026-10-24 | COMMIT P1 | Antigravity | Commit `b8f6a0c` registrado; branch sincronizada com `origin/main` (`2117d14`) |
+| 2026-10-24 | IMPLEMENT P2 | Antigravity | `checkout-commission-split.spec.ts` implementado com split 70/30, prova de idempotência e UI check; Page Object `CommissionsPage` enriquecido |
+| 2026-10-24 | VALIDATE P2 | Antigravity | `git diff --check` PASS; `tsc --noEmit` PASS (0 erros) |
+| 2026-10-24 | IMPLEMENT P3 | Antigravity | `rls-ui-leak.spec.ts` implementado com 3 probes: listagem UI (Clients), URL direct swap (/checkout/:id) e export CSV seguro |
+| 2026-10-24 | VALIDATE P3 | Antigravity | `git diff --check` PASS; `tsc --noEmit` PASS (0 erros) |
 
-**STATUS:** Pilar P1 implementado e validado estaticamente; implementação de P2 e P3 a seguir; push/PR não autorizados.
+**STATUS:** Todos os 3 pilares críticos da Subfase 6.5 (P1, P2 e P3) implementados e validados estaticamente; pronto para commit consolidado e PR formal.
