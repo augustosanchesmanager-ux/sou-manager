@@ -150,6 +150,7 @@ jobs:
     needs: [resolve-validate, promote]
     if: always()
     runs-on: ubuntu-latest
+    environment: Production
     steps:
       - name: Health check (somente apos promocao real)
         if: needs.promote.result == 'success'
@@ -242,3 +243,14 @@ jobs:
             echo ""
             echo "Rollback: promover o deployment anterior conhecido com o mesmo comando \`vercel promote <deployment-id>\`. Ver docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar artefatos do Playwright em falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
