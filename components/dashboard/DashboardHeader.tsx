@@ -15,6 +15,8 @@ interface DashboardHeaderProps {
   onOpenCheckout: () => void;
   onOpenComandas: () => void;
   onOpenSmartReturn: () => void;
+  onOpenCash?: () => void;
+  onCloseCash?: () => void;
 }
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
@@ -42,6 +44,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onOpenCheckout,
   onOpenComandas,
   onOpenSmartReturn,
+  onOpenCash,
+  onCloseCash,
 }) => {
   const { user } = useAuth();
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
@@ -119,7 +123,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={onNewAppointment}
               className={primaryActionClassName}
@@ -134,6 +138,26 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
               {isEsteticaApp ? labels.checkout : 'Abrir PDV'}
             </button>
+            {onOpenCash && (
+              <button
+                onClick={onOpenCash}
+                className={secondaryActionClassName}
+                data-testid="dashboard-open-cash-btn"
+              >
+                <span className="material-symbols-outlined text-[18px]">payments</span>
+                Abrir caixa
+              </button>
+            )}
+            {onCloseCash && (
+              <button
+                onClick={onCloseCash}
+                className={secondaryActionClassName}
+                data-testid="dashboard-close-cash-btn"
+              >
+                <span className="material-symbols-outlined text-[18px]">lock_clock</span>
+                Fechar caixa do dia
+              </button>
+            )}
           </div>
         </div>
 

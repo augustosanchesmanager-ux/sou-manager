@@ -383,6 +383,11 @@ async function assertNoForbiddenRows(): Promise<void> {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('B34H - Controlled Financial Validation', () => {
+  // P0 safety gate: this spec targets real production data. Default is SKIP.
+  // Enable only with an explicit, deliberate `E2E_ALLOW_PROD_EXECUTION=true`.
+  const allowSharedExecution = process.env.E2E_ALLOW_PROD_EXECUTION === 'true';
+  test.skip(!allowSharedExecution, 'Execution against production environment is gated');
+
   test.setTimeout(240_000);
 
   test.beforeAll(async () => {
