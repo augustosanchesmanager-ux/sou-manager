@@ -278,6 +278,8 @@ const Dashboard: React.FC = () => {
         onOpenCheckout={() => navigate('/checkout?mode=pdv')}
         onOpenComandas={() => navigate('/comandas')}
         onOpenSmartReturn={() => navigate('/smart-return')}
+        onOpenCash={() => navigate('/cash-closing')}
+        onCloseCash={() => navigate('/cash-closing')}
       />
 
       {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
