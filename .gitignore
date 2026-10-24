@@ -50,6 +50,7 @@ playwright-report/
 # Probes, dumps e utilitarios de frente que nao pertencem ao versionamento.
 # Subpastas versionadas (architecture/, d8/, smg-pr-approve/) NAO sao afetadas.
 scripts/local/
+.backups/
 
 # Homologation helper scripts (contain test account credentials - never versioned, D-HOM-12)
 h3_*.cjs
