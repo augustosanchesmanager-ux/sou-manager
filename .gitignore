@@ -46,6 +46,11 @@ supabase/.temp/
 test-results/
 playwright-report/
 
+# Backups & Local Dumps
+.backups/
+*.backup
+*.dump
+
 # Local diagnostic & tooling scripts (untracked)
 # Probes, dumps e utilitarios de frente que nao pertencem ao versionamento.
 # Subpastas versionadas (architecture/, d8/, smg-pr-approve/) NAO sao afetadas.
