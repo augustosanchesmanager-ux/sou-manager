@@ -1566,6 +1566,7 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - [x] Frente 1.D: Checkout Expresso / Balcão Ágil (Cédulas BRL dinâmicas, calculadora de troco com bloqueio de valor insuficiente, presets rápidos com foco em 2 passos e auditoria de sangria — PR #183)
 - [x] Frente 1.E: Modo Barbeiro / Mobile & Fila de Atendimento Ágil (Visão de cadeira móvel, Card "Na Cadeira Agora" com finalização em 1 toque, Card "A Seguir", Encaixe Rápido walk-in atômico com comanda vinculada e eliminação do grid de 8 botões — PR #184)
 - [x] Frente 1.F: Feedback Visual e Micro-interações (Toasts 2.0 via React Portal z-[9999] com progresso regressivo e pause on hover/touch, utilitário sensorial Web Audio API puro + vibração háptica mobile, toggle de áudio persistido no balcão, trava atômica contra duplo clique e transição otimista com rollback na fila de atendimento)
+- [x] Frente 1.G: Otimização de Comandas e Abertura Rápida (Modal de abertura rápida com atalho 'N', suporte a 'Consumidor Final / Balcão', detecção de comanda concorrente aberta no dia com redirect em 1 clique ou bypass consciente, Top 4 itens frequentes e atribuição explícita de comissão)
 - [ ] Auditoria de UX completa das demais telas operacionais
 - [ ] Identificação de pontos de atrito adicionais
 - [ ] Testes de usabilidade ponta a ponta
