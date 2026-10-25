@@ -88,6 +88,47 @@ describe('appointmentComandaSyncService', () => {
             });
         });
 
+        it('deve formatar serviços flexivelmente quando fornecidos unitPrice, durationMinutes e quantity', async () => {
+            mockRpc.mockResolvedValueOnce({
+                data: {
+                    success: true,
+                    appointment_id: 'appt-456',
+                    comanda_id: 'cmd-999',
+                    comanda_updated: true,
+                    preserved_products_count: 0,
+                    new_total: 120,
+                },
+                error: null,
+            });
+
+            await appointmentComandaSyncService.syncAppointmentWithComanda({
+                ...baseInput,
+                services: [
+                    {
+                        serviceId: 'srv-2',
+                        name: 'Barba e Cabelo',
+                        price: 0,
+                        duration: 0,
+                        unitPrice: 120,
+                        durationMinutes: 60,
+                        quantity: 1,
+                    },
+                ],
+            });
+
+            expect(mockClient.rpc).toHaveBeenCalledWith('sync_comanda_from_appointment', expect.objectContaining({
+                p_services: [
+                    {
+                        service_id: 'srv-2',
+                        price: 120,
+                        duration: 60,
+                        name: 'Barba e Cabelo',
+                        quantity: 1,
+                    },
+                ],
+            }));
+        });
+
         it('deve retornar resultado com comandaUpdated=false quando agendamento não tiver comanda vinculada', async () => {
             mockRpc.mockResolvedValueOnce({
                 data: {

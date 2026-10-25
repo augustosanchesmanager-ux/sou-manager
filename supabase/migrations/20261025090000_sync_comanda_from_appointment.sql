@@ -46,7 +46,6 @@ DECLARE
   v_services_total_price NUMERIC(10,2) := 0;
   v_duration_hours NUMERIC(5,2);
   v_duration_minutes INTEGER;
-  v_sort_order INTEGER := 0;
   v_new_subtotal NUMERIC(10,2) := 0;
   v_preserved_products_count INTEGER := 0;
   v_has_club_credits BOOLEAN := FALSE;
@@ -101,7 +100,11 @@ BEGIN
         v_services_label := v_services_label || ' + ' || COALESCE(v_service_item->>'name', 'Servico');
       END IF;
 
-      v_services_total_price := v_services_total_price + COALESCE((v_service_item->>'price')::numeric, 0);
+      v_services_total_price := v_services_total_price + COALESCE(
+        (v_service_item->>'price')::numeric,
+        (v_service_item->>'unit_price')::numeric,
+        0
+      );
     END LOOP;
   ELSE
     v_first_service_id := v_appointment.service_id;
@@ -130,29 +133,24 @@ BEGIN
     DELETE FROM public.appointment_services
     WHERE appointment_id = p_appointment_id AND tenant_id = p_tenant_id;
 
-    v_sort_order := 0;
-    FOR v_service_item IN SELECT * FROM jsonb_array_elements(p_services)
-    LOOP
-      INSERT INTO public.appointment_services (
-        tenant_id,
-        appointment_id,
-        service_id,
-        unit_price,
-        duration_minutes,
-        quantity,
-        sort_order
-      )
-      VALUES (
-        p_tenant_id,
-        p_appointment_id,
-        (v_service_item->>'service_id')::uuid,
-        COALESCE((v_service_item->>'price')::numeric, 0),
-        COALESCE((v_service_item->>'duration')::integer, 30),
-        1,
-        v_sort_order
-      );
-      v_sort_order := v_sort_order + 1;
-    END LOOP;
+    INSERT INTO public.appointment_services (
+      tenant_id,
+      appointment_id,
+      service_id,
+      unit_price,
+      duration_minutes,
+      quantity,
+      sort_order
+    )
+    SELECT
+      p_tenant_id,
+      p_appointment_id,
+      (item->>'service_id')::uuid,
+      COALESCE((item->>'unit_price')::numeric, (item->>'price')::numeric, 0),
+      COALESCE((item->>'duration_minutes')::integer, (item->>'duration')::integer, 30),
+      COALESCE((item->>'quantity')::integer, 1),
+      (ord.ordinality - 1)::integer
+    FROM jsonb_array_elements(p_services) WITH ORDINALITY AS ord(item, ordinality);
   END IF;
 
   -- 7. Sincronizar comanda vinculada se solicitado
@@ -222,8 +220,8 @@ BEGIN
             v_comanda.id,
             (v_service_item->>'service_id')::uuid,
             COALESCE(v_service_item->>'name', 'Servico'),
-            1,
-            COALESCE((v_service_item->>'price')::numeric, 0),
+            COALESCE((v_service_item->>'quantity')::integer, 1),
+            COALESCE((v_service_item->>'unit_price')::numeric, (v_service_item->>'price')::numeric, 0),
             p_new_staff_id
           );
         END LOOP;

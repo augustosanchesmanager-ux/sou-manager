@@ -12,6 +12,9 @@ export interface ServicePayloadItem {
     price: number;
     duration: number;
     name?: string;
+    quantity?: number;
+    unitPrice?: number;
+    durationMinutes?: number;
 }
 
 export interface SyncAppointmentInput {
@@ -123,12 +126,17 @@ export const appointmentComandaSyncService = {
 
         const client = getScopedClient('barber');
 
-        const formattedServices = services.map((s) => ({
-            service_id: s.serviceId,
-            price: Number(s.price) || 0,
-            duration: Number(s.duration) || 30,
-            name: s.name || '',
-        }));
+        const formattedServices = services.map((s) => {
+            const rawPrice = s.unitPrice !== undefined ? s.unitPrice : s.price;
+            const rawDuration = s.durationMinutes !== undefined ? s.durationMinutes : s.duration;
+            return {
+                service_id: s.serviceId,
+                price: Number(rawPrice) || 0,
+                duration: Number(rawDuration) || 30,
+                name: s.name || '',
+                ...(s.quantity !== undefined ? { quantity: Number(s.quantity) } : {}),
+            };
+        });
 
         const rpcPayload = {
             p_tenant_id: tenantId,
