@@ -32,6 +32,9 @@ import type { ParticipantRow as DomainParticipantRow } from '../domain/commissio
 import { createReversalKey, reverseFinancialTransaction } from '../src/lib/finance/reversal';
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
 import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
+import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
+import { type CatalogItem } from '@/src/utils/comandaQuickActions';
+import { comandaQuickService } from '@/services/comandaQuickService';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
@@ -549,6 +552,12 @@ const Comandas: React.FC = () => {
     const [loadError, setLoadError] = useState<string | null>(null);
     const canManageFinancialReversal = isManagerLikeRole(accessRole, canAccessSuperAdmin);
 
+    // Frente 1.G: Estado e dados do Modal de Abertura Rápida
+    const [isQuickOpenModalOpen, setIsQuickOpenModalOpen] = useState(false);
+    const [quickClients, setQuickClients] = useState<Array<{ id: string; name: string; avatar?: string; phone?: string }>>([]);
+    const [quickStaff, setQuickStaff] = useState<Array<{ id: string; name: string; role?: string }>>([]);
+    const [quickCatalogItems, setQuickCatalogItems] = useState<CatalogItem[]>([]);
+
     const fetchData = useCallback(async () => {
         if (!tenantId && !canAccessSuperAdmin) {
             setComandas([]);
@@ -740,6 +749,42 @@ const Comandas: React.FC = () => {
     }, [appSlug, canAccessSuperAdmin, schema, tenantId, accessRole, user?.id, dateFrom, dateTo]);
 
     useEffect(() => { void fetchData(); }, [fetchData]);
+
+    // Frente 1.G: Carrega catálogo de serviços/produtos, staff e clientes para abertura rápida
+    const loadQuickOpenAuxiliaryData = useCallback(async () => {
+        if (!tenantId) return;
+        try {
+            const data = await comandaQuickService.loadAuxiliaryData(tenantId);
+            setQuickCatalogItems(data.catalogItems);
+            setQuickClients(data.clients);
+            setQuickStaff(data.staff);
+        } catch (err) {
+            console.warn('[Comandas] Erro ao carregar dados para abertura rápida:', err);
+        }
+    }, [tenantId]);
+
+    // Frente 1.G: Atalho de teclado 'N' para Abertura Rápida (quando não estiver digitando em inputs)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'n' || e.key === 'N') {
+                const target = e.target as HTMLElement;
+                const isInputActive =
+                    target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.tagName === 'SELECT' ||
+                    target.isContentEditable;
+
+                if (!isInputActive && !isQuickOpenModalOpen && !selectedComandaId) {
+                    e.preventDefault();
+                    void loadQuickOpenAuxiliaryData();
+                    setIsQuickOpenModalOpen(true);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isQuickOpenModalOpen, selectedComandaId, loadQuickOpenAuxiliaryData]);
 
     // Lazy load do histórico financeiro e reversals sob demanda (apenas quando uma comanda é aberta)
     useEffect(() => {
@@ -1492,6 +1537,25 @@ const Comandas: React.FC = () => {
         }
     };
 
+    // Frente 1.G: Submissão da Abertura Rápida de Comanda
+    const handleQuickOpenSubmit = async (payload: QuickOpenComandaPayload) => {
+        if (!tenantId) {
+            setToast({ message: 'Tenant inválido para abrir comanda.', type: 'error' });
+            return;
+        }
+
+        try {
+            const createdComandaId = await comandaQuickService.createQuickComanda(tenantId, payload);
+            setToast({ message: `${orderLabel} aberta com sucesso!`, type: 'success' });
+            await fetchData();
+            setSelectedComandaId(createdComandaId);
+        } catch (err: any) {
+            console.error('[Comandas] Erro ao abrir comanda rápida:', err);
+            setToast({ message: err?.message || 'Erro ao abrir comanda rápida.', type: 'error' });
+            throw err;
+        }
+    };
+
     return (
         <div className="space-y-4 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -1511,8 +1575,21 @@ const Comandas: React.FC = () => {
                         <div className="mt-4 flex flex-wrap gap-2">
                             <button
                                 type="button"
+                                onClick={() => {
+                                    void loadQuickOpenAuxiliaryData();
+                                    setIsQuickOpenModalOpen(true);
+                                }}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition active:scale-95"
+                                title="Abertura rápida com atalho [N]"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">bolt</span>
+                                <span>Abertura Rápida</span>
+                                <span className="rounded bg-black/15 px-1.5 py-0.5 text-[10px] font-mono">N</span>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => navigate('/checkout?mode=comanda')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15"
                             >
                                 <span className="material-symbols-outlined text-[18px]">add</span>
                                 Novo {orderLabelLower}
@@ -2144,6 +2221,25 @@ const Comandas: React.FC = () => {
                     );
                 })()}
             </Modal>
+
+            {/* Frente 1.G: Modal de Abertura Rápida de Comandas */}
+            <QuickOpenComandaModal
+                isOpen={isQuickOpenModalOpen}
+                onClose={() => setIsQuickOpenModalOpen(false)}
+                clients={quickClients}
+                staffList={quickStaff}
+                currentUserId={user?.id}
+                currentUserRole={accessRole}
+                existingOpenComandas={comandas.filter((c) => c.status === 'open')}
+                catalogItems={quickCatalogItems}
+                itemsHistory={comandas.flatMap((c) => c.comanda_items)}
+                onSubmit={handleQuickOpenSubmit}
+                onRedirectToExistingComanda={(existingId) => {
+                    setIsQuickOpenModalOpen(false);
+                    setSelectedComandaId(existingId);
+                }}
+                orderLabel={orderLabel}
+            />
         </div>
     );
 };

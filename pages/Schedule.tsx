@@ -44,6 +44,7 @@ import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
 import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedule/QuickWalkInModal';
 import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
 import { type QueueAppointment } from '../src/utils/barberQueue';
+import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
 
 interface DBStaff {
   id: string;
@@ -2159,6 +2160,14 @@ const Schedule: React.FC = () => {
   const executeAppointmentStatusChange = async (appointment: CalendarAppointment, nextStatus: string, confirmationLabel: string) => {
     if (!tenantId) return;
 
+    // Snapshot para rollback otimista
+    const previousAppointments = appointments;
+    const previousSelected = selectedAppointment;
+
+    // Transição otimista imediata na UI
+    setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: nextStatus, color: statusColors[nextStatus] || apt.color } : apt));
+    setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: nextStatus, color: statusColors[nextStatus] || prev.color } : prev);
+
     try {
       // P4/P5/M4: "Finalizar" (completed) agora registra attended_at = now() via
       // confirm_appointment_attendance (gate: barbeiro-próprio, recepção, gestão).
@@ -2198,11 +2207,12 @@ const Schedule: React.FC = () => {
         newStatus: nextStatus as 'confirmed' | 'in_progress',
       });
 
-      setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: nextStatus, color: statusColors[nextStatus] || apt.color } : apt));
-      setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: nextStatus, color: statusColors[nextStatus] || prev.color } : prev);
       setToast({ message: `${confirmationLabel} com sucesso.`, type: 'success' });
     } catch (err) {
       console.error('Erro ao atualizar status do agendamento:', err);
+      // Rollback otimista seguro em caso de falha da RPC
+      setAppointments(previousAppointments);
+      setSelectedAppointment(previousSelected);
       setToast({ message: err instanceof Error ? err.message : 'Erro ao atualizar status do agendamento.', type: 'error' });
     }
   };
@@ -2300,10 +2310,12 @@ Podemos confirmar? 😄`;
   };
 
   const handleStartAppointmentFromQueue = (apt: QueueAppointment) => {
+    triggerHapticFeedback(40);
     executeAppointmentStatusChange(apt as CalendarAppointment, 'in_progress', 'Atendimento iniciado');
   };
 
   const handleFinishAppointmentFromQueue = (apt: QueueAppointment) => {
+    triggerHapticFeedback(50);
     executeAppointmentStatusChange(apt as CalendarAppointment, 'completed', 'Atendimento finalizado');
   };
 
