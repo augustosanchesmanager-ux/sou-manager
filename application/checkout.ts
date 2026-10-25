@@ -155,6 +155,12 @@ export interface FinishRequest {
         netAmount: number | null;
         estimatedSettlementDate: string | null;
     } | null;
+
+    // Frente 1.D: Auditoria de troco/dinheiro entregue no balcão
+    cashAudit?: {
+        amountTendered: number;
+        changeReturned: number;
+    } | null;
 }
 
 export interface FinishResult {
@@ -564,6 +570,9 @@ class CheckoutApplicationServiceImpl {
                 : null,
             req.discountAuditDraft
                 ? req.discountAuditDraft.reasonNote
+                : null,
+            req.cashAudit
+                ? `Dinheiro recebido: R$ ${req.cashAudit.amountTendered.toFixed(2)} | Troco: R$ ${req.cashAudit.changeReturned.toFixed(2)}`
                 : null,
         ].filter(Boolean).join('\n\n') || null;
 
