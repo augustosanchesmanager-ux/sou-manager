@@ -4674,7 +4674,7 @@ Podemos confirmar? 😄`;
       />
 
       {showOverbookModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => { setShowOverbookModal(false); setOverbookConflicts([]); setForceOverbook(false); }} />
           <div ref={overbookModalRef} className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>
