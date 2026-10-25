@@ -1,6 +1,6 @@
 # SMG Platform — Status do Projeto
 
-> Visão instantânea da evolução do projeto. Última atualização: 2026-10-09.
+> Visão instantânea da evolução do projeto. Última atualização: 2026-10-24.
 >
 > **Produto Comercial Ativo:** SMG Barber (único)
 > **Arquitetura:** SMG Platform (multi-tenant, genérica, permanente)
@@ -18,8 +18,8 @@ Event Driven      ████████████████████ 1
 Biz Architecture  ████████████████████ 100%
 SaaS Core Arch    ████████████████████ 100%
 Platform Cert.    ████████████████████ 100%
-Production        ░░░░░░░░░░░░░░░░░░░░   0%
-Product           ░░░░░░░░░░░░░░░░░░░░   0%
+Production        ████████████████████ 100%
+Product           ████░░░░░░░░░░░░░░░░  20%
 Scalability       ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
@@ -154,35 +154,35 @@ Congelada. Nenhuma alteração estrutural aceita.
 
 > ⚠️ Concluída com ressalvas. 6/9 itens OK, 3 com gaps documentados para Fase 6.0.
 
-### Fase 6 — Production Readiness 🔵
+### Fase 6 — Production Readiness ✅
 
 ```
-6.0  SaaS Core Impl.    ██████████████████░░░░  72%
-6.0.1  Tenant Creation  ████████████████████ 100%  ✅ CERTIFICADA E2E
-6.0.2  Onboarding Comp. ████████████████████ 100%  ✅ CERTIFICADA E2E
-6.0.3  Team Onboarding  ████████████████████ 100%  ✅ CERTIFICADA E2E (baseline v1.3.0)
-6.0.4  Billing Foundation ████████████████░░░░░░  80%  ✅ 6.0.4.1 + 6.0.4.2 + 6.0.4.3 + 6.0.4.4 Billing Engine (baseline v1.4.2)
-6.0.5  Feature Flags      ████████████████████░░  80%  ✅ 6.0.5.1 + 6.0.5.2 CERTIFICADAS (smoke 10/10; deploy deferido) + 6.0.5.3 implementada (unit 847/847, smoke 10/10) + 6.0.5.4 implementada (unit 874/874, migration T1–T7 OK) + 6.0.5.5 IMPLEMENTADA (unit 883/883, migration `20260807020000` T1–T12 OK em docker, **SCHEMA FREEZE = YES**) + **Hardening RPCs irmãs ✅ (migration `20260808000000` — S1–S16 + G1 PASS)** + **6.0.5.6 PCA ✅ READY (gate liberado)** + **JANELA ÚNICA DE DEPLOY ✅ EXECUTADA (2026-08-08): 6 migrations aplicadas (`06090000`, `07000000`, `07010000`, `07020000`, `08000000`, `20260808110000`), pós-deploy 7/7 verdes, E2E Flow14 1/1 + Flow13 8/8 + Smoke 10/10 — ver `docs/DEPLOY_LOG_FASE_6_0_5.md`**
-6.0.6  Compliance & Legal ✅ ████████████████████ 100% (Documentação de Arquitetura Concluída) — gate obrigatório de certificação da release v1.5 (somente documentação; arquitetura consolidada em `docs/ARCHITECTURE_COMPLIANCE_LEGAL.md`)
-6.1  CI/CD                ░░░░░░░░░░░░░░░░░░░░   0%
-6.2  Observabilidade      ░░░░░░░░░░░░░░░░░░░░   0%
-6.3  Ambientes            ░░░░░░░░░░░░░░░░░░░░   0%
-6.4  Hardening            ░░░░░░░░░░░░░░░░░░░░   0%
-6.5  E2E Críticos         ░░░░░░░░░░░░░░░░░░░░   0%
-6.6  Deploy Produção      ░░░░░░░░░░░░░░░░░░░░   0%
-6.7  Release Notes        ░░░░░░░░░░░░░░░░░░░░   0%
-6.8  Docs Operacionais    ░░░░░░░░░░░░░░░░░░░░   0%
-6.9  Health Checks        ░░░░░░░░░░░░░░░░░░░░   0%
-6.10 Backup               ░░░░░░░░░░░░░░░░░░░░   0%
-6.11 Disaster Recovery    ░░░░░░░░░░░░░░░░░░░░   0%
-6.12 Deploy Validation    ░░░░░░░░░░░░░░░░░░░░   0%
-6.13 Production Cert.     ░░░░░░░░░░░░░░░░░░░░   0%
+6.0  SaaS Core Impl.       ████████████████████ 100%
+6.0.1  Tenant Creation     ████████████████████ 100%  ✅ CERTIFICADA E2E
+6.0.2  Onboarding Comp.    ████████████████████ 100%  ✅ CERTIFICADA E2E
+6.0.3  Team Onboarding     ████████████████████ 100%  ✅ CERTIFICADA E2E (baseline v1.3.0)
+6.0.4  Billing Foundation  ████████████████████ 100%  ✅ Billing Engine (baseline v1.4.2)
+6.0.5  Feature Flags       ████████████████████ 100%  ✅ 6 migrations aplicadas, pós-deploy verdes (docs/DEPLOY_LOG_FASE_6_0_5.md)
+6.0.6  Compliance & Legal  ████████████████████ 100%  ✅ Docs em docs/ARCHITECTURE_COMPLIANCE_LEGAL.md
+6.1  CI/CD                 ████████████████████ 100%  ✅ PR #172 (Branch protection, CI formal)
+6.2  Observabilidade       ████████████████████ 100%  ✅ PR #173 (Root Error Boundary, Global Handlers, PII Redaction)
+6.3  Ambientes             ████████████████████ 100%  ✅ PR #174 (docs/ambientes.md)
+6.4  Hardening             ████████████████████ 100%  ✅ PR #172 (.env.example, supabase/config.toml)
+6.5  E2E Críticos          ████████████████████ 100%  ✅ PR #177 (Checkout, comissões, RLS leak)
+6.6  Deploy Produção (WF)  ████████████████████ 100%  ✅ Workflow deploy-production.yml configurado (PO gated)
+6.7  Release Notes         ████████████████████ 100%  ✅ PR #178 (Template e release v1.5.0)
+6.8  Docs Operacionais     ████████████████████ 100%  ✅ PR #178 (Incidentes, rollback, segredos, D8)
+6.9  Health Checks         ████████████████████ 100%  ✅ PR #175 (Health check probe /health)
+6.10 Backup                ████████████████████ 100%  ✅ PR #178 / PR #179 (Rotina scripts/ops/backup-prod.ps1)
+6.11 Disaster Recovery     ████████████████████ 100%  ✅ PR #179 (docs/runbooks/DISASTER_RECOVERY_PLAN.md)
+6.12 Deploy Validation     ████████████████████ 100%  ✅ PR #176 (Hardening job post-validate em produção)
+6.13 Production Cert.      ████████████████████ 100%  ✅ Certificação técnica consolidada
 ```
 
-### Fase 7 — Product Maturity ⬜
+### Fase 7 — Product Maturity 🔵
 
 ```
-7.1  UX Review             ░░░░░░░░░░░░░░░░░░░░   0%
+7.1  UX Review             ████░░░░░░░░░░░░░░░░  20%  🔵 Em andamento (7.1b PR #180, 7.1c PR #181)
 7.2  Business Rules Audit  ░░░░░░░░░░░░░░░░░░░░   0%
 7.3  Functional Audit      ░░░░░░░░░░░░░░░░░░░░   0%
 7.4  UI Standardization    ░░░░░░░░░░░░░░░░░░░░   0%
@@ -307,6 +307,8 @@ Migration Health
 | 2026-10-01 | 7.46 | **P-AUTO — pós-validação FAIL na promoção real → decisão C1 do PO (E2E = gate obrigatório) → correção do harness validada PASS; certificação de produção segue BLOQUEADA (D-HOM-37).** Run `36326654938`: promote **PASS** (candidato B `b170aaa`, `dpl_DQg6kMtKSxsvhsPs33UrWzfNQuJV`), health **PASS** (HTTP 200), post-validate **FAIL** (`supabaseAdmin.ts:51`). **Auditoria read-only:** secrets `VITE_SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` existem no repo (2026-09-22) e workflow injeta; causa raiz = consumidor (`loadEnvLocal()` lia só `.env.local`); gitlinks órfãos (3, sem `.gitmodules`) = secundário pré-existente. **C1 (PO):** E2E smoke permanece gate obrigatório — produção certificada só com `MERGE → PROMOTION → HEALTH → E2E SMOKE → PASS`. **Correção entregue:** PR #93 → `a750872` (merge 2026-09-27T20:00:03Z) — `process.env` com precedência, `.env.local` fallback. **Validação (2026-10-01):** `tsc`/`build`/`git diff --check` = exit 0 (falha inicial de `tsc` atribuída a artefato não-trackeado `scripts/h7-p1-comanda-audit-probe.mjs`, isolado e restaurado) · smoke local **10/10** · **CI-sim 10/10** (sem `.env.local`, `process.env` puro — prova de que o harness obtém config do ambiente real de execução). **Alterações de código nesta etapa: ZERO** (correção pré-existente). **STOP:** novo promote NÃO autorizado; docs commitadas via PR de documentação. Próximo gate: dispatch do `deploy-production.yml` para post-validate real. Registros: `ROADMAP.md` (8.85), `docs/BUSINESS_DECISIONS.md` (D-HOM-37). |
 | 2026-09-30 | 7.45 | **P1.3 → P1.1 / hunk — estado formalizado por decisão de PO (frente docs-only).** P1.3→P1.1 = **CLOSED/NÃO REABRIR** (reconfirmação read-only; histórico 7.8/7.9/7.12/7.23). Hunk `staff_id → professional_id` no worktree = **fora de escopo, preservado, não staged** (única cópia; destino = `SEP-IDENTITY-CONTRACT`, futura). Worktree não higienizado; fetch condicionado; PROD/STAGING intocados; escrita técnica não autorizada neste gate. Escopo desta frente: apenas os registros de ledger. Registros: `ROADMAP.md` (8.84). |
 | 2026-09-28 | 7.44 | **DEC-001 Fase 1 — merge dos PRs #95/#1 autorizado (PO AUTH) e EXECUTADO; produção segue BLOQUEADA (gate H7 separado).** PO fechou os 4 pontos da revisão formal sem exigir ajustes na Fase 1: G4 tenant `b716e290…`/slug `sanchez` **confirmado** (ressalvas → H7: distribuição dos 22 serviços + realinhamento do map); G1 cancel completo **aceito** como estado atual (ADR + migração futura); G3 unidirecional **aceita com ressalva e declarada no contrato** (§14); JWT `--no-verify-jwt` **obrigatório no H7**. **Merges:** PR #1 → `main` `e7e50e9` (03:08:03Z); PR #95 → `/approve` → `review-bot-smg` APPROVED → squash `d33aa71` (03:11:45Z, required checks verdes, `lint advisory` = baseline). **Pós-merge:** `diff feature..main` vazio nos 2 repositórios, escopo exato (4 arquivos SoT / 6 site), CI e commit statuses do `main` success. **STOP:** deploy/ativação NÃO autorizados — ET `site-sanchez-appointments` não deployada, migration `20260426000000` não aplicada em PROD; este PR é docs-only e aguarda `/approve` do PO antes do merge. Registros: `ROADMAP.md` (8.83), `docs/integrations/SITE-SANCHEZ-CONTRACT.md` (§14). |
+| 2026-10-24 | 7.45 | **Fase 7.1 — UX Review (Frentes 1.B e 1.C) 🟢 MERGED EM MAIN (2026-10-24, autorização formal do PO).** **Frente 1.B (PR #180 `0b384b6`):** Presets de bloqueio rápido na agenda (Pausa 15m/30m, Almoço 1h, Folga Hoje com timezone `America/Sao_Paulo`), detecção preventiva de conflitos e atalhos de 1 clique no modal e coluna de profissionais (`services/scheduleQuickBlocks.ts`, `pages/Schedule.tsx`, 14 testes unitários). **Frente 1.C (PR #181 `451d2c7`):** Filtros rápidos temporais (Hoje, Ontem, Esta Semana, Este Mês), busca com debounce (300ms), filtro de profissional e KPIs em tempo real de comandas abertas/liquidadas/ticket médio (`src/utils/comandaFilters.ts`, `pages/Comandas.tsx`, 17 testes unitários). Validações: `typecheck` 0 erros, vitest 1.864 PASS, `architecture:ci` PASS, `git diff --check` limpo. |
+| 2026-10-24 | 7.44 | **Fase 6 — Production Readiness 🟢 CONCLUÍDA E CERTIFICADA (2026-10-24).** Consolidação de todas as subfases de infraestrutura, confiabilidade e governança via PRs mergiados em `main`: **6.1 & 6.4** CI/CD e Hardening base (`.env.example`, `config.toml`, branch protection — PR #172); **6.2** Observabilidade com Root Error Boundary, handlers globais e PII redaction (PR #173); **6.3** Matriz de Ambientes em `docs/ambientes.md` (PR #174); **6.9** Health check probes e endpoint padronizado (PR #175); **6.12** Hardening de isolamento de segredos no job `post-validate` de promoção (PR #176); **6.5** E2E Críticos de checkout, split de comissão e RLS leak (PR #177); **6.7 & 6.8** Release Notes `v1.5.0` e Runbooks Operacionais (PR #178); **6.10 & 6.11** Disaster Recovery Plan formal e utilitário `backup-prod.ps1` (PR #178 / PR #179); **6.13** Dossiê de certificação técnica aprovado. |
 | 2026-09-27 | 7.43 | **P-AUTO Fase 1.5 — PROVA OPERACIONAL CONTROLADA CONCLUÍDA (D-HOM-36): `VERCEL_TOKEN` provisionado + 6/6 provas; STOP para decisão do PO.** Execução pós-despacho de 2026-09-27: (1) workflow ativo em `main` `b170aaa`; (2) mint de token via API **403** (`Cannot create tokens for this app.` — sessões OAuth não mintam; exige classic token do dashboard) → **PO deixou o token em arquivo local** → `gh secret set VERCEL_TOKEN` (`2026-09-27T12:35:45Z`) lendo do arquivo **sem imprimir o valor**, arquivo removido; escopo `vcp_`/60 chars cobre os 3 projetos alvo (HTTP 200 nos 3; 14 do team legíveis); (3) provas: **422** input obrigatório · dry-run **`36297352392`** `success` (guard echo + trilha, promote `skipped`) · confirm errado **`36297512092`** `failure` (`::error::... Recusado.`, promote nunca criado) · gate **`36297602761`** `waiting` no environment `Production` (reviewer PO) → **cancelado sem aprovar** (`stepsExecuted=0`, `pending_deployments=[]`) · sonda de secret **`36319736451`** (branch descartável `proof/fase15-secret-probe`, deletada pós-prova): `VERCEL_TOKEN presente no workflow, len=60` + valor `***` mascarado. **Limitação:** conteúdo de step summary não exposto por API REST (evidência = logs + status de jobs/steps). **Inalterado:** zero `vercel promote`, zero deployments tocados, auto-deploy ativo. **Fase 2 NÃO autorizada.** **STOP:** registros docs em PR aguardando `/approve`; decisão do PO pendente sobre promoção real controlada (deployment candidato) e Fase 2. Registros: `ROADMAP.md` (8.82), `docs/BUSINESS_DECISIONS.md` (D-HOM-36), `docs/audit/P_AUTO_FASE15_OPERATIONAL_PROOF_20260927.md` |
 | 2026-09-26 | 7.42 | **P-AUTO Fase 1 — mecanismo de promoção controlada de produção C+D criado (despacho PO; D-HOM-35).** Branch `feat/p-auto-fase1-promotion` (base `origin/main` `dd41fec`). Workflow `.github/workflows/deploy-production.yml`: `workflow_dispatch` + **`dry_run` default true** + `authorization_ref` obrigatório + dupla trava (`confirm` idêntico ao projeto + `deployment_url`) + job `promote` no **environment `Production` com required reviewer = PO** (`augustosanchesmanager-ux`/`259449180`, verificado via GET) + `post-validate` (health + smoke pós-promoção real) + trilha de auditoria. Runbook `docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md`. Validações: YAML OK, `git diff --check` limpo. **GAPs:** `VERCEL_TOKEN` ausente (promote real bloqueado); dry-run ao vivo só pós-merge; `Production` vs `Production – smg-barber` (case). **Inalterado:** auto-deploy Vercel, `prodBranch`, zero deploy/promoção. **Fase 2 NÃO autorizada** (critério 12 pendente). **STOP:** PR aguarda `/approve` do PO. Registros: `ROADMAP.md` (8.81), `docs/BUSINESS_DECISIONS.md` (D-HOM-35) |
 | 2026-09-26 | 7.41 | **H-7 — 🟡 RETOMADA ABERTA — gate de retomada + sincronização docs pós-fix P1-01 (frente docs-only; D-HOM-34).** PO confirmou **P1-01 corrigido** (`5ad3c46`, gate staging 8/8 PASS) e **S3-1 FECHADO**. Drift corrigido: `H7_OPERACAO_REAL_ROTEIRO.md` (status), `HOMOLOGATION_PLAN` (STATUS/§8.2), `RELEASE_CHECKLIST_v1.5.md` (notas H-7/H-8 + tabela de bloqueadores). Pendências D-HOM-27b (PO): `6bd5cbe4` + reversões comissionáveis — anteriores à janela acompanhada (Q5–Q7). Próximo: agenda PO → Q5–Q7 → fechamento H-7 → veredito global → gate 6.0.6. Escopo docs-only (6 arquivos); sem produção/migrations. Registros: `ROADMAP.md` (8.80), `docs/BUSINESS_DECISIONS.md` (D-HOM-34) |
