@@ -45,6 +45,8 @@ import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedul
 import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
 import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
+import { comandaScheduleSyncService } from '../services/comandaScheduleSyncService';
+import { canModifyLinkedComanda, type CascadingCancelEvaluation } from '@/src/utils/comandaScheduleSync';
 
 interface DBStaff {
   id: string;
@@ -396,6 +398,8 @@ const Schedule: React.FC = () => {
   const [cancellationType, setCancellationType] = useState<string>('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<{ id: string; client: string } | null>(null);
   const [showPaymentDecisionModal, setShowPaymentDecisionModal] = useState(false);
+  const [cancelComandaEvaluation, setCancelComandaEvaluation] = useState<CascadingCancelEvaluation | null>(null);
+  const [retailActionChoice, setRetailActionChoice] = useState<'discard_all' | 'retain_retail'>('discard_all');
   const cancelModalRef = useRef<HTMLDivElement>(null);
 
   // Quick Block Dropdown state per staff in schedule header
@@ -1106,6 +1110,23 @@ const Schedule: React.FC = () => {
       return;
     }
 
+    // Frente 1.H: Guardrail contábil preventivo antes de mover agendamento para outro profissional
+    if (tenantId && dropStaffId !== apt.staffId) {
+      try {
+        const comandaDetails = await comandaScheduleSyncService.getLinkedComandaDetails(tenantId, apt.id);
+        const check = canModifyLinkedComanda(comandaDetails.comanda);
+        if (!check.canModify) {
+          setToast({
+            message: check.message || 'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.',
+            type: 'error',
+          });
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('[Schedule] Erro ao verificar trava de comanda vinculada no drag:', checkErr);
+      }
+    }
+
     // Otimista Update UI
     setAppointments(prev => prev.map(a =>
       a.id === apt.id
@@ -1142,7 +1163,7 @@ const Schedule: React.FC = () => {
         setToast({
           message:
             syncResult.message ||
-            'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.',
+            'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.',
           type: 'error',
         });
         fetchAppointments();
@@ -1155,6 +1176,11 @@ const Schedule: React.FC = () => {
             syncResult.message ||
             'Agendamento atualizado. A comanda possui pagamentos registrados e seus valores foram preservados.',
           type: 'info',
+        });
+      } else if (dropStaffId !== apt.staffId && selectedStaff?.name) {
+        setToast({
+          message: `Agendamento e comanda atualizados para ${selectedStaff.name}`,
+          type: 'success',
         });
       } else {
         setToast({ message: 'Agendamento movido com sucesso!', type: 'success' });
@@ -1200,17 +1226,62 @@ const Schedule: React.FC = () => {
     setAppointmentToCancel({ id: appointment.id, client: appointment.client });
     setCancelReason('');
     setCancellationType('');
+    setCancelComandaEvaluation(null);
+    setRetailActionChoice('discard_all');
     setShowCancelModal(true);
+
+    if (tenantId) {
+      void comandaScheduleSyncService
+        .evaluateCancel(tenantId, appointment.id)
+        .then((evaluation) => {
+          setCancelComandaEvaluation(evaluation);
+        })
+        .catch((err) => {
+          console.warn('[Schedule] Erro ao avaliar cancelamento em cascata:', err);
+        });
+    }
   };
 
   const confirmCancelAppointment = async (paymentDecision?: 'remarcar' | 'estornar') => {
-    if (!appointmentToCancel) return;
+    if (!appointmentToCancel || !tenantId) return;
+    const targetAppointment = appointmentToCancel;
     setShowCancelModal(false);
     if (paymentDecision) {
       setShowPaymentDecisionModal(false);
     }
-    await handleCancelAppointment(appointmentToCancel.id, paymentDecision);
-    setAppointmentToCancel(null);
+
+    try {
+      if (cancelComandaEvaluation?.reason === 'has_products' && retailActionChoice === 'retain_retail') {
+        const details = await comandaScheduleSyncService.getLinkedComandaDetails(tenantId, targetAppointment.id);
+        if (details.comanda) {
+          const serviceItem = details.items.find((i) => i.service_id !== null && i.service_id !== undefined);
+          await comandaScheduleSyncService.cancelAppointmentAndRetainRetailComanda({
+            tenantId,
+            appointmentId: targetAppointment.id,
+            comandaId: details.comanda.id,
+            serviceItemId: serviceItem?.id,
+            cancellationType,
+            cancellationReason: cancelReason,
+            userId: user?.id,
+          });
+          setToast({
+            message: 'Agendamento cancelado. Comanda mantida no balcão com os produtos avulsos.',
+            type: 'info',
+          });
+          closeDetailDrawer();
+          fetchAppointments();
+          setAppointmentToCancel(null);
+          return;
+        }
+      }
+
+      await handleCancelAppointment(targetAppointment.id, paymentDecision);
+    } catch (cancelErr) {
+      console.error('[Schedule] Erro ao processar cancelamento:', cancelErr);
+      setToast({ message: 'Erro ao processar cancelamento do agendamento.', type: 'error' });
+    } finally {
+      setAppointmentToCancel(null);
+    }
   };
 
   const openCorrectionModal = (appointment: CalendarAppointment) => {
@@ -1670,9 +1741,9 @@ const Schedule: React.FC = () => {
               (!originalApt.serviceId && selectedServicesLabel !== originalApt.service));
 
           if (isStaffChanged || isServiceChanged) {
-            setError(
-              'Esta comanda já foi liquidada/finalizada. Alterações de serviço ou profissional exigem reabertura contábil prévia da comanda.',
-            );
+            const errorMsg = 'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.';
+            setError(errorMsg);
+            setToast({ message: errorMsg, type: 'error' });
             return;
           }
         }
@@ -1710,7 +1781,7 @@ const Schedule: React.FC = () => {
       if (syncResult.status === 'blocked_closed') {
         const blockedMsg =
           syncResult.message ||
-          'Comanda vinculada já foi liquidada. Ajustes de serviço, valor ou profissional pós-pagamento devem ser feitos no módulo de Comandas/Caixa.';
+          'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.';
         setError(blockedMsg);
         setToast({ message: blockedMsg, type: 'error' });
         await fetchAppointments();
@@ -1756,7 +1827,16 @@ const Schedule: React.FC = () => {
           type: 'info',
         });
       } else {
-        setToast({ message: 'Agendamento atualizado com sucesso!', type: 'success' });
+        const originalApt = appointments.find((a) => a.id === editingAppointmentId);
+        const isStaffChanged = originalApt && formData.staffId !== originalApt.staffId;
+        if (isStaffChanged && selectedStaff?.name) {
+          setToast({
+            message: `Agendamento e comanda atualizados para ${selectedStaff.name}`,
+            type: 'success',
+          });
+        } else {
+          setToast({ message: 'Agendamento e comanda sincronizados com sucesso!', type: 'success' });
+        }
       }
     } else {
       let finalPrice = selectedServicesTotalPrice;
@@ -4218,6 +4298,41 @@ Podemos confirmar? 😄`;
                   placeholder="Descreva o motivo..."
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-surface-dark text-slate-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 />
+              </div>
+            )}
+
+            {/* Frente 1.H: Alerta preventivo e escolha de ação contábil se houver produtos avulsos */}
+            {cancelComandaEvaluation?.reason === 'has_products' && (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-left">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                  <span className="material-symbols-outlined text-base">inventory_2</span>
+                  <span>Produtos adicionados no balcão</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {cancelComandaEvaluation.message}
+                </p>
+                <div className="pt-1 flex flex-col gap-2">
+                  <label className="flex items-start gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="retailCancelAction"
+                      checked={retailActionChoice === 'discard_all'}
+                      onChange={() => setRetailActionChoice('discard_all')}
+                      className="mt-0.5 text-red-500 focus:ring-red-500"
+                    />
+                    <span>Cancelar comanda inteira e descartar itens</span>
+                  </label>
+                  <label className="flex items-start gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="retailCancelAction"
+                      checked={retailActionChoice === 'retain_retail'}
+                      onChange={() => setRetailActionChoice('retain_retail')}
+                      className="mt-0.5 text-blue-500 focus:ring-blue-500"
+                    />
+                    <span>Manter comanda aberta no balcão apenas com os produtos</span>
+                  </label>
+                </div>
               </div>
             )}
 
