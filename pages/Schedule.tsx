@@ -40,8 +40,10 @@ import {
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import { buildWhatsAppUrl } from '../src/lib/utils/phone';
 import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
-
-
+import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
+import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedule/QuickWalkInModal';
+import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
+import { type QueueAppointment } from '../src/utils/barberQueue';
 
 interface DBStaff {
   id: string;
@@ -88,7 +90,7 @@ interface CalendarAppointment {
   attendedAtSource?: string | null;
 }
 
-type DisplayMode = 'calendar' | 'list';
+type DisplayMode = 'calendar' | 'list' | 'chair';
 type ListPeriod = 'today' | 'tomorrow' | 'week' | 'month' | 'custom';
 type QuickChip = 'all' | 'today' | 'pending' | 'confirmed' | 'in_progress' | 'overdue' | 'without_comanda';
 
@@ -243,12 +245,35 @@ const Schedule: React.FC = () => {
     return roleLabels[role] || role;
   }, [isEsteticaApp, professionalLabel]);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('calendar');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      return 'chair';
+    }
+    return 'calendar';
+  });
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; action?: { label: string; onClick: () => void } } | null>(null);
+
+  const isBarberRole = accessRole === 'barber';
 
   // Data from Supabase
   const [staffList, setStaffList] = useState<DBStaff[]>([]);
+  const currentUserStaff = React.useMemo(() => {
+    if (!user) return null;
+    return staffList.find((s) => s.id === user.id || (user.email && (s as any).email === user.email)) || null;
+  }, [user, staffList]);
+
+  const [selectedQueueStaffId, setSelectedQueueStaffId] = useState<string>('all');
+  const [showQuickWalkInModal, setShowQuickWalkInModal] = useState(false);
+  const [isWalkInSubmitting, setIsWalkInSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isBarberRole && currentUserStaff?.id) {
+      setSelectedQueueStaffId(currentUserStaff.id);
+    } else if (isBarberRole && staffList.length > 0 && selectedQueueStaffId === 'all') {
+      setSelectedQueueStaffId(staffList[0].id);
+    }
+  }, [isBarberRole, currentUserStaff, staffList]);
   const [servicesList, setServicesList] = useState<DBService[]>([]);
   const [clientsList, setClientsList] = useState<DBClient[]>([]);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
@@ -603,6 +628,13 @@ const Schedule: React.FC = () => {
       const listRange = getListRange();
       rangeStart = listRange.start.toISOString();
       rangeEnd = listRange.end.toISOString();
+    } else if (displayMode === 'chair') {
+      const dStart = new Date(selectedDate);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(selectedDate);
+      dEnd.setHours(23, 59, 59, 999);
+      rangeStart = dStart.toISOString();
+      rangeEnd = dEnd.toISOString();
     } else if (viewMode === 'week') {
       const days = getWeekDays(selectedDate);
       const first = new Date(days[0]);
@@ -2141,7 +2173,22 @@ const Schedule: React.FC = () => {
         const attendedAt = result.attendedAt || new Date().toISOString();
         setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: finalStatus, color: statusColors[finalStatus] || apt.color, attendedAt, attendedAtSource: null } : apt));
         setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: finalStatus, color: statusColors[finalStatus] || prev.color, attendedAt, attendedAtSource: null } : prev);
-        setToast({ message: result.message || 'Atendimento finalizado com sucesso.', type: 'success' });
+
+        const openComandaId = openComandasByAppointment[appointment.id];
+        setToast({
+          message: 'Atendimento finalizado! Comanda enviada ao caixa.',
+          type: 'success',
+          action: {
+            label: 'Cobrar no Balcão',
+            onClick: () => {
+              if (openComandaId) {
+                navigate(`/checkout/${openComandaId}`);
+              } else {
+                handleOpenComanda(appointment);
+              }
+            },
+          },
+        });
         return;
       }
 
@@ -2252,6 +2299,119 @@ Podemos confirmar? 😄`;
     }
   };
 
+  const handleStartAppointmentFromQueue = (apt: QueueAppointment) => {
+    executeAppointmentStatusChange(apt as CalendarAppointment, 'in_progress', 'Atendimento iniciado');
+  };
+
+  const handleFinishAppointmentFromQueue = (apt: QueueAppointment) => {
+    executeAppointmentStatusChange(apt as CalendarAppointment, 'completed', 'Atendimento finalizado');
+  };
+
+  const handleCancelAppointmentFromQueue = (apt: QueueAppointment) => {
+    openCancelModal(apt as CalendarAppointment);
+  };
+
+  const handleSendWhatsAppDirect = (apt: QueueAppointment) => {
+    const url = handleSendWhatsApp(apt as CalendarAppointment);
+    if (!apt.clientPhone) {
+      setToast({ message: 'Esse cliente não possui telefone cadastrado.', type: 'error' });
+      return;
+    }
+    if (!url) {
+      setToast({ message: 'Telefone do cliente inválido. Confira o número cadastrado.', type: 'error' });
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleQuickWalkIn = async (payload: QuickWalkInPayload) => {
+    if (!tenantId) {
+      setToast({ message: 'Tenant inválido para realizar encaixe.', type: 'error' });
+      return;
+    }
+
+    setIsWalkInSubmitting(true);
+    try {
+      const now = new Date();
+      const startTimeIso = now.toISOString();
+      const durationHours = payload.duration || 0.5;
+      const endTimeIso = new Date(now.getTime() + durationHours * 60 * 60 * 1000).toISOString();
+      const idempotencyKey = `walkin_${tenantId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
+
+      const result = await appointmentApplicationService.createAppointment({
+        tenantId,
+        appSlug: scheduleAppSlug,
+        schema: 'barber',
+        userId: user?.id || '',
+        clientId: payload.clientId,
+        clientName: payload.clientName,
+        clientPhone: payload.clientPhone,
+        staffId: payload.staffId,
+        serviceIds: [payload.serviceId],
+        serviceNames: [payload.serviceName],
+        totalPrice: payload.price,
+        duration: durationHours,
+        startTime: startTimeIso,
+        endTime: endTimeIso,
+        notes: 'Encaixe rápido na cadeira',
+        idempotencyKey,
+        isOverbooked: true,
+      });
+
+      const newAptId = result.appointmentId;
+      const newComandaId = result.comandaId;
+
+      // Coloca imediatamente em status 'in_progress'
+      await appointmentApplicationService.changeStatus({
+        tenantId,
+        appointmentId: newAptId,
+        newStatus: 'in_progress',
+      });
+
+      const selectedStaff = staffList.find((s) => s.id === payload.staffId);
+      const decimalStart = now.getHours() + now.getMinutes() / 60;
+
+      const createdApt: CalendarAppointment = {
+        id: newAptId,
+        clientId: payload.clientId || null,
+        staffId: payload.staffId,
+        staffName: selectedStaff?.name || 'Profissional',
+        serviceId: payload.serviceId,
+        service: payload.serviceName,
+        client: payload.clientName,
+        clientPhone: payload.clientPhone || '',
+        start: decimalStart,
+        duration: durationHours,
+        startTime: startTimeIso,
+        status: 'in_progress',
+        color: statusColors['in_progress'] || 'bg-sky-500',
+        price: payload.price,
+        notes: 'Encaixe rápido na cadeira',
+        date: startTimeIso,
+        isOverbooked: true,
+        source: 'walk_in',
+        channel: 'in_person',
+      };
+
+      setAppointments((prev) => [...prev, createdApt]);
+      if (newComandaId) {
+        setOpenComandasByAppointment((prev) => ({ ...prev, [newAptId]: newComandaId }));
+      }
+
+      setToast({
+        message: `Encaixe iniciado com sucesso na cadeira de ${selectedStaff?.name || 'profissional'}!`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Erro ao realizar encaixe.', type: 'error' });
+      throw err;
+    } finally {
+      setIsWalkInSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
       <div className="relative mb-4 shrink-0 overflow-hidden rounded-3xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
@@ -2313,6 +2473,13 @@ Podemos confirmar? 😄`;
 
         <div className="flex items-center gap-2 flex-wrap justify-start xl:justify-end">
           <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
+            <button
+              onClick={() => setDisplayMode('chair')}
+              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'chair'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-200 hover:text-white'
+                }`}
+            >Fila Cadeira</button>
             <button
               onClick={() => setDisplayMode('calendar')}
               className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'calendar'
@@ -2389,6 +2556,15 @@ Podemos confirmar? 😄`;
           </button>
 
           <button
+            onClick={() => setShowQuickWalkInModal(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs px-3 py-2 shadow-sm transition-all"
+            title="Encaixe rápido imediato na cadeira"
+          >
+            <span className="material-symbols-outlined text-base">person_add</span>
+            <span className="hidden sm:inline">Encaixe Rápido</span>
+          </button>
+
+          <button
             onClick={() => {
               setEditingAppointmentId(null);
     setEditingComandaStatus(null);
@@ -2427,7 +2603,26 @@ Podemos confirmar? 😄`;
         </div>
       </div>
 
-      {displayMode === 'calendar' ? (
+      {displayMode === 'chair' ? (
+        <BarberChairQueue
+          appointments={appointments}
+          staffList={staffList}
+          selectedStaffId={selectedQueueStaffId}
+          onSelectStaff={setSelectedQueueStaffId}
+          isBarberRole={isBarberRole}
+          onStartAppointment={handleStartAppointmentFromQueue}
+          onFinishAppointment={handleFinishAppointmentFromQueue}
+          onOpenDetails={handleOpenAppointmentDetails}
+          onEditAppointment={handleEditAppointment}
+          onCancelAppointment={handleCancelAppointmentFromQueue}
+          onOpenClient={handleOpenClient}
+          onOpenComanda={handleOpenComanda}
+          onStatusChange={handleAppointmentStatusChange}
+          onWhatsApp={handleSendWhatsAppDirect}
+          onOpenQuickWalkIn={() => setShowQuickWalkInModal(true)}
+          orderLabel={orderLabel}
+        />
+      ) : displayMode === 'calendar' ? (
       <div className="flex flex-col xl:flex-row gap-4 xl:gap-6">
         {/* DASHBOARD INDICATORS - Ocultos para simplificar */}
         <div className="hidden" />
@@ -2996,15 +3191,49 @@ Podemos confirmar? 😄`;
                   <p><strong>Origem:</strong> {apt.originLabel}</p>
                   <p title={apt.notes || ''}><strong>Obs.:</strong> {apt.shortNotes || '-'}</p>
                 </div>
-                <div className="mt-4 grid grid-cols-4 gap-2">
-                  <button onClick={() => handleOpenAppointmentDetails(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Detalhes</button>
-                  <button onClick={() => handleEditAppointment(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Editar</button>
-                  <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="px-2 py-2 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold">Confirmar</button>
-                  <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="px-2 py-2 rounded-xl bg-sky-50 text-sky-600 text-xs font-bold">Iniciar</button>
-                  <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="px-2 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">Finalizar</button>
-                  <button onClick={() => handleCancelAppointment(apt.id)} className="px-2 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold">Cancelar</button>
-                  <button onClick={() => handleOpenClient(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">Cliente</button>
-                  <button onClick={() => handleOpenComanda(apt)} className="px-2 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold">{orderLabel}</button>
+                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between gap-2">
+                  {apt.status === 'in_progress' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs py-2.5 transition-colors shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-base">task_alt</span>
+                      <span>Finalizar Atendimento</span>
+                    </button>
+                  ) : apt.status === 'confirmed' || apt.status === 'pending' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs py-2.5 transition-colors shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-base">play_arrow</span>
+                      <span>Iniciar Atendimento</span>
+                    </button>
+                  ) : apt.status === 'completed' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenComanda(apt)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs py-2.5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-base">receipt_long</span>
+                      <span>Ver {orderLabel}</span>
+                    </button>
+                  ) : (
+                    <div className="flex-1 text-xs text-slate-400 italic">Cancelado / No-show</div>
+                  )}
+
+                  <AppointmentActionMenu
+                    appointment={apt}
+                    onOpenDetails={handleOpenAppointmentDetails}
+                    onEdit={handleEditAppointment}
+                    onStatusChange={handleAppointmentStatusChange}
+                    onCancel={(a) => openCancelModal(a as CalendarAppointment)}
+                    onOpenClient={handleOpenClient}
+                    onOpenComanda={handleOpenComanda}
+                    onWhatsApp={handleSendWhatsAppDirect}
+                    orderLabel={orderLabel}
+                  />
                 </div>
               </div>
             ))}
@@ -4158,7 +4387,18 @@ Podemos confirmar? 😄`;
         </Modal>
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} action={toast.action} onClose={() => setToast(null)} />}
+
+      <QuickWalkInModal
+        isOpen={showQuickWalkInModal}
+        onClose={() => setShowQuickWalkInModal(false)}
+        staffList={staffList}
+        servicesList={servicesList}
+        clientsList={clientsList}
+        defaultStaffId={selectedQueueStaffId !== 'all' ? selectedQueueStaffId : currentUserStaff?.id || staffList[0]?.id}
+        onSubmitWalkIn={handleQuickWalkIn}
+        isSubmitting={isWalkInSubmitting}
+      />
 
       {showOverbookModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
