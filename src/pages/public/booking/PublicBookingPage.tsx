@@ -44,6 +44,8 @@ import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
 import { PublicBookingCancelModal } from './modals/PublicBookingCancelModal';
 import { ServicesGridSelector } from './components/ServicesGridSelector';
 import { BookingStickyBottomBar } from './components/BookingStickyBottomBar';
+import { BookingUpsellBottomSheet } from './components/BookingUpsellBottomSheet';
+import { getSuggestedUpsellServices } from './utils/upsellRecommendation';
 import {
   ActiveBookingBanner,
   saveActiveBooking,
@@ -111,6 +113,10 @@ const PublicBookingPage: React.FC = () => {
   const [isSpecModalOpen, setIsSpecModalOpen] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [isDateTimeModalOpen, setIsDateTimeModalOpen] = useState(false);
+
+  // Upsell Bottom Sheet State
+  const [isUpsellSheetOpen, setIsUpsellSheetOpen] = useState(false);
+  const [hasShownUpsell, setHasShownUpsell] = useState(false);
 
   // Standalone Lead Capture Modal state (for editing identity directly from bar)
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -312,10 +318,13 @@ const PublicBookingPage: React.FC = () => {
     ]
   );
 
-  // Handle CTA "Continuar" from Sticky Bottom Bar
-  const handleContinueFromBottomBar = useCallback(() => {
-    if (selectedServiceIds.length === 0) return;
+  // Suggested complementary upsell services
+  const suggestedUpsellServices = useMemo(() => {
+    return getSuggestedUpsellServices(availableServices, selectedServiceIds);
+  }, [availableServices, selectedServiceIds]);
 
+  // Proceed directly to Phase 2 (Staff Selection) or Lead Capture
+  const proceedToStaffOrLead = useCallback(() => {
     if (!selectedStaffId) {
       selectStaff(ANY_STAFF_ID);
     }
@@ -331,7 +340,6 @@ const PublicBookingPage: React.FC = () => {
 
     setIsStaffModalOpen(true);
   }, [
-    selectedServiceIds.length,
     selectedStaffId,
     selectStaff,
     ANY_STAFF_ID,
@@ -340,6 +348,41 @@ const PublicBookingPage: React.FC = () => {
     selectDate,
     isClientIdentified,
   ]);
+
+  // Handle CTA "Continuar" from Sticky Bottom Bar
+  const handleContinueFromBottomBar = useCallback(() => {
+    if (selectedServiceIds.length === 0) return;
+
+    // Se houver serviços complementares e o upsell ainda não foi exibido nesta sessão
+    if (!hasShownUpsell && suggestedUpsellServices.length > 0) {
+      setHasShownUpsell(true);
+      setIsUpsellSheetOpen(true);
+      return;
+    }
+
+    proceedToStaffOrLead();
+  }, [
+    selectedServiceIds.length,
+    hasShownUpsell,
+    suggestedUpsellServices.length,
+    proceedToStaffOrLead,
+  ]);
+
+  // Adicionar serviço sugerido via Upsell Bottom Sheet
+  const handleAddUpsellService = useCallback(
+    (service: PublicService) => {
+      toggleService(service.id);
+      setIsUpsellSheetOpen(false);
+      proceedToStaffOrLead();
+    },
+    [toggleService, proceedToStaffOrLead]
+  );
+
+  // Continuar sem adicionar serviço sugerido no Upsell
+  const handleContinueWithoutUpsell = useCallback(() => {
+    setIsUpsellSheetOpen(false);
+    proceedToStaffOrLead();
+  }, [proceedToStaffOrLead]);
 
   // Launch guided 3-phase booking flow starting from service specification
   const handleOpenServiceModal = useCallback(
@@ -719,6 +762,16 @@ const PublicBookingPage: React.FC = () => {
         onSaveLead={handleLeadSaved}
         onProceedToStaff={handleProceedToStaff}
         onClose={() => setIsSpecModalOpen(false)}
+        formatPriceBRL={formatPriceBRL}
+      />
+
+      {/* Upsell / Cross-Sell Bottom Sheet */}
+      <BookingUpsellBottomSheet
+        isOpen={isUpsellSheetOpen}
+        suggestedServices={suggestedUpsellServices}
+        onAddService={handleAddUpsellService}
+        onContinue={handleContinueWithoutUpsell}
+        onClose={() => setIsUpsellSheetOpen(false)}
         formatPriceBRL={formatPriceBRL}
       />
 
