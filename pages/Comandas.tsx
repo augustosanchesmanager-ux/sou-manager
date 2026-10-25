@@ -31,10 +31,11 @@ import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/co
 import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
 import { createReversalKey, reverseFinancialTransaction } from '../src/lib/finance/reversal';
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
+import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
-type QuickRange = 'today' | '7d' | '30d' | 'custom' | 'all';
+type QuickRange = 'today' | 'yesterday' | 'this_week' | 'this_month' | '7d' | '30d' | 'custom' | 'all';
 type ConsumptionType = 'all' | 'service' | 'product' | 'mixed';
 
 interface ComandaItem {
@@ -507,8 +508,17 @@ const Comandas: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<'all' | ComandaStatus>(preferences.filterStatus);
     const [searchTerm, setSearchTerm] = useState(preferences.searchTerm);
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(preferences.searchTerm);
     const [dateFrom, setDateFrom] = useState(preferences.dateFrom);
     const [dateTo, setDateTo] = useState(preferences.dateTo);
+
+    // Debounce da busca textual (300ms)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
     const [quickRange, setQuickRange] = useState<QuickRange>(preferences.quickRange);
     const [sortField, setSortField] = useState<SortField>(preferences.sortField);
     const [sortDirection, setSortDirection] = useState<SortDirection>(preferences.sortDirection);
@@ -827,7 +837,6 @@ const Comandas: React.FC = () => {
     }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
 
     const applyQuickRange = (range: QuickRange) => {
-        const today = new Date();
         if (range === 'all') {
             setQuickRange('all');
             setDateFrom('');
@@ -838,11 +847,21 @@ const Comandas: React.FC = () => {
             setQuickRange('custom');
             return;
         }
+
+        if (range === 'today' || range === 'yesterday' || range === 'this_week' || range === 'this_month') {
+            const calculated = getQuickPeriodDateRange(range);
+            setQuickRange(range);
+            setDateFrom(calculated.startDate);
+            setDateTo(calculated.endDate);
+            return;
+        }
+
+        const today = new Date();
         const startDate = new Date(today);
         if (range === '7d') startDate.setDate(startDate.getDate() - 6);
         if (range === '30d') startDate.setDate(startDate.getDate() - 29);
         setQuickRange(range);
-        setDateFrom(formatDateInputValue(range === 'today' ? today : startDate));
+        setDateFrom(formatDateInputValue(startDate));
         setDateTo(formatDateInputValue(today));
     };
 
@@ -876,7 +895,7 @@ const Comandas: React.FC = () => {
         return true;
     }), [comandas, dateFrom, dateTo]);
 
-    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
     const statusScopeComandas = React.useMemo(() => dateFilteredComandas.filter((c) => {
         const matchesSearch = !normalizedSearchTerm
             || c.clients.name.toLowerCase().includes(normalizedSearchTerm)
@@ -952,14 +971,6 @@ const Comandas: React.FC = () => {
         { key: 'cancelled' as const, label: statusLabels.cancelled, count: statusScopeComandas.filter((c) => c.status === 'cancelled').length },
     ], [statusScopeComandas, statusLabels]);
 
-    const openCount = React.useMemo(() => statusScopeComandas.filter((c) => c.status === 'open').length, [statusScopeComandas]);
-    const finalizedToday = React.useMemo(() => comandas.filter((c) => {
-        if (c.status !== 'paid') return false;
-        const createdAt = new Date(c.created_at);
-        const today = new Date();
-        return createdAt.getDate() === today.getDate() && createdAt.getMonth() === today.getMonth() && createdAt.getFullYear() === today.getFullYear();
-    }).length, [comandas]);
-
     const toggleOpenComandaSelection = (comandaId: string) => {
         setSelectedOpenComandaIds((current) =>
             current.includes(comandaId) ? current.filter((id) => id !== comandaId) : [...current, comandaId],
@@ -974,8 +985,22 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => Array.from(new Set([...current, ...openComandasInView.map((c) => c.id)])));
     };
 
-    const totalOpen = React.useMemo(() => statusScopeComandas.filter((c) => c.status === 'open').reduce((sum, c) => sum + c.total, 0), [statusScopeComandas]);
-    const avgTicket = React.useMemo(() => filteredComandas.length > 0 ? filteredComandas.reduce((sum, c) => sum + c.total, 0) / filteredComandas.length : 0, [filteredComandas]);
+    const kpiSummary = React.useMemo(() => {
+        return calculateComandaKpiSummary(filteredComandas);
+    }, [filteredComandas]);
+
+    const openCount = kpiSummary.openCount;
+    const paidCount = kpiSummary.paidCount;
+    const totalOpen = kpiSummary.openTotal;
+    const totalPaid = kpiSummary.paidTotal;
+    const avgTicket = kpiSummary.averageTicket;
+
+    const finalizedToday = React.useMemo(() => comandas.filter((c) => {
+        if (c.status !== 'paid') return false;
+        const createdAt = new Date(c.created_at);
+        const today = new Date();
+        return createdAt.getDate() === today.getDate() && createdAt.getMonth() === today.getMonth() && createdAt.getFullYear() === today.getFullYear();
+    }).length, [comandas]);
 
     const staffOptions = React.useMemo(() => Array.from(new Map<string, { id: string; name: string }>(
         comandas.flatMap((c) => c.staff_ids.map((staffId, index) => ({ id: staffId, name: c.staff_names[index] || 'Profissional' })))
@@ -1567,10 +1592,34 @@ const Comandas: React.FC = () => {
             )}
 
             <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <KpiCard title={isEsteticaApp ? 'Abertos' : 'Abertas'} value={loading ? '...' : String(openCount).padStart(2, '0')} helper="Em aberto" icon="schedule" accentClassName="bg-amber-400" />
-                <KpiCard title="Hoje" value={loading ? '...' : String(finalizedToday).padStart(2, '0')} helper={isEsteticaApp ? 'Finalizados' : 'Finalizadas'} icon="task_alt" accentClassName="bg-emerald-400" />
-                <KpiCard title="Total" value={loading ? '...' : formatCurrency(totalOpen)} helper="Pendente" icon="payments" accentClassName="bg-sky-400" />
-                <KpiCard title="Ticket" value={loading ? '...' : formatCurrency(avgTicket)} helper="Média" icon="monitoring" accentClassName="bg-fuchsia-400" />
+                <KpiCard
+                    title={isEsteticaApp ? 'Abertos' : 'Abertas'}
+                    value={loading ? '...' : String(openCount).padStart(2, '0')}
+                    helper={`Pendente: ${formatCurrency(totalOpen)}`}
+                    icon="schedule"
+                    accentClassName="bg-amber-400"
+                />
+                <KpiCard
+                    title="Liquidadas"
+                    value={loading ? '...' : String(paidCount).padStart(2, '0')}
+                    helper={`Total: ${formatCurrency(totalPaid)}`}
+                    icon="task_alt"
+                    accentClassName="bg-emerald-400"
+                />
+                <KpiCard
+                    title="Total Geral"
+                    value={loading ? '...' : formatCurrency(totalOpen + totalPaid)}
+                    helper={`${kpiSummary.totalCount} ${orderPluralLower}`}
+                    icon="payments"
+                    accentClassName="bg-sky-400"
+                />
+                <KpiCard
+                    title="Ticket Médio"
+                    value={loading ? '...' : formatCurrency(avgTicket)}
+                    helper="Por atendimento"
+                    icon="monitoring"
+                    accentClassName="bg-fuchsia-400"
+                />
             </section>
 
             <section className="rounded-2xl border border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]">
@@ -1628,11 +1677,26 @@ const Comandas: React.FC = () => {
                             value={quickRange}
                             onChange={(e) => applyQuickRange(e.target.value as QuickRange)}
                             className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            title="Filtrar por período"
                         >
                             <option value="today">Hoje</option>
-                            <option value="7d">7 dias</option>
-                            <option value="30d">30 dias</option>
-                            <option value="all">Todos</option>
+                            <option value="yesterday">Ontem</option>
+                            <option value="this_week">Esta Semana</option>
+                            <option value="this_month">Este Mês</option>
+                            <option value="7d">Últimos 7 dias</option>
+                            <option value="30d">Últimos 30 dias</option>
+                            <option value="all">Todo o período</option>
+                        </select>
+                        <select
+                            value={staffFilter}
+                            onChange={(e) => setStaffFilter(e.target.value)}
+                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            title="Filtrar por profissional"
+                        >
+                            <option value="">Profissional (Todos)</option>
+                            {staffOptions.map((staff) => (
+                                <option key={staff.id} value={staff.id}>{staff.name}</option>
+                            ))}
                         </select>
                         <select
                             value={paymentMethodFilter}
