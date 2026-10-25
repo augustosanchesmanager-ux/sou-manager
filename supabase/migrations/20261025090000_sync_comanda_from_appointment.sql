@@ -121,7 +121,6 @@ BEGIN
     start_time = p_new_start_time,
     end_time = p_new_end_time,
     duration = v_duration_hours,
-    duration_minutes = v_duration_minutes,
     service_id = v_first_service_id,
     service_name = v_services_label,
     price = v_services_total_price,
