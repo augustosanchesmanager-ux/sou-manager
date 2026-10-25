@@ -37,6 +37,12 @@ import { PaymentTerminalSelector } from '../components/checkout/PaymentTerminalS
 import { QuickPayPresets, type QuickPayPresetType } from '../components/checkout/QuickPayPresets';
 import { QuickCashCalculator } from '../components/checkout/QuickCashCalculator';
 import { formatBrlCurrency } from '../src/utils/checkoutQuickPay';
+import {
+    playCheckoutSuccessChime,
+    triggerHapticFeedback,
+    isAudioFeedbackEnabled,
+    setAudioFeedbackEnabled,
+} from '../src/utils/feedbackSensory';
 import { calculateTerminalFee, findMatchingRate } from '../domain/paymentTerminal/calculateFee';
 import {
     buildZeroCloseAuditNote,
@@ -445,6 +451,16 @@ const Checkout: React.FC = () => {
     );
     const finishButtonRef = React.useRef<HTMLButtonElement | null>(null);
     const [cashTendered, setCashTendered] = useState<number>(0);
+    const [soundEnabled, setSoundEnabled] = useState<boolean>(() => isAudioFeedbackEnabled());
+
+    const toggleSound = useCallback(() => {
+        const nextState = !soundEnabled;
+        setSoundEnabled(nextState);
+        setAudioFeedbackEnabled(nextState);
+        if (nextState) {
+            playCheckoutSuccessChime();
+        }
+    }, [soundEnabled]);
 
     // Frente 1.D: Atualiza o valor em dinheiro entregue ao selecionar dinheiro ou alterar total
     useEffect(() => {
@@ -1424,6 +1440,12 @@ const Checkout: React.FC = () => {
             // Execute full checkout flow via Application Service
             const result = await checkoutApplicationService.finish(finishRequest, comandaRequestKeyRef.current);
 
+            // Frente 1.F: Feedback sensorial nativo (som ascendente + vibração háptica no mobile)
+            if (result.paymentStatus === 'paid' && !result.isLegacyClubSettlement) {
+                playCheckoutSuccessChime();
+                triggerHapticFeedback([40, 60, 40]);
+            }
+
             // UI-only: toast and navigation
             setToast({
                 message: result.isLegacyClubSettlement
@@ -1574,6 +1596,22 @@ const Checkout: React.FC = () => {
                         <span className={`rounded-xl px-3 py-2 text-xs font-bold ${cart.length > 0 ? 'bg-[#007BFF]/10 text-[#007BFF] dark:text-[#00D2FF]' : 'bg-slate-500/10 text-slate-500 dark:text-slate-300'}`}>
                             {cart.length} {cart.length === 1 ? 'item' : 'itens'}
                         </span>
+                        <button
+                            type="button"
+                            onClick={toggleSound}
+                            title={soundEnabled ? 'Feedback sonoro ativado (clique para silenciar)' : 'Feedback sonoro mudo (clique para ativar)'}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                soundEnabled
+                                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/10 dark:text-slate-500'
+                            }`}
+                            aria-label={soundEnabled ? 'Desativar som do checkout' : 'Ativar som do checkout'}
+                        >
+                            <span className="material-symbols-outlined text-base">
+                                {soundEnabled ? 'volume_up' : 'volume_off'}
+                            </span>
+                            <span className="hidden sm:inline">{soundEnabled ? 'Som on' : 'Som off'}</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2184,13 +2222,18 @@ const Checkout: React.FC = () => {
                             onClick={handleFinish}
                             disabled={cart.length === 0 || loading || (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total)}
                             title={paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total ? `Valor insuficiente. Faltam ${formatBrlCurrency(total - cashTendered)}.` : undefined}
-                            className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
-                                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
-                                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                                }`}
+                            className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all flex items-center justify-center gap-2 group select-none ${
+                                loading ? 'pointer-events-none opacity-80 cursor-wait' : 'disabled:opacity-50 disabled:cursor-not-allowed'
+                            } ${paymentStatus === 'paid'
+                                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20 active:scale-[0.99]'
+                                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 active:scale-[0.99]'
+                            }`}
                         >
                             {loading ? (
-                                <div className="animate-spin size-6 border-2 border-white/30 border-t-white rounded-full"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="animate-spin size-5 border-2 border-white/30 border-t-white rounded-full"></div>
+                                    <span className="text-sm font-semibold tracking-wide">Processando fechamento...</span>
+                                </div>
                             ) : (
                                 <>
                                     <span>{paymentStatus === 'paid' ? checkoutCopy.finalButtonPaidLabel : checkoutCopy.finalButtonOpenLabel}</span>
