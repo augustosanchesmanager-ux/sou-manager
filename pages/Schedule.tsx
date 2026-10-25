@@ -46,6 +46,10 @@ import { AppointmentActionMenu } from '../components/schedule/AppointmentActionM
 import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
 import { comandaScheduleSyncService } from '../services/comandaScheduleSyncService';
+import {
+  appointmentComandaSyncService,
+  AppointmentComandaSyncError,
+} from '../services/appointmentComandaSyncService';
 import { canModifyLinkedComanda, type CascadingCancelEvaluation } from '@/src/utils/comandaScheduleSync';
 import {
   DURATION_PRESETS,
@@ -1175,34 +1179,27 @@ const Schedule: React.FC = () => {
 
       const selectedStaff = staffList.find(s => s.id === dropStaffId);
 
-      const syncResult = await appointmentApplicationService.rescheduleAppointment({
+      const servicesPayload = apt.serviceId
+        ? [{
+            serviceId: apt.serviceId,
+            name: apt.service || '',
+            price: Number(apt.price) || 0,
+            duration: apt.duration_minutes || Math.round((Number(apt.duration) || 0.5) * 60),
+          }]
+        : [];
+
+      const syncResult = await appointmentComandaSyncService.syncAppointmentWithComanda({
         tenantId,
         appointmentId: apt.id,
         newStaffId: dropStaffId,
-        newStaffName: selectedStaff?.name || apt.staffName,
         newStartTime: newStartTimeLine.toISOString(),
         newEndTime: newEndTimeLine.toISOString(),
+        services: servicesPayload,
+        notes: apt.notes || '',
+        syncComanda: true,
       });
 
-      if (syncResult.status === 'blocked_closed') {
-        setToast({
-          message:
-            syncResult.message ||
-            'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.',
-          type: 'error',
-        });
-        fetchAppointments();
-        return;
-      }
-
-      if (syncResult.status === 'blocked_payment') {
-        setToast({
-          message:
-            syncResult.message ||
-            'Agendamento atualizado. A comanda possui pagamentos registrados e seus valores foram preservados.',
-          type: 'info',
-        });
-      } else if (dropStaffId !== apt.staffId && selectedStaff?.name) {
+      if (syncResult.comandaUpdated && dropStaffId !== apt.staffId && selectedStaff?.name) {
         setToast({
           message: `Agendamento e comanda atualizados para ${selectedStaff.name}`,
           type: 'success',
@@ -1214,7 +1211,12 @@ const Schedule: React.FC = () => {
     } catch (err) {
       console.error('Error dragging appointment:', err);
       fetchAppointments(); // Revert on failure
-      setToast({ message: 'Erro ao mover agendamento.', type: 'error' });
+      const message = err instanceof AppointmentComandaSyncError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'Erro ao mover agendamento.';
+      setToast({ message, type: 'error' });
     }
   };
 
@@ -1794,92 +1796,80 @@ const Schedule: React.FC = () => {
         const updatedStartIso = startTimeLine.toISOString();
         const updatedAppointmentDate = updatedStartIso;
 
-        // UPDATE EXISTING
-        let syncResult;
+        // UPDATE EXISTING VIA ATOMIC RPC
         try {
-          syncResult = await appointmentApplicationService.updateAppointment({
+          const syncResult = await appointmentComandaSyncService.syncAppointmentWithComanda({
             tenantId,
             appointmentId: editingAppointmentId,
-            updates: {
-              staff_id: formData.staffId || null,
-              staff_name: selectedStaff?.name || '',
-              service_id: selectedServices.length > 0 ? selectedServices[0].id : undefined,
-              service_name: selectedServicesLabel,
-              start_time: updatedStartIso,
-              end_time: endTimeLine.toISOString(),
-              duration: Number(formData.duration),
-              price: selectedServicesTotalPrice,
-              notes: formData.notes.trim(),
-            },
-            syncComandaStaff: true,
-          });
-      } catch (updateErr) {
-        const message = updateErr instanceof AppointmentError ? updateErr.message : 'Erro ao atualizar agendamento.';
-        console.error('Erro ao atualizar agendamento:', updateErr);
-        setError(`Erro ao atualizar agendamento: ${message}`);
-        return;
-      }
-
-      if (syncResult.status === 'blocked_closed') {
-        const blockedMsg =
-          syncResult.message ||
-          'Não é possível alterar profissional/serviço: a comanda correspondente já foi fechada/paga.';
-        setError(blockedMsg);
-        setToast({ message: blockedMsg, type: 'error' });
-        await fetchAppointments();
-        return;
-      }
-
-      setAppointments(prev => prev.map((apt) =>
-        apt.id === editingAppointmentId
-          ? {
-            ...apt,
-            staffId: formData.staffId,
-            staffName: selectedStaff?.name || '',
-            start: formData.start,
-            duration: Number(formData.duration),
-            client: formData.client,
-            clientPhone: formData.clientPhone || '',
-            service: selectedServicesLabel,
-            price: selectedServicesTotalPrice,
-            startTime: updatedStartIso,
+            newStaffId: formData.staffId,
+            newStartTime: updatedStartIso,
+            newEndTime: endTimeLine.toISOString(),
+            services: selectedServices.map((s) => ({
+              serviceId: s.id,
+              name: s.name,
+              price: Number(s.price) || 0,
+              duration: Number(s.duration) || 30,
+            })),
             notes: formData.notes.trim(),
-            date: updatedAppointmentDate,
-          }
-          : apt
-      ));
-
-      if (syncResult.status === 'synced' && syncResult.comandaId) {
-        setOpenComandasByAppointment((prev) => {
-          const next = { ...prev };
-          if (syncResult.comandaStatus === 'open') {
-            next[editingAppointmentId] = syncResult.comandaId!;
-          } else if (syncResult.comandaStatus === 'blocked') {
-            delete next[editingAppointmentId];
-          }
-          return next;
-        });
-      }
-
-      if (syncResult.status === 'blocked_payment') {
-        setToast({
-          message:
-            syncResult.message ||
-            'Agendamento atualizado. A comanda possui pagamentos registrados e seus valores foram preservados.',
-          type: 'info',
-        });
-      } else {
-        const originalApt = appointments.find((a) => a.id === editingAppointmentId);
-        const isStaffChanged = originalApt && formData.staffId !== originalApt.staffId;
-        if (isStaffChanged && selectedStaff?.name) {
-          setToast({
-            message: `Agendamento e comanda atualizados para ${selectedStaff.name}`,
-            type: 'success',
+            syncComanda: true,
           });
-        } else {
-          setToast({ message: 'Agendamento e comanda sincronizados com sucesso!', type: 'success' });
+
+          setAppointments(prev => prev.map((apt) =>
+            apt.id === editingAppointmentId
+              ? {
+                ...apt,
+                staffId: formData.staffId,
+                staffName: selectedStaff?.name || '',
+                start: formData.start,
+                duration: Number(formData.duration),
+                client: formData.client,
+                clientPhone: formData.clientPhone || '',
+                service: selectedServicesLabel,
+                price: selectedServicesTotalPrice,
+                startTime: updatedStartIso,
+                notes: formData.notes.trim(),
+                date: updatedAppointmentDate,
+              }
+              : apt
+          ));
+
+          if (syncResult.comandaUpdated && syncResult.comandaId) {
+            setOpenComandasByAppointment((prev) => ({
+              ...prev,
+              [editingAppointmentId]: syncResult.comandaId!,
+            }));
+          }
+
+          const originalApt = appointments.find((a) => a.id === editingAppointmentId);
+          const isStaffChanged = originalApt && formData.staffId !== originalApt.staffId;
+          if (isStaffChanged && selectedStaff?.name) {
+            setToast({
+              message: `Agendamento e comanda atualizados para ${selectedStaff.name}`,
+              type: 'success',
+            });
+          } else if (syncResult.comandaUpdated) {
+            setToast({
+              message: 'Agendamento e comanda sincronizados com sucesso!',
+              type: 'success',
+            });
+          } else {
+            setToast({
+              message: 'Agendamento atualizado com sucesso!',
+              type: 'success',
+            });
+          }
+        } catch (updateErr) {
+          const message = updateErr instanceof AppointmentComandaSyncError
+            ? updateErr.message
+            : updateErr instanceof Error
+              ? updateErr.message
+              : 'Erro ao atualizar agendamento.';
+          console.error('Erro ao atualizar agendamento com comanda:', updateErr);
+          setError(message);
+          setToast({ message, type: 'error' });
+          await fetchAppointments();
+          return;
         }
-      }
     } else {
       let finalPrice = selectedServicesTotalPrice;
 
