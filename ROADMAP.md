@@ -1568,6 +1568,7 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - [x] Frente 1.F: Feedback Visual e Micro-interações (Toasts 2.0 via React Portal z-[9999] com progresso regressivo e pause on hover/touch, utilitário sensorial Web Audio API puro + vibração háptica mobile, toggle de áudio persistido no balcão, trava atômica contra duplo clique e transição otimista com rollback na fila de atendimento)
 - [x] Frente 1.G: Otimização de Comandas e Abertura Rápida (Modal de abertura rápida com atalho 'N', suporte a 'Consumidor Final / Balcão', detecção de comanda concorrente aberta no dia com redirect em 1 clique ou bypass consciente, Top 4 itens frequentes e atribuição explícita de comissão)
 - [x] Frente 1.H: Sincronização Reativa Agenda ↔ Comanda & Edição em Voo (Reatribuição em tempo real de profissional/serviço, preservação de produtos avulsos do balcão, guardrail impeditivo para comandas fechadas/pagas e cancelamento em cascata com opção de retenção contábil)
+- [x] Frente 1.I: Duração Dinâmica de Serviços e Encaixes Flexíveis na Agenda (Chips rápidos de 15m a 3h, campo numérico livre em minutos com recálculo instantâneo de término, botão de restauração nominal de combos, badge visual discreto ⏱️ Xm em cards da grade, preservação no drag-and-drop e detecção de sobreposição com confirmação consciente de encaixe)
 - [ ] Auditoria de UX completa das demais telas operacionais
 - [ ] Identificação de pontos de atrito adicionais
 - [ ] Testes de usabilidade ponta a ponta

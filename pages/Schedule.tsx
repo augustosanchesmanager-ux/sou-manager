@@ -47,6 +47,13 @@ import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
 import { comandaScheduleSyncService } from '../services/comandaScheduleSyncService';
 import { canModifyLinkedComanda, type CascadingCancelEvaluation } from '@/src/utils/comandaScheduleSync';
+import {
+  DURATION_PRESETS,
+  calculateServicesNominalDuration,
+  getResolvedAppointmentInterval,
+  detectAppointmentOverlap,
+} from '@/src/utils/scheduleDuration';
+import { scheduleDurationService } from '../services/scheduleDurationService';
 
 interface DBStaff {
   id: string;
@@ -91,6 +98,7 @@ interface CalendarAppointment {
   isOverbooked?: boolean;
   attendedAt?: string | null;
   attendedAtSource?: string | null;
+  duration_minutes?: number;
 }
 
 type DisplayMode = 'calendar' | 'list' | 'chair';
@@ -481,6 +489,10 @@ const Schedule: React.FC = () => {
     return Math.max(0.25, Math.round((totalMinutes / 60) * 100) / 100);
   };
 
+  const nominalServicesDurationMinutes = React.useMemo(() => {
+    return calculateServicesNominalDuration(formData.serviceIds, servicesList);
+  }, [formData.serviceIds, servicesList]);
+
   useEffect(() => {
     const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
     if (!shouldOpenNew) return;
@@ -729,13 +741,17 @@ const Schedule: React.FC = () => {
       const mapped: CalendarAppointment[] = appointmentRows.map(apt => {
         const d = new Date(apt.start_time);
         const startHour = d.getHours() + d.getMinutes() / 60;
+        const resolvedMinutes = Number(apt.duration_minutes) || (Number(apt.duration) ? (Number(apt.duration) <= 12 ? Math.round(Number(apt.duration) * 60) : Math.round(Number(apt.duration))) : 60);
+        const resolvedDecimal = Math.round((resolvedMinutes / 60) * 100) / 100;
+
         return {
           id: apt.id,
           clientId: apt.client_id || null,
           staffId: apt.staff_id,
           serviceId: apt.service_id || null,
           start: startHour,
-          duration: Number(apt.duration) || 1,
+          duration: resolvedDecimal,
+          duration_minutes: resolvedMinutes,
           client: apt.client_name || 'Cliente',
         service: getEsteticaDemoServiceName(apt.service_name, appSlug) || serviceLabel,
           status: apt.status,
@@ -1085,17 +1101,26 @@ const Schedule: React.FC = () => {
     const newEndTimeLine = new Date(newStartTimeLine.getTime() + apt.duration * 60 * 60 * 1000);
 
     // Validação Anti-Overbooking
-    const overlapping = appointments.filter(a =>
-      a.id !== apt.id &&
-      a.staffId === dropStaffId &&
-      new Date(a.date).toDateString() === new Date(dateStr).toDateString() &&
-      !(
-        (roundedHour + apt.duration) <= a.start ||
-        roundedHour >= (a.start + a.duration)
-      )
+    const dropDateKey = toDateKey(dateStr);
+    const overlapCheck = detectAppointmentOverlap(
+      {
+        id: apt.id,
+        staffId: dropStaffId,
+        dateKey: dropDateKey,
+        startDecimal: roundedHour,
+        durationDecimal: apt.duration,
+      },
+      appointments.map((a) => ({
+        id: a.id,
+        staffId: a.staffId,
+        dateKey: toDateKey(a.date),
+        startDecimal: a.start,
+        durationDecimal: a.duration,
+        status: a.status,
+      })),
     );
 
-    if (overlapping.length > 0) {
+    if (overlapCheck.hasOverlap) {
       setToast({ message: 'Conflito de horário! Não é possível encaixar aqui.', type: 'error' });
       return;
     }
@@ -1709,20 +1734,37 @@ const Schedule: React.FC = () => {
 
     if (!forceOverbook) {
       const selectedDateKeyForCheck = toDateKey(formData.date);
-      const newStart = formData.start;
-      const newEnd = formData.start + Number(formData.duration);
-      const conflictingAppointments = appointments.filter(apt =>
-        apt.staffId === formData.staffId &&
-        toDateKey(apt.date) === selectedDateKeyForCheck &&
-        apt.status !== 'cancelled' &&
-        apt.id !== editingAppointmentId &&
-        !(
-          newEnd <= apt.start ||
-          newStart >= apt.start + apt.duration
-        )
+      const overlapCheck = detectAppointmentOverlap(
+        {
+          id: editingAppointmentId || undefined,
+          staffId: formData.staffId,
+          dateKey: selectedDateKeyForCheck,
+          startDecimal: formData.start,
+          durationDecimal: Number(formData.duration),
+        },
+        appointments.map((apt) => ({
+          id: apt.id,
+          staffId: apt.staffId,
+          dateKey: toDateKey(apt.date),
+          startDecimal: apt.start,
+          durationDecimal: apt.duration,
+          status: apt.status,
+          client: apt.client,
+          service: apt.service,
+        })),
       );
-      if (conflictingAppointments.length > 0) {
-        setOverbookConflicts(conflictingAppointments);
+
+      if (overlapCheck.hasOverlap) {
+        setOverbookConflicts(
+          overlapCheck.conflictingAppointments.map((c) => ({
+            id: c.id,
+            staffId: c.staffId,
+            client: c.client || 'Cliente',
+            service: c.service || 'Serviço',
+            start: c.startDecimal,
+            duration: c.durationDecimal,
+          })) as any,
+        );
         setShowOverbookModal(true);
         scheduleCreateLockRef.current = false;
         scheduleIdempotencyKeyRef.current = null;
@@ -2830,6 +2872,14 @@ Podemos confirmar? 😄`;
                               const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
                               const barberColor = barberColors[Math.max(0, staffIdx) % barberColors.length];
                               const borderColor = borderColors[Math.max(0, staffIdx) % borderColors.length];
+                              const resolvedInterval = getResolvedAppointmentInterval(
+                                {
+                                  serviceId: apt.serviceId,
+                                  duration: apt.duration,
+                                  duration_minutes: apt.duration_minutes,
+                                },
+                                servicesList,
+                              );
                               return (
                                 <div
                                   key={apt.id}
@@ -2844,6 +2894,14 @@ Podemos confirmar? 😄`;
                                     <span className="shrink-0 rounded bg-black/25 px-1 py-0.5 text-[8px] font-black leading-none text-white">
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
+                                    {resolvedInterval.isCustom && (
+                                      <span
+                                        className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none"
+                                        title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
+                                      >
+                                        ⏱️ {resolvedInterval.durationMinutes}m
+                                      </span>
+                                    )}
                                     {apt.isOverbooked && (
                                       <span className="shrink-0 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black leading-none text-white">ENCAIXE</span>
                                     )}
@@ -2976,6 +3034,14 @@ Podemos confirmar? 😄`;
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
                               const barberColor = barberColors[staffIndex % barberColors.length];
                               const borderColor = borderColors[staffIndex % borderColors.length];
+                              const resolvedInterval = getResolvedAppointmentInterval(
+                                {
+                                  serviceId: apt.serviceId,
+                                  duration: apt.duration,
+                                  duration_minutes: apt.duration_minutes,
+                                },
+                                servicesList,
+                              );
 
                               return (
                                 <div
@@ -2991,6 +3057,14 @@ Podemos confirmar? 😄`;
                                     <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase leading-none">
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
+                                    {resolvedInterval.isCustom && (
+                                      <span
+                                        className="min-w-0 truncate rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none"
+                                        title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
+                                      >
+                                        ⏱️ {resolvedInterval.durationMinutes}m
+                                      </span>
+                                    )}
                                     {apt.isOverbooked && (
                                       <span className="min-w-0 truncate rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black uppercase leading-none text-white">
                                         Encaixe
@@ -3585,9 +3659,9 @@ Podemos confirmar? 😄`;
             </button>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário</label>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário de Início</label>
               <div className="relative">
                 <select
                   value={formData.start}
@@ -3627,22 +3701,94 @@ Podemos confirmar? 😄`;
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duração (h)</label>
-              <div className="relative">
-                <select
-                  value={formData.duration}
-                  onChange={(e) => handleInputChange('duration', Number(e.target.value))}
-                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
-                >
-                  <option value="0.25">15 min</option>
-                  <option value="0.5">30 min</option>
-                  <option value="0.75">45 min</option>
-                  <option value="1">1h</option>
-                  <option value="1.5">1h 30m</option>
-                  <option value="2">2h</option>
-                </select>
-                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">hourglass_empty</span>
+
+            {/* Frente 1.I: Duração Dinâmica, Chips Rápidos e Ajuste Fino */}
+            <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-3.5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-amber-500">timer</span>
+                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300">
+                    Duração do Atendimento
+                  </label>
+                </div>
+                {nominalServicesDurationMinutes > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const decimal = Math.round((nominalServicesDurationMinutes / 60) * 100) / 100;
+                      handleInputChange('duration', decimal);
+                    }}
+                    className={`text-[11px] font-bold transition flex items-center gap-1 ${
+                      Math.round(formData.duration * 60) === nominalServicesDurationMinutes
+                        ? 'text-slate-400 dark:text-slate-500 cursor-default'
+                        : 'text-amber-500 hover:text-amber-600 hover:underline cursor-pointer'
+                    }`}
+                    title="Restaurar a duração nominal do catálogo"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">restart_alt</span>
+                    Restaurar Padrão: {nominalServicesDurationMinutes} min
+                  </button>
+                )}
+              </div>
+
+              {/* Chips Rápidos de Duração (15m a 3h) */}
+              <div className="flex flex-wrap gap-1.5">
+                {DURATION_PRESETS.map((preset) => {
+                  const currentMinutes = Math.round(Number(formData.duration) * 60);
+                  const isSelected = currentMinutes === preset.minutes;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => handleInputChange('duration', preset.decimalHours)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-950/20 scale-[1.02]'
+                          : 'bg-white dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Ajuste Fino / Minutos Livres e Término Previsto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Minutos Customizados</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="5"
+                      max="720"
+                      step="5"
+                      value={Math.round(Number(formData.duration) * 60) || 30}
+                      onChange={(e) => {
+                        const val = Math.max(5, Number(e.target.value) || 5);
+                        handleInputChange('duration', Math.round((val / 60) * 100) / 100);
+                      }}
+                      className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg py-2 pl-3 pr-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+                      placeholder="Minutos"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                      min
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Término Previsto</label>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-black text-slate-900 dark:text-white">
+                    <span className="material-symbols-outlined text-base text-amber-500">schedule</span>
+                    <span>{getDecimalTimeLabel(formData.start + formData.duration)}</span>
+                    {Math.round(formData.duration * 60) !== nominalServicesDurationMinutes && nominalServicesDurationMinutes > 0 && (
+                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                        Ajustado
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
