@@ -34,6 +34,9 @@ import {
 } from '../src/lib/finance/payment';
 import { usePaymentTerminals } from '../src/hooks/usePaymentTerminals';
 import { PaymentTerminalSelector } from '../components/checkout/PaymentTerminalSelector';
+import { QuickPayPresets, type QuickPayPresetType } from '../components/checkout/QuickPayPresets';
+import { QuickCashCalculator } from '../components/checkout/QuickCashCalculator';
+import { formatBrlCurrency } from '../src/utils/checkoutQuickPay';
 import { calculateTerminalFee, findMatchingRate } from '../domain/paymentTerminal/calculateFee';
 import {
     buildZeroCloseAuditNote,
@@ -440,6 +443,43 @@ const Checkout: React.FC = () => {
         () => Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[],
         [cart],
     );
+    const finishButtonRef = React.useRef<HTMLButtonElement | null>(null);
+    const [cashTendered, setCashTendered] = useState<number>(0);
+
+    // Frente 1.D: Atualiza o valor em dinheiro entregue ao selecionar dinheiro ou alterar total
+    useEffect(() => {
+        if (paymentMethod === 'cash') {
+            if (cashTendered === 0 || cashTendered < total) {
+                setCashTendered(total);
+            }
+        }
+    }, [paymentMethod, total]);
+
+    // Frente 1.D: Seleção em 1 toque de presets rápidos de pagamento com auto-focus consciente
+    const handleSelectQuickPreset = useCallback((preset: QuickPayPresetType) => {
+        setPaymentStatus('paid');
+        if (preset === 'pix') {
+            setPaymentMethod('pix');
+        } else if (preset === 'cash_exact') {
+            setPaymentMethod('cash');
+            setCashTendered(total);
+        } else if (preset === 'debit') {
+            setPaymentMethod('debit');
+            if (!selectedTerminalId && terminals.length > 0) {
+                setSelectedTerminalId(terminals[0].id);
+            }
+        } else if (preset === 'credit') {
+            setPaymentMethod('credit');
+            if (!selectedTerminalId && terminals.length > 0) {
+                setSelectedTerminalId(terminals[0].id);
+            }
+        }
+
+        // Foco imediato no botão de conclusão para confirmação em 2 passos rápidos (Enter ou clique)
+        setTimeout(() => {
+            finishButtonRef.current?.focus();
+        }, 50);
+    }, [total, selectedTerminalId, terminals]);
     const assignedCommissionStaff = useMemo(
         () => staff.filter(pro => assignedStaffIds.includes(pro.id) && receivesCommission(pro)),
         [assignedStaffIds, staff],
@@ -503,6 +543,7 @@ const Checkout: React.FC = () => {
         setDiscountResponsibleStaffId('');
         setPaymentMethod('credit');
         setPaymentDescription('');
+        setCashTendered(0);
         setClosureMode('standard');
         setClosureNote('');
         setLegacyReferenceMonth('');
@@ -1322,6 +1363,16 @@ const Checkout: React.FC = () => {
             }
             : null;
 
+        // Frente 1.D: Bloqueio estrito de liquidação em dinheiro com valor entregue insuficiente
+        if (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered < total) {
+            setToast({
+                message: `Valor em dinheiro insuficiente. Faltam ${formatBrlCurrency(total - cashTendered)}.`,
+                type: 'error',
+            });
+            finishLockRef.current = false;
+            return;
+        }
+
         // Delegate validation and execution to Application Service
         const finishRequest: FinishRequest = {
             tenantId: tenantId || '',
@@ -1354,6 +1405,10 @@ const Checkout: React.FC = () => {
             internalSettlementTitle,
             incomeCategory,
             terminalSnapshot,
+            cashAudit: (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered >= total) ? {
+                amountTendered: cashTendered,
+                changeReturned: Math.max(0, Math.round((cashTendered - total) * 100) / 100),
+            } : null,
         };
 
         // Pre-validation by service (returns errors without side effects)
@@ -2057,6 +2112,13 @@ const Checkout: React.FC = () => {
 
                         {shouldShowPaymentMethod && (
                             <div className="mb-8 animate-fade-in">
+                                {/* Frente 1.D: Presets de Pagamento Expresso no Balcão */}
+                                <QuickPayPresets
+                                    onSelectPreset={handleSelectQuickPreset}
+                                    activeMethod={paymentMethod}
+                                    disabled={loading || cart.length === 0}
+                                />
+
                                 <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Forma de Pagamento</label>
                                 <div className="grid grid-cols-2 gap-3">
                                     {[
@@ -2099,6 +2161,15 @@ const Checkout: React.FC = () => {
                                         amount={total}
                                     />
                                 )}
+
+                                {/* Frente 1.D: Calculadora Inteligente de Cédulas e Troco para Dinheiro */}
+                                {paymentMethod === 'cash' && (
+                                    <QuickCashCalculator
+                                        total={total}
+                                        tenderedAmount={cashTendered > 0 ? cashTendered : total}
+                                        onTenderedChange={(val) => setCashTendered(val)}
+                                    />
+                                )}
                             </div>
                         )}
 
@@ -2109,8 +2180,10 @@ const Checkout: React.FC = () => {
                         )}
 
                         <button
+                            ref={finishButtonRef}
                             onClick={handleFinish}
-                            disabled={cart.length === 0 || loading}
+                            disabled={cart.length === 0 || loading || (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total)}
+                            title={paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total ? `Valor insuficiente. Faltam ${formatBrlCurrency(total - cashTendered)}.` : undefined}
                             className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group ${paymentStatus === 'paid'
                                 ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
                                 : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
