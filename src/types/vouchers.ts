@@ -1,5 +1,7 @@
 export type CustomerVoucherStatus = 'available' | 'used' | 'expired' | 'cancelled';
 
+export type VoucherDiscountBearer = 'split' | 'house' | 'barber';
+
 export type CustomerVoucherBenefitType =
   | 'free_service'
   | 'discount_fixed'
@@ -18,6 +20,9 @@ export interface CustomerVoucher {
   service_id: string | null;
   discount_amount: number | null;
   discount_percentage: number | null;
+  discount_bearer?: VoucherDiscountBearer;
+  max_uses?: number;
+  used_count?: number;
   status: CustomerVoucherStatus;
   issued_at: string;
   expires_at: string | null;
@@ -43,9 +48,19 @@ export interface CreateCustomerVoucherInput {
   serviceId?: string | null;
   discountAmount?: number | null;
   discountPercentage?: number | null;
+  discountBearer?: VoucherDiscountBearer;
+  maxUses?: number;
   expiresAt?: string | null;
   notes?: string | null;
   issuedByUserId?: string | null;
+}
+
+export interface ValidateVoucherResult {
+  valid: boolean;
+  message?: string;
+  voucher?: CustomerVoucher;
+  calculatedDiscount: number;
+  bearer: VoucherDiscountBearer;
 }
 
 export const CUSTOMER_VOUCHER_STATUS_LABELS: Record<CustomerVoucherStatus, string> = {

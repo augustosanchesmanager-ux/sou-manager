@@ -34,6 +34,8 @@ import {
 } from '../src/lib/finance/payment';
 import { usePaymentTerminals } from '../src/hooks/usePaymentTerminals';
 import { PaymentTerminalSelector } from '../components/checkout/PaymentTerminalSelector';
+import { VoucherInput } from '../components/checkout/VoucherInput';
+import type { CustomerVoucher, VoucherDiscountBearer } from '../src/types/vouchers';
 import { QuickPayPresets, type QuickPayPresetType } from '../components/checkout/QuickPayPresets';
 import { QuickCashCalculator } from '../components/checkout/QuickCashCalculator';
 import { formatBrlCurrency } from '../src/utils/checkoutQuickPay';
@@ -397,6 +399,7 @@ const Checkout: React.FC = () => {
     const [zeroCloseOrigin, setZeroCloseOrigin] = useState<ZeroCloseOrigin>('club_credit');
     const [zeroCloseReason, setZeroCloseReason] = useState('');
     const [discount, setDiscount] = useState<string>('0');
+    const [appliedVoucher, setAppliedVoucher] = useState<CustomerVoucher | null>(null);
     const [discountType, setDiscountType] = useState<DiscountAuditType>('barber_discount');
     const [discountReasonType, setDiscountReasonType] = useState<DiscountReasonType>('fidelizacao');
     const [discountReasonNote, setDiscountReasonNote] = useState('');
@@ -1418,6 +1421,10 @@ const Checkout: React.FC = () => {
             chefClubInfo: checkoutBenefits ? { id: checkoutBenefits.subscriptionId } : null,
             shouldCollectDiscountAudit,
             discountAuditDraft,
+            voucherId: appliedVoucher?.id || null,
+            voucherCode: appliedVoucher?.voucher_code || null,
+            voucherDiscount: appliedVoucher ? discountValue : 0,
+            discountBearer: appliedVoucher?.discount_bearer || (discountType === 'barber_discount' ? 'barber' : 'split'),
             internalSettlementTitle,
             incomeCategory,
             terminalSnapshot,
@@ -1945,6 +1952,26 @@ const Checkout: React.FC = () => {
                         )}
 
                         <div className="space-y-4 mb-6">
+                            <VoucherInput
+                                tenantId={tenantId || ''}
+                                customerId={selectedClient?.id || null}
+                                subtotal={subtotal}
+                                appliedVoucher={appliedVoucher}
+                                onApplyVoucher={(voucher, discountAmount, bearer) => {
+                                    setAppliedVoucher(voucher);
+                                    setDiscount(discountAmount.toFixed(2));
+                                    if (bearer === 'house') {
+                                        setDiscountType('barbershop_discount');
+                                    } else if (bearer === 'barber') {
+                                        setDiscountType('barber_discount');
+                                    }
+                                }}
+                                onRemoveVoucher={() => {
+                                    setAppliedVoucher(null);
+                                    setDiscount('0');
+                                }}
+                            />
+
                             <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
                                 <span>Subtotal</span>
                                 <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toFixed(2)}</span>
