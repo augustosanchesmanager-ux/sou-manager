@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import { formatCurrency } from '../shared/format/currency';
 import {
     type ServiceCreditsEntry,
     getTotalPlannedCredits,
@@ -324,45 +325,66 @@ const ChefClubPlans: React.FC = () => {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {plans.map((plan) => {
                     const serviceCredits = normalizePlanServiceCredits(plan.service_credit_map, plan.service_credits);
+                    const totalCredits = getTotalPlannedCredits(serviceCredits);
+                    const pricePerCredit = totalCredits > 0 ? plan.monthly_price / totalCredits : null;
 
                     return (
-                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-2xl border ${plan.active ? 'border-[#B88A44]/35' : 'border-slate-200 dark:border-border-dark'} overflow-hidden shadow-sm transition-all hover:border-[#007BFF]/35 hover:shadow-md`}>
+                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-2xl border ${plan.active ? 'border-[#B88A44]/35 shadow-sm' : 'border-slate-200 dark:border-white/10 opacity-75'} overflow-hidden transition-all hover:border-[#007BFF]/40 hover:shadow-md flex flex-col justify-between`}>
                             <div className="p-6">
                                 <div className="flex justify-between items-start mb-4">
-                                    <span className={`px-3 py-1 rounded-full text-[11px] font-black ${plan.active ? 'bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382]' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                        {plan.active ? 'Ativo' : 'Inativo'}
+                                    <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${plan.active ? 'bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382]' : 'bg-slate-100 dark:bg-white/10 text-slate-500'}`}>
+                                        {plan.active ? 'Plano Ativo' : 'Inativo'}
                                     </span>
                                     <div className="flex gap-1">
-                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-[#007BFF] transition-colors" title="Editar plano">
+                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-[#007BFF] dark:hover:text-[#72E7FF] transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-white/5" title="Editar plano">
                                             <span className="material-symbols-outlined text-lg">edit</span>
                                         </button>
-                                        <button onClick={() => toggleStatus(plan)} className={`p-2 transition-colors ${plan.active ? 'text-red-400 hover:text-red-600' : 'text-emerald-400 hover:text-emerald-600'}`}>
+                                        <button onClick={() => toggleStatus(plan)} className={`p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 ${plan.active ? 'text-amber-500 hover:text-amber-600' : 'text-emerald-500 hover:text-emerald-600'}`} title={plan.active ? 'Desativar plano' : 'Ativar plano'}>
                                             <span className="material-symbols-outlined text-lg">{plan.active ? 'visibility_off' : 'visibility'}</span>
                                         </button>
-                                        <button onClick={() => handleDelete(plan)} className="p-2 text-rose-500 hover:text-rose-600 transition-colors" title="Excluir plano" disabled={deletingPlanId === plan.id}>
+                                        <button onClick={() => handleDelete(plan)} className="p-2 text-rose-500 hover:text-rose-600 transition-colors rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20" title="Excluir plano" disabled={deletingPlanId === plan.id}>
                                             <span className="material-symbols-outlined text-lg">{deletingPlanId === plan.id ? 'progress_activity' : 'delete'}</span>
                                         </button>
                                     </div>
                                 </div>
 
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1">{plan.name}</h3>
-                                <div className="flex items-baseline gap-1 mb-4">
-                                    <span className="text-2xl font-black text-[#007BFF] dark:text-[#72E7FF]">R$ {Number(plan.monthly_price || 0).toFixed(2)}</span>
-                                    <span className="text-xs text-slate-500 font-bold">/mês</span>
+                                {plan.description && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3 leading-relaxed">
+                                        {plan.description}
+                                    </p>
+                                )}
+
+                                <div className="mb-4">
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-[#007BFF] dark:text-[#72E7FF]">{formatCurrency(plan.monthly_price || 0)}</span>
+                                        <span className="text-xs text-slate-500 font-bold">/mês</span>
+                                    </div>
+                                    {pricePerCredit !== null && (
+                                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                            Equivale a ~{formatCurrency(pricePerCredit)} por sessão/corte
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-white/5">
-                                    <div className="rounded-2xl bg-slate-50 dark:bg-white/5 p-3 border border-slate-100 dark:border-white/10">
-                                        <p className="text-[11px] font-black text-slate-500 mb-2">Créditos por serviço</p>
+                                    <div className="rounded-2xl bg-slate-50 dark:bg-white/5 p-3.5 border border-slate-100 dark:border-white/10">
+                                        <div className="flex items-center justify-between mb-2.5">
+                                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Serviços e cotas do mês</p>
+                                            <span className="text-xs font-bold text-[#B88A44] dark:text-[#E3C382]">{totalCredits} créditos totais</span>
+                                        </div>
                                         <div className="space-y-2">
                                             {serviceCredits.length > 0 ? serviceCredits.map((entry) => (
-                                                <div key={`${plan.id}-${entry.service_id || entry.service_name}`} className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
-                                                    <span className="font-bold">{entry.service_name}</span>
-                                                    <span className="inline-flex items-center rounded-full bg-[#B88A44]/15 px-2.5 py-1 text-[11px] font-black text-[#9A6F2D] dark:text-[#E3C382]">
-                                                        {entry.credits}
+                                                <div key={`${plan.id}-${entry.service_id || entry.service_name}`} className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+                                                    <span className="font-bold flex items-center gap-1.5">
+                                                        <span className="material-symbols-outlined text-xs text-[#007BFF] dark:text-[#72E7FF]">check_circle</span>
+                                                        {entry.service_name}
+                                                    </span>
+                                                    <span className="inline-flex items-center rounded-full bg-[#B88A44]/15 px-2.5 py-0.5 text-xs font-black text-[#9A6F2D] dark:text-[#E3C382]">
+                                                        {entry.credits}x / mês
                                                     </span>
                                                 </div>
                                             )) : (
@@ -371,18 +393,33 @@ const ChefClubPlans: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {plan.priority_booking && (
-                                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                            <span className="material-symbols-outlined text-blue-500 text-lg">schedule</span>
-                                            <span className="font-bold">Prioridade na Agenda</span>
-                                        </div>
-                                    )}
-                                    {plan.product_discount > 0 && (
-                                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                            <span className="material-symbols-outlined text-emerald-500 text-lg">shopping_cart</span>
-                                            <span className="font-bold">{plan.product_discount}% OFF em Produtos</span>
-                                        </div>
-                                    )}
+                                    {/* Benefícios adicionais */}
+                                    <div className="space-y-1.5 pt-1">
+                                        {plan.priority_booking && (
+                                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                                <span className="material-symbols-outlined text-blue-500 text-base">schedule</span>
+                                                <span className="font-bold">Prioridade na Agenda</span>
+                                            </div>
+                                        )}
+                                        {plan.product_discount > 0 && (
+                                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                                <span className="material-symbols-outlined text-emerald-500 text-base">shopping_cart</span>
+                                                <span className="font-bold">{plan.product_discount}% de desconto em Produtos</span>
+                                            </div>
+                                        )}
+                                        {plan.credit_validity_days ? (
+                                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                <span className="material-symbols-outlined text-slate-400 text-base">timelapse</span>
+                                                <span>Validade: {plan.credit_validity_days} dias por ciclo</span>
+                                            </div>
+                                        ) : null}
+                                        {plan.max_rollover_credits > 0 && (
+                                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                <span className="material-symbols-outlined text-slate-400 text-base">history</span>
+                                                <span>Acumula até {plan.max_rollover_credits} créditos não usados</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

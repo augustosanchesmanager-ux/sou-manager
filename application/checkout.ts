@@ -142,6 +142,12 @@ export interface FinishRequest {
     shouldCollectDiscountAudit: boolean;
     discountAuditDraft?: DiscountAuditDraft | null;
 
+    // F-11: Voucher & Discount Bearer
+    voucherId?: string | null;
+    voucherCode?: string | null;
+    voucherDiscount?: number;
+    discountBearer?: 'split' | 'house' | 'barber' | null;
+
     // Labels
     internalSettlementTitle: string;
     incomeCategory?: string;
@@ -278,6 +284,10 @@ class CheckoutApplicationServiceImpl {
             status: shouldCloseAfterComandaSync ? 'open' : (req.paymentStatus === 'paid' ? 'paid' : 'open'),
             total: req.total,
             discount: req.discountValue,
+            voucher_id: req.voucherId || null,
+            voucher_code: req.voucherCode || null,
+            voucher_discount: req.voucherDiscount ?? 0,
+            discount_bearer: req.discountBearer || null,
             payment_method: shouldCloseAfterComandaSync ? null : (req.paymentStatus === 'paid' ? req.paymentMethod : null),
             closure_mode: req.paymentStatus === 'paid' ? req.closureMode : 'standard',
             closure_note: req.paymentStatus === 'paid' && req.isLegacyClubSettlement ? legacyClosureAuditNote : null,

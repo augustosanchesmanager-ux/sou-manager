@@ -74,6 +74,39 @@ export interface RevenueEvolutionPoint {
   expense: number;
 }
 
+export interface ScheduleHeatmapCell {
+  dayOfWeek: number; // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+  dayLabel: string;
+  hour: number;      // 8 a 21
+  hourLabel: string;
+  appointmentsCount: number;
+  occupancyRate: number; // 0 a 100%
+  revenue: number;
+}
+
+export interface StaffProductivityDetail {
+  staffId: string;
+  name: string;
+  appointmentsCount: number;
+  totalGrossRevenue: number;
+  avgTicket: number;
+  totalCommission: number;
+  netShopMargin: number;
+  netMarginPercent: number;
+  topService?: string;
+}
+
+export interface LiquidityOverview {
+  grossRevenue: number;         // Faturamento bruto (Comandas / Serviços)
+  bankingFees: number;          // Taxas de maquininha & tarifas bancárias
+  staffCommissions: number;     // Comissões repassadas à equipe
+  operatingExpenses: number;    // Despesas operacionais (fixas/variáveis)
+  netOperatingCash: number;     // Resultado líquido em caixa
+  netMarginPercent: number;     // % de margem líquida retida
+  reconciledCount: number;      // Transações conciliadas
+  unreconciledCount: number;    // Transações pendentes de extrato
+}
+
 export interface BusinessInsightsData {
   loading: boolean;
   error: string | null;

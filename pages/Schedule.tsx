@@ -58,6 +58,8 @@ import {
   detectAppointmentOverlap,
 } from '@/src/utils/scheduleDuration';
 import { scheduleDurationService } from '../services/scheduleDurationService';
+import { WaitlistModal } from '../components/schedule/WaitlistModal';
+import { waitlistService } from '../services/waitlistService';
 
 interface DBStaff {
   id: string;
@@ -302,6 +304,22 @@ const Schedule: React.FC = () => {
   const [blockSaving, setBlockSaving] = useState(false);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [showOnlyBlocks, setShowOnlyBlocks] = useState(false);
+  const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
+  const [waitlistWaitingCount, setWaitlistWaitingCount] = useState(0);
+
+  const refreshWaitlistCount = useCallback(async () => {
+    if (!tenantId) return;
+    try {
+      const count = await waitlistService.countWaiting(tenantId);
+      setWaitlistWaitingCount(count);
+    } catch {
+      // Silencioso em caso de tabela ainda vazia
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    void refreshWaitlistCount();
+  }, [refreshWaitlistCount]);
   const [listFilters, setListFilters] = useState<AppointmentFiltersState>({
     date: getDateInputValue(new Date()),
     period: 'today',
@@ -2715,6 +2733,20 @@ Podemos confirmar? 😄`;
                 <span className="material-symbols-outlined text-base">insights</span>
                 <span>Operações</span>
               </button>
+
+              <button
+                onClick={() => setIsWaitlistModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-200 shadow-xs transition-all hover:bg-amber-500/25"
+                title="Fila de Espera de Agendamento"
+              >
+                <span className="material-symbols-outlined text-base">hourglass_top</span>
+                <span>Fila de Espera</span>
+                {waitlistWaitingCount > 0 && (
+                  <span className="rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-slate-950">
+                    {waitlistWaitingCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
@@ -4740,6 +4772,17 @@ Podemos confirmar? 😄`;
           </div>
         </div>
       )}
+
+      <WaitlistModal
+        isOpen={isWaitlistModalOpen}
+        onClose={() => setIsWaitlistModalOpen(false)}
+        tenantId={tenantId || ''}
+        selectedDate={getDateInputValue(selectedDate)}
+        clients={clientsList.map((c) => ({ id: c.id, name: c.name, phone: c.phone || null }))}
+        staffList={staffList.map((s) => ({ id: s.id, name: s.name }))}
+        services={servicesList.map((s) => ({ id: s.id, name: s.name }))}
+        onWaitlistUpdated={refreshWaitlistCount}
+      />
     </div >
   );
 };

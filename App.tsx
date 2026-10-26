@@ -36,6 +36,7 @@ const Expenses = lazy(() => import('./pages/Expenses'));
 const Financial = lazy(() => import('./pages/Financial'));
 const FinancialOverview = lazy(() => import('./pages/FinancialOverview'));
 const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
+const BankReconciliation = lazy(() => import('./pages/BankReconciliation'));
 const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
 const Landing = lazy(() => import('./pages/Landing'));
@@ -304,6 +305,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/financial-overview" element={<ManagerRoute><FeatureRoute feature="finance"><FinancialOverview /></FeatureRoute></ManagerRoute>} />
             <Route path="/cashflow" element={<ManagerRoute><FeatureRoute feature="finance"><Cashflow /></FeatureRoute></ManagerRoute>} />
             <Route path="/cash-closing" element={<ManagerRoute><FeatureRoute feature="cash_closing"><CashClosingPage /></FeatureRoute></ManagerRoute>} />
+            <Route path="/bank-reconciliation" element={<ManagerRoute><FeatureRoute feature="finance"><BankReconciliation /></FeatureRoute></ManagerRoute>} />
             <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
             <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />

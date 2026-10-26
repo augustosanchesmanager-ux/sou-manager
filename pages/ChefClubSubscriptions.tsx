@@ -348,18 +348,47 @@ const ChefClubSubscriptions: React.FC = () => {
                                         </td>
 
                                         <td className="px-5 py-4 align-top">
-                                            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
                                                 <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                                                {subscription.availableCredits}
+                                                {subscription.availableCredits} créditos totais
                                             </div>
-                                            {subscription.serviceBalances.length > 0 && (
-                                                <div className="mt-2 space-y-1">
-                                                    {subscription.serviceBalances.slice(0, 2).map((balance) => (
-                                                        <p key={`${subscription.id}-${balance.service_id}`} className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                            {balance.service_name}: {balance.available} disponíveis
-                                                        </p>
-                                                    ))}
+                                            {subscription.serviceBalances.length > 0 ? (
+                                                <div className="mt-2.5 space-y-1.5">
+                                                    {subscription.serviceBalances.map((balance) => {
+                                                        const planQuota = planServices.find((p) => p.service_id === balance.service_id)?.credits;
+                                                        const quotaText = planQuota !== undefined
+                                                            ? `${balance.available}/${planQuota} restantes no mês`
+                                                            : `${balance.available} disponíveis`;
+                                                        const percent = planQuota && planQuota > 0
+                                                            ? Math.min(100, Math.round((balance.available / planQuota) * 100))
+                                                            : 100;
+
+                                                        return (
+                                                            <div key={`${subscription.id}-${balance.service_id}`} className="min-w-[170px]">
+                                                                <div className="flex items-center justify-between text-xs">
+                                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{balance.service_name}</span>
+                                                                    <span className="font-black text-[#A16207] dark:text-[#FDE68A]">{quotaText}</span>
+                                                                </div>
+                                                                {planQuota !== undefined && planQuota > 0 && (
+                                                                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all ${
+                                                                                balance.available === 0
+                                                                                    ? 'bg-rose-500'
+                                                                                    : balance.available <= Math.ceil(planQuota / 2)
+                                                                                        ? 'bg-amber-500'
+                                                                                        : 'bg-emerald-500'
+                                                                            }`}
+                                                                            style={{ width: `${percent}%` }}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
+                                            ) : (
+                                                <p className="mt-1 text-xs text-slate-400">Sem créditos por serviço</p>
                                             )}
                                         </td>
 
