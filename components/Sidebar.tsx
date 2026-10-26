@@ -45,6 +45,7 @@ import {
   RefreshCw,
   Eye,
   GitBranch,
+  Building2,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -213,6 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { name: 'Visão Geral', icon: Wallet, path: '/financial-overview', module: 'financial' },
         { name: 'Fluxo de Caixa', icon: ArrowRightLeft, path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+        { name: 'Conciliação Bancária', icon: Building2, path: '/bank-reconciliation', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
