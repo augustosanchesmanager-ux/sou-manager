@@ -10,10 +10,10 @@ interface NextAppointmentCardProps {
 }
 
 const STATUS_COLORS: Record<string, { dot: string; badge: string }> = {
-  confirmed: { dot: appointmentDotColors.confirmed || 'bg-success', badge: 'bg-success/10 text-success border-success/30' },
-  pending: { dot: appointmentDotColors.pending || 'bg-primary', badge: 'bg-primary/10 text-primary-dark border-primary/30' },
-  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-400', badge: 'bg-slate-100 text-slate-500 border-slate-200' },
-  completed: { dot: appointmentDotColors.completed || 'bg-ink-soft', badge: 'bg-ink-soft/10 text-ink-soft border-ink-soft/30' },
+  confirmed: { dot: 'bg-primary-dark', badge: 'bg-gold-soft text-primary-dark border-primary-light/60' },
+  pending: { dot: 'bg-amber-500', badge: 'bg-gold-pale text-amber-800 border-line' },
+  cancelled: { dot: 'bg-line', badge: 'bg-gold-pale text-ink-soft border-line' },
+  completed: { dot: 'bg-success', badge: 'bg-success/10 text-success border-success/30' },
 };
 
 const formatTime = (isoString: string) => {
@@ -105,7 +105,7 @@ export const NextAppointmentCard: React.FC<NextAppointmentCardProps> = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl font-black text-ink">
+            <span className="text-xl font-black tabular-nums tracking-[-0.02em] text-ink">
               {formatTime(next.start_time)}
             </span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${status.badge}`}>

@@ -1,22 +1,33 @@
 ---
 name: SOU MANA.GER Barber
-description: Sistema operacional premium para barbearias, com gestao real, rotina acolhedora e assinatura SMG tech.
+description: Sistema operacional premium para barbearias de alto padrão. Arquitetura Atelier Tech Sofisticado com densidade operacional cirúrgica, estética dark-first e tokens 100% integrados ao Tailwind v4.
 colors:
-  primary-gold: "#D99A2B"
-  primary-gold-hover: "#A96F14"
-  primary-gold-light: "#F3D9A4"
-  success-green: "#178A50"
-  danger-red: "#C92A2A"
-  gold-soft: "#F7E7C2"
-  gold-pale: "#FCF6E7"
+  primary: "#D99A2B"
+  primary-dark: "#A96F14"
+  primary-light: "#F3D9A4"
+  gold: "#D99A2B"
+  night: "#0B0B0C"
+  smg-ink: "#14110B"
+  smg-deep: "#231A06"
+  surface-dark: "#171310"
+  card-dark: "#1A1610"
+  border-dark: "#2D2618"
   cream: "#FAF6EE"
   card: "#FFFFFF"
   ink: "#191611"
   ink-soft: "#6B6252"
   line: "#E8DFC9"
-  night: "#0B0B0C"
-  smg-ink: "#14110B"
-  smg-deep: "#231A06"
+  gold-soft: "#F7E7C2"
+  gold-pale: "#FCF6E7"
+  success: "#178A50"
+  danger: "#C92A2A"
+  warning: "#F59E0B"
+  barber-1: "#C98A1F"
+  barber-2: "#10B981"
+  barber-3: "#F59E0B"
+  barber-4: "#EF4444"
+  barber-5: "#F97316"
+  barber-6: "#14B8A6"
 typography:
   display:
     fontFamily: "Outfit, sans-serif"
@@ -62,186 +73,259 @@ spacing:
   page: "32px"
 components:
   button-primary:
-    backgroundColor: "linear-gradient(to right, #E8B04B, #C98A1F)"
+    backgroundColor: "linear-gradient(to right, #D99A2B, #A96F14)"
     textColor: "{colors.night}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.md}"
     padding: "10px 16px"
     typography: "{typography.body}"
-  button-primary-hover:
-    backgroundColor: "{colors.primary-gold-hover}"
-    textColor: "{colors.night}"
-    rounded: "{rounded.sm}"
-    padding: "10px 16px"
   button-secondary:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
+    backgroundColor: "{colors.card-dark}"
+    textColor: "#FFFFFF"
+    borderColor: "{colors.border-dark}"
+    rounded: "{rounded.md}"
     padding: "10px 16px"
   input-default:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.card-dark}"
+    textColor: "#FFFFFF"
+    borderColor: "{colors.border-dark}"
     rounded: "{rounded.md}"
     padding: "10px 12px"
   card-boutique:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.card-dark}"
+    borderColor: "{colors.border-dark}"
     rounded: "{rounded.xl}"
     padding: "20px"
 ---
 
 # Design System: SOU MANA.GER Barber
 
-## 1. Overview
+> **Norma de Design & Frontend (v2.0 — Dark-First Atelier Tech)**
+> Este documento é a **Fonte Única da Verdade Visual e Interativa** para o produto SMG Barber.
+> Todo componente, tela, grid e token deve seguir estritamente as especificações abaixo.
 
-**Creative North Star: "The Smart Barber Atelier"**
+---
 
-The SOU MANA.GER interface is a working atelier for barbershop management: precise enough for finance and command flows, warm enough for daily use at the counter, and branded enough to feel unmistakably SMG. The system runs on a light cream base with a single gold as the brand voice. There is no accent blue: gold carries brand and navigation, while green and red are reserved strictly for semantic status and chart series.
+## 1. Creative North Star: "Atelier Tech Sofisticado"
 
-This is a product interface, not a marketing stage. Density is allowed because owners and managers need agenda, comandas, cash flow, team status, recurring memberships and real indicators in one operational rhythm. The UI should feel premium through alignment, spacing, hierarchy and state clarity, never through decorative effects that slow the task down.
+O SOU MANA.GER Barber não é um ERP administrativo comum, nem um template genérico de SaaS. Ele é o **sistema operacional de precisão para barbearias de alto padrão**, combinando a atmosfera imersiva de um atelier clássico com o rigor e a densidade de produtos digitais de referência global como **Linear** e **Stripe**.
 
-It explicitly rejects generic ERP behavior, generic SaaS dashboards, fake metrics, and barber-agnostic screens. Every new screen should prove it belongs to a barbershop through its data, workflows and vocabulary.
+### Princípios Fundamentais:
+1. **Dark-First por Natureza:** O ambiente de trabalho da barbearia moderna (iluminação cênica, espelhos, bancadas escuras) demanda um sistema nativamente escuro. A base é construída em obsidian profundo (`#0B0B0C`), grafite quente (`#14110B`) e superfícies texturizadas (`#1A1610`), acolhendo a visão do profissional sem cansaço durante jornadas longas.
+2. **Sinal Cirúrgico em Ouro/Bronze Fosco:** O ouro fosco (`#D99A2B` / `#B88A44`) é o vetor exclusivo de voz da marca, navegação ativa e ações de alta prioridade. Ele **nunca** é utilizado como decoração vazia, fundos inteiros de cards ou ruído visual.
+3. **Densidade Controlada & Sem Ruído:** Telas operacionais de alta complexidade (Agenda, Fila de Cadeiras, Comandas e Caixa) contêm múltiplos fluxos simultâneos. A clareza visual é obtida por meio de hierarquia rígida, microtipografia precisa, espaçamentos matemáticos e ausência de redundâncias. Nenhuma informação deve aparecer duplicada na mesma visão.
+4. **Respeito aos Dados Reais & Vocabulário de Barbearia:** Não usamos termos genéricos ("pedidos", "itens", "produtos diversos"). Usamos o linguajar vivo da operação: *Agendamentos, Comandas, Encaixe, Fila de Cadeira, Fechamento de Caixa, Rateio de Comissão e Assinaturas/Club*.
 
-**Key Characteristics:**
-- Dense but calm product surfaces for real work.
-- Cream warmth from gold, ivory and ink — light is the default theme.
-- Gold reserved for brand voice, primary actions and active navigation.
-- Clear states for agenda, payment, finance, support and recurring memberships.
-- Real data, honest empty states and actionable errors.
+---
 
-## 2. Colors
+## 2. Token de Cores & CSS-First Architecture (Tailwind v4)
 
-The palette is barber-first and single-accent: one gold carries the brand across light surfaces. Blue is removed from the design system entirely — decorative or operational. Green and red are semantic only.
+Todas as cores do sistema são declaradas no `@theme` de [index.css](file:///c:/SMG/04_PRODUTOS/SMG_BARBER/sou-manager/index.css).
 
-### Primary
-- **Gold** (`#D99A2B`): The brand and operational primary. Use for primary actions, active navigation, notification badges, focus rings and selected states. Its role is directional, not decorative.
-- **Gold Dark** (`#A96F14`): The pressed/hover tone, and gold text on light surfaces where contrast must hold AA.
-- **Gold Light** (`#F3D9A4`): A light highlight for subtle borders, icons and small accents. Use sparingly so premium does not become noisy.
+> [!CAUTION]
+> **REGRA CRÍTICA DE NOMENCLATURA:** O token oficial é `primary` (com variantes `primary-dark` e `primary-light`). **O uso de `primary-gold`, `bg-primary-gold` ou qualquer variação não mapeada é terminantemente proibido.**
 
-### Surfaces
-- **Cream** (`#FAF6EE`): The light app base and page background. Warmer than white, softer over long sessions.
-- **Card** (`#FFFFFF`): Cards, modals, tables and inputs.
-- **Line** (`#E8DFC9`): Hairline borders, dividers and table rules. Borders come before shadows.
-- **Gold Soft** (`#F7E7C2`) and **Gold Pale** (`#FCF6E7`): Subtle gold-tinted tile and header washes for icon tiles, table headers and quiet emphasis.
+### 2.1 Paleta Primária (Brand & Navigation)
+- **Primary / Gold** (`#D99A2B` / `var(--color-primary)`): Cor principal da marca, botões de ação primária, estados selecionados, tabs ativas e anéis de foco.
+- **Primary Dark** (`#A96F14` / `var(--color-primary-dark)`): Hover de botões primários, gradientes e bordas de ênfase no modo escuro.
+- **Primary Light** (`#F3D9A4` / `var(--color-primary-light)`): Textos de destaque sobre fundos escuros, ícones ativos e badges de status dourado suave.
+- **Gold** (`#D99A2B` / `var(--color-gold)`): Alias de marca alinhado ao core.
 
-### Text
-- **Ink** (`#191611`): Strong light-mode text and headings.
-- **Ink Soft** (`#6B6252`): Secondary text, helper copy, metadata and inactive icons.
-- **Night** (`#0B0B0C`): Text on gold buttons and pills, where gold is the background.
+### 2.2 Superfícies Dark-First (Canvas & Cards)
+- **Night / Obsidian** (`#0B0B0C` / `var(--color-night)`): Base mais profunda da aplicação, contraste para modais, headers de agenda e texto legível sobre botões dourados (`text-night`).
+- **SMG Ink** (`#14110B` / `var(--color-smg-ink)`): Background primário do modo escuro.
+- **SMG Deep** (`#231A06` / `var(--color-smg-deep)`): Charcoal quente com subtom dourado para containers de apoio.
+- **Surface Dark** (`#171310` / `var(--color-surface-dark)`): Superfície secundária (painéis laterais, toolbars e agrupamentos).
+- **Card Dark** (`#1A1610` / `var(--color-card-dark)`): Cards, tabelas, containers de timeline e modais.
+- **Border Dark** (`#2D2618` / `var(--color-border-dark)`): Bordas milimétricas (1px) que estruturam os blocos sem criar peso visual.
 
-### Semantic (status and charts only)
-- **Success Green** (`#178A50`): Positive financial movement, completed states and successful settlement.
-- **Danger Red** (`#C92A2A`): Blocking, destructive or failed states.
-- **Warning Amber**: Due soon, attention, inventory or operational warning — light tints only.
+### 2.3 Superfícies Light-Mode (Suporte Secundário)
+- **Cream** (`#FAF6EE` / `var(--color-cream)`): Fundo acolhedor para ambientes claros.
+- **Card Light** (`#FFFFFF` / `var(--color-card)`): Cards e superfícies no modo claro.
+- **Line** (`#E8DFC9` / `var(--color-line)`): Linhas e divisores no modo claro.
+- **Ink** (`#191611` / `var(--color-ink)`): Texto principal em superfícies claras.
+- **Ink Soft** (`#6B6252` / `var(--color-ink-soft)`): Texto secundário e legendas.
 
-### Corporate
-- **SMG Ink** (`#14110B`) and **SMG Deep** (`#231A06`): Dark corporate-brand surfaces outside the operational product. Names retained from the previous system; values warmed to the new identity.
+### 2.4 Status Semântico (Restrito a Dados e Gráficos)
+- **Success Green** (`#178A50` / `var(--color-success)`): Indicadores positivos, comanda paga, faturamento, horário confirmado.
+- **Danger Red** (`#C92A2A` / `var(--color-danger)`): Atrasos graves, cancelamento, faturamento negativo, erros operacionais.
+- **Warning Amber** (`#F59E0B` / `var(--color-warning)`): Atenção, encaixes pendentes de confirmação, clientes aguardando na recepção.
 
-### Dark mode
+### 2.5 Chips de Identidade dos Barbeiros (Paleta Atelier)
+Para diferenciar colunas e agendamentos de cada profissional sem recorrer a cores conflitantes:
+- **Barber 1:** `#C98A1F` (Bronze Quente)
+- **Barber 2:** `#10B981` (Esmeralda)
+- **Barber 3:** `#F59E0B` (Âmbar)
+- **Barber 4:** `#EF4444` (Rubi Clássico)
+- **Barber 5:** `#F97316` (Cobre Vibrante)
+- **Barber 6:** `#14B8A6` (Turquesa Atelier)
 
-Dark mode remains available but is no longer the default. It uses warm dark surfaces (`#1A1610` cards, `#2D2618` borders) — never navy. `.theme-estetica` (kiosk) overrides the palette for its own skin and is out of scope for this identity.
+---
 
-### Named Rules
+## 3. Leis Rígidas de Cor & Banimentos
 
-**The Real Signal Rule.** Color must communicate state, hierarchy or brand. Do not spend accent color on decoration.
+> [!WARNING]
+> **1. O PURPLE BAN ESTRITO (Invariante Global):**
+> Nenhuma tela, componente, gradiente ou indicador pode conter tons de violeta, roxo, lilás ou índigo (`#8B5CF6`, `#7C3AED`, `#6366F1`, etc.). Violações impedem a aprovação de PRs.
+>
+> **2. O BANIMENTO DE AZUL CORPORATIVO (No Corporate Blue):**
+> Azuis genéricos de templates SaaS (`#007BFF`, `#3B82F6`, `#0284C7`, `#EAF7FF`) são completamente banidos do produto. Toda ênfase é dourada, bronze ou âmbar.
+>
+> **3. REGRA DO CONTRASTE DE CTA:**
+> Botões dourados (`bg-primary` ou `bg-gradient-to-r from-primary to-primary-dark`) **devem ter texto escuro** (`text-night font-bold`). É proibido texto branco sobre botões dourados, pois viola a acessibilidade (WCAG AA).
+>
+> **4. REGRA DA BORDA ANTES DA SOMBRA:**
+> No modo escuro, a profundidade é dada por contraste de superfície (`bg-card-dark`) e contorno de 1px (`border-border-dark`). Sombras são sutis e reservadas para modais flutuantes ou estados de hover interativos (`hover:border-primary/40`).
 
-**The Single Gold Rule.** Gold is the only brand and navigation color. Blue is removed from the system: never reintroduce a decorative or operational blue. Green and red are semantic only (status, charts), never brand voice.
+---
 
-**The CTA Gradient Rule.** The gold gradient (`#E8B04B → #C98A1F` with night text) is for buttons only. Never use it on cards, tiles or page backgrounds.
+## 4. Tipografia & Microtipografia Cirúrgica
 
-## 3. Typography
+O sistema utiliza duas famílias tipográficas importadas via Google Fonts:
+- **Display & Headings:** `Outfit, sans-serif` (`--font-display`).
+- **Body & Interface:** `Plus Jakarta Sans, sans-serif` (`--font-sans`).
 
-**Display Font:** Outfit, sans-serif
-**Body Font:** Plus Jakarta Sans, sans-serif
-**Label/Mono Font:** No mono family is currently established.
+### 4.1 Escala Tipográfica
 
-**Character:** Outfit gives headings and numeric displays a boutique, high-confidence feel. Plus Jakarta Sans keeps dense product text readable, modern and calm across tables, forms, cards and filters.
+| Função | Família | Tamanho / Leading | Tracking | Peso | Classes Tailwind |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Page Title** | Outfit | `1.875rem` (30px) / `1.15` | `-0.02em` | 800 | `font-display text-2xl md:text-3xl font-extrabold tracking-tight` |
+| **Section Header**| Outfit | `1.5rem` (24px) / `1.2` | `-0.02em` | 700 | `font-display text-xl md:text-2xl font-bold tracking-tight` |
+| **Card / Modal Title**| Outfit | `1.125rem` (18px) / `1.25` | `-0.02em` | 700 | `font-display text-base md:text-lg font-bold tracking-tight` |
+| **Body (Padrão)** | Plus Jakarta Sans | `0.875rem` (14px) / `1.5` | `normal` | 500 | `font-sans text-sm font-medium text-ink-soft` |
+| **Body Bold** | Plus Jakarta Sans | `0.875rem` (14px) / `1.5` | `normal` | 600/700 | `font-sans text-sm font-semibold text-white` |
+| **Micro Caption** | Plus Jakarta Sans | `0.75rem` (12px) / `1.4` | `0.02em` | 500 | `font-sans text-xs text-ink-soft` |
+| **Overline Label** | Plus Jakarta Sans | `0.6875rem` (11px) / `1.2` | `0.16em` | 700 | `font-sans text-[11px] font-bold uppercase tracking-wider` |
 
-### Hierarchy
-- **Display** (800, 1.875rem, 1.15): Use for page titles, major dashboard headings and large numeric emphasis. Keep it out of routine form labels.
-- **Headline** (700, 1.5rem, 1.2): Use for section-level headings and modal titles.
-- **Title** (700, 1.125rem, 1.25): Use for card headings, panel titles and grouped controls.
-- **Body** (500, 0.875rem, 1.5): Use for default UI copy, rows, descriptions and operational text. Keep prose near 65 to 75 characters where it reads as paragraphs.
-- **Label** (700, 0.6875rem, 0.16em, uppercase): Use for metadata, table/category labels, filter captions and compact status descriptors.
+### 4.2 Mandato dos Números Tabulares & Proteção contra Quebra
+Todo valor monetário (`R$ 150,00`), horário (`14:30 - 15:15`), percentual (`85%`) e contador numérico (`4 atendimentos`) deve obrigatoriamente aplicar:
+- `tabular-nums` — Garante alinhamento numérico vertical sem saltos.
+- `whitespace-nowrap` — Impede que valores quebrem entre linhas (ex: "R$" em uma linha e "150,00" na outra).
 
-### Named Rules
+---
 
-**The Product Legibility Rule.** Display type is for orientation and high-value numbers only. Labels, buttons, inputs and table rows stay compact and readable.
+## 5. Arquitetura de Layout & Grids de Alta Densidade
 
-## 4. Elevation
+Para telas de alta demanda operacional (ex: [pages/Schedule.tsx](file:///c:/SMG/04_PRODUTOS/SMG_BARBER/sou-manager/pages/Schedule.tsx)), adota-se o padrão estrito de **Hero em 3 Níveis**.
 
-The system uses a hybrid of tonal layering, borders and soft shadows. Light mode is the base: cream surfaces, hairline gold-tinted borders and subtle warm ambient shadows. Dark mode, when enabled, uses warm dark layering and border contrast first, with heavier shadows reserved for modal overlays and elevated panels.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: Título & Contexto  |  Navegador de Data Unificado  |  Ações CTAs │
+├────────────────────────────────────────────────────────────────────────┤
+│ TIER 2: Toolbar Operacional:                                           │
+│ [ Fila Cadeiras | Calendário | Lista ] [ Dia | Semana ]  ───  [ Utils ]│
+├────────────────────────────────────────────────────────────────────────┤
+│ TIER 3: Grid 4-KPI Atelier (Atendimentos | Pendentes | Comandas | Meta) │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-### Shadow Vocabulary
-- **SMG Shell** (`box-shadow: 0 12px 32px rgba(61, 42, 8, 0.08)` → `--shadow-smg-shell`): Default card and panel elevation in light mode.
-- **SMG Glow** (`box-shadow: 0 0 28px rgba(217, 154, 43, 0.25)` → `--shadow-smg-glow`): Gold ambient glow reserved for hover and genuinely interactive elevations.
-- **Modal Overlay:** Heavier warm shadow for modals and floating panels where border alone is not enough.
+### 5.1 O Padrão Hero em 3 Níveis (The 3-Tier Hero Pattern)
+1. **Tier 1 — Identidade, Data Única & CTAs:**
+   - **Título da Tela:** Ex: "Agenda do Atelier" com ícone de marca.
+   - **Navegador de Data Unificado:** Controles `Hoje`, `< Data Formatada >` e trigger de calendário. A data só aparece **uma única vez** (proibido ter datepicker e chips repetindo o mesmo dia da semana).
+   - **Ações Primárias:** Agrupamento de botões de conversão imediata (`+ Encaixe Rápido` em estilo secundário, `+ Novo Agendamento` em estilo primário dourado).
+2. **Tier 2 — Toolbar de Modos de Visão e Ferramentas:**
+   - **Seletor de Visão Principal:** Segmented Control (`Fila de Cadeiras`, `Calendário / Grade`, `Lista de Atendimentos`).
+   - **Seletor de Granularidade:** Alternância contextual (`Dia`, `Semana`).
+   - **Ações Utilitárias:** Ações secundárias agrupadas à direita (`Exportar CSV`, `Bloqueios`, `Fechar Agenda`, `Operações`).
+3. **Tier 3 — Painel Resumo 4-KPI:**
+   - Exatamente 4 cards sintetizando o dia/período:
+     1. *Total de Atendimentos*
+     2. *Agendamentos Pendentes / Aguardando*
+     3. *Comandas Abertas / Em Atendimento*
+     4. *Faturamento Previsto (R$)*
+   - Tipografia de valor: `font-display text-2xl font-bold tabular-nums whitespace-nowrap`.
 
-### Named Rules
+### 5.2 Lei do Filtro de Fonte Única (Single-Source Filter Law)
+- Em nenhuma tela do sistema é permitido duplicar filtros ou seletores de status.
+- Se a barra superior já possui filtro de barbeiro ou data, a grade ou lista inferior **não pode** exibir uma segunda barra repetindo os mesmos filtros.
 
-**The Border Before Shadow Rule.** Use borders and tonal surfaces first. Add shadow only when the component is interactive, layered, floating or modal.
+### 5.3 Regras Rígidas para a Grade Horária (Timeline & Grid Rules)
+- **Travamento de Janela Operacional:** A grade horária opera estritamente entre `SCHEDULE_START_HOUR` (07:00) e `SCHEDULE_END_HOUR` (22:00).
+- **Proibição de Deslocamento Negativo:** A função de cálculo percentual de topo deve ser protegida contra valores menores que o horário inicial:
+  ```ts
+  const safeStart = Math.max(SCHEDULE_START_HOUR, startDecimal);
+  const topPercent = ((safeStart - SCHEDULE_START_HOUR) / TOTAL_HOURS) * 100;
+  ```
+- **Altura Mínima de Agendamento:** Qualquer agendamento (mesmo de 10 ou 15 minutos, ou com horários truncados) deve ter altura renderizada mínima de `4%` (`min-h-[28px]`), impedindo que o card colapse visualmente para uma linha invisível.
+- **Isolamento de Coluna:** Cada coluna de profissional na visão diária e semanal deve possuir `overflow-hidden` relativo, garantindo que nenhum card de agendamento transborde para fora da sua raia ou cubra o cabeçalho.
 
-## 5. Components
+---
 
-### Buttons
+## 6. Especificação dos Componentes Primitivos
 
-Buttons are confident, compact and task-first.
+### 6.1 Botões (Buttons)
 
-- **Shape:** Gently rounded rectangles (8px for shared Button, 12px to 16px for larger app actions).
-- **Primary:** Gold gradient background (`#E8B04B → #C98A1F`) with night text, bold body typography, standard padding (10px 16px). Buttons only — never on cards or tiles.
-- **Hover / Focus:** Hover darkens toward Gold Dark or softens opacity. Focus should use a clear primary ring, commonly `focus:ring-2 focus:ring-primary/20`.
-- **Secondary / Ghost / Tertiary:** Secondary uses cream or card surfaces with a Line border. Ghost buttons stay transparent until hover. Danger, success and warning variants use semantic color only when the action itself is semantic.
+```tsx
+// 1. Botão Primário (Gold CTA)
+<button className="h-10 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-primary to-primary-dark text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
+  <CalendarPlus className="w-4 h-4" />
+  Novo Agendamento
+</button>
 
-### Chips
+// 2. Botão Secundário / Outline
+<button className="h-10 px-3.5 rounded-xl font-semibold text-sm bg-card-dark text-ink-soft border border-border-dark hover:border-primary/40 hover:text-white transition-all flex items-center gap-2">
+  <Zap className="w-4 h-4 text-primary" />
+  Encaixe Rápido
+</button>
 
-Chips are compact state markers, not decoration.
+// 3. Botão Utilitário / Ghost
+<button className="h-9 px-3 rounded-lg text-xs font-medium text-ink-soft hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5">
+  <Download className="w-3.5 h-3.5" />
+  Exportar
+</button>
+```
 
-- **Style:** Tinted semantic background, matching semantic text and a low-contrast border.
-- **State:** Selected states should use the same vocabulary as active navigation: accent tint, clear text contrast and icon support when useful.
+### 6.2 Segmented Control (Seletor de Abas / Visão)
 
-### Cards / Containers
+```tsx
+<div className="inline-flex items-center gap-1 p-1 bg-night/80 border border-border-dark/60 rounded-xl">
+  <button className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/20 text-primary-light border border-primary/30 shadow-xs flex items-center gap-1.5">
+    <Calendar className="w-3.5 h-3.5" />
+    Calendário
+  </button>
+  <button className="px-3 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5">
+    <List className="w-3.5 h-3.5" />
+    Lista
+  </button>
+</div>
+```
 
-Cards carry dense operational content without turning the whole interface into a grid of identical boxes.
+### 6.3 MetricCard (Signature KPI Component)
+Implementado centralizadamente em `components/ui/MetricCard.tsx` (ADR-031):
+- **Superfície:** `bg-card-dark border border-border-dark rounded-2xl p-4 transition-all hover:border-primary/40`.
+- **Cabeçalho:** Título em `text-xs uppercase tracking-wider font-bold text-ink-soft` com ícone em container sutil (`p-2 rounded-xl bg-white/5 text-primary-light`).
+- **Valor:** `font-display text-2xl font-bold text-white tabular-nums tracking-tight whitespace-nowrap`.
+- **Metadado/Subtítulo:** `text-xs text-ink-soft flex items-center gap-1 mt-1`.
 
-- **Corner Style:** Soft boutique corners (16px to 20px).
-- **Background:** Cards use Card white on a Cream page. Dark mode uses warm dark surfaces.
-- **Shadow Strategy:** Resting cards use SMG Shell. Interactive cards may lift with SMG Glow.
-- **Border:** Hairline Line (`#E8DFC9`) borders. Borders come before shadows.
-- **Internal Padding:** Dense cards use 16px to 20px. Larger panels and modals use 24px.
+### 6.4 Inputs & Seletores de Formulário
+- Altura padrão: `h-10` (40px).
+- Superfície: `bg-card-dark border border-border-dark text-white text-sm rounded-xl px-3 placeholder-ink-soft`.
+- Estado de Foco: `focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary/30`.
+- Ícones em inputs: sempre alinhados centralizados na cor `text-ink-soft`.
 
-### Inputs / Fields
+---
 
-Inputs are quiet, rectangular and predictable.
+## 7. Matriz de Do's e Don'ts
 
-- **Style:** 40px height, 12px radius, Card surface, thin Line border and 12px horizontal padding.
-- **Focus:** Border shifts to primary and adds a soft primary ring.
-- **Error / Disabled:** Error must use red plus text or icon. Disabled uses opacity and cursor state, not just color.
+| Prática Recomendada (DO) | Violação Proibida (DON'T) |
+| :--- | :--- |
+| **Usar `primary`, `primary-dark`, `primary-light`** | Usar classes inexistentes como `bg-primary-gold` |
+| **Usar texto escuro `text-night` em botões dourados** | Usar texto branco sobre botões ou badges dourados |
+| **Garantir Dark-First nativo com fundos `#0B0B0C` e `#14110B`** | Reintroduzir fundo azul marinho ou cinza ardósia corporativo |
+| **Aplicar `tabular-nums` e `whitespace-nowrap` em valores** | Deixar moedas quebrarem linha ou números desalinhados |
+| **Seguir a arquitetura Hero em 3 Níveis** | Misturar seletores de data, filtros e CTAs desordenados |
+| **Garantir que a data apareça em um único lugar na tela** | Duplicar o dia da semana ou a data em vários cards |
+| **Limitar a timeline entre 07:00 e 22:00 com proteção de topo** | Gerar topo negativo (`top: -46%`) e cobrir cabeçalhos |
+| **Garantir altura mínima de 4% para agendamentos** | Deixar agendamentos curtos renderizarem com altura 0px |
+| **Usar a paleta Barber 1-6 para raias de profissionais** | Usar azul royal, roxo ou cores fora da identidade |
+| **Usar `MetricCard.tsx` para exibição de KPIs** | Criar cards de métrica customizados sem padrão de token |
 
-### Navigation
+---
 
-Navigation is an app-shell pattern with a left sidebar, a top utility bar and a mobile bottom nav on operational routes. The desktop sidebar is Card white with a gold active pill and night text; collapsed sidebar items expose tooltips. The mobile bottom bar keeps the same items and role rules as before, restyled in place with a gold active indicator. Mobile routes keep core actions reachable without hiding them behind the desktop sidebar model.
+## 8. Verificação de Integridade e Conformidade
 
-### Signature Component: MetricCard
-
-Financial and operational KPI cards are rendered by the single `components/ui/MetricCard.tsx` primitive (ADR-031): label, icon tile, value, trend chip and optional progress. Tone maps are semantic — positive, negative and neutral — with the gold family for neutral/attention. Never invent values for these cards; show real data, a loading/skeleton state, an honest empty state or an actionable error.
-
-## 6. Do's and Don'ts
-
-### Do:
-
-- **Do** preserve the product register: dense, predictable surfaces for owners, managers, receptionists and professionals.
-- **Do** use gold for primary product actions and active navigation; use green and red only for semantic status and chart series.
-- **Do** make barber-specific workflows visible: agenda, chair, professional, client, comanda, checkout, membership and recurrence.
-- **Do** show real data when a real source exists; otherwise show an honest empty state or actionable error.
-- **Do** keep focus states, hover states and disabled states explicit on every interactive component.
-- **Do** use semantic colors for finance and operations, and pair color with icons, labels or text.
-
-### Don't:
-
-- **Don't** make the app look like a generic ERP, bureaucratic back office or cold accounting system.
-- **Don't** make it look like a generic SaaS dashboard with repeated cards, decorative metrics and market-neutral copy.
-- **Don't** use fake data when real data or real query paths already exist.
-- **Don't** replace barber-specific vocabulary with generic business labels.
-- **Don't** use side-stripe borders, gradient text, decorative glassmorphism or hero-metric templates.
-- **Don't** reintroduce blue — decorative or operational. The design system is single-accent gold.
-- **Don't** use the gold gradient on cards, tiles or page backgrounds; it is reserved for buttons.
-- **Don't** use saturated gold, red or green as decoration on inactive states.
+Antes de qualquer entrega ou encerramento de tarefa envolvendo interface:
+1. `npm run typecheck` deve retornar 0 erros.
+2. `npm run architecture:ci` deve passar sem aumento de violações na baseline.
+3. Não deve existir nenhum uso de `primary-gold` no código novo.
+4. `git diff --check` não deve acusar espaços vazios ou quebras de linha errôneas.

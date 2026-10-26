@@ -22,20 +22,10 @@ const buildWhatsAppUrl = (client: ReturningClient, businessName: string): string
   if (digits.length < 10 || digits.length > 11) return null;
   const firstName = client.name.split(' ')[0];
   const msg = encodeURIComponent(
-    `Olá, ${firstName}! Aqui é da ${businessName}. Faz um tempo que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?`,
+    `Olá, ${firstName}! Aqui é da ${businessName}. Que tal agendar seu próximo horário essa semana?`,
   );
   return `https://wa.me/55${digits}?text=${msg}`;
 };
-
-const WidgetLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
-  <Link
-    to={to}
-    className="mt-4 inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary-dark"
-  >
-    {children}
-    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-  </Link>
-);
 
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   appSlug,
@@ -53,18 +43,15 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   const isEsteticaApp = appSlug === 'estetica';
   const activeTeam = teamStatus.filter((t) => t.active).length;
   const totalTeam = teamStatus.length;
-  const gridClassName = isEsteticaApp
-    ? 'grid grid-cols-1 gap-4 md:grid-cols-3'
-    : 'grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4';
 
   if (loading) {
     return (
-      <div className={gridClassName}>
-        {(isEsteticaApp ? [1, 2, 3] : [1, 2, 3, 4]).map((i) => (
-          <div key={i} className="rounded-2xl border border-line bg-card p-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5">
             <div className="animate-pulse space-y-3">
-              <div className="h-4 w-1/2 rounded bg-gold-pale" />
-              <div className="h-8 w-3/4 rounded bg-gold-pale" />
+              <div className="h-4 w-1/2 rounded bg-line dark:bg-border-dark" />
+              <div className="h-8 w-3/4 rounded bg-line dark:bg-border-dark" />
             </div>
           </div>
         ))}
@@ -73,133 +60,147 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   }
 
   return (
-    <div className={gridClassName}>
-      <div className="rounded-2xl border border-line bg-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary-dark">psychology</span>
-          <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}</h4>
-        </div>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* 1. Retorno Inteligente com Ação de 1 Toque */}
+      <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 sm:p-5 shadow-sm transition-colors flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">person_search</span>
+              <h4 className="font-display font-bold text-sm text-ink dark:text-white">
+                {isEsteticaApp ? 'Clientes para retorno' : 'Retorno inteligente'}
+              </h4>
+            </div>
+            <span className="font-display font-bold tabular-nums text-xs text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+              {returningClients.length} sugeridos
+            </span>
+          </div>
 
-        <p className="text-xl font-black text-ink">{returningClients.length}</p>
-        <p className="text-xs text-ink-soft">
-          {returningClients.length === 1 ? 'cliente para retorno' : 'clientes para retorno'}
-        </p>
-
-        <div className="mt-3 border-t border-line pt-3">
-          {returningClients.length > 0 ? (
-            <div className="max-h-24 space-y-2 overflow-y-auto">
-              {returningClients.slice(0, 3).map((client) => {
+          <div className="mt-3 divide-y divide-line dark:divide-border-dark">
+            {returningClients.length > 0 ? (
+              returningClients.slice(0, 3).map((client) => {
                 const waUrl = buildWhatsAppUrl(client, businessName);
                 return (
-                  <div key={client.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-ink-soft">{client.name}</span>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <span className="text-[10px] text-ink-soft">{client.daysSinceVisit}d</span>
-                      {waUrl ? (
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-success/10 text-success transition hover:bg-success/20"
-                          title={`Enviar WhatsApp para ${client.name}`}
-                        >
-                          <span className="material-symbols-outlined text-sm">chat</span>
-                        </a>
-                      ) : (
-                        <span
-                          className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full bg-slate-100 text-slate-300"
-                          title="Sem telefone cadastrado"
-                        >
-                          <span className="material-symbols-outlined text-sm">chat</span>
-                        </span>
-                      )}
+                  <div key={client.id} className="py-2 flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink dark:text-white truncate">{client.name}</p>
+                      <p className="text-[11px] text-ink-soft">há {client.daysSinceVisit} dias sem visita</p>
                     </div>
+
+                    {waUrl ? (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-success/10 text-success text-[11px] font-bold hover:bg-success/20 transition-all shrink-0 active:scale-95"
+                        title={`Enviar WhatsApp para ${client.name}`}
+                        aria-label={`Enviar WhatsApp para ${client.name}`}
+                      >
+                        <span className="material-symbols-outlined text-xs">chat</span>
+                        <span>Avisar</span>
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-ink-soft/50 italic">sem telefone</span>
+                    )}
                   </div>
                 );
-              })}
+              })
+            ) : (
+              <p className="py-4 text-xs italic text-ink-soft text-center">Nenhum cliente para retorno hoje.</p>
+            )}
+          </div>
+        </div>
+
+        <Link
+          to="/smart-return"
+          className="mt-3 pt-3 border-t border-line dark:border-border-dark inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-dark transition-colors"
+        >
+          <span>Ver todos os retornos</span>
+          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        </Link>
+      </div>
+
+      {/* 2. Equipe na Casa / Presença em Tempo Real */}
+      <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 sm:p-5 shadow-sm transition-colors flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">groups</span>
+              <h4 className="font-display font-bold text-sm text-ink dark:text-white">
+                {isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}
+              </h4>
             </div>
-          ) : (
-            <p className="text-xs italic text-ink-soft">{isEsteticaApp ? 'Nenhum cliente para retorno agora.' : 'Nenhum cliente para retorno agora.'}</p>
-          )}
-        </div>
+            <span className="font-display font-bold tabular-nums text-xs text-ink dark:text-white px-2 py-0.5 rounded-full bg-card dark:bg-surface-dark border border-line dark:border-border-dark">
+              {activeTeam}/{totalTeam} ativos
+            </span>
+          </div>
 
-        <WidgetLink to="/smart-return">Ver lista completa</WidgetLink>
-      </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2" role="list" aria-label="Profissionais da equipe">
+              {teamStatus.map((member) => (
+                <div
+                  key={member.id}
+                  role="listitem"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-xs"
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${member.active ? 'bg-success animate-pulse' : 'bg-line dark:bg-border-dark'}`}
+                  />
+                  <span className="font-medium text-ink dark:text-white">{member.name.split(' ')[0]}</span>
+                </div>
+              ))}
+            </div>
 
-      {!isEsteticaApp && (
-      <div className="rounded-2xl border border-line bg-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-rose-500">cake</span>
-          <h4 className="text-sm font-bold text-ink">Aniversários</h4>
-        </div>
-
-        <p className="text-xl font-black text-ink">{birthdaysToday.length}</p>
-        <p className="text-xs text-ink-soft">aniversariantes hoje</p>
-        {birthdaysTomorrow.length > 0 && (
-          <p className="mt-2 text-xs font-bold text-success">
-            +{birthdaysTomorrow.length} amanhã
-          </p>
-        )}
-
-        {birthdaysToday.length > 0 && (
-          <div className="mt-3 space-y-1 border-t border-line pt-3">
-            {birthdaysToday.slice(0, 3).map((name) => (
-              <div key={name} className="flex items-center gap-2 text-xs">
-                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                <span className="text-ink-soft">{name}</span>
+            {birthdaysToday.length > 0 && (
+              <div className="mt-2.5 pt-2 border-t border-line dark:border-border-dark flex items-center gap-1.5 text-xs text-primary font-semibold">
+                <span className="material-symbols-outlined text-sm">cake</span>
+                <span>Aniversariante hoje: {birthdaysToday.join(', ')}</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        <WidgetLink to="/clients">Ver clientes</WidgetLink>
-      </div>
-      )}
-
-      <div className="rounded-2xl border border-line bg-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary-dark">groups</span>
-          <h4 className="text-sm font-bold text-ink">{isEsteticaApp ? 'Profissionais da unidade' : 'Equipe na casa'}</h4>
-        </div>
-
-        <p className="text-xl font-black text-ink">
-          {activeTeam}<span className="text-ink-soft">/{totalTeam}</span>
-        </p>
-        <p className="text-xs text-ink-soft">{professionalPluralLabel.toLowerCase()} ativos</p>
-
-        <div className="mt-3 border-t border-line pt-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {teamStatus.map((member) => (
-              <span
-                key={member.id}
-                className={`h-3 w-3 rounded-full ${member.active ? 'bg-success' : 'bg-slate-300'}`}
-                title={member.name}
-              />
-            ))}
+            )}
           </div>
         </div>
 
-        <WidgetLink to="/team">{isEsteticaApp ? 'Ver profissionais' : 'Ver equipe'}</WidgetLink>
+        <Link
+          to="/team"
+          className="mt-3 pt-3 border-t border-line dark:border-border-dark inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-dark transition-colors"
+        >
+          <span>{isEsteticaApp ? 'Ver profissionais' : 'Ver equipe'}</span>
+          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        </Link>
       </div>
 
-      <div className="rounded-2xl border border-line bg-card p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary-dark">group</span>
-          <h4 className="text-sm font-bold text-ink">Base de {clientPluralLabel.toLowerCase()}</h4>
+      {/* 3. Base de Clientes & Fidelidade */}
+      <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 sm:p-5 shadow-sm transition-colors flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">group</span>
+              <h4 className="font-display font-bold text-sm text-ink dark:text-white">
+                Base de {clientPluralLabel.toLowerCase()}
+              </h4>
+            </div>
+            <span className="font-display font-bold tabular-nums text-xs text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+              {totalClients} {clientPluralLabel.toLowerCase()}
+            </span>
+          </div>
+
+          <p className="mt-3 font-display text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-ink dark:text-white">
+            {totalClients}
+          </p>
+          <p className="text-xs text-ink-soft mt-1">
+            {isEsteticaApp
+              ? 'Cadastros ativos na clínica.'
+              : 'Clientes cadastrados na barbearia e clube de assinaturas.'}
+          </p>
         </div>
 
-        <p className="text-xl font-black text-ink">{totalClients}</p>
-        <p className="text-xs text-ink-soft">
-          {totalClients === 1 ? `${clientLabel.toLowerCase()} cadastrado` : `${clientPluralLabel.toLowerCase()} cadastrados`}
-        </p>
-
-        <div className="mt-3 rounded-xl bg-gold-pale p-3 text-xs font-medium leading-5 text-ink-soft">
-          {isEsteticaApp
-            ? 'Cadastros alimentam agenda, atendimentos e retornos.'
-            : 'Cadastros alimentam agenda, comanda, retorno inteligente e Club dos Chefes.'}
-        </div>
-
-        <WidgetLink to="/clients">Ver {clientPluralLabel.toLowerCase()}</WidgetLink>
+        <Link
+          to="/clients"
+          className="mt-3 pt-3 border-t border-line dark:border-border-dark inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-dark transition-colors"
+        >
+          <span>Ver lista de {clientPluralLabel.toLowerCase()}</span>
+          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        </Link>
       </div>
     </div>
   );

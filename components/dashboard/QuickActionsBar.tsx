@@ -61,12 +61,12 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({ appSlug }) => 
             : action.label;
 
         const cardClassName = isPrimary
-          ? 'relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 transition hover:border-primary/50 hover:shadow-[0_8px_24px_rgba(217,154,43,0.18)] focus:outline-none focus:ring-2 focus:ring-primary/30'
-          : 'rounded-2xl border border-line bg-card p-4 transition hover:border-primary/30 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/20';
+          ? 'group relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 text-left transition-all duration-200 active:scale-[0.98] touch-manipulation hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-smg-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40'
+          : 'group rounded-2xl border border-line bg-card p-4 text-left transition-all duration-200 active:scale-[0.98] touch-manipulation hover:-translate-y-0.5 hover:border-primary-light hover:bg-gold-pale hover:shadow-smg-shell focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
 
         const iconClassName = isPrimary
-          ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary/80 to-primary-dark text-white shadow-[0_4px_16px_rgba(217,154,43,0.35)]'
-          : 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary';
+          ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-primary/80 to-primary-dark text-night shadow-smg-glow transition-transform duration-200 group-hover:scale-105'
+          : 'flex h-10 w-10 items-center justify-center rounded-xl bg-gold-soft text-primary-dark transition-transform duration-200 group-hover:scale-105';
 
         const labelClassName = isPrimary
           ? 'text-xs font-bold text-ink'
@@ -75,7 +75,9 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({ appSlug }) => 
         return (
           <button
             key={action.key}
+            type="button"
             onClick={() => handleNavigate(action.path, action.state)}
+            aria-label={`Ação rápida: ${label}`}
             className={cardClassName}
           >
             <div className={iconClassName}>

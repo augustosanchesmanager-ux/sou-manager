@@ -56,7 +56,7 @@ const Layout: React.FC = () => {
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${
         isEsteticaApp
           ? 'theme-estetica bg-[#F8F5ED] text-[#2E2B24]'
-          : 'bg-[#F4F8FB] dark:bg-background-dark text-slate-900 dark:text-ink'
+          : 'bg-background-light dark:bg-background-dark text-ink dark:text-white'
       }`}
       data-app-theme={isEsteticaApp ? 'estetica' : undefined}
     >
@@ -75,7 +75,7 @@ const Layout: React.FC = () => {
         <header className={`h-16 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300 ${
           isEsteticaApp
             ? 'border-[#DDD2B6] bg-[#F8F5ED]/92'
-            : 'border-[#D9EAF5] dark:border-border-dark bg-[#F4F8FB]/90 dark:bg-surface-dark/90'
+            : 'border-line dark:border-border-dark bg-background-light/90 dark:bg-surface-dark/90'
         }`}>
           <div className="flex items-center gap-4 flex-1 max-w-xl">
             {/* Mobile Menu Button */}
@@ -84,7 +84,7 @@ const Layout: React.FC = () => {
               className={`lg:hidden p-2 -ml-2 rounded-lg transition-colors ${
                 isEsteticaApp
                   ? 'text-[#6F6758] hover:text-[#6F6845] hover:bg-[#EFE8D8]'
-                  : 'text-slate-500 dark:text-ink-soft hover:text-[#007BFF] dark:hover:text-primary hover:bg-white dark:hover:bg-card-dark'
+                  : 'text-ink-soft hover:text-primary hover:bg-gold-pale dark:hover:bg-card-dark'
               }`}
               aria-label="Abrir menu"
             >
@@ -98,12 +98,12 @@ const Layout: React.FC = () => {
               className={`relative w-full hidden md:flex items-center justify-between border rounded-xl py-2 pl-10 pr-3 text-sm transition-all cursor-pointer text-left ${
                 isEsteticaApp
                   ? 'bg-white/90 border-[#DDD2B6] text-[#6F6758]/80 hover:border-[#9B9368]'
-                  : 'bg-white/85 dark:bg-card-dark border-[#D9EAF5] dark:border-border-dark text-slate-500 dark:text-ink-soft hover:border-[#00D2FF]/50 dark:hover:border-primary/50'
+                  : 'bg-card dark:bg-card-dark border-line dark:border-border-dark text-ink-soft hover:border-primary/50'
               }`}
             >
-              <span className={`material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg ${isEsteticaApp ? 'text-[#9B9368]' : 'text-slate-400 dark:text-ink-soft'}`}>search</span>
+              <span className={`material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg ${isEsteticaApp ? 'text-[#9B9368]' : 'text-ink-soft'}`}>search</span>
               <span className="truncate">Buscar telas, comandos ou ações...</span>
-              <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-slate-400 dark:text-ink-soft bg-slate-100 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-md">
+              <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-ink-soft bg-gold-pale dark:bg-neutral-800 border border-line dark:border-neutral-700 rounded-md">
                 Ctrl K
               </kbd>
             </button>
@@ -116,7 +116,7 @@ const Layout: React.FC = () => {
               className={`md:hidden p-2 rounded-lg transition-colors cursor-pointer ${
                 isEsteticaApp
                   ? 'text-[#6F6758] hover:text-[#6F6845] hover:bg-[#EFE8D8]'
-                  : 'text-slate-500 dark:text-ink-soft hover:text-[#007BFF] dark:hover:text-primary hover:bg-white dark:hover:bg-card-dark'
+                  : 'text-ink-soft hover:text-primary hover:bg-gold-pale dark:hover:bg-card-dark'
               }`}
               aria-label="Abrir busca rápida"
             >
@@ -128,7 +128,7 @@ const Layout: React.FC = () => {
               className={`relative p-2 transition-colors rounded-lg ${
                 isEsteticaApp
                   ? 'text-[#6F6758] hover:text-[#6F6845] hover:bg-[#EFE8D8]'
-                  : 'text-slate-500 dark:text-ink-soft hover:text-[#007BFF] dark:hover:text-primary hover:bg-white dark:hover:bg-card-dark'
+                  : 'text-ink-soft hover:text-primary hover:bg-gold-pale dark:hover:bg-card-dark'
               }`}
               aria-label="Abrir central de avisos"
             >
@@ -137,26 +137,26 @@ const Layout: React.FC = () => {
                 <span className={`absolute top-1.5 right-1.5 size-4 text-[10px] font-bold rounded-full border-2 flex items-center justify-center ${
                   isEsteticaApp
                     ? 'bg-[#D8C994] text-[#2E2B24] border-[#F8F5ED]'
-                    : 'bg-[#00D2FF] text-[#003366] border-white dark:bg-gold dark:text-night dark:border-surface-dark'
+                    : 'bg-primary text-night border-white dark:border-surface-dark'
                 }`}>
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
-            <div className={`h-6 w-px mx-1 ${isEsteticaApp ? 'bg-[#DDD2B6]' : 'bg-[#D9EAF5] dark:bg-border-dark'}`}></div>
+            <div className={`h-6 w-px mx-1 ${isEsteticaApp ? 'bg-[#DDD2B6]' : 'bg-line dark:bg-border-dark'}`}></div>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className={`text-sm font-bold display-font ${isEsteticaApp ? 'text-[#2E2B24]' : 'text-slate-900 dark:text-ink'}`}>{displayName}</p>
-                <p className={`text-[10px] uppercase font-bold ${isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-primary'}`}>{displayPlan}</p>
+                <p className={`text-sm font-bold display-font ${isEsteticaApp ? 'text-[#2E2B24]' : 'text-ink dark:text-white'}`}>{displayName}</p>
+                <p className={`text-[10px] uppercase font-bold ${isEsteticaApp ? 'text-[#6F6845]' : 'text-primary'}`}>{displayPlan}</p>
               </div>
               <div
                 className={`size-8 sm:size-10 rounded-lg flex items-center justify-center border ${
                   isEsteticaApp
                     ? 'bg-white border-[#D8C994] shadow-[0_10px_22px_rgba(111,104,69,0.12)]'
-                    : 'bg-[#EAF7FF] dark:bg-card-dark border-[#00D2FF]/35 dark:border-gold/40 shadow-[0_0_18px_rgba(0,210,255,0.14)] dark:shadow-[0_0_18px_rgba(217,154,43,0.14)]'
+                    : 'bg-gold-pale dark:bg-card-dark border-line dark:border-border-dark shadow-sm'
                 }`}
               >
-                <span className={`material-symbols-outlined text-lg ${isEsteticaApp ? 'text-[#6F6845]' : 'text-[#007BFF] dark:text-primary'}`}>person</span>
+                <span className={`material-symbols-outlined text-lg ${isEsteticaApp ? 'text-[#6F6845]' : 'text-primary'}`}>person</span>
               </div>
             </div>
           </div>

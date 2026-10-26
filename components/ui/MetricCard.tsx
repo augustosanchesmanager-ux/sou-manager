@@ -28,12 +28,12 @@ export interface MetricCardProps {
 }
 
 const toneTileStyles: Record<MetricTone, string> = {
-    brass: 'bg-[#F7E7C2] text-[#A96F14] border-[#E8DFC9]',
-    positive: 'bg-[#DFF2E5] text-[#178A50] border-[#E8DFC9]',
-    negative: 'bg-[#F9E1E1] text-[#C92A2A] border-[#E8DFC9]',
-    info: 'bg-[#EFE9D8] text-[#6B6252] border-[#E8DFC9]',
-    warning: 'bg-[#F7E7C2] text-[#A96F14] border-[#E8DFC9]',
-    neutral: 'bg-[#F1ECE0] text-[#6B6252] border-[#E8DFC9]',
+    brass: 'bg-gold-soft text-primary-dark border-line',
+    positive: 'bg-success/10 text-success border-line',
+    negative: 'bg-danger/10 text-danger border-line',
+    info: 'bg-gold-pale text-ink-soft border-line',
+    warning: 'bg-gold-soft text-primary-dark border-line',
+    neutral: 'bg-gold-pale text-ink-soft border-line',
 };
 
 const trendConfig: Record<MetricTrendDirection, { icon: string; text: string }> = {
@@ -60,7 +60,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
     const progressPercent = progress ? Math.min(100, Math.max(0, Math.round(progress.percent))) : 0;
     const progressBarTone = 'bg-primary';
 
-    const cardClasses = `w-full rounded-2xl border border-line bg-card text-left transition-shadow duration-200 ${padding} ${onClick ? 'cursor-pointer hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''} ${className}`;
+    const cardClasses = `w-full rounded-2xl border border-line bg-card text-left transition-all duration-200 ${padding} ${onClick ? 'cursor-pointer hover:shadow-md active:scale-[0.99] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''} ${className}`;
 
     const content = (
         <>
@@ -77,7 +77,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
                     </span>
                 ) : null}
             </div>
-            <p className={`mt-2 font-black tracking-tight text-ink ${valueSize}`}>
+            <p className={`mt-2 font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink ${valueSize}`}>
                 {value}
             </p>
             {trend || helper ? (

@@ -20,15 +20,11 @@ import {
 } from '../src/modules/dashboard';
 import {
   DashboardHeader,
-  KPIGrid,
-  AppointmentTimeline,
   DashboardWidgets,
-  TodayPendings,
   TodayCashCard,
-  QuickActionsBar,
   DayTimeline,
-  TodayKPIGrid,
 } from '../components/dashboard';
+import ActivityTimelineModal from '../components/dashboard/ActivityTimelineModal';
 
 const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
   const now = new Date();
@@ -92,6 +88,7 @@ const Dashboard: React.FC = () => {
   const [newClientForm, setNewClientForm] = useState<NewClientFormState>({ name: '', phone: '', email: '' });
   const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isActivityTimelineOpen, setIsActivityTimelineOpen] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -140,18 +137,6 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchTodayData();
   }, [fetchTodayData]);
-
-  useEffect(() => {
-    if (data.staffList.length > 0 && !formData.staffId) {
-      setFormData((current) => ({ ...current, staffId: data.staffList[0].id }));
-    }
-  }, [data.staffList, formData.staffId]);
-
-  useEffect(() => {
-    if (data.servicesList.length > 0 && !formData.serviceId) {
-      setFormData((current) => ({ ...current, serviceId: data.servicesList[0].id }));
-    }
-  }, [data.servicesList, formData.serviceId]);
 
   const filteredClients = useMemo(
     () => data.clients.filter((client) => client.name.toLowerCase().includes(formData.clientSearch.toLowerCase())),
@@ -236,24 +221,6 @@ const Dashboard: React.FC = () => {
     [data.appointments],
   );
 
-  const metricValues = {
-    revenue: data.metrics.revenue,
-    revenuePrevious: data.metrics.revenuePrevious,
-    expenses: data.metrics.expenses,
-    expensesPrevious: data.metrics.expensesPrevious,
-    netRevenue: data.metrics.netRevenue,
-    netRevenuePrevious: data.metrics.netRevenuePrevious,
-    todayAppointments: data.metrics.todayAppointments,
-    previousAppointments: data.metrics.previousAppointments,
-    totalClients: data.clients.length,
-    previousClients: data.clients.length,
-    avgTicket: data.metrics.avgTicket,
-    previousAvgTicket: data.metrics.avgTicketPrevious,
-    revenueGoal: period === 'month' ? data.metrics.revenueGoal : undefined,
-    appointmentsGoal: period === 'month' ? data.metrics.appointmentsGoal : undefined,
-    openComandasCount: data.openComandasCount ?? 0,
-  };
-
   const returningClients = data.returningClients;
   const teamStatus = data.staffList.map((s) => ({
     id: s.id,
@@ -265,8 +232,10 @@ const Dashboard: React.FC = () => {
   const isBarberRole = accessRole === 'barber';
   const isReceptionistRole = accessRole === 'receptionist';
 
+  const isInitialLoading = loading && data.staffList.length === 0;
+
   return (
-    <div className="space-y-6 animate-fade-in pb-20 bg-cream min-h-screen">
+    <div className="space-y-6 animate-fade-in pb-20 bg-background-light dark:bg-background-dark min-h-screen">
       <DashboardHeader
         appSlug={appSlug}
         period={period}
@@ -274,55 +243,48 @@ const Dashboard: React.FC = () => {
         openComandasCount={data.openComandasCount ?? 0}
         pendingAppointmentsCount={pendingAppointmentsCount}
         returningClientsCount={returningClients.length}
+        todayKpis={todayData?.kpis ?? null}
+        onKpiClick={(type) => {
+          if (type === 'faturamento') navigate('/comandas');
+          if (type === 'totalToday' || type === 'emAtendimento' || type === 'pendentes' || type === 'cancelados' || type === 'concluidos') {
+            navigate('/schedule');
+          }
+        }}
         onNewAppointment={() => setShowQuickScheduleModal(true)}
         onOpenCheckout={() => navigate('/checkout?mode=pdv')}
         onOpenComandas={() => navigate('/comandas')}
         onOpenSmartReturn={() => navigate('/smart-return')}
         onOpenCash={() => navigate('/cash-closing')}
         onCloseCash={() => navigate('/cash-closing')}
+        onOpenActivityTimeline={() => setIsActivityTimelineOpen(true)}
       />
 
       {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
 
-      {/* Faixa de Atalhos Rápidos */}
-      <QuickActionsBar appSlug={appSlug} />
-
-      {/* Grid 6 KPIs do Dia */}
-      {todayData && (
-        <TodayKPIGrid
-          kpis={todayData.kpis}
-          onKpiClick={(type) => {
-            if (type === 'faturamento') navigate('/comandas');
-            if (type === 'totalToday' || type === 'emAtendimento' || type === 'pendentes' || type === 'cancelados' || type === 'concluidos') {
-              navigate('/schedule');
-            }
-          }}
-        />
-      )}
-
-      {/* Row 2: Operation */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left column: Timeline da Agenda do Dia */}
-        <div className="space-y-4">
+      {/* Row 2: Operação Focada (Agenda do Dia Mais Longa + Movimento Financeiro com Mini-Timeline) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Coluna 1 & 2: Timeline da Agenda do Dia */}
+        <div className="lg:col-span-2 space-y-4">
           {todayData ? (
             <DayTimeline
               appSlug={appSlug}
               appointments={todayData.todayAppointments}
-              loading={todayLoading}
+              loading={todayLoading && !todayData}
+              businessName={tenantName}
               onSelectAppointment={(apt) => {
                 setSelectedAppointment(apt);
                 setIsDetailModalOpen(true);
               }}
             />
           ) : (
-            <div className="rounded-2xl border border-line bg-card p-5">
+            <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5">
               <div className="animate-pulse space-y-3">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-lg bg-gold-pale p-3">
-                    <div className="h-12 w-12 rounded-lg bg-line" />
+                  <div key={i} className="flex items-center gap-3 rounded-lg bg-gold-pale dark:bg-white/5 p-3">
+                    <div className="h-12 w-12 rounded-lg bg-line dark:bg-border-dark" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 w-3/4 rounded bg-line" />
-                      <div className="h-2 w-1/2 rounded bg-line" />
+                      <div className="h-3 w-3/4 rounded bg-line dark:bg-border-dark" />
+                      <div className="h-2 w-1/2 rounded bg-line dark:bg-border-dark" />
                     </div>
                   </div>
                 ))}
@@ -331,17 +293,10 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Right column */}
+        {/* Coluna 3: Movimento de Caixa Consolidado */}
         <div className="space-y-4">
-          <TodayPendings
-            appSlug={appSlug}
-            openComandasCount={data.openComandasCount ?? 0}
-            pendingAppointmentsCount={pendingAppointmentsCount}
-            returningClientsCount={returningClients.length}
-            loading={loading}
-          />
           <TodayCashCard
-            loading={loading}
+            loading={isInitialLoading}
             income={data.metrics.revenue}
             expenses={data.metrics.expenses}
             net={data.metrics.netRevenue}
@@ -357,7 +312,7 @@ const Dashboard: React.FC = () => {
         birthdaysToday={[]}
         birthdaysTomorrow={[]}
         teamStatus={teamStatus}
-        loading={loading}
+        loading={isInitialLoading}
         totalClients={data.clients.length}
         businessName={tenantName}
         clientLabel={labels.client}
@@ -405,6 +360,11 @@ const Dashboard: React.FC = () => {
         onCreateClient={handleCreateNewClient}
         isSubmittingAppointment={busyState.creatingQuickAppointment}
         isSubmittingClient={busyState.creatingClient}
+      />
+
+      <ActivityTimelineModal
+        isOpen={isActivityTimelineOpen}
+        onClose={() => setIsActivityTimelineOpen(false)}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

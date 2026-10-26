@@ -469,26 +469,6 @@ const fetchSingleComandaFinancialHistory = async (
     }
 };
 
-const KpiCard: React.FC<{
-    title: string;
-    value: string;
-    helper: string;
-    icon: string;
-    accentClassName: string;
-}> = ({ title, value, helper, icon, accentClassName }) => (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-sm shadow-slate-900/5 dark:border-white/8 dark:bg-[#121826]">
-        <div className={`absolute inset-x-0 top-0 h-1 ${accentClassName}`} />
-        <div className="flex items-center justify-between">
-            <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</p>
-                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-            </div>
-            <span className="material-symbols-outlined text-lg text-slate-400 dark:text-slate-500">{icon}</span>
-        </div>
-        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{helper}</p>
-    </div>
-);
-
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { appSlug, schema, tenantId, user, accessRole, canAccessSuperAdmin } = useAuth();
@@ -1267,7 +1247,7 @@ const Comandas: React.FC = () => {
         printWindow.opener = null;
         const itemsHtml = comanda.comanda_items.map((item) => `<li>${escapeHtml(item.product_name)} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
         printWindow.document.write(`
-            <html><head><title>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
+            <html><head><title>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#191611}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
             <body><h1>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</h1><div class="line"><strong>Cliente:</strong> ${escapeHtml(comanda.clients.name)}</div><div class="line"><strong>Status:</strong> ${escapeHtml(statusLabels[comanda.status])}</div><div class="line"><strong>Abertura:</strong> ${escapeHtml(new Date(comanda.created_at).toLocaleString('pt-BR'))}</div><div class="line"><strong>Profissionais:</strong> ${escapeHtml(comanda.staff_names.join(' / ') || 'Sem profissional')}</div><ul>${itemsHtml}</ul><div class="total">Total: ${escapeHtml(formatCurrency(comanda.total))}</div></body></html>
         `);
         printWindow.document.close();
@@ -1560,17 +1540,17 @@ const Comandas: React.FC = () => {
         <div className="space-y-4 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <section className="relative overflow-hidden rounded-2xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(0,210,255,0.22),transparent_32%),linear-gradient(135deg,rgba(0,51,102,0.97),rgba(15,23,42,0.98)_56%,rgba(146,104,45,0.68))]" />
-                <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                    <div className="max-w-3xl">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+            <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-cream via-card to-gold-pale p-5 text-ink shadow-smg-shell">
+                <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-primary/10 blur-3xl" />
+                <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="max-w-2xl">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-gold-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-primary-dark">
                             <span className="material-symbols-outlined text-[14px]">content_cut</span>
                             {isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de atendimento'}
                         </span>
-                        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}</h1>
-                        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
-                            {sortedComandas.length} {orderPluralLower} no recorte atual, com foco em cliente, profissional, {isEsteticaApp ? 'procedimentos, produtos e finalização real' : 'consumo e baixa real'}. {dateFilterDescription}.
+                        <h1 className="mt-3 text-2xl font-black tracking-tight text-ink sm:text-3xl">{isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}</h1>
+                        <p className="mt-2 text-sm leading-6 text-ink-soft">
+                            <span className="tabular-nums font-semibold">{sortedComandas.length}</span> {orderPluralLower} no recorte atual, com foco em cliente, profissional, {isEsteticaApp ? 'procedimentos, produtos e finalização real' : 'consumo e baixa real'}. {dateFilterDescription}.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                             <button
@@ -1579,7 +1559,7 @@ const Comandas: React.FC = () => {
                                     void loadQuickOpenAuxiliaryData();
                                     setIsQuickOpenModalOpen(true);
                                 }}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition active:scale-95"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2 text-sm font-black text-night shadow-smg-glow transition hover:brightness-105 active:scale-[0.98] touch-manipulation"
                                 title="Abertura rápida com atalho [N]"
                             >
                                 <span className="material-symbols-outlined text-[18px]">bolt</span>
@@ -1589,37 +1569,83 @@ const Comandas: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/checkout?mode=comanda')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/15"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-card/80 px-4 py-2 text-sm font-bold text-ink transition hover:bg-gold-pale active:scale-[0.98] touch-manipulation"
                             >
                                 <span className="material-symbols-outlined text-[18px]">add</span>
-                                Novo {orderLabelLower}
+                                {isEsteticaApp ? 'Novo atendimento' : 'Nova comanda'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => navigate('/checkout?mode=pdv')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-card/80 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-gold-pale active:scale-[0.98] touch-manipulation"
                             >
                                 <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
                                 {isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}
                             </button>
                         </div>
                     </div>
-                    <div className="grid overflow-hidden rounded-2xl border border-white/10 bg-white/[0.07] sm:min-w-[420px] sm:grid-cols-3">
-                        <div className="border-white/10 p-3 sm:border-r">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Abertos' : 'Abertas'}</p>
-                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(openCount).padStart(2, '0')}</p>
+
+                    {/* Bloco 2x2 de métricas integrado ao Hero */}
+                    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-card/85 shadow-sm divide-x divide-y divide-line sm:min-w-[400px] lg:min-w-[440px]">
+                        <div className="p-3.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary-dark">
+                                    {isEsteticaApp ? 'Abertos' : 'Abertas'}
+                                </span>
+                                <span className="material-symbols-outlined text-base text-primary">schedule</span>
+                            </div>
+                            <p className="text-2xl font-black tabular-nums tracking-[-0.02em] text-ink">
+                                {loading ? '...' : String(openCount).padStart(2, '0')}
+                            </p>
+                            <p className="text-[11px] tabular-nums text-ink-soft">
+                                Pendente: {formatCurrency(totalOpen)}
+                            </p>
                         </div>
-                        <div className="border-white/10 p-3 sm:border-r">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">{isEsteticaApp ? 'Finalizados hoje' : 'Finalizadas hoje'}</p>
-                            <p className="mt-1 text-2xl font-black">{loading ? '...' : String(finalizedToday).padStart(2, '0')}</p>
+                        <div className="p-3.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-success">
+                                    Liquidadas
+                                </span>
+                                <span className="material-symbols-outlined text-base text-success">task_alt</span>
+                            </div>
+                            <p className="text-2xl font-black tabular-nums tracking-[-0.02em] text-ink">
+                                {loading ? '...' : String(paidCount).padStart(2, '0')}
+                            </p>
+                            <p className="text-[11px] tabular-nums text-ink-soft">
+                                Total: {formatCurrency(totalPaid)}
+                            </p>
                         </div>
-                        <div className="p-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">Total em aberto</p>
-                            <p className="mt-1 text-xl font-black">{loading ? '...' : formatCurrency(totalOpen)}</p>
+                        <div className="p-3.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary-dark">
+                                    Total Geral
+                                </span>
+                                <span className="material-symbols-outlined text-base text-primary-dark">payments</span>
+                            </div>
+                            <p className="text-xl font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
+                                {loading ? '...' : formatCurrency(totalOpen + totalPaid)}
+                            </p>
+                            <p className="text-[11px] tabular-nums text-ink-soft">
+                                {kpiSummary.totalCount} {orderPluralLower}
+                            </p>
+                        </div>
+                        <div className="p-3.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-ink-soft">
+                                    Ticket Médio
+                                </span>
+                                <span className="material-symbols-outlined text-base text-ink-soft">monitoring</span>
+                            </div>
+                            <p className="text-xl font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
+                                {loading ? '...' : formatCurrency(avgTicket)}
+                            </p>
+                            <p className="text-[11px] tabular-nums text-ink-soft">
+                                Por atendimento
+                            </p>
                         </div>
                     </div>
                 </div>
-                <div className="relative mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+                <div className="relative mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                         <AuditAdjustmentButton
                             context={{
                                 sourceType: 'comanda',
@@ -1654,12 +1680,12 @@ const Comandas: React.FC = () => {
             </section>
 
             {loadError && (
-                <section className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center sm:justify-between">
+                <section className="flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger/10 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
-                        <span className="material-symbols-outlined text-lg text-rose-600 dark:text-rose-300">error</span>
+                        <span className="material-symbols-outlined text-lg text-danger">error</span>
                         <div>
-                            <p className="text-sm font-black text-rose-700 dark:text-rose-300">Falha ao carregar {orderPluralLower}</p>
-                            <p className="text-xs text-rose-700/80 dark:text-rose-300/80">{loadError}</p>
+                            <p className="text-sm font-black text-danger">Falha ao carregar {orderPluralLower}</p>
+                            <p className="text-xs text-danger/80">{loadError}</p>
                         </div>
                     </div>
                     <Button variant="secondary" leftIcon="sync" onClick={fetchData} disabled={loading}>
@@ -1668,39 +1694,8 @@ const Comandas: React.FC = () => {
                 </section>
             )}
 
-            <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <KpiCard
-                    title={isEsteticaApp ? 'Abertos' : 'Abertas'}
-                    value={loading ? '...' : String(openCount).padStart(2, '0')}
-                    helper={`Pendente: ${formatCurrency(totalOpen)}`}
-                    icon="schedule"
-                    accentClassName="bg-amber-400"
-                />
-                <KpiCard
-                    title="Liquidadas"
-                    value={loading ? '...' : String(paidCount).padStart(2, '0')}
-                    helper={`Total: ${formatCurrency(totalPaid)}`}
-                    icon="task_alt"
-                    accentClassName="bg-emerald-400"
-                />
-                <KpiCard
-                    title="Total Geral"
-                    value={loading ? '...' : formatCurrency(totalOpen + totalPaid)}
-                    helper={`${kpiSummary.totalCount} ${orderPluralLower}`}
-                    icon="payments"
-                    accentClassName="bg-sky-400"
-                />
-                <KpiCard
-                    title="Ticket Médio"
-                    value={loading ? '...' : formatCurrency(avgTicket)}
-                    helper="Por atendimento"
-                    icon="monitoring"
-                    accentClassName="bg-fuchsia-400"
-                />
-            </section>
-
-            <section className="rounded-2xl border border-slate-200/70 bg-white dark:border-white/8 dark:bg-[#111827]">
-                <div className="flex flex-col gap-3 p-3">
+            <section className="rounded-2xl border border-line bg-card shadow-sm">
+                <div className="flex flex-col gap-3 p-3 sm:p-4">
                     <div className="flex items-center gap-2 overflow-x-auto pb-2">
                         {tabs.map((tab) => (
                             <button
@@ -1708,14 +1703,14 @@ const Comandas: React.FC = () => {
                                 type="button"
                                 onClick={() => setFilterStatus(tab.key)}
                                 title={tab.key === 'all' ? `Todos os ${orderPluralLower} filtrados` : getStatusContextLabel(tab.key, isEsteticaApp)}
-                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
+                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition active:scale-[0.98] touch-manipulation ${
                                     filterStatus === tab.key
-                                        ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-100'
-                                        : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:text-slate-400'
+                                        ? 'border-primary/60 bg-gold-soft text-primary-dark'
+                                        : 'border-line text-ink-soft hover:border-primary/40 hover:text-ink'
                                 }`}
                             >
                                 {tab.label}
-                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filterStatus === tab.key ? 'bg-amber-500 text-white dark:bg-white/10' : 'bg-slate-100 dark:bg-white/5'}`}>
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums font-bold ${filterStatus === tab.key ? 'bg-primary text-night' : 'bg-gold-pale text-ink-soft'}`}>
                                     {tab.count}
                                 </span>
                             </button>
@@ -1723,29 +1718,29 @@ const Comandas: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative flex-1">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                        <div className="relative flex-1 min-w-[200px]">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft/70 text-sm">search</span>
                             <input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder={`Buscar cliente, telefone, profissional ou #${orderLabelLower}...`}
-                                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                className="w-full rounded-xl border border-line bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                             />
                         </div>
                         <button
                             type="button"
                             onClick={() => setFiltersModalOpen((open) => !open)}
-                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] touch-manipulation ${
                                 activeFiltersCount > 0
-                                    ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-transparent dark:text-slate-400'
+                                    ? 'border-primary/60 bg-gold-soft text-primary-dark'
+                                    : 'border-line bg-card text-ink-soft hover:border-primary/40 hover:text-ink'
                             }`}
                         >
                             <span className="material-symbols-outlined text-sm">tune</span>
                             Filtros
                             {activeFiltersCount > 0 && (
-                                <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">
+                                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-black leading-none text-night tabular-nums">
                                     {activeFiltersCount}
                                 </span>
                             )}
@@ -1753,7 +1748,7 @@ const Comandas: React.FC = () => {
                         <select
                             value={quickRange}
                             onChange={(e) => applyQuickRange(e.target.value as QuickRange)}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className="rounded-xl border border-line bg-card px-2 py-2 text-xs text-ink focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                             title="Filtrar por período"
                         >
                             <option value="today">Hoje</option>
@@ -1767,7 +1762,7 @@ const Comandas: React.FC = () => {
                         <select
                             value={staffFilter}
                             onChange={(e) => setStaffFilter(e.target.value)}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className="rounded-xl border border-line bg-card px-2 py-2 text-xs text-ink focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                             title="Filtrar por profissional"
                         >
                             <option value="">Profissional (Todos)</option>
@@ -1778,7 +1773,7 @@ const Comandas: React.FC = () => {
                         <select
                             value={paymentMethodFilter}
                             onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className="rounded-xl border border-line bg-card px-2 py-2 text-xs text-ink focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                             title="Filtrar por forma de pagamento já registrada"
                         >
                             <option value="">Pagamento</option>
@@ -1793,7 +1788,7 @@ const Comandas: React.FC = () => {
                                 setSortField(nextField);
                                 setSortDirection(nextDirection);
                             }}
-                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-white/10 dark:bg-[#0f172a]"
+                            className="rounded-xl border border-line bg-card px-2 py-2 text-xs text-ink focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                         >
                             <option value="date:desc">Mais recentes</option>
                             <option value="date:asc">Mais antigas</option>
@@ -1807,7 +1802,7 @@ const Comandas: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
-                            className="flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400 hover:text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            className="flex size-10 items-center justify-center rounded-xl border border-line bg-card text-ink-soft transition hover:border-primary/40 hover:text-ink active:scale-[0.98] touch-manipulation"
                             title={sortDirection === 'asc' ? 'Ordenar descendente' : 'Ordenar ascendente'}
                         >
                             <span className="material-symbols-outlined text-sm">{sortDirection === 'asc' ? 'south' : 'north'}</span>
@@ -1816,7 +1811,7 @@ const Comandas: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={clearAllFilters}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition hover:text-slate-900 dark:border-white/10 dark:bg-transparent dark:text-slate-400 dark:hover:text-white"
+                                className="rounded-xl border border-line bg-card px-3 py-2 text-xs font-semibold text-ink-soft transition hover:text-ink active:scale-[0.98] touch-manipulation"
                             >
                                 Limpar
                             </button>
@@ -1824,20 +1819,21 @@ const Comandas: React.FC = () => {
                     </div>
 
                     {hasAnyFilter && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
-                            <span className="font-black uppercase tracking-[0.12em] text-slate-500">Filtros ativos</span>
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-gold-pale px-3 py-2 text-xs text-ink-soft">
+                            <span className="font-black uppercase tracking-[0.12em] text-primary-dark">Filtros ativos</span>
                             <span>{statusLabels[filterStatus]}</span>
+                            <span>•</span>
                             <span>{dateFilterDescription}</span>
-                            {staffFilter && <span>Profissional selecionado</span>}
-                            {paymentMethodFilter && <span>Pagamento: {paymentMethodFilter}</span>}
-                            {consumptionType !== 'all' && <span>Consumo: {consumptionType}</span>}
+                            {staffFilter && <><span>•</span><span>Profissional selecionado</span></>}
+                            {paymentMethodFilter && <><span>•</span><span>Pagamento: {paymentMethodFilter}</span></>}
+                            {consumptionType !== 'all' && <><span>•</span><span>Consumo: {consumptionType}</span></>}
                         </div>
                     )}
 
                     {selectedOpenComandaIds.length > 0 && (
-                        <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
-                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{selectedOpenComandaIds.length} {isEsteticaApp ? 'selecionado(s)' : 'selecionada(s)'}</span>
-                            <button onClick={toggleSelectAllOpenInView} className="ml-auto text-xs text-amber-700 hover:underline dark:text-amber-300">
+                        <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-gold-soft p-2.5">
+                            <span className="text-xs font-semibold tabular-nums text-primary-dark">{selectedOpenComandaIds.length} {isEsteticaApp ? 'selecionado(s)' : 'selecionada(s)'}</span>
+                            <button onClick={toggleSelectAllOpenInView} className="ml-auto text-xs text-primary-dark hover:underline font-medium">
                                 {allOpenInViewSelected ? 'Desmarcar todas' : 'Selecionar todas'}
                             </button>
                             <Button size="sm" variant="warning" onClick={() => setBulkCloseModalOpen(true)}>{isEsteticaApp ? 'Finalizar em massa' : 'Baixar em massa'}</Button>
@@ -1845,31 +1841,31 @@ const Comandas: React.FC = () => {
                     )}
                 </div>
 
-                <div className="divide-y divide-slate-200/70 dark:divide-white/8">
+                <div className="divide-y divide-line">
                     {loading ? (
                         <div className="space-y-3 p-4">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="rounded-2xl border border-line bg-gold-pale/50 p-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="size-10 animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                                    <div className="size-10 animate-pulse rounded-xl bg-gold-soft/50" />
                                     <div>
-                                        <p className="text-sm font-black text-slate-800 dark:text-white">Carregando {orderPluralLower}...</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Buscando clientes, itens, profissionais e histórico financeiro.</p>
+                                        <p className="text-sm font-black text-ink">Carregando {orderPluralLower}...</p>
+                                        <p className="text-xs text-ink-soft">Buscando clientes, itens, profissionais e histórico financeiro.</p>
                                     </div>
                                 </div>
                             </div>
                             {[1, 2, 3, 4].map((item) => (
-                                <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-white/[0.04]" />
+                                <div key={item} className="h-20 animate-pulse rounded-xl bg-card border border-line/60" />
                             ))}
                         </div>
                     ) : sortedComandas.length === 0 ? (
                         <div className="p-8 text-center">
-                            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-slate-100 text-slate-500 dark:bg-white/5">
+                            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl border border-line bg-gold-pale text-primary-dark">
                                 <span className="material-symbols-outlined">receipt_long</span>
                             </div>
-                            <p className="text-sm font-black text-slate-800 dark:text-white">
+                            <p className="text-sm font-black text-ink">
                                 {hasAnyFilter ? `Nenhum ${orderLabelLower} encontrado com os filtros atuais.` : `Nenhum ${orderLabelLower} encontrado.`}
                             </p>
-                            <p className="mx-auto mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                            <p className="mx-auto mt-2 max-w-xl text-xs text-ink-soft">
                                 {hasAnyFilter
                                     ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
                                     : `Quando houver ${orderPluralLower} abertos ou finalizados, eles aparecerão aqui com referência curta, cliente e status operacional.`}
@@ -1900,12 +1896,12 @@ const Comandas: React.FC = () => {
                 </div>
 
                 {sortedComandas.length > pageSize && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200/60 dark:border-white/10 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-line px-4 py-3 text-xs text-ink-soft">
                         <div className="flex items-center gap-2">
                             <span>
-                                Exibindo <strong className="text-slate-900 dark:text-white font-semibold">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sortedComandas.length)}</strong> de <strong className="text-slate-900 dark:text-white font-semibold">{sortedComandas.length}</strong> {orderPluralLower}
+                                Exibindo <strong className="text-ink font-semibold tabular-nums">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, sortedComandas.length)}</strong> de <strong className="text-ink font-semibold tabular-nums">{sortedComandas.length}</strong> {orderPluralLower}
                             </span>
-                            <span className="text-slate-300 dark:text-white/20">|</span>
+                            <span className="text-line">|</span>
                             <div className="flex items-center gap-1.5">
                                 <span>Por página:</span>
                                 <select
@@ -1914,7 +1910,7 @@ const Comandas: React.FC = () => {
                                         setPageSize(Number(e.target.value));
                                         setCurrentPage(1);
                                     }}
-                                    className="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className="rounded-lg border border-line bg-card px-2 py-1 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary/40 tabular-nums"
                                 >
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1928,19 +1924,19 @@ const Comandas: React.FC = () => {
                                 type="button"
                                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
-                                className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                className="flex items-center gap-1 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink hover:bg-gold-pale disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-[0.98] touch-manipulation"
                             >
                                 <span className="material-symbols-outlined text-sm">chevron_left</span>
                                 Anterior
                             </button>
-                            <span className="px-2 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="px-2 font-medium text-ink tabular-nums">
                                 Página {currentPage} de {totalPages}
                             </span>
                             <button
                                 type="button"
                                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
-                                className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121826] px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                className="flex items-center gap-1 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink hover:bg-gold-pale disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-[0.98] touch-manipulation"
                             >
                                 Próxima
                                 <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -1951,7 +1947,7 @@ const Comandas: React.FC = () => {
             </section>
 
             {selectedComanda && (
-                <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-[#121826] md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
+                <aside className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-hidden rounded-t-2xl border border-line bg-card shadow-2xl shadow-black/20 md:inset-x-auto md:bottom-6 md:right-6 md:top-24 md:w-[360px] md:max-h-[calc(100vh-7.5rem)] md:rounded-2xl">
                     <ComandaSidebar
                         comanda={selectedComanda}
                         financialHistory={financialHistoryByComandaId[selectedComanda.id] || null}
@@ -2002,8 +1998,8 @@ const Comandas: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setBulkCloseType('normal')}
-                            className={`flex-1 rounded-xl py-3 px-4 text-sm font-semibold transition ${
-                                bulkCloseType === 'normal' ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                            className={`flex-1 rounded-xl py-3 px-4 text-sm font-bold transition active:scale-[0.98] touch-manipulation ${
+                                bulkCloseType === 'normal' ? 'bg-primary text-night shadow-smg-glow' : 'bg-gold-pale text-ink-soft hover:text-ink'
                             }`}
                         >
                             {isEsteticaApp ? 'Finalização normal' : 'Venda Normal'}
@@ -2011,24 +2007,24 @@ const Comandas: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setBulkCloseType('admin')}
-                            className={`flex-1 rounded-xl py-3 px-4 text-sm font-semibold transition ${
-                                bulkCloseType === 'admin' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                            className={`flex-1 rounded-xl py-3 px-4 text-sm font-bold transition active:scale-[0.98] touch-manipulation ${
+                                bulkCloseType === 'admin' ? 'bg-primary-dark text-white shadow-smg-glow' : 'bg-gold-pale text-ink-soft hover:text-ink'
                             }`}
                         >
                             Administrativa
                         </button>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {selectedOpenComandaIds.length} {orderPluralLower} selecionado(s)
+                    <p className="text-sm text-ink-soft">
+                        <strong className="text-ink tabular-nums">{selectedOpenComandaIds.length}</strong> {orderPluralLower} selecionado(s)
                     </p>
                     {bulkCloseType === 'admin' && (
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-500">Mês de referência</label>
+                            <label className="mb-1 block text-xs font-semibold text-ink-soft">Mês de referência</label>
                             <input
                                 type="month"
                                 value={bulkLegacyReferenceMonth}
                                 onChange={(e) => setBulkLegacyReferenceMonth(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
+                                className="w-full rounded-xl border border-line bg-card p-3 text-sm text-ink focus:border-primary focus:outline-none"
                             />
                         </div>
                     )}
@@ -2037,7 +2033,7 @@ const Comandas: React.FC = () => {
                         onChange={(e) => setBulkClosureNote(e.target.value)}
                         rows={2}
                         placeholder="Observação"
-                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
+                        className="w-full rounded-xl border border-line bg-card p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-primary focus:outline-none"
                     />
                     <div className="flex gap-2">
                         <Button variant="secondary" onClick={() => setBulkCloseModalOpen(false)} disabled={bulkClosing} className="flex-1">Voltar</Button>
@@ -2055,21 +2051,21 @@ const Comandas: React.FC = () => {
                 {deleteComanda && (
                     <div className="space-y-4">
                         {deleteComanda.status === 'paid' && (
-                            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-500/30 dark:bg-rose-500/10">
-                                <p className="text-xs font-medium text-rose-800 dark:text-rose-200">
+                            <div className="rounded-lg border border-danger/30 bg-danger/10 p-3">
+                                <p className="text-xs font-medium text-danger">
                                     Este {orderLabelLower} está <strong>{isEsteticaApp ? 'FINALIZADO' : 'PAGO'}</strong> e não pode ser anulado diretamente. Utilize o fluxo de <strong>Estornar e reabrir</strong>.
                                 </p>
                             </div>
                         )}
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                            Anular {orderLabelLower} <strong>#{getDisplayId(deleteComanda.id)}</strong> de <strong>{deleteComanda.clients.name}</strong>?
+                        <p className="text-sm text-ink-soft">
+                            Anular {orderLabelLower} <strong className="text-ink">#{getDisplayId(deleteComanda.id)}</strong> de <strong className="text-ink">{deleteComanda.clients.name}</strong>?
                         </p>
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-500">Motivo</label>
+                            <label className="mb-1 block text-xs font-semibold text-ink-soft">Motivo</label>
                             <select
                                 value={cancelReason}
                                 onChange={(e) => setCancelReason(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
+                                className="w-full rounded-xl border border-line bg-card p-3 text-sm text-ink focus:border-primary focus:outline-none"
                             >
                                 <option value="">Selecione...</option>
                                 {CANCEL_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -2081,13 +2077,13 @@ const Comandas: React.FC = () => {
                                     onChange={(e) => setCancelReasonOther(e.target.value)}
                                     rows={2}
                                     placeholder="Descreva o motivo"
-                                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-[#0f172a]"
+                                    className="mt-2 w-full rounded-xl border border-line bg-card p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-primary focus:outline-none"
                                 />
                             )}
                         </div>
                         {['operational_error', 'test', 'duplicate'].includes(cancelReason) && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                                <p className="text-xs font-medium text-amber-800">
+                            <div className="rounded-lg border border-primary/30 bg-gold-pale p-3">
+                                <p className="text-xs font-medium text-primary-dark">
                                     ⚠️ Este {orderLabelLower} <strong>não será considerado no financeiro</strong>.
                                 </p>
                             </div>
@@ -2112,7 +2108,7 @@ const Comandas: React.FC = () => {
                     const reopenHistory = financialHistoryByComandaId[reopenComanda.id] || null;
                     return (
                         <div className="space-y-4">
-                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                            <div className="rounded-xl border border-primary/30 bg-gold-pale p-4 text-xs text-primary-dark">
                                 <p className="font-bold">Reversão contábil auditada (wrong_settlement)</p>
                                 <p className="mt-1 leading-relaxed">
                                     A transação original de entrada será preservada. O sistema registrará uma saída reversa no Fluxo de Caixa, estornará comissões vinculadas e reabrirá o {orderLabelLower} com status <strong>{isEsteticaApp ? 'Aberto' : 'Aberta'}</strong>.
@@ -2120,27 +2116,27 @@ const Comandas: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                <div className="rounded-xl border border-line bg-card p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">
                                         {orderLabel} e Cliente
                                     </p>
-                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                                    <p className="mt-1 text-sm font-bold text-ink">
                                         #{getDisplayId(reopenComanda.id)} — {reopenComanda.clients.name}
                                     </p>
                                     {reopenHistory && (
-                                        <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                                        <p className="mt-1 font-mono text-[11px] text-ink-soft">
                                             Tx: {reopenHistory.transactionId}
                                         </p>
                                     )}
                                 </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                <div className="rounded-xl border border-line bg-card p-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">
                                         Valor do Estorno
                                     </p>
-                                    <p className="mt-1 text-lg font-black text-amber-600 dark:text-amber-400">
+                                    <p className="mt-1 text-lg font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-primary-dark">
                                         {formatCurrency(reopenHistory ? reopenHistory.reversibleAmount : reopenComanda.total)}
                                     </p>
-                                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                    <p className="mt-0.5 text-xs text-ink-soft">
                                         Forma original: {reopenHistory?.paymentMethod || reopenComanda.payment_method || NOT_INFORMED_FALLBACK}
                                     </p>
                                 </div>
@@ -2148,14 +2144,14 @@ const Comandas: React.FC = () => {
 
                             <div className="space-y-3">
                                 <div>
-                                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                                    <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">
                                         Motivo do estorno
                                     </label>
                                     <select
                                         value={reopenReasonType}
                                         onChange={(e) => setReopenReasonType(e.target.value)}
                                         disabled={reopening}
-                                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                        className="w-full rounded-xl border border-line bg-card p-3 text-sm font-semibold text-ink focus:border-primary focus:outline-none"
                                     >
                                         {REOPEN_REASON_OPTIONS.map((opt) => (
                                             <option key={opt.value} value={opt.value}>
@@ -2166,7 +2162,7 @@ const Comandas: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                                    <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">
                                         Observação obrigatória para auditoria
                                     </label>
                                     <textarea
@@ -2175,25 +2171,25 @@ const Comandas: React.FC = () => {
                                         disabled={reopening}
                                         rows={3}
                                         placeholder={`Descreva por que a baixa deste ${orderLabelLower} está sendo estornada e reaberta...`}
-                                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-white"
+                                        className="w-full rounded-xl border border-line bg-card p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-primary focus:outline-none"
                                     />
                                 </div>
                             </div>
 
-                            <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-xs text-slate-600 dark:border-white/10 dark:text-slate-300">
+                            <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-xs text-ink-soft">
                                 <input
                                     type="checkbox"
                                     checked={reopenConfirmed}
                                     onChange={(e) => setReopenConfirmed(e.target.checked)}
                                     disabled={reopening}
-                                    className="mt-0.5 size-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                    className="mt-0.5 size-4 rounded border-line text-primary focus:ring-primary/40"
                                 />
                                 <span>
                                     Confirmo que esta ação registrará uma saída reversa auditada no financeiro, reverterá comissões geradas pela baixa anterior e reabrirá o {orderLabelLower} para edição.
                                 </span>
                             </label>
 
-                            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:flex-row sm:justify-end">
+                            <div className="flex flex-col-reverse gap-2 border-t border-line pt-3 sm:flex-row sm:justify-end">
                                 <Button
                                     variant="secondary"
                                     onClick={closeReopenPaidModal}
