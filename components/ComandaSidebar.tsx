@@ -82,28 +82,28 @@ const getStatusMeta = (status: 'blocked' | 'open' | 'paid' | 'cancelled', isEste
     if (status === 'blocked') {
         return {
             label: isEsteticaApp ? 'Bloqueado' : 'Bloqueada',
-            className: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
-            dotClassName: 'bg-blue-400',
+            className: 'bg-gold-soft text-primary-dark border-primary-light/60',
+            dotClassName: 'bg-primary-dark',
         };
     }
     if (status === 'open') {
         return {
             label: isEsteticaApp ? 'Aberto' : 'Aberta',
-            className: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
-            dotClassName: 'bg-amber-400',
+            className: 'bg-primary/10 text-primary-dark border-primary/30',
+            dotClassName: 'bg-primary',
         };
     }
     if (status === 'paid') {
         return {
             label: isEsteticaApp ? 'Finalizado' : 'Paga',
-            className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-            dotClassName: 'bg-emerald-400',
+            className: 'bg-success/10 text-success border-success/30',
+            dotClassName: 'bg-success',
         };
     }
     return {
         label: isEsteticaApp ? 'Cancelado' : 'Cancelada',
-        className: 'bg-slate-500/10 text-slate-300 border-slate-500/20',
-        dotClassName: 'bg-slate-400',
+        className: 'bg-line/40 text-ink-soft border-line',
+        dotClassName: 'bg-line',
     };
 };
 
@@ -172,13 +172,13 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
 
     return (
         <div className="h-full overflow-y-auto p-4">
-            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-white/8 dark:bg-white/[0.03]">
+            <div className="rounded-2xl border border-line bg-card p-4 text-ink shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
                     <div className="min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             {orderLabel}
                         </p>
-                        <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
+                        <h2 className="text-xl font-black tabular-nums tracking-[-0.02em] text-ink">
                             #{getDisplayId(comanda.id)}
                         </h2>
                     </div>
@@ -192,7 +192,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+                            className="flex size-8 items-center justify-center rounded-lg border border-line bg-card text-ink-soft transition-all duration-150 active:scale-95 touch-manipulation hover:border-primary-light hover:bg-gold-pale hover:text-ink"
                             aria-label={`Fechar painel do ${orderLabelLower}`}
                             title="Fechar painel"
                         >
@@ -202,52 +202,52 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                 </div>
 
                 <div className="mb-4">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{comanda.clients.name}</p>
+                    <p className="text-lg font-bold text-ink">{comanda.clients.name}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                    <div className="rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Abertura</p>
+                    <div className="rounded-xl border border-line bg-card p-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Abertura</p>
                         <p className={`mt-1 text-sm font-semibold ${
-                            openingInfo.isToday ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'
+                            openingInfo.isToday ? 'text-success' : 'text-ink'
                         }`}>
                             {openingInfo.label}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-xs tabular-nums text-ink-soft">
                             {formatTimeLabel(comanda.created_at)}
                         </p>
                     </div>
-                    <div className="rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Agendamento</p>
+                    <div className="rounded-xl border border-line bg-card p-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Agendamento</p>
                         {appointmentDate ? (
                             <>
-                                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                                <p className="mt-1 text-sm font-semibold tabular-nums text-ink">
                                     {appointmentDate.toLocaleDateString('pt-BR', { day: 'numeric' })}
                                 </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                <p className="text-xs tabular-nums text-ink-soft">
                                     {formatTimeLabel(comanda.appointment!.start_time!)}
                                 </p>
                             </>
                         ) : (
-                            <p className="mt-1 text-xs text-slate-400">Sem agendamento</p>
+                            <p className="mt-1 text-xs text-ink-soft">Sem agendamento</p>
                         )}
                     </div>
                 </div>
 
-                <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Profissional</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                <div className="mb-4 rounded-xl border border-line bg-card p-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Profissional</p>
+                    <p className="mt-1 text-sm font-semibold text-ink">
                         {comanda.staff_names.join(' / ') || 'Sem profissional'}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-ink-soft">
                         {comanda.comanda_items.length} {comanda.comanda_items.length === 1 ? 'item' : 'itens'}
                     </p>
                 </div>
 
-                <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
+                <div className="mb-4 rounded-xl border border-line bg-card p-3">
                     <div className="mb-2 flex items-center justify-between">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Consumo</p>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Consumo</p>
+                        <span className="text-[10px] text-ink-soft">
                             {getConsumptionType(comanda, labels.servicePlural)}
                         </span>
                     </div>
@@ -258,19 +258,19 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                                     key={item.id}
                                     className="flex items-center justify-between text-xs"
                                 >
-                                    <span className="truncate text-slate-700 dark:text-slate-300">
+                                    <span className="truncate text-ink-soft">
                                         {item.product_name}
                                     </span>
-                                    <span className="shrink-0 font-medium text-slate-900 dark:text-white">
+                                    <span className="shrink-0 font-medium tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
                                         {formatCurrency(item.unit_price * item.quantity)}
                                     </span>
                                 </div>
                             ))
                         ) : (
-                            <p className="text-xs text-slate-400">Sem itens lancados</p>
+                            <p className="text-xs text-ink-soft">Sem itens lançados</p>
                         )}
                         {comanda.comanda_items.length > 5 && (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-ink-soft">
                                 +{comanda.comanda_items.length - 5} mais itens
                             </p>
                         )}
@@ -278,20 +278,20 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                 </div>
 
                 {financialHistory && (
-                    <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-3 dark:border-white/8 dark:bg-[#0f172a]">
+                    <div className="mb-4 rounded-xl border border-line bg-card p-3">
                         <div className="mb-3 flex items-start justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Historico financeiro</p>
-                                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Histórico financeiro</p>
+                                <p className="mt-1 text-sm font-semibold tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
                                     {formatCurrency(financialHistory.amount)}
                                 </p>
                             </div>
                             <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${
                                 financialHistory.reversalStatus === 'full'
-                                    ? 'border-rose-500/20 bg-rose-500/10 text-rose-500'
+                                    ? 'border-danger/30 bg-danger/10 text-danger'
                                     : financialHistory.reversalStatus === 'partial'
-                                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-500'
-                                    : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
+                                    ? 'border-primary/30 bg-gold-soft text-primary-dark'
+                                    : 'border-success/30 bg-success/10 text-success'
                             }`}>
                                 {financialHistory.reversalStatus === 'full'
                                     ? 'Estornado total'
@@ -301,23 +301,23 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                             </span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
-                                <p className="font-semibold text-slate-500 dark:text-slate-400">Forma</p>
-                                <p className="mt-1 text-slate-900 dark:text-white">{financialHistory.paymentMethod}</p>
+                            <div className="rounded-lg bg-gold-pale p-2">
+                                <p className="font-semibold text-ink-soft">Forma</p>
+                                <p className="mt-1 text-ink">{financialHistory.paymentMethod}</p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
-                                <p className="font-semibold text-slate-500 dark:text-slate-400">Data</p>
-                                <p className="mt-1 text-slate-900 dark:text-white">
-                                    {financialHistory.date ? new Date(financialHistory.date).toLocaleDateString('pt-BR') : 'Nao informada'}
+                            <div className="rounded-lg bg-gold-pale p-2">
+                                <p className="font-semibold text-ink-soft">Data</p>
+                                <p className="mt-1 text-ink tabular-nums">
+                                    {financialHistory.date ? new Date(financialHistory.date).toLocaleDateString('pt-BR') : 'Não informada'}
                                 </p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
-                                <p className="font-semibold text-slate-500 dark:text-slate-400">Revertido</p>
-                                <p className="mt-1 text-slate-900 dark:text-white">{formatCurrency(financialHistory.reversedAmount)}</p>
+                            <div className="rounded-lg bg-gold-pale p-2">
+                                <p className="font-semibold text-ink-soft">Revertido</p>
+                                <p className="mt-1 text-ink tabular-nums tracking-[-0.02em] whitespace-nowrap">{formatCurrency(financialHistory.reversedAmount)}</p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
-                                <p className="font-semibold text-slate-500 dark:text-slate-400">Saldo reversivel</p>
-                                <p className="mt-1 text-slate-900 dark:text-white">{formatCurrency(financialHistory.reversibleAmount)}</p>
+                            <div className="rounded-lg bg-gold-pale p-2">
+                                <p className="font-semibold text-ink-soft">Saldo reversível</p>
+                                <p className="mt-1 text-ink tabular-nums tracking-[-0.02em] whitespace-nowrap">{formatCurrency(financialHistory.reversibleAmount)}</p>
                             </div>
                         </div>
                         {financialHistory.reversals.length > 0 && (
@@ -325,15 +325,15 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                                 {financialHistory.reversals.map((reversal, index) => (
                                     <div
                                         key={`${reversal.reversalTransactionId || financialHistory.transactionId}-${index}`}
-                                        className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-xs"
+                                        className="rounded-lg border border-primary/30 bg-gold-soft/40 p-2 text-xs"
                                     >
                                         <div className="flex items-center justify-between gap-2">
-                                            <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(reversal.amount)}</span>
-                                            <span className="text-slate-500 dark:text-slate-400">
+                                            <span className="font-bold text-ink tabular-nums whitespace-nowrap">{formatCurrency(reversal.amount)}</span>
+                                            <span className="text-ink-soft tabular-nums">
                                                 {reversal.createdAt ? new Date(reversal.createdAt).toLocaleDateString('pt-BR') : 'Sem data'}
                                             </span>
                                         </div>
-                                        <p className="mt-1 text-slate-600 dark:text-slate-300">
+                                        <p className="mt-1 text-ink-soft">
                                             {reversal.reversalType} | {reversal.reasonType}
                                         </p>
                                     </div>
@@ -343,15 +343,15 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                     </div>
                 )}
 
-                <div className="mb-4 rounded-xl border border-slate-200/70 bg-white p-4 dark:border-white/8 dark:bg-[#0f172a]">
+                <div className="mb-4 rounded-xl border border-line bg-card p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total</p>
-                            <p className="text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">Total</p>
+                            <p className="text-2xl font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
                                 {formatCurrency(comanda.total)}
                             </p>
                         </div>
-                        <span className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-500 dark:border-white/10 dark:text-slate-400">
+                        <span className="rounded-full border border-line bg-gold-pale px-2 py-1 text-[10px] font-bold text-ink-soft">
                             {comanda.status === 'open' ? 'Pendente' : 'Finalizado'}
                         </span>
                     </div>

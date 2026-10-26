@@ -81,13 +81,13 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#121826]">
-                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/60 backdrop-blur-xs p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-line bg-card shadow-xl text-ink">
+                <div className="flex items-center justify-between border-b border-line px-5 py-4">
                     <div>
-                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Filtros do {orderLabelLower}</h2>
+                        <h2 className="text-lg font-black text-ink">Filtros do {orderLabelLower}</h2>
                         {activeFiltersCount > 0 && (
-                            <p className="mt-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                            <p className="mt-0.5 text-xs font-semibold text-primary-dark">
                                 {activeFiltersCount} filtro(s) aplicado(s)
                             </p>
                         )}
@@ -95,7 +95,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+                        className="flex size-8 items-center justify-center rounded-lg text-ink-soft transition-all duration-150 active:scale-95 touch-manipulation hover:bg-gold-pale hover:text-ink"
                     >
                         <span className="material-symbols-outlined text-[20px]">close</span>
                     </button>
@@ -103,7 +103,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
 
                 <div className="max-h-[70vh] space-y-5 overflow-y-auto p-5">
                     <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             Período rápido
                         </label>
                         <div className="flex flex-wrap gap-2">
@@ -112,10 +112,10 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                     key={range.key}
                                     type="button"
                                     onClick={() => onApplyQuickRange(range.key)}
-                                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all duration-150 active:scale-95 touch-manipulation ${
                                         quickRange === range.key
-                                            ? 'border-amber-400/60 bg-amber-500/15 text-amber-700 dark:text-amber-200'
-                                            : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white'
+                                            ? 'border-primary/60 bg-gold-soft text-primary-dark'
+                                            : 'border-line text-ink-soft hover:border-primary-light hover:bg-gold-pale hover:text-ink'
                                     }`}
                                 >
                                     {range.label}
@@ -126,7 +126,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
 
                     {(quickRange === 'custom' || quickRange === 'all') && (
                         <div>
-                            <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                                 Período personalizado
                             </label>
                             <div className="grid grid-cols-2 gap-2">
@@ -137,7 +137,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                         onDateFromChange(e.target.value);
                                     }}
                                     max={dateTo || undefined}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                    className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none focus:border-primary"
                                     containerClassName="w-full"
                                 />
                                 <DatePickerInput
@@ -147,12 +147,12 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                         onDateToChange(e.target.value);
                                     }}
                                     min={dateFrom || undefined}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                    className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none focus:border-primary"
                                     containerClassName="w-full"
                                 />
                             </div>
                             {dateFrom && dateTo && (
-                                <p className="mt-2 text-xs text-slate-500">
+                                <p className="mt-2 text-xs tabular-nums text-ink-soft">
                                     {formatDateLabel(`${dateFrom}T00:00:00`)} até {formatDateLabel(`${dateTo}T00:00:00`)}
                                 </p>
                             )}
@@ -160,13 +160,13 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     )}
 
                     <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             Profissional
                         </label>
                         <select
                             value={staffFilter}
                             onChange={(e) => onStaffFilterChange(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                            className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none focus:border-primary"
                         >
                             <option value="">Todos</option>
                             {staffOptions.map((staff) => (
@@ -178,7 +178,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             Faixa de valor
                         </label>
                         <div className="grid grid-cols-2 gap-2">
@@ -189,7 +189,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                 value={minTotal}
                                 onChange={(e) => onMinTotalChange(e.target.value)}
                                 placeholder="Mínimo"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm tabular-nums text-ink outline-none focus:border-primary"
                             />
                             <input
                                 type="number"
@@ -198,19 +198,19 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                 value={maxTotal}
                                 onChange={(e) => onMaxTotalChange(e.target.value)}
                                 placeholder="Máximo"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm tabular-nums text-ink outline-none focus:border-primary"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             Tipo de consumo
                         </label>
                         <select
                             value={consumptionType}
                             onChange={(e) => onConsumptionTypeChange(e.target.value as ConsumptionType)}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                            className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none focus:border-primary"
                         >
                             <option value="all">Todos</option>
                             <option value="service">{serviceLabel}</option>
@@ -220,7 +220,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-ink-soft">
                             Ordenação
                         </label>
                         <select
@@ -230,7 +230,7 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                                 onSortFieldChange(nextField);
                                 onSortDirectionChange(nextDirection);
                             }}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                            className="w-full rounded-xl border border-line bg-card px-3 py-2.5 text-sm text-ink outline-none focus:border-primary"
                         >
                             <option value="date:desc">Mais recentes primeiro</option>
                             <option value="date:asc">Mais antigas primeiro</option>
@@ -244,18 +244,18 @@ const ComandaFiltersModal: React.FC<ComandaFiltersModalProps> = ({
                     </div>
                 </div>
 
-                <div className="flex gap-3 border-t border-slate-200 px-5 py-4 dark:border-white/8">
+                <div className="flex gap-3 border-t border-line px-5 py-4">
                     <button
                         type="button"
                         onClick={onClearAll}
-                        className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/5"
+                        className="flex-1 rounded-xl border border-line py-2.5 text-sm font-semibold text-ink-soft transition-all duration-150 active:scale-[0.98] touch-manipulation hover:bg-gold-pale hover:text-ink"
                     >
                         Limpar tudo
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90"
+                        className="flex-1 rounded-xl bg-gradient-to-r from-primary to-primary-dark py-2.5 text-sm font-black text-night shadow-smg-glow transition-all duration-150 active:scale-[0.98] touch-manipulation hover:from-primary-dark hover:to-primary"
                     >
                         Aplicar filtros
                     </button>

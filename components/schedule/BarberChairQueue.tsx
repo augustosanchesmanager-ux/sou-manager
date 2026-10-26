@@ -47,7 +47,7 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
   const [showCompleted, setShowCompleted] = useState(false);
 
   // Classifica a fila para o profissional selecionado
-  const { inProgress, next, upcoming, completed, metrics } = useMemo(() => {
+  const { inProgress, next, upcoming, completed } = useMemo(() => {
     return classifyChairQueue(appointments, selectedStaffId);
   }, [appointments, selectedStaffId]);
 
@@ -61,14 +61,14 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
 
   return (
     <div className="space-y-4 animate-fade-in pb-12">
-      {/* Topo Móvel: Identificação da Cadeira e Encaixe Rápido */}
-      <section className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-card-dark p-3.5 shadow-sm space-y-3">
+      {/* 🧭 Topo de Bancada: Identificação da Cadeira e Encaixe Rápido */}
+      <section className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-3.5 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
               {isBarberRole ? 'Sua Cadeira Operacional' : 'Fila da Cadeira'}
             </p>
-            <h2 className="text-base font-black text-slate-900 dark:text-white truncate">
+            <h2 className="font-display text-base font-bold text-ink dark:text-white truncate">
               {activeStaff?.name || (selectedStaffId === 'all' ? 'Todas as Cadeiras' : 'Cadeira')}
             </h2>
           </div>
@@ -76,7 +76,8 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
           <button
             type="button"
             onClick={onOpenQuickWalkIn}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs px-3.5 py-2.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all shrink-0"
+            aria-label="Adicionar encaixe rápido na cadeira"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold text-xs px-3.5 py-2.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all shrink-0 touch-manipulation"
           >
             <span className="material-symbols-outlined text-base">person_add</span>
             <span>+ Encaixe Rápido</span>
@@ -89,10 +90,10 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
             <button
               type="button"
               onClick={() => onSelectStaff('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                 selectedStaffId === 'all'
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
-                  : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                  ? 'bg-primary/20 text-primary-light border-primary/40 shadow-xs'
+                  : 'bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white border-line dark:border-border-dark hover:border-primary/30'
               }`}
             >
               Todas
@@ -104,10 +105,10 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
                   key={staff.id}
                   type="button"
                   onClick={() => onSelectStaff(staff.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                     isSelected
-                      ? 'bg-amber-400 text-slate-950 shadow-xs'
-                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
+                      ? 'bg-primary/20 text-primary-light border-primary/40 shadow-xs'
+                      : 'bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white border-line dark:border-border-dark hover:border-primary/30'
                   }`}
                 >
                   {staff.name.split(' ')[0]}
@@ -116,31 +117,9 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
             })}
           </div>
         )}
-
-        {/* Faixa de KPIs Compacta */}
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-white/5 text-center">
-          <div className="rounded-xl bg-sky-500/10 p-2">
-            <p className="text-[9px] font-black uppercase text-sky-700 dark:text-sky-300">Na Cadeira</p>
-            <p className="text-lg font-black text-sky-800 dark:text-sky-200 leading-tight">
-              {metrics.inProgressCount}
-            </p>
-          </div>
-          <div className="rounded-xl bg-amber-500/10 p-2">
-            <p className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">Aguardando</p>
-            <p className="text-lg font-black text-amber-800 dark:text-amber-200 leading-tight">
-              {metrics.waitingCount}
-            </p>
-          </div>
-          <div className="rounded-xl bg-emerald-500/10 p-2">
-            <p className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">Concluídos</p>
-            <p className="text-lg font-black text-emerald-800 dark:text-emerald-200 leading-tight">
-              {metrics.completedCount}
-            </p>
-          </div>
-        </div>
       </section>
 
-      {/* 🟢 CARD HERO: "NA CADEIRA AGORA" */}
+      {/* 🟢 CARD HERO: "NA CADEIRA AGORA" (Spotlight de Atendimento) */}
       <section className="space-y-1.5">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5">
@@ -150,45 +129,47 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
               )}
               <span
                 className={`relative inline-flex rounded-full size-2.5 ${
-                  inProgress ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                  inProgress ? 'bg-emerald-500' : 'bg-ink-soft/40'
                 }`}
               />
             </span>
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
               Na Cadeira Agora
             </span>
           </div>
           {inProgress && (
-            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-emerald-400 border border-emerald-500/30">
               {formatElapsedTime(inProgress.startTime)}
             </span>
           )}
         </div>
 
         {inProgress ? (
-          <div className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-[#102235] to-[#152e47] p-5 text-white shadow-xl shadow-emerald-950/10 relative overflow-hidden">
-            <div className="pointer-events-none absolute -right-6 -bottom-6 size-32 rounded-full bg-emerald-500/10 blur-2xl" />
+          <div className="rounded-2xl border-2 border-emerald-500/40 bg-card-dark p-5 text-white shadow-xl relative">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+              <div className="absolute -right-6 -bottom-6 size-40 rounded-full bg-emerald-500/10 blur-3xl" />
+            </div>
 
-            <div className="flex items-start justify-between gap-3 relative z-10">
+            <div className="flex items-start justify-between gap-3 relative z-30">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-black truncate">{inProgress.client}</h3>
+                  <h3 className="font-display text-xl font-bold truncate text-white">{inProgress.client}</h3>
                   {inProgress.isOverbooked && (
-                    <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-950">
+                    <span className="rounded bg-primary/20 text-primary-light border border-primary/30 px-1.5 py-0.5 text-[10px] font-bold uppercase">
                       Encaixe
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">
+                <p className="text-sm font-medium text-ink-soft truncate mt-0.5">
                   {inProgress.service}
                 </p>
-                <div className="flex items-center gap-3 text-xs text-slate-300 mt-2">
+                <div className="flex items-center gap-3 text-xs text-ink-soft mt-2">
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm text-emerald-400">schedule</span>
-                    Início: {formatDecimalHour(inProgress.start)}
+                    Início: <strong className="font-display font-bold tabular-nums text-emerald-400">{formatDecimalHour(inProgress.start)}</strong>
                   </span>
                   {Boolean(inProgress.price) && (
-                    <span className="font-extrabold text-amber-300">
+                    <span className="font-display font-bold tabular-nums text-primary-light">
                       R$ {Number(inProgress.price).toFixed(2).replace('.', ',')}
                     </span>
                   )}
@@ -208,12 +189,13 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
               />
             </div>
 
-            {/* Zona do Polegar: Botão Primário Destacado */}
-            <div className="mt-5 pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2 relative z-10">
+            {/* Zona do Polegar: 1 Toque para Finalizar ou Comanda */}
+            <div className="mt-5 pt-3 border-t border-border-dark flex flex-col sm:flex-row gap-2 relative z-10">
               <button
                 type="button"
                 onClick={() => onFinishAppointment(inProgress)}
-                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-black text-sm py-4 shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all"
+                aria-label={`Finalizar atendimento de ${inProgress.client}`}
+                className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold text-sm shadow-md transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               >
                 <span className="material-symbols-outlined text-xl">task_alt</span>
                 <span>Finalizar Atendimento</span>
@@ -222,27 +204,29 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenComanda(inProgress)}
-                className="flex items-center justify-center gap-1.5 rounded-2xl bg-white/10 hover:bg-white/15 text-slate-100 font-bold text-xs py-3.5 px-4 border border-white/10 transition-colors"
+                aria-label={`Abrir ${orderLabel.toLowerCase()} de ${inProgress.client}`}
+                className="h-12 px-4 flex items-center justify-center gap-1.5 rounded-xl bg-surface-dark hover:bg-white/10 text-white font-semibold text-xs border border-border-dark transition-colors touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
-                <span className="material-symbols-outlined text-base">receipt_long</span>
+                <span className="material-symbols-outlined text-base text-primary">receipt_long</span>
                 <span>{orderLabel}</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] p-5 text-center">
-            <span className="material-symbols-outlined text-3xl text-slate-400">airline_seat_recline_normal</span>
-            <p className="mt-1 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <div className="rounded-2xl border border-dashed border-line dark:border-border-dark bg-card dark:bg-card-dark p-6 text-center">
+            <span className="material-symbols-outlined text-3xl text-ink-soft">airline_seat_recline_normal</span>
+            <p className="mt-1 font-display text-sm font-bold text-ink dark:text-white">
               Cadeira livre no momento
             </p>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-ink-soft mt-0.5">
               Nenhum cliente em atendimento agora.
             </p>
             {next && (
               <button
                 type="button"
                 onClick={() => onStartAppointment(next)}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-black text-xs px-4 py-2.5 shadow-sm active:scale-95 transition-all"
+                aria-label={`Chamar ${next.client} para a cadeira`}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold text-xs px-4 py-2.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation"
               >
                 <span className="material-symbols-outlined text-base">play_arrow</span>
                 <span>Chamar {next.client.split(' ')[0]}</span>
@@ -252,37 +236,37 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
         )}
       </section>
 
-      {/* ⏱️ CARD: "A SEGUIR" */}
+      {/* ⏱️ CARD: "A SEGUIR" (On-Deck Queue) */}
       {next && (
         <section className="space-y-1.5">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm text-sky-500">alarm</span>
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <span className="material-symbols-outlined text-sm text-primary">alarm</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
                 A Seguir na Fila
               </span>
             </div>
-            <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
+            <span className="font-display font-bold tabular-nums text-xs text-primary-dark dark:text-primary-light">
               {formatDecimalHour(next.start)}
             </span>
           </div>
 
-          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 dark:bg-sky-500/10 p-4 shadow-sm transition-all">
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-2xl border border-primary/30 bg-card dark:bg-card-dark p-4 shadow-sm transition-all relative">
+            <div className="flex items-start justify-between gap-3 relative z-30">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-base font-black text-slate-900 dark:text-white truncate">
+                  <h4 className="font-display text-base font-bold text-ink dark:text-white truncate">
                     {next.client}
                   </h4>
-                  <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-sky-700 dark:text-sky-300">
+                  <span className="rounded-full bg-gold-soft dark:bg-surface-dark border border-line dark:border-border-dark px-2 py-0.5 text-[10px] font-bold uppercase text-primary-dark dark:text-primary-light">
                     {next.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                   </span>
                 </div>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                <p className="text-xs font-medium text-ink-soft truncate mt-0.5">
                   {next.service}
                 </p>
                 {Boolean(next.clientPhone) && (
-                  <p className="text-[11px] text-slate-400 mt-1">{next.clientPhone}</p>
+                  <p className="text-[11px] text-ink-soft/80 mt-1 font-mono">{next.clientPhone}</p>
                 )}
               </div>
 
@@ -300,30 +284,43 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
             </div>
 
             {/* Botão de 1 Toque: Iniciar Atendimento */}
-            <div className="mt-3 pt-3 border-t border-sky-500/15">
+            <div className="mt-3 pt-3 border-t border-line dark:border-border-dark flex items-center gap-2 relative z-10">
               <button
                 type="button"
                 onClick={() => onStartAppointment(next)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-black text-xs py-3 shadow-md shadow-sky-500/20 active:scale-[0.99] transition-all"
+                aria-label={`Iniciar atendimento de ${next.client}`}
+                className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold text-xs shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <span className="material-symbols-outlined text-lg">play_arrow</span>
                 <span>Iniciar Atendimento</span>
               </button>
+
+              {onWhatsApp && Boolean(next.clientPhone) && (
+                <button
+                  type="button"
+                  onClick={() => onWhatsApp(next)}
+                  aria-label={`Avisar ${next.client} no WhatsApp`}
+                  title="Avisar no WhatsApp"
+                  className="h-11 w-11 flex items-center justify-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark hover:border-success text-success transition-colors touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                >
+                  <span className="material-symbols-outlined text-base">chat</span>
+                </button>
+              )}
             </div>
           </div>
         </section>
       )}
 
-      {/* 📋 RESTANTE DA FILA DO DIA */}
+      {/* 📋 RESTANTE DA FILA DO DIA (Alta Densidade Operacional) */}
       <section className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <span className="text-xs font-bold uppercase tracking-wider text-ink-soft">
             Demais na Fila ({upcoming.length})
           </span>
         </div>
 
         {upcoming.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-card-dark p-4 text-center text-xs text-slate-400">
+          <div className="rounded-xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 text-center text-xs text-ink-soft">
             Nenhum outro atendimento na fila de hoje.
           </div>
         ) : (
@@ -333,19 +330,19 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
               return (
                 <div
                   key={apt.id}
-                  className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-card-dark p-3.5 shadow-sm transition-all hover:border-slate-300 dark:hover:border-white/20"
+                  className="rounded-xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-3 shadow-xs transition-all hover:border-primary/30"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                        <span className="font-display text-xs font-bold tabular-nums whitespace-nowrap text-primary-dark dark:text-primary-light">
                           {formatDecimalHour(apt.start)}
                         </span>
-                        <h5 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                        <h5 className="font-semibold text-sm text-ink dark:text-white truncate">
                           {apt.client}
                         </h5>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      <p className="text-xs text-ink-soft truncate mt-0.5">
                         {apt.service}
                       </p>
                     </div>
@@ -355,7 +352,8 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
                         <button
                           type="button"
                           onClick={() => onStartAppointment(apt)}
-                          className="flex items-center gap-1 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold text-xs px-2.5 py-1.5 transition-colors"
+                          aria-label={`Iniciar atendimento de ${apt.client}`}
+                          className="flex items-center gap-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary-dark dark:text-primary-light font-bold text-xs px-2.5 py-1.5 transition-colors touch-manipulation"
                         >
                           <span className="material-symbols-outlined text-sm">play_arrow</span>
                           <span>Iniciar</span>
@@ -382,20 +380,22 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
         )}
       </section>
 
-      {/* ✅ CONCLUÍDOS HOJE (ACCORDION) */}
+      {/* ✅ CONCLUÍDOS HOJE (ACCORDION RECOLHIDO) */}
       {completed.length > 0 && (
         <section className="pt-2">
           <button
             type="button"
             onClick={() => setShowCompleted((prev) => !prev)}
-            className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300"
+            aria-expanded={showCompleted}
+            aria-label="Alternar visualização de atendimentos concluídos hoje"
+            className="w-full flex items-center justify-between rounded-xl border border-line dark:border-border-dark bg-card dark:bg-card-dark px-3.5 py-2.5 text-xs font-bold text-ink-soft hover:text-ink dark:hover:text-white transition-colors"
           >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-emerald-500">check_circle</span>
+              <span className="material-symbols-outlined text-base text-success">check_circle</span>
               <span>Concluídos hoje ({completed.length})</span>
             </div>
-            <span className="material-symbols-outlined text-base">
-              {showCompleted ? 'expand_less' : 'expand_more'}
+            <span className={`material-symbols-outlined text-base transition-transform duration-200 ${showCompleted ? 'rotate-180' : ''}`}>
+              expand_more
             </span>
           </button>
 
@@ -404,16 +404,17 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
               {completed.map((apt) => (
                 <div
                   key={apt.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-card-dark p-2.5 text-xs"
+                  className="flex items-center justify-between rounded-xl border border-line/60 dark:border-border-dark/60 bg-card dark:bg-surface-dark p-2.5 text-xs"
                 >
                   <div className="min-w-0">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{apt.client}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{apt.service}</p>
+                    <p className="font-semibold text-ink dark:text-white truncate">{apt.client}</p>
+                    <p className="text-[11px] text-ink-soft truncate">{apt.service}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => onOpenComanda(apt)}
-                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                    aria-label={`Ver ${orderLabel.toLowerCase()} de ${apt.client}`}
+                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-500 hover:underline touch-manipulation"
                   >
                     <span>{orderLabel}</span>
                     <span className="material-symbols-outlined text-sm">arrow_forward</span>

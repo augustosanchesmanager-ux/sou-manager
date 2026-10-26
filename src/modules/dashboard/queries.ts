@@ -422,14 +422,36 @@ export const fetchTodayDashboardData = async ({
     comandasQuery = comandasQuery.eq('staff_id', userId);
   }
 
-  const comandasRes = await comandasQuery;
+  const [comandasRes, staffRes, clientsRes] = await Promise.all([
+    comandasQuery,
+    supabase.from('staff').select('id, name').eq('tenant_id', tenantId),
+    getClientForTable('clients', APP_SLUG_FOR_DASHBOARD).from('clients').select('id, phone').eq('tenant_id', tenantId),
+  ]);
+
   logSupabaseError('today.comandas_paid', comandasRes.error);
 
-  const clientPhoneMap: Record<string, string> = {};
+  const staffNameMap: Record<string, string> = {};
+  if (staffRes?.data) {
+    staffRes.data.forEach((s: any) => {
+      staffNameMap[s.id] = s.name;
+    });
+  }
 
-  const todayAppointments = (appointmentsRes.data || []).map((apt: any) =>
-    normalizeAppointmentRecord(apt)
-  );
+  const clientPhoneMap: Record<string, string> = {};
+  if (clientsRes?.data) {
+    clientsRes.data.forEach((c: any) => {
+      if (c.phone) clientPhoneMap[c.id] = c.phone;
+    });
+  }
+
+  const todayAppointments = (appointmentsRes.data || []).map((apt: any) => {
+    const normalized = normalizeAppointmentRecord(apt);
+    return {
+      ...normalized,
+      staff_name: normalized.staff_name || (apt.staff_id ? staffNameMap[apt.staff_id] : '') || '',
+      client_phone: normalized.client_phone || (apt.client_id ? clientPhoneMap[apt.client_id] : null) || null,
+    };
+  });
 
   const totalToday = todayAppointments.length;
   const emAtendimento = todayAppointments.filter((a) => a.status === 'in_progress').length;

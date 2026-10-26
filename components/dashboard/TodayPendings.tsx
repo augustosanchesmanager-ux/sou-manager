@@ -8,6 +8,8 @@ interface TodayPendingsProps {
   pendingAppointmentsCount: number;
   returningClientsCount: number;
   loading?: boolean;
+  status?: 'idle' | 'loading' | 'success' | 'error';
+  error?: string | null;
 }
 
 const buildPendingItems = (appSlug?: string | null) => {
@@ -48,6 +50,8 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
   pendingAppointmentsCount,
   returningClientsCount,
   loading,
+  status,
+  error,
 }) => {
   const pendingItems = buildPendingItems(appSlug);
   const counts: Record<string, number> = {
@@ -55,8 +59,10 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
     pending: pendingAppointmentsCount,
     returns: returningClientsCount,
   };
+  const total = openComandasCount + pendingAppointmentsCount + returningClientsCount;
+  const effectiveStatus = status || (loading ? 'loading' : error ? 'error' : 'success');
 
-  if (loading) {
+  if (effectiveStatus === 'loading') {
     return (
       <div className="rounded-2xl border border-line bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
@@ -75,6 +81,40 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
     );
   }
 
+  if (effectiveStatus === 'error') {
+    return (
+      <div className="rounded-2xl border border-line bg-card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-danger">error</span>
+          <h3 className="font-bold text-ink">Pendências de hoje</h3>
+        </div>
+        <p className="text-xs text-danger">
+          {error || 'Não foi possível carregar as pendências do dia.'}
+        </p>
+      </div>
+    );
+  }
+
+  if (effectiveStatus === 'success' && total === 0) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-line bg-card">
+        <div className="flex items-center gap-2 border-b border-line p-5">
+          <span className="material-symbols-outlined text-success">verified</span>
+          <h3 className="font-bold text-ink">Pendências de hoje</h3>
+        </div>
+        <div className="p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success border border-success/20">
+            <span className="material-symbols-outlined text-2xl">task_alt</span>
+          </div>
+          <p className="mt-3 text-sm font-bold text-ink">Tudo em dia na unidade</p>
+          <p className="mt-1 text-xs text-ink-soft max-w-xs mx-auto">
+            Nenhuma comanda aberta, agendamento pendente ou retorno urgente neste momento.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-card">
       <div className="flex items-center gap-2 border-b border-line p-5">
@@ -88,7 +128,7 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
           return (
             <div
               key={item.key}
-              className="flex items-center justify-between p-4 transition hover:bg-gold-pale"
+              className="flex items-center justify-between p-4 transition-colors hover:bg-gold-pale"
             >
               <div className="flex items-center gap-3">
                 <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.iconBg}`}>
@@ -101,12 +141,13 @@ export const TodayPendings: React.FC<TodayPendingsProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-ink">
+                <span className="font-display text-sm font-bold tabular-nums tracking-tight whitespace-nowrap text-ink">
                   {count}
                 </span>
                 <Link
                   to={item.link}
-                  className="inline-flex items-center gap-1 text-xs font-black text-primary transition hover:text-primary-dark"
+                  aria-label={`Ver detalhes de ${item.label.toLowerCase()}`}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-primary transition-colors touch-manipulation hover:text-primary-dark focus:outline-none focus-visible:underline"
                 >
                   Ver
                   <span className="material-symbols-outlined text-sm">arrow_forward</span>

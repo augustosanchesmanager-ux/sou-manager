@@ -212,8 +212,10 @@ const getDecimalTimeLabel = (value: number) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
-const getTimelinePercent = (value: number) =>
-  ((value - SCHEDULE_START_HOUR) / SCHEDULE_TOTAL_HOURS) * 100;
+const getTimelinePercent = (value: number) => {
+  const clamped = Math.max(SCHEDULE_START_HOUR, Math.min(SCHEDULE_START_HOUR + SCHEDULE_TOTAL_HOURS, value));
+  return ((clamped - SCHEDULE_START_HOUR) / SCHEDULE_TOTAL_HOURS) * 100;
+};
 
 const getAppointmentEndLabel = (appointment: CalendarAppointment) =>
   getDecimalTimeLabel(appointment.start + appointment.duration);
@@ -2538,191 +2540,217 @@ Podemos confirmar? 😄`;
 
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
-      <div className="relative mb-4 shrink-0 overflow-hidden rounded-3xl border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(0,210,255,0.22),transparent_34%),linear-gradient(135deg,rgba(0,51,102,0.96),rgba(15,23,42,0.98)_58%,rgba(146,104,45,0.62))]" />
-        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="size-11 rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white flex items-center justify-center shadow-[0_0_24px_rgba(0,210,255,0.20)] shrink-0">
-            <span className="material-symbols-outlined text-2xl">calendar_month</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das cadeiras'}</p>
-            <h1 className="text-2xl font-black text-white sm:text-3xl">{isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}</h1>
-            <p className="text-sm text-slate-200">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela operacional a partir das 07:00.</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-1 shadow-sm">
-          <button
-            onClick={() => {
-              const newDate = new Date(selectedDate);
-              newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
-              setSelectedDate(newDate);
-            }}
-            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
-            aria-label="Data anterior"
-          >
-            <span className="material-symbols-outlined text-lg">chevron_left</span>
-          </button>
-          <div className="flex min-w-0 items-center justify-center gap-1 px-1.5 font-bold text-white">
-            <span className="text-xs">
-              {viewMode === 'week'
-                ? visibleRangeLabel
-                : formatDateDisplay(selectedDate)
-              }
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              const newDate = new Date(selectedDate);
-              newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
-              setSelectedDate(newDate);
-            }}
-            className="rounded p-1.5 text-slate-200 hover:bg-white/10"
-            aria-label="Próxima data"
-          >
-            <span className="material-symbols-outlined text-lg">chevron_right</span>
-          </button>
-          <span className="flex items-center">
-            <DatePickerInput
-              value={getDateInputValue(selectedDate)}
-              onChange={(e) => {
-                const newDate = parseDateInputValue(e.target.value);
-                if (newDate) setSelectedDate(newDate);
-              }}
-              className="w-auto border-0 bg-transparent p-0 text-xs text-white"
-            />
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap justify-start xl:justify-end">
-          <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
-            <button
-              onClick={() => setDisplayMode('chair')}
-              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'chair'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
-                : 'text-slate-200 hover:text-white'
-                }`}
-            >Fila Cadeira</button>
-            <button
-              onClick={() => setDisplayMode('calendar')}
-              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'calendar'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
-                : 'text-slate-200 hover:text-white'
-                }`}
-            >Calendário</button>
-            <button
-              onClick={() => setDisplayMode('list')}
-              className={`px-3 py-1 rounded text-xs font-bold transition-all ${displayMode === 'list'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
-                : 'text-slate-200 hover:text-white'
-                }`}
-            >Lista</button>
-          </div>
-          {displayMode === 'calendar' && (
-            <div className="flex rounded-lg border border-white/10 bg-white/10 p-0.5">
-              <button
-                onClick={() => setViewMode('day')}
-                className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'day'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-200 hover:text-white'
-                  }`}
-              >Dia</button>
-              <button
-                onClick={() => setViewMode('week')}
-                className={`px-3 py-1 rounded text-xs font-bold transition-all ${viewMode === 'week'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-200 hover:text-white'
-                  }`}
-              >Semana</button>
+      <div className="relative mb-6 shrink-0 overflow-hidden rounded-3xl border border-line/60 dark:border-white/10 bg-night text-white shadow-xl">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(217,154,43,0.18),transparent_50%),linear-gradient(135deg,rgba(11,11,12,0.98),rgba(35,26,6,0.95)_60%,rgba(20,17,11,0.98))]" />
+        <div className="relative p-5 sm:p-6 flex flex-col gap-4">
+          {/* TIER 1: Identity + Date Navigator + Primary Creation Actions */}
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="size-11 sm:size-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-night flex items-center justify-center shadow-[0_8px_20px_rgba(217,154,43,0.25)] shrink-0 font-black">
+                <span className="material-symbols-outlined text-2xl">calendar_month</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary-light/90">{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das cadeiras'}</p>
+                <h1 className="text-2xl font-black text-white sm:text-3xl tracking-[-0.02em]">{isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}</h1>
+                <p className="text-xs sm:text-sm text-slate-300/90 mt-0.5">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela a partir das 07:00.</p>
+              </div>
             </div>
-          )}
-          <button
-            onClick={exportToCSV}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
-            title="Exportar agenda em CSV"
-          >
-            <span className="material-symbols-outlined text-base">download</span>
-            <span className="hidden lg:inline">Exportar CSV</span>
-          </button>
 
-          {displayMode === 'calendar' && (
-            <>
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap justify-start xl:justify-end">
+              <div className="flex items-center rounded-xl border border-white/10 bg-white/5 p-1 shadow-xs backdrop-blur-xs">
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
+                    setSelectedDate(newDate);
+                  }}
+                  className="rounded-lg p-1.5 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Data anterior"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+                <div className="flex min-w-0 items-center justify-center px-2 font-bold text-white tabular-nums tracking-[-0.02em] whitespace-nowrap text-xs sm:text-sm">
+                  {viewMode === 'week'
+                    ? visibleRangeLabel
+                    : formatDateDisplay(selectedDate)
+                  }
+                </div>
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
+                    setSelectedDate(newDate);
+                  }}
+                  className="rounded-lg p-1.5 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Próxima data"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+                <div className="relative flex items-center pl-1 border-l border-white/10 ml-1">
+                  <DatePickerInput
+                    value={getDateInputValue(selectedDate)}
+                    onChange={(e) => {
+                      const newDate = parseDateInputValue(e.target.value);
+                      if (newDate) setSelectedDate(newDate);
+                    }}
+                    className="sr-only"
+                    containerClassName="relative"
+                    buttonClassName="flex items-center justify-center size-7 rounded-lg text-slate-300 hover:text-primary hover:bg-white/10 transition-colors"
+                    icon={<span className="material-symbols-outlined text-base">calendar_today</span>}
+                  />
+                </div>
+              </div>
+
               <button
-                onClick={() => setShowOnlyBlocks(prev => !prev)}
-                className={`border px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all ${showOnlyBlocks
-                  ? 'border-red-300 bg-red-500/20 text-red-100'
-                  : 'border-white/10 bg-white/10 text-slate-100 hover:bg-white/15'
-                  }`}
-                title="Exibir apenas bloqueios na grade"
+                onClick={() => setShowQuickWalkInModal(true)}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-night font-black text-xs px-3.5 py-2.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all whitespace-nowrap"
+                title="Encaixe rápido imediato na cadeira"
               >
-                <span className="material-symbols-outlined text-base">block</span>
-                <span className="hidden lg:inline">Bloqueios</span>
+                <span className="material-symbols-outlined text-base">person_add</span>
+                <span>Encaixe Rápido</span>
               </button>
 
               <button
-                onClick={handleOpenCreateBlockModal}
-                className="flex items-center gap-1.5 rounded-lg border border-red-300/30 bg-red-500/20 px-3 py-2 text-xs font-bold text-red-100 shadow transition-all hover:bg-red-500/30"
+                onClick={() => {
+                  setEditingAppointmentId(null);
+                  setEditingComandaStatus(null);
+                  setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+                  setChefClubInfo(null);
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-primary hover:bg-primary-dark text-night px-4 py-2.5 text-xs font-black shadow-[0_8px_20px_rgba(217,154,43,0.25)] active:scale-95 transition-all whitespace-nowrap"
               >
-                <span className="material-symbols-outlined text-base">event_busy</span>
-                <span className="hidden sm:inline">Fechar agenda</span>
+                <span className="material-symbols-outlined text-base">add</span>
+                <span>{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
               </button>
-            </>
-          )}
-
-          <button
-            onClick={() => navigate('/operations')}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-100 shadow-sm transition-all hover:bg-white/15"
-            title="Operações do dia"
-          >
-            <span className="material-symbols-outlined text-base">insights</span>
-            <span className="hidden sm:inline">Operações</span>
-          </button>
-
-          <button
-            onClick={() => setShowQuickWalkInModal(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs px-3 py-2 shadow-sm transition-all"
-            title="Encaixe rápido imediato na cadeira"
-          >
-            <span className="material-symbols-outlined text-base">person_add</span>
-            <span className="hidden sm:inline">Encaixe Rápido</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setEditingAppointmentId(null);
-    setEditingComandaStatus(null);
-              setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
-              setChefClubInfo(null);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 shadow-[0_8px_22px_rgba(251,191,36,0.20)] transition-all hover:bg-amber-300"
-          >
-            <span className="material-symbols-outlined text-base">add</span>
-            <span className="hidden sm:inline">{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
-          </button>
-        </div>
-        </div>
-        <div className="relative mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-4">
-          <div className="min-w-0 bg-white/[0.04] p-2.5">
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Atendimentos</p>
-            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</p>
-            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleConfirmedCount} confirmados</p>
+            </div>
           </div>
-          <div className="min-w-0 bg-white/[0.04] p-2.5">
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Pendentes</p>
-            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</p>
-            <p className="mt-1 truncate text-[10px] text-slate-300">Aguardam confirmação</p>
+
+          {/* TIER 2: Dedicated Control Toolbar (Modes + Utilities) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 backdrop-blur-xs">
+                <button
+                  onClick={() => setDisplayMode('chair')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'chair'
+                    ? 'bg-primary text-night font-black shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                    }`}
+                >Fila Cadeira</button>
+                <button
+                  onClick={() => setDisplayMode('calendar')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'calendar'
+                    ? 'bg-primary text-night font-black shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                    }`}
+                >Calendário</button>
+                <button
+                  onClick={() => setDisplayMode('list')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'list'
+                    ? 'bg-primary text-night font-black shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                    }`}
+                >Lista</button>
+              </div>
+
+              {displayMode === 'calendar' && (
+                <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 backdrop-blur-xs">
+                  <button
+                    onClick={() => setViewMode('day')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'day'
+                      ? 'bg-primary text-night font-black shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                      }`}
+                  >Dia</button>
+                  <button
+                    onClick={() => setViewMode('week')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'week'
+                      ? 'bg-primary text-night font-black shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                      }`}
+                  >Semana</button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+              <button
+                onClick={exportToCSV}
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 shadow-xs transition-all hover:bg-white/10 hover:text-white"
+                title="Exportar agenda em CSV"
+              >
+                <span className="material-symbols-outlined text-base">download</span>
+                <span>Exportar CSV</span>
+              </button>
+
+              {displayMode === 'calendar' && (
+                <>
+                  <button
+                    onClick={() => setShowOnlyBlocks(prev => !prev)}
+                    className={`border px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all ${showOnlyBlocks
+                      ? 'border-red-400/40 bg-red-500/20 text-red-100'
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                    title="Exibir apenas bloqueios na grade"
+                  >
+                    <span className="material-symbols-outlined text-base">block</span>
+                    <span>Bloqueios</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenCreateBlockModal}
+                    className="flex items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-500/20 px-3 py-1.5 text-xs font-bold text-red-100 shadow-xs transition-all hover:bg-red-500/30"
+                  >
+                    <span className="material-symbols-outlined text-base">event_busy</span>
+                    <span>Fechar agenda</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => navigate('/operations')}
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 shadow-xs transition-all hover:bg-white/10 hover:text-white"
+                title="Operações do dia"
+              >
+                <span className="material-symbols-outlined text-base">insights</span>
+                <span>Operações</span>
+              </button>
+            </div>
           </div>
-          <div className="min-w-0 bg-white/[0.04] p-2.5">
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">{orderPluralLabel}</p>
-            <p className="mt-0.5 text-xl font-black leading-none sm:text-2xl">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</p>
-            <p className="mt-1 truncate text-[10px] text-slate-300">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
-          </div>
-          <div className="min-w-0 bg-white/[0.04] p-2.5">
-            <p className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">Previsto</p>
-            <p className="mt-0.5 truncate text-lg font-black leading-none sm:text-xl">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</p>
-            <p className="mt-1 truncate text-[10px] text-slate-300">{visibleBlockCount} bloqueio(s)</p>
+
+          {/* TIER 3: The 4 Atelier KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Atendimentos</span>
+              <p className="mt-1 text-2xl sm:text-3xl font-black text-white tabular-nums tracking-[-0.02em] leading-none">
+                {loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}
+              </p>
+              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{visibleConfirmedCount} confirmados</p>
+            </div>
+
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Pendentes</span>
+              <p className="mt-1 text-2xl sm:text-3xl font-black text-amber-300 tabular-nums tracking-[-0.02em] leading-none">
+                {loading ? '...' : String(visiblePendingCount).padStart(2, '0')}
+              </p>
+              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">Aguardam confirmação</p>
+            </div>
+
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">{orderPluralLabel}</span>
+              <p className="mt-1 text-2xl sm:text-3xl font-black text-white tabular-nums tracking-[-0.02em] leading-none">
+                {loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}
+              </p>
+              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
+            </div>
+
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-primary/30 transition-colors">
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Previsto</span>
+              <p className="mt-1 truncate text-2xl sm:text-3xl font-black text-primary-light tabular-nums tracking-[-0.02em] whitespace-nowrap leading-none">
+                {loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}
+              </p>
+              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{visibleBlockCount} bloqueio(s)</p>
+            </div>
           </div>
         </div>
       </div>
@@ -2769,20 +2797,20 @@ Podemos confirmar? 😄`;
                     <div
                       key={i}
                       onClick={() => { setSelectedDate(day); setViewMode('day'); }}
-                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-[#F7FBFE] dark:hover:bg-[#102033] ${isSelected ? 'bg-[#EAF7FF] dark:bg-[#0D2238]' : ''
+                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.03] ${isSelected ? 'bg-amber-500/10 dark:bg-amber-500/15' : ''
                         } ${hasDayBlock ? 'bg-red-50/70 dark:bg-red-900/10' : ''
                         }`}
                     >
-                      <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-[#007BFF] dark:text-[#00D2FF]' : 'text-slate-400'
+                      <p className={`text-[10px] font-bold uppercase ${isToday ? 'text-primary font-black' : 'text-slate-400'
                         }`}>
                         {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
                       </p>
-                      <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black ${isToday ? 'bg-[#007BFF] text-white' : 'text-slate-700 dark:text-white'
+                      <div className={`size-8 rounded-full flex items-center justify-center text-sm font-black tabular-nums tracking-[-0.02em] ${isToday ? 'bg-primary text-night shadow-xs' : 'text-slate-700 dark:text-white'
                         }`}>
                         {day.getDate()}
                       </div>
                       {dayApts.length > 0 && !showOnlyBlocks && (
-                        <span className="text-[9px] font-bold bg-[#007BFF]/10 text-[#007BFF] dark:text-[#00D2FF] px-1.5 py-0.5 rounded-full">
+                        <span className="text-[9px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full tabular-nums tracking-[-0.02em]">
                           {dayApts.length} aptos
                         </span>
                       )}
@@ -2805,7 +2833,7 @@ Podemos confirmar? 😄`;
                   <div className="flex min-h-[2600px]">
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
-                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2">
+                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 tabular-nums tracking-[-0.02em]">
                           {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
@@ -2823,7 +2851,7 @@ Podemos confirmar? 😄`;
                         return (
                           <div
                             key={di}
-                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group ${isToday ? 'bg-[#EAF7FF]/35 dark:bg-[#0D2238]/45' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
+                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group overflow-hidden ${isToday ? 'bg-amber-500/[0.03] dark:bg-amber-500/[0.04]' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const aptId = e.dataTransfer.getData('aptId');
@@ -2856,7 +2884,8 @@ Podemos confirmar? 😄`;
                             </div>
                             {!showOnlyBlocks && dayApts.map((apt, idx) => {
                               const startOffset = getTimelinePercent(apt.start);
-                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
+                              const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
+                              const height = Math.max(rawHeight, 4);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
                               const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
@@ -2876,30 +2905,30 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border ${borderColor} ${barberColor} z-10 overflow-hidden shadow-sm hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border ${borderColor} ${barberColor} z-10 overflow-hidden shadow-xs hover:brightness-105 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
                                   <div className="flex min-w-0 items-center gap-1">
-                                    <span className="shrink-0 rounded bg-black/25 px-1 py-0.5 text-[8px] font-black leading-none text-white">
+                                    <span className="shrink-0 rounded bg-black/40 px-1 py-0.5 text-[8px] font-black font-mono leading-none text-white tabular-nums tracking-[-0.02em]">
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
                                     {resolvedInterval.isCustom && (
                                       <span
-                                        className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none"
+                                        className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none tabular-nums whitespace-nowrap"
                                         title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
                                       >
                                         ⏱️ {resolvedInterval.durationMinutes}m
                                       </span>
                                     )}
                                     {apt.isOverbooked && (
-                                      <span className="shrink-0 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black leading-none text-white">ENCAIXE</span>
+                                      <span className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">ENCAIXE</span>
                                     )}
                                   </div>
-                                  <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-sm">
+                                  <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-xs">
                                     {apt.client}
                                   </p>
-                                  <p className="truncate text-[9px] font-bold leading-tight text-white/90 drop-shadow-sm">
+                                  <p className="truncate text-[9px] font-bold leading-tight text-white/90 drop-shadow-xs">
                                     {apt.service}
                                   </p>
                                 </div>
@@ -2954,7 +2983,7 @@ Podemos confirmar? 😄`;
                                 className="fixed inset-0 z-40"
                                 onClick={() => setActiveQuickBlockMenuStaffId(null)}
                               />
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl shadow-xl p-1.5 z-50 flex flex-col gap-1 text-left">
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl p-1.5 z-50 flex flex-col gap-1 text-left">
                                 <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-white/5">
                                   Bloquear {resource.name.split(' ')[0]}
                                 </div>
@@ -2969,7 +2998,7 @@ Podemos confirmar? 😄`;
                                     className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-between transition-colors"
                                   >
                                     <span>{preset.label}</span>
-                                    <span className="text-[10px] text-slate-400">
+                                    <span className="text-[10px] text-slate-400 tabular-nums">
                                       {preset.durationMinutes ? `${preset.durationMinutes}m` : 'Dia todo'}
                                     </span>
                                   </button>
@@ -2993,7 +3022,7 @@ Podemos confirmar? 😄`;
                   <div className="flex min-h-[2600px]">
                     <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
-                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative">
+                        <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative tabular-nums tracking-[-0.02em]">
                           {getDecimalTimeLabel(hour)}
                         </div>
                       ))}
@@ -3009,7 +3038,7 @@ Podemos confirmar? 😄`;
                       {staffList.map(resource => (
                         <div
                           key={resource.id}
-                          className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group"
+                          className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group overflow-hidden"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropAppointment(e, resource.id)}
                         >
@@ -3018,7 +3047,8 @@ Podemos confirmar? 😄`;
                             .filter(apt => apt.staffId === resource.id)
                             .map((apt, idx) => {
                               const startOffset = getTimelinePercent(apt.start);
-                              const height = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
+                              const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
+                              const height = Math.max(rawHeight, 4);
                               const staffIndex = staffList.findIndex(s => s.id === resource.id);
                               const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
                               const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
@@ -3039,43 +3069,42 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-lg px-2 py-1 border ${borderColor} ${barberColor} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-1 right-1 rounded-xl px-2.5 py-1.5 border ${borderColor} ${barberColor} hover:brightness-105 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
                                   <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
-                                    <span className="text-[9px] font-black px-1 py-0.5 rounded bg-black/20 text-white uppercase leading-none">
+                                    <span className="text-[9px] font-black font-mono px-1 py-0.5 rounded bg-black/40 text-white uppercase leading-none tabular-nums tracking-[-0.02em]">
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
                                     {resolvedInterval.isCustom && (
                                       <span
-                                        className="min-w-0 truncate rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none"
+                                        className="min-w-0 truncate rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none tabular-nums whitespace-nowrap"
                                         title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
                                       >
                                         ⏱️ {resolvedInterval.durationMinutes}m
                                       </span>
                                     )}
                                     {apt.isOverbooked && (
-                                      <span className="min-w-0 truncate rounded bg-amber-400 px-1 py-0.5 text-[8px] font-black uppercase leading-none text-white">
+                                      <span className="min-w-0 truncate rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">
                                         Encaixe
                                       </span>
                                     )}
-                                    <div className="flex shrink-0 bg-black/10 rounded px-1 py-0.5">
+                                    <div className="flex shrink-0 bg-black/20 rounded px-1 py-0.5">
                                       {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
                                       {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
                                       {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
                                     </div>
                                   </div>
-                                  <p className="min-w-0 truncate text-xs font-black leading-tight text-white drop-shadow-sm">
+                                  <p className="min-w-0 truncate text-xs font-black leading-tight text-white drop-shadow-xs">
                                     {apt.client}
                                   </p>
-                                  <p className="min-w-0 truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow-sm">
+                                  <p className="min-w-0 truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow-xs">
                                     {apt.service}
                                   </p>
                                 </div>
                               );
-                            })
-                          }
+                            })}
                           {getBlocksForDate(scheduleBlocks, selectedDateKey, resource.id).map((block) => {
                             if (block.block_type === 'full_day') {
                               return (
@@ -4526,7 +4555,7 @@ Podemos confirmar? 😄`;
               </button>
               <button
                 onClick={() => void confirmCancelAppointment('remarcar')}
-                className="px-4 py-3 rounded-xl bg-[#007BFF] text-white text-sm font-bold hover:bg-[#0067D6] transition-colors col-span-2"
+                className="px-4 py-3 rounded-xl bg-primary hover:bg-primary-dark text-night text-sm font-black transition-colors col-span-2 shadow-xs"
               >
                 Remarcar (manter pagamento)
               </button>
@@ -4561,12 +4590,12 @@ Podemos confirmar? 😄`;
                 type="button"
                 onClick={() => void handleConfirmAction()}
                 disabled={confirmBusy}
-                className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`rounded-xl px-4 py-2.5 text-sm font-bold shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   confirmIntent.type === 'deleteBlock'
-                    ? 'bg-red-500 shadow-red-500/20 hover:bg-red-600'
+                    ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600'
                     : confirmIntent.type === 'saveImpactedBlock'
-                      ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600'
-                      : 'bg-[#007BFF] shadow-[0_10px_24px_rgba(0,123,255,0.22)] hover:bg-[#0067D6]'
+                      ? 'bg-amber-500 text-white shadow-amber-500/20 hover:bg-amber-600'
+                      : 'bg-primary text-night font-black shadow-[0_8px_20px_rgba(217,154,43,0.25)] hover:bg-primary-dark'
                 }`}
               >
                 {confirmBusy

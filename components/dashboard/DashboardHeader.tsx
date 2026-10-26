@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
 import { getTimeOfDayGreeting, formatDateInSaoPaulo } from '../../src/modules/dashboard/timezone';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface DashboardHeaderProps {
   appSlug?: string | null;
@@ -11,12 +12,22 @@ interface DashboardHeaderProps {
   openComandasCount: number;
   pendingAppointmentsCount: number;
   returningClientsCount: number;
+  todayKpis?: {
+    totalToday: number;
+    faturamento: number;
+    emAtendimento: number;
+    pendentes: number;
+    cancelados: number;
+    concluidos: number;
+  } | null;
+  onKpiClick?: (type: string) => void;
   onNewAppointment: () => void;
   onOpenCheckout: () => void;
   onOpenComandas: () => void;
   onOpenSmartReturn: () => void;
   onOpenCash?: () => void;
   onCloseCash?: () => void;
+  onOpenActivityTimeline?: () => void;
 }
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
@@ -27,10 +38,10 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = {
 };
 
 const PERIOD_HINTS: Record<DashboardPeriod, string> = {
-  today: 'Comparando com ontem',
-  yesterday: 'Comparando com o dia anterior',
-  week: 'Comparando com a semana anterior',
-  month: 'Comparando com o mês anterior',
+  today: 'vs. ontem',
+  yesterday: 'vs. dia anterior',
+  week: 'vs. semana anterior',
+  month: 'vs. mês anterior',
 };
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -40,15 +51,22 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   openComandasCount,
   pendingAppointmentsCount,
   returningClientsCount,
+  todayKpis,
+  onKpiClick,
   onNewAppointment,
   onOpenCheckout,
   onOpenComandas,
   onOpenSmartReturn,
   onOpenCash,
   onCloseCash,
+  onOpenActivityTimeline,
 }) => {
   const { user } = useAuth();
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
+  const [isCashMenuOpen, setIsCashMenuOpen] = useState(false);
+  const cashMenuRef = useRef<HTMLDivElement>(null);
+  const periodMenuRef = useRef<HTMLDivElement>(null);
+
   const labels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
 
@@ -57,163 +75,298 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'gestor';
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-  const tenantName = user?.user_metadata?.tenant_name || (isEsteticaApp ? 'sua clínica' : 'sua barbearia');
 
-  const focusItems = [
+  // Close menus on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (cashMenuRef.current && !cashMenuRef.current.contains(e.target as Node)) {
+        setIsCashMenuOpen(false);
+      }
+      if (periodMenuRef.current && !periodMenuRef.current.contains(e.target as Node)) {
+        setIsPeriodOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const focusMetrics = [
     {
       label: isEsteticaApp ? `${labels.orderPlural} abertos` : 'Comandas abertas',
       value: openComandasCount,
       icon: 'receipt_long',
-      tone: 'text-primary-dark',
+      tone: 'text-primary',
       onClick: onOpenComandas,
+      ariaLabel: `Ver ${openComandasCount} comandas abertas`,
     },
     {
       label: isEsteticaApp ? 'Atendimentos pendentes' : 'Agendamentos pendentes',
       value: pendingAppointmentsCount,
       icon: 'pending_actions',
-      tone: 'text-primary-dark',
+      tone: 'text-amber-400',
       onClick: onNewAppointment,
+      ariaLabel: `Ver ${pendingAppointmentsCount} agendamentos pendentes`,
     },
     {
       label: isEsteticaApp ? 'Clientes para retorno' : 'Retornos sugeridos',
       value: returningClientsCount,
       icon: 'person_search',
-      tone: 'text-primary-dark',
+      tone: 'text-emerald-400',
       onClick: onOpenSmartReturn,
+      ariaLabel: `Ver ${returningClientsCount} retornos sugeridos`,
     },
   ];
 
-  const heroClassName = 'relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-cream via-card to-gold-pale p-5 text-ink shadow-smg-shell sm:p-6';
-  const badgeClassName = 'inline-flex items-center gap-2 rounded-full border border-primary-light/50 bg-gold-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-primary-dark';
-  const greetingClassName = 'flex items-center gap-2 text-sm font-bold text-ink-soft';
-  const titleClassName = 'max-w-2xl text-2xl font-black leading-tight text-ink';
-  const bodyClassName = 'max-w-2xl text-sm font-medium leading-6 text-ink-soft';
-  const primaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-black text-night shadow-smg-glow transition hover:from-primary-dark hover:to-primary focus:outline-none focus:ring-2 focus:ring-primary/40';
-  const secondaryActionClassName = 'inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm font-black text-ink transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
-  const periodButtonClassName = 'flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-card px-4 py-3 text-left transition hover:bg-gold-pale focus:outline-none focus:ring-2 focus:ring-primary/30';
-  const focusButtonClassName = 'rounded-2xl border border-line bg-card p-2.5 text-left transition hover:border-primary-light hover:bg-gold-soft focus:outline-none focus:ring-2 focus:ring-primary/30 sm:p-3';
-
   return (
-    <section className={heroClassName}>
-      <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full blur-3xl bg-primary/10" />
-      <div className="pointer-events-none absolute bottom-0 left-1/2 h-24 w-96 -translate-x-1/2 blur-3xl bg-primary/5" />
-
-      <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-        <div className="max-w-3xl space-y-4">
-          <div className={badgeClassName}>
-            <span className="h-2 w-2 rounded-full bg-primary-dark" />
-            {isEsteticaApp ? 'Central da estética' : 'Central da barbearia'}
+    <section className="relative rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 shadow-sm transition-colors">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        {/* Identificação e Saudação (Zero Slop) */}
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
+            <span className="material-symbols-outlined text-base text-primary">{greeting.icon}</span>
+            <span>{greeting.text}, {displayName}</span>
+            <span>•</span>
+            <span className="capitalize">{todayFormatted}</span>
           </div>
 
-          <div className="space-y-2">
-            <div className={greetingClassName}>
-              <span className="material-symbols-outlined text-[18px] text-primary-dark">{greeting.icon}</span>
-              {greeting.text}, {displayName}
-            </div>
-            <p className={`text-xs font-medium ${isEsteticaApp ? 'text-[#6F6758]' : 'text-ink-soft'}`}>
-              {todayFormatted.charAt(0).toUpperCase() + todayFormatted.slice(1)}
-            </p>
-            <h1 className={titleClassName}>
-              {isEsteticaApp ? 'Resumo da operação de hoje.' : 'Sua barbearia em tempo real.'}
-            </h1>
-            <p className={bodyClassName}>
-              {isEsteticaApp
-                ? `Acompanhe agenda, atendimentos e retornos da ${tenantName} com base no que já foi registrado.`
-                : `Veja agenda, comandas, retorno de clientes e movimento financeiro da ${tenantName} com base no que já foi registrado.`}
-            </p>
-          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink dark:text-white">
+            {isEsteticaApp ? 'Resumo operacional da clínica' : 'Visão geral do movimento e financeiro de hoje.'}
+          </h1>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Ações Rápidas: 1 Primário Dourado + 1 Menu Secundário Consolidado */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
             <button
+              type="button"
               onClick={onNewAppointment}
-              className={primaryActionClassName}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              <span className="material-symbols-outlined text-[18px]">calendar_add_on</span>
-              {isEsteticaApp ? 'Novo atendimento' : 'Novo agendamento'}
-            </button>
-            <button
-              onClick={onOpenCheckout}
-              className={secondaryActionClassName}
-            >
-              <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
-              {isEsteticaApp ? labels.checkout : 'Abrir PDV'}
-            </button>
-            {onOpenCash && (
-              <button
-                onClick={onOpenCash}
-                className={secondaryActionClassName}
-                data-testid="dashboard-open-cash-btn"
-              >
-                <span className="material-symbols-outlined text-[18px]">payments</span>
-                Abrir caixa
-              </button>
-            )}
-            {onCloseCash && (
-              <button
-                onClick={onCloseCash}
-                className={secondaryActionClassName}
-                data-testid="dashboard-close-cash-btn"
-              >
-                <span className="material-symbols-outlined text-[18px]">lock_clock</span>
-                Fechar caixa do dia
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="w-full max-w-xl space-y-3 xl:max-w-md">
-          <div className="relative">
-            <button
-              onClick={() => setIsPeriodOpen((current) => !current)}
-              className={periodButtonClassName}
-            >
-              <span>
-<span className="block text-[11px] font-black uppercase tracking-[0.16em] text-ink-soft">Período</span>
-<span className="mt-1 block text-xs font-bold text-ink">{PERIOD_LABELS[period]}</span>
-              </span>
-              <span className="flex items-center gap-2 text-xs font-bold text-ink-soft">
-                {PERIOD_HINTS[period]}
-                <span className="material-symbols-outlined text-base">expand_more</span>
-              </span>
+              <span className="material-symbols-outlined text-lg">calendar_add_on</span>
+              {isEsteticaApp ? 'Novo Atendimento' : 'Novo Agendamento'}
             </button>
 
-            {isPeriodOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-card shadow-xl">
-                {(Object.entries(PERIOD_LABELS) as Array<[DashboardPeriod, string]>).map(([key, label]) => (
-<button
+            {/* Menu Dropdown Consolidado: Operações de Caixa & PDV */}
+            <div className="relative inline-block text-left" ref={cashMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsCashMenuOpen((prev) => !prev)}
+                aria-expanded={isCashMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink dark:text-white hover:border-primary/40 transition-all touch-manipulation active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined text-base text-primary">point_of_sale</span>
+                <span>PDV & Caixa</span>
+                <span className={`material-symbols-outlined text-sm text-ink-soft transition-transform duration-200 ${isCashMenuOpen ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </button>
+
+              {isCashMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute left-0 mt-1.5 w-52 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-[#1A1610] p-1.5 shadow-2xl z-50 animate-fade-in focus:outline-none"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsCashMenuOpen(false);
+                      onOpenCheckout();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-ink dark:text-slate-200 hover:bg-gold-pale dark:hover:bg-white/5 transition-colors text-left"
+                  >
+                    <span className="material-symbols-outlined text-base text-primary">point_of_sale</span>
+                    {isEsteticaApp ? labels.checkout : 'Abrir PDV / Balcão'}
+                  </button>
+
+                  {onOpenCash && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="dashboard-open-cash-btn"
+                      onClick={() => {
+                        setIsCashMenuOpen(false);
+                        onOpenCash();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-ink dark:text-slate-200 hover:bg-gold-pale dark:hover:bg-white/5 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-base text-success">payments</span>
+                      Abrir Caixa do Dia
+                    </button>
+                  )}
+
+                  {onCloseCash && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="dashboard-close-cash-btn"
+                      onClick={() => {
+                        setIsCashMenuOpen(false);
+                        onCloseCash();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-ink dark:text-slate-200 hover:bg-gold-pale dark:hover:bg-white/5 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-base text-amber-400">lock_clock</span>
+                      Fechar Caixa do Dia
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Seletor de Período Compacto */}
+            <div className="relative inline-block text-left" ref={periodMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsPeriodOpen((prev) => !prev)}
+                aria-expanded={isPeriodOpen}
+                aria-haspopup="listbox"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-ink dark:hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">calendar_month</span>
+                <span>{PERIOD_LABELS[period]}</span>
+                <span className="text-[10px] opacity-70">({PERIOD_HINTS[period]})</span>
+                <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isPeriodOpen ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </button>
+
+              {isPeriodOpen && (
+                <div
+                  role="listbox"
+                  className="absolute left-0 mt-1.5 w-44 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-[#1A1610] p-1.5 shadow-2xl z-50 animate-fade-in"
+                >
+                  {(Object.entries(PERIOD_LABELS) as Array<[DashboardPeriod, string]>).map(([key, label]) => (
+                    <button
                       key={key}
+                      type="button"
+                      role="option"
+                      aria-selected={period === key}
                       onClick={() => {
                         onPeriodChange(key);
                         setIsPeriodOpen(false);
                       }}
-                      className={`flex w-full items-center justify-between px-4 py-3 text-left text-xs font-bold transition ${
+                      className={`flex w-full items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
                         period === key
-                          ? 'bg-gold-soft text-primary-dark'
-                          : 'text-ink-soft hover:bg-gold-pale'
+                          ? 'bg-primary/20 text-primary-light font-bold'
+                          : 'text-ink-soft hover:bg-gold-pale dark:hover:bg-white/5 hover:text-ink dark:hover:text-white'
                       }`}
                     >
-                    {label}
-                    {period === key && <span className="material-symbols-outlined text-base text-primary-dark">check</span>}
-                  </button>
-                ))}
-              </div>
+                      {label}
+                      {period === key && <span className="material-symbols-outlined text-sm text-primary">check</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Botão de Histórico de Atividades / Timeline do Sistema */}
+            {onOpenActivityTimeline && (
+              <button
+                type="button"
+                onClick={onOpenActivityTimeline}
+                title="Histórico de atividades e registros do sistema"
+                aria-label="Abrir histórico de atividades"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-primary dark:hover:text-primary transition-colors touch-manipulation active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined text-base text-primary">history</span>
+                <span className="hidden sm:inline">Atividades</span>
+              </button>
             )}
           </div>
+        </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {focusItems.map((item) => (
+        {/* Métricas de Operação do Dia — Integradas no Lado Direito da Hero */}
+        {todayKpis ? (
+          <div className="grid grid-cols-3 gap-2 sm:gap-2.5 w-full lg:w-auto shrink-0">
+            {[
+              {
+                key: 'totalToday',
+                label: 'Hoje',
+                value: String(todayKpis.totalToday),
+                icon: 'event',
+                tone: 'text-ink dark:text-white',
+              },
+              {
+                key: 'faturamento',
+                label: 'Faturamento',
+                value: formatCurrency(todayKpis.faturamento),
+                icon: 'payments',
+                tone: 'text-primary-dark dark:text-primary-light font-extrabold',
+              },
+              {
+                key: 'emAtendimento',
+                label: 'Na Cadeira',
+                value: String(todayKpis.emAtendimento),
+                icon: 'content_cut',
+                tone: 'text-amber-500',
+              },
+              {
+                key: 'pendentes',
+                label: 'Pendentes',
+                value: String(todayKpis.pendentes),
+                icon: 'schedule',
+                tone: 'text-primary',
+              },
+              {
+                key: 'cancelados',
+                label: 'Cancelados',
+                value: String(todayKpis.cancelados),
+                icon: 'cancel',
+                tone: 'text-danger',
+              },
+              {
+                key: 'concluidos',
+                label: 'Concluídos',
+                value: String(todayKpis.concluidos),
+                icon: 'task_alt',
+                tone: 'text-success',
+              },
+            ].map((kpi) => (
               <button
-                key={item.label}
-                onClick={item.onClick}
-                className={focusButtonClassName}
+                key={kpi.key}
+                type="button"
+                onClick={() => onKpiClick?.(kpi.key)}
+                className="flex flex-col items-center justify-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-2 min-w-[96px] sm:min-w-[104px] transition-all hover:border-primary/40 active:scale-95 touch-manipulation group text-center"
               >
-                <span className={`material-symbols-outlined text-[20px] ${item.tone}`}>{item.icon}</span>
-                <span className="mt-2 block text-lg font-black text-ink">{item.value}</span>
-                <span className="mt-1 block text-[10px] font-bold leading-3 sm:text-[11px] sm:leading-4 text-ink-soft">{item.label}</span>
+                <div className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-ink-soft group-hover:text-primary transition-colors">
+                    {kpi.icon}
+                  </span>
+                  <span className={`font-display text-sm sm:text-base font-bold tabular-nums tracking-tight whitespace-nowrap ${kpi.tone}`}>
+                    {kpi.value}
+                  </span>
+                </div>
+                <span className="mt-0.5 text-[10px] font-semibold text-ink-soft leading-tight truncate max-w-[90px]">
+                  {kpi.label}
+                </span>
               </button>
             ))}
           </div>
-        </div>
+        ) : (
+          /* Fallback caso KPIs ainda estejam carregando */
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-full lg:w-auto shrink-0">
+            {focusMetrics.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.onClick}
+                aria-label={item.ariaLabel}
+                className="flex flex-col items-center justify-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-3 min-w-[105px] transition-all hover:border-primary/40 active:scale-95 touch-manipulation group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={`material-symbols-outlined text-base ${item.tone}`}>{item.icon}</span>
+                  <span className="font-display text-xl sm:text-2xl font-bold tabular-nums tracking-tight text-ink dark:text-white">
+                    {item.value}
+                  </span>
+                </div>
+                <span className="mt-1 text-[11px] font-semibold text-ink-soft leading-tight text-center truncate max-w-[100px]">
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
       </div>
     </section>
   );

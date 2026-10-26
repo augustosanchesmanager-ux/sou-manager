@@ -17,10 +17,10 @@ interface AppointmentTimelineProps {
 }
 
 const STATUS_COLORS: Record<string, { dot: string; bg: string; border: string }> = {
-  confirmed: { dot: appointmentDotColors.confirmed || 'bg-success', bg: 'bg-success/10', border: 'border-success/30' },
-  pending: { dot: appointmentDotColors.pending || 'bg-primary', bg: 'bg-primary/10', border: 'border-primary/30' },
-  cancelled: { dot: appointmentDotColors.cancelled || 'bg-slate-400', bg: 'bg-slate-100', border: 'border-slate-200' },
-  completed: { dot: appointmentDotColors.completed || 'bg-ink-soft', bg: 'bg-ink-soft/10', border: 'border-ink-soft/30' },
+  confirmed: { dot: 'bg-primary-dark', bg: 'bg-gold-soft', border: 'border-primary-light/60' },
+  pending: { dot: 'bg-primary', bg: 'bg-primary/10', border: 'border-primary/30' },
+  cancelled: { dot: 'bg-line', bg: 'bg-gold-pale', border: 'border-line' },
+  completed: { dot: 'bg-success', bg: 'bg-success/10', border: 'border-success/30' },
 };
 
 const formatTime = (isoString: string) => {
@@ -117,7 +117,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
             >
               <div className="flex items-center gap-3">
                 <div className="w-12 shrink-0 text-center">
-                  <span className="font-mono text-xs font-bold text-ink">
+                  <span className="font-bold tabular-nums tracking-[-0.02em] text-xs text-ink">
                     {formatTime(apt.start_time)}
                   </span>
                 </div>
