@@ -1792,6 +1792,12 @@ const Checkout: React.FC = () => {
                                                     />
                                                 </div>
                                                 {item.quantity > 1 && <p className="text-xs text-slate-500">x{item.quantity}</p>}
+                                                {(item as any).usedCredit && (
+                                                    <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase">
+                                                        <span className="material-symbols-outlined text-xs">verified</span>
+                                                        Crédito do Clube • R$ 0,00
+                                                    </span>
+                                                )}
                                                 {item.type === 'service' && checkoutBenefits && canApplyCredit(checkoutBenefits.serviceBalances, item.service_id, cart.filter(c => c.usedCredit && c.service_id === item.service_id && c.id !== item.id).length) && (
                                                     <button
                                                         onClick={() => {
@@ -1803,10 +1809,10 @@ const Checkout: React.FC = () => {
                                                             }
                                                             setCart(cart.map(c => c.id === item.id ? { ...c, usedCredit: isUsed, price: isUsed ? 0 : calculateItemPrice(services.find(s => s.id === item.service_id), 'service') } : c));
                                                         }}
-                                                        className={`mt-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'}`}
+                                                        className={`mt-1 flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-black uppercase transition-all ${(item as any).usedCredit ? 'bg-amber-500 text-white shadow-sm' : 'bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'}`}
                                                     >
                                                         <span className="material-symbols-outlined text-xs">workspace_premium</span>
-                                                        {(item as any).usedCredit ? 'Usando Crédito' : 'Usar Crédito'}
+                                                        {(item as any).usedCredit ? 'Abatido via Clube' : 'Abater Crédito do Clube'}
                                                     </button>
                                                 )}
                                             </div>
@@ -1833,20 +1839,46 @@ const Checkout: React.FC = () => {
                     </div>
 
                     {!isEsteticaApp && checkoutBenefits && (
-                        <div className="mt-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center justify-between animate-fade-in">
-                            <div className="flex items-center gap-3">
-                                <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                    <span className="material-symbols-outlined">workspace_premium</span>
+                        <div className="mt-4 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/25 animate-fade-in space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-10 bg-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                        <span className="material-symbols-outlined text-xl">workspace_premium</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider">Membro Clube dos Chefes • {checkoutBenefits.planName}</p>
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">Assinatura ativa com créditos vinculados ao cliente.</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs font-black text-amber-600 uppercase">Club dos Chefes - {checkoutBenefits.planName}</p>
-                                    <p className="text-[10px] text-slate-500 font-bold">Cliente possui créditos disponíveis para resgate.</p>
-                                    <p className="text-[10px] text-amber-700 font-black">Aplicados nesta comanda: {appliedCreditsCount}</p>
+                                <div className="text-right">
+                                    <p className="text-lg font-black text-amber-600 dark:text-amber-400">{checkoutBenefits.creditsRemaining}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Créditos Totais</p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-sm font-black text-amber-600">{checkoutBenefits.creditsRemaining}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Disponíveis</p>
+
+                            {/* Detalhamento de saldos por serviço e aplicados */}
+                            <div className="pt-2 border-t border-amber-500/15 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {checkoutBenefits.serviceBalances && checkoutBenefits.serviceBalances.length > 0 ? (
+                                        checkoutBenefits.serviceBalances.map((b) => (
+                                            <span
+                                                key={b.service_id}
+                                                className="inline-flex items-center gap-1 rounded-lg bg-white/80 dark:bg-black/30 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 border border-amber-500/20"
+                                            >
+                                                <span>{b.service_name}:</span>
+                                                <strong className="text-amber-700 dark:text-amber-300">{b.available} restantes</strong>
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-[11px] text-slate-500">{checkoutBenefits.creditsRemaining} créditos disponíveis</span>
+                                    )}
+                                </div>
+                                {appliedCreditsCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                                        <span className="material-symbols-outlined text-xs">check_circle</span>
+                                        {appliedCreditsCount} {appliedCreditsCount === 1 ? 'crédito abatido' : 'créditos abatidos'}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     )}

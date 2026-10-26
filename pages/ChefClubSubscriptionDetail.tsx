@@ -280,10 +280,13 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-sm">
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900 dark:text-white">Créditos por Serviço</h3>
-                    <button onClick={() => openEditModal('plan')} className="text-xs text-primary font-bold uppercase tracking-widest hover:underline">
+                    <div>
+                        <h3 className="font-black text-slate-900 dark:text-white">Créditos e Cotas por Serviço</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Acompanhamento do saldo disponível versus a cota contratada no ciclo atual.</p>
+                    </div>
+                    <button onClick={() => openEditModal('plan')} className="text-xs text-[#007BFF] dark:text-[#72E7FF] font-black uppercase tracking-widest hover:underline">
                         Trocar Plano
                     </button>
                 </div>
@@ -292,15 +295,49 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {planServices.map((entry) => {
                                 const balance = serviceBalances.find((b: ServiceBalanceEntry) => b.service_id === entry.service_id);
+                                const available = balance?.available ?? 0;
+                                const quota = entry.credits;
+                                const used = Math.max(0, quota - available);
+                                const percent = quota > 0 ? Math.min(100, Math.round((available / quota) * 100)) : 100;
+                                const isExhausted = available === 0;
+
                                 return (
-                                    <div key={entry.service_id || entry.service_name} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
-                                        <div>
-                                            <p className="font-bold text-slate-900 dark:text-white">{entry.service_name}</p>
-                                            <p className="text-xs text-slate-500 mt-1">limite do plano: {entry.credits}/ciclo</p>
+                                    <div key={entry.service_id || entry.service_name} className="p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 flex flex-col justify-between gap-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="font-bold text-slate-900 dark:text-white">{entry.service_name}</p>
+                                                <p className="text-xs text-slate-500 mt-0.5">Cota contratada: {quota} sessões/ciclo</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black ${
+                                                    isExhausted
+                                                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                                        : available < quota
+                                                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                }`}>
+                                                    {available}/{quota} restantes no mês
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-xl font-black text-amber-500">{balance?.available ?? 0}</p>
-                                            <p className="text-[10px] text-slate-500">disponíveis</p>
+
+                                        <div>
+                                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                                                <span>{used} consumidos</span>
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">{percent}% disponível</span>
+                                            </div>
+                                            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${
+                                                        isExhausted
+                                                            ? 'bg-rose-500'
+                                                            : percent <= 50
+                                                                ? 'bg-amber-500'
+                                                                : 'bg-emerald-500'
+                                                    }`}
+                                                    style={{ width: `${percent}%` }}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 );
