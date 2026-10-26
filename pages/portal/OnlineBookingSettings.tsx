@@ -726,6 +726,82 @@ const OnlineBookingSettings: React.FC = () => {
               </div>
             </div>
 
+            {/* SEÇÃO 5: Automação de Engajamento & Fila de Espera (ADR-029) */}
+            <div className="pt-6 border-t border-slate-200 dark:border-border-dark space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+                  <span className="material-symbols-outlined text-2xl">magic_button</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    Automações de Engajamento
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#003366] text-white dark:bg-[#00D2FF] dark:text-[#06111F]">
+                      ADR-029
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Motores assíncronos que blindam a agenda contra no-shows e preenchem horários vagos automaticamente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {/* Card 1: Motor de Lembretes */}
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#003366] dark:text-[#72E7FF]">
+                      <span className="material-symbols-outlined text-base">alarm</span>
+                      Lembretes Pré-Agendamento
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Motor Ativo (15m)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Disparos automáticos programados para <strong>24h</strong> e <strong>2h</strong> antes do atendimento.
+                  </p>
+                  <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-200/60 dark:border-white/5">
+                    <p className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs text-emerald-500">lock</span>
+                      Idempotência no PostgreSQL (zero disparos duplicados)
+                    </p>
+                    <p className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs text-blue-500">schedule</span>
+                      Fuso operacional: <strong>America/Sao_Paulo (UTC-3)</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card 2: Fila de Espera */}
+                <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-amber-700 dark:text-amber-300">
+                      <span className="material-symbols-outlined text-base">hourglass_top</span>
+                      Fila de Espera Reativa
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:text-amber-300">
+                      <span className="material-symbols-outlined text-xs">bolt</span>
+                      Event-Driven
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Notificação instantânea para clientes em fila quando um agendamento for cancelado na Agenda.
+                  </p>
+                  <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-200/60 dark:border-white/5">
+                    <p className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs text-amber-500">timer</span>
+                      Debounce de 2 minutos (ignora correções acidentais)
+                    </p>
+                    <p className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs text-purple-500">check</span>
+                      Alocação ágil: <strong>First Come, First Served</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Feedback & Botão de Salvar */}
             <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-200 dark:border-border-dark">
               <div className="min-h-[24px] flex items-center" role="status" aria-live="polite">
