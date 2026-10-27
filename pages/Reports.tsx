@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { getScopedClient, getSharedClient } from '../services/supabaseClient';
 import DateRangeFilter, { type DatePreset } from '../components/ui/DateRangeFilter';
 import Toast from '../components/Toast';
+import MetricCard, { type MetricTone } from '../components/ui/MetricCard';
 import { getDashboardKpis } from '../src/modules/dashboard/rpc';
 import type { DashboardKpiFinancial, DashboardKpiPeriod } from '../src/modules/dashboard/kpiTypes';
 import {
@@ -235,12 +236,21 @@ const Reports: React.FC = () => {
     { id: 'sales', label: 'Vendas', icon: 'point_of_sale' },
   ];
 
-  const renderKpiCard = (label: string, value: string, tone: string, helper?: string) => (
-    <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4">
-      <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">{label}</p>
-      <p className={`text-2xl font-black ${tone}`}>{value}</p>
-      {helper && <p className="text-[11px] text-slate-400 mt-0.5">{helper}</p>}
-    </div>
+  const renderKpiCard = (
+    label: string,
+    value: string,
+    tone: MetricTone,
+    helper?: string,
+    icon?: string,
+  ) => (
+    <MetricCard
+      label={label}
+      value={value}
+      tone={tone}
+      helper={helper}
+      icon={icon}
+      density="compact"
+    />
   );
 
   const renderSalesTab = () => {
@@ -403,11 +413,11 @@ const Reports: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {renderKpiCard('Faturamento Líquido', fmt(kpi.revenue), 'text-emerald-600', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined)}
-              {renderKpiCard('Despesas', fmt(kpi.expenses), 'text-slate-700 dark:text-slate-200', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined)}
-              {renderKpiCard('Resultado', fmt(kpi.result), kpi.result >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-300', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined)}
-              {renderKpiCard('Ticket Médio', fmt(kpi.average_ticket), 'text-[#007BFF] dark:text-[#00D2FF]', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined)}
-              {renderKpiCard('Crescimento', growthText, 'text-indigo-600 dark:text-indigo-300', 'vs. período anterior')}
+              {renderKpiCard('Faturamento Líquido', fmt(kpi.revenue), 'positive', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'payments')}
+              {renderKpiCard('Despesas', fmt(kpi.expenses), 'neutral', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'trending_down')}
+              {renderKpiCard('Resultado', fmt(kpi.result), kpi.result >= 0 ? 'positive' : 'negative', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'account_balance_wallet')}
+              {renderKpiCard('Ticket Médio', fmt(kpi.average_ticket), 'brass', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'receipt_long')}
+              {renderKpiCard('Crescimento', growthText, kpi.growth != null && kpi.growth >= 0 ? 'positive' : 'negative', 'vs. período anterior', 'trending_up')}
             </div>
           )}
         </div>

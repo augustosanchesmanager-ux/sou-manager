@@ -3,7 +3,7 @@ import { AlertTriangle, Building2, CreditCard, FileSearch, HandCoins, ScrollText
 import Toast from '../components/Toast';
 import SuperAdminHeader from '../components/superadmin/SuperAdminHeader';
 import SuperAdminFilters from '../components/superadmin/SuperAdminFilters';
-import KpiCard from '../components/superadmin/KpiCard';
+import MetricCard, { type MetricTone } from '../components/ui/MetricCard';
 import ActivityTimeline from '../components/superadmin/ActivityTimeline';
 import DataTable, { DataColumn } from '../components/superadmin/DataTable';
 import StatusBadge from '../components/superadmin/StatusBadge';
@@ -413,7 +413,35 @@ const SuperAdmin: React.FC = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <SuperAdminHeader search={search} onSearchChange={setSearch} onExport={handleExport} onRefresh={fetchData} onOpenActionMenu={() => setActionMenuOpen(true)} lastUpdatedLabel={new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(lastUpdatedAt))} />
       <SuperAdminFilters value={filters} onChange={setFilters} onReset={() => { setFilters(defaultFilters); setSearch(''); }} onSaveView={handleSaveView} options={filterOptions} />
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{kpis.map((item) => <KpiCard key={item.id} item={item} />)}</section>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {kpis.map((item) => {
+          const toneMap: Record<string, MetricTone> = {
+            gold: 'brass',
+            emerald: 'positive',
+            red: 'negative',
+            slate: 'neutral',
+            blue: 'info',
+          };
+          const iconMap: Record<string, string> = {
+            'kpi-tenants': 'storefront',
+            'kpi-users': 'group',
+            'kpi-requests': 'credit_card',
+            'kpi-alerts': 'warning',
+            'kpi-finance': 'payments',
+            'kpi-audit': 'history_edu',
+          };
+          return (
+            <MetricCard
+              key={item.id}
+              label={item.title}
+              value={item.value}
+              tone={toneMap[item.tone] || 'neutral'}
+              icon={iconMap[item.id]}
+              helper={item.context ? `${item.delta} • ${item.context}` : item.delta}
+            />
+          );
+        })}
+      </section>
       <section className="card-boutique p-3"><div className="flex flex-wrap gap-2">{tabs.map((tab) => <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'}`}>{tab.icon}{tab.label}</button>)}</div></section>
 
       {activeTab === 'overview' && (

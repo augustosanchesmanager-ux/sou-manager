@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDownCircle, ArrowUpCircle, CalendarRange, Wallet } from 'lucide-react';
+import { CalendarRange } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
+import MetricCard from '../components/ui/MetricCard';
 import CashFlowChart from '../components/financial/CashFlowChart';
-import FinancialSummaryCard from '../components/financial/FinancialSummaryCard';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { AuditAdjustmentButton } from '../components/audit';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { formatCurrency } from '../shared/format/currency';
 import {
     createReversalKey,
     reverseFinancialTransaction,
@@ -611,41 +612,37 @@ const Cashflow: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <FinancialSummaryCard
-                    title="Entradas"
-                    value={totalEntradas}
-                    changeText={`${entries.filter((entry) => entry.type === 'entrada').length} registros`}
-                    trend="up"
+                <MetricCard
+                    label="Entradas"
+                    value={formatCurrency(totalEntradas)}
+                    trend={{ direction: 'up', label: `${entries.filter((entry) => entry.type === 'entrada').length} registros` }}
                     tone="positive"
-                    helperText="Total de receitas do período"
-                    icon={<ArrowUpCircle size={18} />}
+                    helper="Total de receitas do período"
+                    icon="arrow_upward"
                 />
-                <FinancialSummaryCard
-                    title="Saidas"
-                    value={totalSaidas}
-                    changeText={`${entries.filter((entry) => entry.type === 'saida').length} registros`}
-                    trend="down"
+                <MetricCard
+                    label="Saídas"
+                    value={formatCurrency(totalSaidas)}
+                    trend={{ direction: 'down', label: `${entries.filter((entry) => entry.type === 'saida').length} registros` }}
                     tone="negative"
-                    helperText="Total de despesas do período"
-                    icon={<ArrowDownCircle size={18} />}
+                    helper="Total de despesas do período"
+                    icon="arrow_downward"
                 />
-                <FinancialSummaryCard
-                    title="Saldo atual"
-                    value={saldoAtual}
-                    changeText={saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo'}
-                    trend={saldoAtual >= 0 ? 'up' : 'down'}
+                <MetricCard
+                    label="Saldo atual"
+                    value={formatCurrency(saldoAtual)}
+                    trend={{ direction: saldoAtual >= 0 ? 'up' : 'down', label: saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo' }}
                     tone={saldoAtual >= 0 ? 'positive' : 'negative'}
-                    helperText="Entradas menos saídas no período"
-                    icon={<Wallet size={18} />}
+                    helper="Entradas menos saídas no período"
+                    icon="account_balance_wallet"
                 />
-                <FinancialSummaryCard
-                    title="Ticket médio"
-                    value={ticketMedioEntrada}
-                    changeText="Receitas por lançamento"
-                    trend="up"
+                <MetricCard
+                    label="Ticket médio"
+                    value={formatCurrency(ticketMedioEntrada)}
+                    trend={{ direction: 'up', label: 'Receitas por lançamento' }}
                     tone="neutral"
-                    helperText="Media das entradas registradas"
-                    icon={<Wallet size={18} />}
+                    helper="Média das entradas registradas"
+                    icon="receipt_long"
                 />
             </div>
 
