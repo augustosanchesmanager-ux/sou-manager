@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
-  Home,
   LayoutDashboard,
   CalendarDays,
   FileText,
@@ -9,7 +8,6 @@ import {
   Package,
   CircleDollarSign,
   BarChart3,
-  Briefcase,
   Settings,
   MonitorDot,
   Bell,
@@ -38,7 +36,6 @@ import {
   PieChart,
   Activity,
   Gift,
-  TabletSmartphone,
   Globe,
   ShieldCheck,
   RefreshCw,
@@ -139,14 +136,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const rawMenuStructure: MenuEntry[] = [
     {
-      name: 'Home',
-      icon: Home,
-      type: 'item',
-      path: '/dashboard',
-      module: 'dashboard',
-      operationalAllowed: true,
-    },
-    {
       name: 'Principal',
       icon: LayoutDashboard,
       type: 'group',
@@ -163,6 +152,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           hideFromEsteticaMenu: true,
           operationalAllowed: true,
         },
+        {
+          name: 'Cockpit de Operações',
+          icon: Activity,
+          path: '/operations',
+          module: 'dashboard',
+          hideFromEsteticaMenu: true,
+        },
       ],
     },
     {
@@ -175,6 +171,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         { name: labels.servicePlural, icon: Scissors, path: '/services', module: 'services' },
         { name: 'Produtos', icon: Package, path: '/products', module: 'products' },
         { name: 'Categorias', icon: Tags, path: '/categories', module: 'products', hideFromEsteticaMenu: true },
+        { name: 'Fornecedores', icon: Truck, path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
+        { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
+        { name: 'Maquininhas de Cartão', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
       ],
     },
     {
@@ -195,7 +194,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       type: 'group',
       items: [
         { name: 'Controle de Estoque', icon: Package, path: '/products', module: 'products' },
-        { name: 'Fornecedores', icon: Truck, path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
         { name: 'Pedidos de Compra', icon: ShoppingCart, path: '/orders', module: 'orders', hideFromEsteticaMenu: true },
       ],
     },
@@ -221,17 +219,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
         { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
         { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Negócio',
-      icon: Briefcase,
-      type: 'group',
-      items: [
-        { name: 'Operações', icon: Activity, path: '/operations', module: 'dashboard' },
-        { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
-        { name: 'Totem / Kiosk', icon: TabletSmartphone, path: '/kiosk-admin', module: 'kiosk' },
-        { name: 'Portal do Cliente', icon: Globe, path: '/portal-admin', module: 'portal' },
       ],
     },
     {
