@@ -47,6 +47,7 @@ const Team: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
 
     const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
         try {
@@ -122,7 +123,15 @@ const Team: React.FC = () => {
         navigate(location.pathname, { replace: true, state: null });
     }, [location.pathname, location.state, navigate]);
 
-    const filtered = team.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+    const filtered = team.filter(m => {
+        const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+        const matchesStatus = statusFilter === 'all'
+            ? true
+            : statusFilter === 'active'
+                ? m.status === 'active'
+                : m.status !== 'active';
+        return matchesSearch && matchesStatus;
+    });
 
     const openNewModal = () => {
         setEditingMember(null);
@@ -345,9 +354,14 @@ const Team: React.FC = () => {
             setToast({ message: `${memberLabel} removido.`, type: 'info' });
             fetchTeam();
         } catch (error) {
-            const message = error instanceof RepositoryError
-                ? `Erro ao deletar: ${error.message} (${error.code || 'sem-codigo'})`
-                : 'Erro ao deletar colaborador.';
+            let message = 'Erro ao deletar colaborador.';
+            if (error instanceof RepositoryError) {
+                if (error.code === '23503' || error.message.includes('foreign key constraint') || error.message.includes('violates foreign key')) {
+                    message = `Não é possível excluir este ${memberLabelLower} porque ele possui histórico de atendimentos ou comissões registradas. Para desativá-lo, altere o status para "Inativo" no botão Editar.`;
+                } else {
+                    message = `Erro ao deletar: ${error.message} (${error.code || 'sem-codigo'})`;
+                }
+            }
             console.error('DELETE ERROR:', error);
             setToast({ message, type: 'error' });
         }
@@ -471,13 +485,53 @@ const Team: React.FC = () => {
                 </div>
             )}
 
-            {/* Search and View Mode */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                    <input type="text" placeholder={`Buscar ${memberLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
+            {/* Search, Filter and View Mode */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
+                    <div className="relative flex-1">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                        <input type="text" placeholder={`Buscar ${memberLabelLower}...`} value={search} onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#262626] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm" />
+                    </div>
+
+                    {/* Status Tabs */}
+                    <div className="inline-flex self-start sm:self-auto items-center bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] p-1 rounded-xl text-xs font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('active')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'active'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Ativos ({team.filter(m => m.status === 'active').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('inactive')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'inactive'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Inativos ({team.filter(m => m.status !== 'active').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'all'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Todos ({team.length})
+                        </button>
+                    </div>
                 </div>
+
                 <div className="flex items-center self-end sm:self-auto bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl p-1 shadow-sm">
                     <button
                         type="button"
@@ -504,7 +558,13 @@ const Team: React.FC = () => {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre profissionais para organizar agenda e atendimentos.' : 'Nenhum membro encontrado.'}</div>
+                <div className="text-center py-10 text-slate-500">
+                    {search || statusFilter !== 'all'
+                        ? `Nenhum ${memberLabelLower} encontrado com os filtros aplicados.`
+                        : isEsteticaApp
+                            ? 'Cadastre profissionais para organizar agenda e atendimentos.'
+                            : 'Nenhum membro encontrado.'}
+                </div>
             ) : viewMode === 'table' ? (
                 <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
