@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Menu,
   X,
-  MoreVertical,
   Receipt,
   ShoppingBag,
   UserCheck,
@@ -49,8 +48,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
-import Modal from './ui/Modal';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { isAppModuleEnabled, getFeatureForModule } from '../src/lib/apps/modules';
 import { useFeatureFlags } from '../src/hooks/useFeatureFlags';
@@ -102,7 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, user, accessRole, canAccessSuperAdmin, appSlug } = useAuth();
+  const { accessRole, canAccessSuperAdmin, appSlug } = useAuth();
   const labels = getBusinessLabels(appSlug);
   const { can } = useFeatureFlags();
   const isEsteticaApp = appSlug === 'estetica';
@@ -123,11 +120,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     Principal: true,
     Sistema: false,
   });
-
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
 
@@ -340,53 +332,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       [groupName]: !prev[groupName],
     }));
   };
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
-  };
-
-  const handleChangePlan = async (newPlan: string) => {
-    setIsUpdatingPlan(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: { plan: newPlan },
-      });
-      if (error) throw error;
-      setIsPlanModalOpen(false);
-      setIsProfileModalOpen(false);
-      window.location.reload();
-    } catch (err) {
-      console.error('Erro ao mudar plano:', err);
-    } finally {
-      setIsUpdatingPlan(false);
-    }
-  };
-
-  const planOptions = isEsteticaApp
-    ? [
-        { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agenda e Clientes', icon: 'bolt', color: 'slate' },
-        { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Procedimentos, equipe e finalização', icon: 'auto_awesome', color: 'primary' },
-        { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, retornos e gestão avançada', icon: 'workspace_premium', color: 'amber' },
-      ]
-    : [
-        { id: 'free', name: 'Starter', monthlyPrice: '0,00', annualPrice: '0,00', desc: 'Agendamentos e Clientes', icon: 'bolt', color: 'slate' },
-        { id: 'pro', name: 'Professional', monthlyPrice: '59,90', annualPrice: '599,00', desc: 'Checkout, Folha e Recibos', icon: 'auto_awesome', color: 'primary' },
-        { id: 'premium', name: 'Premium', monthlyPrice: '99,90', annualPrice: '999,00', desc: 'IA, Motor de Retorno e Totem', icon: 'workspace_premium', color: 'amber' },
-      ];
-
-  const userDisplayName = user?.user_metadata?.first_name
-    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}`.trim()
-    : user?.user_metadata?.shop_name || 'Adm smg';
-
-  const userEmail = user?.email || 'adm.smg@outlook.com';
-
-  const userInitials = userDisplayName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part: string) => part[0]?.toUpperCase())
-    .join('') || 'AS';
 
   const productSubtitle = isEsteticaApp ? 'Aesthetic Intelligence' : 'Barber Intelligence';
 
@@ -668,202 +613,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </Link>
               )}
             </div>
-
-            {/* User Profile */}
-            <div className="p-3">
-              <button
-                type="button"
-                onClick={() => setIsProfileModalOpen(true)}
-                title={!showLabels ? 'Minha Conta' : ''}
-                className={`flex items-center w-full rounded-xl transition-colors cursor-pointer hover:bg-[#EFE9D8] dark:hover:bg-[#262017] text-left ${
-                  showLabels ? 'p-2' : 'p-2 justify-center bg-[#EFE9D8]/60 dark:bg-[#262017]'
-                }`}
-              >
-                <div
-                  className="w-10 h-10 rounded-full bg-[#E8DFC9] dark:bg-[#262017] border border-[#D99A2B]/30 flex items-center justify-center text-[#6B6252] dark:text-[#F3EEE2] font-bold text-sm shrink-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage: user?.user_metadata?.avatar ? `url(${user.user_metadata.avatar})` : 'none',
-                  }}
-                >
-                  {!user?.user_metadata?.avatar && userInitials}
-                </div>
-
-                {showLabels && (
-                  <>
-                    <div className="ml-3 flex flex-col flex-1 overflow-hidden">
-                      <span className="text-sm font-bold text-[#050505] dark:text-[#F3EEE2] truncate">
-                        {userDisplayName}
-                      </span>
-                      <span className="text-xs text-[#6B6252] dark:text-[#A89D8B] truncate">{userEmail}</span>
-                    </div>
-                    <MoreVertical size={16} className="text-[#6B6252]/70 dark:text-[#A89D8B]/70 shrink-0 ml-1" />
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         </div>
-
-        {/* Modal Minha Conta */}
-        <Modal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          title="Minha Conta"
-          maxWidth="sm"
-        >
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setIsProfileModalOpen(false);
-                navigate('/settings');
-              }}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-line hover:border-primary hover:bg-gold-pale transition-all group"
-            >
-              <div className="size-10 rounded-full bg-gold-pale flex items-center justify-center text-primary-dark group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">person</span>
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-ink">Meu Perfil</p>
-                <p className="text-[10px] text-ink-soft">Gerenciar dados e segurança</p>
-              </div>
-              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">
-                chevron_right
-              </span>
-            </button>
-
-            <button
-              onClick={() => setIsPlanModalOpen(true)}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-line hover:border-primary hover:bg-gold-pale transition-all group"
-            >
-              <div className="size-10 rounded-full bg-gold-pale flex items-center justify-center text-primary-dark group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">workspace_premium</span>
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-ink">Mudar de Plano</p>
-                <p className="text-[10px] text-ink-soft">Upgrade ou gerenciar assinatura</p>
-              </div>
-              <span className="material-symbols-outlined text-ink-soft/50 ml-auto group-hover:translate-x-1 transition-transform">
-                chevron_right
-              </span>
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-danger/20 hover:bg-danger/5 hover:border-danger transition-all group"
-            >
-              <div className="size-10 rounded-full bg-danger/10 flex items-center justify-center text-danger">
-                <span className="material-symbols-outlined">logout</span>
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-danger">Sair do Sistema</p>
-                <p className="text-[10px] text-danger/70">Encerrar sua sessão atual</p>
-              </div>
-            </button>
-          </div>
-        </Modal>
-
-        {/* Modal de Planos */}
-        <Modal
-          isOpen={isPlanModalOpen}
-          onClose={() => setIsPlanModalOpen(false)}
-          title="Escolha seu Plano"
-          maxWidth="md"
-        >
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-center gap-3 py-2 bg-gold-pale rounded-2xl border border-line mx-auto px-4">
-              <span
-                className={`text-[10px] font-black uppercase ${
-                  billingCycle === 'monthly' ? 'text-primary-dark' : 'text-ink-soft'
-                }`}
-              >
-                Mensal
-              </span>
-              <button
-                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className="w-10 h-5 bg-line rounded-full relative p-0.5 transition-all"
-              >
-                <div
-                  className={`size-4 rounded-full bg-primary transition-all duration-300 ${
-                    billingCycle === 'annual' ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-[10px] font-black uppercase ${
-                    billingCycle === 'annual' ? 'text-primary-dark' : 'text-ink-soft'
-                  }`}
-                >
-                  Anual
-                </span>
-                <span className="bg-success/10 text-success text-[8px] font-black px-1.5 py-0.5 rounded border border-success/20 uppercase">
-                  -17%
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {planOptions.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleChangePlan(`${p.id}${billingCycle === 'annual' ? '_annual' : ''}`)}
-                  disabled={isUpdatingPlan || (user?.user_metadata?.plan === p.id && !billingCycle)}
-                  className={`flex flex-col items-center p-6 rounded-2xl border transition-all text-center relative overflow-hidden group
-                    ${
-                      user?.user_metadata?.plan?.includes(p.id)
-                        ? 'border-success bg-success/5 ring-1 ring-success/20'
-                        : 'border-line hover:border-primary hover:bg-gold-pale'
-                    }
-                  `}
-                >
-                  {user?.user_metadata?.plan?.includes(p.id) && (
-                    <div className="absolute top-0 right-0 p-2">
-                      <span className="material-symbols-outlined text-success text-sm">check_circle</span>
-                    </div>
-                  )}
-                  <div
-                    className={`size-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110
-                    ${
-                      p.id === 'premium'
-                        ? 'bg-gold-soft text-primary-dark'
-                        : p.id === 'pro'
-                          ? 'bg-gold-pale text-primary-dark'
-                          : 'bg-gold-pale text-ink-soft'
-                    }
-                  `}
-                  >
-                    <span className="material-symbols-outlined text-xl">{p.icon}</span>
-                  </div>
-                  <h4 className="font-black text-ink uppercase">{p.name}</h4>
-                  <p className="text-base font-bold text-primary-dark mt-1">
-                    R$ {billingCycle === 'monthly' ? p.monthlyPrice : p.annualPrice}
-                    <span className="text-[10px] text-ink-soft uppercase font-black ml-1">
-                      /{billingCycle === 'monthly' ? 'mês' : 'ano'}
-                    </span>
-                  </p>
-                  <p className="text-[10px] text-ink-soft mt-2 font-medium leading-tight">{p.desc}</p>
-
-                  <div
-                    className={`w-full mt-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all
-                    ${
-                      user?.user_metadata?.plan?.includes(p.id)
-                        ? 'bg-success text-white'
-                        : 'bg-line text-ink-soft group-hover:bg-primary group-hover:text-white'
-                    }
-                  `}
-                  >
-                    {user?.user_metadata?.plan?.includes(p.id) ? 'Plano Atual' : 'Selecionar'}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-          {isUpdatingPlan && (
-            <div className="absolute inset-0 bg-card/60 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          )}
-        </Modal>
       </aside>
     </>
   );

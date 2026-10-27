@@ -129,7 +129,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             <span className="capitalize">{todayFormatted}</span>
           </div>
 
-          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink dark:text-white">
+          <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-ink dark:text-white">
             {isEsteticaApp ? 'Resumo operacional da clínica' : 'Visão geral do movimento e financeiro de hoje.'}
           </h1>
 
@@ -291,7 +291,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 label: 'Faturamento',
                 value: formatCurrency(todayKpis.faturamento),
                 icon: 'payments',
-                tone: 'text-primary-dark dark:text-primary-light font-extrabold',
+                tone: 'text-primary-dark dark:text-primary-light font-semibold',
               },
               {
                 key: 'emAtendimento',
@@ -332,11 +332,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   <span className="material-symbols-outlined text-sm text-ink-soft group-hover:text-primary transition-colors">
                     {kpi.icon}
                   </span>
-                  <span className={`font-display text-sm sm:text-base font-bold tabular-nums tracking-tight whitespace-nowrap ${kpi.tone}`}>
+                  <span className={`font-sans text-sm sm:text-base font-medium tabular-nums tracking-tight whitespace-nowrap ${kpi.tone}`}>
                     {kpi.value}
                   </span>
                 </div>
-                <span className="mt-0.5 text-[10px] font-semibold text-ink-soft leading-tight truncate max-w-[90px]">
+                <span className="mt-0.5 text-[10px] font-normal text-ink-soft leading-tight truncate max-w-[90px]">
                   {kpi.label}
                 </span>
               </button>
@@ -351,15 +351,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 type="button"
                 onClick={item.onClick}
                 aria-label={item.ariaLabel}
-                className="flex flex-col items-center justify-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-3 min-w-[105px] transition-all hover:border-primary/40 active:scale-95 touch-manipulation group"
+                className="flex flex-col items-center justify-center rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark/60 p-4 min-w-[115px] sm:min-w-[130px] transition-all hover:border-primary/40 active:scale-95 touch-manipulation group text-center"
               >
-                <div className="flex items-center gap-1.5">
+                <div className="w-full flex items-center justify-end">
                   <span className={`material-symbols-outlined text-base ${item.tone}`}>{item.icon}</span>
-                  <span className="font-display text-xl sm:text-2xl font-bold tabular-nums tracking-tight text-ink dark:text-white">
-                    {item.value}
-                  </span>
                 </div>
-                <span className="mt-1 text-[11px] font-semibold text-ink-soft leading-tight text-center truncate max-w-[100px]">
+                <span className="my-1 font-sans text-3xl sm:text-4xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
+                  {item.value}
+                </span>
+                <span className="text-xs font-normal text-ink-soft leading-tight text-center truncate max-w-[110px]">
                   {item.label}
                 </span>
               </button>
