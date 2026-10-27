@@ -2558,36 +2558,37 @@ Podemos confirmar? 😄`;
 
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
-      <div className="relative mb-6 shrink-0 overflow-hidden rounded-3xl border border-line/60 dark:border-white/10 bg-night text-white shadow-xl">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(217,154,43,0.18),transparent_50%),linear-gradient(135deg,rgba(11,11,12,0.98),rgba(35,26,6,0.95)_60%,rgba(20,17,11,0.98))]" />
-        <div className="relative p-5 sm:p-6 flex flex-col gap-4">
-          {/* TIER 1: Identity + Date Navigator + Primary Creation Actions */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="size-11 sm:size-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-night flex items-center justify-center shadow-[0_8px_20px_rgba(217,154,43,0.25)] shrink-0 font-black">
-                <span className="material-symbols-outlined text-2xl">calendar_month</span>
+      <section className="relative mb-6 rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 text-ink dark:text-white shadow-xs transition-colors">
+        <div className="flex flex-col gap-5">
+          {/* Top Row: Identity + Date Navigator + Primary Creation Actions */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
+                <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
+                <span>{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das Cadeiras'}</span>
+                <span>•</span>
+                <span className="capitalize">{visibleRangeLabel}</span>
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary-light/90">{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das cadeiras'}</p>
-                <h1 className="text-2xl font-black text-white sm:text-3xl tracking-[-0.02em]">{isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}</h1>
-                <p className="text-xs sm:text-sm text-slate-300/90 mt-0.5">{visibleAppointments.length} atendimento(s) em {visibleRangeLabel}, com janela a partir das 07:00.</p>
-              </div>
+              <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-ink dark:text-white">
+                {isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}
+              </h1>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap justify-start xl:justify-end">
-              <div className="flex items-center rounded-xl border border-white/10 bg-white/5 p-1 shadow-xs backdrop-blur-xs">
+            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
+              {/* Seletor de Data */}
+              <div className="flex items-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
                 <button
                   onClick={() => {
                     const newDate = new Date(selectedDate);
                     newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
                     setSelectedDate(newDate);
                   }}
-                  className="rounded-lg p-1.5 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  className="rounded-lg p-1.5 text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
                   aria-label="Data anterior"
                 >
-                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                  <span className="material-symbols-outlined text-base">chevron_left</span>
                 </button>
-                <div className="flex min-w-0 items-center justify-center px-2 font-bold text-white tabular-nums tracking-[-0.02em] whitespace-nowrap text-xs sm:text-sm">
+                <div className="flex min-w-0 items-center justify-center px-2.5 font-sans font-medium text-ink dark:text-white tabular-nums tracking-tight whitespace-nowrap text-xs sm:text-sm">
                   {viewMode === 'week'
                     ? visibleRangeLabel
                     : formatDateDisplay(selectedDate)
@@ -2599,12 +2600,12 @@ Podemos confirmar? 😄`;
                     newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
                     setSelectedDate(newDate);
                   }}
-                  className="rounded-lg p-1.5 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  className="rounded-lg p-1.5 text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
                   aria-label="Próxima data"
                 >
-                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                  <span className="material-symbols-outlined text-base">chevron_right</span>
                 </button>
-                <div className="relative flex items-center pl-1 border-l border-white/10 ml-1">
+                <div className="relative flex items-center pl-1 border-l border-line dark:border-border-dark ml-1">
                   <DatePickerInput
                     value={getDateInputValue(selectedDate)}
                     onChange={(e) => {
@@ -2613,19 +2614,20 @@ Podemos confirmar? 😄`;
                     }}
                     className="sr-only"
                     containerClassName="relative"
-                    buttonClassName="flex items-center justify-center size-7 rounded-lg text-slate-300 hover:text-primary hover:bg-white/10 transition-colors"
+                    buttonClassName="flex items-center justify-center size-7 rounded-lg text-ink-soft hover:text-primary hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
                     icon={<span className="material-symbols-outlined text-base">calendar_today</span>}
                   />
                 </div>
               </div>
 
+              {/* Ações */}
               <button
                 onClick={() => setShowQuickWalkInModal(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-night font-black text-xs px-3.5 py-2.5 shadow-md shadow-amber-400/20 active:scale-95 transition-all whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink dark:text-white hover:border-primary/40 active:scale-[0.98] transition-all whitespace-nowrap touch-manipulation"
                 title="Encaixe rápido imediato na cadeira"
               >
-                <span className="material-symbols-outlined text-base">person_add</span>
-                <span>Encaixe Rápido</span>
+                <span className="material-symbols-outlined text-base text-amber-500">person_add</span>
+                <span>Encaixe</span>
               </button>
 
               <button
@@ -2636,7 +2638,7 @@ Podemos confirmar? 😄`;
                   setChefClubInfo(null);
                   setIsModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 rounded-xl bg-primary hover:bg-primary-dark text-night px-4 py-2.5 text-xs font-black shadow-[0_8px_20px_rgba(217,154,43,0.25)] active:scale-95 transition-all whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all whitespace-nowrap touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <span className="material-symbols-outlined text-base">add</span>
                 <span>{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
@@ -2644,47 +2646,47 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
-          {/* TIER 2: Dedicated Control Toolbar (Modes + Utilities) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
+          {/* Middle Row: View Switchers & Secondary Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line dark:border-border-dark">
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 backdrop-blur-xs">
+              <div className="flex rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
                 <button
                   onClick={() => setDisplayMode('chair')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'chair'
-                    ? 'bg-primary text-night font-black shadow-xs'
-                    : 'text-slate-300 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'chair'
+                    ? 'bg-primary text-night shadow-xs'
+                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
                     }`}
-                >Fila Cadeira</button>
+                >Fila de Cadeiras</button>
                 <button
                   onClick={() => setDisplayMode('calendar')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'calendar'
-                    ? 'bg-primary text-night font-black shadow-xs'
-                    : 'text-slate-300 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'calendar'
+                    ? 'bg-primary text-night shadow-xs'
+                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
                     }`}
-                >Calendário</button>
+                >Grade Geral</button>
                 <button
                   onClick={() => setDisplayMode('list')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${displayMode === 'list'
-                    ? 'bg-primary text-night font-black shadow-xs'
-                    : 'text-slate-300 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'list'
+                    ? 'bg-primary text-night shadow-xs'
+                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
                     }`}
                 >Lista</button>
               </div>
 
               {displayMode === 'calendar' && (
-                <div className="flex rounded-xl border border-white/10 bg-white/5 p-1 backdrop-blur-xs">
+                <div className="flex rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
                   <button
                     onClick={() => setViewMode('day')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'day'
-                      ? 'bg-primary text-night font-black shadow-xs'
-                      : 'text-slate-300 hover:text-white'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'day'
+                      ? 'bg-primary text-night shadow-xs'
+                      : 'text-ink-soft hover:text-ink dark:hover:text-white'
                       }`}
                   >Dia</button>
                   <button
                     onClick={() => setViewMode('week')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'week'
-                      ? 'bg-primary text-night font-black shadow-xs'
-                      : 'text-slate-300 hover:text-white'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'week'
+                      ? 'bg-primary text-night shadow-xs'
+                      : 'text-ink-soft hover:text-ink dark:hover:text-white'
                       }`}
                   >Semana</button>
                 </div>
@@ -2694,20 +2696,20 @@ Podemos confirmar? 😄`;
             <div className="flex items-center gap-2 flex-wrap sm:justify-end">
               <button
                 onClick={exportToCSV}
-                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 shadow-xs transition-all hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-1.5 text-xs font-medium text-ink-soft hover:text-ink dark:hover:text-white transition-all"
                 title="Exportar agenda em CSV"
               >
                 <span className="material-symbols-outlined text-base">download</span>
-                <span>Exportar CSV</span>
+                <span>Exportar</span>
               </button>
 
               {displayMode === 'calendar' && (
                 <>
                   <button
                     onClick={() => setShowOnlyBlocks(prev => !prev)}
-                    className={`border px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all ${showOnlyBlocks
-                      ? 'border-red-400/40 bg-red-500/20 text-red-100'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                    className={`border px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${showOnlyBlocks
+                      ? 'border-red-400/40 bg-red-500/10 text-danger'
+                      : 'border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white'
                       }`}
                     title="Exibir apenas bloqueios na grade"
                   >
@@ -2717,7 +2719,7 @@ Podemos confirmar? 😄`;
 
                   <button
                     onClick={handleOpenCreateBlockModal}
-                    className="flex items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-500/20 px-3 py-1.5 text-xs font-bold text-red-100 shadow-xs transition-all hover:bg-red-500/30"
+                    className="flex items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-danger transition-all hover:bg-red-500/20"
                   >
                     <span className="material-symbols-outlined text-base">event_busy</span>
                     <span>Fechar agenda</span>
@@ -2727,10 +2729,10 @@ Podemos confirmar? 😄`;
 
               <button
                 onClick={() => navigate('/operations')}
-                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 shadow-xs transition-all hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-1.5 text-xs font-medium text-ink-soft hover:text-ink dark:hover:text-white transition-all"
                 title="Operações do dia"
               >
-                <span className="material-symbols-outlined text-base">insights</span>
+                <span className="material-symbols-outlined text-base text-primary">insights</span>
                 <span>Operações</span>
               </button>
 
@@ -2750,42 +2752,54 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
-          {/* TIER 3: The 4 Atelier KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
-              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Atendimentos</span>
-              <p className="mt-1 text-2xl sm:text-3xl font-black text-white tabular-nums tracking-[-0.02em] leading-none">
+          {/* Bottom Strip: 4 KPIs Alinhados com Linear/Stripe */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden">
+            <div className="p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Atendimentos</span>
+                <span className="material-symbols-outlined text-base text-ink-soft">calendar_today</span>
+              </div>
+              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
                 {loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}
               </p>
-              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{visibleConfirmedCount} confirmados</p>
+              <p className="text-[11px] text-ink-soft">{visibleConfirmedCount} confirmados</p>
             </div>
 
-            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
-              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Pendentes</span>
-              <p className="mt-1 text-2xl sm:text-3xl font-black text-amber-300 tabular-nums tracking-[-0.02em] leading-none">
+            <div className="p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Pendentes</span>
+                <span className="material-symbols-outlined text-base text-amber-500">schedule</span>
+              </div>
+              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-amber-500">
                 {loading ? '...' : String(visiblePendingCount).padStart(2, '0')}
               </p>
-              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">Aguardam confirmação</p>
+              <p className="text-[11px] text-ink-soft">Aguardam confirmação</p>
             </div>
 
-            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-white/20 transition-colors">
-              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">{orderPluralLabel}</span>
-              <p className="mt-1 text-2xl sm:text-3xl font-black text-white tabular-nums tracking-[-0.02em] leading-none">
+            <div className="p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">{orderPluralLabel}</span>
+                <span className="material-symbols-outlined text-base text-primary">receipt_long</span>
+              </div>
+              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
                 {loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}
               </p>
-              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
+              <p className="text-[11px] text-ink-soft">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
             </div>
 
-            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-xs flex flex-col justify-between hover:border-primary/30 transition-colors">
-              <span className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-white/50">Previsto</span>
-              <p className="mt-1 truncate text-2xl sm:text-3xl font-black text-primary-light tabular-nums tracking-[-0.02em] whitespace-nowrap leading-none">
+            <div className="p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Previsto</span>
+                <span className="material-symbols-outlined text-base text-primary">payments</span>
+              </div>
+              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-primary-dark dark:text-primary-light whitespace-nowrap">
                 {loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}
               </p>
-              <p className="mt-1.5 truncate text-[11px] text-slate-300/80">{visibleBlockCount} bloqueio(s)</p>
+              <p className="text-[11px] text-ink-soft">{visibleBlockCount} bloqueio(s)</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {displayMode === 'chair' ? (
         <BarberChairQueue

@@ -1540,103 +1540,102 @@ const Comandas: React.FC = () => {
         <div className="space-y-4 pb-20 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-cream via-card to-gold-pale p-5 text-ink shadow-smg-shell">
-                <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-primary/10 blur-3xl" />
-                <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="max-w-2xl">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-gold-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-primary-dark">
-                            <span className="material-symbols-outlined text-[14px]">content_cut</span>
-                            {isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de atendimento'}
-                        </span>
-                        <h1 className="mt-3 text-2xl font-black tracking-tight text-ink sm:text-3xl">{isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}</h1>
-                        <p className="mt-2 text-sm leading-6 text-ink-soft">
-                            <span className="tabular-nums font-semibold">{sortedComandas.length}</span> {orderPluralLower} no recorte atual, com foco em cliente, profissional, {isEsteticaApp ? 'procedimentos, produtos e finalização real' : 'consumo e baixa real'}. {dateFilterDescription}.
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
+            <section className="relative rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 text-ink dark:text-white shadow-xs transition-colors">
+                <div className="flex flex-col gap-5">
+                    {/* Top Row: Identificação + Ações Primárias */}
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="space-y-1.5 min-w-0">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
+                                <span className="material-symbols-outlined text-base text-primary">receipt_long</span>
+                                <span>{isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de Atendimento'}</span>
+                                <span>•</span>
+                                <span className="capitalize">{dateFilterDescription}</span>
+                            </div>
+                            <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-ink dark:text-white">
+                                {isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}
+                            </h1>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
                             <button
                                 type="button"
                                 onClick={() => {
                                     void loadQuickOpenAuxiliaryData();
                                     setIsQuickOpenModalOpen(true);
                                 }}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2 text-sm font-black text-night shadow-smg-glow transition hover:brightness-105 active:scale-[0.98] touch-manipulation"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 whitespace-nowrap"
                                 title="Abertura rápida com atalho [N]"
                             >
-                                <span className="material-symbols-outlined text-[18px]">bolt</span>
+                                <span className="material-symbols-outlined text-lg">bolt</span>
                                 <span>Abertura Rápida</span>
                                 <span className="rounded bg-black/15 px-1.5 py-0.5 text-[10px] font-mono">N</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => navigate('/checkout?mode=comanda')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-card/80 px-4 py-2 text-sm font-bold text-ink transition hover:bg-gold-pale active:scale-[0.98] touch-manipulation"
-                            >
-                                <span className="material-symbols-outlined text-[18px]">add</span>
-                                {isEsteticaApp ? 'Novo atendimento' : 'Nova comanda'}
-                            </button>
-                            <button
-                                type="button"
                                 onClick={() => navigate('/checkout?mode=pdv')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-card/80 px-4 py-2 text-sm font-semibold text-ink transition hover:bg-gold-pale active:scale-[0.98] touch-manipulation"
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink dark:text-white hover:border-primary/40 active:scale-[0.98] transition-all touch-manipulation whitespace-nowrap"
                             >
-                                <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
-                                {isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}
+                                <span className="material-symbols-outlined text-lg text-primary">point_of_sale</span>
+                                <span>{isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Bloco 2x2 de métricas integrado ao Hero */}
-                    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-card/85 shadow-sm divide-x divide-y divide-line sm:min-w-[400px] lg:min-w-[440px]">
+                    {/* Bottom Strip: 4 KPIs Alinhados em linha contínua no padrão da Agenda */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden">
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary-dark">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-dark dark:text-primary-light">
                                     {isEsteticaApp ? 'Abertos' : 'Abertas'}
                                 </span>
                                 <span className="material-symbols-outlined text-base text-primary">schedule</span>
                             </div>
-                            <p className="text-2xl font-black tabular-nums tracking-[-0.02em] text-ink">
+                            <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
                                 {loading ? '...' : String(openCount).padStart(2, '0')}
                             </p>
                             <p className="text-[11px] tabular-nums text-ink-soft">
                                 Pendente: {formatCurrency(totalOpen)}
                             </p>
                         </div>
+
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-success">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-success">
                                     Liquidadas
                                 </span>
                                 <span className="material-symbols-outlined text-base text-success">task_alt</span>
                             </div>
-                            <p className="text-2xl font-black tabular-nums tracking-[-0.02em] text-ink">
+                            <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
                                 {loading ? '...' : String(paidCount).padStart(2, '0')}
                             </p>
                             <p className="text-[11px] tabular-nums text-ink-soft">
                                 Total: {formatCurrency(totalPaid)}
                             </p>
                         </div>
+
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary-dark">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
                                     Total Geral
                                 </span>
-                                <span className="material-symbols-outlined text-base text-primary-dark">payments</span>
+                                <span className="material-symbols-outlined text-base text-primary">payments</span>
                             </div>
-                            <p className="text-xl font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
+                            <p className="font-sans text-xl font-normal tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
                                 {loading ? '...' : formatCurrency(totalOpen + totalPaid)}
                             </p>
                             <p className="text-[11px] tabular-nums text-ink-soft">
                                 {kpiSummary.totalCount} {orderPluralLower}
                             </p>
                         </div>
+
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-ink-soft">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
                                     Ticket Médio
                                 </span>
                                 <span className="material-symbols-outlined text-base text-ink-soft">monitoring</span>
                             </div>
-                            <p className="text-xl font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-ink">
+                            <p className="font-sans text-xl font-normal tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
                                 {loading ? '...' : formatCurrency(avgTicket)}
                             </p>
                             <p className="text-[11px] tabular-nums text-ink-soft">
@@ -1644,38 +1643,6 @@ const Comandas: React.FC = () => {
                             </p>
                         </div>
                     </div>
-                </div>
-                <div className="relative mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                        <AuditAdjustmentButton
-                            context={{
-                                sourceType: 'comanda',
-                                sourceLabel: isEsteticaApp ? orderPluralLabel : 'Comandas do balcão',
-                                beforeSnapshot: {
-                                    total_filtrado: sortedComandas.length,
-                                    abertas: openCount,
-                                    total_aberto: totalOpen,
-                                    periodo: dateFilterDescription,
-                                },
-                                financialImpactLabel: isEsteticaApp
-                                    ? 'Possível impacto em baixa, repasses e contas a receber'
-                                    : 'Possível impacto em baixa, comissão e contas a receber',
-                                allowedAdjustmentTypes: [
-                                    'service_participation_correction',
-                                    'settlement_reversal',
-                                    'payment_date_correction',
-                                    'payment_method_correction',
-                                    'hide_from_financial_with_reason',
-                                    'mark_for_review',
-                                ],
-                            }}
-                            defaultAdjustmentType="mark_for_review"
-                        />
-                        <Button size="sm" variant="secondary" onClick={generateCSV} leftIcon="download" disabled={loading}>
-                            CSV
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={copyToClipboard} leftIcon="content_copy" disabled={loading}>
-                            Copiar
-                        </Button>
                 </div>
             </section>
 
@@ -1816,6 +1783,39 @@ const Comandas: React.FC = () => {
                                 Limpar
                             </button>
                         )}
+
+                        <div className="h-6 w-px bg-line dark:bg-border-dark hidden sm:block mx-1" />
+
+                        <AuditAdjustmentButton
+                            context={{
+                                sourceType: 'comanda',
+                                sourceLabel: isEsteticaApp ? orderPluralLabel : 'Comandas do balcão',
+                                beforeSnapshot: {
+                                    total_filtrado: sortedComandas.length,
+                                    abertas: openCount,
+                                    total_aberto: totalOpen,
+                                    periodo: dateFilterDescription,
+                                },
+                                financialImpactLabel: isEsteticaApp
+                                    ? 'Possível impacto em baixa, repasses e contas a receber'
+                                    : 'Possível impacto em baixa, comissão e contas a receber',
+                                allowedAdjustmentTypes: [
+                                    'service_participation_correction',
+                                    'settlement_reversal',
+                                    'payment_date_correction',
+                                    'payment_method_correction',
+                                    'hide_from_financial_with_reason',
+                                    'mark_for_review',
+                                ],
+                            }}
+                            defaultAdjustmentType="mark_for_review"
+                        />
+                        <Button size="sm" variant="secondary" onClick={generateCSV} leftIcon="download" disabled={loading}>
+                            CSV
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={copyToClipboard} leftIcon="content_copy" disabled={loading}>
+                            Copiar
+                        </Button>
                     </div>
 
                     {hasAnyFilter && (
