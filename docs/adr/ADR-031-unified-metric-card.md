@@ -1,6 +1,6 @@
 # ADR-031 — Unified Metric Card
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-06
 **Scope:** Product UI (metric display components)
 
@@ -38,7 +38,7 @@ Per-screen metric redesigns keep reproducing the same generic SaaS template, and
 
 ## Amendment-01 — Light cream + single gold identity (2026-10-08)
 
-**Status:** Proposed (pending PO confirmation)
+**Status:** Accepted (2026-10-27)
 
 The PO rejected the aged-brass dark palette recorded above ("Nao gostei das cores") and supplied a Provly-inspired reference. The visual identity is therefore amended:
 
@@ -50,3 +50,10 @@ The PO rejected the aged-brass dark palette recorded above ("Nao gostei das core
 6. **No logic change:** metric calculation, filters, hooks, RPCs and data fetching are untouched. This is a visual-only front.
 
 This amendment supersedes the "aged brass … SMG blue restricted to operational signal" sentence in the Context above. Migration validated by `npm run build` (exit 0), `tsc --noEmit` (only pre-existing `comandaSync.ts` errors), and a zero-blue-token grep across all P0 files.
+
+## Status de Migração (2026-10-27)
+
+As telas de negócio foram unificadas. Componentes legados em telas técnicas (Observability/EventVersioning) foram deixados como fase 2 (Tech Debt).
+
+- **Telas migradas para `components/ui/MetricCard.tsx`:** `pages/Reports.tsx`, `pages/SuperAdmin.tsx`, `pages/Cashflow.tsx`, `pages/FinancialOverview.tsx` (além das já consolidadas `Dashboard.tsx`, `BusinessIntelligence.tsx`, `StrategicDashboard.tsx` e `Admin.tsx`).
+- **Componentes legados descomissionados:** `components/superadmin/KpiCard.tsx` e `components/financial/FinancialSummaryCard.tsx` foram excluídos do repositório.
