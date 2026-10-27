@@ -38,9 +38,12 @@ const Products: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
     const [showModal, setShowModal] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [form, setForm] = useState({
         name: '',
@@ -49,7 +52,8 @@ const Products: React.FC = () => {
         sale_price: 0,
         stock_quantity: 0,
         minimum_stock: 0,
-        auto_generate_purchase_order: false
+        auto_generate_purchase_order: false,
+        active: true,
     });
 
     const fetchProducts = useCallback(async () => {
@@ -78,11 +82,25 @@ const Products: React.FC = () => {
         fetchProducts();
     }, [fetchProducts]);
 
+    const openNewModal = () => {
+        setEditingProduct(null);
+        setForm({
+            name: '',
+            description: '',
+            cost_price: 0,
+            sale_price: 0,
+            stock_quantity: 0,
+            minimum_stock: 0,
+            auto_generate_purchase_order: false,
+            active: true,
+        });
+        setShowModal(true);
+    };
+
     useEffect(() => {
         const shouldOpenNew = Boolean((location.state as { openNewProduct?: boolean } | null)?.openNewProduct);
         if (!shouldOpenNew) return;
-        setEditingProduct(null);
-        setShowModal(true);
+        openNewModal();
         navigate(location.pathname, { replace: true, state: null });
     }, [location.pathname, location.state, navigate]);
 
@@ -118,7 +136,8 @@ const Products: React.FC = () => {
                 sale_price: 0,
                 stock_quantity: 0,
                 minimum_stock: 0,
-                auto_generate_purchase_order: false
+                auto_generate_purchase_order: false,
+                active: true,
             });
             fetchProducts();
         }
@@ -134,15 +153,57 @@ const Products: React.FC = () => {
             sale_price: normalizedProduct.sale_price,
             stock_quantity: normalizedProduct.stock_quantity,
             minimum_stock: normalizedProduct.minimum_stock,
-            auto_generate_purchase_order: normalizedProduct.auto_generate_purchase_order
+            auto_generate_purchase_order: normalizedProduct.auto_generate_purchase_order,
+            active: normalizedProduct.active,
         });
         setShowModal(true);
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.description?.toLowerCase().includes(search.toLowerCase())
-    );
+    const handleDelete = async () => {
+        if (!deleteTarget || !tenantId) return;
+        setDeleting(true);
+        try {
+            const { error } = await barberSupabase
+                .from('products')
+                .delete()
+                .eq('id', deleteTarget.id)
+                .eq('tenant_id', tenantId);
+
+            if (error) {
+                let message = 'Erro ao excluir produto.';
+                if (error.code === '23503' || error.message.includes('foreign key constraint') || error.message.includes('violates foreign key')) {
+                    message = 'Não é possível excluir este produto porque ele possui histórico de vendas em comandas ou movimentações de estoque. Para desativá-lo, altere o status para "Inativo" no botão Editar.';
+                } else {
+                    message = `Erro ao excluir produto: ${error.message} (${error.code || 'sem-codigo'})`;
+                }
+                setToast({ message, type: 'error' });
+            } else {
+                setToast({ message: 'Produto excluído com sucesso.', type: 'info' });
+                setDeleteTarget(null);
+                fetchProducts();
+            }
+        } catch (err: any) {
+            console.error('DELETE PRODUCT ERROR:', err);
+            let message = 'Erro ao excluir produto.';
+            if (err?.code === '23503' || err?.message?.includes('foreign key')) {
+                message = 'Não é possível excluir este produto porque ele possui histórico de vendas em comandas ou movimentações de estoque. Para desativá-lo, altere o status para "Inativo" no botão Editar.';
+            }
+            setToast({ message, type: 'error' });
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const filteredProducts = products.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+            p.description?.toLowerCase().includes(search.toLowerCase());
+        const matchesStatus = statusFilter === 'all'
+            ? true
+            : statusFilter === 'active'
+                ? p.active
+                : !p.active;
+        return matchesSearch && matchesStatus;
+    });
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -153,14 +214,14 @@ const Products: React.FC = () => {
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Produtos e Estoque</h2>
                     <p className="text-slate-500 mt-1">Gerencie seu inventário e controle de reposição.</p>
                 </div>
-                <Button onClick={() => setShowModal(true)} leftIcon="add">
+                <Button onClick={openNewModal} leftIcon="add">
                     Novo Produto
                 </Button>
             </div>
 
             <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex gap-4">
-                    <div className="relative flex-1">
+                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="relative flex-1 max-w-md">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                         <input
                             type="text"
@@ -169,6 +230,42 @@ const Products: React.FC = () => {
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary transition-all"
                         />
+                    </div>
+
+                    <div className="inline-flex self-start sm:self-auto items-center bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] p-1 rounded-xl text-xs font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('active')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'active'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Ativos ({products.filter(p => p.active).length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('inactive')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'inactive'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Inativos ({products.filter(p => !p.active).length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'all'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            Todos ({products.length})
+                        </button>
                     </div>
                 </div>
 
@@ -190,7 +287,11 @@ const Products: React.FC = () => {
                                 </tr>
                             ) : filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum produto encontrado.</td>
+                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                        {search || statusFilter !== 'all'
+                                            ? 'Nenhum produto encontrado com os filtros aplicados.'
+                                            : 'Nenhum produto encontrado.'}
+                                    </td>
                                 </tr>
                             ) : (
                                 filteredProducts.map(product => (
@@ -224,9 +325,24 @@ const Products: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <button onClick={() => handleEdit(product)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors">
-                                                <span className="material-symbols-outlined">edit</span>
-                                            </button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEdit(product)}
+                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors"
+                                                    title="Editar"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(product)}
+                                                    className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-slate-400 hover:text-red-500 transition-colors"
+                                                    title="Excluir"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -305,15 +421,31 @@ const Products: React.FC = () => {
                             />
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
-                        <input
-                            type="checkbox"
-                            id="auto_order"
-                            checked={form.auto_generate_purchase_order}
-                            onChange={(e) => setForm({ ...form, auto_generate_purchase_order: e.target.checked })}
-                            className="size-4 accent-primary"
-                        />
-                        <label htmlFor="auto_order" className="text-sm text-slate-600 dark:text-slate-400 font-medium">Gerar pedido de compra automaticamente</label>
+                    <div className="space-y-2 pt-2">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="product_active"
+                                checked={form.active}
+                                onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                                className="size-4 accent-primary"
+                            />
+                            <label htmlFor="product_active" className="text-sm text-slate-700 dark:text-slate-300 font-bold">
+                                Produto ativo para venda
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="auto_order"
+                                checked={form.auto_generate_purchase_order}
+                                onChange={(e) => setForm({ ...form, auto_generate_purchase_order: e.target.checked })}
+                                className="size-4 accent-primary"
+                            />
+                            <label htmlFor="auto_order" className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                                Gerar pedido de compra automaticamente
+                            </label>
+                        </div>
                     </div>
                     <div className="flex gap-3 pt-4">
                         <Button variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setEditingProduct(null); }}>
@@ -325,6 +457,33 @@ const Products: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            {/* Delete Confirmation Modal */}
+            {deleteTarget && (
+                <Modal
+                    isOpen={!!deleteTarget}
+                    onClose={() => setDeleteTarget(null)}
+                    title="Excluir Produto"
+                    maxWidth="md"
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            Tem certeza que deseja excluir o produto <strong>{deleteTarget.name}</strong>?
+                        </p>
+                        <p className="text-xs text-slate-400">
+                            Caso o produto já possua histórico de vendas em comandas ou movimentações de estoque, a exclusão será bloqueada para proteger os registros financeiros da barbearia.
+                        </p>
+                        <div className="flex justify-end gap-3 pt-4">
+                            <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                                Cancelar
+                            </Button>
+                            <Button variant="danger" onClick={handleDelete} loading={deleting}>
+                                Excluir
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

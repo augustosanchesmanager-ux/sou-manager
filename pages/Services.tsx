@@ -45,7 +45,7 @@ const Services: React.FC = () => {
   // Filters
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   // Form
   const [view, setView] = useState<'list' | 'form'>('list');
@@ -177,15 +177,32 @@ const Services: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!tenantId) return;
 
-    const servicesClient = getClientForTable('services', 'barber');
-    const { error } = await servicesClient
-      .from('services')
-      .delete()
-      .eq('id', id)
-      .eq('tenant_id', tenantId);
-    if (!error) {
-      setToast({ message: `${serviceLabel} excluído.`, type: 'info' });
-      fetchServices();
+    try {
+      const servicesClient = getClientForTable('services', 'barber');
+      const { error } = await servicesClient
+        .from('services')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+      if (error) {
+        let message = `Erro ao excluir ${serviceLabelLower}.`;
+        if (error.code === '23503' || error.message.includes('foreign key constraint') || error.message.includes('violates foreign key')) {
+          message = `Não é possível excluir este ${serviceLabelLower} porque ele está vinculado a agendamentos ou comandas registradas. Para desativá-lo, utilize o interruptor Ativo/Inativo.`;
+        } else {
+          message = `Erro ao excluir ${serviceLabelLower}: ${error.message} (${error.code || 'sem-codigo'})`;
+        }
+        setToast({ message, type: 'error' });
+      } else {
+        setToast({ message: `${serviceLabel} excluído.`, type: 'info' });
+        fetchServices();
+      }
+    } catch (err: any) {
+      console.error('DELETE SERVICE ERROR:', err);
+      let message = `Erro ao excluir ${serviceLabelLower}.`;
+      if (err?.code === '23503' || err?.message?.includes('foreign key')) {
+        message = `Não é possível excluir este ${serviceLabelLower} porque ele está vinculado a agendamentos ou comandas registradas. Para desativá-lo, utilize o interruptor Ativo/Inativo.`;
+      }
+      setToast({ message, type: 'error' });
     }
   };
 
@@ -305,13 +322,42 @@ const Services: React.FC = () => {
           <option value="all" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Todas Categorias</option>
           {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{getCategoryLabel(c)}</option>)}
         </select>
-        <div className="flex items-center gap-2">
-          {(['all', 'active', 'inactive'] as const).map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === s ? 'bg-primary text-white shadow-md' : 'bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
-              {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : 'Inativos'}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] p-1 rounded-xl text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('active')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                statusFilter === 'active'
+                  ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Ativos ({services.filter(s => s.active).length})
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setStatusFilter('inactive')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                statusFilter === 'inactive'
+                  ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Inativos ({services.filter(s => !s.active).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Todos ({services.length})
+            </button>
+          </div>
           <div className="h-6 w-px bg-slate-200 dark:border-border-dark mx-1 hidden sm:block"></div>
           <div className="flex items-center bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl p-1 shadow-sm">
             <button
@@ -340,7 +386,13 @@ const Services: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-500">{isEsteticaApp ? 'Cadastre seu primeiro procedimento.' : 'Nenhum serviço encontrado.'}</div>
+        <div className="text-center py-10 text-slate-500">
+          {search || categoryFilter !== 'all' || statusFilter !== 'all'
+            ? `Nenhum ${serviceLabelLower} encontrado com os filtros aplicados.`
+            : isEsteticaApp
+              ? 'Cadastre seu primeiro procedimento.'
+              : 'Nenhum serviço encontrado.'}
+        </div>
       ) : viewMode === 'table' ? (
         <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
