@@ -40,6 +40,8 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-034](./ADR-034-item-granularity-in-commission-records.md) | Accepted | Granularidade por Item no Ledger de Comissões D7/D8 (C2, 2026-10-20) |
 | [ADR-035](./ADR-035-appointment-comanda-sync-and-post-checkout-lock.md) | Accepted | Sincronização Agendamento × Comanda e Trava Pós-Checkout (2026-10-20) |
 | [ADR-036](./ADR-036-payment-terminals-and-fee-snapshots.md) | Accepted | Cadastro de Maquininhas de Cartão e Snapshot Contábil de Taxas no Checkout (2026-10-21) |
+| [ADR-037](./ADR-037-bank-reconciliation-ofx.md) | Proposed | Conciliação Bancária Automática via Importação de Extratos OFX/CSV (2026-10-26) |
+| [ADR-038](./ADR-038-recurring-schedule-subscribers.md) | Accepted | Horário Fixo Recorrente para Assinantes Chef Club com Yield Management e Janela Rolante (2026-10-27) |
 
 ---
 
