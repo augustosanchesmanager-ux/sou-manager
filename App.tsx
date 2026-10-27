@@ -47,6 +47,7 @@ const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OfflineSync = lazy(() => import('./pages/OfflineSync'));
 const Payroll = lazy(() => import('./pages/Payroll'));
+const PaymentTerminals = lazy(() => import('./pages/PaymentTerminals'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const Performance = lazy(() => import('./pages/Performance'));
 const Products = lazy(() => import('./pages/Products'));
@@ -323,6 +324,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
             <Route path="/promotions" element={<ManagerRoute><Promotions /></ManagerRoute>} />
+            <Route path="/payment-terminals" element={<ManagerRoute><PaymentTerminals /></ManagerRoute>} />
             <Route path="/superadmin" element={<SuperAdminRoute><SuperAdmin /></SuperAdminRoute>} />
           </Route>
         </Route>
