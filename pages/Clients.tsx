@@ -69,7 +69,7 @@ const Clients: React.FC = () => {
 
     // Filters
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
     const [sortKey, setSortKey] = useState<SortKey>('name');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -360,13 +360,20 @@ const Clients: React.FC = () => {
                 await clientRepository.delete(clientId, tenantId);
             } catch (deleteError) {
                 console.error('[SMG][CLIENT][DELETE][ERROR]', deleteError);
-                const failureReport = failures.length > 0
-                    ? `\nDependências com falha: ${failures.map(f => f.table).join(', ')}`
-                    : '';
-                const message = deleteError instanceof RepositoryError
-                    ? `${deleteError.message} (${deleteError.code || 'sem-codigo'})`
-                    : 'Erro ao excluir cliente.';
-                setToast({ message: `${message}${failureReport}`, type: 'error' });
+                let message = 'Erro ao excluir cliente.';
+                if (deleteError instanceof RepositoryError) {
+                    if (deleteError.code === '23503' || deleteError.message.includes('foreign key constraint') || deleteError.message.includes('violates foreign key')) {
+                        message = 'Não é possível excluir este cliente porque ele possui histórico de agendamentos, comandas ou transações financeiras. Para desativá-lo, altere o status para "Inativo" no botão Editar.';
+                    } else {
+                        const failureReport = failures.length > 0
+                            ? `\nDependências com falha: ${failures.map(f => f.table).join(', ')}`
+                            : '';
+                        message = `${deleteError.message} (${deleteError.code || 'sem-codigo'})${failureReport}`;
+                    }
+                } else if (deleteError instanceof Error && (deleteError.message.includes('foreign key') || deleteError.message.includes('23503'))) {
+                    message = 'Não é possível excluir este cliente porque ele possui histórico de agendamentos, comandas ou transações financeiras. Para desativá-lo, altere o status para "Inativo" no botão Editar.';
+                }
+                setToast({ message, type: 'error' });
                 return;
             }
 
@@ -507,26 +514,51 @@ const Clients: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
                     <input
                         type="text"
                         placeholder="Buscar por nome, telefone ou e-mail..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white"
+                        className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm"
                     />
                 </div>
-                <div className="flex gap-2">
-                    {(['all', 'active', 'inactive'] as const).map(s => (
-                        <button key={s}
-                            onClick={() => setStatusFilter(s)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === s ? 'bg-primary text-white shadow-md' : 'bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                        >
-                            {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : 'Inativos'}
-                        </button>
-                    ))}
+                <div className="inline-flex self-start sm:self-auto items-center bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] p-1 rounded-xl text-xs font-bold">
+                    <button
+                        type="button"
+                        onClick={() => setStatusFilter('active')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                            statusFilter === 'active'
+                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                    >
+                        Ativos ({clients.filter(c => c.status === 'active').length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setStatusFilter('inactive')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                            statusFilter === 'inactive'
+                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                    >
+                        Inativos ({clients.filter(c => c.status !== 'active').length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setStatusFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                            statusFilter === 'all'
+                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                    >
+                        Todos ({clients.length})
+                    </button>
                 </div>
             </div>
 
@@ -564,7 +596,11 @@ const Clients: React.FC = () => {
                                 {processed.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="text-center py-10 text-slate-500 text-sm">
-                                            {isEsteticaApp ? 'Cadastre clientes para acompanhar atendimentos, retornos e histórico.' : 'Nenhum cliente encontrado.'}
+                                            {search || statusFilter !== 'all'
+                                                ? 'Nenhum cliente encontrado com os filtros aplicados.'
+                                                : isEsteticaApp
+                                                    ? 'Cadastre clientes para acompanhar atendimentos, retornos e histórico.'
+                                                    : 'Nenhum cliente encontrado.'}
                                         </td>
                                     </tr>
                                 )}
