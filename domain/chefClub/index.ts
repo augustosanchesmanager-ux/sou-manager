@@ -53,3 +53,23 @@ export {
   isReceivableGenerableStatus,
   validateStatusTransition,
 } from './validation';
+
+// Recurring Schedule & Yield Management (ADR-038)
+export {
+  type SubscriptionRecurringSlot,
+  type CreateRecurringSlotInput,
+  type RecurringScheduleGenerationResult,
+  type RecurringScheduleEvictionResult,
+} from './recurringScheduleTypes';
+
+export {
+  validateRecurringSlotInput,
+  calculateSlotDatesInWindow,
+  isSlotCollidingWithBlock,
+  evaluateCancellationYield,
+} from './recurringScheduleService';
+
+export {
+  ChefClubRecurringScheduleRepositoryImpl,
+  chefClubRecurringScheduleRepository,
+} from './recurringScheduleRepository';

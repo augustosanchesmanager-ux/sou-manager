@@ -10,6 +10,11 @@ import {
     updateBillingDate,
     updateSubscriptionStatus,
     cancelSubscriptionWithReceivables,
+    loadSubscriptionRecurringSlots,
+    addSubscriptionRecurringSlot,
+    toggleSubscriptionRecurringSlot,
+    removeSubscriptionRecurringSlot,
+    triggerRecurringScheduleGeneration,
     type SubscriptionDetailData,
     type SubscriptionDetailClient,
 } from '../application/chefClub';
@@ -21,8 +26,21 @@ import {
     isCancelReason,
     type ServiceBalanceEntry,
     type CancelReason,
+    type SubscriptionRecurringSlot,
 } from '../domain/chefClub';
+import { staffRepository } from '../domain/staff';
+import { serviceRepository } from '../domain/service/repository';
 import { formatCurrency } from '../shared/format/currency';
+
+const DAYS_OF_WEEK = [
+    'Domingo',
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+];
 
 const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'N/A';
@@ -57,17 +75,39 @@ const ChefClubSubscriptionDetail: React.FC = () => {
     const [cancelObservation, setCancelObservation] = useState('');
     const [cancelReceivables, setCancelReceivables] = useState(false);
 
+    // Horários Fixos Recorrentes (ADR-038)
+    const [recurringSlots, setRecurringSlots] = useState<SubscriptionRecurringSlot[]>([]);
+    const [staffList, setStaffList] = useState<Array<{ id: string; name: string }>>([]);
+    const [serviceList, setServiceList] = useState<Array<{ id: string; name: string }>>([]);
+    const [slotModalOpen, setSlotModalOpen] = useState(false);
+    const [newSlotDay, setNewSlotDay] = useState(4); // Default: Quinta-feira
+    const [newSlotTime, setNewSlotTime] = useState('18:00');
+    const [newSlotStaffId, setNewSlotStaffId] = useState('');
+    const [newSlotServiceId, setNewSlotServiceId] = useState('');
+    const [newSlotDuration, setNewSlotDuration] = useState(30);
+    const [savingSlot, setSavingSlot] = useState(false);
+    const [generatingSlots, setGeneratingSlots] = useState(false);
+
     const loadData = useCallback(async () => {
         if (!tenantId || !subscriptionId) return;
 
         setLoading(true);
         try {
-            const result = await loadSubscriptionDetail(tenantId, subscriptionId);
+            const [result, slots, staffMembers, services] = await Promise.all([
+                loadSubscriptionDetail(tenantId, subscriptionId),
+                loadSubscriptionRecurringSlots(tenantId, subscriptionId),
+                staffRepository.list(tenantId),
+                serviceRepository.list(tenantId),
+            ]);
+
             if (!result) {
                 setToast({ message: 'Assinatura não encontrada', type: 'error' });
                 return;
             }
             setDetail(result);
+            setRecurringSlots(slots);
+            setStaffList(staffMembers.map((s) => ({ id: s.id, name: s.name })));
+            setServiceList(services.map((srv) => ({ id: srv.id, name: srv.name })));
             setNextBillingDate(result.subscription.next_billing_date || '');
             setSelectedPlanId(result.plan?.id || '');
 
@@ -88,6 +128,92 @@ const ChefClubSubscriptionDetail: React.FC = () => {
     useEffect(() => {
         void loadData();
     }, [loadData]);
+
+    const handleCreateSlot = async () => {
+        if (!tenantId || !subscriptionId || !detail?.subscription.client_id) return;
+        if (!newSlotStaffId) {
+            setToast({ message: 'Selecione o profissional de preferência', type: 'error' });
+            return;
+        }
+        if (!newSlotServiceId) {
+            setToast({ message: 'Selecione o serviço', type: 'error' });
+            return;
+        }
+        if (!newSlotTime) {
+            setToast({ message: 'Informe o horário do agendamento', type: 'error' });
+            return;
+        }
+
+        setSavingSlot(true);
+        try {
+            await addSubscriptionRecurringSlot({
+                tenant_id: tenantId,
+                subscription_id: subscriptionId,
+                client_id: detail.subscription.client_id,
+                professional_id: newSlotStaffId,
+                service_id: newSlotServiceId,
+                day_of_week: Number(newSlotDay),
+                start_time: newSlotTime,
+                duration_minutes: Number(newSlotDuration),
+            });
+            setToast({ message: 'Horário fixo adicionado com sucesso!', type: 'success' });
+            setSlotModalOpen(false);
+            const nextSlots = await loadSubscriptionRecurringSlots(tenantId, subscriptionId);
+            setRecurringSlots(nextSlots);
+        } catch (err: any) {
+            setToast({ message: `Erro ao adicionar horário fixo: ${err.message}`, type: 'error' });
+        } finally {
+            setSavingSlot(false);
+        }
+    };
+
+    const handleToggleSlot = async (slotId: string, currentActive: boolean) => {
+        if (!tenantId || !subscriptionId) return;
+        try {
+            await toggleSubscriptionRecurringSlot(tenantId, slotId, !currentActive);
+            setToast({ message: !currentActive ? 'Horário fixo ativado' : 'Horário fixo pausado', type: 'info' });
+            const nextSlots = await loadSubscriptionRecurringSlots(tenantId, subscriptionId);
+            setRecurringSlots(nextSlots);
+        } catch (err: any) {
+            setToast({ message: `Erro ao alterar status: ${err.message}`, type: 'error' });
+        }
+    };
+
+    const handleDeleteSlot = async (slotId: string) => {
+        if (!tenantId || !subscriptionId) return;
+        try {
+            await removeSubscriptionRecurringSlot(tenantId, slotId);
+            setToast({ message: 'Horário fixo removido com sucesso', type: 'success' });
+            const nextSlots = await loadSubscriptionRecurringSlots(tenantId, subscriptionId);
+            setRecurringSlots(nextSlots);
+        } catch (err: any) {
+            setToast({ message: `Erro ao remover horário: ${err.message}`, type: 'error' });
+        }
+    };
+
+    const handleGenerateCycleSlots = async () => {
+        if (!tenantId) return;
+        setGeneratingSlots(true);
+        try {
+            const result = await triggerRecurringScheduleGeneration(tenantId, 30);
+            if (result.success) {
+                let msg = `${result.generated_count} agendamento(s) gerado(s) na janela de 30 dias!`;
+                if (result.skipped_conflict_count > 0) {
+                    msg += ` (${result.skipped_conflict_count} conflito(s) de barbeiro pulados)`;
+                }
+                if (result.skipped_quota_count > 0) {
+                    msg += ` (${result.skipped_quota_count} cotas esgotadas)`;
+                }
+                setToast({ message: msg, type: 'success' });
+            } else {
+                setToast({ message: 'Geração concluída sem novos agendamentos gerados', type: 'info' });
+            }
+        } catch (err: any) {
+            setToast({ message: `Erro ao gerar agendamentos: ${err.message}`, type: 'error' });
+        } finally {
+            setGeneratingSlots(false);
+        }
+    };
 
     const handleSaveChanges = async () => {
         if (!tenantId || !subscriptionId || !detail) return;
@@ -349,6 +475,126 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                 </div>
             </div>
 
+            {/* Cadeira Cativa / Horários Fixos Recorrentes (ADR-038) */}
+            <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-amber-500">event_repeat</span>
+                            <h3 className="font-black text-slate-900 dark:text-white">Cadeira Cativa / Horários Fixos Recorrentes</h3>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Reserva automática de inventário por janela rolante para assinantes ativos do Chef Club (ADR-038).
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={handleGenerateCycleSlots}
+                            disabled={generatingSlots || subscription.status !== 'active'}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-all disabled:opacity-50"
+                            title="Materializa agendamentos para os próximos 30 dias na agenda"
+                        >
+                            <span className={`material-symbols-outlined text-sm ${generatingSlots ? 'animate-spin' : ''}`}>sync</span>
+                            {generatingSlots ? 'Gerando...' : 'Gerar Ciclo'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setNewSlotDay(4);
+                                setNewSlotTime('18:00');
+                                setNewSlotStaffId(staffList[0]?.id || '');
+                                setNewSlotServiceId(serviceList[0]?.id || '');
+                                setNewSlotDuration(30);
+                                setSlotModalOpen(true);
+                            }}
+                            disabled={subscription.status !== 'active'}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-primary hover:bg-primary/90 text-white shadow-sm transition-all disabled:opacity-50"
+                        >
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            Adicionar Horário
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    {recurringSlots.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {recurringSlots.map((slot) => {
+                                const staff = staffList.find((s) => s.id === slot.professional_id);
+                                const service = serviceList.find((srv) => srv.id === slot.service_id);
+                                const dayName = DAYS_OF_WEEK[slot.day_of_week] || 'Dia Indefinido';
+
+                                return (
+                                    <div
+                                        key={slot.id}
+                                        className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                                            slot.is_active
+                                                ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                                                : 'bg-slate-100/50 dark:bg-white/[0.02] border-slate-200/50 dark:border-white/5 opacity-60'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                        {dayName}
+                                                    </span>
+                                                    <span className="text-sm font-black text-slate-900 dark:text-white">
+                                                        {slot.start_time.slice(0, 5)} ({slot.duration_minutes} min)
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 mt-1">
+                                                    <span className="material-symbols-outlined text-xs text-primary">person</span>
+                                                    {staff?.name || 'Profissional não identificado'}
+                                                </p>
+                                                <p className="text-xs text-slate-500 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-xs">content_cut</span>
+                                                    {service?.name || 'Serviço não identificado'}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleSlot(slot.id, slot.is_active)}
+                                                    className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                        slot.is_active
+                                                            ? 'text-emerald-600 hover:bg-emerald-500/10'
+                                                            : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
+                                                    }`}
+                                                    title={slot.is_active ? 'Pausar horário fixo' : 'Ativar horário fixo'}
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">
+                                                        {slot.is_active ? 'toggle_on' : 'toggle_off'}
+                                                    </span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteSlot(slot.id)}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                                    title="Excluir horário fixo"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <span className="material-symbols-outlined text-3xl text-slate-400 mb-2">event_busy</span>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Nenhum horário fixo configurado</p>
+                            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                                Clique em "Adicionar Horário" para garantir a cadeira cativa semanal deste assinante com o profissional de preferência.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5">
                     <h3 className="font-bold text-slate-900 dark:text-white">Informações da Assinatura</h3>
@@ -537,6 +783,97 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                             pendingStatus === 'canceled' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-blue-600'
                         }`}>
                             {saving ? 'Aguarde...' : 'Confirmar'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal: Adicionar Horário Fixo (ADR-038) */}
+            <Modal isOpen={slotModalOpen} onClose={() => setSlotModalOpen(false)} title="Adicionar Horário Fixo (Cadeira Cativa)" maxWidth="md">
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Dia da Semana</label>
+                        <select
+                            value={newSlotDay}
+                            onChange={(e) => setNewSlotDay(Number(e.target.value))}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                        >
+                            {DAYS_OF_WEEK.map((dayName, idx) => (
+                                <option key={idx} value={idx}>{dayName}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Horário de Início</label>
+                            <input
+                                type="time"
+                                value={newSlotTime}
+                                onChange={(e) => setNewSlotTime(e.target.value)}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Duração (minutos)</label>
+                            <select
+                                value={newSlotDuration}
+                                onChange={(e) => setNewSlotDuration(Number(e.target.value))}
+                                className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                            >
+                                <option value={15}>15 minutos</option>
+                                <option value={30}>30 minutos</option>
+                                <option value={45}>45 minutos</option>
+                                <option value={60}>60 minutos</option>
+                                <option value={90}>90 minutos</option>
+                                <option value={120}>120 minutos</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Profissional de Preferência</label>
+                        <select
+                            value={newSlotStaffId}
+                            onChange={(e) => setNewSlotStaffId(e.target.value)}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                        >
+                            <option value="">Selecione o profissional...</option>
+                            {staffList.map((st) => (
+                                <option key={st.id} value={st.id}>{st.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Serviço</label>
+                        <select
+                            value={newSlotServiceId}
+                            onChange={(e) => setNewSlotServiceId(e.target.value)}
+                            className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                        >
+                            <option value="">Selecione o serviço...</option>
+                            {serviceList.map((srv) => (
+                                <option key={srv.id} value={srv.id}>{srv.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-white/10">
+                        <button
+                            type="button"
+                            onClick={() => setSlotModalOpen(false)}
+                            className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCreateSlot}
+                            disabled={savingSlot}
+                            className="flex-1 py-3 rounded-xl bg-primary text-white font-black uppercase tracking-widest text-sm disabled:opacity-50"
+                        >
+                            {savingSlot ? 'Salvando...' : 'Salvar Horário Fixo'}
                         </button>
                     </div>
                 </div>
