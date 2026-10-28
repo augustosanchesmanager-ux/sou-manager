@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CalendarRange, FileText, Package, Users, Wallet } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
-import Modal from '../components/ui/Modal';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
@@ -22,22 +21,34 @@ import {
     reverseFinancialTransaction,
     type FinancialReversalType,
 } from '../src/lib/finance/reversal';
-
-type ARSource = 'comanda' | 'clube' | 'recibo';
-type ARStatus = 'pending' | 'overdue' | 'open';
-
-interface AREntry {
-    id: string;
-    source: ARSource;
-    clientId?: string | null;
-    clientName: string;
-    clientPhone?: string | null;
-    description: string;
-    dateValue: string;
-    amount: number;
-    status: ARStatus | string;
-    originPath: string;
-}
+import {
+    AccountsReceivableKPIs,
+    AccountsReceivableFilters,
+    SettlementModal,
+    CancelComandaModal,
+    ReversalModal,
+    type ARFilters,
+    type AREntry,
+    type ARSource,
+    type ARStatus,
+    type CancelReasonType,
+    type ComandaItemDetail,
+    type OpenComandaDetail,
+    type PaidComandaSettlement,
+    type PaymentMethod,
+    type ReversalReason,
+    type ReversalStatus,
+    type ReversalSummary,
+    type SettlementMode,
+    type SortKey,
+    type SourceFilter,
+    type StatusFilter,
+    type ViewMode,
+    CANCEL_REASON_OPTIONS,
+    DEFAULT_AR_FILTERS,
+    SORT_OPTIONS,
+    getShortId,
+} from './AccountsReceivable/index';
 
 interface ComandaRecord {
     id: string;
@@ -77,39 +88,6 @@ interface ExecutionParticipantRecord {
     payout_value?: number | string | null;
 }
 
-interface ComandaItemDetail {
-    id: string;
-    serviceId?: string | null;
-    productId?: string | null;
-    name: string;
-    typeLabel: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-    staffName: string;
-    participants: {
-        id: string;
-        staffName: string;
-        payoutType: string;
-        payoutValue: number;
-        role: string;
-    }[];
-}
-
-interface OpenComandaDetail {
-    id: string;
-    shortId: string;
-    clientName: string;
-    clientPhone: string | null;
-    status: string;
-    createdAt: string;
-    mainStaffName: string;
-    grossSubtotal: number;
-    discount: number;
-    netTotal: number;
-    items: ComandaItemDetail[];
-}
-
 interface ClubReceivableRecord {
     id: string;
     customer_id: string;
@@ -133,25 +111,6 @@ interface ReceiptRecord {
 }
 
 type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
-type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
-type ReversalStatus = 'none' | 'partial' | 'full';
-type CancelReasonType = 'duplicate' | 'test' | 'operational_error' | 'client_gave_up' | 'other';
-type SortKey = 'client_az' | 'client_za' | 'amount_asc' | 'amount_desc' | 'date_asc' | 'date_desc';
-type SourceFilter = 'todos' | ARSource;
-type StatusFilter = 'todos' | 'open' | 'pending' | 'overdue' | 'settled' | 'reversed';
-type ViewMode = 'list' | 'grouped';
-type SettlementMode = 'payment' | ZeroCloseOrigin;
-
-interface ARFilters {
-    source: SourceFilter;
-    status: StatusFilter;
-    dateFrom: string;
-    dateTo: string;
-    amountMin: string;
-    amountMax: string;
-    search: string;
-    viewMode: ViewMode;
-}
 
 interface ARListEntry extends AREntry {
     listId: string;
@@ -161,50 +120,6 @@ interface ARListEntry extends AREntry {
     actionKind: 'settle' | 'reverse' | 'none';
     reversalStatus?: ReversalStatus;
 }
-
-const DEFAULT_AR_FILTERS: ARFilters = {
-    source: 'todos',
-    status: 'todos',
-    dateFrom: '',
-    dateTo: '',
-    amountMin: '',
-    amountMax: '',
-    search: '',
-    viewMode: 'list',
-};
-
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-    { key: 'client_az', label: 'Cliente A-Z' },
-    { key: 'client_za', label: 'Cliente Z-A' },
-    { key: 'amount_asc', label: 'Menor valor' },
-    { key: 'amount_desc', label: 'Maior valor' },
-    { key: 'date_asc', label: 'Data antiga' },
-    { key: 'date_desc', label: 'Data recente' },
-];
-
-const SOURCE_FILTER_OPTIONS: { value: SourceFilter; label: string }[] = [
-    { value: 'todos', label: 'Todos' },
-    { value: 'comanda', label: 'Comandas' },
-    { value: 'clube', label: 'Club dos Chefes' },
-    { value: 'recibo', label: 'Recibos' },
-];
-
-const CANCEL_REASON_OPTIONS: { value: CancelReasonType; label: string; requiresNote?: boolean }[] = [
-    { value: 'duplicate', label: 'Comanda duplicada' },
-    { value: 'test', label: 'Lançamento de teste' },
-    { value: 'operational_error', label: 'Erro operacional' },
-    { value: 'client_gave_up', label: 'Cliente desistiu' },
-    { value: 'other', label: 'Outro', requiresNote: true },
-];
-
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-    { value: 'todos', label: 'Todos' },
-    { value: 'open', label: 'Em aberto' },
-    { value: 'pending', label: 'Pendente' },
-    { value: 'overdue', label: 'Atrasado' },
-    { value: 'settled', label: 'Baixada' },
-    { value: 'reversed', label: 'Estornada' },
-];
 const CLIENT_FALLBACK_LABEL = 'Cliente não identificado';
 const SOURCE_LABELS: Record<ARSource, string> = {
     comanda: 'Comanda',
@@ -229,16 +144,6 @@ const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }
         description: 'Recibos pendentes de pagamento aparecerao aqui quando existirem.',
     },
 };
-type ReversalReason =
-    | 'baixa_indevida'
-    | 'cobranca_duplicada'
-    | 'devolucao_ao_cliente'
-    | 'erro_forma_pagamento'
-    | 'erro_operacional'
-    | 'cancelamento_administrativo'
-    | 'cliente_duplicado'
-    | 'outro';
-
 interface FinancialReversalRecord {
     original_transaction_id: string | null;
     reversal_transaction_id?: string | null;
@@ -246,31 +151,6 @@ interface FinancialReversalRecord {
     amount: number | string | null;
     reason_type?: string | null;
     created_at?: string | null;
-}
-
-interface ReversalSummary {
-    reversalTransactionId: string | null;
-    reversalType: string;
-    amount: number;
-    reasonType: string;
-    createdAt: string | null;
-}
-
-interface PaidComandaSettlement {
-    id: string;
-    tenantId: string | null;
-    sourceId: string | null;
-    clientName: string;
-    clientPhone?: string | null;
-    description: string;
-    dateValue: string;
-    amount: number;
-    paymentMethod: PaymentMethod;
-    transactionStatus: string | null;
-    reversedAmount: number;
-    reversibleAmount: number;
-    reversalStatus: ReversalStatus;
-    reversals: ReversalSummary[];
 }
 
 const toDateTimeInputValue = (date: Date) => {
@@ -296,8 +176,6 @@ const normalizePaymentMethod = (value?: string | null): PaymentMethod => {
 
     return 'pix';
 };
-
-const getShortId = (id?: string | null) => (id ? id.slice(0, 8) : 'sem-id');
 
 const getClientData = (clients?: ComandaRecord['clients']) => {
     const client = Array.isArray(clients) ? clients[0] : clients;
@@ -345,15 +223,6 @@ const AccountsReceivable: React.FC = () => {
     const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
     const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
     const settlementLockRef = React.useRef(false);
-    const settlementModalRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (settlementEntry && settlementModalRef.current) {
-            requestAnimationFrame(() => {
-                settlementModalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
-        }
-    }, [settlementEntry]);
     const [cancelEntry, setCancelEntry] = useState<AREntry | null>(null);
     const [cancelReasonType, setCancelReasonType] = useState<CancelReasonType | ''>('');
     const [cancelReasonNote, setCancelReasonNote] = useState('');
@@ -1328,489 +1197,6 @@ const AccountsReceivable: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-            {settlementEntry && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 px-4 py-4 sm:items-center sm:py-6">
-                    <div ref={settlementModalRef} className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-border-dark dark:bg-card-dark sm:max-h-[calc(100vh-3rem)]">
-                        <div className="flex flex-none items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-border-dark">
-                            <div>
-                                <h3 className="text-lg font-black text-slate-950 dark:text-white">Dar baixa financeira</h3>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    A baixa será registrada pela RPC financeira central.
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={closeSettlementModal}
-                                disabled={Boolean(markingPaid)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/5"
-                            >
-                                <span className="material-symbols-outlined text-xl">close</span>
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto px-5 py-5">
-                        <div className="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Cliente</p>
-                                    <strong className="mt-1 block text-base text-slate-900 dark:text-white">{settlementEntry.clientName}</strong>
-                                    {settlementEntry.clientPhone && (
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">{settlementEntry.clientPhone}</p>
-                                    )}
-                                    <p className="mt-2 text-xs text-slate-500">
-                                        Comanda #{getShortId(settlementEntry.id)} · {settlementDetail?.status || settlementEntry.status}
-                                    </p>
-                                </div>
-                                <div className="text-left md:text-right">
-                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Abertura</p>
-                                    <p className="mt-1 font-semibold text-slate-900 dark:text-white">
-                                        {new Date(settlementEntry.dateValue).toLocaleString('pt-BR')}
-                                    </p>
-                                    <p className="mt-2 text-xs text-slate-500">
-                                        Profissional principal: {settlementDetail?.mainStaffName || 'Não informado'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 grid gap-3 md:grid-cols-4">
-                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
-                                    <p className="text-[11px] font-bold uppercase text-slate-400">Subtotal bruto</p>
-                                    <p className="mt-1 font-black text-slate-900 dark:text-white">{formatCurrency(settlementGross)}</p>
-                                </div>
-                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
-                                    <p className="text-[11px] font-bold uppercase text-slate-400">Desconto</p>
-                                    <p className={`mt-1 font-black ${settlementDiscount > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
-                                        {formatCurrency(settlementDiscount)}
-                                    </p>
-                                </div>
-                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
-                                    <p className="text-[11px] font-bold uppercase text-slate-400">Valor líquido</p>
-                                    <p className="mt-1 font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(settlementNet)}</p>
-                                </div>
-                                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dark dark:bg-background-dark">
-                                    <p className="text-[11px] font-bold uppercase text-slate-400">Diferença do pago</p>
-                                    <p className={`mt-1 font-black ${Math.abs(settlementDifference) > 0.009 ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
-                                        {formatCurrency(settlementDifference)}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-5 rounded-xl border border-slate-200 dark:border-border-dark">
-                            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-border-dark">
-                                <div>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">Itens da comanda</p>
-                                    <p className="text-xs text-slate-500">Visualização apenas para conferência antes da baixa.</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    disabled
-                                    title="Para alterar itens da comanda, use o Checkout/Comanda antes da baixa."
-                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-400 opacity-70 dark:border-border-dark"
-                                >
-                                    Adicionar serviço/produto
-                                </button>
-                            </div>
-                            <p className="border-b border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 dark:border-border-dark">
-                                Para alterar itens, descontos ou profissionais, ajuste a comanda no Checkout antes da baixa financeira.
-                            </p>
-
-                            {settlementDetail?.items.length ? (
-                                <div className="divide-y divide-slate-100 dark:divide-white/5">
-                                    {settlementDetail.items.map((item) => (
-                                        <div key={item.id} className="p-4">
-                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                <div>
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:bg-white/5">
-                                                            {item.typeLabel}
-                                                        </span>
-                                                        {item.participants.length > 0 && (
-                                                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
-                                                                Compartilhado
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{item.name}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">Responsável: {item.staffName}</p>
-                                                </div>
-                                                <div className="text-left md:text-right">
-                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(item.total)}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">
-                                                        {item.quantity} x {formatCurrency(item.unitPrice)}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {item.participants.length > 0 && (
-                                                <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-white/5">
-                                                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Participação lançada</p>
-                                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                                        {item.participants.map((participant) => (
-                                                            <div key={participant.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-border-dark dark:bg-background-dark">
-                                                                <p className="font-bold text-slate-900 dark:text-white">{participant.staffName}</p>
-                                                                <p className="mt-1 text-slate-500">
-                                                                    {participant.payoutType} · {participant.payoutValue}
-                                                                </p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-4 text-sm text-slate-500">
-                                    Nenhum item encontrado para esta comanda.
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-5 grid gap-4">
-                            <div className="grid gap-2">
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Tipo de baixa</span>
-                                <div className="grid gap-2 md:grid-cols-2">
-                                    {[
-                                        { value: 'payment' as SettlementMode, label: 'Baixar com pagamento', helper: 'Cria receita real na RPC financeira.' },
-                                        ...(settlementEntry?.clientId
-                                            ? [{ value: 'club_credit' as SettlementMode, label: 'Consumir crédito do Clube', helper: settlementClubCreditsLoading ? 'Carregando créditos...' : `${settlementClubCredits?.availableCredits || 0} crédito(s) disponível(is).` }]
-                                            : []),
-                                        { value: 'house_courtesy' as SettlementMode, label: 'Cortesia da casa', helper: 'Sem entrada financeira, com motivo obrigatório.' },
-                                        { value: 'administrative_adjustment' as SettlementMode, label: 'Baixa administrativa', helper: 'Restrita a gerente/admin/superadmin.' },
-                                    ].map((option) => (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={() => setSettlementMode(option.value)}
-                                            disabled={
-                                                (option.value === 'club_credit' && !settlementClubCanCover) ||
-                                                (option.value === 'administrative_adjustment' && !canUseAdministrativeZeroClose)
-                                            }
-                                            className={`rounded-xl border px-3 py-2 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                                settlementMode === option.value
-                                                    ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                                    : 'border-slate-200 bg-white text-slate-600 dark:border-border-dark dark:bg-background-dark dark:text-slate-300'
-                                            }`}
-                                        >
-                                            <span className="block font-black">{option.label}</span>
-                                            <span>{option.helper}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                                {settlementMode !== 'payment' && (
-                                    <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-                                        Fechamento sem pagamento real. Não será criada transaction de receita no caixa.
-                                    </p>
-                                )}
-                            </div>
-
-                            {settlementMode === 'payment' && (
-                                <>
-                                    <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                        Valor pago
-                                        <input
-                                            type="number"
-                                            min="0.01"
-                                            step="0.01"
-                                            inputMode="decimal"
-                                            value={settlementPaidAmount}
-                                            onChange={(event) => setSettlementPaidAmount(event.target.value)}
-                                            className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                            placeholder="0,00"
-                                        />
-                                        <span className="text-xs font-medium text-slate-500">
-                                            Pode ser diferente do total; a diferença fica registrada na auditoria financeira.
-                                        </span>
-                                    </label>
-
-                                    <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                        Forma de pagamento
-                                        <select
-                                            value={settlementPaymentMethod}
-                                            onChange={(event) => setSettlementPaymentMethod(event.target.value as PaymentMethod)}
-                                            className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                        >
-                                            <option value="pix">Pix</option>
-                                            <option value="cash">Dinheiro</option>
-                                            <option value="credit">Cartão de crédito</option>
-                                            <option value="debit">Cartão de débito</option>
-                                            <option value="other">Outro</option>
-                                        </select>
-                                    </label>
-                                </>
-                            )}
-
-                            {(settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && (
-                                <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                    Motivo obrigatório
-                                    <textarea
-                                        value={settlementZeroReason}
-                                        onChange={(event) => setSettlementZeroReason(event.target.value)}
-                                        rows={3}
-                                        className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                        placeholder="Explique a autorização e o motivo da baixa sem pagamento."
-                                    />
-                                </label>
-                            )}
-
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                Data real do pagamento
-                                <input
-                                    type="datetime-local"
-                                    value={settlementPaymentDate}
-                                    onChange={(event) => setSettlementPaymentDate(event.target.value)}
-                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                />
-                            </label>
-
-                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                Observacao
-                                <textarea
-                                    value={settlementNotes}
-                                    onChange={(event) => setSettlementNotes(event.target.value)}
-                                    rows={3}
-                                    className="resize-none rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                    placeholder="Opcional"
-                                />
-                            </label>
-                        </div>
-
-                        </div>
-
-                        <div className="flex-none border-t border-slate-200 bg-white p-4 dark:border-border-dark dark:bg-card-dark">
-                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                            <Button type="button" variant="secondary" onClick={closeSettlementModal} disabled={Boolean(markingPaid)}>
-                                Cancelar
-                            </Button>
-                            <Button type="button" onClick={handleConfirmSettlement} isLoading={markingPaid === settlementEntry.id}>
-                                {markingPaid === settlementEntry.id ? 'Registrando...' : 'Confirmar baixa'}
-                            </Button>
-                        </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <Modal
-                isOpen={Boolean(cancelEntry)}
-                onClose={closeCancelModal}
-                title="Cancelar comanda aberta"
-                maxWidth="sm"
-            >
-                {cancelEntry && (
-                    <div className="space-y-4">
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">Cancelamento operacional auditado</p>
-                            <p className="mt-1 text-xs">
-                                A comanda será marcada como cancelada com motivo, usuário e data. Nenhuma baixa financeira ou transaction será criada.
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-white/5">
-                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Comanda</p>
-                            <p className="mt-1 font-black text-slate-900 dark:text-white">
-                                #{getShortId(cancelEntry.id)} · {cancelEntry.clientName}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                                {formatCurrency(cancelEntry.amount)} em aberto desde {new Date(cancelEntry.dateValue).toLocaleDateString('pt-BR')}
-                            </p>
-                        </div>
-
-                        <label className="block space-y-1.5">
-                            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Motivo obrigatório</span>
-                            <select
-                                value={cancelReasonType}
-                                onChange={(event) => setCancelReasonType(event.target.value as CancelReasonType | '')}
-                                disabled={Boolean(cancellingId)}
-                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200"
-                            >
-                                <option value="">Selecione...</option>
-                                {CANCEL_REASON_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                        </label>
-
-                        <label className="block space-y-1.5">
-                            <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-                                Observação {cancelRequiresNote ? 'obrigatória' : 'opcional'}
-                            </span>
-                            <textarea
-                                value={cancelReasonNote}
-                                onChange={(event) => setCancelReasonNote(event.target.value)}
-                                disabled={Boolean(cancellingId)}
-                                rows={3}
-                                placeholder={cancelRequiresNote ? 'Descreva o motivo do cancelamento.' : 'Detalhe o contexto operacional, se necessário.'}
-                                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 outline-none dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-200"
-                            />
-                        </label>
-
-                        {cancelReasonType && ['duplicate', 'test', 'operational_error'].includes(cancelReasonType) && (
-                            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                                Este motivo segue o padrão existente da tela de comandas e marca a comanda como oculta do financeiro operacional.
-                            </p>
-                        )}
-
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <Button type="button" variant="secondary" onClick={closeCancelModal} disabled={Boolean(cancellingId)}>
-                                Voltar
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="danger"
-                                onClick={handleConfirmCancel}
-                                disabled={!canConfirmCancel || Boolean(cancellingId)}
-                                isLoading={cancellingId === cancelEntry.id}
-                            >
-                                {cancellingId === cancelEntry.id ? 'Cancelando...' : 'Confirmar cancelamento'}
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
-
-            <Modal
-                isOpen={!!reversalEntry}
-                onClose={closeReversalModal}
-                title="Estorno / devolução auditada"
-                maxWidth="lg"
-            >
-                {reversalEntry && (
-                    <div className="space-y-5">
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">A transaction original não será apagada. O sistema criará uma movimentação reversa auditada.</p>
-                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolução ao cliente ou correção financeira autorizada.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Baixa original</p>
-                                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{reversalEntry.clientName}</p>
-                                <p className="mt-1 text-xs text-slate-500">{reversalEntry.id}</p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Valor original</p>
-                                <p className="mt-2 text-lg font-black text-emerald-600 dark:text-emerald-400">
-                                    {reversalEntry.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                                {reversalEntry.reversedAmount > 0 && (
-                                    <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">
-                                        Ja revertido: {reversalEntry.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </p>
-                                )}
-                                <p className="mt-1 text-xs font-semibold text-slate-500">
-                                    Saldo reversivel: {reversalEntry.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversão</span>
-                                <select
-                                    value={reversalType}
-                                    onChange={(event) => setReversalType(event.target.value as FinancialReversalType)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="wrong_settlement">Baixa indevida</option>
-                                    <option value="full_refund">Devolução total</option>
-                                    <option value="partial_refund">Devolução parcial</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Valor a reverter</span>
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    max={reversalEntry.reversibleAmount}
-                                    step="0.01"
-                                    value={reversalAmount}
-                                    onChange={(event) => setReversalAmount(event.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                />
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolução</span>
-                                <select
-                                    value={refundMethod}
-                                    onChange={(event) => setRefundMethod(event.target.value as PaymentMethod)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="pix">Pix</option>
-                                    <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartão de crédito</option>
-                                    <option value="debit">Cartão de débito</option>
-                                    <option value="other">Outro</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversão</span>
-                                <input
-                                    type="datetime-local"
-                                    value={reversalDate}
-                                    onChange={(event) => setReversalDate(event.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white [color-scheme:light] dark:[color-scheme:dark]"
-                                />
-                            </label>
-
-                            <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Motivo</span>
-                                <select
-                                    value={reasonType}
-                                    onChange={(event) => setReasonType(event.target.value as ReversalReason)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="baixa_indevida">Baixa indevida</option>
-                                    <option value="cobranca_duplicada">Cobrança duplicada</option>
-                                    <option value="devolucao_ao_cliente">Devolução ao cliente</option>
-                                    <option value="erro_forma_pagamento">Erro de forma de pagamento</option>
-                                    <option value="erro_operacional">Erro operacional</option>
-                                    <option value="cancelamento_administrativo">Cancelamento administrativo</option>
-                                    <option value="cliente_duplicado">Cliente duplicado</option>
-                                    <option value="outro">Outro</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Observação obrigatória</span>
-                                <textarea
-                                    value={reasonNote}
-                                    onChange={(event) => setReasonNote(event.target.value)}
-                                    rows={3}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                    placeholder="Descreva o contexto do estorno/devolução para auditoria."
-                                />
-                            </label>
-                        </div>
-
-                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-border-dark dark:text-slate-300">
-                            <input
-                                type="checkbox"
-                                checked={reversalConfirmed}
-                                onChange={(event) => setReversalConfirmed(event.target.checked)}
-                                className="mt-1 size-4 rounded border-slate-300 text-primary focus:ring-primary"
-                            />
-                            <span>
-                                Confirmo que esta ação criará uma movimentação reversa auditada e preservará a transaction original.
-                            </span>
-                        </label>
-
-                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-slate-200 pt-4 dark:border-border-dark">
-                            <Button variant="secondary" onClick={closeReversalModal} disabled={Boolean(reversingId)}>
-                                Cancelar
-                            </Button>
-                            <Button onClick={handleConfirmReversal} disabled={reversingId === reversalEntry.id}>
-                                {reversingId === reversalEntry.id ? 'Registrando...' : 'Confirmar estorno'}
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
-
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Contas a Receber</h2>
@@ -1840,85 +1226,16 @@ const AccountsReceivable: React.FC = () => {
                         }}
                         defaultAdjustmentType="mark_for_review"
                     />
-                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
-                        <CalendarRange className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="month"
-                            value={filterMonth}
-                            onChange={(e) => setFilterMonth(e.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                        />
-                    </label>
                     <Button leftIcon="sync" onClick={fetchData}>
                         Atualizar
                     </Button>
                 </div>
             </div>
 
-            <section className="rounded-2xl border border-slate-200/80 bg-white/90 px-5 py-3 text-sm text-slate-600 shadow-sm dark:border-border-dark dark:bg-card-dark/80 dark:text-slate-300">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="font-black text-slate-800 dark:text-white">Totais do período</span>
-                    <span>
-                        Os cards abaixo mostram {selectedPeriodLabel}; os filtros da listagem refinam apenas a tabela operacional.
-                    </span>
-                </div>
-            </section>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-500 dark:text-slate-400">Total em Aberto</span>
-                        <div className="size-9 rounded-xl border border-current/10 grid place-items-center bg-primary/10 text-primary">
-                            <Wallet size={18} />
-                        </div>
-                    </div>
-                    <p className="mt-4 text-[1.7rem] leading-none font-black text-slate-900 dark:text-white">
-                        {totals.open.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-500 dark:text-slate-400">Comandas Abertas</span>
-                        <div className="size-9 rounded-xl border border-current/10 grid place-items-center bg-amber-500/10 text-amber-600">
-                            <Package size={18} />
-                        </div>
-                    </div>
-                    <p className="mt-4 text-[1.7rem] leading-none font-black text-slate-900 dark:text-white">
-                        {totals.comandas.count}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500 font-medium">
-                        {totals.comandas.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em aberto
-                    </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-500 dark:text-slate-400">Planos Atrasados</span>
-                        <div className="size-9 rounded-xl border border-current/10 grid place-items-center bg-red-500/10 text-red-600">
-                            <Users size={18} />
-                        </div>
-                    </div>
-                    <p className="mt-4 text-[1.7rem] leading-none font-black text-slate-900 dark:text-white">
-                        {totals.clube.count}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500 font-medium">
-                        {totals.clube.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em atraso
-                    </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[11px] uppercase tracking-[0.16em] font-bold text-slate-500 dark:text-slate-400">Recibos Pendentes</span>
-                        <div className="size-9 rounded-xl border border-current/10 grid place-items-center bg-blue-500/10 text-blue-600">
-                            <FileText size={18} />
-                        </div>
-                    </div>
-                    <p className="mt-4 text-[1.7rem] leading-none font-black text-slate-900 dark:text-white">
-                        {totals.recibos.count}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500 font-medium">
-                        {totals.recibos.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} pendente
-                    </p>
-                </div>
-            </div>
+            <AccountsReceivableKPIs
+                totals={totals}
+                selectedPeriodLabel={selectedPeriodLabel}
+            />
 
             {loadError && (
                 <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
@@ -1953,159 +1270,21 @@ const AccountsReceivable: React.FC = () => {
                 ))}
             </div>
 
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-border-dark dark:bg-card-dark">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Lista operacional</p>
-                        <h3 className="text-base font-black text-slate-950 dark:text-white">
-                            {listScopeLabel}
-                        </h3>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {dateScopeLabel} · Ordenado por {selectedSortLabel.toLowerCase()}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                            <span className="material-symbols-outlined text-base text-slate-400">sort</span>
-                            Ordenar
-                            <select
-                                value={sortKey}
-                                onChange={(event) => setSortKey(event.target.value as SortKey)}
-                                className="min-w-[9.5rem] bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
-                            >
-                                {SORT_OPTIONS.map((option) => (
-                                    <option key={option.key} value={option.key}>{option.label}</option>
-                                ))}
-                            </select>
-                        </label>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowFilters((current) => !current)}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                        >
-                            <span className="material-symbols-outlined text-base">tune</span>
-                            Filtros
-                            {activeFilterCount > 0 && (
-                                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
-                                    {activeFilterCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                {showFilters && (
-                    <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 dark:border-white/10 md:grid-cols-2 xl:grid-cols-4">
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Origem</span>
-                            <select
-                                value={listFilters.source}
-                                onChange={(event) => setListFilters((current) => ({ ...current, source: event.target.value as SourceFilter }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            >
-                                {SOURCE_FILTER_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Status</span>
-                            <select
-                                value={listFilters.status}
-                                onChange={(event) => setListFilters((current) => ({ ...current, status: event.target.value as StatusFilter }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            >
-                                {STATUS_FILTER_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Data inicial</span>
-                            <input
-                                type="date"
-                                value={listFilters.dateFrom}
-                                onChange={(event) => setListFilters((current) => ({ ...current, dateFrom: event.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            />
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Data final</span>
-                            <input
-                                type="date"
-                                value={listFilters.dateTo}
-                                onChange={(event) => setListFilters((current) => ({ ...current, dateTo: event.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            />
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Valor mínimo</span>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={listFilters.amountMin}
-                                onChange={(event) => setListFilters((current) => ({ ...current, amountMin: event.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            />
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Valor máximo</span>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={listFilters.amountMax}
-                                onChange={(event) => setListFilters((current) => ({ ...current, amountMax: event.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            />
-                        </label>
-                        <label className="space-y-1.5 md:col-span-2">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Cliente, telefone ou referência</span>
-                            <input
-                                type="search"
-                                value={listFilters.search}
-                                onChange={(event) => setListFilters((current) => ({ ...current, search: event.target.value }))}
-                                placeholder="Buscar cliente, telefone ou comanda"
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none dark:border-white/10 dark:bg-[#1A1A1A] dark:text-slate-200"
-                            />
-                        </label>
-                        <div className="space-y-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Visualização</span>
-                            <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
-                                {[
-                                    { value: 'list' as ViewMode, label: 'Lista' },
-                                    { value: 'grouped' as ViewMode, label: 'Por cliente' },
-                                ].map((option) => (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        onClick={() => setListFilters((current) => ({ ...current, viewMode: option.value }))}
-                                        className={`rounded-lg px-3 py-2 text-xs font-black transition ${
-                                            listFilters.viewMode === option.value
-                                                ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
-                                                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
-                                        }`}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex items-end">
-                            <button
-                                type="button"
-                                onClick={resetListFilters}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                            >
-                                Limpar filtros
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </section>
+            <AccountsReceivableFilters
+                filterMonth={filterMonth}
+                onFilterMonthChange={setFilterMonth}
+                sortKey={sortKey}
+                onSortKeyChange={setSortKey}
+                showFilters={showFilters}
+                onToggleShowFilters={() => setShowFilters((current) => !current)}
+                listFilters={listFilters}
+                onListFiltersChange={setListFilters}
+                activeFilterCount={activeFilterCount}
+                listScopeLabel={listScopeLabel}
+                dateScopeLabel={dateScopeLabel}
+                selectedSortLabel={selectedSortLabel}
+                onResetFilters={resetListFilters}
+            />
 
             {loading ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
@@ -2306,6 +1485,71 @@ const AccountsReceivable: React.FC = () => {
                     )}
                 </section>
             )}
+
+            <SettlementModal
+                isOpen={Boolean(settlementEntry)}
+                onClose={closeSettlementModal}
+                entry={settlementEntry}
+                detail={settlementDetail}
+                settlementGross={settlementGross}
+                settlementDiscount={settlementDiscount}
+                settlementNet={settlementNet}
+                settlementDifference={settlementDifference}
+                settlementMode={settlementMode}
+                onSettlementModeChange={setSettlementMode}
+                settlementPaidAmount={settlementPaidAmount}
+                onSettlementPaidAmountChange={setSettlementPaidAmount}
+                settlementPaymentMethod={settlementPaymentMethod}
+                onSettlementPaymentMethodChange={setSettlementPaymentMethod}
+                settlementPaymentDate={settlementPaymentDate}
+                onSettlementPaymentDateChange={setSettlementPaymentDate}
+                settlementNotes={settlementNotes}
+                onSettlementNotesChange={setSettlementNotes}
+                settlementZeroReason={settlementZeroReason}
+                onSettlementZeroReasonChange={setSettlementZeroReason}
+                settlementClubCredits={settlementClubCredits}
+                settlementClubCreditsLoading={settlementClubCreditsLoading}
+                settlementClubCanCover={settlementClubCanCover}
+                canUseAdministrativeZeroClose={canUseAdministrativeZeroClose}
+                isSubmitting={markingPaid === settlementEntry?.id}
+                onConfirm={handleConfirmSettlement}
+            />
+
+            <CancelComandaModal
+                isOpen={Boolean(cancelEntry)}
+                onClose={closeCancelModal}
+                entry={cancelEntry}
+                cancelReasonType={cancelReasonType}
+                onCancelReasonTypeChange={setCancelReasonType}
+                cancelReasonNote={cancelReasonNote}
+                onCancelReasonNoteChange={setCancelReasonNote}
+                cancelRequiresNote={cancelRequiresNote}
+                canConfirmCancel={canConfirmCancel}
+                isSubmitting={cancellingId === cancelEntry?.id}
+                onConfirm={handleConfirmCancel}
+            />
+
+            <ReversalModal
+                isOpen={Boolean(reversalEntry)}
+                onClose={closeReversalModal}
+                entry={reversalEntry}
+                reversalType={reversalType}
+                onReversalTypeChange={setReversalType}
+                reversalAmount={reversalAmount}
+                onReversalAmountChange={setReversalAmount}
+                refundMethod={refundMethod}
+                onRefundMethodChange={setRefundMethod}
+                reversalDate={reversalDate}
+                onReversalDateChange={setReversalDate}
+                reasonType={reasonType}
+                onReasonTypeChange={setReasonType}
+                reasonNote={reasonNote}
+                onReasonNoteChange={setReasonNote}
+                reversalConfirmed={reversalConfirmed}
+                onReversalConfirmedChange={setReversalConfirmed}
+                isSubmitting={reversingId === reversalEntry?.id}
+                onConfirm={handleConfirmReversal}
+            />
         </div>
     );
 };

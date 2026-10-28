@@ -2453,6 +2453,32 @@ export const getActiveAppContext = (): ActiveAppState => activeAppState;
 
 export const getSharedClient = (): SupabaseClient => baseClient;
 
+let publicAnonymousClient: SupabaseClient | null = null;
+
+export const getPublicAnonymousClient = (): SupabaseClient => {
+  if (publicAnonymousClient) {
+    return publicAnonymousClient;
+  }
+
+  if (hasSupabaseEnv) {
+    publicAnonymousClient = createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storage: {
+          getItem: () => null,
+          setItem: () => {},
+          removeItem: () => {},
+        },
+      },
+    });
+    return publicAnonymousClient;
+  }
+
+  return baseClient;
+};
+
 export const getSchemaClient = (schema: SupabaseSchemaName): SupabaseClient =>
   getOrCreateSchemaClient(schema);
 

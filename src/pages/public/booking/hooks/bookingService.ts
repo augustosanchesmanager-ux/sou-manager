@@ -1,9 +1,9 @@
 /**
  * Booking service layer - tries real Supabase RPCs first, falls back to mock.
- * Uses the shared Supabase client pattern from the project.
+ * Uses the isolated public anonymous Supabase client to prevent any residual admin session leaks.
  */
 
-import { getSharedClient } from '../../../../../services/supabaseClient';
+import { getPublicAnonymousClient } from '../../../../../services/supabaseClient';
 import type {
   PublicTenantProfile,
   PublicAvailableSlotsResponse,
@@ -68,7 +68,7 @@ export async function getPublicTenantProfile(
   }
 
   try {
-    const client = getSharedClient();
+    const client = getPublicAnonymousClient();
     const { data, error } = await client.rpc(RPC_NAMES.GET_TENANT_PROFILE, {
       p_tenant_identifier: tenantIdentifier,
     });
@@ -108,7 +108,7 @@ export async function getPublicAvailableSlots(
   }
 
   try {
-    const client = getSharedClient();
+    const client = getPublicAnonymousClient();
     const { data, error } = await client.rpc(RPC_NAMES.GET_AVAILABLE_SLOTS, {
       p_tenant_identifier: tenantIdentifier,
       p_staff_id: staffId,
@@ -146,7 +146,7 @@ export async function createPublicBooking(
   }
 
   try {
-    const client = getSharedClient();
+    const client = getPublicAnonymousClient();
     const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, {
       p_tenant_identifier: request.tenant_identifier,
       p_staff_id: request.staff_id,
@@ -191,7 +191,7 @@ export async function cancelPublicBooking(
   }
 
   try {
-    const client = getSharedClient();
+    const client = getPublicAnonymousClient();
     const { data, error } = await client.rpc(RPC_NAMES.CANCEL_BOOKING, {
       p_tenant_identifier: tenantIdentifier,
       p_public_token: publicToken,

@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   getPublicTenantProfile,
   getPublicAvailableSlots,
@@ -210,7 +210,16 @@ interface ExtendedBookingState extends BookingState {
 // ============================================================================
 
 export function usePublicBooking() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { tenantSlug: routeSlug } = useParams<{ tenantSlug: string }>();
+  const [searchParams] = useSearchParams();
+  const querySlug =
+    searchParams.get('slug') ||
+    searchParams.get('tenant') ||
+    searchParams.get('tenantSlug') ||
+    searchParams.get('tenant_id') ||
+    searchParams.get('b');
+  const tenantSlug = (routeSlug || querySlug || '').trim();
+
   const [state, setState] = useState<ExtendedBookingState>({
     ...INITIAL_STATE,
     tenantProfile: null,
@@ -234,7 +243,18 @@ export function usePublicBooking() {
   // ============================================================================
 
   useEffect(() => {
-    if (!tenantSlug) return;
+    if (!tenantSlug) {
+      setState((prev) => ({
+        ...prev,
+        tenantProfile: null,
+        isLoading: false,
+        error: {
+          code: 'slot_occupied',
+          message: 'Não encontramos essa barbearia. Verifique o link informado.',
+        } as PublicBookingError,
+      }));
+      return;
+    }
 
     let cancelled = false;
 
@@ -448,7 +468,7 @@ export function usePublicBooking() {
       const staffId = selectedStaffId === ANY_STAFF_ID ? selectedSlot.staff_id : selectedStaffId;
 
       const request: CreatePublicBookingRequest = {
-        tenant_identifier: tenantProfile.slug,
+        tenant_identifier: tenantProfile.tenant_id || tenantProfile.slug,
         staff_id: staffId,
         service_ids: selectedServiceIds,
         start_time: selectedSlot.start_time,
@@ -534,7 +554,8 @@ export function usePublicBooking() {
 
   return {
     // State
-    tenantSlug: tenantSlug || '',
+    tenantSlug: tenantSlug || state.tenantProfile?.slug || '',
+    tenantId: state.tenantProfile?.tenant_id || null,
     tenantProfile: state.tenantProfile,
     currentStep: state.currentStep,
     isLoading: state.isLoading,
