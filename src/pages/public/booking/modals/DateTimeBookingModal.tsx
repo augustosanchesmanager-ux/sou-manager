@@ -3,9 +3,9 @@
  * Date and Time slot selection with final booking confirmation.
  */
 
-import type React from 'react';
-import { ArrowLeft, X, Clock, Calendar as CalendarIcon, Loader2, ChevronRight, Check } from 'lucide-react';
-import type { PublicSlot } from '../hooks/types';
+import React, { useMemo } from 'react';
+import { ArrowLeft, X, Clock, Calendar as CalendarIcon, Loader2, ChevronRight, Check, Sunrise, Sun, Moon } from 'lucide-react';
+import type { PublicSlot, TimePeriodGroup } from '../hooks/types';
 
 interface DateTimeBookingModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface DateTimeBookingModalProps {
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
   availableSlots: PublicSlot[];
+  groupedSlots?: TimePeriodGroup[];
   selectedSlot: PublicSlot | null;
   onSelectSlot: (slot: PublicSlot) => void;
   isLoadingSlots: boolean;
@@ -35,6 +36,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   selectedDate,
   onSelectDate,
   availableSlots,
+  groupedSlots,
   selectedSlot,
   onSelectSlot,
   isLoadingSlots,
@@ -50,6 +52,46 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   formatDuration,
   formatSlotTime,
 }) => {
+  const periodGroups = useMemo(() => {
+    if (groupedSlots && groupedSlots.length > 0) {
+      return groupedSlots.filter((group) => group.slots.length > 0);
+    }
+    // Fallback: Group availableSlots by Manhã (<12h), Tarde (12-18h), Noite (>=18h)
+    const groups: TimePeriodGroup[] = [
+      { label: 'Manhã', slots: [], startHour: 0, endHour: 12 },
+      { label: 'Tarde', slots: [], startHour: 12, endHour: 18 },
+      { label: 'Noite', slots: [], startHour: 18, endHour: 24 },
+    ];
+    for (const slot of availableSlots) {
+      const d = new Date(slot.start_time);
+      let hour: number;
+      try {
+        const hourStr = d.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'America/Sao_Paulo',
+        });
+        hour = parseInt(hourStr, 10);
+      } catch {
+        hour = d.getHours();
+      }
+      for (const group of groups) {
+        if (hour >= group.startHour && hour < group.endHour) {
+          group.slots.push(slot);
+          break;
+        }
+      }
+    }
+    for (const group of groups) {
+      group.slots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    }
+    return groups.filter((group) => group.slots.length > 0);
+  }, [groupedSlots, availableSlots]);
+
+  const totalSlotsCount = useMemo(() => {
+    return periodGroups.reduce((acc, g) => acc + g.slots.length, 0);
+  }, [periodGroups]);
+
   if (!isOpen) return null;
 
   return (
@@ -172,7 +214,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                   <div key={id} className="h-10 bg-neutral-950 border border-neutral-800 rounded-xl" />
                 ))}
               </div>
-            ) : availableSlots.length === 0 ? (
+            ) : totalSlotsCount === 0 ? (
               <div className="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 text-center space-y-1 py-6">
                 <CalendarIcon className="size-6 text-neutral-500 mx-auto mb-1 opacity-60" />
                 <p className="text-xs font-bold text-white">Nenhum horário disponível para esta data</p>
@@ -181,24 +223,37 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 py-1 max-h-52 overflow-y-auto pr-1">
-                {availableSlots.map((slot) => {
-                  const isSelected = selectedSlot?.start_time === slot.start_time;
-                  const timeDisplay = formatSlotTime(slot.start_time);
-
+              <div className="space-y-4 py-1 max-h-56 overflow-y-auto pr-1">
+                {periodGroups.map((group) => {
+                  const Icon = group.label === 'Manhã' ? Sunrise : group.label === 'Tarde' ? Sun : Moon;
                   return (
-                    <button
-                      key={slot.start_time}
-                      type="button"
-                      onClick={() => onSelectSlot(slot)}
-                      className={`py-2.5 px-2 rounded-xl text-xs font-bold border text-center transition-all cursor-pointer active:scale-95 ${
-                        isSelected
-                          ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500 shadow-md shadow-amber-500/10'
-                          : 'bg-neutral-950 text-neutral-100 border-neutral-800 hover:border-amber-500/40 hover:text-white'
-                      }`}
-                    >
-                      {timeDisplay}
-                    </button>
+                    <div key={group.label} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                        <Icon size={13} className="text-amber-400 flex-shrink-0" />
+                        <span>{group.label}</span>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {group.slots.map((slot) => {
+                          const isSelected = selectedSlot?.start_time === slot.start_time;
+                          const timeDisplay = formatSlotTime(slot.start_time);
+
+                          return (
+                            <button
+                              key={slot.start_time}
+                              type="button"
+                              onClick={() => onSelectSlot(slot)}
+                              className={`py-2 px-2 rounded-xl text-xs font-bold border text-center transition-all cursor-pointer active:scale-95 ${
+                                isSelected
+                                  ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500 shadow-md shadow-amber-500/10'
+                                  : 'bg-neutral-950 text-neutral-100 border-neutral-800 hover:border-amber-500/40 hover:text-white'
+                              }`}
+                            >
+                              {timeDisplay}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

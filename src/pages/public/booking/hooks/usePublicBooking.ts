@@ -139,7 +139,7 @@ function formatDateForDisplay(dateStr: string): { dayLabel: string; weekday: str
   return { dayLabel, weekday, day };
 }
 
-function groupSlotsByPeriod(slots: PublicSlot[]): TimePeriodGroup[] {
+function groupSlotsByPeriod(slots: PublicSlot[], timezone: string = 'America/Sao_Paulo'): TimePeriodGroup[] {
   const periods: TimePeriodGroup[] = [
     { label: 'Manhã', slots: [], startHour: 0, endHour: 12 },
     { label: 'Tarde', slots: [], startHour: 12, endHour: 18 },
@@ -147,7 +147,19 @@ function groupSlotsByPeriod(slots: PublicSlot[]): TimePeriodGroup[] {
   ];
 
   for (const slot of slots) {
-    const hour = Number(slot.start_time.slice(11, 13));
+    const d = new Date(slot.start_time);
+    let hour: number;
+    try {
+      const hourStr = d.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        hour12: false,
+        timeZone: timezone,
+      });
+      hour = parseInt(hourStr, 10);
+    } catch {
+      hour = d.getHours();
+    }
+
     for (const period of periods) {
       if (hour >= period.startHour && hour < period.endHour) {
         period.slots.push(slot);
@@ -156,7 +168,7 @@ function groupSlotsByPeriod(slots: PublicSlot[]): TimePeriodGroup[] {
     }
   }
 
-  // Sort slots within each period by time
+  // Sort slots within each period chronologically by time
   for (const period of periods) {
     period.slots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   }
@@ -544,8 +556,9 @@ export function usePublicBooking() {
     ? availableStaff.find((s) => s.id === state.selectedStaffId) || null
     : null;
 
+  const bookingTimezone = state.tenantProfile?.booking_rules?.timezone || 'America/Sao_Paulo';
   const groupedSlots = state.slotsResponse
-    ? groupSlotsByPeriod(state.slotsResponse.slots)
+    ? groupSlotsByPeriod(state.slotsResponse.slots, bookingTimezone)
     : [];
 
   // ============================================================================
