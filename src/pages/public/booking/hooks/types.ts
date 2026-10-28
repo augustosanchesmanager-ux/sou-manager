@@ -58,6 +58,7 @@ export interface PublicStaff {
   id: string;
   name: string;
   status: 'active' | 'inactive';
+  role?: string | null;
   avatar_url?: string | null;
 }
 

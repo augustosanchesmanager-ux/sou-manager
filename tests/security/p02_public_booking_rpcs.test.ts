@@ -131,4 +131,22 @@ describe('P.02-BOOKING-PUBLIC — Contrato e Segurança das RPCs Públicas (ADR-
     expect(cancelBody).toContain('UPDATE public.public_booking_tokens SET revoked_at = now()');
     expect(cancelBody).toContain("status = 'cancelled'");
   });
+
+  it('should_filter_technical_staff_in_public_booking_rpcs_migration', () => {
+    const filterMigrationPath = resolve(
+      process.cwd(),
+      'supabase/migrations/20261028181500_filter_technical_staff_in_public_booking_rpcs.sql',
+    );
+    const filterSql = readFileSync(filterMigrationPath, 'utf-8');
+
+    // get_public_tenant_profile filters technical staff
+    expect(filterSql).toContain("lower(st.role) IN ('barber', 'manager')");
+
+    // get_public_available_slots validates technical role
+    expect(filterSql).toContain("FUNCTION public.get_public_available_slots");
+
+    // create_public_booking validates technical role
+    expect(filterSql).toContain("FUNCTION public.create_public_booking");
+    expect(filterSql).toContain("lower(st.role) IN ('barber', 'manager')");
+  });
 });

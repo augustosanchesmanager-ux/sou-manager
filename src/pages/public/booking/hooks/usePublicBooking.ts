@@ -546,7 +546,15 @@ export function usePublicBooking() {
   // ============================================================================
 
   const availableServices = state.tenantProfile?.services.filter((s) => s.active) || [];
-  const availableStaff = state.tenantProfile?.staff.filter((s) => s.status === 'active') || [];
+  const availableStaff =
+    state.tenantProfile?.staff.filter((s) => {
+      if (s.status !== 'active') return false;
+      if (s.role) {
+        const role = s.role.toLowerCase().trim();
+        return role === 'barber' || role === 'manager';
+      }
+      return true;
+    }) || [];
 
   const selectedServices = availableServices.filter((s) => state.selectedServiceIds.includes(s.id));
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
