@@ -102,6 +102,7 @@ interface CalendarAppointment {
   source?: string | null;
   channel?: string | null;
   isOverbooked?: boolean;
+  isRecurring?: boolean;
   attendedAt?: string | null;
   attendedAtSource?: string | null;
   duration_minutes?: number;
@@ -789,6 +790,7 @@ const Schedule: React.FC = () => {
           source: apt.source || null,
           channel: apt.channel || null,
           isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
+          isRecurring: Boolean(apt.is_recurring),
           attendedAt: apt.attended_at || null,
           attendedAtSource: apt.attended_at_source || null,
         };
@@ -2970,6 +2972,11 @@ Podemos confirmar? 😄`;
                                     {apt.isOverbooked && (
                                       <span className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">ENCAIXE</span>
                                     )}
+                                    {apt.isRecurring && (
+                                      <span className="shrink-0 rounded bg-amber-500/90 text-white px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5" title="Horário Fixo Chef Club">
+                                        <span className="material-symbols-outlined text-[10px]">repeat</span> CLUBE
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-xs">
                                     {apt.client}
@@ -3134,6 +3141,11 @@ Podemos confirmar? 😄`;
                                     {apt.isOverbooked && (
                                       <span className="min-w-0 truncate rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">
                                         Encaixe
+                                      </span>
+                                    )}
+                                    {apt.isRecurring && (
+                                      <span className="shrink-0 rounded bg-amber-500/90 text-white px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5" title="Horário Fixo Chef Club">
+                                        <span className="material-symbols-outlined text-[10px]">repeat</span> CLUBE
                                       </span>
                                     )}
                                     <div className="flex shrink-0 bg-black/20 rounded px-1 py-0.5">
@@ -3362,7 +3374,14 @@ Podemos confirmar? 😄`;
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">{apt.client}</span>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            {apt.client}
+                            {apt.isRecurring && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Horário Fixo Chef Club">
+                                <span className="material-symbols-outlined text-[10px]">repeat</span> Clube
+                              </span>
+                            )}
+                          </span>
                           {apt.isOverdue && <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-300">Atrasado</span>}
                         </div>
                       </td>
@@ -3408,7 +3427,14 @@ Podemos confirmar? 😄`;
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-lg font-black text-slate-900 dark:text-white">{getDecimalTimeLabel(apt.start)}</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">{apt.client}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      {apt.client}
+                      {apt.isRecurring && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Horário Fixo Chef Club">
+                          <span className="material-symbols-outlined text-[10px]">repeat</span> Clube
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-500">{apt.clientPhone || 'Sem telefone'}</p>
                   </div>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${apt.statusBadgeClassName}`}>

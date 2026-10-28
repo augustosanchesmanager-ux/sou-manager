@@ -108,3 +108,12 @@ export {
 export type {
     CancelSubscriptionWithReceivablesParams,
 } from './chefClub/operations';
+
+export {
+    loadSubscriptionRecurringSlots,
+    addSubscriptionRecurringSlot,
+    toggleSubscriptionRecurringSlot,
+    removeSubscriptionRecurringSlot,
+    triggerRecurringScheduleGeneration,
+    triggerOverdueScheduleEviction,
+} from './chefClub/recurringSchedule';
