@@ -1,6 +1,7 @@
 export {
     getActiveAppContext,
     getClientForTable,
+    getPublicAnonymousClient,
     getSchemaClient,
     getScopedClient,
     getSharedClient,

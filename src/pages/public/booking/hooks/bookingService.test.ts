@@ -27,7 +27,7 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       error: null,
     });
 
-    vi.spyOn(clientModule, 'getSharedClient').mockReturnValue({
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
       rpc: mockRpc,
     } as any);
 
@@ -51,7 +51,7 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       },
     });
 
-    vi.spyOn(clientModule, 'getSharedClient').mockReturnValue({
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
       rpc: mockRpc,
     } as any);
 
@@ -66,6 +66,50 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
           client_phone: '11999999999',
         })
       ).rejects.toThrow('Esse horário acabou de ser reservado. Escolha outro.');
+    }
+  });
+
+  it('should_strictly_isolate_tenant_identifier_to_accessed_barbershop_via_anonymous_client', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: {
+        appointment_id: 'apt-avante-123',
+        client_id: 'cli-avante-123',
+        status: 'confirmed',
+        public_token: 'token-avante-123',
+        public_token_id: 'tokid-123',
+        expires_at: '2026-12-31T23:59:59Z',
+        services: [{ service_id: 'svc-avante', name: 'Corte clássico', duration: 45, price: 60 }],
+        staff: { id: 'staff-avante', name: 'Ygor Yuri' },
+        start_time: '2026-10-29T14:00:00Z',
+        end_time: '2026-10-29T14:45:00Z',
+        idempotent: false,
+      },
+      error: null,
+    });
+
+    const anonClientSpy = vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const result = await createPublicBooking({
+        tenant_identifier: '8fb669d2-4cc0-4e01-a115-a7af7b62e536',
+        staff_id: 'staff-avante',
+        service_ids: ['svc-avante'],
+        start_time: '2026-10-29T14:00:00Z',
+        client_name: 'Cliente Avante',
+        client_phone: '5511999998888',
+        idempotency_key: 'idem-avante-1',
+      });
+
+      expect(anonClientSpy).toHaveBeenCalled();
+      expect(mockRpc).toHaveBeenCalledWith('create_public_booking', expect.objectContaining({
+        p_tenant_identifier: '8fb669d2-4cc0-4e01-a115-a7af7b62e536',
+        p_staff_id: 'staff-avante',
+        p_service_ids: ['svc-avante'],
+        p_client_name: 'Cliente Avante',
+      }));
+      expect(result.appointment_id).toBe('apt-avante-123');
     }
   });
 });
