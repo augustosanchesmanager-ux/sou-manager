@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarRange } from 'lucide-react';
+import { CalendarRange, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import type {
     ARFilters,
     SortKey,
@@ -69,7 +69,7 @@ const AccountsReceivableFilters: React.FC<AccountsReceivableFiltersProps> = ({
                     </label>
 
                     <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                        <span className="material-symbols-outlined text-base text-slate-400">sort</span>
+                        <ArrowUpDown className="size-4 text-slate-400" />
                         Ordenar
                         <select
                             value={sortKey}
@@ -87,7 +87,7 @@ const AccountsReceivableFilters: React.FC<AccountsReceivableFiltersProps> = ({
                         onClick={onToggleShowFilters}
                         className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                     >
-                        <span className="material-symbols-outlined text-base">tune</span>
+                        <SlidersHorizontal className="size-4" />
                         Filtros
                         {activeFilterCount > 0 && (
                             <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
