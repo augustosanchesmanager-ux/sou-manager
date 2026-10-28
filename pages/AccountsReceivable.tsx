@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
@@ -53,6 +53,7 @@ import {
 interface ComandaRecord {
     id: string;
     client_id?: string | null;
+    appointment_id?: string | null;
     status: string;
     total: number;
     discount?: number | null;
@@ -60,7 +61,16 @@ interface ComandaRecord {
     staff_id?: string | null;
     payment_method?: string | null;
     clients?: { name: string; phone?: string | null } | { name: string; phone?: string | null }[] | null;
+    appointments?: { start_time: string } | { start_time: string }[] | null;
 }
+
+const getAppointmentStartTime = (appointments: any): string | null => {
+    if (!appointments) return null;
+    if (Array.isArray(appointments)) {
+        return appointments[0]?.start_time || null;
+    }
+    return appointments.start_time || null;
+};
 
 interface ClientLookupRecord {
     id: string;
@@ -110,7 +120,7 @@ interface ReceiptRecord {
     status: string;
 }
 
-type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos';
+type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos' | 'historico';
 
 interface ARListEntry extends AREntry {
     listId: string;
@@ -128,7 +138,7 @@ const SOURCE_LABELS: Record<ARSource, string> = {
 };
 const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
     todos: {
-        title: 'Nenhuma conta a receber no filtro atual',
+        title: 'Nenhuma conta a receber pendente',
         description: 'Não há comandas abertas, recebíveis do Clube ou recibos pendentes neste período.',
     },
     comandas: {
@@ -136,12 +146,16 @@ const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }
         description: 'As comandas em aberto deste período aparecerão aqui para baixa financeira.',
     },
     clube: {
-        title: 'Nenhum recebivel do Clube pendente',
-        description: 'Cobrancas pendentes ou atrasadas do Club dos Chefes aparecerao nesta aba.',
+        title: 'Nenhum recebível do Clube pendente',
+        description: 'Cobranças pendentes ou atrasadas do Club dos Chefes aparecerão nesta aba.',
     },
     recibos: {
         title: 'Nenhum recibo pendente',
-        description: 'Recibos pendentes de pagamento aparecerao aqui quando existirem.',
+        description: 'Recibos pendentes de pagamento aparecerão aqui quando existirem.',
+    },
+    historico: {
+        title: 'Nenhum histórico de baixa',
+        description: 'Não há baixas de comanda ou estornos registrados neste período.',
     },
 };
 interface FinancialReversalRecord {
@@ -279,7 +293,7 @@ const AccountsReceivable: React.FC = () => {
             ] = await Promise.all([
                 barberSupabase
                     .from('comandas')
-                    .select('id, client_id, status, total, discount, created_at, staff_id, payment_method, clients(name, phone)')
+                    .select('id, client_id, status, total, discount, created_at, staff_id, payment_method, clients(name, phone), appointments(start_time)')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'open'),
                 barberSupabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
@@ -300,7 +314,16 @@ const AccountsReceivable: React.FC = () => {
             ]);
 
             if (comandasResult.error) throw comandasResult.error;
-            const comandasData = (comandasResult.data || []) as ComandaRecord[];
+            const rawComandas = (comandasResult.data || []) as ComandaRecord[];
+            const startMs = new Date(year, month - 1, 1, 0, 0, 0, 0).getTime();
+            const endMs = new Date(year, month, 0, 23, 59, 59, 999).getTime();
+
+            // Filtragem temporal por competência: prioriza start_time do agendamento, com fallback para created_at (walk-in)
+            const comandasData = rawComandas.filter((comanda) => {
+                const targetDate = getAppointmentStartTime(comanda.appointments) || comanda.created_at;
+                const targetMs = new Date(targetDate).getTime();
+                return Number.isFinite(targetMs) && targetMs >= startMs && targetMs <= endMs;
+            });
             setOpenComandas(comandasData);
 
             const comandaIds = comandasData.map((comanda) => comanda.id).filter(Boolean);
@@ -908,6 +931,7 @@ const AccountsReceivable: React.FC = () => {
         openComandas.forEach(c => {
             const detail = openComandaDetails[c.id];
             const client = detail ? { name: detail.clientName, phone: detail.clientPhone } : getClientData(c.clients);
+            const targetDate = getAppointmentStartTime(c.appointments) || c.created_at;
             entries.push({
                 id: c.id,
                 source: 'comanda',
@@ -915,7 +939,7 @@ const AccountsReceivable: React.FC = () => {
                 clientName: client.name,
                 clientPhone: client.phone,
                 description: `Comanda #${getShortId(c.id)} · em aberto`,
-                dateValue: c.created_at,
+                dateValue: targetDate,
                 amount: Number(c.total || 0),
                 status: 'open',
                 originPath: '/comandas',
@@ -955,16 +979,18 @@ const AccountsReceivable: React.FC = () => {
         return entries;
     }, [openComandas, openComandaDetails, clubReceivables, pendingReceipts, clubClients, clubPlans]);
 
-    const combinedEntries = useMemo<ARListEntry[]>(() => {
-        const receivables = allEntries.map((entry): ARListEntry => ({
+    const receivables = useMemo<ARListEntry[]>(() => {
+        return allEntries.map((entry): ARListEntry => ({
             ...entry,
             listId: `receivable-${entry.source}-${entry.id}`,
             reference: `${SOURCE_LABELS[entry.source]} ${getShortId(entry.id)} ${entry.description}`,
             receivable: entry,
             actionKind: entry.source === 'comanda' && entry.status === 'open' ? 'settle' : 'none',
         }));
+    }, [allEntries]);
 
-        const settledComandas = paidComandaSettlements.map((entry): ARListEntry => {
+    const settledComandas = useMemo<ARListEntry[]>(() => {
+        return paidComandaSettlements.map((entry): ARListEntry => {
             const referenceId = entry.sourceId || entry.id;
             const hasReversal = entry.reversalStatus !== 'none';
             return {
@@ -984,19 +1010,26 @@ const AccountsReceivable: React.FC = () => {
                 reversalStatus: entry.reversalStatus,
             };
         });
-
-        return [...receivables, ...settledComandas];
-    }, [allEntries, paidComandaSettlements]);
+    }, [paidComandaSettlements]);
 
     const tabbedEntries = useMemo(() => {
-        if (activeTab === 'todos') return combinedEntries;
-        return combinedEntries.filter(e => {
-            if (activeTab === 'comandas') return e.source === 'comanda';
-            if (activeTab === 'clube') return e.source === 'clube';
-            if (activeTab === 'recibos') return e.source === 'recibo';
-            return true;
-        });
-    }, [combinedEntries, activeTab]);
+        if (activeTab === 'historico') {
+            return settledComandas;
+        }
+        if (activeTab === 'todos') {
+            return receivables;
+        }
+        if (activeTab === 'comandas') {
+            return receivables.filter(e => e.source === 'comanda');
+        }
+        if (activeTab === 'clube') {
+            return receivables.filter(e => e.source === 'clube');
+        }
+        if (activeTab === 'recibos') {
+            return receivables.filter(e => e.source === 'recibo');
+        }
+        return receivables;
+    }, [receivables, settledComandas, activeTab]);
 
     const filteredEntries = useMemo(() => {
         const amountMin = Number(String(listFilters.amountMin || '').replace(',', '.'));
@@ -1105,11 +1138,12 @@ const AccountsReceivable: React.FC = () => {
             });
     }, [filteredEntries, sortKey]);
 
-    const tabs: { key: ActiveTab; label: string }[] = [
-        { key: 'todos', label: 'Todos' },
-        { key: 'comandas', label: 'Comandas' },
-        { key: 'clube', label: 'Club dos Chefes' },
-        { key: 'recibos', label: 'Recibos' },
+    const tabs: { key: ActiveTab; label: string; count?: number }[] = [
+        { key: 'todos', label: 'Pendentes (Todos)', count: allEntries.length },
+        { key: 'comandas', label: 'Comandas Abertas', count: openComandas.length },
+        { key: 'clube', label: 'Club dos Chefes', count: clubReceivables.filter(r => !r.transaction_id).length },
+        { key: 'recibos', label: 'Recibos', count: pendingReceipts.length },
+        { key: 'historico', label: 'Histórico / Baixadas', count: paidComandaSettlements.length },
     ];
 
     const getStatusBadge = (status: string) => {
@@ -1254,18 +1288,29 @@ const AccountsReceivable: React.FC = () => {
                 </section>
             )}
 
-            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
+            <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                             activeTab === tab.key
                                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                         }`}
                     >
-                        {tab.label}
+                        <span>{tab.label}</span>
+                        {typeof tab.count === 'number' && (
+                            <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                    activeTab === tab.key
+                                        ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light'
+                                        : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-400'
+                                }`}
+                            >
+                                {tab.count}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
@@ -1317,7 +1362,9 @@ const AccountsReceivable: React.FC = () => {
                                 {tabs.find(t => t.key === activeTab)?.label}
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Comandas abertas e baixadas, Club dos Chefes e recibos em {selectedPeriodLabel}.
+                                {activeTab === 'historico'
+                                    ? `Comandas baixadas e estornos registrados em ${selectedPeriodLabel}.`
+                                    : `Contas a receber pendentes de liquidação em ${selectedPeriodLabel}.`}
                             </p>
                         </div>
                         <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/5 dark:text-slate-300">
@@ -1363,6 +1410,15 @@ const AccountsReceivable: React.FC = () => {
                                                     <div className="mt-2 flex flex-wrap justify-end gap-2">
                                                         <button
                                                             type="button"
+                                                            onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
+                                                            title="Abrir comanda no Checkout"
+                                                            className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                        >
+                                                            <ExternalLink className="size-3" />
+                                                            Checkout
+                                                        </button>
+                                                        <button
+                                                            type="button"
                                                             onClick={() => openSettlementModal(entry.receivable!)}
                                                             disabled={Boolean(markingPaid || cancellingId)}
                                                             title="A baixa sera registrada pela RPC financeira central."
@@ -1371,7 +1427,7 @@ const AccountsReceivable: React.FC = () => {
                                                             {markingPaid === entry.id ? (
                                                                 <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
                                                             ) : (
-                                                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                                <CheckCircle className="size-3.5" />
                                                             )}
                                                             Dar baixa
                                                         </button>
@@ -1385,9 +1441,35 @@ const AccountsReceivable: React.FC = () => {
                                                             {cancellingId === entry.id ? (
                                                                 <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
                                                             ) : (
-                                                                <span className="material-symbols-outlined text-sm">cancel</span>
+                                                                <XCircle className="size-3.5" />
                                                             )}
                                                             Cancelar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {entry.source === 'clube' && (
+                                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate('/chef-club-receivables')}
+                                                            title="Gerenciar cobranças no Clube dos Chefes"
+                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                        >
+                                                            <ExternalLink className="size-3" />
+                                                            Ver no Clube
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {entry.source === 'recibo' && (
+                                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate('/receipts')}
+                                                            title="Ver no módulo de Recibos"
+                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                        >
+                                                            <ExternalLink className="size-3" />
+                                                            Ver Recibo
                                                         </button>
                                                     </div>
                                                 )}
@@ -1450,18 +1532,65 @@ const AccountsReceivable: React.FC = () => {
                                             </td>
                                             <td className="px-5 py-4 text-right">
                                                 {entry.actionKind === 'settle' && entry.receivable && (
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
+                                                            title="Abrir comanda no Checkout"
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                        >
+                                                            <ExternalLink className="size-3" />
+                                                            Checkout
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openSettlementModal(entry.receivable!)}
+                                                            disabled={markingPaid === entry.id}
+                                                            title="A baixa sera registrada pela RPC financeira central."
+                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
+                                                        >
+                                                            {markingPaid === entry.id ? (
+                                                                <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
+                                                            ) : (
+                                                                <CheckCircle className="size-3.5" />
+                                                            )}
+                                                            Dar baixa
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCancelModal(entry.receivable!)}
+                                                            disabled={Boolean(markingPaid || cancellingId)}
+                                                            title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
+                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-300"
+                                                        >
+                                                            {cancellingId === entry.id ? (
+                                                                <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
+                                                            ) : (
+                                                                <XCircle className="size-3.5" />
+                                                            )}
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {entry.source === 'clube' && (
                                                     <button
-                                                        onClick={() => openSettlementModal(entry.receivable!)}
-                                                        disabled={markingPaid === entry.id}
-                                                        title="A baixa sera registrada pela RPC financeira central."
-                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                                                        type="button"
+                                                        onClick={() => navigate('/chef-club-receivables')}
+                                                        title="Gerenciar cobranças no Clube dos Chefes"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
                                                     >
-                                                        {markingPaid === entry.id ? (
-                                                            <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-sm">check_circle</span>
-                                                        )}
-                                                        Dar baixa
+                                                        <ExternalLink className="size-3" />
+                                                        Ver no Clube
+                                                    </button>
+                                                )}
+                                                {entry.source === 'recibo' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate('/receipts')}
+                                                        title="Visualizar no módulo de Recibos"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                    >
+                                                        <ExternalLink className="size-3" />
+                                                        Ver Recibo
                                                     </button>
                                                 )}
                                                 {entry.actionKind === 'reverse' && entry.settlement && isReversalEligible(entry.settlement) && (

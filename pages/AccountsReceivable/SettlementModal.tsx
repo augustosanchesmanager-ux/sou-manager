@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { formatCurrency } from '../../shared/format/currency';
@@ -68,6 +70,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     isSubmitting,
     onConfirm,
 }) => {
+    const navigate = useNavigate();
     if (!entry) return null;
 
     const footer = (
@@ -149,11 +152,19 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                         </div>
                         <button
                             type="button"
-                            disabled
-                            title="Para alterar itens da comanda, use o Checkout/Comanda antes da baixa."
-                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-400 opacity-70 dark:border-border-dark"
+                            onClick={() => {
+                                onClose();
+                                if (entry?.id) {
+                                    navigate(`/checkout?comandaId=${entry.id}`);
+                                } else {
+                                    navigate('/checkout');
+                                }
+                            }}
+                            title="Abrir esta comanda no Checkout para editar serviços, produtos ou profissionais."
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-200 dark:hover:bg-white/5"
                         >
-                            Adicionar serviço/produto
+                            <ExternalLink className="size-3.5" />
+                            Editar no Checkout
                         </button>
                     </div>
                     <p className="border-b border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 dark:border-border-dark">
