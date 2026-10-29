@@ -31,6 +31,7 @@ export const CORE_PUBLIC_TABLES = new Set<string>([
   'commission_records',
   'financial_reversals',
   'notifications',
+  'online_booking_settings',
   'otp_requests',
   'payment_terminal_rates',
   'payment_terminals',
@@ -40,6 +41,7 @@ export const CORE_PUBLIC_TABLES = new Set<string>([
   'staff',
   'support_tickets',
   'tenant_addons',
+  'tenant_settings',
   'tenants',
   'ticket_messages',
   'user_tenants',
@@ -88,6 +90,7 @@ export const TENANT_GUARDED_TABLES = new Set<string>([
   'financial_reversals',
   'kiosk_sessions',
   'notifications',
+  'online_booking_settings',
   'otp_requests',
   'payment_terminal_rates',
   'payment_terminals',
@@ -102,6 +105,7 @@ export const TENANT_GUARDED_TABLES = new Set<string>([
   'suppliers',
   'support_tickets',
   'tenant_addons',
+  'tenant_settings',
   'transactions',
 ]);
 

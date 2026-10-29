@@ -8,6 +8,7 @@ import type {
   PublicTenantProfile,
   PublicService,
   PublicStaff,
+  PublicShowcaseProduct,
   PublicAvailableSlotsResponse,
   PublicSlot,
   CreatePublicBookingResult,
@@ -16,6 +17,30 @@ import type {
   CreatePublicBookingStaff,
 } from './types';
 
+export const MOCK_SHOWCASE_PRODUCTS: PublicShowcaseProduct[] = [
+  {
+    id: 'prd-001',
+    name: 'Pomada Matte Atelier Finish',
+    price: 58.0,
+    image_url: null,
+    description: 'Efeito seco de alta fixação para estruturação limpa ao longo do dia.',
+  },
+  {
+    id: 'prd-002',
+    name: 'Óleo para Barba Cedro & Âmbar',
+    price: 64.0,
+    image_url: null,
+    description: 'Hidratação profunda dos fios e pele com notas amadeiradas nobres.',
+  },
+  {
+    id: 'prd-003',
+    name: 'Shampoo Mentolado Detox',
+    price: 49.0,
+    image_url: null,
+    description: 'Limpeza refrescante para couro cabeludo e barba.',
+  },
+];
+
 // ============================================================================
 // Tenant Profile - "Barbearia Dom Zé"
 // ============================================================================
@@ -23,13 +48,26 @@ import type {
 export const MOCK_TENANT_PROFILE: PublicTenantProfile = {
   tenant_id: '11111111-1111-1111-1111-111111111111',
   name: 'Barbearia Dom Zé',
+  display_name: 'Barbearia Dom Zé',
   slug: 'domze',
   logo_url: null,
+  cover_url: null,
+  cover_banner_url: null,
+  primary_color: '#B88A44',
+  theme_mode: 'dark',
+  slogan: 'Tradição, precisão e o ritual completo para o seu estilo.',
+  about_text:
+    'Referência em visagismo masculino, cortes clássicos e modernos, barboterapia com toalha quente e linha exclusiva Home Care.',
   address: 'Rua das Palmeiras, 123 - Vila Madalena, São Paulo - SP, 05432-010',
+  display_address: 'Rua das Palmeiras, 123 - Vila Madalena, São Paulo - SP, 05432-010',
   phone: '(11) 99999-8888',
   instagram_url: 'https://instagram.com/barbearia_domze',
   whatsapp_number: '5511999998888',
   maps_url: 'https://www.google.com/maps/search/?api=1&query=Rua%20das%20Palmeiras%2C%20123%20-%20Vila%20Madalena%2C%20S%C3%A3o%20Paulo',
+  show_products: true,
+  featured_product_ids: ['prd-001', 'prd-002', 'prd-003'],
+  featured_service_ids: ['srv-001', 'srv-003'],
+  showcase_products: MOCK_SHOWCASE_PRODUCTS,
   social_links: {
     instagram: 'barbearia_domze',
     whatsapp: '5511999998888',
