@@ -5,7 +5,12 @@ export interface NormalizedPhone {
 
 export function normalizePhone(phone: string | null | undefined): NormalizedPhone {
   if (!phone) return { digits: '', isValid: false };
-  const digits = phone.replace(/\D/g, '');
+  const rawDigits = phone.replace(/\D/g, '');
+  const digits =
+    (rawDigits.length === 12 || rawDigits.length === 13) && rawDigits.startsWith('55')
+      ? rawDigits.slice(2)
+      : rawDigits;
+
   if (digits.length >= 10 && digits.length <= 11) {
     return { digits, isValid: true };
   }

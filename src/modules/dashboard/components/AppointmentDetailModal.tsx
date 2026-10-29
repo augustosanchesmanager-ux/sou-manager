@@ -2,6 +2,7 @@ import type React from 'react';
 import Modal from '../../../../components/ui/Modal';
 import type { DashboardAppointment } from '../types';
 import { getAppointmentStatusMeta } from '../../../../shared/status/appointment';
+import { normalizePhone } from '../../../lib/utils/phone';
 
 interface AppointmentDetailModalProps {
   appointment: DashboardAppointment | null;
@@ -82,17 +83,18 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2">
             <button
               onClick={() => {
-                if (appointment.client_phone) {
+                const { digits, isValid } = normalizePhone(appointment.client_phone);
+                if (isValid) {
                   const text = `Ola ${appointment.client_name.split(' ')[0]}! Passando para confirmar seu agendamento no dia ${startDate.toLocaleDateString(
                     'pt-BR',
                   )} as ${startDate.toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
                   })} para o servico ${appointment.service_name}. Nos vemos la!`;
-                  window.open(`https://wa.me/55${appointment.client_phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                  window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(text)}`, '_blank');
                 }
               }}
-              disabled={!appointment.client_phone}
+              disabled={!normalizePhone(appointment.client_phone).isValid}
               className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-[#25D366] text-white hover:bg-[#20b857] shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none"
             >
               <span className="material-symbols-outlined text-sm">chat</span> WhatsApp

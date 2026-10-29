@@ -1964,6 +1964,7 @@ const Schedule: React.FC = () => {
           appointment: {
             id: newAptId,
             client: formData.client,
+            clientPhone: formData.clientPhone || clientsList.find(c => c.name.toLowerCase() === formData.client.toLowerCase())?.phone || '',
             service: selectedServicesLabel,
             professional: selectedStaff?.name || '',
             dateTime: startTimeLine.toISOString(),
