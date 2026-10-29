@@ -101,21 +101,25 @@ export const MOCK_TENANT_PROFILE: PublicTenantProfile = {
       id: 'stf-001',
       name: 'Zé (Dono)',
       status: 'active',
+      role: 'manager',
     },
     {
       id: 'stf-002',
       name: 'Marcos Silva',
       status: 'active',
+      role: 'barber',
     },
     {
       id: 'stf-003',
       name: 'Rafael Santos',
       status: 'active',
+      role: 'barber',
     },
     {
       id: 'stf-004',
       name: 'Lucas Oliveira',
       status: 'active',
+      role: 'barber',
     },
   ],
 };

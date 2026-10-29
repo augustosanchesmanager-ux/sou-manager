@@ -28,7 +28,14 @@ export const StaffSelectionModal: React.FC<StaffSelectionModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const activeStaff = staffList.filter((s) => s.status === 'active');
+  const activeStaff = staffList.filter((s) => {
+    if (s.status !== 'active') return false;
+    if (s.role) {
+      const role = s.role.toLowerCase().trim();
+      return role === 'barber' || role === 'manager';
+    }
+    return true;
+  });
 
   const getInitials = (name: string): string => {
     const words = name.trim().split(/\s+/);

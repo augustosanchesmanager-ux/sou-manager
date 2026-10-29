@@ -87,6 +87,31 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
       expect(activeStaff.find((s) => s.status === 'inactive')).toBeUndefined();
     });
 
+    it('should only include active technical staff (barber, manager) when roles are provided', () => {
+      const mixedStaffList: PublicStaff[] = [
+        { id: '1', name: 'Heron Ferreira', status: 'active', role: 'barber' },
+        { id: '2', name: 'Rubens Sanchez', status: 'active', role: 'manager' },
+        { id: '3', name: 'Augusto Sanches', status: 'active', role: 'admin' },
+        { id: '4', name: 'Heberton Soares', status: 'active', role: 'receptionist' },
+        { id: '5', name: 'Lucas Inativo', status: 'inactive', role: 'barber' },
+      ];
+
+      const filterEligible = (list: PublicStaff[]) =>
+        list.filter((s) => {
+          if (s.status !== 'active') return false;
+          if (s.role) {
+            const role = s.role.toLowerCase().trim();
+            return role === 'barber' || role === 'manager';
+          }
+          return true;
+        });
+
+      const eligible = filterEligible(mixedStaffList);
+      expect(eligible.map((s) => s.id)).toEqual(['1', '2']);
+      expect(eligible.find((s) => s.name === 'Augusto Sanches')).toBeUndefined();
+      expect(eligible.find((s) => s.name === 'Heberton Soares')).toBeUndefined();
+    });
+
     it('should correctly calculate initials for single-word and multi-word names', () => {
       const getInitials = (name: string): string => {
         const words = name.trim().split(/\s+/);
