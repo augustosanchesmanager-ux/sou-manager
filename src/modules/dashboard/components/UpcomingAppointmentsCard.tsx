@@ -2,6 +2,7 @@ import type React from 'react';
 import { Link } from 'react-router-dom';
 import { formatAppointmentTime } from '../selectors';
 import type { DashboardAppointment } from '../types';
+import { normalizePhone } from '../../../lib/utils/phone';
 
 interface UpcomingAppointmentsCardProps {
   appointments: DashboardAppointment[];
@@ -67,12 +68,14 @@ export const UpcomingAppointmentsCard: React.FC<UpcomingAppointmentsCardProps> =
               >
                 <span className="material-symbols-outlined">more_vert</span>
               </button>
-              {activeMenuId === appointment.id && (
+              {activeMenuId === appointment.id && (() => {
+                const { digits, isValid: isPhoneValid } = normalizePhone(appointment.client_phone);
+                return (
                 <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-lg shadow-xl py-1 min-w-[160px]">
                   <button
                     type="button"
                     onClick={() => {
-                      if (appointment.client_phone) {
+                      if (isPhoneValid) {
                         const date = new Date(appointment.start_time);
                         const text = `Ola ${appointment.client_name.split(' ')[0]}! Passando para confirmar seu agendamento no dia ${date.toLocaleDateString(
                           'pt-BR',
@@ -80,11 +83,12 @@ export const UpcomingAppointmentsCard: React.FC<UpcomingAppointmentsCardProps> =
                           hour: '2-digit',
                           minute: '2-digit',
                         })} para o servico ${appointment.service_name}. Nos vemos la!`;
-                        window.open(`https://wa.me/55${appointment.client_phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                        window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(text)}`, '_blank');
                       }
                     }}
+                    disabled={!isPhoneValid}
                     className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2 ${
-                      appointment.client_phone ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'text-slate-400 cursor-not-allowed opacity-50'
+                      isPhoneValid ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'text-slate-400 cursor-not-allowed opacity-50'
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">chat</span> WhatsApp
@@ -111,7 +115,8 @@ export const UpcomingAppointmentsCard: React.FC<UpcomingAppointmentsCardProps> =
                     <span className="material-symbols-outlined text-sm">cancel</span> Cancelar
                   </button>
                 </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         ))

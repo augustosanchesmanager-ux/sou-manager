@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { DashboardAppointment } from '../../src/modules/dashboard/types';
+import { normalizePhone } from '../../src/lib/utils/phone';
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -90,8 +91,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
     setHasEdited(false);
   };
 
-  const cleanPhone = (appointment.client_phone || '').replace(/\D/g, '');
-  const isValidPhone = cleanPhone.length >= 10 && cleanPhone.length <= 11;
+  const { digits: cleanPhone, isValid: isValidPhone } = normalizePhone(appointment.client_phone);
 
   const handleSend = () => {
     if (!isValidPhone) return;
