@@ -22,7 +22,7 @@ const STATUS_CONFIG: Record<string, { icon: string; bg: string; text: string; la
   completed: { icon: appointmentStatusMeta.completed.icon || 'task_alt', bg: 'bg-emerald-500', text: 'text-emerald-500', label: appointmentStatusMeta.completed.label || 'Concluído' },
   cancelled: { icon: appointmentStatusMeta.cancelled.icon || 'cancel', bg: 'bg-rose-500', text: 'text-rose-500', label: appointmentStatusMeta.cancelled.label || 'Cancelado' },
   no_show: { icon: appointmentStatusMeta.no_show.icon || 'person_off', bg: 'bg-[#B88A44]', text: 'text-[#B88A44]', label: 'Faltou' },
-  pending: { icon: appointmentStatusMeta.pending.icon || 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: appointmentStatusMeta.pending.label || 'Pendente' },
+  pending: { icon: appointmentStatusMeta.pending.icon || 'schedule', bg: 'bg-sched-pending', text: 'text-sched-pending-strong', label: appointmentStatusMeta.pending.label || 'Pendente' },
 };
 
 export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
@@ -49,7 +49,7 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
       {/* Header Stats */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span className="material-symbols-outlined text-blue-500">timeline</span>
+          <span className="material-symbols-outlined text-primary-dark">timeline</span>
           {title}
         </h3>
         <div className="flex items-center gap-3 text-xs">
@@ -71,12 +71,12 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
       {/* Timeline */}
       <div className="relative">
         {/* Vertical Line */}
-        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[linear-gradient(180deg,#007BFF,#00D2FF,#B88A44)]" />
+        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[linear-gradient(180deg,#F59E0B,#D99A2B,#B88A44)]" />
 
         {/* Timeline Items */}
         <div className="space-y-3">
           {displayData.map((apt, index) => {
-            const config = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending || { icon: 'schedule', bg: 'bg-[#007BFF]', text: 'text-[#007BFF]', label: 'Pendente' };
+            const config = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending || { icon: 'schedule', bg: 'bg-sched-pending', text: 'text-sched-pending-strong', label: 'Pendente' };
             const isFirst = index === 0;
             const isLast = index === displayData.length - 1;
             
@@ -88,14 +88,14 @@ export const AppointmentTimeline: React.FC<AppointmentTimelineProps> = ({
                   before:absolute before:left-2.5 before:top-3 before:size-3 
                   before:rounded-full before:bg-white before:border-2 
                   before:border-slate-300 before:z-10
-                  ${isFirst ? 'before:border-[#007BFF] before:bg-[#007BFF]' : ''}
+                  ${isFirst ? 'before:border-primary before:bg-primary' : ''}
                   ${isLast ? 'before:border-rose-500 before:bg-rose-500' : ''}
                 `}
               >
                 {/* Dot */}
                 <div className={`
                   absolute left-2 top-2 size-3 rounded-full ${config.bg}
-                  ${isFirst ? 'ring-4 ring-[#007BFF]/20' : ''}
+                  ${isFirst ? 'ring-4 ring-primary/20' : ''}
                 `} />
 
                 {/* Card */}

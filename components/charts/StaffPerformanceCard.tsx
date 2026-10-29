@@ -46,7 +46,7 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
       className={`
         group relative overflow-hidden rounded-xl border border-slate-200 dark:border-[#262A33]
         bg-white dark:bg-[#1A1A1D] p-4 
-        transition-all duration-200 hover:border-[#007BFF]/35 hover:shadow-md
+        transition-all duration-200 hover:border-primary/35 hover:shadow-md
         ${onClick ? 'cursor-pointer' : ''}
       `}
     >
@@ -78,8 +78,8 @@ export const StaffPerformanceCard: React.FC<StaffPerformanceCardProps> = ({
               className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-100 dark:ring-slate-800"
             />
           ) : (
-            <div className="w-12 h-12 rounded-xl bg-[#007BFF]/10 flex items-center justify-center ring-2 ring-slate-100 dark:ring-slate-800">
-              <span className="text-[#007BFF] font-bold text-sm">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center ring-2 ring-slate-100 dark:ring-slate-800">
+              <span className="text-primary-dark font-bold text-sm">
                 {getInitials(staff.name)}
               </span>
             </div>

@@ -221,7 +221,7 @@ const PortalSchedule: React.FC = () => {
     if (loading || !tenant) {
         return (
             <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
             </div>
         );
     }
@@ -242,10 +242,10 @@ const PortalSchedule: React.FC = () => {
             bg: 'bg-[#0f172a]',
             text: 'text-slate-100',
             textSub: 'text-slate-400',
-            primary: 'text-indigo-400',
+            primary: 'text-primary',
             card: 'bg-white/[0.03] border-white/10',
-            cardSelected: 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/30',
-            btnPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700'
+            cardSelected: 'bg-primary/10 border-primary/30 ring-1 ring-primary/30',
+            btnPrimary: 'bg-primary text-night hover:bg-primary-dark'
         };
     };
 
@@ -297,7 +297,7 @@ const PortalSchedule: React.FC = () => {
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                         <Scissors size={20} />
                                     </div>
                                     <div>
@@ -335,7 +335,7 @@ const PortalSchedule: React.FC = () => {
                                 className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 ${selectedBarber?.id === bbr.id ? t.cardSelected : t.card
                                     }`}
                             >
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                     <User size={20} />
                                 </div>
                                 <div>
@@ -382,7 +382,7 @@ const PortalSchedule: React.FC = () => {
 
                             {submitting ? (
                                 <div className="text-center py-8">
-                                    <div className={`w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto ${isSanchez ? 'border-[#d4a017]' : 'border-indigo-500'}`} />
+                                    <div className={`w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto ${isSanchez ? 'border-[#d4a017]' : 'border-primary'}`} />
                                     <p className={`text-xs mt-3 ${t.textSub}`}>Carregando horários...</p>
                                 </div>
                             ) : slots.length === 0 ? (
@@ -419,7 +419,7 @@ const PortalSchedule: React.FC = () => {
 
                             <div className="flex flex-col gap-5">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                         <Scissors size={18} />
                                     </div>
                                     <div>
@@ -430,7 +430,7 @@ const PortalSchedule: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                         <User size={18} />
                                     </div>
                                     <div>
@@ -440,7 +440,7 @@ const PortalSchedule: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSanchez ? 'bg-[#1a180f] text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                         <CalendarIcon size={18} />
                                     </div>
                                     <div>

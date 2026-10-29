@@ -51,6 +51,24 @@
   --color-barber-5: #F97316;
   --color-barber-6: #14B8A6;
 
+  /* Agenda status (Lote B) — base fills: dots, tints, status CTAs */
+  --color-sched-scheduled: #8A8378;
+  --color-sched-pending: #F59E0B;
+  --color-sched-confirmed: #B88A44;
+  --color-sched-in-progress: #14B8A6;
+  --color-sched-completed: #178A50;
+  --color-sched-cancelled: #C92A2A;
+  --color-sched-no-show: #8A8378;
+
+  /* Agenda status — strong variants: legible text on light surfaces (flip dark in :root.dark) */
+  --color-sched-scheduled-strong: #6F675C;
+  --color-sched-pending-strong: #92400E;
+  --color-sched-confirmed-strong: #8A6119;
+  --color-sched-in-progress-strong: #0F766E;
+  --color-sched-completed-strong: #146C3E;
+  --color-sched-cancelled-strong: #C92A2A;
+  --color-sched-no-show-strong: #6F675C;
+
   /* Legacy navy tokens repointed to warm neutrals (kept for out-of-scope compilation) */
   --color-smg-ink: #14110B;
   --color-smg-deep: #231A06;
@@ -85,6 +103,13 @@
   --color-gold-soft: #3A2E17;
   --color-primary-dark: #E0B872;
   --color-accent: #34D399;
+  --color-sched-scheduled-strong: #A79C8A;
+  --color-sched-pending-strong: #FCD34D;
+  --color-sched-confirmed-strong: #E2A63B;
+  --color-sched-in-progress-strong: #5EEAD4;
+  --color-sched-completed-strong: #6EE7B7;
+  --color-sched-cancelled-strong: #FCA5A5;
+  --color-sched-no-show-strong: #A79C8A;
 }
 
 /* ===== Repaginada Base ===== */

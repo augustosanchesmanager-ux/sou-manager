@@ -178,10 +178,10 @@ const ChefClubReceivables: React.FC = () => {
         <div className="mx-auto w-full max-w-7xl space-y-6 p-4 pb-20 md:p-6">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <section className="overflow-hidden rounded-2xl border border-[#D8E8F3] bg-[#003366] text-white shadow-sm dark:border-[#14304A]">
+            <section className="overflow-hidden rounded-2xl border border-white/10 bg-night text-white shadow-sm">
                 <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-end md:p-6">
                     <div className="max-w-3xl">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-[#BFEFFF]">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-primary-light">
                             <WalletCards className="h-4 w-4" />
                             Caixa recorrente do Club dos Chefes
                         </div>
@@ -194,7 +194,7 @@ const ChefClubReceivables: React.FC = () => {
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                             onClick={() => navigate('/chef-club-subscriptions')}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/40"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                             <span className="material-symbols-outlined text-base">group</span>
                             Assinaturas
@@ -222,7 +222,7 @@ const ChefClubReceivables: React.FC = () => {
                                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{metric.label}</p>
                                 <p className={`mt-2 text-xl font-black ${metric.tone}`}>{metric.value}</p>
                             </div>
-                            <span className="material-symbols-outlined rounded-xl border border-[#D8E8F3] bg-[#F1F8FC] p-2 text-[#003366] dark:border-[#14304A] dark:bg-[#071426] dark:text-[#00D2FF]">
+                            <span className="material-symbols-outlined rounded-xl border border-primary/25 bg-primary/10 p-2 text-primary-dark">
                                 {metric.icon}
                             </span>
                         </div>
@@ -239,7 +239,7 @@ const ChefClubReceivables: React.FC = () => {
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                             placeholder="Buscar por cliente, telefone ou plano"
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#007BFF] focus:ring-2 focus:ring-[#007BFF]/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
                         />
                     </label>
 
@@ -253,14 +253,14 @@ const ChefClubReceivables: React.FC = () => {
                                 type="date"
                                 value={periodStart}
                                 onChange={(event) => setPeriodStart(event.target.value)}
-                                className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold text-slate-800 outline-none [color-scheme:light] focus:border-[#007BFF] dark:border-white/10 dark:bg-[#0F172A] dark:text-slate-100 dark:[color-scheme:dark]"
+                                className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold text-slate-800 outline-none [color-scheme:light] focus:border-primary dark:border-white/10 dark:bg-[#0F172A] dark:text-slate-100 dark:[color-scheme:dark]"
                             />
                             <span className="text-xs font-bold text-slate-400">até</span>
                             <input
                                 type="date"
                                 value={periodEnd}
                                 onChange={(event) => setPeriodEnd(event.target.value)}
-                                className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold text-slate-800 outline-none [color-scheme:light] focus:border-[#007BFF] dark:border-white/10 dark:bg-[#0F172A] dark:text-slate-100 dark:[color-scheme:dark]"
+                                className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold text-slate-800 outline-none [color-scheme:light] focus:border-primary dark:border-white/10 dark:bg-[#0F172A] dark:text-slate-100 dark:[color-scheme:dark]"
                             />
                         </div>
                     </div>
@@ -272,10 +272,10 @@ const ChefClubReceivables: React.FC = () => {
                                 <button
                                     key={status}
                                     onClick={() => setStatusFilter(status)}
-                                    className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-[#007BFF]/20 ${
+                                    className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 ${
                                         isSelected
-                                            ? 'border-[#003366] bg-[#003366] text-white dark:border-[#00D2FF] dark:bg-[#00D2FF] dark:text-[#06111F]'
-                                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#007BFF]/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+                                            ? 'border-primary bg-primary text-night'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-primary/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
                                     }`}
                                 >
                                     {receivableStatusLabels[status]}
@@ -316,7 +316,7 @@ const ChefClubReceivables: React.FC = () => {
                                 <tr>
                                     <td colSpan={8} className="px-6 py-16 text-center">
                                         <div className="mx-auto flex max-w-xs flex-col items-center">
-                                            <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-b-[#007BFF] dark:border-white/10 dark:border-b-[#00D2FF]" />
+                                            <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-b-primary-dark dark:border-white/10" />
                                             <p className="mt-4 text-sm font-bold text-slate-600 dark:text-slate-300">Carregando recebimentos</p>
                                         </div>
                                     </td>
@@ -325,7 +325,7 @@ const ChefClubReceivables: React.FC = () => {
                                 <tr>
                                     <td colSpan={8} className="px-6 py-16 text-center">
                                         <div className="mx-auto flex max-w-sm flex-col items-center">
-                                            <span className="material-symbols-outlined rounded-2xl border border-[#D8E8F3] bg-[#F1F8FC] p-3 text-3xl text-[#003366] dark:border-[#14304A] dark:bg-[#071426] dark:text-[#00D2FF]">
+                                            <span className="material-symbols-outlined rounded-2xl border border-primary/25 bg-primary/10 p-3 text-3xl text-primary-dark">
                                                 receipt_long
                                             </span>
                                             <p className="mt-4 text-base font-black text-slate-900 dark:text-white">Nenhum recebimento encontrado</p>
@@ -350,7 +350,7 @@ const ChefClubReceivables: React.FC = () => {
                                                 <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{client?.phone || 'Sem telefone'}</p>
                                             </td>
                                             <td className="px-5 py-4 align-top">
-                                                <p className="text-sm font-black text-[#003366] dark:text-[#00D2FF]">{plan?.name || 'Plano não encontrado'}</p>
+                                                <p className="text-sm font-black text-ink dark:text-primary-dark">{plan?.name || 'Plano não encontrado'}</p>
                                                 <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                                                     Mensalidade recorrente
                                                 </p>
@@ -411,8 +411,8 @@ const ChefClubReceivables: React.FC = () => {
             >
                 {selected && (
                     <form onSubmit={confirmPayment} className="space-y-5">
-                        <div className="rounded-2xl border border-[#D8E8F3] bg-[#F1F8FC] p-4 dark:border-[#14304A] dark:bg-[#071426]">
-                            <p className="text-xs font-bold text-[#003366] dark:text-[#00D2FF]">Baixa transacional do Clube</p>
+                        <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4">
+                            <p className="text-xs font-bold text-ink dark:text-primary-dark">Baixa transacional do Clube</p>
                             <p className="mt-1 text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
                                 Ao confirmar, o sistema registra a receita e libera os créditos do ciclo conforme a regra existente.
                             </p>
@@ -445,10 +445,10 @@ const ChefClubReceivables: React.FC = () => {
                                         key={method}
                                         type="button"
                                         onClick={() => setPaymentMethod(method)}
-                                        className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-black transition-colors focus:outline-none focus:ring-2 focus:ring-[#007BFF]/20 ${
+                                        className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-black transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 ${
                                             paymentMethod === method
-                                                ? 'border-[#003366] bg-[#003366] text-white dark:border-[#00D2FF] dark:bg-[#00D2FF] dark:text-[#06111F]'
-                                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-[#007BFF]/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+                                                ? 'border-primary bg-primary text-night'
+                                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
                                         }`}
                                     >
                                         <CreditCard className="h-4 w-4" />
@@ -465,7 +465,7 @@ const ChefClubReceivables: React.FC = () => {
                                 required
                                 value={paidAt}
                                 onChange={(event) => setPaidAt(event.target.value)}
-                                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none [color-scheme:light] focus:border-[#007BFF] focus:ring-2 focus:ring-[#007BFF]/10 dark:border-white/10 dark:bg-white/5 dark:text-white dark:[color-scheme:dark]"
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none [color-scheme:light] focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-white/5 dark:text-white dark:[color-scheme:dark]"
                             />
                         </div>
 
@@ -476,7 +476,7 @@ const ChefClubReceivables: React.FC = () => {
                                 onChange={(event) => setNotes(event.target.value)}
                                 rows={3}
                                 placeholder="Observação opcional da baixa"
-                                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#007BFF] focus:ring-2 focus:ring-[#007BFF]/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
                             />
                         </div>
 
@@ -492,7 +492,7 @@ const ChefClubReceivables: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={paying}
-                                className="flex-1 rounded-xl bg-[#003366] px-4 py-3 text-sm font-black text-white transition-colors hover:bg-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 disabled:opacity-60 dark:bg-[#00D2FF] dark:text-[#06111F] dark:hover:bg-[#38DFFF]"
+                                className="flex-1 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-black text-night transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
                             >
                                 {paying ? 'Baixando...' : 'Confirmar baixa'}
                             </button>

@@ -199,7 +199,7 @@ const PortalApp: React.FC = () => {
 
     if (loading) return (
         <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
         </div>
     );
 
@@ -207,7 +207,7 @@ const PortalApp: React.FC = () => {
         <div className="min-h-screen bg-[#0f172a] flex items-center justify-center flex-col gap-4 text-center px-6">
             <span className="text-4xl">⚠️</span>
             <p className="text-slate-100 font-bold">{error || 'Acesso negado'}</p>
-            <button onClick={handleLogout} className="text-indigo-400 hover:text-indigo-300">Voltar ao Início</button>
+            <button onClick={handleLogout} className="text-primary hover:text-primary-light">Voltar ao Início</button>
         </div>
     );
 
@@ -229,10 +229,10 @@ const PortalApp: React.FC = () => {
             bg: 'bg-[#0f172a]',
             text: 'text-slate-100',
             textSub: 'text-slate-400',
-            primary: 'text-indigo-400',
+            primary: 'text-primary',
             card: 'bg-white/[0.03] border-white/10',
-            cardSelected: 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/30',
-            btnPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700'
+            cardSelected: 'bg-primary/10 border-primary/30 ring-1 ring-primary/30',
+            btnPrimary: 'bg-primary text-night hover:bg-primary-dark'
         };
     };
 
@@ -244,12 +244,12 @@ const PortalApp: React.FC = () => {
             {/* Header */}
             <header className={`px-6 py-5 flex items-center justify-between sticky top-0 z-20 ${isSanchez ? 'bg-[#090909]/90 border-b border-[#d4a017]/20 backdrop-blur-md' : 'bg-[#0f172a]/90 border-b border-white/5 backdrop-blur-md'}`}>
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-lg ${isSanchez ? 'bg-[#1a180f] border border-[#d4a017]/30 text-[#d4a017]' : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-400'
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-lg ${isSanchez ? 'bg-[#1a180f] border border-[#d4a017]/30 text-[#d4a017]' : 'bg-primary/10 border border-primary/30 text-primary'
                         }`}>
                         ✂️
                     </div>
                     <div>
-                        <p className={`text-[10px] uppercase font-bold tracking-widest ${isSanchez ? 'text-[#c9a227]' : 'text-indigo-400'}`}>Agenda de</p>
+                        <p className={`text-[10px] uppercase font-bold tracking-widest ${isSanchez ? 'text-[#c9a227]' : 'text-primary'}`}>Agenda de</p>
                         <h1 className="font-bold leading-tight">{tenant.name}</h1>
                     </div>
                 </div>
@@ -268,11 +268,11 @@ const PortalApp: React.FC = () => {
                 {upcomingAppt ? (
                     <div className={`w-full p-5 rounded-2xl mb-8 border relative overflow-hidden ${isSanchez ? 'bg-gradient-to-br from-[#111108] to-[#090909] border-[#d4a017]/30' : 'bg-white/[0.03] border-white/10'
                         }`}>
-                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10 ${isSanchez ? 'bg-[#d4a017]/10' : 'bg-indigo-500/20'}`} />
+                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10 ${isSanchez ? 'bg-[#d4a017]/10' : 'bg-primary/20'}`} />
 
                         <div className="flex items-center justify-between mb-4 relative z-10">
                             <div className="flex items-center gap-2">
-                                <Clock size={16} className={isSanchez ? 'text-[#d4a017]' : 'text-indigo-400'} />
+                                <Clock size={16} className={isSanchez ? 'text-[#d4a017]' : 'text-primary'} />
                                 <span className="text-sm font-semibold uppercase tracking-wider">Próximo Agendamento</span>
                             </div>
                         </div>
@@ -320,13 +320,13 @@ const PortalApp: React.FC = () => {
                 ) : (
                     <div className={`w-full p-5 rounded-2xl mb-8 border relative overflow-hidden flex flex-col items-center text-center ${isSanchez ? 'bg-gradient-to-br from-[#111108] to-[#090909] border-[#d4a017]/30' : 'bg-white/[0.03] border-white/10'
                         }`}>
-                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10 ${isSanchez ? 'bg-[#d4a017]/10' : 'bg-indigo-500/20'}`} />
+                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10 ${isSanchez ? 'bg-[#d4a017]/10' : 'bg-primary/20'}`} />
                         <Calendar size={32} className={`mb-3 ${isSanchez ? 'text-[#c9a227]' : 'text-slate-500'}`} />
                         <p className={`text-sm mb-4 ${isSanchez ? 'text-[#c9a227]' : 'text-slate-400'}`}>Você não possui agendamentos futuros.</p>
 
                         <button
                             onClick={() => navigate(`/c/${tenantSlug}/app/schedule`)}
-                            className={`w-full py-3 rounded-xl font-bold text-sm shadow-md transition-all ${isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            className={`w-full py-3 rounded-xl font-bold text-sm shadow-md transition-all ${isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-primary text-night hover:bg-primary-dark'
                                 }`}
                         >
                             Agendar Horário
@@ -355,7 +355,7 @@ const PortalApp: React.FC = () => {
                                 </div>
                                 <button
                                     onClick={() => setReviewAppt(appt)}
-                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isSanchez ? 'bg-[#d4a017]/10 text-[#d4a017] hover:bg-[#d4a017]/20' : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20'
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isSanchez ? 'bg-[#d4a017]/10 text-[#d4a017] hover:bg-[#d4a017]/20' : 'bg-primary/10 text-primary hover:bg-primary/20'
                                         }`}>
                                     Avaliar
                                 </button>
@@ -370,7 +370,7 @@ const PortalApp: React.FC = () => {
                 }`}>
                 <button
                     onClick={() => navigate(`/c/${tenantSlug}/app/schedule`)}
-                    className={`flex flex-col items-center gap-1 transition-colors relative -mt-6 p-4 rounded-full border shadow-lg ${isSanchez ? 'bg-[#1a180f] text-[#d4a017] border-[#d4a017]/30' : 'bg-indigo-600 text-white border-indigo-500/30 glow-indigo'
+                    className={`flex flex-col items-center gap-1 transition-colors relative -mt-6 p-4 rounded-full border shadow-lg ${isSanchez ? 'bg-[#1a180f] text-[#d4a017] border-[#d4a017]/30' : 'bg-primary text-night border-primary/30'
                         }`}
                 >
                     <Calendar size={24} />
@@ -412,7 +412,7 @@ const PortalApp: React.FC = () => {
                                 onClick={confirmAction}
                                 disabled={actionLoading}
                                 className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg text-center ${actionType === 'reschedule'
-                                    ? (isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-indigo-600 text-white hover:bg-indigo-700')
+                                    ? (isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-primary text-night hover:bg-primary-dark')
                                     : 'bg-rose-600 text-white hover:bg-rose-700'
                                     }`}
                             >
@@ -442,7 +442,7 @@ const PortalApp: React.FC = () => {
                         </button>
 
                         <div className="flex flex-col items-center text-center mt-2 mb-6">
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isSanchez ? 'bg-[#d4a017]/10 text-[#d4a017]' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isSanchez ? 'bg-[#d4a017]/10 text-[#d4a017]' : 'bg-primary/10 text-primary'}`}>
                                 <Star size={32} className="fill-current" />
                             </div>
                             <h3 className="text-xl font-bold mb-2">Avalie o Atendimento</h3>
@@ -469,7 +469,7 @@ const PortalApp: React.FC = () => {
                                 placeholder="Deixe um elogio ou sugestão... (Opcional)"
                                 className={`w-full p-4 rounded-xl border outline-none min-h-[100px] resize-none text-sm transition-colors ${isSanchez
                                     ? 'bg-white/5 border-white/10 focus:border-[#d4a017] text-white placeholder-white/40'
-                                    : 'bg-slate-900/50 border-slate-700 focus:border-indigo-500 text-slate-100 placeholder-slate-500'
+                                    : 'bg-slate-900/50 border-slate-700 focus:border-primary text-slate-100 placeholder-slate-500'
                                     }`}
                             />
                         </div>
@@ -479,7 +479,7 @@ const PortalApp: React.FC = () => {
                             disabled={reviewLoading || rating === 0}
                             className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg text-center ${rating === 0
                                 ? 'opacity-50 cursor-not-allowed ' + (isSanchez ? 'bg-white/10 text-white/50' : 'bg-slate-700 text-slate-400')
-                                : (isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-indigo-600 text-white hover:bg-indigo-700')
+                                : (isSanchez ? 'bg-[#d4a017] text-black hover:bg-[#b8860b]' : 'bg-primary text-night hover:bg-primary-dark')
                                 }`}
                         >
                             {reviewLoading ? 'Enviando...' : 'Enviar Avaliação'}

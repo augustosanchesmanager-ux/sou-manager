@@ -177,7 +177,7 @@ const PortalLogin: React.FC = () => {
 
     if (loading) return (
         <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
         </div>
     );
 
@@ -250,7 +250,7 @@ const PortalLogin: React.FC = () => {
                             style={{
                                 background: isSanchez
                                     ? 'linear-gradient(135deg, #d4a017, #b8860b)'
-                                    : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    : 'linear-gradient(135deg, #D99A2B, #A96F14)',
                                 color: isSanchez ? '#000' : '#fff',
                             }}
                         >
@@ -277,7 +277,7 @@ const PortalLogin: React.FC = () => {
                                         background: isSanchez ? 'rgba(212,160,23,0.05)' : 'rgba(255,255,255,0.03)',
                                         border: isSanchez
                                             ? `1.5px solid ${digit ? '#d4a017' : 'rgba(212,160,23,0.2)'}`
-                                            : `1.5px solid ${digit ? '#8b5cf6' : 'rgba(255,255,255,0.1)'}`,
+                                            : `1.5px solid ${digit ? '#D99A2B' : 'rgba(255,255,255,0.1)'}`,
                                         color: isSanchez ? '#d4a017' : '#fff',
                                     }}
                                 />
@@ -286,14 +286,14 @@ const PortalLogin: React.FC = () => {
 
                         <div className="flex flex-col gap-4 text-center">
                             {isVerifying && (
-                                <p className={`text-sm ${isSanchez ? 'text-[#d4a017]' : 'text-indigo-400'}`}>Verificando código...</p>
+                                <p className={`text-sm ${isSanchez ? 'text-[#d4a017]' : 'text-primary'}`}>Verificando código...</p>
                             )}
 
                             <button
                                 onClick={() => handleSendOtp()}
                                 disabled={timer > 0 || isSending}
                                 className={`text-sm font-semibold transition-opacity ${timer > 0 ? 'opacity-50' : 'hover:opacity-80'}`}
-                                style={{ color: isSanchez ? '#c9a227' : '#8b5cf6' }}
+                                style={{ color: isSanchez ? '#c9a227' : '#D99A2B' }}
                             >
                                 {timer > 0
                                     ? `Aguarde ${timer}s para reenviar`

@@ -23,7 +23,7 @@ const InactivityBadge: React.FC<{ status: SmartReturnInactivityStatus }> = ({ st
         attention: {
             label: 'Janela de Retorno',
             icon: 'schedule',
-            cls: 'bg-[#EAF7FF] dark:bg-[#0D2238] text-[#007BFF] dark:text-[#72E7FF] border border-[#00D2FF]/25',
+            cls: 'bg-teal-50 dark:bg-teal-950/25 text-teal-700 dark:text-teal-400 border border-teal-500/25',
         },
         risk: {
             label: 'Em Risco',
@@ -125,15 +125,15 @@ const SmartReturn: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-12">
             {/* Header */}
-            <div className="relative overflow-hidden rounded-2xl border border-[#D9EAF5] bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF7FF_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182F_0%,#08284D_58%,#14100A_100%)]">
-                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+            <div className="relative overflow-hidden rounded-2xl border border-line bg-[linear-gradient(135deg,#FFFDF6_0%,#FAF4E7_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#0E0C07_0%,#1A150F_58%,#14100A_100%)]">
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#A96F14,#D99A2B,#F3D9A4)]" />
                 <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-3">
-                            <div className="size-10 rounded-xl bg-[#007BFF]/10 border border-[#00D2FF]/30 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF] text-xl">psychology</span>
+                            <div className="size-10 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-primary-dark text-xl">psychology</span>
                             </div>
-                            <span className="px-3 py-1 bg-white/75 dark:bg-white/10 border border-[#007BFF]/20 dark:border-[#00D2FF]/25 text-[#003366] dark:text-[#9DEBFF] text-[11px] font-black rounded-full">
+                            <span className="px-3 py-1 bg-white/75 dark:bg-white/10 border border-primary/20 dark:border-primary/30 text-ink text-[11px] font-black rounded-full">
                                 SMG Retenção &amp; Recall
                             </span>
                             {data.publicBookingUrl && (
@@ -151,7 +151,7 @@ const SmartReturn: React.FC = () => {
                     <button
                         onClick={loadSmartReturn}
                         disabled={loading}
-                        className="flex items-center justify-center gap-2 px-5 py-3 bg-[#007BFF] hover:bg-[#006ADF] text-white rounded-xl text-sm font-bold transition-all group shadow-sm shadow-[#007BFF]/20 disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-primary to-primary-dark hover:brightness-105 text-night rounded-xl text-sm font-bold transition-all group shadow-sm shadow-primary/20 disabled:opacity-50"
                     >
                         <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`}>
                             refresh
@@ -177,13 +177,13 @@ const SmartReturn: React.FC = () => {
 
                 <div
                     onClick={() => setActiveTab('attention')}
-                    className={`card-boutique p-5 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'attention' ? 'ring-2 ring-[#007BFF]/50' : ''}`}
+                    className={`card-boutique p-5 cursor-pointer transition-all hover:scale-[1.01] ${activeTab === 'attention' ? 'ring-2 ring-teal-500/50' : ''}`}
                 >
-                    <div className="size-11 rounded-xl bg-[#007BFF]/10 border border-[#00D2FF]/25 flex items-center justify-center mb-3">
-                        <span className="material-symbols-outlined text-[#007BFF] dark:text-[#72E7FF]">schedule</span>
+                    <div className="size-11 rounded-xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center mb-3">
+                        <span className="material-symbols-outlined text-teal-700 dark:text-teal-400">schedule</span>
                     </div>
                     <p className="text-[11px] font-black text-slate-500 mb-1">Janela de Retorno</p>
-                    <p className="text-2xl font-black text-[#007BFF] dark:text-[#72E7FF]">{data.kpis.attention}</p>
+                    <p className="text-2xl font-black text-teal-700 dark:text-teal-400">{data.kpis.attention}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">20 a 35 dias (Momento Ideal)</p>
                 </div>
 
@@ -216,7 +216,7 @@ const SmartReturn: React.FC = () => {
             <div className="card-boutique p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
                     {([
-                        { key: 'attention' as SmartReturnFilterTab, label: 'Janela de Retorno', count: data.kpis.attention, highlight: 'text-[#007BFF] dark:text-[#72E7FF]' },
+                        { key: 'attention' as SmartReturnFilterTab, label: 'Janela de Retorno', count: data.kpis.attention, highlight: 'text-teal-700 dark:text-teal-400' },
                         { key: 'risk' as SmartReturnFilterTab, label: 'Em Risco', count: data.kpis.risk, highlight: 'text-[#9A6F2D] dark:text-[#E3C382]' },
                         { key: 'inactive' as SmartReturnFilterTab, label: 'Inativos', count: data.kpis.inactive, highlight: 'text-rose-500 dark:text-rose-400' },
                         { key: 'up_to_date' as SmartReturnFilterTab, label: 'No Prazo', count: data.kpis.upToDate, highlight: 'text-emerald-500' },
@@ -227,7 +227,7 @@ const SmartReturn: React.FC = () => {
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                                 activeTab === tab.key
-                                    ? 'bg-[#007BFF] text-white shadow-md shadow-[#007BFF]/20'
+                                    ? 'bg-primary text-night shadow-md shadow-primary/20'
                                     : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
                             }`}
                         >
@@ -250,7 +250,7 @@ const SmartReturn: React.FC = () => {
                         placeholder="Buscar cliente, telefone, barbeiro..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-[#007BFF]"
+                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
                     />
                 </div>
             </div>
@@ -259,7 +259,7 @@ const SmartReturn: React.FC = () => {
             <div className="card-boutique overflow-hidden">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#007BFF]" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-dark" />
                         <p className="text-sm text-slate-500 font-medium">Analisando ciclo de retorno e histórico de atendimentos...</p>
                     </div>
                 ) : filteredRecords.length === 0 ? (
@@ -457,8 +457,8 @@ const SmartReturn: React.FC = () => {
                         </div>
 
                         {/* Quick Tips */}
-                        <div className="p-3 bg-[#007BFF]/5 border border-[#00D2FF]/20 rounded-xl text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                            <p className="font-bold text-[#007BFF] dark:text-[#72E7FF] flex items-center gap-1">
+                        <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                            <p className="font-bold text-primary-dark flex items-center gap-1">
                                 <span className="material-symbols-outlined text-sm">info</span> Dica de Retenção
                             </p>
                             <p className="text-[11px] leading-relaxed">

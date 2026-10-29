@@ -3,13 +3,13 @@ import { Area, Bar } from 'recharts';
 
 // Gradientes metálicas sutis estilo MetaMetric
 export const CHART_GRADIENTS = {
-  // Gradiente azul (receitas)
-  blueRevenue: (
+  // Gradiente ouro (receitas — ouro SMG)
+  goldRevenue: (
     <defs>
-      <linearGradient id="blueRevenueGradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.8} />
-        <stop offset="50%" stopColor="#3B82F6" stopOpacity={0.4} />
-        <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.05} />
+      <linearGradient id="goldRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#D99A2B" stopOpacity={0.8} />
+        <stop offset="50%" stopColor="#D99A2B" stopOpacity={0.4} />
+        <stop offset="100%" stopColor="#D99A2B" stopOpacity={0.05} />
       </linearGradient>
     </defs>
   ),
@@ -35,12 +35,12 @@ export const CHART_GRADIENTS = {
     </defs>
   ),
   
-  // Gradiente Roxo
-  purple: (
+  // Gradiente teal (identidade barbeiro)
+  teal: (
     <defs>
-      <linearGradient id="purpleGradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.8} />
-        <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.2} />
+      <linearGradient id="tealGradient" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#14B8A6" stopOpacity={0.8} />
+        <stop offset="100%" stopColor="#14B8A6" stopOpacity={0.2} />
       </linearGradient>
     </defs>
   ),
@@ -54,24 +54,14 @@ export const CHART_GRADIENTS = {
       </linearGradient>
     </defs>
   ),
-  
-  // Gradiente ciano (destaque)
-  cyan: (
-    <defs>
-      <linearGradient id="cyanGradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.9} />
-        <stop offset="100%" stopColor="#06B6D4" stopOpacity={0.2} />
-      </linearGradient>
-    </defs>
-  ),
 };
 
 // Cores metálicas sutis para gráficos
 export const METALLIC_COLORS = {
   // Palette estilo MetaMetric - tons metalicos sutis
-  revenue: '#3B82F6',      // Blue principal
-  revenueLight: '#60A5FA',
-  revenueDark: '#1D4ED8',
+  revenue: '#D99A2B',      // Ouro SMG (receitas)
+  revenueLight: '#E7BC63',
+  revenueDark: '#A96F14',
   
   expense: '#EF4444',      // Vermelho suave
   expenseLight: '#F87171',
@@ -85,17 +75,13 @@ export const METALLIC_COLORS = {
   primaryLight: '#D4B872',
   primaryDark: '#9A7B3A',
   
-  purple: '#8B5CF6',
-  purpleLight: '#A78BFA',
-  purpleDark: '#6D28D9',
+  teal: '#14B8A6',
+  tealLight: '#2DD4BF',
+  tealDark: '#0F766E',
   
   pink: '#EC4899',
   pinkLight: '#F472B6',
   pinkDark: '#DB2777',
-  
-  cyan: '#06B6D4',
-  cyanLight: '#22D3EE',
-  cyanDark: '#0891B2',
   
   slate: '#64748B',
   slateLight: '#94A3B8',
@@ -146,7 +132,7 @@ export const GradientArea = ({
   data, 
   dataKey, 
   stroke = METALLIC_COLORS.revenue, 
-  fill = 'url(#blueRevenueGradient)',
+  fill = 'url(#goldRevenueGradient)',
   strokeWidth = 3,
 }: {
   data: Array<Record<string, unknown>>;
@@ -156,7 +142,7 @@ export const GradientArea = ({
   strokeWidth?: number;
 }) => (
   <>
-    {CHART_GRADIENTS.blueRevenue}
+    {CHART_GRADIENTS.goldRevenue}
     <defs>
       <linearGradient id="customGradient" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={stroke} stopOpacity={0.6} />

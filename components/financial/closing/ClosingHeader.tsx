@@ -110,7 +110,7 @@ const ClosingHeader: React.FC<ClosingHeaderProps> = ({
                 <button
                     onClick={onSave}
                     disabled={loading || saving || !hasTenantContext}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-gold-hover disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 disabled:opacity-50 transition-colors"
                 >
                     <Save className="h-4 w-4" />
                     {saving ? 'Salvando...' : 'Salvar'}

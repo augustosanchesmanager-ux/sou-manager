@@ -20,9 +20,9 @@ interface BarsChartProps {
 
 const DEFAULT_COLORS = [
   METALLIC_COLORS.revenue,
-  METALLIC_COLORS.purple,
+  METALLIC_COLORS.teal,
   METALLIC_COLORS.pink,
-  METALLIC_COLORS.cyan,
+  METALLIC_COLORS.slate,
   METALLIC_COLORS.primary,
   METALLIC_COLORS.profit,
 ];

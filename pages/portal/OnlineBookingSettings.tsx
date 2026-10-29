@@ -735,7 +735,7 @@ const OnlineBookingSettings: React.FC = () => {
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                     Automações de Engajamento
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#003366] text-white dark:bg-[#00D2FF] dark:text-[#06111F]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-primary text-night">
                       ADR-029
                     </span>
                   </h3>
@@ -749,7 +749,7 @@ const OnlineBookingSettings: React.FC = () => {
                 {/* Card 1: Motor de Lembretes */}
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#003366] dark:text-[#72E7FF]">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-primary-dark">
                       <span className="material-symbols-outlined text-base">alarm</span>
                       Lembretes Pré-Agendamento
                     </span>
@@ -767,7 +767,7 @@ const OnlineBookingSettings: React.FC = () => {
                       Idempotência no PostgreSQL (zero disparos duplicados)
                     </p>
                     <p className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs text-blue-500">schedule</span>
+                      <span className="material-symbols-outlined text-xs text-primary-dark">schedule</span>
                       Fuso operacional: <strong>America/Sao_Paulo (UTC-3)</strong>
                     </p>
                   </div>
@@ -794,7 +794,7 @@ const OnlineBookingSettings: React.FC = () => {
                       Debounce de 2 minutos (ignora correções acidentais)
                     </p>
                     <p className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs text-purple-500">check</span>
+                      <span className="material-symbols-outlined text-xs text-teal-600">check</span>
                       Alocação ágil: <strong>First Come, First Served</strong>
                     </p>
                   </div>

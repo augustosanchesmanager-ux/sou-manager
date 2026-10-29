@@ -50,7 +50,7 @@ const PortalLanding: React.FC = () => {
 
     if (loading) return (
         <div className="min-h-screen bg-[#0f172a] flex items-center justify-center flex-col gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
         </div>
     );
 
@@ -70,12 +70,12 @@ const PortalLanding: React.FC = () => {
             <div className="absolute top-0 w-full h-64 opacity-20 pointer-events-none" style={{
                 background: isSanchez
                     ? 'radial-gradient(circle at 50% 0%, #d4a017 0%, transparent 70%)'
-                    : 'radial-gradient(circle at 50% 0%, #6366f1 0%, transparent 70%)'
+                    : 'radial-gradient(circle at 50% 0%, #D99A2B 0%, transparent 70%)'
             }} />
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative z-10 text-center">
                 {/* Logo / Avatar */}
-                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-xl ${isSanchez ? 'bg-[#1a180f] border border-[#d4a017]/30 text-[#d4a017]' : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-400'
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-xl ${isSanchez ? 'bg-[#1a180f] border border-[#d4a017]/30 text-[#d4a017]' : 'bg-primary/10 border border-primary/30 text-primary'
                     }`}>
                     ✂️
                 </div>
@@ -96,7 +96,7 @@ const PortalLanding: React.FC = () => {
                     style={{
                         background: isSanchez
                             ? 'linear-gradient(135deg, #d4a017, #b8860b)'
-                            : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            : 'linear-gradient(135deg, #D99A2B, #A96F14)',
                         color: isSanchez ? '#000' : '#fff',
                         transition: 'transform 0.2s',
                     }}

@@ -68,11 +68,11 @@ const getAlertColors = (type: AlertType, priority: 'high' | 'medium' | 'low') =>
       badge: 'bg-red-500 text-white',
     },
     occupation: {
-      bg: 'bg-[#EAF7FF] dark:bg-[#0D2238]',
-      border: 'border-[#BDEFFF] dark:border-[#14304A]',
-      icon: 'text-[#007BFF] dark:text-[#00D2FF]',
-      text: 'text-[#003366] dark:text-[#D9F6FF]',
-      badge: 'bg-[#007BFF] text-white',
+      bg: 'bg-teal-50 dark:bg-teal-500/10',
+      border: 'border-teal-200 dark:border-teal-500/30',
+      icon: 'text-teal-500',
+      text: 'text-teal-700 dark:text-teal-300',
+      badge: 'bg-teal-500 text-white',
     },
   };
 
@@ -82,14 +82,14 @@ const getAlertColors = (type: AlertType, priority: 'high' | 'medium' | 'low') =>
 export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAlertClick }) => {
   if (!alerts || alerts.length === 0) {
     return (
-      <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+      <section className="rounded-3xl border border-line bg-white p-6 shadow-sm dark:bg-card-dark">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
             <span className="material-symbols-outlined">check_circle</span>
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Atenção do dono</p>
-            <h3 className="text-base font-black text-[#003366] dark:text-white">Alertas estratégicos</h3>
+            <h3 className="text-base font-black text-ink">Alertas estratégicos</h3>
           </div>
         </div>
         <div className="flex h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
@@ -109,7 +109,7 @@ export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAler
   const highPriorityCount = alerts.filter((alert) => alert.priority === 'high').length;
 
   return (
-    <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+    <section className="rounded-3xl border border-line bg-white p-6 shadow-sm dark:bg-card-dark">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-300">
@@ -117,7 +117,7 @@ export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAler
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Atenção do dono</p>
-            <h3 className="text-base font-black text-[#003366] dark:text-white">Alertas estratégicos</h3>
+            <h3 className="text-base font-black text-ink">Alertas estratégicos</h3>
           </div>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${highPriorityCount > 0 ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}>
@@ -134,7 +134,7 @@ export const StrategicAlerts: React.FC<StrategicAlertsProps> = ({ alerts, onAler
               key={alert.id}
               type="button"
               onClick={() => onAlertClick?.(alert)}
-              className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/30 ${colors.bg} ${colors.border}`}
+              className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/30 ${colors.bg} ${colors.border}`}
             >
               <div className={`flex size-9 items-center justify-center rounded-xl bg-white dark:bg-black/20 ${colors.icon}`}>
                 <span className="material-symbols-outlined text-lg">{getAlertIcon(alert.type)}</span>
