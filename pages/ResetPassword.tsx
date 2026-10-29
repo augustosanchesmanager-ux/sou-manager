@@ -130,7 +130,7 @@ const ResetPassword: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 {loading ? 'Salvando...' : 'Confirmar Nova Senha'}
                                 <span className="material-symbols-outlined text-lg">check_circle</span>

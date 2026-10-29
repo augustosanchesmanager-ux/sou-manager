@@ -126,7 +126,7 @@ export const PaymentTerminalsSection: React.FC = () => {
 
         <button
           onClick={handleOpenModal}
-          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary/20 flex items-center gap-2"
+          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-night text-xs font-bold rounded-xl transition-all shadow-md shadow-primary/20 flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-sm">add</span>
           Adicionar Maquininha
@@ -376,7 +376,7 @@ export const PaymentTerminalsSection: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md shadow-primary/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2 text-xs font-bold text-night bg-primary hover:bg-primary-hover rounded-xl shadow-md shadow-primary/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {submitting ? 'Salvando...' : 'Cadastrar Maquininha'}
                 </button>

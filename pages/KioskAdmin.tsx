@@ -354,7 +354,7 @@ const KioskAdmin: React.FC = () => {
                             {isEnabled ? 'Módulo Ativo' : 'Módulo Inativo'}
                         </div>
                         {!isEnabled ? (
-                            <button className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95" onClick={() => setShowModal(true)}>
+                            <button className="bg-primary hover:bg-primary-dark text-night px-6 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95" onClick={() => setShowModal(true)}>
                                 <span className="material-symbols-outlined text-sm">auto_awesome</span>
                                 Ativar Agora
                             </button>
@@ -405,7 +405,7 @@ const KioskAdmin: React.FC = () => {
                                 <p className="text-slate-500 max-w-sm mb-8 leading-relaxed">
                                     Habilite o autoatendimento para que seus clientes possam agendar e avaliar sem precisar falar com a recepcionista.
                                 </p>
-                                <button className="bg-primary px-8 py-3 rounded-2xl font-black text-white shadow-xl hover:shadow-primary/20 transition-all active:scale-95" onClick={() => setShowModal(true)}>
+                                <button className="bg-primary px-8 py-3 rounded-2xl font-black text-night shadow-xl hover:shadow-primary/20 transition-all active:scale-95" onClick={() => setShowModal(true)}>
                                     LIBERAR DISPOSITIVOS
                                 </button>
                             </div>
@@ -498,7 +498,7 @@ const KioskAdmin: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h3 className="text-white font-black text-xl tracking-tight">Paineis Virtuais</h3>
-                            <button className="bg-primary px-4 py-2 rounded-xl text-white font-bold text-sm shadow-lg active:scale-95" onClick={() => setShowAddDevice(v => !v)}>
+                            <button className="bg-primary px-4 py-2 rounded-xl text-night font-bold text-sm shadow-lg active:scale-95" onClick={() => setShowAddDevice(v => !v)}>
                                 {showAddDevice ? '✕ Fechar' : '+ Adicionar Tela'}
                             </button>
                         </div>
@@ -519,7 +519,7 @@ const KioskAdmin: React.FC = () => {
                                         </select>
                                     </div>
                                 </div>
-                                <button className="w-full bg-primary py-4 rounded-xl font-black text-white tracking-widest shadow-xl" disabled={addingDevice || !newDeviceName.trim()} onClick={handleAddDevice}>
+                                <button className="w-full bg-primary py-4 rounded-xl font-black text-night tracking-widest shadow-xl" disabled={addingDevice || !newDeviceName.trim()} onClick={handleAddDevice}>
                                     {addingDevice ? 'PROCESSANDO...' : 'CADASTRAR DISPOSITIVO'}
                                 </button>
                             </div>
@@ -600,7 +600,7 @@ const KioskAdmin: React.FC = () => {
                                         </select>
                                     </div>
 
-                                    <button className="w-full bg-primary py-4 rounded-3xl font-black text-white tracking-widest shadow-xl active:scale-95" disabled={saving} onClick={handleSaveSettings}>
+                                    <button className="w-full bg-primary py-4 rounded-3xl font-black text-night tracking-widest shadow-xl active:scale-95" disabled={saving} onClick={handleSaveSettings}>
                                         {saving ? 'SALVANDO...' : 'SALVAR DESIGN'}
                                     </button>
                                 </div>

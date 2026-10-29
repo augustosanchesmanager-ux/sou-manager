@@ -194,7 +194,7 @@ export const ClubReceivablesWidget: React.FC = () => {
           <p className="text-slate-500 text-xs mt-1">Crie planos para começar</p>
           <button 
             onClick={() => navigate('/chef-club-plans')}
-            className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold"
+            className="mt-3 px-4 py-2 bg-primary text-night rounded-lg text-xs font-bold"
           >
             Criar Plano
           </button>

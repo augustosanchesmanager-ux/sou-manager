@@ -3913,7 +3913,7 @@ Podemos confirmar? 😄`;
             </button>
             <button
               onClick={() => handleSave()}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
             >
               {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
             </button>

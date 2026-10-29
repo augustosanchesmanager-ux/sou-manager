@@ -100,7 +100,7 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
             <button
               onClick={onOpenSchedule}
-              className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+              className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-lg">calendar_month</span>
               Agenda Completa

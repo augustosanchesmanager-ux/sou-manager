@@ -177,7 +177,7 @@ const Provision: React.FC = () => {
                             </div>
                             <button
                                 type="submit"
-                                className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 Criar barbearia
                             </button>
@@ -193,7 +193,7 @@ const Provision: React.FC = () => {
                                     shopName: String(meta.shop_name ?? ''),
                                 });
                             }}
-                            className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all"
+                            className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-lg shadow-lg shadow-primary/20 transition-all"
                         >
                             Tentar novamente
                         </button>

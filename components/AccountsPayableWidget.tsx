@@ -706,7 +706,7 @@ const AccountsPayableWidget: React.FC = () => {
               type="submit"
               disabled={isRecurringSubmitting}
               data-testid="recurring-submit"
-              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRecurringSubmitting ? 'Criando...' : editingBill ? 'Atualizar' : 'Criar Recorrência'}
             </button>
@@ -794,7 +794,7 @@ const AccountsPayableWidget: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Criando...' : editingAP ? 'Atualizar' : 'Criar Conta'}
             </button>

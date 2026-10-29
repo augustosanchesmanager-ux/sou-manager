@@ -67,7 +67,7 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
+          className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
         >
           {isSubmitting ? 'Cadastrando...' : 'Cadastrar'}
         </button>

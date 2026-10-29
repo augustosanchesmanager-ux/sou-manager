@@ -19,7 +19,7 @@ const EmptyStateFinance: React.FC<EmptyStateFinanceProps> = ({ title, descriptio
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="mt-4 px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
+          className="mt-4 px-4 py-2 rounded-xl bg-primary text-night text-sm font-bold hover:bg-primary/90 transition-colors"
         >
           {actionLabel}
         </button>

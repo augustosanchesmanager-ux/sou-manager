@@ -299,7 +299,7 @@ const Promotions: React.FC = () => {
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-sm">save</span>
                             Salvar Promoção

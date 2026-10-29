@@ -483,7 +483,7 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
 
                     <button
                         onClick={handlePrint}
-                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-white bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all flex items-center gap-1.5 font-display"
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-night bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all flex items-center gap-1.5 font-display"
                     >
                         <span className="material-symbols-outlined text-[18px]">print</span>
                         Imprimir Recibo (A4 / Térmica)

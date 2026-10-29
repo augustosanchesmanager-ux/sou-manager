@@ -161,7 +161,7 @@ export const MetricsPanel: React.FC<{
           onClick={() => setIsEditing(!isEditing)}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
             isEditing
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              ? 'bg-primary text-night shadow-md shadow-primary/20'
               : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'
           }`}
         >
@@ -239,7 +239,7 @@ export const MetricsPanel: React.FC<{
             <button
               onClick={addCustomMetric}
               disabled={!customLabel.trim()}
-              className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-sm disabled:opacity-40 flex items-center gap-1.5 transition-all"
+              className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-sm disabled:opacity-40 flex items-center gap-1.5 transition-all"
             >
               <span className="material-symbols-outlined text-sm">add</span>
               Adicionar

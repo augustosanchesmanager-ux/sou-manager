@@ -211,7 +211,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
               <h4 className="font-bold text-sm text-slate-900 dark:text-white">Contas Fixas</h4>
               <button
                 onClick={openNewModal}
-                className="text-xs flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="text-xs flex items-center gap-1 px-3 py-1.5 bg-primary text-night rounded-lg hover:bg-primary-dark transition-colors"
               >
                 <span className="material-symbols-outlined text-sm">add</span>
                 Nova Conta
@@ -360,7 +360,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 px-4 py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-primary text-night rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
               {saving ? 'Salvando...' : editingBill ? 'Atualizar' : 'Criar Conta'}
             </button>

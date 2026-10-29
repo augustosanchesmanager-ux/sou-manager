@@ -36,7 +36,7 @@ const PaymentSuccess: React.FC = () => {
                     <p className="text-slate-600 dark:text-slate-400 mb-4">Nenhuma transação encontrada.</p>
                     <button
                         onClick={() => navigate('/dashboard')}
-                        className="px-4 py-2 bg-primary text-white rounded-lg font-bold"
+                        className="px-4 py-2 bg-primary text-night rounded-lg font-bold"
                     >
                         Voltar ao Início
                     </button>
@@ -117,7 +117,7 @@ const PaymentSuccess: React.FC = () => {
                 <div className="space-y-3">
                     <button
                         onClick={() => navigate('/schedule', { state: { clientId: client?.id } })}
-                        className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
                     >
                         <span className="material-symbols-outlined">event</span>
                         Novo Agendamento

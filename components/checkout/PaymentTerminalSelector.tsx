@@ -73,7 +73,7 @@ export const PaymentTerminalSelector: React.FC<PaymentTerminalSelectorProps> = (
               onClick={() => onSelectTerminal(terminal.id)}
               className={`flex-1 min-w-[120px] p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 ${
                 isSelected
-                  ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                  ? 'bg-primary text-night border-primary shadow-sm shadow-primary/20'
                   : 'bg-white dark:bg-card-dark border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 hover:border-primary/50'
               }`}
             >

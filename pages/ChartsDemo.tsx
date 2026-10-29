@@ -247,7 +247,7 @@ const ChartsDemo: React.FC = () => {
         <div className="text-center pt-8">
           <a
             href="/dashboard"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-night rounded-xl font-semibold hover:bg-primary-dark transition-colors"
           >
             <span className="material-symbols-outlined">arrow_back</span>
             Voltar ao Dashboard

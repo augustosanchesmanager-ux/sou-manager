@@ -243,7 +243,7 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
             <button
               type="submit"
               disabled={isSubmittingAppointment}
-              className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 bg-primary hover:bg-primary/90 text-night font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmittingAppointment ? (
                 <span className="material-symbols-outlined animate-spin">sync</span>
@@ -305,7 +305,7 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
             <button
               type="submit"
               disabled={isSubmittingClient}
-              className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 bg-primary hover:bg-primary/90 text-night font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmittingClient ? (
                 <span className="material-symbols-outlined animate-spin">sync</span>

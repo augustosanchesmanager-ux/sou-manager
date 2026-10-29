@@ -447,7 +447,7 @@ const Layout: React.FC = () => {
                     className={`w-full mt-6 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
                       user?.user_metadata?.plan?.includes(p.id)
                         ? 'bg-success text-white'
-                        : 'bg-line dark:bg-neutral-800 text-ink-soft group-hover:bg-primary group-hover:text-white'
+                        : 'bg-line dark:bg-neutral-800 text-ink-soft group-hover:bg-primary group-hover:text-night'
                     }`}
                   >
                     {user?.user_metadata?.plan?.includes(p.id) ? 'Plano Atual' : 'Selecionar'}

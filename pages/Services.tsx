@@ -285,7 +285,7 @@ const Services: React.FC = () => {
               <button type="button" onClick={() => { setView('list'); setEditingService(null); }}
                 className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
               <button type="submit"
-                className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
+                className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
                 {editingService ? 'Salvar Alterações' : `Criar ${serviceLabel}`}
               </button>
             </div>
@@ -304,7 +304,7 @@ const Services: React.FC = () => {
           <p className="text-slate-500 text-sm">{services.filter(s => s.active).length} {servicePluralLower} ativo(s)</p>
         </div>
         <button onClick={openNewForm}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all">
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-night rounded-xl text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all">
           <span className="material-symbols-outlined text-lg">add_circle</span>
           Novo {serviceLabelLower}
         </button>
@@ -365,7 +365,7 @@ const Services: React.FC = () => {
               onClick={() => handleViewModeChange('grid')}
               aria-label="Visualização em Grade"
               title="Visualização em Grade"
-              className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+              className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary text-night shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
               <span className="material-symbols-outlined text-base block">grid_view</span>
             </button>
             <button
@@ -373,7 +373,7 @@ const Services: React.FC = () => {
               onClick={() => handleViewModeChange('table')}
               aria-label="Visualização em Tabela"
               title="Visualização em Tabela"
-              className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
+              className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-primary text-night shadow-sm' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white'}`}>
               <span className="material-symbols-outlined text-base block">view_list</span>
             </button>
           </div>
