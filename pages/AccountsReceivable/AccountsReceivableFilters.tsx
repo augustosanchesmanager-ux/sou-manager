@@ -90,7 +90,7 @@ const AccountsReceivableFilters: React.FC<AccountsReceivableFiltersProps> = ({
                         <SlidersHorizontal className="size-4" />
                         Filtros
                         {activeFilterCount > 0 && (
-                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-night">
                                 {activeFilterCount}
                             </span>
                         )}

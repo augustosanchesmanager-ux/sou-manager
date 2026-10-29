@@ -175,7 +175,7 @@ const Landing: React.FC = () => {
             </Link>
             <Link
               to="/login"
-              className="px-6 py-2.5 bg-primary hover:bg-primary-light text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-primary/30 hover:-translate-y-0.5"
+              className="px-6 py-2.5 bg-primary hover:bg-primary-light text-night text-sm font-black rounded-xl transition-all shadow-lg shadow-primary/30 hover:-translate-y-0.5"
             >
               Começar Agora
             </Link>
@@ -203,7 +203,7 @@ const Landing: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 mb-20 animate-fade-in" style={{ animationDelay: '300ms' }}>
             <Link
               to="/login"
-              className="flex items-center justify-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-white font-black rounded-2xl transition-all shadow-2xl shadow-primary/40 hover:-translate-y-1"
+              className="flex items-center justify-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-night font-black rounded-2xl transition-all shadow-2xl shadow-primary/40 hover:-translate-y-1"
             >
               Agende uma Demo
               <span className="material-symbols-outlined">trending_up</span>
@@ -314,7 +314,7 @@ const Landing: React.FC = () => {
                 key={f.title}
                 className="group bg-[#1C1814]/70 backdrop-blur-md border border-[#2E2720] rounded-3xl p-8 hover:border-primary/50 transition-all duration-500"
               >
-                <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-8 group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-xl shadow-primary/5">
+                <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-8 group-hover:bg-primary group-hover:text-night transition-all duration-500 shadow-xl shadow-primary/5">
                   <span className="material-symbols-outlined text-3xl">{f.icon}</span>
                 </div>
                 <h3 className="font-black text-white text-xl mb-3 tracking-tight">{f.title}</h3>
@@ -364,7 +364,7 @@ const Landing: React.FC = () => {
                   className={`flex flex-col p-10 rounded-[2.5rem] relative group transition-all duration-500 ${plan.highlight ? 'bg-gradient-to-br from-[#2E2720] to-[#1C1814] border-primary/50' : 'bg-[#1C1814] border-white/5'} border-2`}
                 >
                   {plan.highlight && (
-                    <span className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-primary/30 z-20">Mais Popular</span>
+                    <span className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-primary text-night text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-primary/30 z-20">Mais Popular</span>
                   )}
                   <h3 className="text-2xl font-black text-white mb-2">{plan.name}</h3>
                   <div className="flex items-baseline gap-1 mb-2">
@@ -390,7 +390,7 @@ const Landing: React.FC = () => {
                   </div>
                   <Link
                     to="/register"
-                    className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-light transform hover:-translate-y-1' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
+                    className={`w-full py-4 rounded-2xl font-black text-sm transition-all text-center ${plan.highlight ? 'bg-primary text-night shadow-xl shadow-primary/30 hover:bg-primary-light transform hover:-translate-y-1' : 'bg-white/10 text-white hover:bg-white/15 border border-white/10'}`}
                   >
                     {plan.cta}
                   </Link>
@@ -413,7 +413,7 @@ const Landing: React.FC = () => {
                 <p className="text-slate-400 text-lg mb-12 max-w-md font-bold">Inicie sua evolução agora ou tire dúvidas com nosso time comercial.</p>
                 <div className="space-y-6">
                   <div className="flex items-center gap-4 text-white group/item">
-                    <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover/item:bg-primary group-hover/item:text-white transition-all">
+                    <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover/item:bg-primary group-hover/item:text-night transition-all">
                       <span className="material-symbols-outlined">call</span>
                     </div>
                     <div>
@@ -422,7 +422,7 @@ const Landing: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-white group/item">
-                    <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover/item:bg-primary group-hover/item:text-white transition-all">
+                    <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover/item:bg-primary group-hover/item:text-night transition-all">
                       <span className="material-symbols-outlined">alternate_email</span>
                     </div>
                     <div>
@@ -453,7 +453,7 @@ const Landing: React.FC = () => {
                 </a>
                 <Link
                   to="/login"
-                  className="mt-4 p-8 bg-primary text-white rounded-[2rem] text-center font-black text-xl shadow-2xl shadow-primary/30 hover:scale-[1.02] transition-all"
+                  className="mt-4 p-8 bg-primary text-night rounded-[2rem] text-center font-black text-xl shadow-2xl shadow-primary/30 hover:scale-[1.02] transition-all"
                 >
                   Começar agora 🚀
                 </Link>

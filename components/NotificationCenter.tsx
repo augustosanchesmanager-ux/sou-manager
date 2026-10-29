@@ -65,7 +65,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ controller, onC
             onClick={() => setFilter('unread')}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filter === 'unread'
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-night'
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
             }`}
           >
@@ -75,7 +75,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ controller, onC
             onClick={() => setFilter('all')}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               filter === 'all'
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-night'
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
             }`}
           >

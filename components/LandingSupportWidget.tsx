@@ -146,7 +146,7 @@ const LandingSupportWidget: React.FC = () => {
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                ? 'bg-primary text-white rounded-br-none'
+                                ? 'bg-primary text-night rounded-br-none'
                                 : 'bg-[#1C1814] text-slate-300 border border-[#2E2720] rounded-bl-none'
                                 }`}>
                                 {renderContent(msg.content)}

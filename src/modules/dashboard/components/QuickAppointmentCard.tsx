@@ -159,7 +159,7 @@ export const QuickAppointmentCard: React.FC<QuickAppointmentCardProps> = ({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:shadow-lg hover:shadow-primary/20 transition-all hover:bg-blue-600 disabled:opacity-50"
+        className="w-full py-2.5 bg-primary text-night rounded-lg text-sm font-bold hover:shadow-lg hover:shadow-primary/20 transition-all hover:bg-primary-dark disabled:opacity-50"
       >
         {isSubmitting ? 'Confirmando...' : 'Confirmar'}
       </button>

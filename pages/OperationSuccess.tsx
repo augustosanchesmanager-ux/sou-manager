@@ -100,7 +100,7 @@ const OperationSuccess: React.FC = () => {
           <div className="space-y-3">
             <button
               onClick={() => navigate('/dashboard')}
-              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">home</span>
               Ir para Início
@@ -189,7 +189,7 @@ const OperationSuccess: React.FC = () => {
           <div className="space-y-3">
             <button
               onClick={() => navigate('/schedule')}
-              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">event</span>
               Voltar para Agenda
@@ -287,7 +287,7 @@ const OperationSuccess: React.FC = () => {
           <div className="space-y-3">
             <button
               onClick={() => navigate('/checkout?mode=pdv')}
-              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined">add_shopping_cart</span>
               {isEsteticaApp ? 'Novo atendimento' : 'Nova Comanda / Checkout'}
@@ -340,7 +340,7 @@ const OperationSuccess: React.FC = () => {
         <div className="space-y-3">
           <button
             onClick={() => navigate('/dashboard')}
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined">home</span>
             Ir para Início

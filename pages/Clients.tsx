@@ -505,7 +505,7 @@ const Clients: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-night rounded-xl text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all"
                     >
                         <span className="material-symbols-outlined text-lg">person_add</span>
                         Novo Cliente
@@ -752,7 +752,7 @@ const Clients: React.FC = () => {
                                                         setDetailClient(null);
                                                         navigate(`/checkout/${comanda.id}`);
                                                     }}
-                                                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
+                                                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-night transition hover:bg-primary/90"
                                                 >
                                                     <span className="material-symbols-outlined text-[14px]">visibility</span>
                                                     Ver {orderLabelLower}
@@ -796,7 +796,7 @@ const Clients: React.FC = () => {
                             />
                         </div>
                         <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
-                            className="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-600 transition-colors mt-2">
+                            className="w-full py-3 bg-primary text-night rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors mt-2">
                             Agendar para este Cliente
                         </button>
                     </div>
@@ -848,7 +848,7 @@ const Clients: React.FC = () => {
                         <button type="button" onClick={() => { setEditingId(null); setEditForm({}); }}
                             className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
                         <button type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar Alterações</button>
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar Alterações</button>
                     </div>
                 </form>
             </Modal>
@@ -889,7 +889,7 @@ const Clients: React.FC = () => {
                         <button type="button" onClick={() => setShowModal(false)}
                             className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
                         <button type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar</button>
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar</button>
                     </div>
                 </form>
             </Modal>
@@ -1015,7 +1015,7 @@ const Clients: React.FC = () => {
                             <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
                                 Descartar Arquivo
                             </button>
-                            <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
+                            <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
                                 {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)} Cliente(s)`}
                             </button>
                         </div>

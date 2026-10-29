@@ -241,7 +241,7 @@ const Login: React.FC = () => {
                                     disabled={loading}
                                     className={`w-full font-bold py-4 rounded-lg shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${isElite
                                         ? 'bg-amber-600 hover:bg-amber-500 text-black shadow-amber-500/20'
-                                        : 'bg-primary hover:bg-blue-600 text-white shadow-primary/20'
+                                        : 'bg-primary hover:bg-primary-dark text-night shadow-primary/20'
                                         }`}
                                 >
                                     {loading ? 'Validando...' : (isElite ? 'Autenticar Elite' : (isCentralPortal ? 'Entrar na Plataforma' : 'Entrar no Sistema'))}
@@ -283,7 +283,7 @@ const Login: React.FC = () => {
                                     <button
                                         type="submit"
                                         disabled={resetLoading}
-                                        className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {resetLoading ? 'Enviando...' : 'Enviar Link'}
                                         <span className="material-symbols-outlined text-lg">send</span>
@@ -306,7 +306,7 @@ const Login: React.FC = () => {
                                     <p className="text-sm text-slate-500 mb-6">Verifique sua caixa de entrada e siga as instrucoes para redefinir sua senha.</p>
                                     <button
                                         onClick={() => setShowReset(false)}
-                                        className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-all"
+                                        className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-lg transition-all"
                                     >
                                         Entendi
                                     </button>

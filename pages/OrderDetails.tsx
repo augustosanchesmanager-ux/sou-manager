@@ -24,7 +24,7 @@ const OrderDetails: React.FC = () => {
         <span className="material-symbols-outlined">print</span>
         <span>Imprimir Pedido</span>
         </button>
-        <button className="flex items-center gap-2 px-5 h-11 bg-primary hover:bg-blue-600 text-white font-bold rounded-lg shadow-lg shadow-primary/20 transition-all">
+        <button className="flex items-center gap-2 px-5 h-11 bg-primary hover:bg-primary-dark text-night font-bold rounded-lg shadow-lg shadow-primary/20 transition-all">
         <span className="material-symbols-outlined">check_circle</span>
         <span>Confirmar Recebimento</span>
         </button>
@@ -163,7 +163,7 @@ const OrderDetails: React.FC = () => {
         <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-border-dark"></div>
         {/* Steps */}
         <div className="flex gap-4 relative z-10">
-        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-white ring-4 ring-white dark:ring-background-dark">
+        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-night ring-4 ring-white dark:ring-background-dark">
         <span className="material-symbols-outlined text-sm">check</span>
         </div>
         <div>
@@ -173,7 +173,7 @@ const OrderDetails: React.FC = () => {
         </div>
         </div>
         <div className="flex gap-4 relative z-10">
-        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-white ring-4 ring-white dark:ring-background-dark">
+        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-night ring-4 ring-white dark:ring-background-dark">
         <span className="material-symbols-outlined text-sm">check</span>
         </div>
         <div>
@@ -183,7 +183,7 @@ const OrderDetails: React.FC = () => {
         </div>
         </div>
         <div className="flex gap-4 relative z-10">
-        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-white ring-4 ring-white dark:ring-background-dark">
+        <div className="size-8 rounded-full bg-primary flex items-center justify-center text-night ring-4 ring-white dark:ring-background-dark">
         <span className="material-symbols-outlined text-sm">local_shipping</span>
         </div>
         <div>

@@ -93,7 +93,7 @@ const VerifyEmail: React.FC = () => {
                         type="button"
                         disabled={checking}
                         onClick={handleContinue}
-                        className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-3.5 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {checking ? 'Verificando...' : 'Já confirmei, continuar'}
                         <span className="material-symbols-outlined text-lg">arrow_forward</span>

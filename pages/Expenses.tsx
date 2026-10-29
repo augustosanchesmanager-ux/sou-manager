@@ -227,7 +227,7 @@ const Expenses: React.FC = () => {
                                 key={st}
                                 onClick={() => setFilterStatus(st)}
                                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === st
-                                    ? 'bg-primary text-white shadow-md'
+                                    ? 'bg-primary text-night shadow-md'
                                     : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'
                                     }`}
                             >
@@ -404,7 +404,7 @@ const Expenses: React.FC = () => {
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all font-display"
+                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all font-display"
                         >
                             {editingExpense ? 'Atualizar' : 'Salvar Despesa'}
                         </button>

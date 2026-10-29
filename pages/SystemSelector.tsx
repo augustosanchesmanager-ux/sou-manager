@@ -147,7 +147,7 @@ const SystemSelector: React.FC = () => {
                   className={`mt-8 w-full rounded-2xl px-5 py-4 text-sm font-black transition-all ${
                     disabled
                       ? 'bg-white/5 text-slate-500 cursor-not-allowed'
-                      : 'bg-primary text-white hover:bg-primary-light hover:-translate-y-0.5'
+                      : 'bg-primary text-night hover:bg-primary-light hover:-translate-y-0.5'
                   }`}
                 >
                   {isComingSoon ? 'Disponivel em breve' : hasAccess ? `Abrir ${app.shortName}` : 'Acesso indisponivel'}

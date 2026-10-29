@@ -151,7 +151,7 @@ const Welcome: React.FC = () => {
                     <button
                         onClick={() => navigate('/onboarding/shop-setup')}
                         disabled={loading}
-                        className="w-full bg-primary hover:bg-primary-light text-white font-bold py-4 rounded-xl shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full bg-primary hover:bg-primary-light text-night font-bold py-4 rounded-xl shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {settings?.phone ? 'Continuar configuração' : 'Começar'}
                         <span className="material-symbols-outlined">arrow_forward</span>

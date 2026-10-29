@@ -140,7 +140,7 @@ const ProtectedRoute: React.FC = () => {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{authError}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 rounded-lg bg-primary text-night text-sm font-bold hover:bg-primary/90 transition-colors"
           >
             Recarregar
           </button>

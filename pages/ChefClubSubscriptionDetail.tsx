@@ -509,7 +509,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                                 setSlotModalOpen(true);
                             }}
                             disabled={subscription.status !== 'active'}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-primary hover:bg-primary/90 text-white shadow-sm transition-all disabled:opacity-50"
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-primary hover:bg-primary/90 text-night shadow-sm transition-all disabled:opacity-50"
                         >
                             <span className="material-symbols-outlined text-sm">add</span>
                             Adicionar Horário
@@ -628,7 +628,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                                 key={tab}
                                 onClick={() => setEditTab(tab)}
                                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                                    editTab === tab ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+                                    editTab === tab ? 'bg-primary text-night' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
                                 }`}
                             >
                                 {tab === 'plan' ? 'Plano' : tab === 'credits' ? 'Créditos' : 'Cobrança'}
@@ -715,7 +715,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                         <button onClick={() => setEditModalOpen(false)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm">
                             Cancelar
                         </button>
-                        <button onClick={handleSaveChanges} disabled={saving} className="flex-1 py-3 rounded-xl bg-primary text-white font-black uppercase tracking-widest text-sm disabled:opacity-50">
+                        <button onClick={handleSaveChanges} disabled={saving} className="flex-1 py-3 rounded-xl bg-primary text-night font-black uppercase tracking-widest text-sm disabled:opacity-50">
                             {saving ? 'Salvando...' : 'Salvar'}
                         </button>
                     </div>
@@ -871,7 +871,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                             type="button"
                             onClick={handleCreateSlot}
                             disabled={savingSlot}
-                            className="flex-1 py-3 rounded-xl bg-primary text-white font-black uppercase tracking-widest text-sm disabled:opacity-50"
+                            className="flex-1 py-3 rounded-xl bg-primary text-night font-black uppercase tracking-widest text-sm disabled:opacity-50"
                         >
                             {savingSlot ? 'Salvando...' : 'Salvar Horário Fixo'}
                         </button>

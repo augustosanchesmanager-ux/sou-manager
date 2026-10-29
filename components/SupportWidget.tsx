@@ -169,7 +169,7 @@ const SupportWidget: React.FC<{ avoidBottomNav?: boolean }> = ({ avoidBottomNav 
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                ? 'bg-primary text-white rounded-br-md'
+                                ? 'bg-primary text-night rounded-br-md'
                                 : 'bg-[#1C1814] text-slate-300 border border-[#2E2720] rounded-bl-md'
                                 }`}>
                                 {renderContent(msg.content)}

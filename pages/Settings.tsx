@@ -667,7 +667,7 @@ const Settings: React.FC = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full mt-4 bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                            className="w-full mt-4 bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
                         >
                             {loading ? 'Salvando...' : 'Salvar Dados Cadastrais'}
                         </button>
@@ -778,7 +778,7 @@ const Settings: React.FC = () => {
                     <button
                         type="submit"
                         disabled={notificationPreferences.loading || notificationPreferences.saving || notificationPreferences.preferences.length === 0}
-                        className="w-full md:w-auto px-6 bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
+                        className="w-full md:w-auto px-6 bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
                     >
                         {notificationPreferences.saving ? (
                             <>
@@ -924,7 +924,7 @@ const Settings: React.FC = () => {
                         <button
                             onClick={handleSaveRefundMethod}
                             disabled={refundLoading || refundSaving}
-                            className="px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                            className="px-6 py-3 rounded-xl bg-primary text-night text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
                             {refundSaving ? 'Salvando...' : 'Salvar configuração'}
                         </button>
@@ -958,7 +958,7 @@ const Settings: React.FC = () => {
                     <div className="space-y-2 border-slate-100 dark:border-white/5 sm:border-l sm:pl-8">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Plano Atual</p>
                         <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 bg-primary text-white text-[10px] font-black rounded-md uppercase tracking-wider">
+                            <span className="px-2 py-0.5 bg-primary text-night text-[10px] font-black rounded-md uppercase tracking-wider">
                                 {user?.user_metadata?.plan || 'Free'}
                             </span>
                             <button className="text-[10px] text-primary hover:underline font-bold uppercase tracking-widest">Upgrade</button>

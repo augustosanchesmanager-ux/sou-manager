@@ -2098,7 +2098,7 @@ const Checkout: React.FC = () => {
                                         type="button"
                                         onClick={() => setIsRegisterPaymentModalOpen(true)}
                                         disabled={paymentSummaryLoading || isRegisteringPayment}
-                                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-night shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {paymentSummaryLoading ? 'Carregando...' : '+ Registrar Pagamento'}
                                     </button>
@@ -2444,7 +2444,7 @@ const Checkout: React.FC = () => {
                         <button
                             onClick={() => { setItemModalTab('services'); setSearchTerm(''); }}
                             className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${itemModalTab === 'services'
-                                ? 'bg-primary text-white shadow-md'
+                                ? 'bg-primary text-night shadow-md'
                                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                         >
@@ -2501,7 +2501,7 @@ const Checkout: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleOpenQuickServiceModal}
-                                className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90"
+                                className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-night shadow-lg shadow-primary/20 transition hover:bg-primary/90"
                             >
                                 + Novo {serviceLabel}
                             </button>
@@ -2526,7 +2526,7 @@ const Checkout: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleOpenQuickServiceModal}
-                                        className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90"
+                                        className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-night transition hover:bg-primary/90"
                                     >
                                         Cadastrar {serviceLabelLower} agora
                                     </button>
@@ -2842,7 +2842,7 @@ const Checkout: React.FC = () => {
                         <button
                             type="submit"
                             disabled={isSavingQuickService}
-                            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-bold text-night shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {isSavingQuickService ? 'Salvando...' : 'Salvar e Adicionar'}
                         </button>
@@ -2890,7 +2890,7 @@ const Checkout: React.FC = () => {
                     <div className="flex flex-col gap-3">
                         <button
                             onClick={handleGoToExisting}
-                            className="w-full py-3 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-3 rounded-xl text-sm font-bold bg-primary text-night hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-sm">open_in_new</span>
                             Ir para {isEsteticaApp ? 'atendimento existente' : 'Comanda Existente'}
@@ -3141,7 +3141,7 @@ const Checkout: React.FC = () => {
                                             addParticipant(item.id, proId, proName, role, payoutType, payoutValue);
                                         }
                                     }}
-                                    className="w-full mt-3 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90"
+                                    className="w-full mt-3 py-2 bg-primary text-night rounded-lg text-sm font-bold hover:bg-primary/90"
                                 >
                                     Adicionar
                                 </button>

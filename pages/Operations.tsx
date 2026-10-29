@@ -472,7 +472,7 @@ const Operations: React.FC = () => {
                                         } 
                                     });
                                 }}
-                                className="flex-1 py-2.5 bg-primary text-white rounded-lg font-bold text-sm"
+                                className="flex-1 py-2.5 bg-primary text-night rounded-lg font-bold text-sm"
                             >
                                 Iniciar Atendimento
                             </button>

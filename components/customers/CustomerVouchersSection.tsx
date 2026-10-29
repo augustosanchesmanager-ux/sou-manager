@@ -240,7 +240,7 @@ const CustomerVouchersSection: React.FC<CustomerVouchersSectionProps> = ({
                   type="button"
                   onClick={() => void handleUse(voucher)}
                   disabled={actionId === voucher.id}
-                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary/90 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-night transition hover:bg-primary/90 disabled:opacity-60"
                 >
                   <span className="material-symbols-outlined text-[14px]">check_circle</span>
                   Usar
@@ -306,7 +306,7 @@ const CustomerVouchersSection: React.FC<CustomerVouchersSectionProps> = ({
           onClick={() => setShowCreateModal(true)}
           disabled={!isSchemaAvailable}
           title={!isSchemaAvailable ? CUSTOMER_VOUCHERS_UNAVAILABLE_MESSAGE : undefined}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-night transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
           Adicionar voucher
@@ -452,7 +452,7 @@ const CustomerVouchersSection: React.FC<CustomerVouchersSectionProps> = ({
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 rounded-lg bg-primary py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:opacity-60"
+              className="flex-1 rounded-lg bg-primary py-3 text-sm font-bold text-night shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:opacity-60"
             >
               {saving ? 'Salvando...' : 'Salvar voucher'}
             </button>

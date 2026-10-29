@@ -250,7 +250,7 @@ const AcceptInvite: React.FC = () => {
                 )}
 
                 <button type="submit" disabled={submitting}
-                  className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
+                  className="w-full py-3 rounded-xl text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
                   {submitting ? 'Aceitando...' : 'Aceitar convite'}
                 </button>
               </form>

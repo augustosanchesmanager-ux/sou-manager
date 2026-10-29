@@ -214,7 +214,7 @@ const AccessControl: React.FC = () => {
             onClick={() => setActiveModuleFilter('all')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
               activeModuleFilter === 'all'
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-night'
                 : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
             }`}
           >
@@ -227,7 +227,7 @@ const AccessControl: React.FC = () => {
               onClick={() => setActiveModuleFilter(mod)}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                 activeModuleFilter === mod
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-night'
                   : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
               }`}
             >
