@@ -124,5 +124,28 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
       const slotTime = formatSlotTime('2026-10-22T09:00:00-03:00');
       expect(slotTime).toBe('09:00');
     });
+
+    it('should correctly classify UTC timestamps into Brazilian local periods (Manhã, Tarde, Noite)', () => {
+      // 00:00 UTC = 21:00 BRT (Noite)
+      // 11:00 UTC = 08:00 BRT (Manhã)
+      // 17:00 UTC = 14:00 BRT (Tarde)
+      const classifyPeriod = (isoUtc: string, timezone = 'America/Sao_Paulo'): string => {
+        const d = new Date(isoUtc);
+        const hourStr = d.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          hour12: false,
+          timeZone: timezone,
+        });
+        const hour = parseInt(hourStr, 10);
+        if (hour < 12) return 'Manhã';
+        if (hour < 18) return 'Tarde';
+        return 'Noite';
+      };
+
+      expect(classifyPeriod('2026-10-31T11:00:00+00:00')).toBe('Manhã'); // 08:00 BRT
+      expect(classifyPeriod('2026-10-31T17:00:00+00:00')).toBe('Tarde'); // 14:00 BRT
+      expect(classifyPeriod('2026-11-01T00:00:00+00:00')).toBe('Noite'); // 21:00 BRT
+      expect(classifyPeriod('2026-11-01T00:30:00+00:00')).toBe('Noite'); // 21:30 BRT
+    });
   });
 });

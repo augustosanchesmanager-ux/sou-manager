@@ -793,6 +793,7 @@ const PublicBookingPage: React.FC = () => {
         selectedDate={selectedDate}
         onSelectDate={selectDate}
         availableSlots={availableSlotsList}
+        groupedSlots={groupedSlots}
         selectedSlot={selectedSlot}
         onSelectSlot={selectSlot}
         isLoadingSlots={isLoading}
