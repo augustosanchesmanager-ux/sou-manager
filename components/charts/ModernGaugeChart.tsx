@@ -20,7 +20,7 @@ export const ModernGaugeChart: React.FC<ModernGaugeChartProps> = ({
   strokeWidth = 16,
   label,
   sublabel,
-  color = '#3B82F6',
+  color = '#D99A2B',
   gradientColors,
   showPercentage = true,
   animated = true,

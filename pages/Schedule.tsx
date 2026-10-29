@@ -780,7 +780,7 @@ const Schedule: React.FC = () => {
           client: apt.client_name || 'Cliente',
         service: getEsteticaDemoServiceName(apt.service_name, appSlug) || serviceLabel,
           status: apt.status,
-          color: statusColors[apt.status] || 'bg-blue-500',
+          color: statusColors[apt.status] || 'bg-sched-scheduled',
           staffName: apt.staff_name || '',
           clientPhone: apt.client_phone || '',
           price: apt.price || 0,
@@ -1942,7 +1942,7 @@ const Schedule: React.FC = () => {
         client: formData.client,
         service: selectedServicesLabel,
         status: 'confirmed',
-        color: 'bg-blue-500',
+        color: 'bg-sched-confirmed',
         staffName: selectedStaff?.name || '',
         clientPhone: formData.clientPhone || '',
         price: createdTotalPrice,
@@ -2266,9 +2266,9 @@ const Schedule: React.FC = () => {
 
   const summaryCards = React.useMemo(() => [
     { key: 'total', label: 'Total', value: appointmentsForSummary.length, tone: 'text-slate-700 dark:text-slate-100' },
-    { key: 'confirmed', label: 'Confirmados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'confirmed').length, tone: 'text-blue-600 dark:text-blue-300' },
+    { key: 'confirmed', label: 'Confirmados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'confirmed').length, tone: 'text-sched-confirmed-strong' },
     { key: 'pending', label: 'Pendentes', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'pending').length, tone: 'text-amber-600 dark:text-amber-300' },
-    { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-sky-600 dark:text-sky-300' },
+    { key: 'in_progress', label: 'Em atendimento', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'in_progress').length, tone: 'text-sched-in-progress-strong' },
     { key: 'completed', label: 'Finalizados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'completed').length, tone: 'text-emerald-600 dark:text-emerald-300' },
     { key: 'cancelled', label: 'Cancelados', value: appointmentsForSummary.filter((apt) => apt.normalizedStatus === 'cancelled').length, tone: 'text-rose-600 dark:text-rose-300' },
     { key: 'overdue', label: 'Atrasados', value: appointmentsForSummary.filter((apt) => apt.isOverdue).length, tone: 'text-red-600 dark:text-red-300' },
@@ -2532,7 +2532,7 @@ Podemos confirmar? 😄`;
         duration: durationHours,
         startTime: startTimeIso,
         status: 'in_progress',
-        color: statusColors['in_progress'] || 'bg-sky-500',
+        color: statusColors['in_progress'] || 'bg-sched-in-progress',
         price: payload.price,
         notes: 'Encaixe rápido na cadeira',
         date: startTimeIso,
@@ -3227,7 +3227,7 @@ Podemos confirmar? 😄`;
                     key={chip.key}
                     onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
-                      ? 'bg-[#007BFF] text-white shadow-[0_8px_22px_rgba(0,123,255,0.20)]'
+                      ? 'bg-primary text-night shadow-sm'
                       : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
                     }`}
                   >
@@ -3332,7 +3332,7 @@ Podemos confirmar? 😄`;
                       key={chip.key}
                       onClick={() => setListFilters((prev) => ({ ...prev, quickChip: chip.key as QuickChip }))}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${listFilters.quickChip === chip.key
-                        ? 'bg-[#007BFF] text-white shadow-[0_8px_22px_rgba(0,123,255,0.20)]'
+                        ? 'bg-primary text-night shadow-sm'
                         : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'
                       }`}
                     >
@@ -3398,14 +3398,14 @@ Podemos confirmar? 😄`;
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{apt.originLabel}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <button onClick={() => handleOpenAppointmentDetails(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Ver detalhes"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
+                          <button onClick={() => handleOpenAppointmentDetails(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary-dark hover:bg-primary/10" title="Ver detalhes"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-amber-500 hover:bg-amber-500/10" title="Editar"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                          <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="p-2 rounded-lg text-slate-500 hover:text-blue-500 hover:bg-blue-500/10" title="Confirmar"><span className="material-symbols-outlined text-[18px]">check_circle</span></button>
-                          <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-sky-500 hover:bg-sky-500/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'confirmed', 'Confirmado')} className="p-2 rounded-lg text-slate-500 hover:text-sched-confirmed-strong hover:bg-sched-confirmed/10" title="Confirmar"><span className="material-symbols-outlined text-[18px]">check_circle</span></button>
+                          <button onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')} className="p-2 rounded-lg text-slate-500 hover:text-sched-in-progress-strong hover:bg-sched-in-progress/10" title="Iniciar atendimento"><span className="material-symbols-outlined text-[18px]">play_circle</span></button>
                           <button onClick={() => handleAppointmentStatusChange(apt, 'completed', 'Atendimento finalizado')} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title="Finalizar"><span className="material-symbols-outlined text-[18px]">task_alt</span></button>
-                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
+                          <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary-dark hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
                           <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
-                          <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-[#007BFF] hover:bg-[#EAF7FF]" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
+                          <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary-dark hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
                           <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title={`Abrir ${orderLabelLower}`}><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
                       </td>
@@ -3462,7 +3462,7 @@ Podemos confirmar? 😄`;
                     <button
                       type="button"
                       onClick={() => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs py-2.5 transition-colors shadow-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-sched-in-progress text-night hover:brightness-95 font-bold text-xs py-2.5 transition-colors shadow-sm"
                     >
                       <span className="material-symbols-outlined text-base">play_arrow</span>
                       <span>Iniciar Atendimento</span>
@@ -3670,13 +3670,13 @@ Podemos confirmar? 😄`;
                         isComandaLocked ? 'cursor-not-allowed opacity-60 ' : ''
                       }${
                         isSelected
-                          ? 'border-primary bg-primary/10 text-primary dark:text-blue-300'
+                          ? 'border-primary bg-primary/10 text-primary dark:text-primary-light'
                           : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
                       }`}
                     >
                       <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${
                         isSelected
-                          ? 'border-primary bg-primary text-white'
+                          ? 'border-primary bg-primary text-night'
                           : 'border-slate-300 bg-white dark:border-white/20 dark:bg-transparent'
                       }`}>
                         {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
@@ -4145,7 +4145,7 @@ Podemos confirmar? 😄`;
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => handleEditBlock(block)}
-                            className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/20 text-blue-600"
+                            className="p-1 rounded hover:bg-primary/10 text-primary-dark"
                             title="Editar bloqueio"
                           >
                             <span className="material-symbols-outlined text-base">edit</span>
@@ -4272,7 +4272,7 @@ Podemos confirmar? 😄`;
 
                 <button
                   onClick={() => handleEditAppointment(apt)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold border border-line bg-card text-ink-soft hover:border-primary/40 hover:text-primary-dark transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">edit</span>
                   Editar
@@ -4280,7 +4280,7 @@ Podemos confirmar? 😄`;
 
                 <button
                   onClick={() => handleNavigateToCheckout(apt)}
-                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">point_of_sale</span>
                   {isEsteticaApp ? businessLabels.checkout : 'Checkout'}
@@ -4326,8 +4326,8 @@ Podemos confirmar? 😄`;
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-3">Ações rápidas</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
-                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-blue-50 text-blue-600 text-sm font-bold">Confirmar</button>
-                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sky-50 text-sky-600 text-sm font-bold">Iniciar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-sched-confirmed/15 text-sched-confirmed-strong text-sm font-bold hover:bg-sched-confirmed/25 transition-colors">Confirmar</button>
+                <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'in_progress', 'Atendimento iniciado'); }} className="px-3 py-3 rounded-xl bg-sched-in-progress/15 text-sched-in-progress-strong text-sm font-bold hover:bg-sched-in-progress/25 transition-colors">Iniciar</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'completed', 'Atendimento finalizado'); }} className="px-3 py-3 rounded-xl bg-emerald-50 text-emerald-600 text-sm font-bold">Finalizar</button>
                 <a
                   href={selectedAppointmentDetails ? (handleSendWhatsApp(selectedAppointmentDetails) || '#') : '#'}
@@ -4565,7 +4565,7 @@ Podemos confirmar? 😄`;
                       name="retailCancelAction"
                       checked={retailActionChoice === 'retain_retail'}
                       onChange={() => setRetailActionChoice('retain_retail')}
-                      className="mt-0.5 text-blue-500 focus:ring-blue-500"
+                      className="mt-0.5 text-primary focus:ring-primary"
                     />
                     <span>Manter comanda aberta no balcão apenas com os produtos</span>
                   </label>

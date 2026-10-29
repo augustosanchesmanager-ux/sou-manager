@@ -176,6 +176,10 @@ Para diferenciar colunas e agendamentos de cada profissional sem recorrer a core
 > **4. REGRA DA BORDA ANTES DA SOMBRA:**
 > No modo escuro, a profundidade é dada por contraste de superfície (`bg-card-dark`) e contorno de 1px (`border-border-dark`). Sombras são sutis e reservadas para modais flutuantes ou estados de hover interativos (`hover:border-primary/40`).
 
+### 3.1 Exceções de Identidade (Whitelisted)
+
+- **Wordmark da Marca (Sidebar):** É expressamente permitido o uso de `bg-gradient-to-b from-[#c28827] to-[#855307] dark:from-[#E2A63B] dark:to-[#A96F14]` com `text-transparent` e `bg-clip-text` exclusivamente no logo do sistema (`components/Sidebar.tsx`) para preservação da identidade da marca SOU MANA.GER. Esta exceção é a única autorizada para gradient text no produto.
+
 ---
 
 ## 4. Tipografia & Microtipografia Cirúrgica

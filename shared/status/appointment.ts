@@ -47,13 +47,13 @@ export const appointmentStatusMeta: Record<
     label: 'Confirmado',
     icon: 'check_circle',
     badge:
-      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      'bg-sched-confirmed/15 text-sched-confirmed-strong dark:bg-sched-confirmed/20',
   },
   in_progress: {
     label: 'Em atendimento',
     icon: 'content_cut',
     badge:
-      'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+      'bg-sched-in-progress/15 text-sched-in-progress-strong dark:bg-sched-in-progress/20',
   },
   completed: {
     label: 'Finalizado',
@@ -124,10 +124,10 @@ export const getAppointmentStatusMeta = (
  * Cores de dot para status de agendamento.
  */
 export const appointmentDotColors: Record<string, string> = {
-  confirmed: 'bg-blue-500',
+  confirmed: 'bg-sched-confirmed',
   pending: 'bg-amber-500',
   completed: 'bg-emerald-500',
-  in_progress: 'bg-sky-500',
+  in_progress: 'bg-sched-in-progress',
   scheduled: 'bg-slate-400',
   cancelled: 'bg-rose-500',
   no_show: 'bg-slate-400',

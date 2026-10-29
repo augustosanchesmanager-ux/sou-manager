@@ -412,7 +412,7 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                         <h3 className="font-black text-slate-900 dark:text-white">Créditos e Cotas por Serviço</h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Acompanhamento do saldo disponível versus a cota contratada no ciclo atual.</p>
                     </div>
-                    <button onClick={() => openEditModal('plan')} className="text-xs text-[#007BFF] dark:text-[#72E7FF] font-black uppercase tracking-widest hover:underline">
+                    <button onClick={() => openEditModal('plan')} className="text-xs text-primary-dark font-black uppercase tracking-widest hover:underline">
                         Trocar Plano
                     </button>
                 </div>
@@ -779,8 +779,8 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                         <button onClick={() => setStatusModalOpen(false)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm">
                             Voltar
                         </button>
-                        <button onClick={handleStatusChange} disabled={saving || (pendingStatus === 'canceled' && cancelReceivables && !cancelReason)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm text-white disabled:opacity-50 ${
-                            pendingStatus === 'canceled' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-blue-600'
+                        <button onClick={handleStatusChange} disabled={saving || (pendingStatus === 'canceled' && cancelReceivables && !cancelReason)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm disabled:opacity-50 ${
+                            pendingStatus === 'canceled' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gradient-to-r from-primary to-primary-dark hover:brightness-105 text-night'
                         }`}>
                             {saving ? 'Aguarde...' : 'Confirmar'}
                         </button>

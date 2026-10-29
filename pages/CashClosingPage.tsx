@@ -605,7 +605,7 @@ const CashClosingPage: React.FC = () => {
                         <button onClick={handlePrint} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                             Imprimir
                         </button>
-                        <button onClick={handleExportCSV} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-gold-hover transition-colors">
+                        <button onClick={handleExportCSV} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 transition-colors">
                             Exportar CSV
                         </button>
                     </div>
@@ -622,7 +622,7 @@ const CashClosingPage: React.FC = () => {
                         <button onClick={() => setShowSaveConfirm(false)} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                             Cancelar
                         </button>
-                        <button onClick={handleSaveWithToast} disabled={closing.saving} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-gold-hover disabled:opacity-50 transition-colors">
+                        <button onClick={handleSaveWithToast} disabled={closing.saving} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 disabled:opacity-50 transition-colors">
                             {closing.saving ? 'Salvando...' : 'Confirmar'}
                         </button>
                     </div>

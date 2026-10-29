@@ -39,7 +39,7 @@ interface RevenueModalProps {
   appointments: AppointmentData[];
 }
 
-const COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#06B6D4', '#EF4444', '#A78BFA'];
+const COLORS = ['#D99A2B', '#14B8A6', '#EC4899', '#F59E0B', '#10B981', '#64748B', '#EF4444', '#B88A44'];
 
 export const RevenueModal: React.FC<RevenueModalProps> = ({
   isOpen,
@@ -80,7 +80,7 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
         <div className="sticky top-0 z-20 px-6 py-5 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="size-12 rounded-2xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg shadow-primary/30">
+              <div className="size-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-lg shadow-primary/30">
                 <span className="material-symbols-outlined text-white text-xl">payments</span>
               </div>
               <div>
@@ -123,7 +123,7 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
             <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-2xl p-4 border border-slate-700/30">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Semana</span>
-                <span className="material-symbols-outlined text-blue-500 text-lg">date_range</span>
+                <span className="material-symbols-outlined text-primary-dark text-lg">date_range</span>
               </div>
               <p className="text-2xl font-black text-white mb-1">{formatCurrency(revenue.week)}</p>
               <div className="flex items-center gap-2">
@@ -132,14 +132,14 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
                 </span>
                 <SparkLineChart 
                   data={revenue.trendData.slice(-30).filter((_, i) => i % 5 === 0)} 
-                  color={getGrowth(revenue.week, revenue.weekPrevious) >= 0 ? '#3B82F6' : '#EF4444'}
+                  color={getGrowth(revenue.week, revenue.weekPrevious) >= 0 ? '#D99A2B' : '#EF4444'}
                   width={60}
                   height={20}
                 />
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-primary/20 to-purple-500/10 rounded-2xl p-4 border border-primary/30">
+            <div className="bg-gradient-to-br from-primary/20 to-primary-dark/10 rounded-2xl p-4 border border-primary/30">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Mês</span>
                 <span className="material-symbols-outlined text-primary text-lg">calendar_month</span>
@@ -151,7 +151,7 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
                 </span>
                 <SparkLineChart 
                   data={revenue.trendData} 
-                  color="#3B82F6"
+                  color="#D99A2B"
                   width={60}
                   height={20}
                 />
@@ -237,7 +237,7 @@ export const RevenueModal: React.FC<RevenueModalProps> = ({
             {/* Recent Appointments */}
             <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/30">
               <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-500">history</span>
+                <span className="material-symbols-outlined text-primary-dark">history</span>
                 Últimos Atendimentos
               </h3>
               <div className="space-y-2">

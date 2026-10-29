@@ -135,12 +135,12 @@ const PortalAdmin: React.FC = () => {
                 <main className="flex-1 overflow-y-auto p-4 sm:p-8">
                     {loading ? (
                         <div className="flex items-center justify-center h-full">
-                            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
                         </div>
                     ) : !isEnabled ? (
                         <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-2xl text-center shadow-sm mx-auto mt-12">
-                            <div className="w-16 h-16 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                <Smartphone size={28} className="text-indigo-600" />
+                            <div className="w-16 h-16 bg-primary/10 border border-primary/25 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <Smartphone size={28} className="text-primary-dark" />
                             </div>
                             <h2 className="text-2xl font-bold text-slate-800 mb-2">Portal do Cliente Desabilitado</h2>
                             <p className="text-slate-500 mb-8 max-w-md mx-auto">
@@ -148,7 +148,7 @@ const PortalAdmin: React.FC = () => {
                             </p>
                             <button
                                 onClick={() => setShowModal(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm"
+                                className="bg-primary text-night hover:bg-primary-dark font-semibold py-3 px-8 rounded-xl transition-colors shadow-sm"
                             >
                                 Habilitar Add-on
                             </button>
@@ -218,7 +218,7 @@ const PortalAdmin: React.FC = () => {
                                         />
                                         <button
                                             onClick={handleCopy}
-                                            className="w-full sm:w-auto bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors border border-indigo-100"
+                                            className="w-full sm:w-auto bg-primary/10 text-primary-dark hover:bg-primary/20 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors border border-primary/25"
                                         >
                                             {copied ? <><Check size={18} /> Copiado</> : <><Copy size={18} /> Copiar</>}
                                         </button>
@@ -237,10 +237,10 @@ const PortalAdmin: React.FC = () => {
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div
                                                     onClick={() => setSettingsTheme('default')}
-                                                    className={`cursor-pointer border rounded-xl p-4 transition-all ${settingsTheme === 'default' ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-slate-300'
+                                                    className={`cursor-pointer border rounded-xl p-4 transition-all ${settingsTheme === 'default' ? 'border-primary bg-primary/5 ring-2 ring-primary/30' : 'border-slate-200 hover:border-slate-300'
                                                         }`}
                                                 >
-                                                    <div className="w-full h-8 bg-indigo-500 rounded mb-2 opacity-50"></div>
+                                                    <div className="w-full h-8 bg-primary rounded mb-2 opacity-50"></div>
                                                     <p className="font-semibold text-sm text-slate-800 text-center">Padrão</p>
                                                 </div>
                                                 <div
@@ -265,7 +265,7 @@ const PortalAdmin: React.FC = () => {
                                                         min="0"
                                                         value={rescheduleWindow}
                                                         onChange={e => setRescheduleWindow(Number(e.target.value))}
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
                                                     />
                                                 </div>
                                                 <div>
@@ -275,7 +275,7 @@ const PortalAdmin: React.FC = () => {
                                                         min="0"
                                                         value={cancellWindow}
                                                         onChange={e => setCancellWindow(Number(e.target.value))}
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
                                                     />
                                                 </div>
                                             </div>
@@ -292,7 +292,7 @@ const PortalAdmin: React.FC = () => {
                                         <button
                                             onClick={handleSaveSettings}
                                             disabled={saving}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg shadow-sm disabled:opacity-50"
+                                            className="bg-primary text-night hover:bg-primary-dark font-semibold py-2 px-6 rounded-lg shadow-sm disabled:opacity-50"
                                         >
                                             {saving ? 'Salvando...' : 'Salvar Alterações'}
                                         </button>

@@ -1575,32 +1575,32 @@ const Checkout: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto w-full animate-fade-in pb-20">
             {/* Header */}
-            <div className="mb-6 rounded-3xl border border-[#D9EAF5] bg-[#EAF7FF]/70 p-5 shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
+            <div className="mb-6 rounded-3xl border border-primary/20 bg-primary/5 p-5 shadow-sm">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-start gap-4">
-                        <div className="size-12 rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] text-white shadow-[0_0_28px_rgba(0,210,255,0.22)] flex items-center justify-center shrink-0">
+                        <div className="size-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-night shadow-[0_0_28px_rgba(217,154,43,0.18)] flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-3xl">point_of_sale</span>
                         </div>
                         <div>
-                            <p className="text-[11px] font-black uppercase text-[#007BFF] dark:text-[#00D2FF]">
+                            <p className="text-[11px] font-black uppercase text-primary-dark">
                                 {isEsteticaApp
                                     ? (checkoutEntryMode === 'edit_comanda' ? 'Finalização do atendimento' : checkoutEntryMode === 'open_comanda' ? 'Atendimento em andamento' : 'Finalização do atendimento')
                                     : (checkoutEntryMode === 'edit_comanda' ? 'Fechamento da cadeira' : checkoutEntryMode === 'open_comanda' ? 'Comanda em atendimento' : 'Balcao da barbearia')}
                             </p>
-                            <h1 className="mt-1 text-3xl font-black text-[#003366] dark:text-white flex items-center gap-2">
+                            <h1 className="mt-1 text-3xl font-black text-ink flex items-center gap-2">
                                 {checkoutCopy.title}
                             </h1>
                             <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{checkoutCopy.subtitle}</p>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                        <span className="rounded-xl border border-[#00D2FF]/30 bg-white/80 px-3 py-2 text-xs font-bold text-[#003366] dark:bg-[#0B1828] dark:text-[#EAF7FF]">
+                        <span className="rounded-xl border border-primary/30 bg-card px-3 py-2 text-xs font-bold text-ink">
                             {checkoutCopy.orderLabel}: #{comandaId ? comandaId.slice(0, 8) : 'NOVO'}
                         </span>
                         <span className={`rounded-xl px-3 py-2 text-xs font-bold ${selectedClient ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>
                             {selectedClient ? 'Cliente selecionado' : 'Cliente pendente'}
                         </span>
-                        <span className={`rounded-xl px-3 py-2 text-xs font-bold ${cart.length > 0 ? 'bg-[#007BFF]/10 text-[#007BFF] dark:text-[#00D2FF]' : 'bg-slate-500/10 text-slate-500 dark:text-slate-300'}`}>
+                        <span className={`rounded-xl px-3 py-2 text-xs font-bold ${cart.length > 0 ? 'bg-primary/10 text-primary-dark' : 'bg-slate-500/10 text-slate-500 dark:text-slate-300'}`}>
                             {cart.length} {cart.length === 1 ? 'item' : 'itens'}
                         </span>
                         <button
@@ -1629,10 +1629,10 @@ const Checkout: React.FC = () => {
                 <div className="md:col-span-2 space-y-4 lg:space-y-6">
 
                     {/* 1. Client Selection */}
-                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-4 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-line p-4 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-4 flex-1">
-                            <div className="size-10 bg-[#EAF7FF] dark:bg-[#0D2238] rounded-xl flex items-center justify-center shrink-0 border border-[#00D2FF]/25">
-                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">person</span>
+                            <div className="size-10 bg-primary/10 dark:bg-primary/15 rounded-xl flex items-center justify-center shrink-0 border border-primary/25">
+                                <span className="material-symbols-outlined text-primary-dark">person</span>
                             </div>
                             {selectedClient ? (
                                 <div className="flex-1 flex items-center gap-3">
@@ -1654,7 +1654,7 @@ const Checkout: React.FC = () => {
                             {!comandaId && (
                                 <button
                                     onClick={openQuickComandaSearch}
-                                    className="px-3 py-2 bg-[#F7FBFE] text-[#003366] hover:bg-[#EAF7FF] border border-[#D9EAF5] dark:bg-[#0B1828] dark:border-[#14304A] dark:text-slate-300 dark:hover:bg-[#102033] rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                                    className="px-3 py-2 bg-card text-ink hover:bg-primary/10 border border-line rounded-lg text-xs font-bold transition-all flex items-center gap-1"
                                     title={isEsteticaApp ? 'Buscar um atendimento aberto sem sair da finalização' : 'Buscar uma comanda aberta sem sair do Checkout'}
                                 >
                                     <span className="material-symbols-outlined text-sm">manage_search</span>
@@ -1664,7 +1664,7 @@ const Checkout: React.FC = () => {
                             {!selectedClient ? (
                                 <button
                                     onClick={() => setIsClientModalOpen(true)}
-                                    className="px-4 py-2 bg-[#007BFF] text-white hover:bg-[#003366] rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-[0_8px_22px_rgba(0,123,255,0.20)]"
+                                    className="px-4 py-2 bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-[0_8px_22px_rgba(217,154,43,0.20)]"
                                 >
                                     <span className="material-symbols-outlined text-sm">search</span>
                                     Buscar
@@ -1684,17 +1684,17 @@ const Checkout: React.FC = () => {
                     </div>
 
                     {/* 2. Cart Items */}
-                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-6 shadow-sm min-h-[400px] flex flex-col">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-line p-6 shadow-sm min-h-[400px] flex flex-col">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">shopping_cart</span>
+                                <span className="material-symbols-outlined text-primary-dark">shopping_cart</span>
                                 {checkoutCopy.itemSectionTitle}
                             </h3>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => { setItemModalTab('services'); setIsItemModalOpen(true); }}
                                     disabled={loading}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-[#EAF7FF] text-[#007BFF] hover:bg-[#007BFF] hover:text-white rounded-lg text-xs font-bold transition-all"
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary-dark hover:bg-primary hover:text-night rounded-lg text-xs font-bold transition-all"
                                 >
                                     <span className="material-symbols-outlined text-sm">content_cut</span>
                                     + {serviceLabel}
@@ -1714,9 +1714,9 @@ const Checkout: React.FC = () => {
                             {cart.length > 0 ? (
                                 <div className="space-y-3">
                                     {cart.map((item) => (
-                                        <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-100 dark:border-border-dark bg-white dark:bg-background-dark group hover:border-[#00D2FF]/35 transition-all">
+                                        <div key={item.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-100 dark:border-border-dark bg-white dark:bg-background-dark group hover:border-primary/40 transition-all">
                                             {/* Icon */}
-                                            <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'service' ? 'bg-[#EAF7FF] text-[#007BFF] dark:bg-[#0D2238] dark:text-[#00D2FF]' : 'bg-amber-500/10 text-amber-500'}`}>
+                                            <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'service' ? 'bg-primary/10 text-primary-dark' : 'bg-amber-500/10 text-amber-500'}`}>
                                                 <span className="material-symbols-outlined">{item.type === 'service' ? 'content_cut' : 'package_2'}</span>
                                             </div>
 
@@ -1733,7 +1733,7 @@ const Checkout: React.FC = () => {
                                                     <select
                                                         value={item.staff_id || ''}
                                                         onChange={(e) => handleStaffChange(item.id, e.target.value)}
-                                                        className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-[#007BFF] [color-scheme:light] dark:[color-scheme:dark]"
+                                                        className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-primary-dark [color-scheme:light] dark:[color-scheme:dark]"
                                                     >
                                                         <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-400">Nenhum</option>
                                                         {staff.map(pro => (
@@ -1743,7 +1743,7 @@ const Checkout: React.FC = () => {
                                                     {item.type === 'service' && (
                                                         <button
                                                             onClick={() => { setSharedExecutionItemId(item.id); setIsSharedExecutionModalOpen(true); }}
-                                                            className={`ml-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition-all ${isSharedExecution(item) ? 'bg-[#EAF7FF] text-[#007BFF] dark:bg-[#0D2238] dark:text-[#00D2FF]' : 'text-slate-400 hover:text-[#007BFF] hover:bg-[#EAF7FF]'}`}
+                                                            className={`ml-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition-all ${isSharedExecution(item) ? 'bg-primary/10 text-primary-dark' : 'text-slate-400 hover:text-primary-dark hover:bg-primary/10'}`}
                                                             title="Execução compartilhada"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">group_add</span>
@@ -1828,8 +1828,8 @@ const Checkout: React.FC = () => {
                                     ))}
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#D9EAF5] bg-[#F7FBFE] text-slate-500 dark:border-[#14304A] dark:bg-[#0B1828] p-8 text-center">
-                                    <span className="material-symbols-outlined text-5xl mb-4 text-[#007BFF] dark:text-[#00D2FF]">content_cut</span>
+                                <div className="h-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-background-light text-slate-500 dark:bg-background-dark p-8 text-center">
+                                    <span className="material-symbols-outlined text-5xl mb-4 text-primary-dark">content_cut</span>
                                     <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{checkoutCopy.emptyCartMessage}</p>
                                     <p className="mt-1 text-xs text-slate-500">{isEsteticaApp ? `Adicione ${servicePluralLabelLower} ou produtos para montar o atendimento.` : 'Adicione serviços ou produtos para montar a comanda com dados reais da barbearia.'}</p>
                                     <p className="hidden text-sm font-medium">O carrinho está vazio</p>
@@ -1886,9 +1886,9 @@ const Checkout: React.FC = () => {
 
                 {/* RIGHT COLUMN: Payment */}
                 <div className="space-y-6 md:col-span-1">
-                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-[#D9EAF5] dark:border-[#14304A] p-6 shadow-[0_18px_45px_rgba(0,51,102,0.10)] sticky top-24">
+                    <div className="bg-white dark:bg-card-dark rounded-2xl border border-line p-6 shadow-[0_18px_45px_rgba(25,22,17,0.10)] sticky top-24">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#007BFF] dark:text-[#00D2FF]">receipt_long</span>
+                            <span className="material-symbols-outlined text-primary-dark">receipt_long</span>
                             {checkoutCopy.summaryTitle}
                         </h3>
 
@@ -1896,7 +1896,7 @@ const Checkout: React.FC = () => {
                         <div className="mb-6">
                             <label className="hidden text-xs font-bold text-slate-500 uppercase mb-3 block">Ação do Pedido</label>
                             <p className="mb-3 text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">{checkoutCopy.actionToggleLabel}</p>
-                            <div className="flex bg-[#F7FBFE] dark:bg-background-dark p-1 rounded-xl border border-[#D9EAF5] dark:border-[#14304A]">
+                            <div className="flex bg-background-light dark:bg-background-dark p-1 rounded-xl border border-line">
                                 <button
                                     onClick={() => setPaymentStatus('paid')}
                                     className={`${supportsOpenComandaState ? 'flex-1' : 'w-full'} py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${paymentStatus === 'paid'
@@ -2086,7 +2086,7 @@ const Checkout: React.FC = () => {
                             <div className="h-px bg-slate-200 dark:bg-border-dark border-dashed"></div>
                             <div className="flex justify-between items-end">
                                 <span className="font-bold text-lg text-slate-900 dark:text-white">Total</span>
-                                <span className="font-black text-3xl text-[#003366] dark:text-[#00D2FF]">R$ {total.toFixed(2)}</span>
+                                <span className="font-black text-3xl text-ink dark:text-primary-dark">R$ {total.toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -2171,7 +2171,7 @@ const Checkout: React.FC = () => {
                                         onClick={() => setZeroCloseOrigin('house_courtesy')}
                                         className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
                                             zeroCloseOrigin === 'house_courtesy'
-                                                ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                                                ? 'border-teal-500 bg-teal-500/10 text-teal-700 dark:text-teal-300'
                                                 : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-background-dark dark:text-slate-300'
                                         }`}
                                     >
@@ -2228,7 +2228,7 @@ const Checkout: React.FC = () => {
                                         <button
                                             key={method.id}
                                             onClick={() => setPaymentMethod(method.id as any)}
-                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-[#007BFF] text-white border-[#007BFF] shadow-[0_10px_24px_rgba(0,123,255,0.22)]' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-[#00D2FF]/50'}`}
+                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-night border-primary shadow-[0_10px_24px_rgba(217,154,43,0.22)]' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
                                         >
                                             <span className="material-symbols-outlined">{method.icon}</span>
                                             <span className="text-xs font-bold">{method.label}</span>

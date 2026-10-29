@@ -78,7 +78,7 @@ const ChefClubSubscriptions: React.FC = () => {
                 value: formatCurrency(data.metrics.pendingAmount),
                 helper: `${data.metrics.expiringNext30Days} ciclos entram na agenda do mês`,
                 icon: 'event_upcoming',
-                tone: 'text-[#003366] dark:text-[#00D2FF]',
+                tone: 'text-ink dark:text-primary-dark',
             },
             {
                 label: 'Cancelamentos',
@@ -153,10 +153,10 @@ const ChefClubSubscriptions: React.FC = () => {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
-            <section className="overflow-hidden rounded-2xl border border-[#D8E8F3] bg-[#003366] text-white shadow-sm dark:border-[#14304A]">
+            <section className="overflow-hidden rounded-2xl border border-white/10 bg-night text-white shadow-sm">
                 <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-end md:p-6">
                     <div className="max-w-3xl">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-[#BFEFFF]">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-primary-light">
                             <span className="material-symbols-outlined text-sm">workspace_premium</span>
                             Club dos Chefes, recorrência da barbearia
                         </div>
@@ -169,7 +169,7 @@ const ChefClubSubscriptions: React.FC = () => {
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                             onClick={() => navigate('/chef-club-receivables')}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#00D2FF]/40"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                             <span className="material-symbols-outlined text-base">payments</span>
                             Recebimentos
@@ -196,7 +196,7 @@ const ChefClubSubscriptions: React.FC = () => {
                                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{metric.label}</p>
                                 <p className={`mt-2 text-xl font-black ${metric.tone}`}>{metric.value}</p>
                             </div>
-                            <span className="material-symbols-outlined rounded-xl border border-[#D8E8F3] bg-[#F1F8FC] p-2 text-[#003366] dark:border-[#14304A] dark:bg-[#071426] dark:text-[#00D2FF]">
+                            <span className="material-symbols-outlined rounded-xl border border-primary/25 bg-primary/10 p-2 text-primary-dark">
                                 {metric.icon}
                             </span>
                         </div>
@@ -260,7 +260,7 @@ const ChefClubSubscriptions: React.FC = () => {
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                             title="Buscar assinante"
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#007BFF] focus:ring-2 focus:ring-[#007BFF]/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
                         />
                     </div>
 
@@ -271,10 +271,10 @@ const ChefClubSubscriptions: React.FC = () => {
                                 <button
                                     key={status}
                                     onClick={() => setStatusFilter(status)}
-                                    className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-[#007BFF]/20 ${
+                                    className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 ${
                                         isSelected
-                                            ? 'border-[#003366] bg-[#003366] text-white dark:border-[#00D2FF] dark:bg-[#00D2FF] dark:text-[#06111F]'
-                                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#007BFF]/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+                                            ? 'border-primary bg-primary text-night'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-primary/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
                                     }`}
                                 >
                                     {translateStatus(status)}
@@ -332,7 +332,7 @@ const ChefClubSubscriptions: React.FC = () => {
                                         </td>
 
                                         <td className="px-5 py-4 align-top">
-                                            <p className="text-sm font-black text-[#003366] dark:text-[#00D2FF]">{subscription.plan.name}</p>
+                                            <p className="text-sm font-black text-ink dark:text-primary-dark">{subscription.plan.name}</p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                                                 {formatCurrency(subscription.plan.monthlyPrice)} por mês
                                             </p>
@@ -422,7 +422,7 @@ const ChefClubSubscriptions: React.FC = () => {
 
                                                 <button
                                                     onClick={() => navigate(`/chef-club-subscriptions/${subscription.id}`)}
-                                                    className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:border-[#007BFF]/40 hover:text-[#003366] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/20 dark:border-white/10 dark:text-slate-300 dark:hover:text-[#00D2FF]"
+                                                    className="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:border-primary/40 hover:text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-white/10 dark:text-slate-300"
                                                     title="Ver detalhes"
                                                 >
                                                     <span className="material-symbols-outlined text-base">visibility</span>
@@ -470,7 +470,7 @@ const ChefClubSubscriptions: React.FC = () => {
                                 <tr>
                                     <td colSpan={6} className="px-6 py-16 text-center">
                                         <div className="mx-auto flex max-w-sm flex-col items-center">
-                                            <span className="material-symbols-outlined rounded-2xl border border-[#D8E8F3] bg-[#F1F8FC] p-3 text-3xl text-[#003366] dark:border-[#14304A] dark:bg-[#071426] dark:text-[#00D2FF]">
+                                            <span className="material-symbols-outlined rounded-2xl border border-primary/25 bg-primary/10 p-3 text-3xl text-primary-dark">
                                                 groups
                                             </span>
                                             <p className="mt-4 text-base font-black text-slate-900 dark:text-white">Nenhuma assinatura encontrada</p>
@@ -479,7 +479,7 @@ const ChefClubSubscriptions: React.FC = () => {
                                             </p>
                                             <button
                                                 onClick={() => navigate('/chef-club-subscriptions/new?from=subscriptions')}
-                                                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#003366] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#007BFF] focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30"
+                                                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-bold text-night transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30"
                                             >
                                                 <span className="material-symbols-outlined text-base">person_add</span>
                                                 Novo assinante
@@ -496,7 +496,7 @@ const ChefClubSubscriptions: React.FC = () => {
             {data.loading && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm dark:bg-black/50">
                     <div className="flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg dark:border-white/10 dark:bg-card-dark">
-                        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-b-[#007BFF] dark:border-white/10 dark:border-b-[#00D2FF]" />
+                        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-b-primary-dark dark:border-white/10" />
                         <p className="text-sm font-bold text-slate-900 dark:text-white">Carregando assinaturas</p>
                     </div>
                 </div>

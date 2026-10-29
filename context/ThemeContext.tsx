@@ -9,15 +9,20 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
+const getInitialTheme = (): Theme => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = localStorage.getItem('theme');
+      const stored = window.localStorage.getItem('theme');
       if (stored === 'dark' || stored === 'light') return stored;
+
+      // Respeita a preferência do SO se for explícita; caso contrário, aplica o fallback de produto (light)
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
     }
+    // Decisão de Produto (PO, 2026-10-29): default explícito para tema claro
     return 'light';
-  });
+};
+
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
 
   useEffect(() => {
     const root = window.document.documentElement;

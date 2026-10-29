@@ -17,7 +17,7 @@ interface ExpenseChartProps {
 
 const DEFAULT_COLORS = [
   '#EF4444', '#F97316', '#F59E0B', '#84CC16', 
-  '#22C55E', '#14B8A6', '#06B6D4', '#3B82F6'
+  '#22C55E', '#14B8A6', '#B88A44', '#64748B'
 ];
 
 export const ExpenseChart: React.FC<ExpenseChartProps> = ({

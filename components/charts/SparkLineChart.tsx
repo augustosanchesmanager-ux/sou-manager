@@ -11,7 +11,7 @@ interface SparkLineChartProps {
 
 export const SparkLineChart: React.FC<SparkLineChartProps> = ({
   data,
-  color = '#3B82F6',
+  color = '#D99A2B',
   width = 100,
   height = 32,
   showArea = true,

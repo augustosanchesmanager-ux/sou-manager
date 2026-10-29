@@ -104,7 +104,7 @@ const SangriaSuprimentoSection: React.FC<SangriaSuprimentoSectionProps> = ({
                 <button
                     onClick={handleAdd}
                     disabled={!newValue || parseFloat(newValue) <= 0}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-gold-hover disabled:opacity-40 transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold bg-gradient-to-r from-primary to-primary-dark text-night hover:brightness-105 disabled:opacity-40 transition-colors shrink-0"
                 >
                     <PlusCircle size={12} /> Adicionar
                 </button>

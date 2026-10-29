@@ -18,8 +18,8 @@ interface ProductSalesChartProps {
 }
 
 const DEFAULT_COLORS = [
-  '#007BFF', '#00D2FF', '#B88A44', '#10B981', '#EF4444',
-  '#14B8A6', '#64748B', '#003366', '#F97316', '#84CC16'
+  '#D99A2B', '#5EEAD4', '#B88A44', '#10B981', '#EF4444',
+  '#14B8A6', '#64748B', '#EC4899', '#F97316', '#84CC16'
 ];
 
 export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
@@ -60,7 +60,7 @@ export const ProductSalesChart: React.FC<ProductSalesChartProps> = ({
               <div className={`
                 size-6 rounded-lg flex items-center justify-center text-xs font-black
                 ${index < 3 
-                  ? 'bg-[#007BFF] text-white' 
+                  ? 'bg-primary text-night'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}
               `}>
                 {index + 1}

@@ -282,8 +282,8 @@ const ChefClubPlans: React.FC = () => {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in p-4 md:p-6">
-            <div className="relative overflow-hidden rounded-2xl border border-[#D9EAF5] bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF7FF_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#06182F_0%,#08284D_58%,#14100A_100%)]">
-                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#007BFF,#00D2FF,#B88A44)]" />
+            <div className="relative overflow-hidden rounded-2xl border border-line bg-[linear-gradient(135deg,#FFFDF6_0%,#FAF4E7_58%,#F7F2EA_100%)] p-6 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,#0E0C07_0%,#1A150F_58%,#14100A_100%)]">
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#A96F14,#D99A2B,#F3D9A4)]" />
                 <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
                     <div className="max-w-2xl">
                         <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#B88A44]/30 bg-white/75 px-3 py-1 text-[11px] font-black text-[#7A5528] shadow-sm dark:bg-white/10 dark:text-[#E3C382]">
@@ -300,7 +300,7 @@ const ChefClubPlans: React.FC = () => {
                             resetFormState();
                             setShowModal(true);
                         }}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-[#007BFF] px-5 py-3 text-sm font-bold text-white shadow-sm shadow-[#007BFF]/20 transition-all hover:bg-[#006ADF]"
+                        className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-5 py-3 text-sm font-bold text-night shadow-sm shadow-primary/20 transition-all hover:brightness-105"
                     >
                         <span className="material-symbols-outlined">add_circle</span>
                         Novo plano
@@ -310,7 +310,7 @@ const ChefClubPlans: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: 'Planos ativos', value: String(planSummary.activePlans), icon: 'verified', tone: 'text-[#007BFF] dark:text-[#72E7FF]', bg: 'bg-[#007BFF]/10 border-[#00D2FF]/25' },
+                    { label: 'Planos ativos', value: String(planSummary.activePlans), icon: 'verified', tone: 'text-primary-dark', bg: 'bg-primary/10 border-primary/25' },
                     { label: 'Recorrência potencial', value: `R$ ${planSummary.potentialMonthlyRevenue.toFixed(2)}`, icon: 'payments', tone: 'text-emerald-600 dark:text-emerald-300', bg: 'bg-emerald-500/10 border-emerald-500/20' },
                     { label: 'Créditos planejados', value: String(planSummary.plannedCredits), icon: 'local_activity', tone: 'text-[#9A6F2D] dark:text-[#E3C382]', bg: 'bg-[#B88A44]/15 border-[#B88A44]/30' },
                     { label: 'Serviços no catálogo', value: String(planSummary.serviceCatalog), icon: 'content_cut', tone: 'text-slate-600 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10' },
@@ -332,14 +332,14 @@ const ChefClubPlans: React.FC = () => {
                     const pricePerCredit = totalCredits > 0 ? plan.monthly_price / totalCredits : null;
 
                     return (
-                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-2xl border ${plan.active ? 'border-[#B88A44]/35 shadow-sm' : 'border-slate-200 dark:border-white/10 opacity-75'} overflow-hidden transition-all hover:border-[#007BFF]/40 hover:shadow-md flex flex-col justify-between`}>
+                        <div key={plan.id} className={`bg-white dark:bg-card-dark rounded-2xl border ${plan.active ? 'border-[#B88A44]/35 shadow-sm' : 'border-slate-200 dark:border-white/10 opacity-75'} overflow-hidden transition-all hover:border-primary/40 hover:shadow-md flex flex-col justify-between`}>
                             <div className="p-6">
                                 <div className="flex justify-between items-start mb-4">
                                     <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${plan.active ? 'bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382]' : 'bg-slate-100 dark:bg-white/10 text-slate-500'}`}>
                                         {plan.active ? 'Plano Ativo' : 'Inativo'}
                                     </span>
                                     <div className="flex gap-1">
-                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-[#007BFF] dark:hover:text-[#72E7FF] transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-white/5" title="Editar plano">
+                                        <button onClick={() => handleEdit(plan)} className="p-2 text-slate-400 hover:text-primary-dark transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-white/5" title="Editar plano">
                                             <span className="material-symbols-outlined text-lg">edit</span>
                                         </button>
                                         <button onClick={() => toggleStatus(plan)} className={`p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 ${plan.active ? 'text-amber-500 hover:text-amber-600' : 'text-emerald-500 hover:text-emerald-600'}`} title={plan.active ? 'Desativar plano' : 'Ativar plano'}>
@@ -360,7 +360,7 @@ const ChefClubPlans: React.FC = () => {
 
                                 <div className="mb-4">
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-black text-[#007BFF] dark:text-[#72E7FF]">{formatCurrency(plan.monthly_price || 0)}</span>
+                                        <span className="text-2xl font-black text-primary-dark">{formatCurrency(plan.monthly_price || 0)}</span>
                                         <span className="text-xs text-slate-500 font-bold">/mês</span>
                                     </div>
                                     {pricePerCredit !== null && (
@@ -380,7 +380,7 @@ const ChefClubPlans: React.FC = () => {
                                             {serviceCredits.length > 0 ? serviceCredits.map((entry) => (
                                                 <div key={`${plan.id}-${entry.service_id || entry.service_name}`} className="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
                                                     <span className="font-bold flex items-center gap-1.5">
-                                                        <span className="material-symbols-outlined text-xs text-[#007BFF] dark:text-[#72E7FF]">check_circle</span>
+                                                        <span className="material-symbols-outlined text-xs text-primary-dark">check_circle</span>
                                                         {entry.service_name}
                                                     </span>
                                                     <span className="inline-flex items-center rounded-full bg-[#B88A44]/15 px-2.5 py-0.5 text-xs font-black text-[#9A6F2D] dark:text-[#E3C382]">
@@ -397,7 +397,7 @@ const ChefClubPlans: React.FC = () => {
                                     <div className="space-y-1.5 pt-1">
                                         {plan.priority_booking && (
                                             <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                                <span className="material-symbols-outlined text-blue-500 text-base">schedule</span>
+                                                <span className="material-symbols-outlined text-primary-dark text-base">schedule</span>
                                                 <span className="font-bold">Prioridade na Agenda</span>
                                             </div>
                                         )}
@@ -587,14 +587,14 @@ const ChefClubPlans: React.FC = () => {
                             title="Prioridade de Agendamento"
                             checked={form.priority_booking}
                             onChange={(e) => setForm((current) => ({ ...current, priority_booking: e.target.checked }))}
-                            className="size-4 rounded border-slate-300 text-[#007BFF] focus:ring-[#007BFF]"
+                            className="size-4 rounded border-slate-300 text-primary focus:ring-primary"
                         />
                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Habilitar Prioridade de Agendamento</span>
                     </div>
 
                     <div className="flex flex-col gap-3 pt-4 sm:flex-row">
                         <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 px-6 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 font-bold rounded-xl text-sm">Cancelar</button>
-                        <button type="submit" disabled={loading} className="flex-1 py-3 px-6 bg-[#007BFF] text-white font-black rounded-xl text-sm shadow-sm shadow-[#007BFF]/20">
+                        <button type="submit" disabled={loading} className="flex-1 py-3 px-6 bg-gradient-to-r from-primary to-primary-dark text-night font-black rounded-xl text-sm shadow-sm shadow-primary/20 hover:brightness-105 disabled:opacity-60">
                             {loading ? 'Salvando...' : 'Salvar Plano'}
                         </button>
                     </div>

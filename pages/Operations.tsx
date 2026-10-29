@@ -179,9 +179,9 @@ const Operations: React.FC = () => {
     const activeFlowCount = stats.confirmed + stats.pending + stats.inProgress;
 
     const getStatusClasses = (status: string) => {
-        if (status === 'confirmed') return 'border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300';
+        if (status === 'confirmed') return 'border-sched-confirmed/20 bg-sched-confirmed/10 text-sched-confirmed-strong';
         if (status === 'pending' || status === 'waiting') return 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300';
-        if (status === 'in_progress') return 'border-[#00D2FF]/25 bg-[#00D2FF]/10 text-[#006CA3] dark:text-[#80E8FF]';
+        if (status === 'in_progress') return 'border-sched-in-progress/25 bg-sched-in-progress/10 text-sched-in-progress-strong';
         if (status === 'completed') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
         if (status === 'cancelled' || status === 'no_show') return 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300';
         return 'border-slate-200 bg-slate-100 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300';
@@ -189,12 +189,12 @@ const Operations: React.FC = () => {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-5 pb-10 animate-fade-in">
-            <section className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-[#102235] p-4 text-white shadow-sm dark:border-white/10 sm:p-5">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(0,210,255,0.22),transparent_34%),linear-gradient(135deg,rgba(0,51,102,0.98),rgba(15,23,42,0.98)_58%,rgba(146,104,45,0.62))]" />
+            <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-night p-4 text-white shadow-sm sm:p-5">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(217,154,43,0.22),transparent_34%),linear-gradient(135deg,rgba(25,22,17,0.98),rgba(11,11,12,0.98)_58%,rgba(146,104,45,0.62))]" />
                 <div className="relative grid gap-4 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
                     <div className="min-w-0">
                         <div className="flex items-start gap-3">
-                            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00D2FF] to-[#007BFF] shadow-[0_0_24px_rgba(0,210,255,0.20)]">
+                            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-night shadow-[0_0_24px_rgba(217,154,43,0.20)]">
                                 <span className="material-symbols-outlined text-2xl">assignment</span>
                             </div>
                             <div className="min-w-0">
@@ -256,7 +256,7 @@ const Operations: React.FC = () => {
 
             <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-card-dark sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF7FF] text-[#007BFF] dark:bg-[#00D2FF]/10 dark:text-[#80E8FF]">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary-dark">
                         <span className="material-symbols-outlined text-xl">today</span>
                     </div>
                     <div className="min-w-0">
@@ -280,7 +280,7 @@ const Operations: React.FC = () => {
                             <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Cadeiras e clientes</p>
                             <h2 className="text-xl font-black text-slate-900 dark:text-white">Fila operacional</h2>
                         </div>
-                        <button onClick={() => navigate('/schedule')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#007BFF] shadow-sm transition-all hover:bg-[#F7FBFE] dark:border-white/10 dark:bg-card-dark dark:text-[#80E8FF] dark:hover:bg-white/5">Ver agenda completa</button>
+                        <button onClick={() => navigate('/schedule')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-primary-dark shadow-sm transition-all hover:bg-primary/10 dark:border-white/10 dark:bg-card-dark">Ver agenda completa</button>
                     </div>
                     <div className="space-y-3 relative before:absolute before:left-5 before:top-2 before:bottom-2 before:w-px before:bg-slate-200 dark:before:bg-white/10">
                         {loading ? (
@@ -294,10 +294,10 @@ const Operations: React.FC = () => {
                         ) : (
                             appointments.map((apt) => (
                                 <div key={apt.id} className="relative pl-12">
-                                    <div className="absolute left-0 top-5 z-10 flex size-10 items-center justify-center rounded-full border-4 border-background-light bg-[#102235] shadow-sm dark:border-background-dark">
+                                    <div className="absolute left-0 top-5 z-10 flex size-10 items-center justify-center rounded-full border-4 border-background-light bg-night shadow-sm dark:border-background-dark">
                                         <span className="text-xs font-bold text-white">{formatTime(apt.start_time)}</span>
                                     </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[#007BFF]/30 hover:shadow-md dark:border-white/10 dark:bg-card-dark">
+                                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md dark:border-white/10 dark:bg-card-dark">
                                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                             <div className="flex min-w-0 items-center gap-3">
                                                 <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5">
@@ -340,7 +340,7 @@ const Operations: React.FC = () => {
                                                                 setSharedExecutionParticipants(apt.execution_participants || []);
                                                                 setShowSharedExecutionModal(true);
                                                             }}
-                                                            className="flex items-center gap-1 rounded-lg border border-[#00D2FF]/20 bg-[#00D2FF]/10 px-3 py-2 text-xs font-black text-[#006CA3] transition-all hover:bg-[#00D2FF]/15 dark:text-[#80E8FF]"
+                                                            className="flex items-center gap-1 rounded-lg border border-teal-500/20 bg-teal-500/10 px-3 py-2 text-xs font-black text-teal-700 transition-all hover:bg-teal-500/15 dark:text-teal-300"
                                                         >
                                                             <span className="material-symbols-outlined text-sm">group</span>
                                                             Compartilhar
@@ -367,7 +367,7 @@ const Operations: React.FC = () => {
                                     Estoque crítico
                                 </h3>
                             </div>
-                            <button onClick={() => navigate('/products')} className="text-xs font-black text-[#007BFF] dark:text-[#80E8FF]">Produtos</button>
+                            <button onClick={() => navigate('/products')} className="text-xs font-black text-primary-dark">Produtos</button>
                         </div>
                         <div className="p-2">
                             {lowStockItems.length === 0 ? (
@@ -430,15 +430,15 @@ const Operations: React.FC = () => {
                             </div>
                             <div>
                                 <p className="text-xs text-slate-500 uppercase font-bold">Status</p>
-                                <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${selectedAppointment.status === 'confirmed' ? 'bg-blue-100 text-blue-700' : selectedAppointment.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                                <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${selectedAppointment.status === 'confirmed' ? 'bg-sched-confirmed/15 text-sched-confirmed-strong' : selectedAppointment.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                                     {getStatusLabel(selectedAppointment.status)}
                                 </span>
                             </div>
                         </div>
 
                         {sharedExecutionParticipants.length > 0 && (
-                            <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-4">
-                                <p className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase mb-2">Execução Compartilhada</p>
+                            <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4">
+                                <p className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase mb-2">Execução Compartilhada</p>
                                 {sharedExecutionParticipants.map((p, idx) => (
                                     <div key={idx} className="flex justify-between text-sm">
                                         <span className="text-slate-700 dark:text-slate-200">{p.professional_name}</span>
@@ -579,7 +579,7 @@ const Operations: React.FC = () => {
 
                                     setSharedExecutionParticipants(prev => [...prev, newParticipant]);
                                 }}
-                                className="w-full mt-2 py-2 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-lg text-sm font-bold hover:bg-violet-200 dark:hover:bg-violet-900/50"
+                                className="w-full mt-2 py-2 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg text-sm font-bold hover:bg-teal-200 dark:hover:bg-teal-900/50"
                             >
                                 + Adicionar Participante
                             </button>
@@ -611,7 +611,7 @@ const Operations: React.FC = () => {
                                         }
                                     });
                                 }}
-                                className="flex-1 py-2.5 bg-violet-500 text-white rounded-lg font-bold text-sm"
+                                className="flex-1 py-2.5 bg-teal-500 text-night rounded-lg font-bold text-sm"
                             >
                                 Ir para Checkout ({sharedExecutionParticipants.length} participante{sharedExecutionParticipants.length !== 1 ? 's' : ''})
                             </button>
