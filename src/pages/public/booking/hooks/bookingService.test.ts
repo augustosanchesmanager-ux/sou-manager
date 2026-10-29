@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isUsingMock, getPublicTenantProfile, createPublicBooking } from './bookingService';
+import {
+  isUsingMock,
+  getPublicTenantProfile,
+  getPublicShowcaseProducts,
+  createPublicBooking,
+} from './bookingService';
 import * as clientModule from '../../../../../services/supabaseClient';
 
 describe('BookingService — Front-end to Supabase RPC integration', () => {
@@ -110,6 +115,35 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
         p_client_name: 'Cliente Avante',
       }));
       expect(result.appointment_id).toBe('apt-avante-123');
+    }
+  });
+
+  it('should_call_get_public_showcase_products_rpc_via_anonymous_client', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'prod-1',
+          name: 'Pomada Efeito Matte',
+          price: 65,
+          image_url: 'https://example.com/pomada.jpg',
+          description: 'Alta fixação',
+        },
+      ],
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const products = await getPublicShowcaseProducts('sanchez-barber');
+      expect(mockRpc).toHaveBeenCalledWith('get_public_showcase_products', {
+        p_slug: 'sanchez-barber',
+      });
+      expect(products).toHaveLength(1);
+      expect(products[0].name).toBe('Pomada Efeito Matte');
+      expect(products[0].price).toBe(65);
     }
   });
 });

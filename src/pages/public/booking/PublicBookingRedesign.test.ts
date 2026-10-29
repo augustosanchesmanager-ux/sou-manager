@@ -9,6 +9,12 @@ import { describe, it, expect } from 'vitest';
 import { applyPhoneMask } from './LeadCaptureModal';
 import { buildSafeWhatsAppUrl, buildSafeInstagramUrl } from './BookingHeader';
 import { buildStructuredWhatsAppConfirmationUrl } from './BookingSuccessVoucher';
+import {
+  sanitizeBookingSlug,
+  sanitizeHexColor,
+  DEFAULT_BRAND_PRIMARY_COLOR,
+} from '../../../../domain/tenantSettings/repository';
+import { reorderArrayItems } from '../../../../pages/portal/ProductShowcaseSelector';
 import type { PublicTenantProfile, CreatePublicBookingResult } from './hooks/types';
 
 describe('PublicBookingRedesign — Helpers & Formatter Suite', () => {
@@ -133,6 +139,40 @@ describe('PublicBookingRedesign — Helpers & Formatter Suite', () => {
       expect(decoded).toContain('Data: Seg, 25 às 14:00');
       expect(decoded).toContain('Código: A1B2C3D4');
       expect(decoded).toContain('Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/dompedro?token=token123');
+    });
+  });
+
+  describe('sanitizeBookingSlug', () => {
+    it('should_normalize_accents_spaces_and_special_characters_into_lowercase_hyphenated_slug', () => {
+      expect(sanitizeBookingSlug('Barbearia Dom Pedro & Filhos!')).toBe('barbearia-dom-pedro-filhos');
+      expect(sanitizeBookingSlug('  São Paulo_Barber---Shop  ')).toBe('sao-paulo-barber-shop');
+    });
+  });
+
+  describe('sanitizeHexColor', () => {
+    it('should_preserve_valid_6_digit_hex_color_in_uppercase', () => {
+      expect(sanitizeHexColor('#b88a44')).toBe('#B88A44');
+      expect(sanitizeHexColor('#10b981')).toBe('#10B981');
+    });
+
+    it('should_fallback_to_default_gold_when_color_is_invalid_or_empty', () => {
+      expect(sanitizeHexColor('')).toBe(DEFAULT_BRAND_PRIMARY_COLOR);
+      expect(sanitizeHexColor('not-a-color')).toBe(DEFAULT_BRAND_PRIMARY_COLOR);
+      expect(sanitizeHexColor(null)).toBe(DEFAULT_BRAND_PRIMARY_COLOR);
+    });
+  });
+
+  describe('reorderArrayItems', () => {
+    it('should_move_product_id_to_target_position_preserving_remaining_order', () => {
+      const initial = ['prod-1', 'prod-2', 'prod-3', 'prod-4'];
+      expect(reorderArrayItems(initial, 0, 2)).toEqual(['prod-2', 'prod-3', 'prod-1', 'prod-4']);
+      expect(reorderArrayItems(initial, 3, 1)).toEqual(['prod-1', 'prod-4', 'prod-2', 'prod-3']);
+    });
+
+    it('should_return_shallow_copy_when_indices_are_equal_or_out_of_bounds', () => {
+      const initial = ['prod-1', 'prod-2'];
+      expect(reorderArrayItems(initial, 1, 1)).toEqual(['prod-1', 'prod-2']);
+      expect(reorderArrayItems(initial, -1, 1)).toEqual(['prod-1', 'prod-2']);
     });
   });
 });

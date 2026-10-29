@@ -6,6 +6,7 @@
 
 import type {
   PublicTenantProfile,
+  PublicShowcaseProduct,
   PublicAvailableSlotsResponse,
   CreatePublicBookingResult,
   CreatePublicBookingRequest,
@@ -14,6 +15,7 @@ import type {
 } from './types';
 import {
   MOCK_TENANT_PROFILE,
+  MOCK_SHOWCASE_PRODUCTS,
   createMockAvailableSlotsResponse,
   createMockBookingResult,
   shouldTriggerMockError,
@@ -68,6 +70,18 @@ export async function mockGetPublicTenantProfile(
   }
 
   return JSON.parse(JSON.stringify(MOCK_TENANT_PROFILE));
+}
+
+export async function mockGetPublicShowcaseProducts(
+  _tenantIdentifier: string
+): Promise<PublicShowcaseProduct[]> {
+  await simulateLatency();
+
+  if (!MOCK_TENANT_PROFILE.booking_enabled || !MOCK_TENANT_PROFILE.show_products) {
+    return [];
+  }
+
+  return JSON.parse(JSON.stringify(MOCK_SHOWCASE_PRODUCTS));
 }
 
 // ============================================================================

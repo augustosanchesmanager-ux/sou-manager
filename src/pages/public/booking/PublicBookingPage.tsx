@@ -43,6 +43,7 @@ import { StaffSelectionModal } from './modals/StaffSelectionModal';
 import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
 import { PublicBookingCancelModal } from './modals/PublicBookingCancelModal';
 import { ServicesGridSelector } from './components/ServicesGridSelector';
+import { PublicProductsShowcase } from './components/PublicProductsShowcase';
 import { BookingStickyBottomBar } from './components/BookingStickyBottomBar';
 import { BookingUpsellBottomSheet } from './components/BookingUpsellBottomSheet';
 import { getSuggestedUpsellServices } from './utils/upsellRecommendation';
@@ -59,6 +60,7 @@ import type { PublicSlot, PublicService } from './hooks/types';
 const PublicBookingPage: React.FC = () => {
   const {
     tenantProfile,
+    showcaseProducts,
     currentStep,
     isLoading,
     error,
@@ -551,8 +553,17 @@ const PublicBookingPage: React.FC = () => {
     );
   }
 
+  const primaryColor = tenantProfile.primary_color || '#B88A44';
+  const isLightMode = tenantProfile.theme_mode === 'light';
+
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-start sm:items-center justify-center p-0 sm:p-4 font-sans text-white">
+    <div
+      className={`min-h-screen ${
+        isLightMode ? 'bg-neutral-100' : 'bg-neutral-950'
+      } flex items-start sm:items-center justify-center p-0 sm:p-4 font-sans text-white`}
+      style={{ '--brand-primary': primaryColor } as React.CSSProperties}
+      data-theme-mode={tenantProfile.theme_mode || 'dark'}
+    >
       {/* Container Mobile Card */}
       <div className="w-full max-w-sm sm:max-w-md bg-neutral-900 text-white rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border border-neutral-800 flex flex-col min-h-screen sm:min-h-0 sm:my-6">
         {/* Error Toast notification */}
@@ -703,14 +714,17 @@ const PublicBookingPage: React.FC = () => {
                   <div className="flex items-center justify-between pt-1">
                     <div>
                       <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                        <Scissors className="w-4 h-4 text-amber-400" />
+                        <Scissors className="w-4 h-4" style={{ color: primaryColor }} />
                         Serviços Disponíveis
                       </h2>
                       <p className="text-[11px] text-neutral-400">
                         Selecione um ou mais serviços para agendar
                       </p>
                     </div>
-                    <span className="text-xs font-bold text-amber-400">
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: primaryColor }}
+                    >
                       {availableServices.length} {availableServices.length === 1 ? 'item' : 'itens'}
                     </span>
                   </div>
@@ -722,6 +736,15 @@ const PublicBookingPage: React.FC = () => {
                     onToggleService={handleToggleService}
                     formatPriceBRL={formatPriceBRL}
                   />
+
+                  {/* Vitrine de Produtos Recomendados (Home Care) */}
+                  {Boolean(tenantProfile.show_products) && showcaseProducts.length > 0 && (
+                    <PublicProductsShowcase
+                      products={showcaseProducts}
+                      formatPriceBRL={formatPriceBRL}
+                      primaryColor={primaryColor}
+                    />
+                  )}
 
                   {/* Reassurance Features */}
                   <div className="mt-4 pt-3 border-t border-neutral-800/80 grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
@@ -736,6 +759,19 @@ const PublicBookingPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Institutional Signature Footer */}
+              <footer className="mt-12 pb-6 text-center text-xs text-zinc-500">
+                <span>Powered by </span>
+                <a
+                  href="https://barber.soumanager.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-zinc-400 hover:text-amber-400 transition-colors"
+                >
+                  SMG Intelligence
+                </a>
+              </footer>
             </main>
 
             {/* Sticky Bottom Summary Bar */}

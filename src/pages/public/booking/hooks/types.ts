@@ -8,17 +8,37 @@
 // RPC 1: get_public_tenant_profile
 // ============================================================================
 
+export interface PublicShowcaseProduct {
+  id: string;
+  name: string;
+  price: number;
+  image_url: string | null;
+  description: string | null;
+}
+
 export interface PublicTenantProfile {
   tenant_id: string;
   name: string;
+  display_name?: string | null;
   slug: string;
   logo_url: string | null;
   cover_url?: string | null;
+  cover_banner_url?: string | null;
+  primary_color?: string | null;
+  theme_mode?: 'dark' | 'light' | null;
+  slogan?: string | null;
+  about_text?: string | null;
   address: string | null;
+  display_address?: string | null;
   phone: string | null;
   instagram_url?: string | null;
   whatsapp_number?: string | null;
   maps_url?: string | null;
+  show_products?: boolean;
+  featured_product_ids?: string[];
+  featured_service_ids?: string[];
+  showcase_products?: PublicShowcaseProduct[];
+  weekly_schedule?: Record<string, unknown> | null;
   social_links: PublicSocialLinks | null;
   booking_enabled: boolean;
   booking_rules: PublicBookingRules;

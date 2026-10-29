@@ -6,6 +6,7 @@
 import { getPublicAnonymousClient } from '../../../../../services/supabaseClient';
 import type {
   PublicTenantProfile,
+  PublicShowcaseProduct,
   PublicAvailableSlotsResponse,
   CreatePublicBookingResult,
   CreatePublicBookingRequest,
@@ -14,6 +15,7 @@ import type {
 } from './types';
 import {
   mockGetPublicTenantProfile,
+  mockGetPublicShowcaseProducts,
   mockGetPublicAvailableSlots,
   mockCreatePublicBooking,
   mockCancelPublicBooking,
@@ -25,6 +27,7 @@ import {
 
 const RPC_NAMES = {
   GET_TENANT_PROFILE: 'get_public_tenant_profile',
+  GET_SHOWCASE_PRODUCTS: 'get_public_showcase_products',
   GET_AVAILABLE_SLOTS: 'get_public_available_slots',
   CREATE_BOOKING: 'create_public_booking',
   CANCEL_BOOKING: 'cancel_public_booking',
@@ -90,6 +93,50 @@ export async function getPublicTenantProfile(
       return mockGetPublicTenantProfile(tenantIdentifier);
     }
     throw err;
+  }
+}
+
+// ============================================================================
+// RPC 1b: get_public_showcase_products
+// ============================================================================
+
+export async function getPublicShowcaseProducts(
+  slug: string
+): Promise<PublicShowcaseProduct[]> {
+  if (isMockEnabled()) {
+    return mockGetPublicShowcaseProducts(slug);
+  }
+
+  try {
+    const client = getPublicAnonymousClient();
+    const { data, error } = await client.rpc(RPC_NAMES.GET_SHOWCASE_PRODUCTS, {
+      p_slug: slug,
+    });
+
+    if (error) {
+      if (isFunctionNotFoundError(error)) {
+        return allowMockFallback() ? mockGetPublicShowcaseProducts(slug) : [];
+      }
+      throw error;
+    }
+
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
+    return data.map((row: Record<string, unknown>) => ({
+      id: String(row.id ?? ''),
+      name: String(row.name ?? ''),
+      price: Number(row.price ?? 0),
+      image_url: typeof row.image_url === 'string' ? row.image_url : null,
+      description: typeof row.description === 'string' ? row.description : null,
+    }));
+  } catch (err) {
+    if (isFunctionNotFoundError(err)) {
+      return allowMockFallback() ? mockGetPublicShowcaseProducts(slug) : [];
+    }
+    console.warn('[BookingService] Failed to load showcase products:', err);
+    return [];
   }
 }
 

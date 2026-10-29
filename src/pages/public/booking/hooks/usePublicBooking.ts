@@ -7,12 +7,14 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   getPublicTenantProfile,
+  getPublicShowcaseProducts,
   getPublicAvailableSlots,
   createPublicBooking,
   isUsingMock,
 } from './bookingService';
 import type {
   PublicTenantProfile,
+  PublicShowcaseProduct,
   PublicService,
   PublicStaff,
   PublicSlot,
@@ -276,13 +278,37 @@ export function usePublicBooking() {
         const profile = await getPublicTenantProfile(tenantSlug);
         if (!cancelled && isMountedRef.current) {
           if (profile) {
+            let resolvedShowcaseProducts: PublicShowcaseProduct[] = Array.isArray(
+              profile.showcase_products,
+            )
+              ? profile.showcase_products
+              : [];
+
+            if (
+              profile.show_products &&
+              resolvedShowcaseProducts.length === 0 &&
+              (!profile.featured_product_ids || profile.featured_product_ids.length > 0)
+            ) {
+              resolvedShowcaseProducts = await getPublicShowcaseProducts(
+                profile.slug || tenantSlug,
+              );
+            }
+
+            const enrichedProfile: PublicTenantProfile = {
+              ...profile,
+              name: profile.display_name || profile.name,
+              address: profile.display_address || profile.address,
+              cover_url: profile.cover_banner_url || profile.cover_url || null,
+              showcase_products: resolvedShowcaseProducts,
+            };
+
             setState((prev) => ({
               ...prev,
-              tenantProfile: profile,
+              tenantProfile: enrichedProfile,
               isLoading: false,
             }));
             // Set document title
-            document.title = `${profile.name} · Agendar`;
+            document.title = `${enrichedProfile.name} · Agendar`;
           } else {
             setState((prev) => ({
               ...prev,
@@ -546,6 +572,10 @@ export function usePublicBooking() {
   // ============================================================================
 
   const availableServices = state.tenantProfile?.services.filter((s) => s.active) || [];
+  const showcaseProducts: PublicShowcaseProduct[] =
+    state.tenantProfile?.show_products && Array.isArray(state.tenantProfile.showcase_products)
+      ? state.tenantProfile.showcase_products
+      : [];
   const availableStaff =
     state.tenantProfile?.staff.filter((s) => {
       if (s.status !== 'active') return false;
@@ -583,8 +613,9 @@ export function usePublicBooking() {
     error: state.error,
     isUsingMock: isUsingMock(),
 
-    // Step 1: Services
+    // Step 1: Services & Showcase Products
     availableServices,
+    showcaseProducts,
     selectedServiceIds: state.selectedServiceIds,
     toggleService,
 

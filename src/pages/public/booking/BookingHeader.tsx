@@ -104,8 +104,11 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();
   };
 
-  const monogram = getMonogram(tenant.name);
-  const coverImage = tenant.cover_url || DEFAULT_BARBER_COVER;
+  const displayName = tenant.display_name || tenant.name;
+  const displayAddress = tenant.display_address || tenant.address;
+  const primaryColor = tenant.primary_color || '#B88A44';
+  const monogram = getMonogram(displayName);
+  const coverImage = tenant.cover_banner_url || tenant.cover_url || DEFAULT_BARBER_COVER;
 
   return (
     <header className="bg-neutral-950 border-b border-neutral-800 flex-shrink-0">
@@ -113,7 +116,7 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
       <div className="relative h-40 sm:h-44 w-full overflow-hidden bg-neutral-950">
         <img
           src={coverImage}
-          alt={`Capa ${tenant.name}`}
+          alt={`Capa ${displayName}`}
           className="w-full h-full object-cover"
         />
         {/* Soft dark gradient overlay for seamless merge to page background */}
@@ -121,8 +124,11 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
 
         {/* Top Badges & Social Links */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-neutral-700/80 text-[10px] font-bold text-amber-400 tracking-wider uppercase">
-            <Sparkles size={11} className="text-amber-400" />
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-neutral-700/80 text-[10px] font-bold tracking-wider uppercase"
+            style={{ color: primaryColor }}
+          >
+            <Sparkles size={11} style={{ color: primaryColor }} />
             Agendamento Online
           </span>
 
@@ -158,17 +164,23 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
       {/* 2. Overlapping Profile Area */}
       <div className="px-4 sm:px-5 pb-3.5 -mt-12 relative z-10">
         <div className="flex items-end gap-3.5">
-          {/* Logo / Avatar with Amber Ring */}
-          <div className="size-18 sm:size-20 rounded-full border-2 border-amber-500 p-0.5 flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center shadow-xl shadow-amber-500/10 ring-4 ring-neutral-950">
+          {/* Logo / Avatar with Primary Brand Ring */}
+          <div
+            className="size-18 sm:size-20 rounded-full border-2 p-0.5 flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center shadow-xl ring-4 ring-neutral-950"
+            style={{ borderColor: primaryColor }}
+          >
             {tenant.logo_url ? (
               <img
                 src={tenant.logo_url}
-                alt={tenant.name}
+                alt={displayName}
                 className="w-full h-full object-cover rounded-full"
                 loading="lazy"
               />
             ) : (
-              <div className="size-full rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-neutral-950 font-display font-black text-xl shadow-sm">
+              <div
+                className="size-full rounded-full flex items-center justify-center text-neutral-950 font-display font-black text-xl shadow-sm"
+                style={{ backgroundColor: primaryColor }}
+              >
                 {monogram}
               </div>
             )}
@@ -177,26 +189,35 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
           {/* Identity & Location */}
           <div className="min-w-0 flex-1 pb-1">
             <h1 className="text-white font-extrabold text-lg sm:text-xl tracking-tight leading-tight truncate drop-shadow-sm">
-              {tenant.name}
+              {displayName}
             </h1>
 
+            {tenant.slogan && (
+              <p
+                className="text-[11px] font-semibold truncate mt-0.5"
+                style={{ color: primaryColor }}
+              >
+                {tenant.slogan}
+              </p>
+            )}
+
             {/* Address with Google Maps link */}
-            {tenant.address && (
+            {displayAddress && (
               <div className="flex items-center gap-1.5 text-xs text-neutral-300 mt-1">
-                <MapPin size={13} className="text-amber-400 flex-shrink-0" />
+                <MapPin size={13} className="flex-shrink-0" style={{ color: primaryColor }} />
                 {mapsUrl ? (
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="truncate hover:text-amber-400 transition-colors flex items-center gap-1"
-                    title={tenant.address}
+                    title={displayAddress}
                   >
-                    <span className="truncate">{tenant.address}</span>
+                    <span className="truncate">{displayAddress}</span>
                     <ExternalLink size={11} className="flex-shrink-0 opacity-70" />
                   </a>
                 ) : (
-                  <span className="truncate">{tenant.address}</span>
+                  <span className="truncate">{displayAddress}</span>
                 )}
               </div>
             )}
@@ -218,9 +239,10 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
           onClick={() => onTabChange('agendamento')}
           className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
             activeTab === 'agendamento'
-              ? 'text-amber-400 font-black'
+              ? 'font-black'
               : 'text-neutral-400 hover:text-white font-medium'
           }`}
+          style={activeTab === 'agendamento' ? { color: primaryColor } : undefined}
         >
           <CalendarIcon size={16} />
           <span className="text-[10px] uppercase tracking-tight">Agendamento</span>
@@ -234,9 +256,10 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
           onClick={() => onTabChange('servicos')}
           className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
             activeTab === 'servicos'
-              ? 'text-amber-400 font-black'
+              ? 'font-black'
               : 'text-neutral-400 hover:text-white font-medium'
           }`}
+          style={activeTab === 'servicos' ? { color: primaryColor } : undefined}
         >
           <Scissors size={16} />
           <span className="text-[10px] uppercase tracking-tight">Serviços</span>
@@ -250,9 +273,10 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
           onClick={() => onTabChange('sobre')}
           className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
             activeTab === 'sobre'
-              ? 'text-amber-400 font-black'
+              ? 'font-black'
               : 'text-neutral-400 hover:text-white font-medium'
           }`}
+          style={activeTab === 'sobre' ? { color: primaryColor } : undefined}
         >
           <Info size={16} />
           <span className="text-[10px] uppercase tracking-tight">Sobre nós</span>
@@ -277,9 +301,10 @@ const BookingHeader: React.FC<BookingHeaderProps> = ({
             onClick={() => onTabChange('contato')}
             className={`flex flex-col items-center gap-1 py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
               activeTab === 'contato'
-                ? 'text-amber-400 font-black'
+                ? 'font-black'
                 : 'text-neutral-400 hover:text-white font-medium'
             }`}
+            style={activeTab === 'contato' ? { color: primaryColor } : undefined}
           >
             <MessageCircle size={16} />
             <span className="text-[10px] uppercase tracking-tight">Fale conosco</span>
