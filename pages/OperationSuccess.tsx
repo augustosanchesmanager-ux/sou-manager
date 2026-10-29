@@ -1,15 +1,18 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTenantOptional } from '../src/context/TenantContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { formatCurrency } from '../shared/format/currency';
 import { getAppointmentStatusLabel } from '../shared/status/appointment';
+import { normalizePhone } from '../src/lib/utils/phone';
 
 type OperationType = 'appointment' | 'comanda';
 
 interface AppointmentData {
   id: string;
   client: string;
+  clientPhone?: string;
   service: string;
   professional: string;
   dateTime: string;
@@ -43,9 +46,11 @@ const OperationSuccess: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { appSlug } = useAuth();
+  const tenantContext = useTenantOptional();
   const state = location.state as OperationSuccessLocationState | null;
   const businessLabels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
+  const businessName = tenantContext?.tenant?.name || (isEsteticaApp ? 'nossa clínica' : 'nossa barbearia');
   const serviceLabel = businessLabels.service;
   const orderLabel = businessLabels.order;
   const orderPluralLabel = businessLabels.orderPlural;
@@ -128,6 +133,30 @@ const OperationSuccess: React.FC = () => {
   }
 
   if (operationType === 'appointment' && appointment) {
+    const appointmentCode = appointment.id ? appointment.id.slice(0, 8).toUpperCase() : '';
+    const formattedDateTime = formatDateTime(appointment.dateTime);
+    const { digits: phoneDigits, isValid: isPhoneValid } = normalizePhone(appointment.clientPhone);
+
+    const clientFirstName = appointment.client ? appointment.client.split(' ')[0] : 'Cliente';
+    const lines = [
+      `Olá, ${clientFirstName}! Seu agendamento foi confirmado com sucesso na ${businessName}!`,
+      '',
+      `📅 Data e Horário: ${formattedDateTime}`,
+      `✂️ ${serviceLabel}: ${appointment.service}`,
+      `💈 Profissional: ${appointment.professional}`,
+    ];
+
+    if (appointmentCode) {
+      lines.push(`🔖 Código do agendamento: #${appointmentCode}`);
+    }
+
+    lines.push('', 'Estamos te esperando!');
+
+    const messageText = lines.join('\n');
+    const whatsAppUrl = isPhoneValid
+      ? `https://wa.me/55${phoneDigits}?text=${encodeURIComponent(messageText)}`
+      : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
     return (
       <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -152,6 +181,9 @@ const OperationSuccess: React.FC = () => {
                 <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</p>
                   <p className="text-lg font-bold text-slate-900 dark:text-white">{appointment.client}</p>
+                  {appointment.clientPhone && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{appointment.clientPhone}</p>
+                  )}
                 </div>
               </div>
 
@@ -169,7 +201,7 @@ const OperationSuccess: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data e Hora</p>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{formatDateTime(appointment.dateTime)}</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{formattedDateTime}</p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</p>
@@ -180,13 +212,23 @@ const OperationSuccess: React.FC = () => {
               {appointment.id && (
                 <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{isEsteticaApp ? 'ID do atendimento' : 'ID do Agendamento'}</p>
-                  <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">#{appointment.id.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-xs font-mono text-slate-600 dark:text-slate-400 mt-1">#{appointmentCode}</p>
                 </div>
               )}
             </div>
           </div>
 
           <div className="space-y-3">
+            <a
+              href={whatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+            >
+              <span className="material-symbols-outlined text-2xl">chat</span>
+              Enviar confirmação via WhatsApp
+            </a>
+
             <button
               onClick={() => navigate('/schedule')}
               className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
