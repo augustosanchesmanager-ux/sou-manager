@@ -4,12 +4,12 @@ import { ProgressRings, SingleProgressRing } from '../components/charts/Progress
 import { ModernDonutChart, DonutLegend } from '../components/charts/ModernDonutChart';
 
 const COLORS = {
-  primary: '#3B82F6',
+  primary: '#D99A2B',
   emerald: '#10B981',
   amber: '#F59E0B',
   rose: '#F43F5E',
-  violet: '#8B5CF6',
-  cyan: '#06B6D4',
+  violet: '#14B8A6',
+  cyan: '#64748B',
 };
 
 const ChartsDemo: React.FC = () => {

@@ -238,7 +238,7 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
             </button>
 
             {selectedClient && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 text-xs font-bold">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-bold">
                 <span className="material-symbols-outlined text-base">person</span>
                 <span>{selectedClient.name}</span>
                 <button
@@ -264,7 +264,7 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar cliente por nome ou telefone..."
                 autoFocus
-                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-900 dark:text-white outline-none focus:border-sky-500 transition-colors"
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-900 dark:text-white outline-none focus:border-teal-500 transition-colors"
               />
 
               {filteredClients.length > 0 && (
@@ -337,7 +337,7 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
               onClick={() => setSelectedStaffId('house')}
               className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border text-left flex items-center gap-2 ${
                 selectedStaffId === 'house'
-                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                  ? 'bg-primary text-night border-primary shadow-sm'
                   : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
               }`}
             >
@@ -352,7 +352,7 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
                 onClick={() => setSelectedStaffId(pro.id)}
                 className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border text-left flex items-center gap-2 ${
                   selectedStaffId === pro.id
-                    ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                    ? 'bg-primary text-night border-primary shadow-sm'
                     : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
                 }`}
               >
@@ -379,10 +379,10 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleAddItem(item)}
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 hover:bg-sky-50 dark:bg-white/5 dark:hover:bg-sky-950/20 hover:border-sky-500/30 transition-all text-left flex flex-col justify-between group active:scale-95"
+                  className="p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 hover:bg-teal-50 dark:bg-white/5 dark:hover:bg-teal-950/20 hover:border-teal-500/30 transition-all text-left flex flex-col justify-between group active:scale-95"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-slate-400 group-hover:text-sky-500 text-sm">
+                    <span className="material-symbols-outlined text-slate-400 group-hover:text-teal-600 text-sm">
                       {item.type === 'service' ? 'content_cut' : 'package_2'}
                     </span>
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">

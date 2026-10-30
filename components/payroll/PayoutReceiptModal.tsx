@@ -264,7 +264,7 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                         status === 'paid'
                                             ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                                             : status === 'approved'
-                                            ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                            ? 'bg-teal-50 text-teal-700 border-teal-300'
                                             : 'bg-amber-50 text-amber-700 border-amber-300'
                                     }`}
                                 >
