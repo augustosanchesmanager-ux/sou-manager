@@ -43,6 +43,9 @@ const makeRepository = (over: Record<string, unknown> = {}) => ({
     listActiveProfessionals: vi.fn().mockResolvedValue([] as StaffProfile[]),
     listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([]),
     listPendingAdvances: vi.fn().mockResolvedValue([]),
+    listAdvancesBySettlement: vi.fn().mockResolvedValue([]),
+    getConfigByStaff: vi.fn().mockResolvedValue(null),
+    upsertConfig: vi.fn(),
     getSettlementByPeriod: vi.fn().mockResolvedValue(null),
     getSettlementById: vi.fn().mockResolvedValue(null),
     createSettlementDraft: vi.fn(),
@@ -254,5 +257,200 @@ describe('PayoutService.reverseAdvance', () => {
             /Motivo obrigatorio/i,
         );
         expect(repo.reverseAdvance).not.toHaveBeenCalled();
+    });
+});
+
+describe('PayoutService.computeSettlement & generateDraft with bonusesAdded', () => {
+    it('should_expand_fifo_advance_deduction_margin_when_bonuses_added_is_positive', async () => {
+        const service = new PayoutService(
+            makeRepository({
+                listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([
+                    { comanda_id: 'c1', staff_id: 'staff1', amount: 200, commission_value: 100, created_at: '2026-10-01T12:00:00Z' },
+                ]),
+                listPendingAdvances: vi.fn().mockResolvedValue([
+                    {
+                        id: 'adv1',
+                        tenantId: 't1',
+                        staffId: 'staff1',
+                        amount: 150,
+                        transactionId: null,
+                        settlementId: null,
+                        reversedAt: null,
+                        reversalMotivo: null,
+                        issuedAt: '2026-10-01T09:00:00Z',
+                        notes: null,
+                        createdBy: 'u1',
+                        createdAt: '2026-10-01T09:00:00Z',
+                    },
+                ]),
+            }) as never,
+        );
+
+        // Sem bonus, o vale de 150 nao cabe na comissao de 100
+        const withoutBonus = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+            bonusesAdded: 0,
+        });
+        expect(withoutBonus.advancesDeducted).toBe(0);
+        expect(withoutBonus.remainingAdvanceIds).toEqual(['adv1']);
+
+        // Com bonus de 60, a margem passa a 160 (100 + 60), absorvendo o vale de 150
+        const withBonus = await service.computeSettlement({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+            bonusesAdded: 60,
+        });
+        expect(withBonus.grossCommission).toBe(100);
+        expect(withBonus.bonusesAdded).toBe(60);
+        expect(withBonus.advancesDeducted).toBe(150);
+        expect(withBonus.netPayout).toBe(10);
+        expect(withBonus.consumedAdvanceIds).toEqual(['adv1']);
+        expect(withBonus.remainingAdvanceIds).toEqual([]);
+    });
+
+    it('should_allow_generate_draft_when_gross_is_zero_but_bonuses_added_is_positive', async () => {
+        const draftSettlement = makeSettlement('draft', {
+            grossCommission: 0,
+            advancesDeducted: 50,
+            bonusesAdded: 120,
+            netPayout: 70,
+        });
+        const repo = makeRepository({
+            listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([]),
+            listPendingAdvances: vi.fn().mockResolvedValue([
+                {
+                    id: 'adv1',
+                    tenantId: 't1',
+                    staffId: 'staff1',
+                    amount: 50,
+                    transactionId: null,
+                    settlementId: null,
+                    reversedAt: null,
+                    reversalMotivo: null,
+                    issuedAt: '2026-10-01T09:00:00Z',
+                    notes: null,
+                    createdBy: 'u1',
+                    createdAt: '2026-10-01T09:00:00Z',
+                },
+            ]),
+            createSettlementDraft: vi.fn().mockResolvedValue(draftSettlement),
+            linkAdvanceToSettlement: vi.fn().mockResolvedValue({ success: true, message: 'ok' }),
+        });
+        const service = new PayoutService(repo as never);
+
+        const result = await service.generateDraft({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            commissionRate: 0.5,
+            bonusesAdded: 120,
+        });
+
+        expect(repo.createSettlementDraft).toHaveBeenCalledWith({
+            tenantId: 't1',
+            staffId: 'staff1',
+            periodStart: '2026-09-29',
+            periodEnd: '2026-10-05',
+            grossCommission: 0,
+            advancesDeducted: 50,
+            bonusesAdded: 120,
+        });
+        expect(repo.linkAdvanceToSettlement).toHaveBeenCalledWith('t1', 'adv1', 'st1');
+        expect(result.computation.netPayout).toBe(70);
+    });
+
+    it('should_reject_generate_draft_when_both_gross_and_bonuses_are_zero', async () => {
+        const repo = makeRepository({
+            listSettledPaymentsInPeriod: vi.fn().mockResolvedValue([]),
+        });
+        const service = new PayoutService(repo as never);
+
+        await expect(
+            service.generateDraft({
+                tenantId: 't1',
+                staffId: 'staff1',
+                periodStart: '2026-09-29',
+                periodEnd: '2026-10-05',
+                commissionRate: 0.5,
+                bonusesAdded: 0,
+            }),
+        ).rejects.toThrow(/comissao bruta e bonus zerados/i);
+        expect(repo.createSettlementDraft).not.toHaveBeenCalled();
+    });
+});
+
+describe('PayoutService config & settlement advances delegation', () => {
+    it('should_delegate_getConfigByStaff_and_upsertConfig_to_repository', async () => {
+        const mockConfig = {
+            id: 'cfg1',
+            tenantId: 't1',
+            staffId: 'staff1',
+            frequency: 'weekly' as const,
+            payoutWeekday: 2,
+            payoutMonthDay: null,
+            allowAdvances: true,
+            createdAt: '2026-10-01T00:00:00Z',
+            updatedAt: '2026-10-01T00:00:00Z',
+        };
+        const repo = makeRepository({
+            getConfigByStaff: vi.fn().mockResolvedValue(mockConfig),
+            upsertConfig: vi.fn().mockResolvedValue(mockConfig),
+        });
+        const service = new PayoutService(repo as never);
+
+        const loaded = await service.getConfigByStaff('t1', 'staff1');
+        expect(loaded).toEqual(mockConfig);
+        expect(repo.getConfigByStaff).toHaveBeenCalledWith('t1', 'staff1');
+
+        const saved = await service.upsertConfig({
+            tenantId: 't1',
+            staffId: 'staff1',
+            frequency: 'weekly',
+            payoutWeekday: 2,
+            payoutMonthDay: null,
+            allowAdvances: true,
+        });
+        expect(saved).toEqual(mockConfig);
+        expect(repo.upsertConfig).toHaveBeenCalledWith('t1', 'staff1', {
+            frequency: 'weekly',
+            payoutWeekday: 2,
+            payoutMonthDay: null,
+            allowAdvances: true,
+        });
+    });
+
+    it('should_delegate_listAdvancesBySettlement_to_repository', async () => {
+        const mockAdvances = [
+            {
+                id: 'adv1',
+                tenantId: 't1',
+                staffId: 'staff1',
+                amount: 80,
+                transactionId: 'tx1',
+                settlementId: 'st1',
+                reversedAt: null,
+                reversalMotivo: null,
+                issuedAt: '2026-10-01T09:00:00Z',
+                notes: 'Almoço',
+                createdBy: 'u1',
+                createdAt: '2026-10-01T09:00:00Z',
+            },
+        ];
+        const repo = makeRepository({
+            listAdvancesBySettlement: vi.fn().mockResolvedValue(mockAdvances),
+        });
+        const service = new PayoutService(repo as never);
+
+        const list = await service.listAdvancesBySettlement('t1', 'st1');
+        expect(list).toEqual(mockAdvances);
+        expect(repo.listAdvancesBySettlement).toHaveBeenCalledWith('t1', 'st1');
     });
 });
