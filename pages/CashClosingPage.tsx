@@ -32,6 +32,7 @@ import {
 } from '../components/financial/cashCloseUtils';
 import { escapeHtml } from '../shared/strings';
 import { useAuth } from '../context/AuthContext';
+import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
 
 const CashClosingPage: React.FC = () => {
     const { tenantId, user } = useAuth();
@@ -43,6 +44,7 @@ const CashClosingPage: React.FC = () => {
     const [showPreview, setShowPreview] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+    const [showAdvanceModal, setShowAdvanceModal] = useState(false);
 
     const formattedFilterDate = closing.filterDate
         ? new Date(`${closing.filterDate}T00:00:00`).toLocaleDateString('pt-BR')
@@ -540,6 +542,7 @@ const CashClosingPage: React.FC = () => {
                 onAdd={closing.addExtra}
                 onRemove={closing.removeExtra}
                 loading={closing.loading}
+                onOpenBarberAdvance={() => setShowAdvanceModal(true)}
             />
 
             {/* ETAPA 6: Daily Audit */}
@@ -664,6 +667,19 @@ const CashClosingPage: React.FC = () => {
                     </div>
                 </div>
             </Modal>
+            {/* Barber Advance Modal (Sangria vinculada a vale de comissão - G1) */}
+            <BarberAdvanceModal
+                isOpen={showAdvanceModal}
+                onClose={() => setShowAdvanceModal(false)}
+                defaultOrigin="cash"
+                onSuccess={(info) => {
+                    setToast({
+                        message: `Vale de ${formatCurrency(info.amount)} registrado no caixa para ${info.staffName}.`,
+                        type: 'success',
+                    });
+                    closing.fetchData();
+                }}
+            />
         </div>
     );
 };
