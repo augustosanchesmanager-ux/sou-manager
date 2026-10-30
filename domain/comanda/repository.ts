@@ -66,11 +66,18 @@ class ComandaRepositoryImpl extends SupabaseRepository {
 
   async list(tenantId: string, options?: ComandaListOptions, appSlug?: AppSlug): Promise<Comanda[]> {
     try {
-        let query = this.scopeClient(appSlug).from(this.tableName)
+      if (options?.ids && options.ids.length === 0) {
+        return [];
+      }
+
+      let query = this.scopeClient(appSlug).from(this.tableName)
         .select(COMANDA_COLUMNS)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
+      if (options?.ids && options.ids.length > 0) {
+        query = query.in('id', options.ids);
+      }
       if (options?.staffId) {
         query = query.eq('staff_id', options.staffId);
       }

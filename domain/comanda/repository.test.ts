@@ -193,6 +193,33 @@ describe('ComandaRepository — EB-2 regression guard', () => {
     expect(result).toHaveLength(1);
   });
 
+  it('should_return_empty_array_when_ids_filter_is_empty', async () => {
+    state.rows.push({
+      id: 'c1',
+      tenant_id: 't1',
+      status: 'paid',
+      total: 50,
+      created_at: '2026-08-01T10:00:00.000Z',
+    });
+
+    const result = await comandaRepository.list('t1', { ids: [] });
+    expect(result).toEqual([]);
+  });
+
+  it('should_query_with_ids_when_ids_filter_has_elements', async () => {
+    state.rows.push({
+      id: 'c1',
+      tenant_id: 't1',
+      status: 'paid',
+      total: 50,
+      created_at: '2026-08-01T10:00:00.000Z',
+    });
+
+    const result = await comandaRepository.list('t1', { ids: ['c1'] });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('c1');
+  });
+
   it('should_throw_repository_error_when_list_fails', async () => {
     state.setError({ message: 'column client_name does not exist', code: '42703' });
 

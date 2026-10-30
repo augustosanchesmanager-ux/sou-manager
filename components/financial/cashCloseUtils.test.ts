@@ -294,6 +294,22 @@ describe('buildAttendancesByBarber', () => {
     expect(s1?.comandaCount).toBe(2);
     expect(s1?.totalValue).toBe(180);
   });
+
+  it('ignores cancelled and blocked comandas', () => {
+    const comandas = [
+      { staffId: 's1', total: 100, status: 'paid' },
+      { staffId: 's1', total: 50, status: 'open' },
+      { staffId: 's1', total: 80, status: 'cancelled' },
+      { staffId: 's1', total: 70, status: 'blocked' },
+      { staffId: 's2', total: 45, status: 'cancelled' },
+    ] as any[];
+    const result = buildAttendancesByBarber(comandas);
+    expect(result).toHaveLength(1);
+    const s1 = result.find(a => a.staffId === 's1');
+    expect(s1?.comandaCount).toBe(2);
+    expect(s1?.totalValue).toBe(150);
+    expect(result.find(a => a.staffId === 's2')).toBeUndefined();
+  });
 });
 
 describe('buildOpenComandasSummary', () => {
