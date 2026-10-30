@@ -15,8 +15,8 @@ const severityStyles = {
     icon: AlertTriangle,
   },
   baixo: {
-    wrapper: 'border-sky-200 bg-sky-50/80 dark:border-sky-500/20 dark:bg-sky-500/10',
-    badge: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200',
+    wrapper: 'border-teal-200 bg-teal-50/80 dark:border-teal-500/20 dark:bg-teal-500/10',
+    badge: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-200',
     icon: BellRing,
   },
 };
