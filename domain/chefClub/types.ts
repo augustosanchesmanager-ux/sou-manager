@@ -110,7 +110,7 @@ export const receivableStatusMeta: Record<
   refunded: {
     icon: 'undo',
     className:
-      'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
+      'border-slate-200 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300',
   },
 };
 
