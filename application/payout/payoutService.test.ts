@@ -485,4 +485,58 @@ describe('PayoutService config & settlement advances delegation', () => {
         expect(list).toEqual(mockAdvances);
         expect(repo.listAdvancesBySettlement).toHaveBeenCalledWith('t1', 'st1');
     });
+
+    it('should_enforce_check_constraints_and_normalize_fields_on_upsertConfig', async () => {
+        const repo = makeRepository({
+            upsertConfig: vi.fn().mockImplementation(async (_t, _s, input) => ({
+                id: 'cfg1',
+                tenantId: 't1',
+                staffId: 'staff1',
+                ...input,
+                createdAt: '2026-10-01T00:00:00Z',
+                updatedAt: '2026-10-01T00:00:00Z',
+            })),
+        });
+        const service = new PayoutService(repo as never);
+
+        // Weekly without weekday throws
+        await expect(
+            service.upsertConfig({
+                tenantId: 't1',
+                staffId: 'staff1',
+                frequency: 'weekly',
+                payoutWeekday: null,
+                payoutMonthDay: 15,
+                allowAdvances: true,
+            }),
+        ).rejects.toThrow(/dia da semana/i);
+
+        // Monthly without monthDay throws
+        await expect(
+            service.upsertConfig({
+                tenantId: 't1',
+                staffId: 'staff1',
+                frequency: 'monthly',
+                payoutWeekday: 2,
+                payoutMonthDay: null,
+                allowAdvances: true,
+            }),
+        ).rejects.toThrow(/dia do mes/i);
+
+        // Daily clears both weekday and monthDay
+        await service.upsertConfig({
+            tenantId: 't1',
+            staffId: 'staff1',
+            frequency: 'daily',
+            payoutWeekday: 3,
+            payoutMonthDay: 10,
+            allowAdvances: false,
+        });
+        expect(repo.upsertConfig).toHaveBeenLastCalledWith('t1', 'staff1', {
+            frequency: 'daily',
+            payoutWeekday: null,
+            payoutMonthDay: null,
+            allowAdvances: false,
+        });
+    });
 });
