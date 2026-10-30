@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../ui/Modal';
 import { waitlistService } from '../../services/waitlistService';
 import type { WaitlistEntry, WaitlistStatus } from '../../src/types/waitlist';
@@ -39,7 +39,7 @@ const statusMeta: Record<WaitlistStatus, { label: string; className: string; ico
   },
   notified: {
     label: 'Notificado',
-    className: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
+    className: 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20',
     icon: 'notifications_active',
   },
   booked: {
@@ -118,7 +118,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
         end_time_range: newEndTime || null,
       });
 
-      setToast({ message: 'Cliente adicionado à fila de espera com sucesso!', type: 'success' });
+      setToast({ message: 'Cliente adicionado Ã  fila de espera com sucesso!', type: 'success' });
       setIsAdding(false);
       setNewClientId('');
       setNewServiceId('');
@@ -162,13 +162,13 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
     const rawPhone = entry.client_phone || '';
     const cleanPhone = rawPhone.replace(/\D/g, '');
     if (!cleanPhone) {
-      setToast({ message: 'Cliente não possui telefone cadastrado.', type: 'info' });
+      setToast({ message: 'Cliente nÃ£o possui telefone cadastrado.', type: 'info' });
       return;
     }
 
     const serviceText = entry.service_name ? ` para ${entry.service_name}` : '';
     const message = encodeURIComponent(
-      `Olá ${entry.client_name}! Vemos que você está na nossa lista de espera da barbearia${serviceText}. Acabamos de ter uma vaga disponível! Deseja que reservemos para você?`
+      `OlÃ¡ ${entry.client_name}! Vemos que vocÃª estÃ¡ na nossa lista de espera da barbearia${serviceText}. Acabamos de ter uma vaga disponÃ­vel! Deseja que reservemos para vocÃª?`
     );
     window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
   };
@@ -185,7 +185,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
       <div className="space-y-4">
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-        {/* Top bar com métricas e filtros */}
+        {/* Top bar com mÃ©tricas e filtros */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="size-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
@@ -196,7 +196,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
                 {waitingCount} {waitingCount === 1 ? 'cliente aguardando' : 'clientes aguardando'}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Notificados automaticamente via motor assíncrono ao vagar horário.
+                Notificados automaticamente via motor assÃ­ncrono ao vagar horÃ¡rio.
               </p>
             </div>
           </div>
@@ -208,7 +208,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
                 onClick={() => setFilterDate('selected')}
                 className={`px-3 py-1.5 rounded-lg transition-all ${
                   filterDate === 'selected'
-                    ? 'bg-[#003366] text-white dark:bg-[#00D2FF] dark:text-[#06111F]'
+                    ? 'bg-primary text-night'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
                 }`}
               >
@@ -219,7 +219,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
                 onClick={() => setFilterDate('all')}
                 className={`px-3 py-1.5 rounded-lg transition-all ${
                   filterDate === 'all'
-                    ? 'bg-[#003366] text-white dark:bg-[#00D2FF] dark:text-[#06111F]'
+                    ? 'bg-primary text-night'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
                 }`}
               >
@@ -230,7 +230,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
             <button
               type="button"
               onClick={() => setIsAdding(!isAdding)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#007BFF] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#006ADF] transition-all"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-night shadow-xs hover:bg-primary-dark transition-all"
             >
               <span className="material-symbols-outlined text-sm">{isAdding ? 'close' : 'person_add'}</span>
               <span>{isAdding ? 'Fechar' : 'Novo'}</span>
@@ -238,11 +238,11 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
           </div>
         </div>
 
-        {/* Formulário para Adicionar */}
+        {/* FormulÃ¡rio para Adicionar */}
         {isAdding && (
-          <form onSubmit={handleCreateEntry} className="p-4 rounded-2xl border border-[#007BFF]/30 bg-[#F8FBFF] dark:bg-[#0B1828] space-y-3.5 animate-fade-in">
-            <p className="text-xs font-black text-[#003366] dark:text-[#72E7FF] uppercase tracking-wider">
-              Adicionar Cliente à Fila de Espera
+          <form onSubmit={handleCreateEntry} className="p-4 rounded-2xl border border-primary/25 bg-primary/10 dark:bg-primary/10 space-y-3.5 animate-fade-in">
+            <p className="text-xs font-black text-ink dark:text-primary-dark uppercase tracking-wider">
+              Adicionar Cliente Ã  Fila de Espera
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -280,14 +280,14 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
 
               <div>
                 <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 block">
-                  Serviço de preferência
+                  ServiÃ§o de preferÃªncia
                 </label>
                 <select
                   value={newServiceId}
                   onChange={(e) => setNewServiceId(e.target.value)}
                   className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white"
                 >
-                  <option value="">Qualquer serviço</option>
+                  <option value="">Qualquer serviÃ§o</option>
                   {services.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -298,7 +298,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
 
               <div>
                 <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 block">
-                  Profissional de preferência
+                  Profissional de preferÃªncia
                 </label>
                 <select
                   value={newStaffId}
@@ -316,7 +316,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
 
               <div>
                 <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 block">
-                  Horário a partir de
+                  HorÃ¡rio a partir de
                 </label>
                 <input
                   type="time"
@@ -328,7 +328,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
 
               <div>
                 <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 block">
-                  Horário até
+                  HorÃ¡rio atÃ©
                 </label>
                 <input
                   type="time"
@@ -350,7 +350,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-1.5 rounded-xl bg-[#003366] dark:bg-[#00D2FF] text-white dark:text-[#06111F] text-xs font-black shadow-xs disabled:opacity-50"
+                className="px-4 py-1.5 rounded-xl bg-primary text-night text-xs font-black shadow-xs disabled:opacity-50"
               >
                 {submitting ? 'Adicionando...' : 'Salvar na Fila'}
               </button>
@@ -385,11 +385,11 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
                     </div>
 
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      📅 {new Date(entry.desired_date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                      {entry.start_time_range && ` • Das ${entry.start_time_range.slice(0, 5)}`}
-                      {entry.end_time_range && ` até ${entry.end_time_range.slice(0, 5)}`}
-                      {entry.service_name && ` • Serviço: ${entry.service_name}`}
-                      {entry.preferred_staff_name && ` • Com: ${entry.preferred_staff_name}`}
+                      ðŸ“… {new Date(entry.desired_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      {entry.start_time_range && ` â€¢ Das ${entry.start_time_range.slice(0, 5)}`}
+                      {entry.end_time_range && ` atÃ© ${entry.end_time_range.slice(0, 5)}`}
+                      {entry.service_name && ` â€¢ ServiÃ§o: ${entry.service_name}`}
+                      {entry.preferred_staff_name && ` â€¢ Com: ${entry.preferred_staff_name}`}
                     </p>
                   </div>
 
@@ -410,7 +410,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
                         type="button"
                         onClick={() => handleStatusChange(entry.id, 'booked')}
                         className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-500/20 transition-colors"
-                        title="Marcar como já agendado"
+                        title="Marcar como jÃ¡ agendado"
                       >
                         Agendado
                       </button>
@@ -436,8 +436,8 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({
               <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Nenhum cliente na fila de espera</p>
               <p className="text-xs text-slate-500 mt-1">
                 {filterDate === 'selected'
-                  ? 'Não há solicitações de fila para a data selecionada.'
-                  : 'A lista de espera está vazia no momento.'}
+                  ? 'NÃ£o hÃ¡ solicitaÃ§Ãµes de fila para a data selecionada.'
+                  : 'A lista de espera estÃ¡ vazia no momento.'}
               </p>
             </div>
           )}

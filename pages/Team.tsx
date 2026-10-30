@@ -725,7 +725,7 @@ const Team: React.FC = () => {
                         </div>
                     </div>
                     {!editingMember && inviteRoles.includes(form.role) && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-900/40 rounded-lg px-3 py-2">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40 rounded-lg px-3 py-2">
                             {isEsteticaApp ? 'O profissional' : 'O colaborador'} receberá um convite por e-mail e definirá a própria senha ao aceitar.
                         </div>
                     )}

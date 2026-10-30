@@ -195,9 +195,9 @@ function StatusChip({ status }: { status: string }) {
     active: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
     prepared: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800',
     deprecated: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
-    registered: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800',
-    tested: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800',
-    running: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800',
+    registered: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
+    tested: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
+    running: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
     completed: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
     failed: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
     dry_run: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
@@ -220,7 +220,7 @@ function MetricCard({ icon, label, value, accent, sub }: { icon: string; label: 
     <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#262626] rounded-xl p-4">
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${accent || 'bg-slate-100 dark:bg-[#1A1A1A]'}`}>
-          <span className={`material-symbols-outlined text-lg ${accent ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>{icon}</span>
+          <span className={`material-symbols-outlined text-lg ${accent ? 'text-night' : 'text-slate-500 dark:text-slate-400'}`}>{icon}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -272,7 +272,7 @@ function ReplayTimeline({ steps }: { steps: TimelineStep[] }) {
           <div className="flex flex-col items-center gap-1">
             <div className={`w-2.5 h-2.5 rounded-full ${
               step.status === 'completed' ? 'bg-emerald-500' :
-              step.status === 'running' ? 'bg-sky-500 animate-pulse' :
+              step.status === 'running' ? 'bg-teal-500 animate-pulse' :
               step.status === 'failed' ? 'bg-red-500' :
               'bg-slate-300 dark:bg-slate-600'
             }`} />
@@ -309,8 +309,8 @@ function OverviewTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard icon="bolt" label="Eventos Registrados" value={EVENT_TYPES.length} accent="bg-primary" sub={`${activeCount} ativos, ${preparedCount} preparados`} />
         <MetricCard icon="check_circle" label="Health Score" value={`${replaySuccessRate}%`} accent="bg-emerald-500" sub="Taxa de sucesso geral" />
-        <MetricCard icon="groups" label="Consumers Ativos" value={totalSubscribers} accent="bg-sky-500" sub="Subscribers registrados" />
-        <MetricCard icon="replay" label="Replays Hoje" value={REPLAY_JOBS.length} accent="bg-violet-500" sub={`${REPLAY_JOBS.filter(j => j.status === 'completed').length} concluidos`} />
+        <MetricCard icon="groups" label="Consumers Ativos" value={totalSubscribers} accent="bg-teal-500" sub="Subscribers registrados" />
+        <MetricCard icon="replay" label="Replays Hoje" value={REPLAY_JOBS.length} accent="bg-teal-500" sub={`${REPLAY_JOBS.filter(j => j.status === 'completed').length} concluidos`} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,10 +755,10 @@ function ReplayCenterTab() {
                     <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{job.upcasted} upcasted</span>
                   )}
                   {job.retried > 0 && (
-                    <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">{job.retried} retries</span>
+                    <span className="text-[10px] text-teal-700 dark:text-teal-300 font-medium">{job.retried} retries</span>
                   )}
                   {job.snapshotUsed && (
-                    <span className="material-symbols-outlined text-[14px] text-violet-500">photo_camera</span>
+                    <span className="material-symbols-outlined text-[14px] text-teal-600">photo_camera</span>
                   )}
                   {job.projectionRebuild && (
                     <span className="material-symbols-outlined text-[14px] text-emerald-500">engineering</span>

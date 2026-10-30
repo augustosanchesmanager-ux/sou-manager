@@ -936,8 +936,8 @@ const Clients: React.FC = () => {
             >
                 {importPreview && (
                     <div className="space-y-4">
-                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Revisão de Dados</p>
+                        <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg">
+                            <p className="text-[10px] text-teal-700 dark:text-teal-300 font-bold uppercase mb-1">Revisão de Dados</p>
                             <p className="text-xs text-slate-600 dark:text-slate-300">
                                 <strong>{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
                                 Nada é gravado até a confirmação.

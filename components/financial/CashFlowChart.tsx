@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   Area,
   AreaChart,
@@ -43,15 +43,15 @@ const CashFlowChart: React.FC<CashFlowChartProps> = ({ title, subtitle, data, va
           <AreaChart data={data}>
             <defs>
               <linearGradient id="saldoFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.5} />
-                <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                <stop offset="5%" stopColor="#D99A2B" stopOpacity={0.5} />
+                <stop offset="95%" stopColor="#D99A2B" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="#cbd5e1" opacity={0.35} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(value: number) => formatCurrency(value)} />
-            <Area type="monotone" dataKey="saldo" name="Saldo" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#saldoFill)" />
+            <Area type="monotone" dataKey="saldo" name="Saldo" stroke="#D99A2B" strokeWidth={2.5} fill="url(#saldoFill)" />
           </AreaChart>
         )}
       </ResponsiveContainer>

@@ -57,10 +57,10 @@ const iconMap = {
 
 const lineColorMap: Record<string, string> = {
   database_size: '#E5A158',
-  requests: '#0EA5E9',
+  requests: '#14B8A6',
   cpu: '#F97316',
   bandwidth: '#10B981',
-  auth_users: '#6366F1',
+  auth_users: '#14B8A6',
   storage: '#EF4444',
 };
 

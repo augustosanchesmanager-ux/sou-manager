@@ -337,7 +337,7 @@ export default function BankReconciliation() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Building2 className="w-7 h-7 text-sky-600 dark:text-sky-400" />
+            <Building2 className="w-7 h-7 text-teal-700 dark:text-teal-300" />
             Conciliação Bancária Inteligente
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -358,7 +358,7 @@ export default function BankReconciliation() {
           <Button
             onClick={() => setIsImportModalOpen(true)}
             disabled={!selectedAccountId}
-            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white"
+            className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-night"
           >
             <UploadCloud className="w-4 h-4" />
             Importar Extrato (OFX/CSV)
@@ -380,7 +380,7 @@ export default function BankReconciliation() {
               <select
                 value={selectedAccountId}
                 onChange={(e) => setSelectedAccountId(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500"
               >
                 {bankAccounts.map((acc) => (
                   <option key={acc.id} value={acc.id}>
@@ -421,13 +421,13 @@ export default function BankReconciliation() {
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Progresso da Conciliação
             </span>
-            <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
+            <span className="text-xs font-bold text-teal-700 dark:text-teal-300">
               {summary?.reconciliationPercentage || 0}%
             </span>
           </div>
           <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 mt-3 overflow-hidden">
             <div
-              className="bg-sky-600 h-2.5 rounded-full transition-all duration-500"
+              className="bg-primary h-2.5 rounded-full transition-all duration-500"
               style={{ width: `${summary?.reconciliationPercentage || 0}%` }}
             />
           </div>
@@ -449,7 +449,7 @@ export default function BankReconciliation() {
               </span>
               <span className="text-xs text-gray-500 block">movimentações</span>
             </div>
-            <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 rounded-lg text-sky-600 dark:text-sky-400">
+            <div className="p-2.5 bg-teal-50 dark:bg-teal-950/40 rounded-lg text-teal-700 dark:text-teal-300">
               <Sparkles className="w-5 h-5" />
             </div>
           </div>
@@ -491,7 +491,7 @@ export default function BankReconciliation() {
               placeholder="Buscar no extrato..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500"
             />
           </div>
 
@@ -507,7 +507,7 @@ export default function BankReconciliation() {
         <div className="lg:col-span-7 bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-2">
-              <FileText className="w-4 h-4 text-sky-600" />
+              <FileText className="w-4 h-4 text-teal-700" />
               Linhas do Extrato Bancário
             </h3>
             <span className="text-xs text-gray-500">
@@ -532,7 +532,7 @@ export default function BankReconciliation() {
                     key={tx.id}
                     onClick={() => setActiveTxForMatching(tx)}
                     className={`p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-sky-50/60 dark:bg-sky-950/20 border-l-4 border-sky-600' : ''
+                      isSelected ? 'bg-teal-50/60 dark:bg-teal-950/20 border-l-4 border-teal-600' : ''
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -675,7 +675,7 @@ export default function BankReconciliation() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600" />
                       Sugestões do Sistema ({candidates.length})
                     </h4>
                   </div>
@@ -689,7 +689,7 @@ export default function BankReconciliation() {
                         <Button
                           size="sm"
                           onClick={() => openCreateTxModal(activeTxForMatching)}
-                          className="text-xs bg-sky-600 hover:bg-sky-700 text-white"
+                          className="text-xs bg-primary hover:bg-primary-dark text-night"
                         >
                           <Plus className="w-3.5 h-3.5 mr-1" />
                           Criar e Conciliar no Caixa
@@ -701,7 +701,7 @@ export default function BankReconciliation() {
                       {candidates.map((cand) => (
                         <div
                           key={cand.id}
-                          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between hover:border-sky-500 transition-colors"
+                          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between hover:border-teal-500 transition-colors"
                         >
                           <div>
                             <div className="flex items-center gap-2">
@@ -728,7 +728,7 @@ export default function BankReconciliation() {
                             <Button
                               size="sm"
                               onClick={() => handleReconcile(activeTxForMatching.id, cand.id)}
-                              className="mt-1 text-[11px] py-1 px-2.5 h-auto bg-sky-600 hover:bg-sky-700 text-white"
+                              className="mt-1 text-[11px] py-1 px-2.5 h-auto bg-primary hover:bg-primary-dark text-night"
                             >
                               Conciliar
                             </Button>
@@ -740,7 +740,7 @@ export default function BankReconciliation() {
                         <button
                           type="button"
                           onClick={() => openCreateTxModal(activeTxForMatching)}
-                          className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 font-medium"
+                          className="text-xs text-teal-700 hover:text-teal-700 dark:text-teal-300 font-medium"
                         >
                           Não é nenhum destes? Criar novo lançamento
                         </button>
@@ -866,7 +866,7 @@ export default function BankReconciliation() {
             <Button variant="outline" type="button" onClick={() => setIsAccountModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={creatingAccount} className="bg-sky-600 hover:bg-sky-700 text-white">
+            <Button type="submit" disabled={creatingAccount} className="bg-primary hover:bg-primary-dark text-night">
               {creatingAccount ? 'Salvando...' : 'Cadastrar Conta'}
             </Button>
           </div>
@@ -890,7 +890,7 @@ export default function BankReconciliation() {
 
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-sky-500 rounded-xl p-8 text-center cursor-pointer transition-colors"
+            className="border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-teal-500 rounded-xl p-8 text-center cursor-pointer transition-colors"
           >
             <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-2" />
             <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
@@ -907,8 +907,8 @@ export default function BankReconciliation() {
           </div>
 
           {parsedStatement && (
-            <div className="p-4 bg-sky-50 dark:bg-sky-950/30 rounded-lg border border-sky-200 dark:border-sky-800">
-              <h4 className="text-xs font-bold text-sky-900 dark:text-sky-300 uppercase">
+            <div className="p-4 bg-teal-50 dark:bg-teal-950/30 rounded-lg border border-teal-200 dark:border-teal-800">
+              <h4 className="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase">
                 Extrato Processado com Sucesso!
               </h4>
               <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
@@ -941,7 +941,7 @@ export default function BankReconciliation() {
             <Button
               disabled={!parsedStatement || importing}
               onClick={handleConfirmImport}
-              className="bg-sky-600 hover:bg-sky-700 text-white"
+              className="bg-primary hover:bg-primary-dark text-night"
             >
               {importing ? 'Importando...' : 'Confirmar Importação'}
             </Button>
@@ -1046,7 +1046,7 @@ export default function BankReconciliation() {
             <Button variant="outline" type="button" onClick={() => setIsCreateTxModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={savingNewTx} className="bg-sky-600 hover:bg-sky-700 text-white">
+            <Button type="submit" disabled={savingNewTx} className="bg-primary hover:bg-primary-dark text-night">
               {savingNewTx ? 'Salvando...' : 'Criar e Conciliar'}
             </Button>
           </div>

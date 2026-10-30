@@ -21,8 +21,8 @@ const iconByType: Record<InternalNotificationType, string> = {
 const severityMeta: Record<InternalNotificationSeverity, { label: string; className: string; iconClassName: string }> = {
   info: {
     label: 'Info',
-    className: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-    iconClassName: 'text-blue-500 bg-blue-500/10',
+    className: 'bg-teal-500/10 text-teal-700 border-teal-500/20',
+    iconClassName: 'text-teal-600 bg-teal-500/10',
   },
   warning: {
     label: 'Atenção',

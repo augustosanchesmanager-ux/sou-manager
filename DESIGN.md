@@ -179,6 +179,7 @@ Para diferenciar colunas e agendamentos de cada profissional sem recorrer a core
 ### 3.1 Exceções de Identidade (Whitelisted)
 
 - **Wordmark da Marca (Sidebar):** É expressamente permitido o uso de `bg-gradient-to-b from-[#c28827] to-[#855307] dark:from-[#E2A63B] dark:to-[#A96F14]` com `text-transparent` e `bg-clip-text` exclusivamente no logo do sistema (`components/Sidebar.tsx`) para preservação da identidade da marca SOU MANA.GER. Esta exceção é a única autorizada para gradient text no produto.
+- **Símbolo SMG (`components/Logo.tsx`):** É permitido o uso dos literais `#00D2FF`, `#007BFF` e `#003366` **exclusivamente** no símbolo e wordmark de `components/Logo.tsx` (gradiente do símbolo, cor do glifo e cor do texto da marca), por se tratar de identidade visual do símbolo SMG. Qualquer uso desses literais fora desse arquivo permanece violação das leis §3.1/§3.2. Esta exceção não autoriza azul em CTAs, ícones, badges, gráficos ou superfícies de UI.
 
 ---
 

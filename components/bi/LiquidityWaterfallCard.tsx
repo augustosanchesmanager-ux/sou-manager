@@ -100,7 +100,7 @@ export const LiquidityWaterfallCard: React.FC<LiquidityWaterfallCardProps> = ({ 
       {/* Régua de Conciliação Bancária Integrada */}
       <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
-          <Landmark className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          <Landmark className="w-4 h-4 text-teal-700 dark:text-teal-300" />
           <span className="text-slate-600 dark:text-slate-300">
             Status da Conciliação de Extratos no Período:
           </span>

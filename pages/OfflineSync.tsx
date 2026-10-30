@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../src/hooks/useOnlineStatus';
 import {
@@ -97,7 +97,7 @@ const OfflineSync: React.FC = () => {
       setSummary(nextSummary);
       setSnapshot(nextSnapshot);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível carregar pendências offline.');
+      setError(err instanceof Error ? err.message : 'NÃ£o foi possÃ­vel carregar pendÃªncias offline.');
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ const OfflineSync: React.FC = () => {
       await refreshOfflineEssentialCache(tenantId, appSlug);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível atualizar o cache offline.');
+      setError(err instanceof Error ? err.message : 'NÃ£o foi possÃ­vel atualizar o cache offline.');
     } finally {
       setRefreshingCache(false);
     }
@@ -127,7 +127,7 @@ const OfflineSync: React.FC = () => {
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#007BFF] dark:text-[#00D2FF]">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-primary-dark dark:text-primary-dark">
             Modo Balcao Offline Seguro
           </p>
           <h1 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
@@ -139,7 +139,7 @@ const OfflineSync: React.FC = () => {
           type="button"
           onClick={handleRefreshCache}
           disabled={!tenantId || !isOnline || refreshingCache}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#007BFF] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#0067d6] disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-night transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
         >
           <span className={`material-symbols-outlined text-[18px] ${refreshingCache ? 'animate-spin' : ''}`}>
             sync
@@ -168,7 +168,7 @@ const OfflineSync: React.FC = () => {
       )}
 
       {!tenantId && (
-        <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm dark:border-[#14304A] dark:bg-[#071426] dark:text-slate-300">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm dark:border-primary/20 dark:bg-[#071426] dark:text-slate-300">
           Tenant nao resolvido para a sessao atual.
         </div>
       )}
@@ -180,21 +180,21 @@ const OfflineSync: React.FC = () => {
           ['Falhas', summary.failed, 'error'],
           ['Sincronizadas', summary.synced, 'done_all'],
         ].map(([label, value, icon]) => (
-          <div key={String(label)} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
+          <div key={String(label)} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-primary/20 dark:bg-[#071426]">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">{label}</span>
-              <span className="material-symbols-outlined text-[20px] text-[#007BFF] dark:text-[#00D2FF]">{icon}</span>
+              <span className="material-symbols-outlined text-[20px] text-primary-dark dark:text-primary-dark">{icon}</span>
             </div>
             <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{value}</p>
           </div>
         ))}
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
-        <div className="border-b border-slate-200 px-5 py-4 dark:border-[#14304A]">
+      <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-primary/20 dark:bg-[#071426]">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-primary/20">
           <h2 className="text-lg font-black text-slate-900 dark:text-white">Cache local essencial</h2>
         </div>
-        <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-[#14304A]">
+        <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-line">
           {cacheRows.map((row) => (
             <div key={row.resource} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -225,11 +225,11 @@ const OfflineSync: React.FC = () => {
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
-          <div className="border-b border-slate-200 px-5 py-4 dark:border-[#14304A]">
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-primary/20 dark:bg-[#071426]">
+          <div className="border-b border-slate-200 px-5 py-4 dark:border-primary/20">
             <h2 className="text-lg font-black text-slate-900 dark:text-white">Fila local</h2>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-[#14304A]">
+          <div className="divide-y divide-slate-100 dark:divide-line">
             {queueItems.slice(0, 20).map((item) => (
               <div key={item.id} className="px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
@@ -254,11 +254,11 @@ const OfflineSync: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-[#14304A] dark:bg-[#071426]">
-          <div className="border-b border-slate-200 px-5 py-4 dark:border-[#14304A]">
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-primary/20 dark:bg-[#071426]">
+          <div className="border-b border-slate-200 px-5 py-4 dark:border-primary/20">
             <h2 className="text-lg font-black text-slate-900 dark:text-white">Logs locais</h2>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-[#14304A]">
+          <div className="divide-y divide-slate-100 dark:divide-line">
             {logs.slice(0, 20).map((log) => (
               <div key={`${log.id}-${log.created_at}`} className="px-5 py-4">
                 <div className="flex items-center justify-between gap-3">

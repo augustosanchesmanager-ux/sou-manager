@@ -31,8 +31,8 @@ const EVENT_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: s
     },
     opening: {
         icon: <Clock size={12} />,
-        color: 'text-sky-600 dark:text-sky-400',
-        bg: 'bg-sky-50 dark:bg-sky-500/10',
+        color: 'text-teal-700 dark:text-teal-300',
+        bg: 'bg-teal-50 dark:bg-teal-500/10',
     },
     closing: {
         icon: <Clock size={12} />,
@@ -41,8 +41,8 @@ const EVENT_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: s
     },
     audit: {
         icon: <AlertCircle size={12} />,
-        color: 'text-violet-600 dark:text-violet-400',
-        bg: 'bg-violet-50 dark:bg-violet-500/10',
+        color: 'text-teal-700 dark:text-teal-300',
+        bg: 'bg-teal-50 dark:bg-teal-500/10',
     },
     barber_closing: {
         icon: <UserCheck size={12} />,

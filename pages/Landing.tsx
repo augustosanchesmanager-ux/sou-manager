@@ -274,7 +274,7 @@ const Landing: React.FC = () => {
               { value: '3x', label: 'Mais Lucro' },
             ].map(stat => (
               <div key={stat.value} className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-teal-500/20 rounded-3xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                 <div className="relative bg-[#1C1814]/80 backdrop-blur-md border border-[#2E2720] rounded-3xl p-10 transition-all duration-300">
                   <p className="text-5xl font-black text-white mb-2">{stat.value}</p>
                   <p className="text-primary font-bold text-xs uppercase tracking-widest">{stat.label}</p>

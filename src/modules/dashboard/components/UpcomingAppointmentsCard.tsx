@@ -28,7 +28,7 @@ export const UpcomingAppointmentsCard: React.FC<UpcomingAppointmentsCardProps> =
   <div className="card-boutique p-6">
     <div className="relative z-10 flex justify-between items-center mb-6">
       <h3 className="font-bold text-slate-900 dark:text-white">Proximos Agendamentos</h3>
-      <Link to="/schedule" className="relative z-20 inline-flex items-center text-primary text-xs font-bold uppercase tracking-wider hover:text-blue-600 dark:hover:text-white transition-colors">
+      <Link to="/schedule" className="relative z-20 inline-flex items-center text-primary text-xs font-bold uppercase tracking-wider hover:text-teal-700 dark:hover:text-white transition-colors">
         Ver Todos
       </Link>
     </div>
