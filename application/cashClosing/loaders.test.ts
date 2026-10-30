@@ -288,4 +288,23 @@ describe('loadComandasWithDetails — paidAmount / pendingAmount (ADR-018)', () 
     expect(cmd.paidAmount).toBe(70);
     expect(cmd.pendingAmount).toBe(0);
   });
+
+  it('should_load_extra_comandas_when_extra_ids_provided_and_not_in_range', async () => {
+    mockComandaList.mockImplementation((tenantId: string, options?: any) => {
+      if (options?.ids) {
+        return Promise.resolve([makeComanda({ id: 'c-extra', total: 45, status: 'paid' })]);
+      }
+      return Promise.resolve([makeComanda({ id: 'c1', total: 100, status: 'paid' })]);
+    });
+    mockItemListByComandaIds.mockResolvedValue([]);
+
+    const result = await loadComandasWithDetails(
+      't1', 'start', 'end', staffMap, clientMap, serviceMap, [], ['c-extra', 'c1'],
+    );
+
+    expect(mockComandaList).toHaveBeenCalledWith('t1', { ids: ['c-extra'] });
+    expect(result.comandas).toHaveLength(2);
+    expect(result.comandaDetails).toHaveLength(2);
+    expect(result.comandas.map(c => c.id)).toEqual(['c1', 'c-extra']);
+  });
 });

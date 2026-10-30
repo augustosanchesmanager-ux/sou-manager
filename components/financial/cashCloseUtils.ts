@@ -378,6 +378,7 @@ export const buildAttendancesByBarber = (
     const byBarber = new Map<string, { total: number; count: number }>();
 
     comandas.forEach(cmd => {
+        if (cmd.status === 'cancelled' || cmd.status === 'blocked') return;
         const staffId = cmd.staffId || 'sem-profissional';
         const existing = byBarber.get(staffId) || { total: 0, count: 0 };
         existing.total += cmd.total;

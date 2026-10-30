@@ -224,19 +224,29 @@ export async function loadComandasWithDetails(
     clientMap: Record<string, string>,
     serviceMap: Record<string, string>,
     payments: ComandaPaymentRow[] = [],
+    extraComandaIds: string[] = [],
 ): Promise<{
     comandas: ComandaSnapshot[];
     comandaItems: ComandaItemSnapshot[];
     comandaDetails: ComandaDetail[];
 }> {
     const allComandas = await comandaRepository.list(tenantId, { dateFrom: start, dateTo: end });
-    const comandaIds = allComandas.map(c => c.id);
+    const existingIds = new Set(allComandas.map(c => c.id));
+    const missingIds = extraComandaIds.filter(id => Boolean(id) && !existingIds.has(id));
+
+    let combinedComandas = allComandas;
+    if (missingIds.length > 0) {
+        const extraComandas = await comandaRepository.list(tenantId, { ids: missingIds });
+        combinedComandas = [...allComandas, ...extraComandas];
+    }
+
+    const comandaIds = combinedComandas.map(c => c.id);
     const allItems = await comandaItemRepository.listByComandaIds(comandaIds, tenantId);
 
-    const comandaDetails = buildComandaDetails(allComandas, allItems, staffMap, clientMap, serviceMap, payments);
+    const comandaDetails = buildComandaDetails(combinedComandas, allItems, staffMap, clientMap, serviceMap, payments);
 
     return {
-        comandas: allComandas as unknown as ComandaSnapshot[],
+        comandas: combinedComandas as unknown as ComandaSnapshot[],
         comandaItems: allItems as unknown as ComandaItemSnapshot[],
         comandaDetails: Array.from(comandaDetails.values()),
     };
@@ -268,8 +278,14 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
     const serviceMap: Record<string, string> = {};
     referenceData.services.forEach(s => { serviceMap[s.id] = s.name; });
 
+    const transactionComandaIds = Array.from(new Set(
+        transactions
+            .filter(t => t.source_type === 'comanda' && t.source_id)
+            .map(t => t.source_id as string)
+    ));
+
     const comandaResult = await loadComandasWithDetails(
-        tenantId, start, end, staffMap, clientMap, serviceMap,
+        tenantId, start, end, staffMap, clientMap, serviceMap, [], transactionComandaIds,
     );
 
     const [reversals, payments] = await Promise.all([

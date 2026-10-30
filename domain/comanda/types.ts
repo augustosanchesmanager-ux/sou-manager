@@ -54,4 +54,5 @@ export interface ComandaListOptions {
   appointmentId?: string;
   dateFrom?: string;
   dateTo?: string;
+  ids?: string[];
 }
