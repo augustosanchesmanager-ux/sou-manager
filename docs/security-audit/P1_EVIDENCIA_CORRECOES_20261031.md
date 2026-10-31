@@ -227,10 +227,14 @@ O cron armazena o secret em texto claro em `cron.job`, mesma fronteira de confia
 | Função | Estado |
 |---|---|
 | `worker-dispatcher` (F04) | ⛔ não deployada — depende de `EDGE_JWT_SECRET` |
-| `admin-create-user` (F06) | ⏸ aguardando decisão do PO (a condição do gate é específica do worker) |
-| `supabase-usage-monitor` (F03) | ⏸ aguardando decisão do PO (idem) |
+| `admin-create-user` (F06) | ⏸ autorizada pelo PO, **bloqueada por autenticação do CLI** (ver 9.5) |
+| `supabase-usage-monitor` (F03) | ⏸ autorizada pelo PO; **não consta na lista de funções de produção** (última listagem bem-sucedida) — o deploy criaria um endpoint novo. Confirmar antes |
 
 Comando previsto para o worker (após o secret): `supabase functions deploy worker-dispatcher --project-ref ushsnmlbeurfvlkieiln --no-verify-jwt` (o `config.toml` por função não é aplicado pelo CLI; o `verify_jwt` atual da função é `true`).
+
+### 9.5 Bloqueio operacional no encerramento
+
+Após a atualização do cron, o token de acesso do Supabase CLI expirou (`401 Invalid access token`), atingindo `functions list`, `functions deploy`, `secrets` e `db query`. As migrations e o cron já haviam sido aplicados e verificados antes disso. Para retomar: `supabase login` (ou `SUPABASE_ACCESS_TOKEN`).
 
 ### 9.4 Estado final de produção
 
