@@ -184,7 +184,17 @@ export class PayoutService {
         notes?: string | null;
         idempotencyKey?: string | null;
     }) {
-        return this.repository.registerAdvance({ ...input, amount: roundCents(input.amount) });
+        const roundedAmount = roundCents(input.amount);
+        if (!Number.isFinite(roundedAmount) || roundedAmount <= 0) {
+            throw new Error('Valor do vale deve ser maior que zero');
+        }
+
+        const config = await this.repository.getConfigByStaff(input.tenantId, input.staffId);
+        if (config && config.allowAdvances === false) {
+            throw new Error('Este profissional nao esta habilitado para receber vales/adiantamentos');
+        }
+
+        return this.repository.registerAdvance({ ...input, amount: roundedAmount });
     }
 
     async reverseAdvance(tenantId: string, advanceId: string, motivo: string) {

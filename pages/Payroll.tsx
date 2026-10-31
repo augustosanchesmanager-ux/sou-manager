@@ -13,6 +13,8 @@ import type {
 } from '../domain/payout/types';
 import { roundCents, sumCents } from '../domain/payout/money';
 import PayoutReceiptModal from '../components/payroll/PayoutReceiptModal';
+import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
+import PendingAdvancesDrawer from '../components/payroll/PendingAdvancesDrawer';
 
 type RowStatus = SettlementStatus | 'unsettled';
 
@@ -88,6 +90,9 @@ const Payroll: React.FC = () => {
     const [cancelReason, setCancelReason] = useState('');
 
     const [receiptModalRow, setReceiptModalRow] = useState<PayrollRow | null>(null);
+    const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+    const [advanceModalStaffId, setAdvanceModalStaffId] = useState<string | null>(null);
+    const [advancesDrawerRow, setAdvancesDrawerRow] = useState<PayrollRow | null>(null);
 
     const parsedBonus = useMemo(() => {
         const normalized = bonusInput.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
@@ -443,10 +448,23 @@ const Payroll: React.FC = () => {
                         Apuracao por regime de caixa de {startDate} ate {endDate}.
                     </p>
                 </div>
-                <button onClick={fetchData} className={btnGhost}>
-                    <span className="material-symbols-outlined text-[20px]">refresh</span>
-                    Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setAdvanceModalStaffId(null);
+                            setAdvanceModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-amber-500/20 transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">payments</span>
+                        Lançar Vale
+                    </button>
+                    <button onClick={fetchData} className={btnGhost}>
+                        <span className="material-symbols-outlined text-[20px]">refresh</span>
+                        Atualizar
+                    </button>
+                </div>
             </div>
 
             <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-border-dark rounded-xl p-3.5 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
@@ -615,12 +633,29 @@ const Payroll: React.FC = () => {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td
-                                                className={`px-6 py-4 text-sm font-bold whitespace-nowrap ${
-                                                    amounts.advances > 0 ? 'text-red-500' : 'text-slate-400'
-                                                }`}
-                                            >
-                                                {amounts.advances > 0 ? `- ${brl(amounts.advances)}` : brl(0)}
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAdvancesDrawerRow(row)}
+                                                    title="Conferir e estornar vales pendentes"
+                                                    className={`group inline-flex flex-col items-start rounded-lg px-2 py-1 -mx-2 transition-colors hover:bg-slate-100 dark:hover:bg-white/5 ${
+                                                        amounts.advances > 0
+                                                            ? 'text-rose-500 font-bold'
+                                                            : 'text-slate-400 font-bold'
+                                                    }`}
+                                                >
+                                                    <span className="inline-flex items-center gap-1 text-sm">
+                                                        {amounts.advances > 0 ? `- ${brl(amounts.advances)}` : brl(0)}
+                                                        <span className="material-symbols-outlined text-[14px] opacity-60 group-hover:opacity-100 transition-opacity">
+                                                            open_in_new
+                                                        </span>
+                                                    </span>
+                                                    {row.preview.consumedAdvanceIds.length + row.preview.remainingAdvanceIds.length > 0 && (
+                                                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                                            {row.preview.consumedAdvanceIds.length + row.preview.remainingAdvanceIds.length} vale(s) em aberto
+                                                        </span>
+                                                    )}
+                                                </button>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-base font-black text-slate-900 dark:text-white">
@@ -902,6 +937,45 @@ const Payroll: React.FC = () => {
                 settlement={receiptModalRow?.settlement ?? null}
                 preview={receiptModalRow?.preview ?? null}
                 status={receiptModalRow?.status ?? 'unsettled'}
+            />
+
+            {/* Modal de Lançamento de Vale / Adiantamento (G1) */}
+            <BarberAdvanceModal
+                isOpen={advanceModalOpen}
+                onClose={() => {
+                    setAdvanceModalOpen(false);
+                    setAdvanceModalStaffId(null);
+                }}
+                defaultStaffId={advanceModalStaffId}
+                defaultOrigin="bank"
+                onSuccess={(info) => {
+                    setToast({
+                        message: `Vale de ${brl(info.amount)} lançado para ${info.staffName}.`,
+                        type: 'success',
+                    });
+                    fetchData();
+                }}
+            />
+
+            {/* Gaveta de Vales Pendentes & Estorno Atômico (G1) */}
+            <PendingAdvancesDrawer
+                isOpen={advancesDrawerRow !== null}
+                onClose={() => setAdvancesDrawerRow(null)}
+                staffId={advancesDrawerRow?.staffId ?? null}
+                staffName={advancesDrawerRow?.professionalName ?? ''}
+                staffAvatar={advancesDrawerRow?.avatar}
+                onChanged={() => {
+                    setToast({
+                        message: 'Vale estornado. Saldo de comissões recalculado.',
+                        type: 'info',
+                    });
+                    fetchData();
+                }}
+                onRequestNewAdvance={(sid) => {
+                    setAdvancesDrawerRow(null);
+                    setAdvanceModalStaffId(sid);
+                    setAdvanceModalOpen(true);
+                }}
             />
         </div>
     );

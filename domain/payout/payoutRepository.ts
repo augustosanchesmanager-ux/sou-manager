@@ -325,12 +325,15 @@ export class PayoutRepository {
         });
 
         if (error) this.fail(error, 'registerAdvance');
-        const payload = (data ?? {}) as Partial<AdvanceRegistrationResult>;
+        const payload = (data ?? {}) as Partial<AdvanceRegistrationResult> & {
+            advance_id?: string;
+            transaction_id?: string | null;
+        };
         return {
             success: payload.success ?? true,
             idempotent: payload.idempotent ?? false,
-            advanceId: payload.advanceId ?? '',
-            transactionId: payload.transactionId ?? null,
+            advanceId: payload.advanceId ?? payload.advance_id ?? '',
+            transactionId: payload.transactionId ?? payload.transaction_id ?? null,
             amount: input.amount,
             message: payload.message ?? '',
         };
@@ -539,10 +542,12 @@ async createSettlementDraft(
         });
 
         if (error) this.fail(error, 'cancelSettlement');
-        const payload = (data ?? {}) as Partial<CancelSettlementResult>;
+        const payload = (data ?? {}) as Partial<CancelSettlementResult> & {
+            unlinked_advances?: number;
+        };
         return {
             success: payload.success ?? true,
-            unlinkedAdvances: payload.unlinkedAdvances ?? 0,
+            unlinkedAdvances: payload.unlinkedAdvances ?? payload.unlinked_advances ?? 0,
             idempotent: payload.idempotent ?? false,
             message: payload.message ?? '',
         };

@@ -247,6 +247,38 @@ describe('PayoutService.registerAdvance', () => {
             expect.objectContaining({ amount: roundCents(10.005) }),
         );
     });
+
+    it('should_reject_when_amount_is_zero_or_negative', async () => {
+        const repo = makeRepository();
+        const service = new PayoutService(repo as never);
+
+        await expect(
+            service.registerAdvance({ tenantId: 't1', staffId: 'staff1', amount: 0 }),
+        ).rejects.toThrow(/maior que zero/i);
+        expect(repo.registerAdvance).not.toHaveBeenCalled();
+    });
+
+    it('should_reject_when_staff_config_disallows_advances', async () => {
+        const repo = makeRepository({
+            getConfigByStaff: vi.fn().mockResolvedValue({
+                id: 'cfg1',
+                tenantId: 't1',
+                staffId: 'staff1',
+                frequency: 'weekly',
+                payoutWeekday: 2,
+                payoutMonthDay: null,
+                allowAdvances: false,
+                createdAt: '2026-10-01T00:00:00Z',
+                updatedAt: '2026-10-01T00:00:00Z',
+            }),
+        });
+        const service = new PayoutService(repo as never);
+
+        await expect(
+            service.registerAdvance({ tenantId: 't1', staffId: 'staff1', amount: 50 }),
+        ).rejects.toThrow(/nao esta habilitado para receber vales/i);
+        expect(repo.registerAdvance).not.toHaveBeenCalled();
+    });
 });
 
 describe('PayoutService.reverseAdvance', () => {
