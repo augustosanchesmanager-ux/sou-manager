@@ -41,6 +41,31 @@ const normalizeStaffRole = (role: string): string => {
     return STAFF_ROLE_MAP[lower] || 'barber';
 };
 
+const jsonResponse = (payload: unknown, status: number) =>
+    new Response(JSON.stringify(payload), {
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+/** F06: resposta uniforme — nunca confirma se o e-mail existe. */
+const GENERIC_USER_CREATE_CONFLICT =
+    'Não foi possível criar o usuário. Se o e-mail já pertence a uma conta, use o fluxo de convite ou recuperação de senha.';
+
+const isAlreadyRegisteredError = (error: {
+    message?: string;
+    status?: number;
+    code?: string;
+} | null): boolean => {
+    if (!error) return false;
+    const message = String(error.message || '').toLowerCase();
+    return (
+        error.status === 422 ||
+        error.code === 'email_exists' ||
+        message.includes('already registered') ||
+        message.includes('already been registered')
+    );
+};
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -178,45 +203,47 @@ Deno.serve(async (req: Request) => {
         newUser = createdUser;
         createError = err;
 
-        // If user already exists, find them instead of failing
-        if (createError && (createError.message.includes('already registered') || createError.status === 422)) {
-            console.log('User already exists, fetching existing ID...');
-            const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-            if (listError) {
-                return new Response(JSON.stringify({ error: `User exists but failed to fetch ID: ${listError.message}` }), {
-                    status: 400,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                });
-            }
-
-            const existingUser = listData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-            if (existingUser) {
-                newUser = { user: existingUser };
-                createError = null; // Mark as "not an error" now that we found the user
-                console.log('Found existing user ID:', existingUser.id);
-            }
+        // F06: NUNCA adotar um usuário existente pelo e-mail. O lookup global
+        // permitia que um gestor do tenant A fizesse upsert do staff de um
+        // usuário do tenant B (service_role ignora RLS). Resposta uniforme para
+        // não confirmar a existência da conta.
+        if (isAlreadyRegisteredError(createError)) {
+            console.warn('User creation rejected: e-mail already registered (generic 409).');
+            return jsonResponse({ error: GENERIC_USER_CREATE_CONFLICT }, 409);
         }
 
         if (createError) {
             console.error('Create user error:', JSON.stringify(createError, null, 2));
-            return new Response(JSON.stringify({
-                error: createError.message || 'Erro ao criar usuário',
-                code: createError.code || null,
-                details: createError.details || null,
-                hint: createError.hint || null,
-                status: createError.status || null,
-            }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
+            return jsonResponse({ error: 'Não foi possível criar o usuário.' }, 400);
         }
 
         console.log('Auth user created:', newUser.user?.id);
         const defaultCommissionRate = getDefaultCommissionRateForRole(normalizedRequestedRole);
+        const staffId = newUser.user!.id;
+
+        // F06 (defesa em profundidade): o upsert é por id e roda com service_role.
+        // Se já existir staff desse id em outro tenant, aborta antes de mover o
+        // registro. Um id recém-criado não deveria ter staff; isto cobre reexecução
+        // ou inconsistência prévia.
+        const { data: existingStaff, error: existingStaffError } = await supabaseAdmin
+            .from('staff')
+            .select('id, tenant_id')
+            .eq('id', staffId)
+            .maybeSingle();
+
+        if (existingStaffError) {
+            console.error('Staff lookup error:', JSON.stringify(existingStaffError, null, 2));
+            return jsonResponse({ error: 'Não foi possível concluir o cadastro.' }, 500);
+        }
+
+        if (existingStaff && existingStaff.tenant_id !== resolvedTenantId) {
+            console.warn('Cross-tenant staff upsert blocked for staff id:', staffId);
+            return jsonResponse({ error: 'Não foi possível concluir o cadastro.' }, 409);
+        }
 
         // 2. Insert or Update staff record
         const staffPayload = {
-            id: newUser.user!.id,
+            id: staffId,
             name,
             email,
             role: normalizedRequestedRole,
@@ -231,37 +258,18 @@ Deno.serve(async (req: Request) => {
 
         if (staffError) {
             console.error('Staff insert error:', JSON.stringify(staffError, null, 2));
-            // Don't fail — the auth user was created. Return a warning with full context.
-            return new Response(JSON.stringify({
-                user: newUser.user,
-                warning: `User created but staff record failed: ${staffError.message}`,
-                staff_error: {
-                    message: staffError.message || null,
-                    code: staffError.code || null,
-                    details: staffError.details || null,
-                    hint: staffError.hint || null,
-                },
-            }), {
-                status: 200,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
+            // Não devolve SQL/detalhes internos. O usuário auth já foi criado;
+            // o chamador recebe apenas o id para suporte/retry.
+            return jsonResponse({
+                user: { id: staffId },
+                warning: 'User created but staff record failed.',
+            }, 200);
         }
 
-        return new Response(JSON.stringify({ user: newUser.user }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return jsonResponse({ user: newUser.user }, 200);
 
     } catch (err: any) {
         console.error('Unexpected error:', JSON.stringify(err, null, 2));
-        return new Response(JSON.stringify({
-            error: err.message || 'Internal server error',
-            code: err.code || null,
-            details: err.details || null,
-            hint: err.hint || null,
-        }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return jsonResponse({ error: 'Internal server error' }, 500);
     }
 });
