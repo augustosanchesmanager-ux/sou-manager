@@ -35,12 +35,24 @@ import { calculateCommissionRecordsFromContext } from './calculate.ts';
 // const WORKER_ID = `d8-${Deno.env.get('SUPABASE_FUNCTION_NAME') || 'worker-dispatcher'}`;
 const WORKER_ID = 'worker-dispatcher';
 const MAX_TARGETS_PER_CYCLE = 25;
+const WORKER_SECRET_HEADER = 'x-worker-secret';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-worker-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+/** Comparação em tempo constante (evita distinguir prefixo correto por timing). */
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const left = encoder.encode(a);
+  const right = encoder.encode(b);
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) diff |= left[i] ^ right[i];
+  return diff === 0;
+}
 
 export interface CycleReport {
   ok: boolean;
@@ -216,17 +228,46 @@ async function reportHeartbeat(url: string, jwt: string, report: CycleReport) {
 }
 
 Deno.serve(async (req) => {
+  const correlationId = crypto.randomUUID();
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // F04: o scheduler precisa provar que é o scheduler. A anon key é pública e
+  // não serve como credencial. O segredo é um custom secret do Edge Runtime.
+  const expectedSecret = Deno.env.get('WORKER_DISPATCH_SECRET') || '';
+  const providedSecret = req.headers.get(WORKER_SECRET_HEADER) || '';
+  if (!expectedSecret) {
+    console.error(`[worker-dispatcher][${correlationId}] WORKER_DISPATCH_SECRET missing`);
+    return new Response(JSON.stringify({ ok: false, error: 'worker unavailable' }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (!timingSafeEqual(providedSecret, expectedSecret)) {
+    console.warn(`[worker-dispatcher][${correlationId}] rejected unauthorized invoke`);
+    return new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const jwtSecret = Deno.env.get('EDGE_JWT_SECRET') || '';
   const supabaseUrl = Deno.env.get('APP_URL') || '';
   if (!jwtSecret || !supabaseUrl) {
-    return new Response(
-      JSON.stringify({ ok: false, error: 'SUPABASE_JWT_SECRET/SUPABASE_URL missing (scheduled invoke only; not user-facing).' }),
-      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    console.error(`[worker-dispatcher][${correlationId}] missing EDGE_JWT_SECRET/APP_URL`);
+    return new Response(JSON.stringify({ ok: false, error: 'worker unavailable' }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
@@ -234,15 +275,34 @@ Deno.serve(async (req) => {
     const report = await runCycle(supabaseUrl, jwt, MAX_TARGETS_PER_CYCLE);
     await reportHeartbeat(supabaseUrl, jwt, report);
 
-    return new Response(JSON.stringify({ ok: report.ok, ...report }), {
-      status: report.ok ? 200 : 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Não devolve mensagens internas de RPC/SQL ao chamador. O detalhe fica no
+    // log estruturado; a resposta carrega apenas o correlation id e contadores.
+    if (report.error) {
+      console.error(`[worker-dispatcher][${correlationId}] cycle error: ${report.error}`);
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: report.ok,
+        correlation_id: correlationId,
+        claimed: report.claimed,
+        processed: report.processed,
+        failed: report.failed,
+        dead: report.dead,
+        recovered: report.recovered,
+        skipped: report.skipped,
+      }),
+      {
+        status: report.ok ? 200 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error(`[worker-dispatcher][${correlationId}] fatal: ${msg}`);
+    return new Response(
+      JSON.stringify({ ok: false, error: 'worker cycle failed', correlation_id: correlationId }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
   }
 });
