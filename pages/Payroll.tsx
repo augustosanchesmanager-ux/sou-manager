@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePayoutService } from '../src/hooks/usePayoutService';
 import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
 import type {
+    BarberPayoutConfig,
     BarberPayoutSettlement,
     SettlementComputation,
     SettlementStatus,
@@ -15,6 +16,10 @@ import { roundCents, sumCents } from '../domain/payout/money';
 import PayoutReceiptModal from '../components/payroll/PayoutReceiptModal';
 import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
 import PendingAdvancesDrawer from '../components/payroll/PendingAdvancesDrawer';
+import PayoutCycleConfigModal, {
+    formatPayoutCycleBadge,
+    isPayoutConfigDueInPeriod,
+} from '../components/payroll/PayoutCycleConfigModal';
 
 type RowStatus = SettlementStatus | 'unsettled';
 
@@ -31,6 +36,7 @@ interface PayrollRow {
      */
     preview: SettlementComputation;
     settlement: BarberPayoutSettlement | null;
+    config: BarberPayoutConfig | null;
     status: RowStatus;
 }
 
@@ -93,6 +99,8 @@ const Payroll: React.FC = () => {
     const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
     const [advanceModalStaffId, setAdvanceModalStaffId] = useState<string | null>(null);
     const [advancesDrawerRow, setAdvancesDrawerRow] = useState<PayrollRow | null>(null);
+    const [configModalRow, setConfigModalRow] = useState<PayrollRow | null>(null);
+    const [dueFilter, setDueFilter] = useState<'all' | 'due_today' | 'due_period'>('all');
 
     const parsedBonus = useMemo(() => {
         const normalized = bonusInput.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
@@ -152,20 +160,22 @@ const Payroll: React.FC = () => {
 
             for (const professional of professionals) {
                 // Leitura pura: nada é persistido na pré-visualização.
-                const preview = await payout.computeSettlement({
-                    tenantId,
-                    staffId: professional.id,
-                    periodStart: startDate,
-                    periodEnd: endDate,
-                    commissionRate: professional.commissionRate,
-                });
-
-                const existing = await payout.getSettlementForPeriod(
-                    tenantId,
-                    professional.id,
-                    startDate,
-                    endDate,
-                );
+                const [preview, existing, config] = await Promise.all([
+                    payout.computeSettlement({
+                        tenantId,
+                        staffId: professional.id,
+                        periodStart: startDate,
+                        periodEnd: endDate,
+                        commissionRate: professional.commissionRate,
+                    }),
+                    payout.getSettlementForPeriod(
+                        tenantId,
+                        professional.id,
+                        startDate,
+                        endDate,
+                    ),
+                    payout.getConfigByStaff(tenantId, professional.id),
+                ]);
 
                 next.push({
                     staffId: professional.id,
@@ -175,6 +185,7 @@ const Payroll: React.FC = () => {
                     commissionRate: professional.commissionRate,
                     preview,
                     settlement: existing,
+                    config,
                     status: existing?.status ?? 'unsettled',
                 });
             }
@@ -291,9 +302,31 @@ const Payroll: React.FC = () => {
         });
     };
 
+    const dueCounts = useMemo(() => {
+        let dueToday = 0;
+        let duePeriod = 0;
+        for (const row of rows) {
+            const status = isPayoutConfigDueInPeriod(row.config, startDate, endDate);
+            if (status.dueToday) dueToday += 1;
+            if (status.dueInPeriod) duePeriod += 1;
+        }
+        return { dueToday, duePeriod };
+    }, [rows, startDate, endDate]);
+
     const filteredRows = useMemo(
-        () => rows.filter((r) => r.professionalName.toLowerCase().includes(searchName.toLowerCase())),
-        [rows, searchName],
+        () =>
+            rows.filter((r) => {
+                const matchesName = r.professionalName
+                    .toLowerCase()
+                    .includes(searchName.toLowerCase());
+                if (!matchesName) return false;
+                if (dueFilter === 'all') return true;
+                const dueStatus = isPayoutConfigDueInPeriod(r.config, startDate, endDate);
+                if (dueFilter === 'due_today') return dueStatus.dueToday;
+                if (dueFilter === 'due_period') return dueStatus.dueInPeriod;
+                return true;
+            }),
+        [rows, searchName, dueFilter, startDate, endDate],
     );
 
     /**
@@ -509,31 +542,75 @@ const Payroll: React.FC = () => {
                 />
             </div>
 
-            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-80">
-                    <DateRangeFilter
-                        startDate={startDate}
-                        endDate={endDate}
-                        onStartDateChange={setStartDate}
-                        onEndDateChange={setEndDate}
-                        showPresets={true}
-                    />
-                </div>
-                <div className="flex-1 relative">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
-                        Buscar Profissional
-                    </label>
-                    <div className="relative">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                            search
-                        </span>
-                        <input
-                            type="text"
-                            placeholder="Nome do profissional..."
-                            value={searchName}
-                            onChange={(e) => setSearchName(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark space-y-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="w-full md:w-80">
+                        <DateRangeFilter
+                            startDate={startDate}
+                            endDate={endDate}
+                            onStartDateChange={setStartDate}
+                            onEndDateChange={setEndDate}
+                            showPresets={true}
                         />
+                    </div>
+                    <div className="flex-1 relative">
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
+                            Buscar Profissional
+                        </label>
+                        <div className="relative">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                search
+                            </span>
+                            <input
+                                type="text"
+                                placeholder="Nome do profissional..."
+                                value={searchName}
+                                onChange={(e) => setSearchName(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Filtro de Vencimento de Ciclo (G2 — ADR-030) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-border-dark">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Filtro de Vencimento Contratual:
+                    </span>
+                    <div className="inline-flex rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/[0.02] p-1 gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'all'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Todos ({rows.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('due_today')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'due_today'
+                                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            A Vencer Hoje ({dueCounts.dueToday})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('due_period')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'due_period'
+                                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            A Vencer no Período ({dueCounts.duePeriod})
+                        </button>
                     </div>
                 </div>
             </div>
@@ -613,7 +690,21 @@ const Payroll: React.FC = () => {
                                                         <span className="text-sm font-bold text-slate-800 dark:text-white block">
                                                             {row.professionalName}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-500">{row.role}</span>
+                                                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[10px] text-slate-500">{row.role}</span>
+                                                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setConfigModalRow(row)}
+                                                                title="Ajustar política de repasse e vales (Lei Salão-Parceiro)"
+                                                                className="inline-flex items-center gap-1 rounded-md border border-amber-200 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 transition-colors"
+                                                            >
+                                                                <span>{formatPayoutCycleBadge(row.config)}</span>
+                                                                <span className="material-symbols-outlined text-[12px]">
+                                                                    settings
+                                                                </span>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -975,6 +1066,22 @@ const Payroll: React.FC = () => {
                     setAdvancesDrawerRow(null);
                     setAdvanceModalStaffId(sid);
                     setAdvanceModalOpen(true);
+                }}
+            />
+
+            {/* Atalho Operacional de Configuração de Ciclo & Vales (G2) */}
+            <PayoutCycleConfigModal
+                isOpen={configModalRow !== null}
+                onClose={() => setConfigModalRow(null)}
+                staffId={configModalRow?.staffId ?? null}
+                staffName={configModalRow?.professionalName ?? ''}
+                initialConfig={configModalRow?.config ?? null}
+                onSaved={() => {
+                    setToast({
+                        message: 'Política de repasse atualizada com sucesso.',
+                        type: 'success',
+                    });
+                    fetchData();
                 }}
             />
         </div>

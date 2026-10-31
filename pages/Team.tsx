@@ -9,6 +9,9 @@ import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { staffRepository, RepositoryError } from '../domain/staff';
 import { teamInvitationService } from '../application/teamInvitation';
 import type { InvitationView } from '../domain/invitation/types';
+import { useBarberPayoutConfig } from '../src/hooks/usePayoutService';
+import type { PayoutFrequency } from '../domain/payout/types';
+import { PayoutCycleConfigFields } from '../components/payroll/PayoutCycleConfigModal';
 
 interface TeamMember {
     id: string;
@@ -72,6 +75,21 @@ const Team: React.FC = () => {
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
     const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
     const [commissionEditedManually, setCommissionEditedManually] = useState(false);
+
+    // Política de Repasse & Vales (G2 — ADR-030)
+    const { getConfigByStaff, upsertConfig } = useBarberPayoutConfig();
+    const [payoutForm, setPayoutForm] = useState<{
+        frequency: PayoutFrequency;
+        payoutWeekday: number;
+        payoutMonthDay: number;
+        allowAdvances: boolean;
+    }>({
+        frequency: 'weekly',
+        payoutWeekday: 2,
+        payoutMonthDay: 5,
+        allowAdvances: true,
+    });
+    const [loadingPayoutConfig, setLoadingPayoutConfig] = useState(false);
 
     // F2.1 (SEC-AUTHZ-CREATE-USER): somente superadmin pode atribuir o papel `admin`.
     // Gerentes criam apenas barber/receptionist (hierarquia enforcement no backend —
@@ -152,7 +170,31 @@ const Team: React.FC = () => {
             status: member.status,
             password: '', // Não editamos senha por aqui
         });
+        setPayoutForm({
+            frequency: 'weekly',
+            payoutWeekday: 2,
+            payoutMonthDay: 5,
+            allowAdvances: true,
+        });
         setShowModal(true);
+        setLoadingPayoutConfig(true);
+        getConfigByStaff(member.id)
+            .then((cfg) => {
+                if (cfg) {
+                    setPayoutForm({
+                        frequency: cfg.frequency,
+                        payoutWeekday: cfg.payoutWeekday ?? 2,
+                        payoutMonthDay: cfg.payoutMonthDay ?? 5,
+                        allowAdvances: cfg.allowAdvances,
+                    });
+                }
+            })
+            .catch((err) => {
+                console.warn('Falha ao carregar política de repasse na equipe:', err);
+            })
+            .finally(() => {
+                setLoadingPayoutConfig(false);
+            });
     };
 
     const handleRoleChange = (role: string) => {
@@ -189,7 +231,24 @@ const Team: React.FC = () => {
             }
             try {
                 await staffRepository.update(editingMember.id, editableFields, tenantId);
-                setToast({ message: 'Colaborador atualizado!', type: 'success' });
+                if (editableFields.commission_rate > 0 || editingMember.role === 'barber') {
+                    try {
+                        await upsertConfig({
+                            staffId: editingMember.id,
+                            frequency: payoutForm.frequency,
+                            payoutWeekday:
+                                payoutForm.frequency === 'weekly' || payoutForm.frequency === 'biweekly'
+                                    ? payoutForm.payoutWeekday
+                                    : null,
+                            payoutMonthDay:
+                                payoutForm.frequency === 'monthly' ? payoutForm.payoutMonthDay : null,
+                            allowAdvances: payoutForm.allowAdvances,
+                        });
+                    } catch (cfgErr) {
+                        console.warn('Aviso ao salvar política de repasse:', cfgErr);
+                    }
+                }
+                setToast({ message: 'Colaborador e política de repasse atualizados!', type: 'success' });
             } catch (error) {
                 console.error('UPDATE ERROR:', error);
                 let friendlyMsg = 'Erro ao atualizar.';
@@ -759,6 +818,26 @@ const Team: React.FC = () => {
                             <option value="inactive" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Inativo</option>
                         </select>
                     </div>
+                    {editingMember && (Number(form.commission_rate) > 0 || form.role === 'barber') && (
+                        <div className="pt-3 border-t border-slate-200 dark:border-border-dark space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                    Política de Repasse & Vales (Lei Salão-Parceiro)
+                                </span>
+                                {loadingPayoutConfig && (
+                                    <span className="text-[11px] text-slate-400">Carregando...</span>
+                                )}
+                            </div>
+                            <PayoutCycleConfigFields
+                                frequency={payoutForm.frequency}
+                                payoutWeekday={payoutForm.payoutWeekday}
+                                payoutMonthDay={payoutForm.payoutMonthDay}
+                                allowAdvances={payoutForm.allowAdvances}
+                                disabled={loadingPayoutConfig}
+                                onChange={(next) => setPayoutForm(next)}
+                            />
+                        </div>
+                    )}
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => { setShowModal(false); setEditingMember(null); }}
                             className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>

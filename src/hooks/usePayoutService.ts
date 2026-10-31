@@ -6,6 +6,8 @@ import { createSharedSupabaseClient } from '../../domain/shared/supabase-client-
 import type {
     AdvanceRegistrationResult,
     BarberAdvance,
+    BarberPayoutConfig,
+    PayoutFrequency,
     RegisterAdvanceInput,
 } from '../../domain/payout/types';
 
@@ -95,5 +97,48 @@ export const useBarberAdvances = () => {
         registerAdvance,
         reverseAdvance,
         listPendingAdvances,
+    };
+};
+
+/**
+ * Hook dedicado para leitura e gravação da Política de Repasse & Vales
+ * (`barber_payout_configs` — ADR-030 G2) por profissional.
+ */
+export const useBarberPayoutConfig = () => {
+    const { tenantId } = useAuth();
+    const service = usePayoutService();
+
+    const getConfigByStaff = useCallback(
+        async (staffId: string): Promise<BarberPayoutConfig | null> => {
+            if (!service || !tenantId || !staffId) return null;
+            return service.getConfigByStaff(tenantId, staffId);
+        },
+        [service, tenantId],
+    );
+
+    const upsertConfig = useCallback(
+        async (input: {
+            staffId: string;
+            frequency: PayoutFrequency;
+            payoutWeekday: number | null;
+            payoutMonthDay: number | null;
+            allowAdvances: boolean;
+        }): Promise<BarberPayoutConfig> => {
+            if (!service || !tenantId) {
+                throw new Error('Contexto do tenant indisponível para salvar configuração de repasse');
+            }
+            return service.upsertConfig({
+                tenantId,
+                ...input,
+            });
+        },
+        [service, tenantId],
+    );
+
+    return {
+        tenantId: tenantId ?? null,
+        service,
+        getConfigByStaff,
+        upsertConfig,
     };
 };

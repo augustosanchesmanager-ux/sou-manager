@@ -166,11 +166,34 @@ export class PayoutService {
     async upsertConfig(
         config: UpsertBarberPayoutConfigParams,
     ): Promise<BarberPayoutConfig> {
+        let normalizedWeekday: number | null = null;
+        let normalizedMonthDay: number | null = null;
+
+        if (config.frequency === 'weekly' || config.frequency === 'biweekly') {
+            const wd = Number(config.payoutWeekday);
+            if (!Number.isInteger(wd) || wd < 1 || wd > 7) {
+                throw new Error('Dia da semana (1-7) obrigatorio para frequencia semanal ou quinzenal');
+            }
+            normalizedWeekday = wd;
+            normalizedMonthDay = null;
+        } else if (config.frequency === 'monthly') {
+            const md = Number(config.payoutMonthDay);
+            if (!Number.isInteger(md) || md < 1 || md > 31) {
+                throw new Error('Dia do mes (1-31) obrigatorio para frequencia mensal');
+            }
+            normalizedWeekday = null;
+            normalizedMonthDay = md;
+        } else {
+            // daily
+            normalizedWeekday = null;
+            normalizedMonthDay = null;
+        }
+
         return this.repository.upsertConfig(config.tenantId, config.staffId, {
             frequency: config.frequency,
-            payoutWeekday: config.payoutWeekday,
-            payoutMonthDay: config.payoutMonthDay,
-            allowAdvances: config.allowAdvances,
+            payoutWeekday: normalizedWeekday,
+            payoutMonthDay: normalizedMonthDay,
+            allowAdvances: Boolean(config.allowAdvances),
         });
     }
 
