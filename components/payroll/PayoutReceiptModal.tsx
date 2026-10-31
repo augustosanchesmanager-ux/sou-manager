@@ -264,7 +264,7 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                         status === 'paid'
                                             ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                                             : status === 'approved'
-                                            ? 'bg-teal-50 text-teal-700 border-teal-300'
+                                            ? 'bg-amber-50 text-amber-800 border-amber-300'
                                             : 'bg-amber-50 text-amber-700 border-amber-300'
                                     }`}
                                 >
@@ -383,12 +383,12 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
 
                     {/* Resumo Financeiro / Balancete */}
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 my-2">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 text-xs">
                             <div>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase block">
                                     Total de Serviços
                                 </span>
-                                <span className="text-sm font-bold text-slate-800">
+                                <span className="text-sm font-bold text-slate-800 tabular-nums">
                                     {brl(totalServicesGross)}
                                 </span>
                             </div>
@@ -396,15 +396,23 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                 <span className="text-[10px] font-bold text-slate-400 uppercase block">
                                     Comissão Bruta
                                 </span>
-                                <span className="text-sm font-bold text-emerald-600">
+                                <span className="text-sm font-bold text-emerald-600 tabular-nums">
                                     {brl(grossCommission)}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                                    Bônus / Acréscimos
+                                </span>
+                                <span className={`text-sm font-bold tabular-nums ${bonusesAdded > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                                    {bonusesAdded > 0 ? `+ ${brl(bonusesAdded)}` : brl(0)}
                                 </span>
                             </div>
                             <div>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase block">
                                     Vales Deduzidos
                                 </span>
-                                <span className={`text-sm font-bold ${advancesDeducted > 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                                <span className={`text-sm font-bold tabular-nums ${advancesDeducted > 0 ? 'text-red-500' : 'text-slate-500'}`}>
                                     {advancesDeducted > 0 ? `- ${brl(advancesDeducted)}` : brl(0)}
                                 </span>
                             </div>
@@ -412,7 +420,7 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                 <span className="text-[10px] font-black text-slate-900 uppercase block tracking-wider">
                                     Líquido Quitado
                                 </span>
-                                <span className="text-xl font-black text-slate-900 block">
+                                <span className="text-xl font-black text-slate-900 block tabular-nums">
                                     {brl(netPayout)}
                                 </span>
                             </div>

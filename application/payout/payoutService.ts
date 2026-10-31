@@ -27,8 +27,10 @@ import {
 import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import type {
     BarberAdvance,
+    BarberPayoutConfig,
     BarberPayoutSettlement,
     CancelSettlementResult,
+    PayoutFrequency,
     PayoutReceiptItem,
     SettlementComputation,
     StaffProfile,
@@ -45,6 +47,15 @@ export interface ComputeSettlementParams {
     commissionRate: number;
     /** BÃ´nus/diÃ¡rias do perÃ­odo. Entra na fÃ³rmula, nÃ£o na base. */
     bonusesAdded?: number;
+}
+
+export interface UpsertBarberPayoutConfigParams {
+    tenantId: string;
+    staffId: string;
+    frequency: PayoutFrequency;
+    payoutWeekday: number | null;
+    payoutMonthDay: number | null;
+    allowAdvances: boolean;
 }
 
 export class PayoutService {
@@ -118,6 +129,10 @@ export class PayoutService {
     }> {
         const computation = await this.computeSettlement(params);
 
+        if (computation.grossCommission <= 0 && computation.bonusesAdded <= 0) {
+            throw new Error('Nao e possivel gerar acerto com comissao bruta e bonus zerados');
+        }
+
         const settlement = await this.repository.createSettlementDraft({
             tenantId: params.tenantId,
             staffId: params.staffId,
@@ -139,6 +154,28 @@ export class PayoutService {
         return { settlement, computation };
     }
 
+    // ── Configuração de Ciclo (ADR-030) ─────────────────────────────
+
+    async getConfigByStaff(
+        tenantId: string,
+        staffId: string,
+    ): Promise<BarberPayoutConfig | null> {
+        return this.repository.getConfigByStaff(tenantId, staffId);
+    }
+
+    async upsertConfig(
+        config: UpsertBarberPayoutConfigParams,
+    ): Promise<BarberPayoutConfig> {
+        return this.repository.upsertConfig(config.tenantId, config.staffId, {
+            frequency: config.frequency,
+            payoutWeekday: config.payoutWeekday,
+            payoutMonthDay: config.payoutMonthDay,
+            allowAdvances: config.allowAdvances,
+        });
+    }
+
+    // ── Vales / Adiantamentos ───────────────────────────────────────
+
     async registerAdvance(input: {
         tenantId: string;
         staffId: string;
@@ -159,6 +196,13 @@ export class PayoutService {
 
     async listPendingAdvances(tenantId: string, staffId: string): Promise<BarberAdvance[]> {
         return this.repository.listPendingAdvances(tenantId, staffId);
+    }
+
+    async listAdvancesBySettlement(
+        tenantId: string,
+        settlementId: string,
+    ): Promise<BarberAdvance[]> {
+        return this.repository.listAdvancesBySettlement(tenantId, settlementId);
     }
 
     // ── FSM de liquidação ────────────────────────────────────────────
