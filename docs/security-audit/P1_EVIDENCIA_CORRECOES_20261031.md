@@ -2,8 +2,8 @@
 
 > **Fonte dos achados:** `docs/security-audit/relatorio-auditoria-seguranca.pdf` (auditoria de 2026-10-30).
 > **Escopo desta frente:** somente os achados **P1** — F01, F02, F03 (críticos) e F04, F05, F06 (altos).
-> **Estado:** correções implementadas e validadas em **staging**; **nada commitado, enviado, mergeado ou deployado**.
-> **Base:** `HEAD = 0acb399` · **Data:** 2026-10-31
+> **Estado:** correções implementadas e validadas em **staging**; migrations **aplicadas em produção** em 2026-10-31; Edge Functions com deploy **parcialmente bloqueado** (ver §9).
+> **Base:** `HEAD = 0acb399` (branch `security/p1-critical-high-fixes`, PR #215) · **Data:** 2026-10-31
 
 Disciplina deste documento: **EVIDÊNCIA** = fato observado (comando, saída, diff) · **INTERPRETAÇÃO** = leitura do fato · **GAP** = o que segue desconhecido/não validado · **DECISÃO** = ação pendente de autorização.
 
@@ -174,7 +174,9 @@ As mudanças de Edge Function não têm efeito até o deploy. Enquanto isso, o `
 
 ---
 
-## 7. Pré-requisitos para promoção (não executados)
+## 7. Pré-requisitos de promoção (referência)
+
+> Execução em produção registrada em §9. Este bloco descreve os pré-requisitos exigidos.
 
 1. **Migrations em produção** — exigem aprovação explícita do PO. Ordem: F01 → F02 → F03 → F05 (F05 depende do helper criado em F03).
 2. **F04** — criar `WORKER_DISPATCH_SECRET` (custom secret, **sem** prefixo `SUPABASE_`) e atualizar o job `d8-worker-dispatcher` para enviar `x-worker-secret` **antes** de deployar a função.
@@ -185,9 +187,54 @@ As mudanças de Edge Function não têm efeito até o deploy. Enquanto isso, o `
 
 ## 8. DECISÃO pendente (STOP/GATE)
 
-Nada foi commitado, enviado, mergeado ou deployado. Aguardando o PO para:
+Autorizações do PO (2026-10-31): (a) commit/push; (b) migrations em produção na ordem F01 → F02 → F03 → F05; (c) deploy das Edge Functions condicionado a secrets + cron; (d) GAP-03 → backlog P2, GAP-08 → mantém a trava e unifica na fase 2.
 
-- (a) autorizar commit/push desta frente;
-- (b) autorizar a aplicação das 4 migrations em produção;
-- (c) autorizar deploy das Edge Functions (com GAP-01 resolvido antes);
-- (d) decidir sobre GAP-03 (profile `tenant_id NULL` no aceite) e GAP-08 (fase 2 do F01).
+Executado e pendente: ver §9.
+
+---
+
+## 9. Execução em produção — 2026-10-31
+
+Projeto `ushsnmlbeurfvlkieiln`. Cada migration foi aplicada isoladamente em `BEGIN … COMMIT` e verificada antes da seguinte. Nenhum rollback foi necessário.
+
+### 9.1 Migrations
+
+| Ordem | Migration | Resultado | Verificação pós-aplicação |
+|---|---|---|---|
+| 1 | F01 `20261030120000` | ✅ aplicada | `prepare_invite_user` sem `UPDATE auth.users`; `anon` mantém `EXECUTE` |
+| 2 | F02 `20261030120100` | ✅ aplicada | `anon`/`authenticated` negados nas duas RPCs; `worker_dispatcher` e `service_role` autorizados; `service_role` executa `claim_due_reminders` (0 linhas, `p_limit=0`) |
+| 3 | F03 `20261030120200` | ✅ aplicada | `is_super_admin` sem `user_metadata`; superadmin ativo real autorizado; `user_metadata.role=super_admin` em usuário comum **negado** |
+| 4 | F05 `20261030120300` | ✅ aplicada | 5/5: trigger presente; pivot de tenant bloqueado (42501); troca de status bloqueada; no-op permitido; superadmin aprova status |
+
+Fixtures de teste do F05 rodaram em transação com `ROLLBACK` — nenhuma linha de produção foi alterada.
+
+**Pré-checagem F02:** produção tem **um único** job de cron (`d8-worker-dispatcher`), que não chama as RPCs de engajamento; `process-reminders` e `waitlist-notifier` **não estão deployados**. Portanto o `REVOKE` não quebra consumidor ativo.
+
+**Pré-checagem F03:** os 2 superadmins de produção têm `role='superadmin'` e `status='active'`, compatíveis com o novo critério — sem risco de lockout.
+
+### 9.2 F04 — preparação operacional (parcial)
+
+| Passo | Estado |
+|---|---|
+| Criar `WORKER_DISPATCH_SECRET` em produção | ✅ criado (48 bytes aleatórios, base64url; valor não registrado em documento) |
+| Atualizar cron `d8-worker-dispatcher` para enviar `x-worker-secret` | ✅ `cron.unschedule(3)` + `cron.schedule(...)` → novo `jobid=4`, `schedule='* * * * *'`, `active=true`, header presente (64 chars) |
+| Criar `EDGE_JWT_SECRET` em produção | ❌ **bloqueado** — o valor deve ser o JWT secret legado do projeto, disponível apenas no dashboard (Settings → API → JWT Settings). Um valor aleatório faria o PostgREST rejeitar o JWT cunhado pelo worker |
+
+O cron armazena o secret em texto claro em `cron.job`, mesma fronteira de confiança do JWT anon que já estava lá. Enquanto a função antiga (v23) estiver no ar, o header é ignorado — sem regressão.
+
+### 9.3 Deploy das Edge Functions
+
+| Função | Estado |
+|---|---|
+| `worker-dispatcher` (F04) | ⛔ não deployada — depende de `EDGE_JWT_SECRET` |
+| `admin-create-user` (F06) | ⏸ aguardando decisão do PO (a condição do gate é específica do worker) |
+| `supabase-usage-monitor` (F03) | ⏸ aguardando decisão do PO (idem) |
+
+Comando previsto para o worker (após o secret): `supabase functions deploy worker-dispatcher --project-ref ushsnmlbeurfvlkieiln --no-verify-jwt` (o `config.toml` por função não é aplicado pelo CLI; o `verify_jwt` atual da função é `true`).
+
+### 9.4 Estado final de produção
+
+- Vulnerabilidades **F01, F02, F03 (banco/RLS) e F05** neutralizadas em produção.
+- **F03 (Edge)** e **F06** seguem vulneráveis em runtime até o deploy.
+- **F04** segue com a função antiga (já inoperante por ausência de `EDGE_JWT_SECRET`); cron já preparado.
+- Nenhum efeito colateral observado nas verificações pós-aplicação.
