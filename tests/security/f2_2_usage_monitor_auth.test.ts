@@ -12,12 +12,13 @@
  * com autorização restrita a superadmin (espelha `public.is_super_admin()`).
  *
  * Critérios de aceite:
- *   1. Superadmin (role ou user_metadata.role = 'super_admin') é autorizado
+ *   1. Superadmin com app_metadata.role = 'super_admin'/'superadmin' é autorizado
  *   2. Autenticado comum (barber/receptionist/manager, role ausente) é NEGADO
- *   3. Payload válido passa na validação rigorosa
- *   4. Payload inválido (resource_type desconhecido, números não finitos/
+ *   3. user_metadata.role = 'super_admin' NÃO eleva privilégio (F03)
+ *   4. Payload válido passa na validação rigorosa
+ *   5. Payload inválido (resource_type desconhecido, números não finitos/
  *      negativos/zero, unit vazia, metadata não-objeto, lote > max) é REJEITADO
- *   5. A função testada é a MESMA importada pela edge function (fonte única em
+ *   6. A função testada é a MESMA importada pela edge function (fonte única em
  *      supabase/functions/_shared/usage-monitor-auth.ts)
  *
  * As funções testadas são PURAS (sem Deno/supabase-js) — portáveis entre a
@@ -32,9 +33,14 @@ import {
   MAX_METRICS_PER_BATCH,
 } from '../../supabase/functions/_shared/usage-monitor-auth';
 
-const makeUser = (overrides: { role?: string | null; user_metadata?: Record<string, unknown> | null } = {}) => ({
+const makeUser = (overrides: {
+  role?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+} = {}) => ({
   id: 'user-1',
   role: overrides.role ?? null,
+  app_metadata: overrides.app_metadata ?? null,
   user_metadata: overrides.user_metadata ?? null,
 });
 
@@ -47,27 +53,28 @@ const makeValidMetric = () => ({
 
 describe('F2.2 Security — usage monitor auth chain', () => {
   describe('isSuperAdminUser — aceite 1: superadmin autorizado', () => {
-    it('should_be_true_when_jwt_role_is_super_admin', () => {
+    it('should_be_true_when_app_metadata_role_is_super_admin', () => {
       // Arrange & Act & Assert
-      expect(isSuperAdminUser(makeUser({ role: 'super_admin' }))).toBe(true);
+      expect(isSuperAdminUser(makeUser({ app_metadata: { role: 'super_admin' } }))).toBe(true);
     });
 
-    it('should_be_true_when_user_metadata_role_is_super_admin', () => {
-      expect(isSuperAdminUser(makeUser({ user_metadata: { role: 'super_admin' } }))).toBe(true);
+    it('should_be_true_when_app_metadata_role_is_superadmin', () => {
+      expect(isSuperAdminUser(makeUser({ app_metadata: { role: 'superadmin' } }))).toBe(true);
     });
 
-    it('should_be_true_when_both_claims_present', () => {
-      expect(
-        isSuperAdminUser(
-          makeUser({ role: 'super_admin', user_metadata: { role: 'super_admin' } }),
-        ),
-      ).toBe(true);
+    it('should_be_true_when_app_metadata_role_is_super_admin_with_space', () => {
+      expect(isSuperAdminUser(makeUser({ app_metadata: { role: 'Super Admin' } }))).toBe(true);
     });
   });
 
   describe('isSuperAdminUser — aceite 2: autenticado comum negado', () => {
     it('should_be_false_when_jwt_role_is_authenticated_only', () => {
       expect(isSuperAdminUser(makeUser({ role: 'authenticated' }))).toBe(false);
+    });
+
+    it('should_be_false_when_user_metadata_role_is_super_admin', () => {
+      // F03: user_metadata é gravável pelo próprio usuário; não autoriza.
+      expect(isSuperAdminUser(makeUser({ user_metadata: { role: 'super_admin' } }))).toBe(false);
     });
 
     it('should_be_false_when_user_metadata_role_is_staff_role', () => {
@@ -81,7 +88,7 @@ describe('F2.2 Security — usage monitor auth chain', () => {
     });
 
     it('should_be_false_when_role_is_empty_string', () => {
-      expect(isSuperAdminUser(makeUser({ role: '' }))).toBe(false);
+      expect(isSuperAdminUser(makeUser({ app_metadata: { role: '' } }))).toBe(false);
     });
   });
 

@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 // F2.2: cadeia auth→authz→payload (fonte canônica testada em tests/security/f2_2_usage_monitor_auth.test.ts)
-import { isSuperAdminUser, validateMetricsPayload, type UsageMetric } from '../_shared/usage-monitor-auth.ts';
+import { validateMetricsPayload, type UsageMetric } from '../_shared/usage-monitor-auth.ts';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -34,10 +34,10 @@ const json = (payload: unknown, status: number) =>
  *
  *   1. AUTENTICAÇÃO: exige `Authorization: Bearer <JWT>` válido, verificado via
  *      GoTrue (`auth.getUser`) — padrão aprovado na F2.1 (admin-create-user).
- *   2. AUTORIZAÇÃO: somente superadmin pode operar, espelhando
- *      `public.is_super_admin()` (as policies de usage_logs/alerts são
- *      `USING (public.is_super_admin())`). Função pura testada em
- *      tests/security/f2_2_usage_monitor_auth.test.ts.
+ *   2. AUTORIZAÇÃO: somente superadmin pode operar. A decisão é tomada pela
+ *      RPC `public.current_is_super_admin_from_auth_uid()` (profiles.role +
+ *      status ativo), executada com o token do chamador. `user_metadata` nunca
+ *      é consultado (F03).
  *   3. VALIDAÇÃO DO PAYLOAD: `validateMetricsPayload` rejeita resource_type
  *      desconhecido, números não finitos/negativos, unit vazia, metadata não
  *      objeto e lotes acima de MAX_METRICS_PER_BATCH.
@@ -81,7 +81,22 @@ Deno.serve(async (req: Request) => {
         if (error || !data?.user) {
             return json({ error: 'Unauthorized: invalid token' }, 401);
         }
-        if (!isSuperAdminUser(data.user)) {
+
+        // F03: autorização na fonte de verdade do banco (profiles), com o token
+        // do próprio chamador. user_metadata é gravável pelo usuário e não pode
+        // elevar privilégio.
+        const userClient = createClient(supabaseUrl, anonKey, {
+            global: { headers: { Authorization: `Bearer ${token}` } },
+            auth: { persistSession: false },
+        });
+        const { data: isSuperAdmin, error: authzError } = await userClient.rpc(
+            'current_is_super_admin_from_auth_uid',
+        );
+        if (authzError) {
+            console.error('usage-monitor authz error:', authzError);
+            return json({ error: 'Forbidden: superadmin required' }, 403);
+        }
+        if (isSuperAdmin !== true) {
             return json({ error: 'Forbidden: superadmin required' }, 403);
         }
 

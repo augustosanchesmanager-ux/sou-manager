@@ -9,9 +9,9 @@
  *
  * Correção aprovada (PO, gate de CLASSIFY): validar a cadeia completa
  *   request → autenticação → autorização → validação do payload → operação service_role
- * com autorização restrita a superadmin, espelhando a intenção de segurança de
- * `public.is_super_admin()` (policies das tabelas `usage_logs`/`alerts`:
- * `USING (public.is_super_admin())`).
+ * com autorização restrita a superadmin. A fonte de verdade é a RPC
+ * `public.current_is_super_admin_from_auth_uid()` (profiles.role + status
+ * ativo), nunca `user_metadata` (F03).
  *
  * SEM imports externos (puro) para funcionar em Deno (edge function) e vitest.
  * Importada pela edge function (via `../_shared/usage-monitor-auth.ts`) e pelos
@@ -47,20 +47,22 @@ export type MetricsValidationResult =
   | { ok: false; error: string };
 
 /**
- * Autorização de nível superadmin, espelhando `public.is_super_admin()`:
+ * Checagem auxiliar de superadmin baseada APENAS em `app_metadata`.
  *
- *   SELECT COALESCE((auth.jwt() ->> 'role') = 'super_admin', FALSE)
- *       OR COALESCE((auth.jwt() -> 'user_metadata' ->> 'role') = 'super_admin', FALSE);
+ * `user_metadata` é gravável pelo próprio usuário (`auth.updateUser({ data })`)
+ * e NUNCA pode ser usado como autorização (F03 / CWE-269). `app_metadata` só é
+ * gravável com service_role. A decisão autoritativa da Edge Function é a RPC
+ * `current_is_super_admin_from_auth_uid()` (profiles.role + status ativo); esta
+ * função existe como defesa em profundidade para quem já tem app_metadata.
  *
- * A comparação é EXATA (case-sensitive), como no banco. `user.role` corresponde à
- * claim `role` do JWT; `user.user_metadata` corresponde à claim `user_metadata`.
+ * A comparação aceita as formas canônicas usadas no banco: `super_admin`,
+ * `superadmin` e `super admin` (case-insensitive).
  */
 export const isSuperAdminUser = (user: {
-  role?: string | null;
-  user_metadata?: Record<string, unknown> | null;
+  app_metadata?: Record<string, unknown> | null;
 }): boolean => {
-  if (user.role === 'super_admin') return true;
-  return user.user_metadata?.role === 'super_admin';
+  const role = String(user.app_metadata?.role ?? '').trim().toLowerCase();
+  return role === 'super_admin' || role === 'superadmin' || role === 'super admin';
 };
 
 /**

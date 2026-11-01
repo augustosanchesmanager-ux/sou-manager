@@ -2,5 +2,7 @@
 #
 # verify_jwt = false: this function is invoked by Supabase Cron / an internal
 # scheduler with system credentials, NOT by end-users through the frontend.
-# Matches the repo precedent (admin-create-user, notification-sweep).
+# F04: every request MUST also present `x-worker-secret`, compared in constant
+# time against the WORKER_DISPATCH_SECRET custom secret. The schedule job must
+# send that header — the public anon key is not a credential.
 verify_jwt = false
