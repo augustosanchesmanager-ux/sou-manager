@@ -127,7 +127,7 @@ export const formatPaymentMethodBadge = (
       amount,
       isClubCredit: false,
       toneClass:
-        'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30',
+        'bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30',
     };
   }
   if (
@@ -142,7 +142,7 @@ export const formatPaymentMethodBadge = (
       amount,
       isClubCredit: false,
       toneClass:
-        'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30',
+        'bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30',
     };
   }
 

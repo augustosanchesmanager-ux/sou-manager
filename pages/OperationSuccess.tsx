@@ -161,7 +161,7 @@ const OperationSuccess: React.FC = () => {
       <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center p-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+            <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/25">
               <span className="material-symbols-outlined text-5xl text-white">event_available</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -205,7 +205,7 @@ const OperationSuccess: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</p>
-                  <p className="text-sm font-bold text-blue-600 mt-1">{getStatusLabel(appointment.status)}</p>
+                  <p className="text-sm font-bold text-teal-700 mt-1">{getStatusLabel(appointment.status)}</p>
                 </div>
               </div>
 

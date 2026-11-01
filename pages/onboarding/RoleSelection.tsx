@@ -29,7 +29,7 @@ const RoleSelection: React.FC = () => {
                         onClick={() => navigate('/onboarding/shop-setup')}
                         className="group relative bg-white dark:bg-surface-dark p-8 rounded-3xl border-2 border-slate-200 dark:border-border-dark hover:border-primary dark:hover:border-primary cursor-pointer transition-all hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1"
                     >
-                        <div className="size-16 rounded-2xl bg-blue-500/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <div className="size-16 rounded-2xl bg-teal-500/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                             <span className="material-symbols-outlined text-4xl">storefront</span>
                         </div>
                         <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Sou Dono / Gestor</h3>
@@ -54,9 +54,9 @@ const RoleSelection: React.FC = () => {
                     {/* Card: Professional */}
                     <div
                         onClick={() => navigate('/onboarding/professional-setup')}
-                        className="group relative bg-white dark:bg-surface-dark p-8 rounded-3xl border-2 border-slate-200 dark:border-border-dark hover:border-purple-500 dark:hover:border-purple-500 cursor-pointer transition-all hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1"
+                        className="group relative bg-white dark:bg-surface-dark p-8 rounded-3xl border-2 border-slate-200 dark:border-border-dark hover:border-teal-500 dark:hover:border-teal-500 cursor-pointer transition-all hover:shadow-2xl hover:shadow-teal-500/10 hover:-translate-y-1"
                     >
-                        <div className="size-16 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <div className="size-16 rounded-2xl bg-teal-500/10 text-teal-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                             <span className="material-symbols-outlined text-4xl">content_cut</span>
                         </div>
                         <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Sou Profissional</h3>
@@ -73,7 +73,7 @@ const RoleSelection: React.FC = () => {
                                 Acompanhamento de comissões
                             </li>
                         </ul>
-                        <div className="flex items-center text-purple-500 font-bold text-sm group-hover:gap-2 transition-all">
+                        <div className="flex items-center text-teal-600 font-bold text-sm group-hover:gap-2 transition-all">
                             Criar Perfil Profissional <span className="material-symbols-outlined text-lg">arrow_forward</span>
                         </div>
                     </div>

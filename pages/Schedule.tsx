@@ -4688,7 +4688,7 @@ Podemos confirmar? 😄`;
                 ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
                 : confirmIntent.type === 'saveImpactedBlock'
                   ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'
-                  : 'border-[#BDEFFF] bg-[#F0FAFF] text-[#003366] dark:border-[#14304A] dark:bg-[#0B1828] dark:text-[#D9F6FF]'
+                  : 'border-primary/25 bg-primary/10 text-ink dark:border-primary/20 dark:bg-primary/10 dark:text-primary-dark'
             }`}>
               <span className="material-symbols-outlined mt-0.5 text-2xl">
                 {confirmIntent.type === 'deleteBlock'

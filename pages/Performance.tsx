@@ -319,7 +319,7 @@ const Performance: React.FC = () => {
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Ticket Médio Global
             </span>
-            <div className="p-2 bg-sky-500/10 rounded-lg text-sky-400">
+            <div className="p-2 bg-teal-500/10 rounded-lg text-teal-600">
               <span className="material-symbols-outlined text-lg">confirmation_number</span>
             </div>
           </div>

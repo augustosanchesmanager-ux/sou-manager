@@ -65,7 +65,7 @@ const UpcomingBillsPanel: React.FC<UpcomingBillsPanelProps> = ({
 
       <article className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark p-4">
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={16} className="text-sky-600 dark:text-sky-400" />
+          <TrendingUp size={16} className="text-teal-700 dark:text-teal-300" />
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">Resumo financeiro rapido</h3>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{delinquencySummary}</p>

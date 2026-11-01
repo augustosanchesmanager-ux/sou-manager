@@ -2,7 +2,7 @@
 
 ## Status
 
-PROPOSTO (Em discussão de arquitetura)
+ACEITO
 
 ## Contexto
 

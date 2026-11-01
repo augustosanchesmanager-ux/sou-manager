@@ -1,8 +1,15 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { PayoutService } from '../../application/payout/payoutService';
 import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import { createSharedSupabaseClient } from '../../domain/shared/supabase-client-factory';
+import type {
+    AdvanceRegistrationResult,
+    BarberAdvance,
+    BarberPayoutConfig,
+    PayoutFrequency,
+    RegisterAdvanceInput,
+} from '../../domain/payout/types';
 
 /**
  * [SMG][HOOKS] usePayoutService
@@ -37,4 +44,101 @@ export const usePayoutService = (): PayoutService | null => {
 export const usePayoutTenantId = (): string | null => {
     const { tenantId } = useAuth();
     return tenantId ?? null;
+};
+
+/**
+ * Hook dedicado para operações de Vales / Adiantamentos (ADR-030),
+ * expondo `registerAdvance`, `reverseAdvance` e `listPendingAdvances`
+ * já vinculados ao `tenantId` do contexto autenticado.
+ */
+export const useBarberAdvances = () => {
+    const { tenantId } = useAuth();
+    const service = usePayoutService();
+
+    const registerAdvance = useCallback(
+        async (
+            input: Omit<RegisterAdvanceInput, 'tenantId'>,
+        ): Promise<AdvanceRegistrationResult> => {
+            if (!service || !tenantId) {
+                throw new Error('Contexto do tenant indisponível para registrar vale');
+            }
+            return service.registerAdvance({
+                tenantId,
+                ...input,
+            });
+        },
+        [service, tenantId],
+    );
+
+    const reverseAdvance = useCallback(
+        async (
+            advanceId: string,
+            motivo: string,
+        ): Promise<{ success: boolean; message: string }> => {
+            if (!service || !tenantId) {
+                throw new Error('Contexto do tenant indisponível para estornar vale');
+            }
+            return service.reverseAdvance(tenantId, advanceId, motivo);
+        },
+        [service, tenantId],
+    );
+
+    const listPendingAdvances = useCallback(
+        async (staffId: string): Promise<BarberAdvance[]> => {
+            if (!service || !tenantId) return [];
+            return service.listPendingAdvances(tenantId, staffId);
+        },
+        [service, tenantId],
+    );
+
+    return {
+        tenantId: tenantId ?? null,
+        service,
+        registerAdvance,
+        reverseAdvance,
+        listPendingAdvances,
+    };
+};
+
+/**
+ * Hook dedicado para leitura e gravação da Política de Repasse & Vales
+ * (`barber_payout_configs` — ADR-030 G2) por profissional.
+ */
+export const useBarberPayoutConfig = () => {
+    const { tenantId } = useAuth();
+    const service = usePayoutService();
+
+    const getConfigByStaff = useCallback(
+        async (staffId: string): Promise<BarberPayoutConfig | null> => {
+            if (!service || !tenantId || !staffId) return null;
+            return service.getConfigByStaff(tenantId, staffId);
+        },
+        [service, tenantId],
+    );
+
+    const upsertConfig = useCallback(
+        async (input: {
+            staffId: string;
+            frequency: PayoutFrequency;
+            payoutWeekday: number | null;
+            payoutMonthDay: number | null;
+            allowAdvances: boolean;
+        }): Promise<BarberPayoutConfig> => {
+            if (!service || !tenantId) {
+                throw new Error('Contexto do tenant indisponível para salvar configuração de repasse');
+            }
+            return service.upsertConfig({
+                tenantId,
+                ...input,
+            });
+        },
+        [service, tenantId],
+    );
+
+    return {
+        tenantId: tenantId ?? null,
+        service,
+        getConfigByStaff,
+        upsertConfig,
+    };
 };

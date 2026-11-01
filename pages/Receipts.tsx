@@ -659,9 +659,9 @@ const Receipts: React.FC = () => {
                                         {new Date(receipt.date).toLocaleDateString('pt-BR')}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${receipt.type === 'Salário' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20' :
-                                            receipt.type === 'Fornecedor' ? 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20' :
-                                                receipt.type === 'Compra' ? 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100 dark:bg-fuchsia-500/10 dark:text-fuchsia-400 dark:border-fuchsia-500/20' :
+                                        <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${receipt.type === 'Salário' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
+                                            receipt.type === 'Fornecedor' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
+                                                receipt.type === 'Compra' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
                                                     'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/20'
                                             }`}>
                                             {receipt.type}
@@ -877,7 +877,7 @@ const Receipts: React.FC = () => {
                             <div className="text-center w-full max-w-xs relative">
                                 {/* Assinatura Digital do Emissor (Simulação logada) */}
                                 <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                                    <div className="border border-blue-500 text-blue-600 bg-blue-50 text-[8px] font-bold px-2 py-0.5 rounded-sm mt-2 uppercase tracking-widest shadow-sm -rotate-2">
+                                    <div className="border border-teal-500 text-teal-700 bg-teal-50 text-[8px] font-bold px-2 py-0.5 rounded-sm mt-2 uppercase tracking-widest shadow-sm -rotate-2">
                                         ✔ Autenticado: {shopName}
                                         <br /> IP: 192.168.1.1
                                     </div>

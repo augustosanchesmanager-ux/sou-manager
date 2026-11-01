@@ -153,7 +153,7 @@ const MobileBottomNav: React.FC = () => {
 
             <button
               onClick={() => setIsQuickMenuOpen((prev) => !prev)}
-              className="mx-auto -mt-8 flex size-14 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-primary to-primary-dark text-white shadow-smg-glow transition-transform active:scale-95"
+              className="mx-auto -mt-8 flex size-14 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-primary to-primary-dark text-night shadow-smg-glow transition-transform active:scale-95"
               aria-label={isQuickMenuOpen ? 'Fechar ações rápidas' : 'Abrir ações rápidas'}
             >
               <span className="material-symbols-outlined text-xl">add</span>

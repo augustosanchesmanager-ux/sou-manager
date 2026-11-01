@@ -1,4 +1,4 @@
-import type React from 'react';
+﻿import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMembershipOverview } from '../../hooks/useMembershipOverview';
 import { formatCurrency } from '../../../shared/format/currency';
@@ -13,9 +13,9 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
 
   if (data.loading) {
     return (
-      <div className="rounded-3xl border border-[#D9EAF5] bg-white p-4 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+      <div className="rounded-3xl border border-[#D9EAF5] bg-white p-4 shadow-sm dark:border-primary/20 dark:bg-card-dark">
         <div className="flex animate-pulse items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-[#EAF7FF] dark:bg-[#0D2238]" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 dark:bg-primary/10" />
           <div>
             <div className="mb-2 h-4 w-24 rounded bg-slate-200 dark:bg-slate-700" />
             <div className="h-6 w-16 rounded bg-slate-200 dark:bg-slate-700" />
@@ -30,7 +30,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
 
   if (compact) {
     return (
-      <div className="rounded-2xl border border-[#D9EAF5] bg-white p-4 dark:border-[#14304A] dark:bg-card-dark">
+      <div className="rounded-2xl border border-[#D9EAF5] bg-white p-4 dark:border-primary/20 dark:bg-card-dark">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
@@ -45,7 +45,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
           <button
             type="button"
             onClick={() => navigate('/chef-club-subscriptions')}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#007BFF] transition hover:bg-[#EAF7FF] dark:text-[#00D2FF] dark:hover:bg-[#0D2238]"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-primary-dark transition hover:bg-primary/10 dark:text-primary-dark dark:hover:bg-primary/10"
           >
             Ver
             <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -83,7 +83,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
   }
 
   return (
-    <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-[#14304A] dark:bg-card-dark">
+    <section className="rounded-3xl border border-[#D9EAF5] bg-white p-6 shadow-sm dark:border-primary/20 dark:bg-card-dark">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
@@ -94,14 +94,14 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
             </span>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Recorrência</p>
-            <h3 className="text-base font-black text-[#003366] dark:text-white">Club dos Chefes</h3>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">RecorrÃªncia</p>
+            <h3 className="text-base font-black text-ink dark:text-white">Club dos Chefes</h3>
           </div>
         </div>
         <button
           type="button"
           onClick={() => navigate('/chef-club-subscriptions')}
-          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-[#007BFF] transition hover:bg-[#EAF7FF] dark:text-[#00D2FF] dark:hover:bg-[#0D2238]"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-primary-dark transition hover:bg-primary/10 dark:text-primary-dark dark:hover:bg-primary/10"
         >
           Ver assinaturas
           <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -112,11 +112,11 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
         <div className="py-6 text-center">
           <span className="material-symbols-outlined mb-2 text-4xl text-slate-300">group_add</span>
           <p className="text-sm font-bold text-slate-600 dark:text-slate-400">Nenhum assinante ainda</p>
-          <p className="mt-1 text-xs text-slate-500">Crie planos para começar</p>
+          <p className="mt-1 text-xs text-slate-500">Crie planos para comeÃ§ar</p>
           <button
             type="button"
             onClick={() => navigate('/chef-club-plans')}
-            className="mt-3 rounded-lg bg-[#007BFF] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#003366]"
+            className="mt-3 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-night transition hover:bg-primary-dark"
           >
             Criar plano
           </button>
@@ -164,7 +164,7 @@ export const ClubMacroWidget: React.FC<ClubMacroWidgetProps> = ({ compact = fals
 
           {data.collectionQueue.length > 0 && (
             <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-white/5">
-              <p className="text-[10px] font-bold uppercase text-slate-500">Próximas cobranças</p>
+              <p className="text-[10px] font-bold uppercase text-slate-500">PrÃ³ximas cobranÃ§as</p>
               {data.collectionQueue.slice(0, 3).map((item) => (
                 <div
                   key={item.id}

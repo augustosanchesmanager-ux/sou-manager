@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Modal from '../components/ui/Modal';
+import MetricCard from '../components/ui/MetricCard';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import { usePayoutService } from '../src/hooks/usePayoutService';
 import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
 import type {
+    BarberPayoutConfig,
     BarberPayoutSettlement,
     SettlementComputation,
     SettlementStatus,
 } from '../domain/payout/types';
-import { sumCents } from '../domain/payout/money';
+import { roundCents, sumCents } from '../domain/payout/money';
 import PayoutReceiptModal from '../components/payroll/PayoutReceiptModal';
+import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
+import PendingAdvancesDrawer from '../components/payroll/PendingAdvancesDrawer';
+import PayoutCycleConfigModal, {
+    formatPayoutCycleBadge,
+    isPayoutConfigDueInPeriod,
+} from '../components/payroll/PayoutCycleConfigModal';
 
 type RowStatus = SettlementStatus | 'unsettled';
 
@@ -28,6 +36,7 @@ interface PayrollRow {
      */
     preview: SettlementComputation;
     settlement: BarberPayoutSettlement | null;
+    config: BarberPayoutConfig | null;
     status: RowStatus;
 }
 
@@ -45,7 +54,7 @@ const STATUS_LABEL: Record<RowStatus, string> = {
 const STATUS_STYLE: Record<RowStatus, string> = {
     unsettled: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-400 dark:border-border-dark',
     draft: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
-    approved: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20',
+    approved: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-500 dark:border-amber-500/20',
     paid: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
     cancelled: 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20',
 };
@@ -75,6 +84,11 @@ const Payroll: React.FC = () => {
 
     const [busyStaffId, setBusyStaffId] = useState<string | null>(null);
 
+    const [generateModalRow, setGenerateModalRow] = useState<PayrollRow | null>(null);
+    const [bonusInput, setBonusInput] = useState('0,00');
+    const [liveDraftPreview, setLiveDraftPreview] = useState<SettlementComputation | null>(null);
+    const [computingDraftPreview, setComputingDraftPreview] = useState(false);
+
     const [payModalRow, setPayModalRow] = useState<PayrollRow | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('pix');
 
@@ -82,6 +96,55 @@ const Payroll: React.FC = () => {
     const [cancelReason, setCancelReason] = useState('');
 
     const [receiptModalRow, setReceiptModalRow] = useState<PayrollRow | null>(null);
+    const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+    const [advanceModalStaffId, setAdvanceModalStaffId] = useState<string | null>(null);
+    const [advancesDrawerRow, setAdvancesDrawerRow] = useState<PayrollRow | null>(null);
+    const [configModalRow, setConfigModalRow] = useState<PayrollRow | null>(null);
+    const [dueFilter, setDueFilter] = useState<'all' | 'due_today' | 'due_period'>('all');
+
+    const parsedBonus = useMemo(() => {
+        const normalized = bonusInput.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+        const num = Number.parseFloat(normalized);
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return roundCents(num);
+    }, [bonusInput]);
+
+    useEffect(() => {
+        if (!generateModalRow || !tenantId || !payout) {
+            setLiveDraftPreview(null);
+            return;
+        }
+
+        let cancelled = false;
+        setComputingDraftPreview(true);
+
+        payout
+            .computeSettlement({
+                tenantId,
+                staffId: generateModalRow.staffId,
+                periodStart: startDate,
+                periodEnd: endDate,
+                commissionRate: generateModalRow.commissionRate,
+                bonusesAdded: parsedBonus,
+            })
+            .then((result) => {
+                if (!cancelled) {
+                    setLiveDraftPreview(result);
+                }
+            })
+            .catch((err) => {
+                console.error('Erro ao recalcular prévia com bônus:', err);
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setComputingDraftPreview(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [generateModalRow, tenantId, payout, startDate, endDate, parsedBonus]);
 
     const fetchData = useCallback(async () => {
         if (!tenantId || !payout || !startDate || !endDate) return;
@@ -97,20 +160,22 @@ const Payroll: React.FC = () => {
 
             for (const professional of professionals) {
                 // Leitura pura: nada é persistido na pré-visualização.
-                const preview = await payout.computeSettlement({
-                    tenantId,
-                    staffId: professional.id,
-                    periodStart: startDate,
-                    periodEnd: endDate,
-                    commissionRate: professional.commissionRate,
-                });
-
-                const existing = await payout.getSettlementForPeriod(
-                    tenantId,
-                    professional.id,
-                    startDate,
-                    endDate,
-                );
+                const [preview, existing, config] = await Promise.all([
+                    payout.computeSettlement({
+                        tenantId,
+                        staffId: professional.id,
+                        periodStart: startDate,
+                        periodEnd: endDate,
+                        commissionRate: professional.commissionRate,
+                    }),
+                    payout.getSettlementForPeriod(
+                        tenantId,
+                        professional.id,
+                        startDate,
+                        endDate,
+                    ),
+                    payout.getConfigByStaff(tenantId, professional.id),
+                ]);
 
                 next.push({
                     staffId: professional.id,
@@ -120,6 +185,7 @@ const Payroll: React.FC = () => {
                     commissionRate: professional.commissionRate,
                     preview,
                     settlement: existing,
+                    config,
                     status: existing?.status ?? 'unsettled',
                 });
             }
@@ -147,24 +213,36 @@ const Payroll: React.FC = () => {
         }
     };
 
-    const handleGenerateDraft = (row: PayrollRow) =>
-        withBusy(row.staffId, async () => {
-            if (!payout || !tenantId) return;
+    const openGenerateModal = (row: PayrollRow) => {
+        setBonusInput('0,00');
+        setLiveDraftPreview(row.preview);
+        setGenerateModalRow(row);
+    };
+
+    const handleConfirmGenerateDraft = async () => {
+        if (!generateModalRow || !payout || !tenantId) return;
+        const activePreview = liveDraftPreview ?? generateModalRow.preview;
+        if (activePreview.grossCommission <= 0 && parsedBonus <= 0) return;
+
+        await withBusy(generateModalRow.staffId, async () => {
             try {
                 await payout.generateDraft({
                     tenantId,
-                    staffId: row.staffId,
+                    staffId: generateModalRow.staffId,
                     periodStart: startDate,
                     periodEnd: endDate,
-                    commissionRate: row.commissionRate,
+                    commissionRate: generateModalRow.commissionRate,
+                    bonusesAdded: parsedBonus,
                 });
-                setToast({ message: 'Acerto gerado.', type: 'success' });
+                setToast({ message: 'Acerto gerado com sucesso.', type: 'success' });
+                setGenerateModalRow(null);
                 await fetchData();
             } catch (error) {
                 console.error('Erro ao gerar acerto:', error);
                 setToast({ message: 'Erro ao gerar o acerto.', type: 'error' });
             }
         });
+    };
 
     const handleApprove = (row: PayrollRow) =>
         withBusy(row.staffId, async () => {
@@ -224,9 +302,31 @@ const Payroll: React.FC = () => {
         });
     };
 
+    const dueCounts = useMemo(() => {
+        let dueToday = 0;
+        let duePeriod = 0;
+        for (const row of rows) {
+            const status = isPayoutConfigDueInPeriod(row.config, startDate, endDate);
+            if (status.dueToday) dueToday += 1;
+            if (status.dueInPeriod) duePeriod += 1;
+        }
+        return { dueToday, duePeriod };
+    }, [rows, startDate, endDate]);
+
     const filteredRows = useMemo(
-        () => rows.filter((r) => r.professionalName.toLowerCase().includes(searchName.toLowerCase())),
-        [rows, searchName],
+        () =>
+            rows.filter((r) => {
+                const matchesName = r.professionalName
+                    .toLowerCase()
+                    .includes(searchName.toLowerCase());
+                if (!matchesName) return false;
+                if (dueFilter === 'all') return true;
+                const dueStatus = isPayoutConfigDueInPeriod(r.config, startDate, endDate);
+                if (dueFilter === 'due_today') return dueStatus.dueToday;
+                if (dueFilter === 'due_period') return dueStatus.dueInPeriod;
+                return true;
+            }),
+        [rows, searchName, dueFilter, startDate, endDate],
     );
 
     /**
@@ -237,6 +337,8 @@ const Payroll: React.FC = () => {
     const kpis = useMemo(() => {
         const gross: number[] = [];
         const advances: number[] = [];
+        const bonuses: number[] = [];
+        const net: number[] = [];
         let payable = 0;
         let paid = 0;
 
@@ -245,12 +347,18 @@ const Payroll: React.FC = () => {
                 ? {
                       grossCommission: row.settlement.grossCommission,
                       advancesDeducted: row.settlement.advancesDeducted,
+                      bonusesAdded: row.settlement.bonusesAdded,
                       netPayout: row.settlement.netPayout,
                   }
                 : row.preview;
 
             gross.push(base.grossCommission);
             advances.push(base.advancesDeducted);
+            bonuses.push(base.bonusesAdded);
+
+            if (row.status !== 'cancelled') {
+                net.push(base.netPayout);
+            }
 
             if (row.status === 'paid') paid += base.netPayout;
             else if (row.status !== 'cancelled') payable += base.netPayout;
@@ -259,6 +367,8 @@ const Payroll: React.FC = () => {
         return {
             totalGross: sumCents(gross),
             totalAdvances: sumCents(advances),
+            totalBonuses: sumCents(bonuses),
+            totalNet: sumCents(net),
             totalToPay: sumCents([payable]),
             totalPaid: sumCents([paid]),
         };
@@ -281,7 +391,7 @@ const Payroll: React.FC = () => {
                             <span className="material-symbols-outlined text-[16px]">visibility</span>
                             Prévia
                         </button>
-                        <button onClick={() => handleGenerateDraft(row)} className={btnPrimary}>
+                        <button onClick={() => openGenerateModal(row)} className={btnPrimary}>
                             GERAR ACERTO
                         </button>
                     </div>
@@ -371,10 +481,23 @@ const Payroll: React.FC = () => {
                         Apuracao por regime de caixa de {startDate} ate {endDate}.
                     </p>
                 </div>
-                <button onClick={fetchData} className={btnGhost}>
-                    <span className="material-symbols-outlined text-[20px]">refresh</span>
-                    Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setAdvanceModalStaffId(null);
+                            setAdvanceModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-amber-500/20 transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">payments</span>
+                        Lançar Vale
+                    </button>
+                    <button onClick={fetchData} className={btnGhost}>
+                        <span className="material-symbols-outlined text-[20px]">refresh</span>
+                        Atualizar
+                    </button>
+                </div>
             </div>
 
             <div className="bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-border-dark rounded-xl p-3.5 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
@@ -385,59 +508,109 @@ const Payroll: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                        Base Liquidada
-                    </p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">
-                        {brl(kpis.totalGross)}
-                    </h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm border-l-4 border-l-red-500">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                        Vales Abatidos
-                    </p>
-                    <h3 className="text-2xl font-black text-red-500">{brl(kpis.totalAdvances)}</h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                        A Pagar
-                    </p>
-                    <h3 className="text-2xl font-black text-amber-500">{brl(kpis.totalToPay)}</h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                        Pago
-                    </p>
-                    <h3 className="text-2xl font-black text-emerald-500">{brl(kpis.totalPaid)}</h3>
-                </div>
+                <MetricCard
+                    label="Total Apurado"
+                    value={brl(kpis.totalGross)}
+                    tone="brass"
+                    icon="account_balance_wallet"
+                    helper={
+                        kpis.totalBonuses > 0
+                            ? `Base liquidada + ${brl(kpis.totalBonuses)} em bônus`
+                            : 'Base liquidada no período'
+                    }
+                />
+                <MetricCard
+                    label="Vales Deduzidos"
+                    value={brl(kpis.totalAdvances)}
+                    tone="negative"
+                    icon="money_off"
+                    helper="Abatimentos em regime FIFO"
+                />
+                <MetricCard
+                    label="Total Líquido"
+                    value={brl(kpis.totalNet)}
+                    tone="positive"
+                    icon="payments"
+                    helper={`A pagar: ${brl(kpis.totalToPay)} • Pago: ${brl(kpis.totalPaid)}`}
+                />
+                <MetricCard
+                    label="Profissionais Elegíveis"
+                    value={String(filteredRows.length)}
+                    tone="neutral"
+                    icon="groups"
+                    helper="Equipe ativa comissionada"
+                />
             </div>
 
-            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-80">
-                    <DateRangeFilter
-                        startDate={startDate}
-                        endDate={endDate}
-                        onStartDateChange={setStartDate}
-                        onEndDateChange={setEndDate}
-                        showPresets={true}
-                    />
-                </div>
-                <div className="flex-1 relative">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
-                        Buscar Profissional
-                    </label>
-                    <div className="relative">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                            search
-                        </span>
-                        <input
-                            type="text"
-                            placeholder="Nome do profissional..."
-                            value={searchName}
-                            onChange={(e) => setSearchName(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark space-y-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="w-full md:w-80">
+                        <DateRangeFilter
+                            startDate={startDate}
+                            endDate={endDate}
+                            onStartDateChange={setStartDate}
+                            onEndDateChange={setEndDate}
+                            showPresets={true}
                         />
+                    </div>
+                    <div className="flex-1 relative">
+                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
+                            Buscar Profissional
+                        </label>
+                        <div className="relative">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                search
+                            </span>
+                            <input
+                                type="text"
+                                placeholder="Nome do profissional..."
+                                value={searchName}
+                                onChange={(e) => setSearchName(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Filtro de Vencimento de Ciclo (G2 — ADR-030) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-border-dark">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Filtro de Vencimento Contratual:
+                    </span>
+                    <div className="inline-flex rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/[0.02] p-1 gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'all'
+                                    ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Todos ({rows.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('due_today')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'due_today'
+                                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            A Vencer Hoje ({dueCounts.dueToday})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDueFilter('due_period')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                dueFilter === 'due_period'
+                                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            A Vencer no Período ({dueCounts.duePeriod})
+                        </button>
                     </div>
                 </div>
             </div>
@@ -488,11 +661,13 @@ const Payroll: React.FC = () => {
                                         ? {
                                               gross: row.settlement.grossCommission,
                                               advances: row.settlement.advancesDeducted,
+                                              bonuses: row.settlement.bonusesAdded,
                                               net: row.settlement.netPayout,
                                           }
                                         : {
                                               gross: row.preview.grossCommission,
                                               advances: row.preview.advancesDeducted,
+                                              bonuses: row.preview.bonusesAdded,
                                               net: row.preview.netPayout,
                                           };
 
@@ -515,7 +690,21 @@ const Payroll: React.FC = () => {
                                                         <span className="text-sm font-bold text-slate-800 dark:text-white block">
                                                             {row.professionalName}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-500">{row.role}</span>
+                                                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[10px] text-slate-500">{row.role}</span>
+                                                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setConfigModalRow(row)}
+                                                                title="Ajustar política de repasse e vales (Lei Salão-Parceiro)"
+                                                                className="inline-flex items-center gap-1 rounded-md border border-amber-200 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 transition-colors"
+                                                            >
+                                                                <span>{formatPayoutCycleBadge(row.config)}</span>
+                                                                <span className="material-symbols-outlined text-[12px]">
+                                                                    settings
+                                                                </span>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -529,13 +718,35 @@ const Payroll: React.FC = () => {
                                                         {row.preview.paymentCount} item(ns) apurado(s)
                                                     </span>
                                                 )}
+                                                {amounts.bonuses > 0 && (
+                                                    <span className="block text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                                                        + {brl(amounts.bonuses)} (Bônus / Diária)
+                                                    </span>
+                                                )}
                                             </td>
-                                            <td
-                                                className={`px-6 py-4 text-sm font-bold whitespace-nowrap ${
-                                                    amounts.advances > 0 ? 'text-red-500' : 'text-slate-400'
-                                                }`}
-                                            >
-                                                {amounts.advances > 0 ? `- ${brl(amounts.advances)}` : brl(0)}
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAdvancesDrawerRow(row)}
+                                                    title="Conferir e estornar vales pendentes"
+                                                    className={`group inline-flex flex-col items-start rounded-lg px-2 py-1 -mx-2 transition-colors hover:bg-slate-100 dark:hover:bg-white/5 ${
+                                                        amounts.advances > 0
+                                                            ? 'text-rose-500 font-bold'
+                                                            : 'text-slate-400 font-bold'
+                                                    }`}
+                                                >
+                                                    <span className="inline-flex items-center gap-1 text-sm">
+                                                        {amounts.advances > 0 ? `- ${brl(amounts.advances)}` : brl(0)}
+                                                        <span className="material-symbols-outlined text-[14px] opacity-60 group-hover:opacity-100 transition-opacity">
+                                                            open_in_new
+                                                        </span>
+                                                    </span>
+                                                    {row.preview.consumedAdvanceIds.length + row.preview.remainingAdvanceIds.length > 0 && (
+                                                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                                            {row.preview.consumedAdvanceIds.length + row.preview.remainingAdvanceIds.length} vale(s) em aberto
+                                                        </span>
+                                                    )}
+                                                </button>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-base font-black text-slate-900 dark:text-white">
@@ -562,6 +773,129 @@ const Payroll: React.FC = () => {
             </div>
 
             <Modal
+                isOpen={generateModalRow !== null}
+                onClose={() => setGenerateModalRow(null)}
+                title="Gerar Acerto de Repasse"
+                maxWidth="md"
+            >
+                {generateModalRow && (() => {
+                    const activePreview = liveDraftPreview ?? generateModalRow.preview;
+                    const isZeroBlocked =
+                        activePreview.grossCommission <= 0 && activePreview.bonusesAdded <= 0;
+
+                    return (
+                        <div className="space-y-5">
+                            <div className="flex items-center justify-between bg-slate-50 dark:bg-white/[0.02] p-3.5 rounded-xl border border-slate-200 dark:border-border-dark">
+                                <div>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                                        {generateModalRow.professionalName}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500">
+                                        Período: {startDate} até {endDate} • Taxa: {(generateModalRow.commissionRate * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                                {computingDraftPreview && (
+                                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                        Recalculando...
+                                    </span>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
+                                    Bônus / Diária Extra (R$)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                        R$
+                                    </span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={bonusInput}
+                                        onChange={(e) => setBonusInput(e.target.value)}
+                                        placeholder="0,00"
+                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none tabular-nums"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-1 ml-1">
+                                    Opcional. Acréscimos, metas ou diárias garantidas somam à margem líquida do período.
+                                </p>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-white/[0.02] p-5 rounded-xl border border-slate-200 dark:border-border-dark space-y-3">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">Comissão Bruta ({activePreview.paymentCount} itens):</span>
+                                    <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                                        {brl(activePreview.grossCommission)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">(+) Bônus / Diária Extra:</span>
+                                    <span className="font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                                        + {brl(activePreview.bonusesAdded)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">
+                                        (-) Vales Deduzidos (FIFO • {activePreview.consumedAdvanceIds.length}):
+                                    </span>
+                                    <span className="font-bold text-red-500 tabular-nums">
+                                        - {brl(activePreview.advancesDeducted)}
+                                    </span>
+                                </div>
+                                <div className="pt-3 mt-3 border-t border-slate-200 dark:border-border-dark flex justify-between items-center">
+                                    <span className="text-sm font-bold uppercase text-slate-900 dark:text-white tracking-wider">
+                                        LÍQUIDO A PAGAR
+                                    </span>
+                                    <span className="text-2xl font-black text-primary tabular-nums">
+                                        {brl(activePreview.netPayout)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {activePreview.remainingAdvanceIds.length > 0 && (
+                                <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+                                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">
+                                        warning
+                                    </span>
+                                    <span>
+                                        <strong>Corte estrito FIFO:</strong> {activePreview.remainingAdvanceIds.length} vale(s) pendente(s) excederam a capacidade líquida deste período e permanecerão pendentes para o próximo ciclo.
+                                    </span>
+                                </div>
+                            )}
+
+                            {isZeroBlocked && (
+                                <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/[0.02] p-3 text-xs text-slate-500">
+                                    Não há comissões liquidadas neste período. Informe um <strong>Bônus / Diária Extra</strong> acima de R$ 0,00 para gerar um acerto de diária garantida.
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setGenerateModalRow(null)}
+                                    className="flex-1 py-3 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConfirmGenerateDraft}
+                                    disabled={
+                                        isZeroBlocked ||
+                                        computingDraftPreview ||
+                                        busyStaffId === generateModalRow.staffId
+                                    }
+                                    className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-primary hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
+                                >
+                                    Confirmar e Gerar Acerto
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })()}
+            </Modal>
+
+            <Modal
                 isOpen={payModalRow !== null}
                 onClose={() => setPayModalRow(null)}
                 title="Registrar Pagamento"
@@ -576,6 +910,14 @@ const Payroll: React.FC = () => {
                                     {brl(payModalRow.settlement.grossCommission)}
                                 </span>
                             </div>
+                            {payModalRow.settlement.bonusesAdded > 0 && (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">Bônus / Diária:</span>
+                                    <span className="font-bold text-amber-600 dark:text-amber-400">
+                                        + {brl(payModalRow.settlement.bonusesAdded)}
+                                    </span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Vales Abatidos:</span>
                                 <span className="font-bold text-red-500">
@@ -686,6 +1028,61 @@ const Payroll: React.FC = () => {
                 settlement={receiptModalRow?.settlement ?? null}
                 preview={receiptModalRow?.preview ?? null}
                 status={receiptModalRow?.status ?? 'unsettled'}
+            />
+
+            {/* Modal de Lançamento de Vale / Adiantamento (G1) */}
+            <BarberAdvanceModal
+                isOpen={advanceModalOpen}
+                onClose={() => {
+                    setAdvanceModalOpen(false);
+                    setAdvanceModalStaffId(null);
+                }}
+                defaultStaffId={advanceModalStaffId}
+                defaultOrigin="bank"
+                onSuccess={(info) => {
+                    setToast({
+                        message: `Vale de ${brl(info.amount)} lançado para ${info.staffName}.`,
+                        type: 'success',
+                    });
+                    fetchData();
+                }}
+            />
+
+            {/* Gaveta de Vales Pendentes & Estorno Atômico (G1) */}
+            <PendingAdvancesDrawer
+                isOpen={advancesDrawerRow !== null}
+                onClose={() => setAdvancesDrawerRow(null)}
+                staffId={advancesDrawerRow?.staffId ?? null}
+                staffName={advancesDrawerRow?.professionalName ?? ''}
+                staffAvatar={advancesDrawerRow?.avatar}
+                onChanged={() => {
+                    setToast({
+                        message: 'Vale estornado. Saldo de comissões recalculado.',
+                        type: 'info',
+                    });
+                    fetchData();
+                }}
+                onRequestNewAdvance={(sid) => {
+                    setAdvancesDrawerRow(null);
+                    setAdvanceModalStaffId(sid);
+                    setAdvanceModalOpen(true);
+                }}
+            />
+
+            {/* Atalho Operacional de Configuração de Ciclo & Vales (G2) */}
+            <PayoutCycleConfigModal
+                isOpen={configModalRow !== null}
+                onClose={() => setConfigModalRow(null)}
+                staffId={configModalRow?.staffId ?? null}
+                staffName={configModalRow?.professionalName ?? ''}
+                initialConfig={configModalRow?.config ?? null}
+                onSaved={() => {
+                    setToast({
+                        message: 'Política de repasse atualizada com sucesso.',
+                        type: 'success',
+                    });
+                    fetchData();
+                }}
             />
         </div>
     );

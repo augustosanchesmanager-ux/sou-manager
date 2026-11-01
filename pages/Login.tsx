@@ -229,7 +229,7 @@ const Login: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setShowReset(true)}
-                                            className="text-primary hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+                                            className="text-primary hover:text-teal-700 dark:hover:text-teal-300 font-medium"
                                         >
                                             Esqueci minha senha
                                         </button>

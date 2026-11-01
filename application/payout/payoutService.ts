@@ -27,8 +27,10 @@ import {
 import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import type {
     BarberAdvance,
+    BarberPayoutConfig,
     BarberPayoutSettlement,
     CancelSettlementResult,
+    PayoutFrequency,
     PayoutReceiptItem,
     SettlementComputation,
     StaffProfile,
@@ -45,6 +47,15 @@ export interface ComputeSettlementParams {
     commissionRate: number;
     /** BÃ´nus/diÃ¡rias do perÃ­odo. Entra na fÃ³rmula, nÃ£o na base. */
     bonusesAdded?: number;
+}
+
+export interface UpsertBarberPayoutConfigParams {
+    tenantId: string;
+    staffId: string;
+    frequency: PayoutFrequency;
+    payoutWeekday: number | null;
+    payoutMonthDay: number | null;
+    allowAdvances: boolean;
 }
 
 export class PayoutService {
@@ -118,6 +129,10 @@ export class PayoutService {
     }> {
         const computation = await this.computeSettlement(params);
 
+        if (computation.grossCommission <= 0 && computation.bonusesAdded <= 0) {
+            throw new Error('Nao e possivel gerar acerto com comissao bruta e bonus zerados');
+        }
+
         const settlement = await this.repository.createSettlementDraft({
             tenantId: params.tenantId,
             staffId: params.staffId,
@@ -139,6 +154,51 @@ export class PayoutService {
         return { settlement, computation };
     }
 
+    // ── Configuração de Ciclo (ADR-030) ─────────────────────────────
+
+    async getConfigByStaff(
+        tenantId: string,
+        staffId: string,
+    ): Promise<BarberPayoutConfig | null> {
+        return this.repository.getConfigByStaff(tenantId, staffId);
+    }
+
+    async upsertConfig(
+        config: UpsertBarberPayoutConfigParams,
+    ): Promise<BarberPayoutConfig> {
+        let normalizedWeekday: number | null = null;
+        let normalizedMonthDay: number | null = null;
+
+        if (config.frequency === 'weekly' || config.frequency === 'biweekly') {
+            const wd = Number(config.payoutWeekday);
+            if (!Number.isInteger(wd) || wd < 1 || wd > 7) {
+                throw new Error('Dia da semana (1-7) obrigatorio para frequencia semanal ou quinzenal');
+            }
+            normalizedWeekday = wd;
+            normalizedMonthDay = null;
+        } else if (config.frequency === 'monthly') {
+            const md = Number(config.payoutMonthDay);
+            if (!Number.isInteger(md) || md < 1 || md > 31) {
+                throw new Error('Dia do mes (1-31) obrigatorio para frequencia mensal');
+            }
+            normalizedWeekday = null;
+            normalizedMonthDay = md;
+        } else {
+            // daily
+            normalizedWeekday = null;
+            normalizedMonthDay = null;
+        }
+
+        return this.repository.upsertConfig(config.tenantId, config.staffId, {
+            frequency: config.frequency,
+            payoutWeekday: normalizedWeekday,
+            payoutMonthDay: normalizedMonthDay,
+            allowAdvances: Boolean(config.allowAdvances),
+        });
+    }
+
+    // ── Vales / Adiantamentos ───────────────────────────────────────
+
     async registerAdvance(input: {
         tenantId: string;
         staffId: string;
@@ -147,7 +207,17 @@ export class PayoutService {
         notes?: string | null;
         idempotencyKey?: string | null;
     }) {
-        return this.repository.registerAdvance({ ...input, amount: roundCents(input.amount) });
+        const roundedAmount = roundCents(input.amount);
+        if (!Number.isFinite(roundedAmount) || roundedAmount <= 0) {
+            throw new Error('Valor do vale deve ser maior que zero');
+        }
+
+        const config = await this.repository.getConfigByStaff(input.tenantId, input.staffId);
+        if (config && config.allowAdvances === false) {
+            throw new Error('Este profissional nao esta habilitado para receber vales/adiantamentos');
+        }
+
+        return this.repository.registerAdvance({ ...input, amount: roundedAmount });
     }
 
     async reverseAdvance(tenantId: string, advanceId: string, motivo: string) {
@@ -159,6 +229,13 @@ export class PayoutService {
 
     async listPendingAdvances(tenantId: string, staffId: string): Promise<BarberAdvance[]> {
         return this.repository.listPendingAdvances(tenantId, staffId);
+    }
+
+    async listAdvancesBySettlement(
+        tenantId: string,
+        settlementId: string,
+    ): Promise<BarberAdvance[]> {
+        return this.repository.listAdvancesBySettlement(tenantId, settlementId);
     }
 
     // ── FSM de liquidação ────────────────────────────────────────────

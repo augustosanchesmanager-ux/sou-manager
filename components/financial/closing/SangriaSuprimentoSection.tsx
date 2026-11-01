@@ -8,6 +8,7 @@ interface SangriaSuprimentoSectionProps {
     onAdd: (type: 'sangria' | 'suprimento', value: number, description: string) => void;
     onRemove: (id: string) => void;
     loading: boolean;
+    onOpenBarberAdvance?: () => void;
 }
 
 const SangriaSuprimentoSection: React.FC<SangriaSuprimentoSectionProps> = ({
@@ -15,6 +16,7 @@ const SangriaSuprimentoSection: React.FC<SangriaSuprimentoSectionProps> = ({
     onAdd,
     onRemove,
     loading,
+    onOpenBarberAdvance,
 }) => {
     const [newType, setNewType] = useState<'sangria' | 'suprimento'>('sangria');
     const [newValue, setNewValue] = useState('');
@@ -35,11 +37,11 @@ const SangriaSuprimentoSection: React.FC<SangriaSuprimentoSectionProps> = ({
 
     return (
         <div className="rounded-xl border border-slate-200/80 dark:border-border-dark bg-white/95 dark:bg-card-dark/90 p-4 shadow-[0_4px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     Sangrias e Suprimentos
                 </h3>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     {totalSangria > 0 && (
                         <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
                             Sangrias: {formatCurrency(totalSangria)}
@@ -49,6 +51,15 @@ const SangriaSuprimentoSection: React.FC<SangriaSuprimentoSectionProps> = ({
                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                             Suprimentos: {formatCurrency(totalSuprimento)}
                         </span>
+                    )}
+                    {onOpenBarberAdvance && (
+                        <button
+                            type="button"
+                            onClick={onOpenBarberAdvance}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 transition-colors"
+                        >
+                            <ArrowDownCircle size={12} /> Adiantamento / Vale
+                        </button>
                     )}
                 </div>
             </div>

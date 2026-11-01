@@ -1213,10 +1213,10 @@ const Commissions: React.FC = () => {
                 <span className="px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-200 font-bold">
                     {sharedServicesCount} compartilhados
                 </span>
-                <span className="px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-200 font-bold">
+                <span className="px-3 py-1.5 rounded-full bg-teal-100 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 font-bold">
                     {totalServices} serviços
                 </span>
-                <span className="px-3 py-1.5 rounded-full bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-200 font-bold">
+                <span className="px-3 py-1.5 rounded-full bg-teal-100 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 font-bold">
                     Taxa média {averageRate.toFixed(1)}%
                 </span>
                 {legacyDateCount > 0 && (

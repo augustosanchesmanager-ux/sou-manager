@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
@@ -20,10 +20,10 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
     const navigate = useNavigate();
     const { user, tenantId } = useAuth();
     const [steps, setSteps] = useState<ChecklistStep[]>([
-        { id: 'services', title: 'Cadastrar Serviços', description: 'Adicione os serviços que você oferece.', path: '/services', completed: false },
+        { id: 'services', title: 'Cadastrar ServiÃ§os', description: 'Adicione os serviÃ§os que vocÃª oferece.', path: '/services', completed: false },
         { id: 'staff', title: 'Cadastrar Colaboradores', description: 'Adicione sua equipe ao sistema.', path: '/team', completed: false },
         { id: 'products', title: 'Cadastrar Produtos', description: 'Adicione produtos para venda ou uso interno.', path: '/products', completed: false },
-        { id: 'schedules', title: 'Configurar Horários', description: 'Defina o horário de funcionamento e da equipe.', path: '/settings', completed: false },
+        { id: 'schedules', title: 'Configurar HorÃ¡rios', description: 'Defina o horÃ¡rio de funcionamento e da equipe.', path: '/settings', completed: false },
         { id: 'appointment', title: 'Primeiro Agendamento', description: 'Crie um agendamento para testar o sistema.', path: '/schedule', completed: false },
     ]);
     const [loading, setLoading] = useState(true);
@@ -70,7 +70,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
     const progress = Math.round((steps.filter(s => s.completed).length / steps.length) * 100);
 
     return (
-        <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl p-6 mb-8 shadow-sm relative overflow-hidden animate-fade-in group">
+        <div className="bg-gradient-to-br from-teal-500/10 to-teal-500/10 border border-teal-500/20 rounded-xl p-6 mb-8 shadow-sm relative overflow-hidden animate-fade-in group">
             {/* Background decoration */}
             <div className="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 rounded-full blur-[50px] pointer-events-none group-hover:bg-primary/10 transition-colors"></div>
 
@@ -86,14 +86,14 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
                 </div>
                 <div className="flex flex-col items-end shrink-0">
                     <span className="text-2xl font-black text-primary">{progress}%</span>
-                    <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Concluído</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">ConcluÃ­do</span>
                 </div>
             </div>
 
             <div className="relative z-10 w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full mb-8 overflow-hidden">
                 <div 
-                    className="h-full bg-gradient-to-r from-primary to-indigo-500 transition-all duration-1000 ease-out" 
-                    style={{ width: `${progress}%` }}
+                    className="h-full bg-gradient-to-r from-primary to-primary-dark transition-all duration-1000 ease-out"
+style={{ width: `${progress}%` }}
                 ></div>
             </div>
 

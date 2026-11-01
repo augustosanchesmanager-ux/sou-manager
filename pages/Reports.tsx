@@ -342,14 +342,14 @@ const Reports: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-white dark:bg-card-dark rounded-xl border border-sky-500/30 p-4 shadow-sm">
+          <div className="bg-white dark:bg-card-dark rounded-xl border border-teal-500/30 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
                 Comissões Geradas
               </p>
-              <span className="material-symbols-outlined text-sky-500 text-lg">badge</span>
+              <span className="material-symbols-outlined text-teal-600 text-lg">badge</span>
             </div>
-            <p className="text-2xl font-black text-sky-600 dark:text-sky-400 tabular-nums">
+            <p className="text-2xl font-black text-teal-700 dark:text-teal-300 tabular-nums">
               {fmt(periodTotals.totalCommissions)}
             </p>
             <p className="text-[11px] text-slate-400 mt-1">
@@ -497,7 +497,7 @@ const Reports: React.FC = () => {
                       {/* Canal */}
                       <td className="px-3.5 py-3 whitespace-nowrap">
                         {sale.channel === 'online' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
+                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30">
                             <span aria-hidden="true">🌐</span>
                             <span>Online</span>
                           </span>
@@ -562,7 +562,7 @@ const Reports: React.FC = () => {
                       </td>
 
                       {/* Comissão Gerada */}
-                      <td className="px-3.5 py-3 font-bold text-sky-600 dark:text-sky-400 text-right tabular-nums whitespace-nowrap">
+                      <td className="px-3.5 py-3 font-bold text-teal-700 dark:text-teal-300 text-right tabular-nums whitespace-nowrap">
                         {fmt(sale.commission_generated)}
                       </td>
                     </tr>

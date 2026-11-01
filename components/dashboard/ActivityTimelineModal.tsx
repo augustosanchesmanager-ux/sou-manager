@@ -12,7 +12,7 @@ const CATEGORY_ICONS: Record<string, { icon: string; tone: string; label: string
   lifecycle: { icon: 'calendar_today', tone: 'text-primary bg-primary/10 border-primary/20', label: 'Agenda / Clientes' },
   auth: { icon: 'key', tone: 'text-amber-500 bg-amber-500/10 border-amber-500/20', label: 'Acesso' },
   system: { icon: 'terminal', tone: 'text-ink-soft bg-card-dark border-border-dark', label: 'Sistema' },
-  subscription: { icon: 'card_membership', tone: 'text-purple-400 bg-purple-500/10 border-purple-500/20', label: 'Clube' },
+  subscription: { icon: 'card_membership', tone: 'text-teal-600 bg-teal-500/10 border-teal-500/20', label: 'Clube' },
 };
 
 const formatTimeDetailed = (isoDate: string): string => {

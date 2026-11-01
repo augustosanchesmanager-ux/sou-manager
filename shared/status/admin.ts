@@ -42,7 +42,7 @@ export const adminStatusMeta: Record<AdminStatus, AdminStatusMeta> = {
   },
   'aguardando ativacao': {
     className:
-      'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20',
+      'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20',
     iconName: 'Clock3',
   },
   pendente: {
@@ -82,7 +82,7 @@ export const adminStatusMeta: Record<AdminStatus, AdminStatusMeta> = {
   },
   analise: {
     className:
-      'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-300 dark:border-cyan-500/20',
+      'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20',
     iconName: 'ShieldCheck',
   },
   cancelado: {

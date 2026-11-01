@@ -34,7 +34,7 @@ const severityColor = (s: string): string => {
   switch (s) {
     case 'critical': return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30';
     case 'warning': return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30';
-    case 'info': return 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/30';
+    case 'info': return 'text-teal-700 bg-teal-50 dark:text-teal-300 dark:bg-teal-900/30';
     default: return 'text-slate-600 bg-slate-50 dark:text-slate-400 dark:bg-slate-800';
   }
 };
@@ -470,7 +470,7 @@ const PipelinePanel: React.FC<{ refreshKey: number }> = ({ refreshKey }) => {
             <p className="text-xs text-slate-500 dark:text-slate-400">Pending</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(processingCount)}</p>
+            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{formatNumber(processingCount)}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">Processing</p>
           </div>
           <div className="text-center">

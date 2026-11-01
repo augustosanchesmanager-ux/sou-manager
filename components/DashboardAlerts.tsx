@@ -158,7 +158,7 @@ const DashboardAlerts: React.FC = () => {
                             onClick={() => navigate(alert.actionPath)}
                             className="p-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors flex items-center gap-3"
                         >
-                            <div className={`p-2 rounded-lg shrink-0 ${alert.type === 'appointment' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                            <div className={`p-2 rounded-lg shrink-0 ${alert.type === 'appointment' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' :
                                 alert.type === 'stock' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
                                     alert.type === 'promotion' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
                                         'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'

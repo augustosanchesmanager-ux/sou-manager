@@ -128,7 +128,7 @@ export const QuickWalkInModal: React.FC<QuickWalkInModalProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Inicia o atendimento imediatamente em status <span className="font-bold text-sky-600 dark:text-sky-400">Em Atendimento</span> e gera a comanda vinculada no caixa.
+          Inicia o atendimento imediatamente em status <span className="font-bold text-teal-700 dark:text-teal-300">Em Atendimento</span> e gera a comanda vinculada no caixa.
         </p>
 
         {formError && (

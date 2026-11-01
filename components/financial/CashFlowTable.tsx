@@ -12,7 +12,7 @@ interface CashFlowTableProps {
 
 const statusStyles = {
   realizado: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20',
-  previsto: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20',
+  previsto: 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20',
   vencido: 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20',
 };
 

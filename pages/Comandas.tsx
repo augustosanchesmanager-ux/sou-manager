@@ -2008,7 +2008,7 @@ const Comandas: React.FC = () => {
                             type="button"
                             onClick={() => setBulkCloseType('admin')}
                             className={`flex-1 rounded-xl py-3 px-4 text-sm font-bold transition active:scale-[0.98] touch-manipulation ${
-                                bulkCloseType === 'admin' ? 'bg-primary-dark text-white shadow-smg-glow' : 'bg-gold-pale text-ink-soft hover:text-ink'
+                                bulkCloseType === 'admin' ? 'bg-primary-dark text-night shadow-smg-glow' : 'bg-gold-pale text-ink-soft hover:text-ink'
                             }`}
                         >
                             Administrativa
