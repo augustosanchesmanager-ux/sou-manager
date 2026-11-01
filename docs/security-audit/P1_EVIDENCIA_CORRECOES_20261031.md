@@ -222,23 +222,42 @@ Fixtures de teste do F05 rodaram em transação com `ROLLBACK` — nenhuma linha
 
 O cron armazena o secret em texto claro em `cron.job`, mesma fronteira de confiança do JWT anon que já estava lá. Enquanto a função antiga (v23) estiver no ar, o header é ignorado — sem regressão.
 
-### 9.3 Deploy das Edge Functions
+### 9.3 Deploy das Edge Functions — estado em 2026-11-01
 
 | Função | Estado |
 |---|---|
-| `worker-dispatcher` (F04) | ⛔ não deployada — depende de `EDGE_JWT_SECRET` |
-| `admin-create-user` (F06) | ⏸ autorizada pelo PO, **bloqueada por autenticação do CLI** (ver 9.5) |
-| `supabase-usage-monitor` (F03) | ⏸ autorizada pelo PO; **não consta na lista de funções de produção** (última listagem bem-sucedida) — o deploy criaria um endpoint novo. Confirmar antes |
+| `worker-dispatcher` (F04) | ✅ deployada **v28**, `verify_jwt=false` |
+| `admin-create-user` (F06) | ✅ deployada **v36**, `verify_jwt=false`; valida o chamador via GoTrue (`getUser`) e responde 401 sem token |
+| `supabase-usage-monitor` (F03) | ⏸ **não deployada** — não existe na lista de funções de produção; o deploy criaria um endpoint novo |
+| `WORKER_DISPATCH_SECRET` | ✅ presente (`updated_at 2026-10-31T18:26:05Z`) |
+| `EDGE_JWT_SECRET` | ✅ presente (`updated_at 2026-10-31T18:26:05Z`) |
 
-Comando previsto para o worker (após o secret): `supabase functions deploy worker-dispatcher --project-ref ushsnmlbeurfvlkieiln --no-verify-jwt` (o `config.toml` por função não é aplicado pelo CLI; o `verify_jwt` atual da função é `true`).
+### 9.4 F04 — controle de invocação validado
 
-### 9.5 Bloqueio operacional no encerramento
+Prova direta em 2026-11-01: `POST /functions/v1/worker-dispatcher` **sem** `x-worker-secret` retorna **401 `{"ok":false,"error":"Unauthorized"}`**. Isso confirma que o secret está injetado no Edge Runtime e que a comparação é aplicada — o vetor "qualquer portador da anon key dispara um ciclo" está fechado.
 
-Após a atualização do cron, o token de acesso do Supabase CLI expirou (`401 Invalid access token`), atingindo `functions list`, `functions deploy`, `secrets` e `db query`. As migrations e o cron já haviam sido aplicados e verificados antes disso. Para retomar: `supabase login` (ou `SUPABASE_ACCESS_TOKEN`).
+### 9.5 D8 — ciclo **não operacional** (GAP aberto)
 
-### 9.4 Estado final de produção
+O cron dispara, mas o worker falha:
 
-- Vulnerabilidades **F01, F02, F03 (banco/RLS) e F05** neutralizadas em produção.
-- **F03 (Edge)** e **F06** seguem vulneráveis em runtime até o deploy.
-- **F04** segue com a função antiga (já inoperante por ausência de `EDGE_JWT_SECRET`); cron já preparado.
-- Nenhum efeito colateral observado nas verificações pós-aplicação.
+- `cron.job_run_details`: job 4 `succeeded`, `return_message = "1 row"` — isso só registra o agendamento do `net.http_post`, **não** o resultado HTTP.
+- `net._http_response`: **500** em todas as chamadas do worker (30/30 nos últimos 30 min; 28–60 por hora desde 00:00 UTC de 2026-11-01).
+- Corpo devolvido: `{"ok":false,"error":"worker cycle failed","correlation_id":"…"}` (mensagem sanitizada; o detalhe vai para o log estruturado).
+- `public.worker_heartbeat`: **0 linhas**. O schema real **não possui** a coluna `cycle_ok` (colunas: `worker_id`, `last_scheduled_at`, `last_cycle_at`, `last_success_at`, `last_error_at`, `last_error`, `queue_healthy`, `processed_total`, `failed_total`, `dead_letter_total`, `updated_at`).
+- ACLs conferidas: `worker_dispatcher` tem `EXECUTE` em `recover_stale_processing`, `claim_next_outbox_item`, `get_financial_operation_context`, `exists_commission_record`, `handle_processing_failure` e `upsert_worker_heartbeat`. O role do CLI não pode `SET ROLE`, então a execução não foi reproduzida por SQL.
+
+**Interpretação:** o gateway aceita a invocação (não é 401/503), e o ciclo morre dentro de `runCycle`/`reportHeartbeat`. Candidatos não confirmados: (a) `EDGE_JWT_SECRET` não aceito pelo PostgREST (projeto com chaves de assinatura assimétricas); (b) `APP_URL` apontando para URL incorreta. **GAP:** o D8 continua fora de operação; a afirmação de "liveness ok" não se sustenta.
+
+### 9.6 Reconciliação do resumo executivo de 2026-11-01
+
+| Afirmação do resumo | Evidência |
+|---|---|
+| Trigger `trg_block_profile_pivot` ativo | ❌ O trigger aplicado é **`trg_f5_profiles_tenant_status_guard`**; `trg_block_profile_pivot` não existe em produção |
+| F02 "Alto" / F05 "Crítico" | ❌ Invertido em relação ao relatório: **F02 é crítico**, **F05 é alto** |
+| `worker_heartbeat` com `cycle_ok = true` e `last_error = NULL` | ❌ Tabela com **0 linhas** e **sem** a coluna `cycle_ok` |
+| Cron job 4 "executando com sucesso" | ⚠️ O **agendamento** do cron tem sucesso; o **ciclo** responde **500** desde pelo menos 00:00 UTC |
+| F04 "neutralizado" | ✅ apenas o **controle de invocação** (401 sem secret); o ciclo do worker segue falhando |
+| F06 com 401 para não autenticado | ✅ código e versão v36 confirmam |
+| F03 (Edge) fora de produção | ✅ `supabase-usage-monitor` não está deployada |
+
+**Consequência para a certificação:** F01, F02, F03 (banco/RLS) e F05 estão neutralizados; F04 está neutralizado quanto ao acesso não autorizado; **F06 está corrigido e deployado**; **D8 não está íntegro** e a tag desta frente não deve ser tratada como certificação de operação do worker.
