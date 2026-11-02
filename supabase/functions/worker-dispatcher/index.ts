@@ -31,6 +31,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 import { mintWorkerJwt } from './jwt.ts';
 import { calculateCommissionRecordsFromContext } from './calculate.ts';
+import { publishableKey, projectUrl } from './env.ts';
 
 // const WORKER_ID = `d8-${Deno.env.get('SUPABASE_FUNCTION_NAME') || 'worker-dispatcher'}`;
 const WORKER_ID = 'worker-dispatcher';
@@ -66,9 +67,10 @@ export interface CycleReport {
 }
 
 async function withWorkerClient(url: string, jwt: string) {
-  // apikey = anon key (Kong gateway); Authorization bearer carries the
-  // worker_dispatcher role that PostgREST switches to. NOT service_role.
-  return createClient(url, Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '', {
+  // apikey = publishable key (Kong gateway). SUPABASE_PUBLISHABLE_KEYS is a JSON
+  // dictionary, so `publishableKey()` extracts the raw key. Authorization bearer
+  // carries the worker_dispatcher role that PostgREST switches to. NOT service_role.
+  return createClient(url, publishableKey(), {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 }
@@ -261,9 +263,9 @@ Deno.serve(async (req) => {
   }
 
   const jwtSecret = Deno.env.get('EDGE_JWT_SECRET') || '';
-  const supabaseUrl = Deno.env.get('APP_URL') || '';
+  const supabaseUrl = projectUrl();
   if (!jwtSecret || !supabaseUrl) {
-    console.error(`[worker-dispatcher][${correlationId}] missing EDGE_JWT_SECRET/APP_URL`);
+    console.error(`[worker-dispatcher][${correlationId}] missing EDGE_JWT_SECRET/SUPABASE_URL`);
     return new Response(JSON.stringify({ ok: false, error: 'worker unavailable' }), {
       status: 503,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
