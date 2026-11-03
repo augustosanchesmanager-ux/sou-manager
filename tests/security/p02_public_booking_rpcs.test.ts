@@ -133,9 +133,13 @@ describe('P.02-BOOKING-PUBLIC — Contrato e Segurança das RPCs Públicas (ADR-
   });
 
   it('should_filter_technical_staff_in_public_booking_rpcs_migration', () => {
+    // A migration `20261028181500_filter_technical_staff_in_public_booking_rpcs.sql`
+    // era um draft pré-aplicação. A versão que rege producao e a canonica
+    // `20261029083338`, extraida verbatim de supabase_migrations.schema_migrations
+    // (Classe B). O draft foi preservado em supabase/_retired_migrations/.
     const filterMigrationPath = resolve(
       process.cwd(),
-      'supabase/migrations/20261028181500_filter_technical_staff_in_public_booking_rpcs.sql',
+      'supabase/migrations/20261029083338_online_booking_settings_and_product_showcase.sql',
     );
     const filterSql = readFileSync(filterMigrationPath, 'utf-8');
 
