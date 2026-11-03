@@ -1245,12 +1245,53 @@ const Comandas: React.FC = () => {
         const printWindow = window.open('', '_blank', 'width=420,height=640');
         if (!printWindow) return;
         printWindow.opener = null;
-        const itemsHtml = comanda.comanda_items.map((item) => `<li>${escapeHtml(item.product_name)} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}</li>`).join('');
-        printWindow.document.write(`
-            <html><head><title>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</title><style>body{font-family:Segoe UI,sans-serif;padding:24px;color:#191611}h1{font-size:20px;margin-bottom:16px}.line{margin:8px 0;font-size:13px}ul{padding-left:18px;margin:16px 0}li{margin-bottom:6px;font-size:13px}.total{margin-top:18px;font-size:22px;font-weight:700}</style></head>
-            <body><h1>${escapeHtml(orderLabel)} #${escapeHtml(getDisplayId(comanda.id))}</h1><div class="line"><strong>Cliente:</strong> ${escapeHtml(comanda.clients.name)}</div><div class="line"><strong>Status:</strong> ${escapeHtml(statusLabels[comanda.status])}</div><div class="line"><strong>Abertura:</strong> ${escapeHtml(new Date(comanda.created_at).toLocaleString('pt-BR'))}</div><div class="line"><strong>Profissionais:</strong> ${escapeHtml(comanda.staff_names.join(' / ') || 'Sem profissional')}</div><ul>${itemsHtml}</ul><div class="total">Total: ${escapeHtml(formatCurrency(comanda.total))}</div></body></html>
-        `);
-        printWindow.document.close();
+
+        const doc = printWindow.document;
+        doc.title = `${orderLabel} #${getDisplayId(comanda.id)}`;
+
+        const style = doc.createElement('style');
+        style.textContent = `
+            body { font-family: Segoe UI, sans-serif; padding: 24px; color: #191611; }
+            h1 { font-size: 20px; margin-bottom: 16px; }
+            .line { margin: 8px 0; font-size: 13px; }
+            ul { padding-left: 18px; margin: 16px 0; }
+            li { margin-bottom: 6px; font-size: 13px; }
+            .total { margin-top: 18px; font-size: 22px; font-weight: 700; }
+        `;
+        doc.head.appendChild(style);
+
+        const h1 = doc.createElement('h1');
+        h1.textContent = `${orderLabel} #${getDisplayId(comanda.id)}`;
+        doc.body.appendChild(h1);
+
+        const addLine = (label: string, value: string) => {
+            const div = doc.createElement('div');
+            div.className = 'line';
+            const strong = doc.createElement('strong');
+            strong.textContent = `${label}: `;
+            div.appendChild(strong);
+            div.appendChild(doc.createTextNode(value));
+            doc.body.appendChild(div);
+        };
+
+        addLine('Cliente', comanda.clients.name);
+        addLine('Status', statusLabels[comanda.status] || comanda.status);
+        addLine('Abertura', new Date(comanda.created_at).toLocaleString('pt-BR'));
+        addLine('Profissionais', comanda.staff_names.join(' / ') || 'Sem profissional');
+
+        const ul = doc.createElement('ul');
+        for (const item of comanda.comanda_items) {
+            const li = doc.createElement('li');
+            li.textContent = `${item.product_name} x${item.quantity} - ${formatCurrency(item.unit_price * item.quantity)}`;
+            ul.appendChild(li);
+        }
+        doc.body.appendChild(ul);
+
+        const totalDiv = doc.createElement('div');
+        totalDiv.className = 'total';
+        totalDiv.textContent = `Total: ${formatCurrency(comanda.total)}`;
+        doc.body.appendChild(totalDiv);
+
         printWindow.print();
     };
 
