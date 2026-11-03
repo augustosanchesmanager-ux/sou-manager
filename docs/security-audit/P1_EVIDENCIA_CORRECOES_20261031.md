@@ -261,3 +261,24 @@ O cron dispara, mas o worker falha:
 | F03 (Edge) fora de produção | ✅ `supabase-usage-monitor` não está deployada |
 
 **Consequência para a certificação:** F01, F02, F03 (banco/RLS) e F05 estão neutralizados; F04 está neutralizado quanto ao acesso não autorizado; **F06 está corrigido e deployado**; **D8 não está íntegro** e a tag desta frente não deve ser tratada como certificação de operação do worker.
+
+### 9.7 Resolução do D8 — 2026-11-02
+
+**Causa raiz:** `SUPABASE_PUBLISHABLE_KEYS` é um **dicionário JSON** (`{"default":"sb_publishable_..."}`), não uma chave crua. O worker passava a string inteira como `apikey`, o gateway respondia `401 Invalid API key`, `claim_next_outbox_item` falhava e o handler devolvia 500. A regressão veio de `5c618f0` (2026-08-28), **não** do P1.
+
+**Prova no gateway (produção):**
+
+| `apikey` enviado | Resposta |
+|---|---|
+| chave crua `sb_publishable_...` | `401 42501 permission denied` — chave aceita, requisição chega ao banco |
+| JSON cru `{"default":"..."}` | `401 Invalid API key` — rejeitada no gateway |
+
+**Correção:** PR #217 (`fix/d8-publishable-keys`), merge `5a6e9f6eb00b0f3ed351050dfeb4a46e7b3e38ae`. O módulo `env.ts` extrai `keys.default`/`keys.anon` com fallback para `SUPABASE_ANON_KEY`, normaliza `SUPABASE_URL` (barra final e `/rest/v1`) e mantém o handler F04 intacto (`timingSafeEqual`, checagem de método, erros sanitizados, `correlation_id`).
+
+**Verificação pós-deploy (worker v33):**
+
+- `net._http_response`: **200** em 03:54, 03:55 e 03:56 UTC (`{"ok":true,...}`).
+- `public.worker_heartbeat`: 1 linha, `last_error = NULL`, `queue_healthy = true`, `last_success_at = 2026-11-02 03:56:01Z`.
+- Sem `x-worker-secret`: **401** — F04 continua ativo.
+
+**Estado:** D8 operacional. A tag `v2.2.0-p1-security` permanece sem sufixo `-certified` por ter sido criada antes desta correção; a certificação do worker pode ser emitida em tag própria.
