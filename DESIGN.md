@@ -159,6 +159,26 @@ Para diferenciar colunas e agendamentos de cada profissional sem recorrer a core
 - **Barber 5:** `#F97316` (Cobre Vibrante)
 - **Barber 6:** `#14B8A6` (Turquesa Atelier)
 
+### 2.6 Paleta Categórica de UI (Categorias sem Semântica de Alerta)
+
+Categorias que **não** expressam estado ou alerta (tipos de recibo, accents de KPI) usam a Paleta Atelier, sempre com contraste AA. Chaves internas existentes (ex.: `blue`, `violet`, `indigo` no `MetricsPanel`) são identificadores de configuração persistida e **não devem ser renomeadas** — apenas as classes mudam.
+
+| Categoria | Cor sancionada | Classes canônicas |
+| :--- | :--- | :--- |
+| Recibo — **Salário** | Turquesa Atelier | `bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20` |
+| Recibo — **Fornecedor** | Cobre Vibrante | `bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/20` |
+| Recibo — **Compra** | Bronze Quente | `bg-primary/10 text-ink border-primary/25 dark:bg-primary/15 dark:text-primary-light dark:border-primary/30` |
+| Recibo — **demais** | Neutro | `bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/20` |
+| KPI — **Faturamento** | Esmeralda | `bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30` |
+| KPI — **Clientes** | Turquesa Atelier | `bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/30` |
+| KPI — **Agendamentos** | Bronze Quente | `bg-primary/10 text-primary-dark border-primary/25 dark:bg-primary/15 dark:text-primary-light dark:border-primary/30` |
+| KPI — **Ticket Médio** | Âmbar | `bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/30` |
+| KPI — **Crescimento** | Cobre Vibrante | `bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/30` |
+| KPI — **Retenção** | Rubi Clássico | `bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/30` |
+| KPI — **Equipe** | Neutro | `bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700` |
+
+> **Regra:** cores de **status** continuam restritas ao §2.4 e ao vocabulário de `shared/status/*`. Dourado é ênfase de CTA, não cor de categoria. Azul/roxo seguem banidos (§3).
+
 ---
 
 ## 3. Leis Rígidas de Cor & Banimentos
