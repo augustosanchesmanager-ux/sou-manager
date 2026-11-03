@@ -156,12 +156,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (profileData && !profileError) {
                 const role = deriveAccessRole(profileData.role, false);
-                const canSuperAdmin = role === 'superadmin';
+                // SEC-10: Fallback em caso de falha da RPC NUNCA concede privilégio de superadmin
+                const canSuperAdmin = false;
                 return {
-                    tenantId: canSuperAdmin ? null : profileData.tenant_id,
-                    accessRole: role,
-                    profileStatus: (profileData.status as 'pending' | 'active' | 'suspended' | null) || (canSuperAdmin ? 'active' : 'pending'),
-                    canAccessSuperAdmin: canSuperAdmin,
+                    tenantId: profileData.tenant_id,
+                    accessRole: role === 'superadmin' ? 'unknown' : role,
+                    profileStatus: (profileData.status as 'pending' | 'active' | 'suspended' | null) || 'pending',
+                    canAccessSuperAdmin: false,
                 };
             }
 
