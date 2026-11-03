@@ -23,8 +23,14 @@ dist-ssr
 # NUNCA versionar credenciais locais nem patches de quarentena fora do tracking.
 a1skey.env
 *.bak_bom
+*.bak_bom*
 *.patch
 patches/
+
+# Security - local secrets, keys & credential dumps (Issue #224)
+secrets.env.txt
+*.env.txt
+*.env.local*
 
 # Editor directories and files
 .vscode/*
