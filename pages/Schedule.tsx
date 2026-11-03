@@ -334,6 +334,7 @@ const Schedule: React.FC = () => {
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const scheduleCreateLockRef = useRef(false);
   const scheduleIdempotencyKeyRef = useRef<string | null>(null);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
 
   // Week days (Mon-Sun of the week containing selectedDate)
   const getWeekDays = (date: Date): Date[] => {
@@ -1796,6 +1797,7 @@ const Schedule: React.FC = () => {
       }
     }
 
+    setIsSavingAppointment(true);
     try {
       if (editingAppointmentId) {
         if (isComandaLocked) {
@@ -1977,6 +1979,7 @@ const Schedule: React.FC = () => {
     } finally {
       scheduleCreateLockRef.current = false;
       scheduleIdempotencyKeyRef.current = null;
+      setIsSavingAppointment(false);
     }
 
     setIsModalOpen(false);
@@ -3913,10 +3916,11 @@ Podemos confirmar? 😄`;
               Cancelar
             </button>
             <button
+              disabled={isSavingAppointment}
               onClick={() => handleSave()}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {editingAppointmentId ? "Salvar Alterações" : "Confirmar"}
+              {isSavingAppointment ? 'Salvando...' : (editingAppointmentId ? "Salvar Alterações" : "Confirmar")}
             </button>
           </div>
         </div>
