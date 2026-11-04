@@ -246,6 +246,36 @@ class CheckoutApplicationServiceImpl {
             }
         }
 
+        // SEC-02: Validação de integridade matemática de preços e totais no servidor
+        let itemsSum = 0;
+        for (const item of req.cart) {
+            if (!Number.isFinite(item.price) || item.price < 0) {
+                errors.push(`Preço inválido para o item "${item.name}".`);
+            }
+            if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+                errors.push(`Quantidade inválida para o item "${item.name}".`);
+            }
+            itemsSum += (item.price || 0) * (item.quantity || 0);
+        }
+
+        const discount = Number.isFinite(req.discountValue) ? req.discountValue : 0;
+        const voucherDiscount = Number.isFinite(req.voucherDiscount) ? (req.voucherDiscount ?? 0) : 0;
+
+        if (discount < 0) {
+            errors.push('O valor de desconto não pode ser negativo.');
+        }
+        if (voucherDiscount < 0) {
+            errors.push('O desconto de voucher não pode ser negativo.');
+        }
+
+        const isExemptTotal = req.isLegacyClubSettlement || req.shouldSettleZeroWithAudit || (req.total === 0 && Boolean(req.zeroCloseOrigin));
+        if (!isExemptTotal) {
+            const expectedTotal = Math.max(0, itemsSum - discount - voucherDiscount);
+            if (Number.isFinite(req.total) && Math.abs(req.total - expectedTotal) > 0.05) {
+                errors.push(`Total inconsistente: esperado R$ ${expectedTotal.toFixed(2)}, recebido R$ ${req.total.toFixed(2)}.`);
+            }
+        }
+
         // Tenant
         if (!req.tenantId) {
             errors.push('Tenant inválido para finalizar operação.');
