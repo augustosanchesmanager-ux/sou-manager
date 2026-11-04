@@ -1,34 +1,37 @@
-# TAXONOMY.md — Glossário Oficial SMG Platform
+# TAXONOMY.md — Glossário Oficial SMG Platform & SMG Intelligence
 
 > **Fonte oficial de nomenclatura.** Toda documentação futura deve utilizar este documento como referência.
 >
-> **Última atualização:** 2026-08-06
+> **Última atualização:** 2026-11-04
 >
 > **Autoridade:** Augusto (Product Owner)
+>
+> **Referência Estratégica:** `docs/BRAND_ARCHITECTURE.md` (Modelo Híbrido Endossado)
 
 ---
 
-## 1. Produto Comercial Ativo
+## 1. Arquitetura de Marca & Produtos
 
-| Produto | Domínio | Descrição |
-|---------|---------|-----------|
-| **SMG Barber** | `barber.soumanager.com` | Sistema de gestão para barbearias |
+| Camada | Nome Comercial | Assinatura / Tagline | Descrição |
+|---|---|---|---|
+| **Masterbrand Tech** | **SMG Intelligence** | *Business Intelligence & Service Operations* | Holding e ecossistema tecnológico central (core, dados, algoritmos e IA). |
+| **Vertical Ativa** | **SMG Barber** | *The Barbershop Intelligence* | Plataforma com inteligência preditiva para barbearias de alto padrão (`barber.soumanager.com`). |
+| **Vertical Planejada**| **SMG Auto** | *Automotive Business Intelligence* | Gestão de pátio e ticket médio para oficinas e estética automotiva. |
 
 ### Regras de Nomenclatura — Produto
 
-- ✅ Sempre utilizar o nome completo: `SMG Barber`
-- ❌ Nunca utilizar apenas: `Barber`
-- ❌ Nunca utilizar abreviações: `SMG B`
+- ✅ Sempre utilizar o nome comercial da vertical: `SMG Barber` (com tagline *The Barbershop Intelligence* quando em materiais formais)
+- ❌ Nunca utilizar apenas: `Barber` ou abreviações `SMG B`
+- ❌ Nunca forçar no dia a dia expressões com atrito de fala como "SMG Barber Intelligence"
+- ✅ "Sou Manager": restrito à razão social ou menção transitória de 60 dias ("SMG Intelligence, antigo Sou Manager")
 
 ### 1.2 Evolução da Plataforma
 
-A SMG Platform foi concebida para suportar múltiplos produtos SaaS compartilhando a mesma infraestrutura técnica (multi-tenant, autenticação, observabilidade, billing, Event Driven, etc.).
+A SMG Platform / SMG Intelligence foi concebida para suportar múltiplos produtos SaaS compartilhando a mesma infraestrutura técnica (multi-tenant, autenticação, observabilidade, billing, Event Driven, etc. — arquitetura 85% core / 15% vertical).
 
-Atualmente existe apenas um produto comercial ativo: **SMG Barber**.
+Atualmente o único produto comercial em escala ativa é o **SMG Barber**.
 
-Novos segmentos poderão ser desenvolvidos futuramente, mediante decisão formal do Product Owner. Nenhuma definição de produto, domínio, módulo ou funcionalidade para futuros segmentos deve ser documentada, implementada ou planejada antes dessa decisão.
-
-> **Referência:** Decisão Estratégica do PO — 2026-07-27
+> **Referência:** Decisão Estratégica de Marca do PO — 2026-11-04 (`docs/BRAND_ARCHITECTURE.md`)
 
 ---
 
