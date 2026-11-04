@@ -20,31 +20,39 @@ export const bankReconciliationService = {
       .select('*')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .order('bank_name', { ascending: true });
 
     if (error) {
       console.error('Error fetching bank accounts:', error);
       throw error;
     }
-    return (data || []) as BankAccount[];
+    return (data || []).map((acc: any) => ({
+      ...acc,
+      name: acc.name || acc.bank_name,
+    })) as BankAccount[];
   },
 
   /**
    * Cria uma nova conta bancária
    */
   async createBankAccount(tenantId: string, input: CreateBankAccountInput): Promise<BankAccount> {
+    const mappedType = input.account_type === 'savings'
+      ? 'savings'
+      : input.account_type === 'payment_gateway'
+      ? 'payment'
+      : 'checking';
+
     const { data, error } = await supabase
       .from('bank_accounts')
       .insert({
         tenant_id: tenantId,
-        name: input.name,
-        bank_name: input.bank_name,
-        bank_code: input.bank_code || null,
+        bank_name: input.bank_name || input.name,
+        bank_code: input.bank_code || '000',
         agency: input.agency || null,
-        account_number: input.account_number || null,
-        account_type: input.account_type,
-        initial_balance: input.initial_balance,
-        current_balance: input.initial_balance,
+        account_number: input.account_number || 'N/A',
+        account_type: mappedType,
+        initial_balance: input.initial_balance || 0,
+        current_balance: input.initial_balance || 0,
         color: input.color || '#0284c7',
         is_active: true,
       })
@@ -55,7 +63,10 @@ export const bankReconciliationService = {
       console.error('Error creating bank account:', error);
       throw error;
     }
-    return data as BankAccount;
+    return {
+      ...data,
+      name: data.bank_name,
+    } as BankAccount;
   },
 
   /**

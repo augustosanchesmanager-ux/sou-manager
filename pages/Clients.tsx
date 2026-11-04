@@ -267,7 +267,7 @@ const Clients: React.FC = () => {
         loadingId = showLoading('CLIENTS');
         
         try {
-            const data = await clientRepository.list(tenantId);
+            const data = await clientRepository.listWithEffectiveLastVisit(tenantId);
             setClients(data);
 
             if (data.length === 0) {

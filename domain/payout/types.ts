@@ -162,4 +162,8 @@ export interface PayoutReceiptItem {
     unitPrice: number;
     grossAmount: number;
     commissionAmount: number;
+    customerName?: string;
+    paidAmount?: number;
+    isShared?: boolean;
+    sharePercentage?: number;
 }

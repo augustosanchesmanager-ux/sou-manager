@@ -6,7 +6,7 @@
  * navegador, última versão visualizada. Sem backend nesta frente.
  */
 
-export const CHANGELOG_VERSION = '1.7.1';
+export const CHANGELOG_VERSION = '1.8.0';
 export const CHANGELOG_STORAGE_KEY = 'smg_last_seen_changelog';
 
 export interface ChangelogItem {
@@ -17,39 +17,39 @@ export interface ChangelogItem {
 /** Itens reais da versão, derivados do histórico do repositório. Badge usa o length. */
 export const CHANGELOG_ITEMS: ChangelogItem[] = [
   {
-    title: 'Identidade visual renovada',
+    title: 'Cadeira Cativa & Agendamento Recorrente',
     description:
-      'Nova paleta cream + gold em todo o aplicativo, com o modo claro como padrão.',
+      'Projeção de sessões semanais e quinzenais com confirmação ágil via WhatsApp.',
   },
   {
-    title: 'Tema escuro corrigido',
+    title: 'Checkout Expresso & Troco Inteligente',
     description:
-      'Superfícies escuras quentes e legibilidade restaurada em todas as telas.',
+      'Sugestão de cédulas em BRL, calculadora ágil de troco e bloqueio de valor insuficiente.',
   },
   {
-    title: 'Navegação redesenhada',
+    title: "Abertura Ágil de Comandas (Atalho 'N')",
     description:
-      'Sidebar e barra inferior mobile agrupadas pela rotina de trabalho da barbearia.',
+      'Venda rápida de balcão para consumidor final e prevenção preventiva de comandas duplicadas.',
   },
   {
-    title: 'Segurança reforçada',
+    title: 'Modo Barbeiro & Fila de Cadeira',
     description:
-      'Duas ondas de hardening em RPC, permissões e índices do banco de dados.',
+      'Visão móvel de 1 polegar com card Na Cadeira Agora e encaixe rápido walk-in.',
   },
   {
-    title: 'Fechamento de caixa em base de caixa',
+    title: 'Perfil 360° do Cliente & Combos',
     description:
-      'Faturamento reconhecido na data de pagamento da comanda (ADR-018).',
+      'Drawer com LTV, histórico de visitas e combos inteligentes de serviços com desconto.',
   },
   {
-    title: 'Motor de repasse e adiantamentos',
+    title: 'Design System Atelier Tech Sofisticado',
     description:
-      'Folha com estados, idempotência e histórico de adiantamentos (ADR-030).',
+      'Identidade visual refinada Dark-First com contraste WCAG AA e sem poluição de cores.',
   },
   {
-    title: 'Indicadores unificados',
+    title: 'SMG Academy & Central de Ajuda',
     description:
-      'MetricCard padrão com tons semânticos em todas as métricas (ADR-031).',
+      'Trilhas práticas de capacitação por papel e base de autoatendimento para suporte ágil.',
   },
 ];
 

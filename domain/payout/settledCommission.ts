@@ -97,7 +97,7 @@ export function reconcileSettledCommissionsToPeriodRows(
                 comanda_id: rec.comanda_id,
                 comanda_item_id: rec.comanda_item_id ?? null,
                 staff_id: rec.staff_id,
-                amount: Number(rec.gross_value ?? rec.net_value ?? 0),
+                amount: Number(rec.net_value ?? rec.gross_value ?? 0),
                 commission_value: roundCents(Number(rec.commission_value)),
                 status: rec.status,
                 record_type: rec.record_type,
