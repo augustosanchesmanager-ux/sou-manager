@@ -11,6 +11,7 @@ import ClientProfile360Drawer, {
     type StaffOption,
     type OpenComandaSummary,
 } from '../components/customers/ClientProfile360Drawer';
+import ClientReengagementModal from '../components/customers/ClientReengagementModal';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
@@ -22,6 +23,10 @@ import {
     calculatePreferredBarber,
     type PreferredBarberSummary,
 } from '../src/utils/clientProfile';
+import {
+    getClientInactivityStatus,
+    type InactivityTier,
+} from '../src/utils/clientReengagement';
 import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
 
 type SortKey = 'name' | 'last_visit' | 'total_spent';
@@ -44,9 +49,13 @@ const Clients: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { showLoading, hideLoading } = useLoading();
-    const { tenantId, user, appSlug } = useAuth();
+    const { tenantId, user, appSlug, tenant, tenantSlug } = useAuth();
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
+    const shopName = tenant?.name || '';
+    const bookingUrl = tenantSlug
+        ? `${window.location.origin}/#/agendamento/${tenantSlug}`
+        : `${window.location.origin}/#/agendamento`;
     const orderLabel = labels.order;
     const orderLabelLower = orderLabel.toLowerCase();
     const orderPluralLower = labels.orderPlural.toLowerCase();
@@ -59,8 +68,13 @@ const Clients: React.FC = () => {
     // Filters
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
+    const [inactivityFilter, setInactivityFilter] = useState<'all' | InactivityTier>('all');
     const [sortKey, setSortKey] = useState<SortKey>('name');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+    // Reengajamento WhatsApp
+    const [reengagementClient, setReengagementClient] = useState<Client | null>(null);
+    const [isReengagementOpen, setIsReengagementOpen] = useState(false);
 
     // Editing
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -295,7 +309,12 @@ const Clients: React.FC = () => {
         .filter(c => {
             const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search) || c.email.toLowerCase().includes(search.toLowerCase());
             const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-            return matchSearch && matchStatus;
+            let matchInactivity = true;
+            if (inactivityFilter !== 'all') {
+                const inact = getClientInactivityStatus(c.last_visit);
+                matchInactivity = inact.tier === inactivityFilter;
+            }
+            return matchSearch && matchStatus && matchInactivity;
         })
         .sort((a, b) => {
             let cmp = 0;
@@ -650,6 +669,74 @@ const Clients: React.FC = () => {
                 </div>
             </div>
 
+            {/* Inactivity & Retention Tiers Filter */}
+            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-card-dark shadow-sm">
+                <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 mr-1 shrink-0">
+                    <span className="material-symbols-outlined text-base text-primary">schedule</span>
+                    Última Visita:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                    <button
+                        type="button"
+                        onClick={() => setInactivityFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            inactivityFilter === 'all'
+                                ? 'bg-primary text-night shadow-sm'
+                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        Todas ({clients.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInactivityFilter('active')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            inactivityFilter === 'active'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'
+                        }`}
+                    >
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Ativos &lt;30d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'active').length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInactivityFilter('absent')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            inactivityFilter === 'absent'
+                                ? 'bg-amber-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400'
+                        }`}
+                    >
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        Ausentes 30-60d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'absent').length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInactivityFilter('critical')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            inactivityFilter === 'critical'
+                                ? 'bg-rose-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
+                        }`}
+                    >
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        Críticos +60d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'critical').length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInactivityFilter('never')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            inactivityFilter === 'never'
+                                ? 'bg-slate-700 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                        Sem Visitas ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'never').length})
+                    </button>
+                </div>
+            </div>
+
             {/* Table */}
             <LoadingBlock loading={loading} message="Carregando clientes..." minHeight="min-h-[400px]">
                 <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
@@ -722,7 +809,22 @@ const Clients: React.FC = () => {
                                         <td className="px-5 py-4 hidden md:table-cell">
                                             <span className="text-sm text-slate-700 dark:text-slate-300">{client.phone || '-'}</span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300 hidden lg:table-cell">{formatDate(client.last_visit)}</td>
+                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300 hidden lg:table-cell">
+                                            {(() => {
+                                                const inact = getClientInactivityStatus(client.last_visit);
+                                                return (
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                                            {formatDate(client.last_visit)}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${inact.badgeClass}`}>
+                                                            <span className="material-symbols-outlined text-[11px]">history</span>
+                                                            {inact.label}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </td>
                                         <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white hidden lg:table-cell">R$ {(client.total_spent || 0).toFixed(2)}</td>
                                         <td className="px-5 py-4">
                                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${client.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
@@ -731,6 +833,17 @@ const Clients: React.FC = () => {
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setReengagementClient(client);
+                                                        setIsReengagementOpen(true);
+                                                    }}
+                                                    className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                                                    title="Reengajar via WhatsApp"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">chat</span>
+                                                </button>
                                                 {!isEsteticaApp && (
                                                     <button
                                                         onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
@@ -1009,6 +1122,18 @@ const Clients: React.FC = () => {
                     </div>
                 )}
             </Modal>
+
+            {/* Modal de Reengajamento WhatsApp */}
+            <ClientReengagementModal
+                isOpen={isReengagementOpen}
+                onClose={() => {
+                    setIsReengagementOpen(false);
+                    setReengagementClient(null);
+                }}
+                client={reengagementClient}
+                shopName={shopName}
+                bookingUrl={bookingUrl}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

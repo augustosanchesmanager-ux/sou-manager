@@ -46,7 +46,8 @@ export const assertValidIdempotencyKey = (key: string): void => {
   }
 
   // Proibição estrita de dados pessoais
-  if (EMAIL_REGEX.test(key) || CPF_OR_PHONE_REGEX.test(key.replace(/\D/g, ''))) {
+  const isNumericIdentifier = /^[\d.\-()+\s]+$/.test(key);
+  if (EMAIL_REGEX.test(key) || (isNumericIdentifier && CPF_OR_PHONE_REGEX.test(key.replace(/\D/g, '')))) {
     throw new Error('Violação de segurança: nunca utilize dados pessoais (e-mail, CPF, telefone) como chave de idempotência.');
   }
 
