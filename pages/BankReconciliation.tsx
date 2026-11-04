@@ -384,7 +384,7 @@ export default function BankReconciliation() {
               >
                 {bankAccounts.map((acc) => (
                   <option key={acc.id} value={acc.id}>
-                    {acc.name} — {acc.bank_name} {acc.account_number ? `(${acc.account_number})` : ''}
+                    {acc.name && acc.name !== acc.bank_name ? `${acc.name} — ` : ''}{acc.bank_name} {acc.account_number ? `(${acc.account_number})` : ''}
                   </option>
                 ))}
               </select>

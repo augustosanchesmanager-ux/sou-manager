@@ -3,7 +3,7 @@ export type BankAccountType = 'checking' | 'savings' | 'investment' | 'payment_g
 export interface BankAccount {
   id: string;
   tenant_id: string;
-  name: string;
+  name?: string;
   bank_name: string;
   bank_code?: string | null;
   agency?: string | null;
@@ -14,7 +14,7 @@ export interface BankAccount {
   color?: string | null;
   is_active: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface BankStatement {

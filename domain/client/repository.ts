@@ -64,6 +64,65 @@ class ClientRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async listWithEffectiveLastVisit(tenantId: string): Promise<Client[]> {
+    const clients = await this.list(tenantId);
+    try {
+      const [comandasRes, appointmentsRes] = await Promise.all([
+        this.db
+          .from('comandas')
+          .select('client_id, created_at, closed_at')
+          .eq('tenant_id', tenantId)
+          .in('status', ['paid', 'closed']),
+        this.db
+          .from('appointments')
+          .select('client_id, start_time')
+          .eq('tenant_id', tenantId)
+          .in('status', ['completed', 'confirmed', 'attended', 'paid']),
+      ]);
+
+      const latestVisitMap = new Map<string, number>();
+
+      if (comandasRes?.data) {
+        for (const cmd of comandasRes.data as any[]) {
+          if (!cmd.client_id) continue;
+          const d = cmd.closed_at || cmd.created_at;
+          if (!d) continue;
+          const ts = new Date(d).getTime();
+          if (!isNaN(ts)) {
+            const cur = latestVisitMap.get(cmd.client_id) || 0;
+            if (ts > cur) latestVisitMap.set(cmd.client_id, ts);
+          }
+        }
+      }
+
+      if (appointmentsRes?.data) {
+        for (const apt of appointmentsRes.data as any[]) {
+          if (!apt.client_id || !apt.start_time) continue;
+          const ts = new Date(apt.start_time).getTime();
+          if (!isNaN(ts)) {
+            const cur = latestVisitMap.get(apt.client_id) || 0;
+            if (ts > cur) latestVisitMap.set(apt.client_id, ts);
+          }
+        }
+      }
+
+      return clients.map((c) => {
+        const latestTs = latestVisitMap.get(c.id);
+        if (!latestTs) return c;
+        const clientTs = c.last_visit ? new Date(c.last_visit).getTime() : 0;
+        if (latestTs > clientTs) {
+          return {
+            ...c,
+            last_visit: new Date(latestTs).toISOString(),
+          };
+        }
+        return c;
+      });
+    } catch {
+      return clients;
+    }
+  }
+
   async get(id: string, tenantId: string): Promise<Client | null> {
     try {
       const result = await this.from()
@@ -210,6 +269,7 @@ class ClientRepositoryImpl extends SupabaseRepository {
 
 export interface ClientRepository extends IRepository<Client> {
   list(tenantId: string): Promise<Client[]>;
+  listWithEffectiveLastVisit(tenantId: string): Promise<Client[]>;
   get(id: string, tenantId: string): Promise<Client | null>;
   exists(id: string, tenantId: string): Promise<boolean>;
   create(input: CreateClientInput, tenantId: string): Promise<Client>;

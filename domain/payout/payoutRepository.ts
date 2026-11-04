@@ -662,19 +662,25 @@ async createSettlementDraft(
 
         // 2. Filtrar apenas comandas que estão com status = 'paid'
         const comandasRes = await this.db.from('comandas')
-            .select('id, status')
+            .select('id, status, client_id, clients(name)')
             .eq('tenant_id', tenantId)
             .in('id', comandaIds)
             .eq('status', 'paid');
 
         if (comandasRes.error) this.fail(comandasRes.error, 'listSettledPaymentItems:comandas');
-        const paidComandas = (comandasRes.data || []) as Array<{ id: string; status: string }>;
+        const paidComandas = (comandasRes.data || []) as Array<{ id: string; status: string; client_id?: string; clients?: { name?: string } }>;
         const paidComandaIds = paidComandas.map((c) => c.id);
         if (paidComandaIds.length === 0) return [];
 
+        const comandaClientMap = new Map<string, string>();
+        for (const c of paidComandas as any[]) {
+            const name = c.clients?.name || c.customer_name;
+            if (name) comandaClientMap.set(c.id, name);
+        }
+
         // 3. Buscar comanda_items para obter nome do produto/serviço, quantidade e preço unitário
         const itemsRes = await this.db.from('comanda_items')
-            .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id, created_at')
+            .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id, created_at, services(name)')
             .eq('tenant_id', tenantId)
             .in('comanda_id', paidComandaIds);
 
@@ -688,6 +694,7 @@ async createSettlementDraft(
                 unit_price: number | string;
                 staff_id?: string | null;
                 created_at?: string;
+                services?: { name?: string | null } | null;
             }>)
             : [];
 
@@ -696,7 +703,27 @@ async createSettlementDraft(
             itemsById.set(item.id, item);
         }
 
-        // 4. Buscar commission_records do profissional para as comandas pagas
+        // 4. Buscar participantes de serviços compartilhados caso existam
+        const participantsMap = new Map<string, any>();
+        if (allItems.length > 0) {
+            const itemIds = allItems.map((i) => i.id);
+            try {
+                const partsRes = await this.db.from('service_execution_participants')
+                    .select('id, comanda_item_id, staff_id, role, percentage_share, split_ratio, affects_commission')
+                    .in('comanda_item_id', itemIds);
+                if (partsRes && !partsRes.error && partsRes.data) {
+                    for (const p of partsRes.data as any[]) {
+                        if (p.staff_id === staffId) {
+                            participantsMap.set(p.comanda_item_id, p);
+                        }
+                    }
+                }
+            } catch {
+                // Silencioso se mock ou ambiente sem a tabela
+            }
+        }
+
+        // 5. Buscar commission_records do profissional para as comandas pagas
         const recordsRes = await this.db.from('commission_records')
             .select('id, comanda_id, comanda_item_id, staff_id, gross_value, net_value, commission_value, status, record_type, original_record_id, created_at')
             .eq('tenant_id', tenantId)
@@ -706,7 +733,7 @@ async createSettlementDraft(
         if (recordsRes.error) this.fail(recordsRes.error, 'listSettledPaymentItems:commission_records');
         const records = (recordsRes.data || []) as RawCommissionRecord[];
 
-        // 5. Fallback items para comandas sem commission_records
+        // 6. Fallback items para comandas sem commission_records
         const recordedComandaIds = new Set(records.map((r) => r.comanda_id));
         const unrecordedComandaIds = paidComandaIds.filter((id) => !recordedComandaIds.has(id));
 
@@ -737,17 +764,29 @@ async createSettlementDraft(
                 ? Number(row.commission_value)
                 : roundCents(gross * rate);
 
-            const description = item?.product_name || `Atendimento #${row.comanda_id.slice(0, 8)}`;
+            const itemName = item?.services?.name || item?.product_name || `Atendimento #${row.comanda_id.slice(0, 8)}`;
+            const customerName = comandaClientMap.get(row.comanda_id);
+            const participant = row.comanda_item_id ? participantsMap.get(row.comanda_item_id) : undefined;
+            const isShared = Boolean(
+                participant && (participant.role === 'assistant' || participant.role === 'co_executor' || participant.percentage_share)
+            );
+            const sharePercentage = participant?.percentage_share
+                ? Number(participant.percentage_share)
+                : participant?.split_ratio
+                ? Number(participant.split_ratio) * 100
+                : undefined;
 
             return {
                 id: row.comanda_item_id || `${row.comanda_id}-${index}`,
                 comandaId: row.comanda_id,
-                description,
+                description: itemName,
                 date: row.created_at,
                 quantity,
                 unitPrice: roundCents(unitPrice),
                 grossAmount: roundCents(gross),
                 commissionAmount: roundCents(commission),
+                ...(customerName ? { customerName } : {}),
+                ...(isShared ? { isShared, sharePercentage } : {}),
             };
         });
     }

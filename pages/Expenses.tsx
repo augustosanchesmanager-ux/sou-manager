@@ -156,151 +156,140 @@ const Expenses: React.FC = () => {
         return matchesSearch && matchesStatus;
     });
 
-    // KPIs
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const paidTotal = expenses.filter(e => e.status === 'paid').reduce((sum, e) => sum + e.amount, 0);
-    const pendingTotal = expenses.filter(e => e.status === 'pending').reduce((sum, e) => sum + e.amount, 0);
-
     return (
-        <div className="space-y-8 animate-fade-in relative pb-10">
+        <div className="space-y-6 animate-fade-in relative pb-10">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+            {/* Cabeçalho Unificado Atelier Tech */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Gestão de Saídas</h2>
-                    <p className="text-slate-500 mt-1">Controle detalhado de todas as despesas da barbearia.</p>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-display">
+                        Contas a Pagar & Despesas
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                        Gestão inteligente de contas fixas, custos operacionais e baixas financeiras da barbearia.
+                    </p>
                 </div>
-                <button
-                    onClick={openNewModal}
-                    className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all"
-                >
-                    <span className="material-symbols-outlined">add_circle</span>
-                    + NOVA SAÍDA
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={openNewModal}
+                        className="bg-white dark:bg-card-dark hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-border-dark px-4 py-2.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                        title="Registrar lançamento avulso no livro-caixa"
+                    >
+                        <span className="material-symbols-outlined text-base">receipt_long</span>
+                        + Saída no Caixa
+                    </button>
+                </div>
             </div>
 
-            {/* Contas a Pagar - Novo módulo P0.4 */}
+            {/* Módulo Principal: Contas a Pagar com Competências e Recorrências */}
             <AccountsPayableWidget />
 
-            {/* KPI summary */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="material-symbols-outlined text-red-500">payments</span>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total de Saídas</p>
+            {/* Seção Secundária: Histórico Consolidado do Livro-Caixa */}
+            <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm mt-6">
+                <div className="p-4 border-b border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base text-slate-500">menu_book</span>
+                            Histórico do Livro-Caixa (Despesas Operacionais)
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Lançamentos de saídas registrados no fluxo financeiro da barbearia.
+                        </p>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pagas</p>
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {paidTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="material-symbols-outlined text-amber-500">schedule</span>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pendentes</p>
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">R$ {pendingTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
-                </div>
-            </div>
 
-            {/* Filters */}
-            <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="relative w-full md:w-96">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                    <input
-                        type="text"
-                        placeholder="Buscar despesa..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary outline-none"
-                    />
+                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                        <div className="relative w-full sm:w-64">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                            <input
+                                type="text"
+                                placeholder="Buscar no histórico..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-2 pl-9 pr-3 text-xs focus:ring-1 focus:ring-primary outline-none"
+                            />
+                        </div>
+                        <div className="flex gap-1">
+                            {(['all', 'paid', 'pending'] as const).map(st => {
+                                const labels: Record<string, string> = { all: 'Todas', paid: 'Pagas', pending: 'Pendentes' };
+                                return (
+                                    <button
+                                        key={st}
+                                        onClick={() => setFilterStatus(st)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === st
+                                            ? 'bg-primary text-night shadow-sm'
+                                            : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                    >
+                                        {labels[st]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-                    {(['all', 'paid', 'pending'] as const).map(st => {
-                        const labels: Record<string, string> = { all: 'Todas', paid: 'Pagas', pending: 'Pendentes' };
-                        return (
-                            <button
-                                key={st}
-                                onClick={() => setFilterStatus(st)}
-                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${filterStatus === st
-                                    ? 'bg-primary text-night shadow-md'
-                                    : 'bg-white dark:bg-transparent border border-slate-200 dark:border-border-dark text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                            >
-                                {labels[st]}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
 
-            {/* Expenses Table */}
-            <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
                             <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Categoria</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Descrição</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Categoria</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Data</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Valor</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Status</th>
+                                <th className="px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider text-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-slate-900 dark:text-white">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Carregando despesas...</td>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-xs text-slate-500">Carregando despesas...</td>
                                 </tr>
                             ) : filteredExpenses.length > 0 ? filteredExpenses.map((expense) => (
                                 <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                                    <td className="px-6 py-4">
-                                        <p className="text-sm font-bold">{expense.description}</p>
+                                    <td className="px-5 py-3">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white">{expense.description}</p>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-xs font-bold">
+                                    <td className="px-5 py-3">
+                                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[11px] font-semibold">
                                             {expense.category}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                                    <td className="px-5 py-3 text-xs text-slate-600 dark:text-slate-400">
                                         {new Date(expense.date).toLocaleDateString('pt-BR')}
                                     </td>
-                                    <td className="px-6 py-4 text-sm font-bold">
+                                    <td className="px-5 py-3 text-xs font-bold">
                                         R$ {expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${expense.status === 'paid'
-                                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                            : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                    <td className="px-5 py-3">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${expense.status === 'paid'
+                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                             }`}>
                                             <span className={`size-1.5 rounded-full ${expense.status === 'paid' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                                             {expense.status === 'paid' ? 'Pago' : 'Pendente'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button onClick={() => openEditModal(expense)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors p-2" title="Editar">
-                                            <span className="material-symbols-outlined text-lg">edit</span>
+                                    <td className="px-5 py-3 text-right">
+                                        <button onClick={() => openEditModal(expense)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors p-1" title="Editar">
+                                            <span className="material-symbols-outlined text-base">edit</span>
                                         </button>
-                                        <button onClick={() => handleDelete(expense.id)} className="text-slate-400 hover:text-red-500 transition-colors p-2" title="Excluir">
-                                            <span className="material-symbols-outlined text-lg">delete</span>
+                                        <button onClick={() => handleDelete(expense.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1" title="Excluir">
+                                            <span className="material-symbols-outlined text-base">delete</span>
                                         </button>
                                     </td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">Nenhuma despesa encontrada.</td>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-xs text-slate-500">Nenhum lançamento no livro-caixa para o filtro selecionado.</td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-                <div className="px-6 py-4 border-t border-slate-200 dark:border-border-dark">
-                    <p className="text-xs text-slate-500">Mostrando {filteredExpenses.length} de {expenses.length} despesas</p>
+                <div className="px-5 py-3 border-t border-slate-200 dark:border-border-dark flex justify-between items-center text-xs text-slate-500">
+                    <span>Mostrando {filteredExpenses.length} de {expenses.length} lançamentos</span>
                 </div>
             </div>
 
@@ -308,7 +297,7 @@ const Expenses: React.FC = () => {
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setEditingExpense(null); }}
-                title={editingExpense ? 'Editar Despesa' : 'Nova Saída'}
+                title={editingExpense ? 'Editar Lançamento no Caixa' : 'Nova Saída no Livro-Caixa'}
                 maxWidth="lg"
             >
                 <form onSubmit={handleSave} className="space-y-4">

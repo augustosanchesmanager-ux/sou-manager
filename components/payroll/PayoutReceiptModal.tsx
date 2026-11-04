@@ -333,9 +333,9 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                 <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                     <tr>
                                         <th className="px-3 py-2.5">Data</th>
-                                        <th className="px-3 py-2.5">Serviço / Comanda</th>
+                                        <th className="px-3 py-2.5">Serviço / Cliente / Comanda</th>
                                         <th className="px-3 py-2.5 text-center">Qtd</th>
-                                        <th className="px-3 py-2.5 text-right">Valor Bruto</th>
+                                        <th className="px-3 py-2.5 text-right">Valor Pago (Base)</th>
                                         <th className="px-3 py-2.5 text-right">Comissão ({ (staff.commissionRate * 100).toFixed(0) }%)</th>
                                     </tr>
                                 </thead>
@@ -359,10 +359,23 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                                                     {formatDate(item.date)}
                                                 </td>
                                                 <td className="px-3 py-2 font-medium">
-                                                    <span className="text-slate-900 block">{item.description}</span>
-                                                    <span className="text-[10px] text-slate-400 font-mono">
-                                                        #{item.comandaId.slice(0, 8)}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-slate-900 font-bold block">{item.description}</span>
+                                                        {item.isShared && (
+                                                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold uppercase whitespace-nowrap">
+                                                                Compartilhado {item.sharePercentage ? `(${item.sharePercentage}%)` : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                                                        <span className="font-mono text-slate-400">#{item.comandaId.slice(0, 8)}</span>
+                                                        {item.customerName && (
+                                                            <>
+                                                                <span className="text-slate-300">•</span>
+                                                                <span className="font-semibold text-slate-700">{item.customerName}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                     {item.quantity}
