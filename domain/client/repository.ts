@@ -40,6 +40,11 @@ const toClient = (row: Record<string, unknown>): Client => ({
   status: (row.status as string) || 'active',
   avatar: (row.avatar as string) || '',
   birthday: (row.birthday as string) || '',
+  notes: (row.notes as string) || '',
+  preferred_frequency: (row.preferred_frequency as Client['preferred_frequency']) || null,
+  preferred_weekday: typeof row.preferred_weekday === 'number' ? row.preferred_weekday : null,
+  preferred_time: (row.preferred_time as string) || null,
+  preferred_staff_id: (row.preferred_staff_id as string) || null,
 });
 
 class ClientRepositoryImpl extends SupabaseRepository {
@@ -76,15 +81,22 @@ class ClientRepositoryImpl extends SupabaseRepository {
 
   async create(input: CreateClientInput, tenantId: string): Promise<Client> {
     try {
+      const payload: Record<string, unknown> = {
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        birthday: input.birthday,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(input.name)}&background=random`,
+        tenant_id: tenantId,
+      };
+      if (input.notes !== undefined) payload.notes = input.notes;
+      if (input.preferred_frequency !== undefined) payload.preferred_frequency = input.preferred_frequency;
+      if (input.preferred_weekday !== undefined) payload.preferred_weekday = input.preferred_weekday;
+      if (input.preferred_time !== undefined) payload.preferred_time = input.preferred_time;
+      if (input.preferred_staff_id !== undefined) payload.preferred_staff_id = input.preferred_staff_id;
+
       const result = await this.from()
-        .insert({
-          name: input.name,
-          email: input.email,
-          phone: input.phone,
-          birthday: input.birthday,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(input.name)}&background=random`,
-          tenant_id: tenantId,
-        })
+        .insert(payload)
         .select()
         .single();
       return toClient(this.extractData(result, 'Erro ao criar cliente') as Record<string, unknown>);
