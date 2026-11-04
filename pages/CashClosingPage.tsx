@@ -258,12 +258,18 @@ const CashClosingPage: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         printWindow.opener = null;
-        printWindow.document.write(`
-            <html><head><title>Fechamento Caixa - ${escapeHtml(formattedFilterDate)}</title>
-            <style>body{font-family:monospace;padding:20px;white-space:pre-wrap;font-size:12px;}</style>
-            </head><body>${escapeHtml(previewText).replace(/\n/g, '<br>')}</body></html>
-        `);
-        printWindow.document.close();
+
+        const doc = printWindow.document;
+        doc.title = `Fechamento Caixa - ${formattedFilterDate}`;
+
+        const style = doc.createElement('style');
+        style.textContent = 'body{font-family:monospace;padding:20px;white-space:pre-wrap;font-size:12px;}';
+        doc.head.appendChild(style);
+
+        const container = doc.createElement('div');
+        container.textContent = previewText;
+        doc.body.appendChild(container);
+
         printWindow.print();
     }, [formattedFilterDate, previewText]);
 
