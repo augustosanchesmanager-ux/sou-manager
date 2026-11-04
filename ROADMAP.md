@@ -1589,24 +1589,25 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - Tempo de tarefa principal (agendamento, comanda, checkout) drasticamente reduzido
 - 100% dos testes unitários e de integração verdes (2.159 testes)
 
-### 7.2 Business Rules Audit
+### 7.2 Business Rules Audit ✅
 
-**Objetivo:** Validar todas as regras de negócio implementadas.
+**Objetivo:** Validar todas as regras de negócio implementadas (Concluída em 2026-11-04).
 
-- [ ] Inventário de regras de negócio
-- [ ] Validação de cada regra
-- [ ] Identificação de regras não implementadas
-- [ ] Correção de inconsistências
+- [x] Inventário de regras de negócio (`docs/audit/FASE_7_2_BUSINESS_RULES_INVENTORY.md` — 27 RNs canônicas em 8 domínios funcionais)
+- [x] Validação de cada regra via testes automatizados dedicados (`tests/business-rules/fase7_2_business_rules.test.ts` — 33 testes 100% verdes)
+- [x] Homologação estrita dos 4 Casos Extremos Financeiros Multi-domínio (Decisão 2-A do PO): Comanda Multi-Barbeiro + Balcão, Combo com Desconto Proporcional, Pagamento Misto Club + Cartão, Dedução Líquida de Maquininha da Comissão
+- [x] Garantia de separação canônica ADR-001 (Comissão individual teórica vs Rateio de fechamento de caixa) e imutabilidade ADR-018 / ADR-030
+- [x] Relatório formal de validação e certificação (`docs/audit/FASE_7_2_BUSINESS_RULES_VALIDATION_REPORT.md`)
 
 **Entregáveis:**
-- Inventário de regras
-- Relatório de validação
-- Correções aplicadas
+- Inventário de regras (`docs/audit/FASE_7_2_BUSINESS_RULES_INVENTORY.md`)
+- Relatório de validação (`docs/audit/FASE_7_2_BUSINESS_RULES_VALIDATION_REPORT.md`)
+- Suíte automatizada de auditoria (`tests/business-rules/fase7_2_business_rules.test.ts` — 33/33 PASS)
 
 **Critérios de Aceite:**
-- 100% das regras validadas
+- 100% das regras validadas (27 RNs canônicas + 4 Casos Extremos)
 - Zero inconsistências
-- Regras documentadas
+- Regras documentadas e cobertas por testes automatizados sem regressões
 
 ### 7.3 Functional Consistency Audit
 
@@ -1976,6 +1977,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-11-04 | 8.96 | **Fase 7.2 — Auditoria de Regras de Negócio (Business Rules Audit) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_2_BUSINESS_RULES_VALIDATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Conclusão e homologação de 100% das 27 regras de negócio canônicas distribuídas nos 8 domínios funcionais do SMG Barber (RN-AUTH, RN-SCH, RN-CMD, RN-PAY, RN-COM, RN-PAYROLL, RN-CLUB, RN-CLI) e dos 4 casos extremos financeiros multi-domínio (Decisão 2-A do PO): Comanda Multi-Barbeiro + Balcão, Rateio Proporcional de Desconto em Combos, Pagamento Misto Créditos Club + Cartão e Dedução Líquida de Taxas de Maquininha da Comissão do Barbeiro. Suíte canônica `tests/business-rules/fase7_2_business_rules.test.ts` com 33/33 testes passando (100% PASS). Matriz consolidada de engenharia: 133 arquivos de testes / 2.181 testes unitários verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite concluído em 10.97s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.3 (Functional Audit). Registros: `PROJECT_STATUS.md` (7.62). |
 | 2026-11-04 | 8.95 | **Fase 7.1 — UX Review Operacional 🟢 100% CONCLUÍDA E CERTIFICADA (Relatório formal `docs/audit/FASE_7_1_UX_REVIEW_CLOSING_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Encerramento oficial de todas as 13 frentes da Fase 7.1 (Frentes 1.B a 1.N: bloqueios, filtros, checkout expresso, modo barbeiro, micro-interações, abertura ágil por atalho N, sync agenda-comanda, duração dinâmica, perfil 360°, extrato de comissão, combos inteligentes, reengajamento WhatsApp e cadeira cativa). Matriz de engenharia: 133 arquivos de teste / 2.159 testes verdes, typecheck 0 erros, architecture:ci 222=222 baseline, build verde, zero tokens banidos. Autorizada a abertura formal da Fase 7.2 (Business Rules Audit). Registros: `PROJECT_STATUS.md` (7.61). |
 | 2026-11-04 | 8.94 | **Fase 7.1 — UX Review (Agendamento Recorrente & "Cadeira Cativa Semanal") 🟢 CONCLUÍDA E MERGEADA EM `main` (PR #243, commit `7fa4086`; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação da recorrência inteligente com horizonte projetado (4, 8 ou 12 sessões) em frequências Semanal (7d), Quinzenal (14d), Mensal (28d) ou Personalizada (X dias). Fluxo operacional de confirmação semanal obrigatória: 1ª sessão criada confirmada (`status: confirmed`), sessões futuras entram como pendentes (`status: pending`, `is_recurring: true`). Modal `RecurringConfirmModal` dedicado para a recepção realizar a confirmação da presença da semana ou liberar pontualmente a vaga daquela semana sem perda ou cascata destrutiva nas demais semanas. Integração direta com disparo via WhatsApp com mensagem pré-formatada amigável. Camada isolada em `src/modules/schedule/recurringScheduleService.ts` preservando o baseline do Repository Guard (222 = 222). 13 novos testes unitários em `src/utils/recurringSchedule.test.ts` (100% PASS). Validações: `typecheck` 0 erros, vitest 2.159 PASS, `architecture:ci` PASS, `build` PASS, `e2e smoke advisory` PASS. Registros: `PROJECT_STATUS.md` (7.60). |
 | 2026-11-04 | 8.93 | **COBERTURA DE REGRESSÃO — Guard de idempotência 🟢 ADICIONADA, VALIDADA, COMMITADA E MERGEADA EM `main` COMO `6f3ae1b` (2026-11-04; roadmap segue CONGELADO).** A correção do falso-positivo de UUID v4 (~1,8% das chaves geradas) entrou em `main` pelo PR #239, porém sem teste. Este lote adiciona 2 testes de regressão (UUID fixo de 11 dígitos projetados + 2.000 chaves geradas, 0 rejeições), sem alterar asserções existentes nem código de produção. **Validações:** arquivo 14/14 · suíte completa 130 arquivos / 2.126 testes · `tsc` 0 · `vite build` 0 · `git diff --check` 0. **GAP:** deploy segue gate separado. **Merge:** PR #240 (squash `6f3ae1b`), CI de `main` no merge SHA verde. Registros: `PROJECT_STATUS.md` (7.59). |
