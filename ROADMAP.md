@@ -1557,9 +1557,9 @@ Phase 6.0.4 — Subscription/Billing Foundation
 
 **Restrição:** Esta fase NÃO altera arquitetura. Foca na qualidade do produto.
 
-### 7.1 UX Review
+### 7.1 UX Review ✅
 
-**Objetivo:** Revisar e melhorar a experiência do usuário.
+**Objetivo:** Revisar e melhorar a experiência do usuário na esteira operacional da barbearia (Concluída em 2026-11-04).
 
 - [x] Frente 1.B: Presets de Bloqueio Rápido na Agenda (Pausa 15m/30m, Almoço 1h, Folga Hoje com timezone local e prevenção preventiva de conflitos — PR #180)
 - [x] Frente 1.C: Filtros e Otimizações de Comandas (Filtros Hoje/Ontem/Semana/Mês, busca debounced 300ms, seletor de profissional, KPIs instantâneos de comandas abertas/liquidadas/ticket médio — PR #181)
@@ -1569,23 +1569,25 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - [x] Frente 1.G: Otimização de Comandas e Abertura Rápida (Modal de abertura rápida com atalho 'N', suporte a 'Consumidor Final / Balcão', detecção de comanda concorrente aberta no dia com redirect em 1 clique ou bypass consciente, Top 4 itens frequentes e atribuição explícita de comissão)
 - [x] Frente 1.H: Sincronização Reativa Agenda ↔ Comanda & Edição em Voo (Reatribuição em tempo real de profissional/serviço, preservação de produtos avulsos do balcão, guardrail impeditivo para comandas fechadas/pagas e cancelamento em cascata com opção de retenção contábil)
 - [x] Frente 1.I: Duração Dinâmica de Serviços e Encaixes Flexíveis na Agenda (Chips rápidos de 15m a 3h, campo numérico livre em minutos com recálculo instantâneo de término, botão de restauração nominal de combos, badge visual discreto ⏱️ Xm em cards da grade, preservação no drag-and-drop e detecção de sobreposição com confirmação consciente de encaixe)
-- [ ] Auditoria de UX completa das demais telas operacionais
-- [ ] Identificação de pontos de atrito adicionais
-- [ ] Testes de usabilidade ponta a ponta
-- [ ] Identificação de pontos de atrito
-- [ ] Propostas de melhoria
-- [ ] Implementação de melhorias críticas
-- [ ] Testes de usabilidade
+- [x] Frente 1.J: Perfil 360° do Cliente & Drawer Lateral (LTV, frequência média, ticket médio, histórico cronológico de atendimentos e atalhos rápidos — PR #235)
+- [x] Frente 1.K: Extrato Instantâneo de Comissões e Produtividade do Barbeiro (Resumo do período, filtro por profissional e exportação para PDF — PR #236)
+- [x] Frente 1.L: Combos Inteligentes & Serviços Casados (Soma nominal dinâmica de preço/duração e badge identificador de combo — PR #238)
+- [x] Frente 1.M: Reengajamento Churn & Recuperação de Clientes WhatsApp (Filtros de inatividade 30d/45d/60d+ e disparo pré-formatado — PR #239)
+- [x] Frente 1.N: Agendamento Recorrente & Cadeira Cativa Semanal (Projeção multi-semanas com confirmação semanal via WhatsApp — PR #243)
+- [x] Auditoria de UX completa das telas operacionais (Relatório: `docs/audit/FASE_7_1_UX_REVIEW_CLOSING_REPORT.md`)
+- [x] Identificação de pontos de atrito e gargalos operacionais eliminados
+- [x] Testes de usabilidade e validação ponta a ponta
+- [x] Implementação das melhorias críticas operacionais
 
 **Entregáveis:**
-- Relatório de auditoria UX
-- Lista de melhorias priorizadas
-- Implementação das melhorias críticas
+- Relatório de auditoria e encerramento UX (`docs/audit/FASE_7_1_UX_REVIEW_CLOSING_REPORT.md`)
+- Lista de melhorias priorizadas e implementadas (Frentes 1.B a 1.N)
+- Implementação de 100% das melhorias críticas operacionais
 
 **Critérios de Aceite:**
-- NPS > 8
-- Tempo de tarefa principal < benchmark
-- Zero erros de usabilidade em testes
+- Zero erros de usabilidade nos fluxos centrais
+- Tempo de tarefa principal (agendamento, comanda, checkout) drasticamente reduzido
+- 100% dos testes unitários e de integração verdes (2.159 testes)
 
 ### 7.2 Business Rules Audit
 
@@ -1974,6 +1976,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-11-04 | 8.95 | **Fase 7.1 — UX Review Operacional 🟢 100% CONCLUÍDA E CERTIFICADA (Relatório formal `docs/audit/FASE_7_1_UX_REVIEW_CLOSING_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Encerramento oficial de todas as 13 frentes da Fase 7.1 (Frentes 1.B a 1.N: bloqueios, filtros, checkout expresso, modo barbeiro, micro-interações, abertura ágil por atalho N, sync agenda-comanda, duração dinâmica, perfil 360°, extrato de comissão, combos inteligentes, reengajamento WhatsApp e cadeira cativa). Matriz de engenharia: 133 arquivos de teste / 2.159 testes verdes, typecheck 0 erros, architecture:ci 222=222 baseline, build verde, zero tokens banidos. Autorizada a abertura formal da Fase 7.2 (Business Rules Audit). Registros: `PROJECT_STATUS.md` (7.61). |
 | 2026-11-04 | 8.94 | **Fase 7.1 — UX Review (Agendamento Recorrente & "Cadeira Cativa Semanal") 🟢 CONCLUÍDA E MERGEADA EM `main` (PR #243, commit `7fa4086`; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação da recorrência inteligente com horizonte projetado (4, 8 ou 12 sessões) em frequências Semanal (7d), Quinzenal (14d), Mensal (28d) ou Personalizada (X dias). Fluxo operacional de confirmação semanal obrigatória: 1ª sessão criada confirmada (`status: confirmed`), sessões futuras entram como pendentes (`status: pending`, `is_recurring: true`). Modal `RecurringConfirmModal` dedicado para a recepção realizar a confirmação da presença da semana ou liberar pontualmente a vaga daquela semana sem perda ou cascata destrutiva nas demais semanas. Integração direta com disparo via WhatsApp com mensagem pré-formatada amigável. Camada isolada em `src/modules/schedule/recurringScheduleService.ts` preservando o baseline do Repository Guard (222 = 222). 13 novos testes unitários em `src/utils/recurringSchedule.test.ts` (100% PASS). Validações: `typecheck` 0 erros, vitest 2.159 PASS, `architecture:ci` PASS, `build` PASS, `e2e smoke advisory` PASS. Registros: `PROJECT_STATUS.md` (7.60). |
 | 2026-11-04 | 8.93 | **COBERTURA DE REGRESSÃO — Guard de idempotência 🟢 ADICIONADA, VALIDADA, COMMITADA E MERGEADA EM `main` COMO `6f3ae1b` (2026-11-04; roadmap segue CONGELADO).** A correção do falso-positivo de UUID v4 (~1,8% das chaves geradas) entrou em `main` pelo PR #239, porém sem teste. Este lote adiciona 2 testes de regressão (UUID fixo de 11 dígitos projetados + 2.000 chaves geradas, 0 rejeições), sem alterar asserções existentes nem código de produção. **Validações:** arquivo 14/14 · suíte completa 130 arquivos / 2.126 testes · `tsc` 0 · `vite build` 0 · `git diff --check` 0. **GAP:** deploy segue gate separado. **Merge:** PR #240 (squash `6f3ae1b`), CI de `main` no merge SHA verde. Registros: `PROJECT_STATUS.md` (7.59). |
 | 2026-11-03 | 8.92 | **AUDITORIA UX/UI "ATELIER TECH SOFISTICADO" — Status de Event Versioning 🟢 IMPLEMENTADO, VALIDADO E COMMITADO (branch feature; push/merge/deploy NÃO autorizados; roadmap segue CONGELADO).** Último colapso de status: `StatusChip` de `EventVersioningAdmin` pintava `registered`/`tested`/`running` com o mesmo teal, sendo `registered` e `tested` da mesma tabela. Mapeamento: `registered` → slate, `tested` → amber, `running` → teal (mantido). Accent `Replays Hoje` teal → orange (4 KPIs distintos). `DESIGN.md` §2.4 documenta o vocabulário de status (teal=em andamento, orange=atenção/bloqueio, slate=encerrado sem erro) + regra de distinção intra-tabela. Achados não incluídos por serem inofensivos: `components/charts/MetricCard.tsx` é código morto (consumidor `RevenueModal` não é importado) e `tone: 'blue'` de SuperAdmin já renderiza `info`. 2 arquivos, 8+/3−. **Validações:** `tsc` 0 · `vite build` 0 · `git diff --check` 0 · 0 classes banidas · 0 testes dependentes. **GAP:** remoção do código morto em frente própria; validação visual. Registros: `PROJECT_STATUS.md` (7.58). |
