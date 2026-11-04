@@ -194,6 +194,30 @@ describe('Payment & Webhook Idempotency Hardening', () => {
       );
     });
 
+    it('should_accept_valid_uuid_v4_when_digits_project_onto_cpf_range', () => {
+      // Regressão: UUID v4 legítimo cuja projeção de dígitos tem 11 caracteres (faixa CPF/telefone).
+      const key = 'abcdef12-3456-4abc-89ab-cdefabcdef12';
+
+      expect(key.replace(/\D/g, '')).toHaveLength(11);
+      expect(() => assertValidIdempotencyKey(key)).not.toThrow();
+    });
+
+    it('should_accept_every_generated_key_regardless_of_digit_distribution', () => {
+      // Regressão do falso-positivo de ~1,8%: nenhuma chave gerada pode ser rejeitada.
+      const rejected: string[] = [];
+
+      for (let i = 0; i < 2000; i++) {
+        const key = generateIdempotencyKey();
+        try {
+          assertValidIdempotencyKey(key);
+        } catch {
+          rejected.push(key);
+        }
+      }
+
+      expect(rejected).toEqual([]);
+    });
+
     it('should_preserve_exact_same_idempotency_key_across_network_retries', async () => {
       const capturedHeaders: Array<Record<string, string>> = [];
       let callCount = 0;
