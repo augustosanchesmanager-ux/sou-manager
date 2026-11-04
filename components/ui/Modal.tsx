@@ -58,13 +58,17 @@ const Modal: React.FC<ModalProps> = ({
             {/* Modal Card — z-10 so it sits above the backdrop */}
             <div
                 ref={modalCardRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-title"
                 className={`bg-white dark:bg-card-dark w-full ${maxWidthClasses[maxWidth]} rounded-2xl shadow-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] transition-all relative z-10`}
             >
                 <header className="px-6 py-4 border-b border-slate-200 dark:border-border-dark flex justify-between items-center bg-slate-50/50 dark:bg-white/5 shrink-0">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
+                    <h3 id="modal-title" className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
                     <button
                         onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-colors"
+                        aria-label="Fechar modal"
+                        className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                         <span className="material-symbols-outlined">close</span>
                     </button>

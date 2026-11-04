@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'warning';
+    variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost' | 'success' | 'warning';
     size?: 'sm' | 'md' | 'lg';
     isLoading?: boolean;
     leftIcon?: string;
@@ -19,14 +19,15 @@ const Button: React.FC<ButtonProps> = ({
     disabled,
     ...props
 }) => {
-    const baseStyles = 'inline-flex items-center justify-center font-bold rounded-lg transition-all focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed gap-2';
+    const baseStyles = 'inline-flex items-center justify-center font-bold rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-night disabled:opacity-50 disabled:cursor-not-allowed gap-2';
 
     const variants = {
         primary: 'bg-gradient-to-r from-primary to-primary-dark text-night font-bold hover:brightness-105 active:scale-[0.98] shadow-sm transition-all',
-        secondary: 'bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5',
-        danger: 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20',
-        success: 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20',
-        warning: 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/20',
+        secondary: 'bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 active:scale-[0.98]',
+        outline: 'border border-primary text-primary hover:bg-primary/10 active:scale-[0.98]',
+        danger: 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20 active:scale-[0.98]',
+        success: 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 active:scale-[0.98]',
+        warning: 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/20 active:scale-[0.98]',
         ghost: 'bg-transparent text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white',
     };
 
@@ -43,7 +44,9 @@ const Button: React.FC<ButtonProps> = ({
             {...props}
         >
             {isLoading ? (
-                <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span className={`size-4 border-2 rounded-full animate-spin ${
+                    variant === 'primary' ? 'border-night/30 border-t-night' : 'border-white/30 border-t-white'
+                }`}></span>
             ) : leftIcon ? (
                 <span className="material-symbols-outlined text-lg">{leftIcon}</span>
             ) : null}
