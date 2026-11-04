@@ -25,6 +25,7 @@ import {
   DayTimeline,
 } from '../components/dashboard';
 import ActivityTimelineModal from '../components/dashboard/ActivityTimelineModal';
+import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
 
 const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
   const now = new Date();
@@ -89,6 +90,7 @@ const Dashboard: React.FC = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isActivityTimelineOpen, setIsActivityTimelineOpen] = useState(false);
+  const [showBarberStatement, setShowBarberStatement] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -257,6 +259,7 @@ const Dashboard: React.FC = () => {
         onOpenCash={() => navigate('/cash-closing')}
         onCloseCash={() => navigate('/cash-closing')}
         onOpenActivityTimeline={() => setIsActivityTimelineOpen(true)}
+        onOpenBarberStatement={() => setShowBarberStatement(true)}
       />
 
       {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
@@ -365,6 +368,15 @@ const Dashboard: React.FC = () => {
       <ActivityTimelineModal
         isOpen={isActivityTimelineOpen}
         onClose={() => setIsActivityTimelineOpen(false)}
+      />
+
+      <BarberCommissionStatementModal
+        isOpen={showBarberStatement}
+        onClose={() => setShowBarberStatement(false)}
+        tenantId={tenantId}
+        userRole={accessRole}
+        currentUserId={user?.id}
+        currentUserEmail={user?.email}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
