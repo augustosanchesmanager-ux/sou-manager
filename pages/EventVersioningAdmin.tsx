@@ -195,8 +195,8 @@ function StatusChip({ status }: { status: string }) {
     active: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
     prepared: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800',
     deprecated: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
-    registered: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
-    tested: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
+    registered: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+    tested: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800',
     running: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800',
     completed: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
     failed: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
@@ -310,7 +310,7 @@ function OverviewTab() {
         <MetricCard icon="bolt" label="Eventos Registrados" value={EVENT_TYPES.length} accent="bg-primary" sub={`${activeCount} ativos, ${preparedCount} preparados`} />
         <MetricCard icon="check_circle" label="Health Score" value={`${replaySuccessRate}%`} accent="bg-emerald-500" sub="Taxa de sucesso geral" />
         <MetricCard icon="groups" label="Consumers Ativos" value={totalSubscribers} accent="bg-teal-500" sub="Subscribers registrados" />
-        <MetricCard icon="replay" label="Replays Hoje" value={REPLAY_JOBS.length} accent="bg-teal-500" sub={`${REPLAY_JOBS.filter(j => j.status === 'completed').length} concluidos`} />
+        <MetricCard icon="replay" label="Replays Hoje" value={REPLAY_JOBS.length} accent="bg-orange-500" sub={`${REPLAY_JOBS.filter(j => j.status === 'completed').length} concluidos`} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

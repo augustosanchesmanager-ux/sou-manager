@@ -149,6 +149,11 @@ Todas as cores do sistema são declaradas no `@theme` de [index.css](file:///c:/
 - **Success Green** (`#178A50` / `var(--color-success)`): Indicadores positivos, comanda paga, faturamento, horário confirmado.
 - **Danger Red** (`#C92A2A` / `var(--color-danger)`): Atrasos graves, cancelamento, faturamento negativo, erros operacionais.
 - **Warning Amber** (`#F59E0B` / `var(--color-warning)`): Atenção, encaixes pendentes de confirmação, clientes aguardando na recepção.
+- **Info Teal** (`#14B8A6` / Turquesa Atelier): Informativo ou **em andamento** — aguardando ativação, em análise, validado, executando.
+- **Attention Orange** (`#F97316` / Cobre Vibrante): Atenção ou **bloqueio operacional** — bloqueada, pedido enviado, aguardando ação externa.
+- **Neutral Slate** (escala `slate`): Neutro ou **encerrado sem erro** — registrado, estornado, usado, inativo, cancelado.
+
+> **Regras:** dourado (`primary`) **não é cor de status** — é ênfase de CTA (§2.6). Azul/roxo seguem banidos (§3). Cada estado distinto deve ter cor distinta **dentro da mesma tabela/lista** (ver §8).
 
 ### 2.5 Chips de Identidade dos Barbeiros (Paleta Atelier)
 Para diferenciar colunas e agendamentos de cada profissional sem recorrer a cores conflitantes:
