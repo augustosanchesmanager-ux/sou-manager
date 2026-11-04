@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase, getClientForTable } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { getCatalogDisplayName } from '../src/lib/catalog/display';
+import {
+  calculateComboTotals,
+  formatComboSummary,
+  type ComboDiscountType,
+  type ServiceItemForCombo,
+} from '../src/utils/comboCalculation';
 
 interface Service {
   id: string;
@@ -14,6 +20,11 @@ interface Service {
   duration: number;
   active: boolean;
   show_in_booking?: boolean;
+  description?: string;
+  is_combo?: boolean;
+  combo_service_ids?: string[];
+  combo_discount_amount?: number;
+  combo_discount_type?: ComboDiscountType;
 }
 
 const categories = ['Cabelo', 'Barba', 'Combo', 'Química', 'Acabamento', 'Outros'];
@@ -68,7 +79,87 @@ const Services: React.FC = () => {
   };
 
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: '', category: 'Cabelo', price: '', duration: '30', active: true, show_in_booking: true });
+  const [form, setForm] = useState({
+    name: '',
+    category: 'Cabelo',
+    price: '',
+    duration: '30',
+    active: true,
+    show_in_booking: true,
+    is_combo: false,
+    combo_service_ids: [] as string[],
+    combo_discount_amount: '0',
+    combo_discount_type: 'fixed' as ComboDiscountType,
+  });
+
+  const isComboMode = form.category === 'Combo' || form.is_combo;
+
+  const availableServicesForCombo = useMemo(() => {
+    return services.filter(s => {
+      if (!s.active) return false;
+      if (s.is_combo || s.category === 'Combo') return false;
+      if (editingService && s.id === editingService.id) return false;
+      return true;
+    });
+  }, [services, editingService]);
+
+  const selectedServicesForCombo = useMemo(() => {
+    return services
+      .filter(s => form.combo_service_ids.includes(s.id))
+      .map(s => ({
+        id: s.id,
+        name: s.name,
+        price: Number(s.price) || 0,
+        duration: Number(s.duration) || 0,
+      }));
+  }, [services, form.combo_service_ids]);
+
+  const comboTotals = useMemo(() => {
+    if (!isComboMode) {
+      return { sumPrice: 0, sumDuration: 0, discountValue: 0, finalPrice: 0, savings: 0 };
+    }
+    return calculateComboTotals({
+      services: selectedServicesForCombo,
+      discountAmount: parseFloat(form.combo_discount_amount) || 0,
+      discountType: form.combo_discount_type,
+    });
+  }, [isComboMode, selectedServicesForCombo, form.combo_discount_amount, form.combo_discount_type]);
+
+  const applyComboSuggestions = () => {
+    if (selectedServicesForCombo.length === 0) return;
+    setForm(prev => ({
+      ...prev,
+      price: comboTotals.finalPrice.toFixed(2),
+      duration: comboTotals.sumDuration.toString(),
+    }));
+  };
+
+  const handleToggleComboService = (serviceId: string) => {
+    setForm(prev => {
+      const exists = prev.combo_service_ids.includes(serviceId);
+      const nextIds = exists
+        ? prev.combo_service_ids.filter(id => id !== serviceId)
+        : [...prev.combo_service_ids, serviceId];
+      return { ...prev, combo_service_ids: nextIds };
+    });
+  };
+
+  const getComboDetails = useCallback((service: Service) => {
+    if (!service.is_combo && service.category !== 'Combo') return null;
+    const itemIds = service.combo_service_ids || [];
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return null;
+    const included = services.filter(s => itemIds.includes(s.id));
+    if (included.length === 0) return null;
+    const names = included.map(s => s.name);
+    const sumPrice = included.reduce((acc, s) => acc + (Number(s.price) || 0), 0);
+    const savings = Math.max(0, sumPrice - Number(service.price));
+    return {
+      names,
+      sumPrice,
+      savings,
+      summary: formatComboSummary({ includedServiceNames: names, savings }),
+    };
+  }, [services]);
 
   const fetchServices = useCallback(async () => {
     if (!tenantId) {
@@ -109,12 +200,24 @@ const Services: React.FC = () => {
 
   const openNewForm = () => {
     setEditingService(null);
-    setForm({ name: '', category: 'Cabelo', price: '', duration: '30', active: true, show_in_booking: true });
+    setForm({
+      name: '',
+      category: 'Cabelo',
+      price: '',
+      duration: '30',
+      active: true,
+      show_in_booking: true,
+      is_combo: false,
+      combo_service_ids: [],
+      combo_discount_amount: '0',
+      combo_discount_type: 'fixed',
+    });
     setView('form');
   };
 
   const openEditForm = (service: Service) => {
     setEditingService(service);
+    const isCombo = Boolean(service.is_combo || service.category === 'Combo');
     setForm({
       name: service.name,
       category: service.category,
@@ -122,12 +225,17 @@ const Services: React.FC = () => {
       duration: service.duration.toString(),
       active: service.active,
       show_in_booking: service.show_in_booking ?? true,
+      is_combo: isCombo,
+      combo_service_ids: Array.isArray(service.combo_service_ids) ? service.combo_service_ids : [],
+      combo_discount_amount: (service.combo_discount_amount ?? 0).toString(),
+      combo_discount_type: (service.combo_discount_type as ComboDiscountType) || 'fixed',
     });
     setView('form');
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const isCombo = form.category === 'Combo' || form.is_combo;
     const payload = {
       name: form.name,
       category: form.category,
@@ -135,6 +243,10 @@ const Services: React.FC = () => {
       duration: parseInt(form.duration) || 30,
       active: form.active,
       show_in_booking: form.show_in_booking,
+      is_combo: isCombo,
+      combo_service_ids: isCombo ? form.combo_service_ids : [],
+      combo_discount_amount: isCombo ? (parseFloat(form.combo_discount_amount) || 0) : 0,
+      combo_discount_type: isCombo ? form.combo_discount_type : 'fixed',
       tenant_id: tenantId
     };
 
@@ -230,7 +342,16 @@ const Services: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Categoria</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                <select
+                  value={form.category}
+                  onChange={(e) => {
+                    const nextCat = e.target.value;
+                    setForm(prev => ({
+                      ...prev,
+                      category: nextCat,
+                      is_combo: nextCat === 'Combo' ? true : prev.is_combo,
+                    }));
+                  }}
                   className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
                   {categories.map(c => <option key={c} value={c} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{getCategoryLabel(c)}</option>)}
                 </select>
@@ -242,6 +363,178 @@ const Services: React.FC = () => {
                   placeholder="45.00" />
               </div>
             </div>
+
+            {/* Alternar modo Combo quando categoria não for Combo */}
+            {form.category !== 'Combo' && (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-primary">layers</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Definir este item como um Pacote Promocional / Combo
+                  </span>
+                </div>
+                <label className="flex items-center cursor-pointer">
+                  <div
+                    className={`relative w-10 h-5 rounded-full transition-colors ${form.is_combo ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}
+                    onClick={() => setForm(prev => ({ ...prev, is_combo: !prev.is_combo }))}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_combo ? 'left-[22px]' : 'left-0.5'}`}></div>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Seção de Composição do Combo Inteligente */}
+            {isComboMode && (
+              <div className="p-4 sm:p-5 rounded-xl border border-primary/25 bg-primary/[0.03] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">layers</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Procedimentos do Combo</h3>
+                      <p className="text-xs text-slate-500">Selecione os procedimentos inclusos e defina o desconto promocional</p>
+                    </div>
+                  </div>
+                  {selectedServicesForCombo.length > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-primary/20 text-primary">
+                      {selectedServicesForCombo.length} item(ns)
+                    </span>
+                  )}
+                </div>
+
+                {/* Lista de Procedimentos Disponíveis */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase text-slate-500">
+                    Serviços Disponíveis para o Pacote
+                  </label>
+                  {availableServicesForCombo.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10">
+                      Nenhum outro serviço individual cadastrado para compor o combo.
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 p-1 border border-slate-200 dark:border-white/10 rounded-lg bg-white dark:bg-background-dark">
+                      {availableServicesForCombo.map(item => {
+                        const isSelected = form.combo_service_ids.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => handleToggleComboService(item.id)}
+                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors text-xs select-none ${
+                              isSelected
+                                ? 'bg-primary/15 border border-primary/40 text-slate-900 dark:text-white'
+                                : 'hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 border border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}} // tratado no div container
+                                className="rounded text-primary focus:ring-primary h-4 w-4 border-slate-300 dark:border-white/20 pointer-events-none"
+                              />
+                              <span className="font-medium">{item.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-500">
+                                {getCategoryLabel(item.category)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-right">
+                              <span className="text-slate-400">{item.duration} min</span>
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">R$ {Number(item.price).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Painel de Cálculo e Desconto */}
+                {selectedServicesForCombo.length > 0 && (
+                  <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-500 block">Soma de Tabela:</span>
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                          R$ {comboTotals.sumPrice.toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Duração Agregada:</span>
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                          {comboTotals.sumDuration} min
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Desconto de Pacote */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-white/10">
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                        Desconto do Pacote
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={form.combo_discount_amount}
+                          onChange={(e) => setForm({ ...form, combo_discount_amount: e.target.value })}
+                          className="flex-1 bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="0.00"
+                        />
+                        <div className="flex rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, combo_discount_type: 'fixed' })}
+                            className={`px-3 py-2 font-bold transition-colors ${
+                              form.combo_discount_type === 'fixed'
+                                ? 'bg-primary text-night'
+                                : 'bg-white dark:bg-card-dark text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'
+                            }`}
+                          >
+                            R$
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, combo_discount_type: 'percentage' })}
+                            className={`px-3 py-2 font-bold transition-colors ${
+                              form.combo_discount_type === 'percentage'
+                                ? 'bg-primary text-night'
+                                : 'bg-white dark:bg-card-dark text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'
+                            }`}
+                          >
+                            %
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Resumo da Sugestão & Botão de Aplicar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-white/10">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Preço Sugerido:</span>
+                          <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                            R$ {comboTotals.finalPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        {comboTotals.savings > 0 && (
+                          <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 block">
+                            Economia de R$ {comboTotals.savings.toFixed(2)} ({((comboTotals.savings / (comboTotals.sumPrice || 1)) * 100).toFixed(0)}%)
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={applyComboSuggestions}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary font-bold text-xs transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">auto_fix_high</span>
+                        Aplicar ao Preço e Duração
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -412,18 +705,41 @@ const Services: React.FC = () => {
                 {filtered.map(service => {
                   const displayName = getCatalogDisplayName(service, appSlug);
                   const isOnline = service.show_in_booking ?? true;
+                  const comboDetails = getComboDetails(service);
                   return (
                     <tr key={service.id} className={`hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors ${!service.active ? 'opacity-60' : ''}`}>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                            <span className="material-symbols-outlined text-sm">content_cut</span>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            comboDetails ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'
+                          }`}>
+                            <span className="material-symbols-outlined text-sm">
+                              {comboDetails ? 'layers' : 'content_cut'}
+                            </span>
                           </div>
                           <div>
-                            <span className="font-semibold text-slate-900 dark:text-white block">{displayName}</span>
-                            {service.description && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-900 dark:text-white block">{displayName}</span>
+                              {comboDetails && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-500">
+                                  Combo
+                                </span>
+                              )}
+                            </div>
+                            {comboDetails ? (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className="text-xs text-slate-400">
+                                  {comboDetails.names.join(' + ')}
+                                </span>
+                                {comboDetails.savings > 0 && (
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                    Economia: R$ {comboDetails.savings.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : service.description ? (
                               <span className="text-xs text-slate-400 truncate max-w-xs block">{service.description}</span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -480,11 +796,20 @@ const Services: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(service => {
             const displayName = getCatalogDisplayName(service, appSlug);
+            const comboDetails = getComboDetails(service);
             return (
             <div key={service.id} className={`bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-5 hover:shadow-md transition-all group ${!service.active ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{displayName}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{displayName}</h4>
+                    {comboDetails && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                        <span className="material-symbols-outlined text-[11px]">layers</span>
+                        Combo
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[10px] font-bold uppercase text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">{getCategoryLabel(service.category)}</span>
                     <span
@@ -510,6 +835,27 @@ const Services: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Detalhes do Combo no Card */}
+              {comboDetails && (
+                <div className="mb-3 p-2.5 rounded-lg bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 space-y-1">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="material-symbols-outlined text-xs text-primary">layers</span>
+                    <span>Itens inclusos:</span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                    {comboDetails.names.join(' + ')}
+                  </p>
+                  {comboDetails.savings > 0 && (
+                    <div className="pt-0.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <span className="material-symbols-outlined text-xs">savings</span>
+                        Economia: R$ {comboDetails.savings.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex items-end justify-between mt-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm">
