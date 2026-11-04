@@ -1609,24 +1609,27 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - Zero inconsistências
 - Regras documentadas e cobertas por testes automatizados sem regressões
 
-### 7.3 Functional Consistency Audit
+### 7.3 Functional Consistency Audit ✅
 
-**Objetivo:** Garantir consistência funcional em todo o sistema.
+**Objetivo:** Garantir consistência funcional em todo o sistema (Concluída em 2026-11-04).
 
-- [ ] Fluxos principais testados
-- [ ] Consistência de dados verificada
-- [ ] Validações de entrada verificadas
-- [ ] Mensagens de erro consistentes
+- [x] Fluxos principais testados (5 fluxos operacionais centrais: Agenda, Comandas/Balcão, Checkout, Fechamento de Caixa, Clientes/Club)
+- [x] Consistência de dados e formatos verificada (celular brasileiro com nono dígito, E.164 WhatsApp, moeda BRL e durações da grade)
+- [x] Validações de entrada padronizadas (`src/utils/functionalValidation.ts`)
+- [x] Dicionário canônico de mensagens de erro amigáveis em pt-BR eliminando vazamento de códigos PostgREST/Postgres (`src/utils/businessErrorMessages.ts`)
+- [x] Suíte de testes automatizados de consistência funcional (`tests/functional-consistency/fase7_3_functional_consistency.test.ts` — 19/19 PASS)
+- [x] Relatório formal de validação e certificação (`docs/audit/FASE_7_3_FUNCTIONAL_CONSISTENCY_VALIDATION_REPORT.md`)
 
 **Entregáveis:**
-- Relatório de consistência
-- Lista de inconsistências
-- Correções aplicadas
+- Inventário de consistência funcional (`docs/audit/FASE_7_3_FUNCTIONAL_CONSISTENCY_INVENTORY.md`)
+- Relatório de validação (`docs/audit/FASE_7_3_FUNCTIONAL_CONSISTENCY_VALIDATION_REPORT.md`)
+- Utilitários puros de mensageria e validação funcional (`src/utils/businessErrorMessages.ts`, `src/utils/functionalValidation.ts`)
+- Suíte automatizada de testes (19 testes 100% PASS)
 
 **Critérios de Aceite:**
 - Zero inconsistências funcionais
-- Mensagens de erro claras e consistentes
-- Validações funcionando corretamente
+- Mensagens de erro claras, humanas e consistentes em pt-BR
+- Validações funcionando corretamente em todos os fluxos operacionais
 
 ### 7.4 UI Standardization
 
@@ -1977,6 +1980,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-11-04 | 8.97 | **Fase 7.3 — Auditoria de Consistência Funcional (Functional Consistency Audit) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_3_FUNCTIONAL_CONSISTENCY_VALIDATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Homologação e certificação da consistência funcional nos 5 fluxos operacionais centrais do SMG Barber (Agenda, Comandas/Balcão PDV, Checkout/Pagamentos, Fechamento de Caixa/Comissões e Clientes/Club dos Chefes). Criação do Dicionário Canônico de Mensagens de Negócio em pt-BR (`src/utils/businessErrorMessages.ts`) eliminando vazamentos de erros técnicos PostgREST/PostgreSQL (`23505`, `23P01`, `42501`, `P0001`..`P0004`, `42703`). Padronização de validações e máscaras puras em `src/utils/functionalValidation.ts` (celular BR com nono dígito, E.164 WhatsApp, moeda BRL e durações da grade). Suíte automatizada `tests/functional-consistency/fase7_3_functional_consistency.test.ts` com 19/19 testes passando (100% PASS). Matriz consolidada de engenharia: 134 arquivos de teste / 2.200 testes verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo em 12.23s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.4 (UI Standardization). Registros: `PROJECT_STATUS.md` (7.63). |
 | 2026-11-04 | 8.96 | **Fase 7.2 — Auditoria de Regras de Negócio (Business Rules Audit) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_2_BUSINESS_RULES_VALIDATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Conclusão e homologação de 100% das 27 regras de negócio canônicas distribuídas nos 8 domínios funcionais do SMG Barber (RN-AUTH, RN-SCH, RN-CMD, RN-PAY, RN-COM, RN-PAYROLL, RN-CLUB, RN-CLI) e dos 4 casos extremos financeiros multi-domínio (Decisão 2-A do PO): Comanda Multi-Barbeiro + Balcão, Rateio Proporcional de Desconto em Combos, Pagamento Misto Créditos Club + Cartão e Dedução Líquida de Taxas de Maquininha da Comissão do Barbeiro. Suíte canônica `tests/business-rules/fase7_2_business_rules.test.ts` com 33/33 testes passando (100% PASS). Matriz consolidada de engenharia: 133 arquivos de testes / 2.181 testes unitários verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite concluído em 10.97s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.3 (Functional Audit). Registros: `PROJECT_STATUS.md` (7.62). |
 | 2026-11-04 | 8.95 | **Fase 7.1 — UX Review Operacional 🟢 100% CONCLUÍDA E CERTIFICADA (Relatório formal `docs/audit/FASE_7_1_UX_REVIEW_CLOSING_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Encerramento oficial de todas as 13 frentes da Fase 7.1 (Frentes 1.B a 1.N: bloqueios, filtros, checkout expresso, modo barbeiro, micro-interações, abertura ágil por atalho N, sync agenda-comanda, duração dinâmica, perfil 360°, extrato de comissão, combos inteligentes, reengajamento WhatsApp e cadeira cativa). Matriz de engenharia: 133 arquivos de teste / 2.159 testes verdes, typecheck 0 erros, architecture:ci 222=222 baseline, build verde, zero tokens banidos. Autorizada a abertura formal da Fase 7.2 (Business Rules Audit). Registros: `PROJECT_STATUS.md` (7.61). |
 | 2026-11-04 | 8.94 | **Fase 7.1 — UX Review (Agendamento Recorrente & "Cadeira Cativa Semanal") 🟢 CONCLUÍDA E MERGEADA EM `main` (PR #243, commit `7fa4086`; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação da recorrência inteligente com horizonte projetado (4, 8 ou 12 sessões) em frequências Semanal (7d), Quinzenal (14d), Mensal (28d) ou Personalizada (X dias). Fluxo operacional de confirmação semanal obrigatória: 1ª sessão criada confirmada (`status: confirmed`), sessões futuras entram como pendentes (`status: pending`, `is_recurring: true`). Modal `RecurringConfirmModal` dedicado para a recepção realizar a confirmação da presença da semana ou liberar pontualmente a vaga daquela semana sem perda ou cascata destrutiva nas demais semanas. Integração direta com disparo via WhatsApp com mensagem pré-formatada amigável. Camada isolada em `src/modules/schedule/recurringScheduleService.ts` preservando o baseline do Repository Guard (222 = 222). 13 novos testes unitários em `src/utils/recurringSchedule.test.ts` (100% PASS). Validações: `typecheck` 0 erros, vitest 2.159 PASS, `architecture:ci` PASS, `build` PASS, `e2e smoke advisory` PASS. Registros: `PROJECT_STATUS.md` (7.60). |
