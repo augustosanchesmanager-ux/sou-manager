@@ -1,100 +1,62 @@
-# SMG — Sou.Manager
+# Central de Treinamento & Capacitação — SMG Barber
+## The Barbershop Intelligence · Guia do Usuário e Operação
 
-## Documentação de Treinamento
-
----
-
-## Introdução
-
-O **SMG (Sou.Manager)** é um SaaS de gestão completo para barbearias, projetado para simplificar a operação do dia a dia, automatizar processos financeiros e elevar a experiência do cliente. Esta documentação de treinamento foi elaborada para guiar cada profissional que utiliza a plataforma, desde o barbeiro até o administrador do sistema.
-
----
-
-## Sumário
-
-- [Perfis de Treinamento](#perfis-de-treinamento)
-- [Documentação de Apoio](#documentação-de-apoio)
-- [Como Usar Esta Documentação](#como-usar-esta-documentação)
-- [Estrutura de Cada Perfil](#estrutura-de-cada-perfil)
-- [Versão](#versão)
+> **SMG Barber — SMG Intelligence**<br />
+> **Data de Atualização:** 2026-11-04<br />
+> **Status:** CANÔNICO E RATIFICADO<br />
+> **Responsável Formal:** Augusto (PO)<br />
+> **Público-Alvo:** Donos de Barbearia, Gerentes, Barbeiros e Recepcionistas
 
 ---
 
-## Perfis de Treinamento
+## 1. Bem-vindo ao SMG Barber
 
-Cada perfil foi desenhado para o papel específico do profissional dentro da barbearia. Siga o link correspondente à sua função:
+O **SMG Barber** é a plataforma operacional de precisão para barbearias de alto padrão. Ele combina a agilidade do balcão físico com a inteligência preditiva de dados para maximizar a retenção de clientes, o ticket médio e o lucro real por cadeira.
 
-| Perfil | Descrição | Acesso |
-|--------|-----------|--------|
-| **Barbeiro** | Agendamentos, comandas, atendimento ao cliente e comissões | [docs/barber/](../barber/) |
-| **Recepcionista** | Recebimento, agendamentos, cadastros e atendimento ao balcão | [docs/receptionist/](../receptionist/) |
-| **Gerente** | Supervisão operacional, relatórios, equipe e controle diário | [docs/manager/](../manager/) |
-| **Financeiro** | Fechamento de caixa, comissões, fluxo de caixa e relatórios financeiros | [docs/finance/](../finance/) |
-| **Administrador do Sistema** | Configurações gerais, usuários, permissões e manutenção da plataforma | [docs/administrator/](../administrator/) |
+Esta Central de Treinamento reúne todo o conhecimento necessário para que cada membro da equipe domine o sistema em sua rotina diária.
 
 ---
 
-## Documentação de Apoio
+## 2. Mapa da Documentação de Treinamento
 
-Recursos complementares disponíveis para consulta e aprofundamento:
-
-| Documento | Descrição | Acesso |
-|-----------|-----------|--------|
-| **FAQ** | Perguntas frequentes e respostas rápidas | [docs/faq/](../faq/) |
-| **Checklists** | Listas de verificação para rotinas e aberturas/fechamentos | [docs/checklists/](../checklists/) |
-| **Exercícios** | Práticas guiadas para fixação do conteúdo | [docs/exercises/](../exercises/) |
-| **Certificação** | Provas e critérios de certificação por perfil | [docs/certification/](../certification/) |
-| **Vídeos** | Tutoriais em vídeo para cada módulo | [docs/videos/](../videos/) |
-| **Academia SMG** | Trilhas de aprendizado completas e jornadas de evolução | [docs/academy/](../academy/) |
+| Manual | Objetivo | A quem se destina | Arquivo |
+|---|---|---|---|
+| **Guia de Início Rápido** | Colocar a barbearia operando em 15 minutos (Quickstart) | Todos os novos usuários e administradores | [`GUIA_INICIO_RAPIDO.md`](GUIA_INICIO_RAPIDO.md) |
+| **Manual do Usuário Completo** | Guia detalhado de todos os 8 módulos operacionais do sistema | Uso diário, consulta e aprofundamento | [`MANUAL_DO_USUARIO_SMG_BARBER.md`](MANUAL_DO_USUARIO_SMG_BARBER.md) |
+| **Tutoriais por Papel (Role)** | Passo a passo das rotinas de cada profissional na barbearia | Recepcionistas, Barbeiros e Gerentes/Donos | [`TUTORIAIS_POR_ROLE.md`](TUTORIAIS_POR_ROLE.md) |
+| **FAQ Operacional** | Dúvidas práticas, atalhos de teclado e contingência de balcão | Operadores de balcão, caixa e suporte | [`FAQ_OPERACIONAL.md`](FAQ_OPERACIONAL.md) |
 
 ---
 
-## Como Usar Esta Documentação
+## 3. Trilhas de Aprendizado Rápidas
 
-Recomendamos a seguinte ordem de leitura para cada perfil:
+### 💈 Para Barbeiros & Profissionais da Bancada
+1. Acesse o **Modo Barbeiro Mobile** pelo smartphone.
+2. Consulte seus agendamentos do dia em tempo real.
+3. Lance os produtos e adicionais consumidos pelo cliente na cadeira.
+4. Acompanhe seu extrato de comissão líquida a cada atendimento finalizado.
+👉 Consulte o roteiro em: [`TUTORIAIS_POR_ROLE.md#trilha-do-barbeiro`](TUTORIAIS_POR_ROLE.md#2-trilha-do-barbeiro--profissional-da-bancada)
 
-1. **Comece pelo índice do seu perfil** — leia o objetivo, pré-requisitos e módulos obrigatórios.
-2. **Siga a ordem dos módulos** — cada módulo foi pensado para buildar sobre o anterior.
-3. **Execute os exercícios** — pratique cada funcionalidade antes de usar em produção.
-4. **Consulte o FAQ** — tire dúvidas comuns antes de abrir um chamado de suporte.
-5. **Revise os checklists** — use como referência nas rotinas diárias.
-6. **Assista aos vídeos** — complementar para visualizações práticas dos fluxos.
+### 🛎️ Para Recepcionistas & Operadores de Caixa
+1. Abra comandas em segundos pressionando a tecla de atalho **`N`**.
+2. Gerencie a fila de cadeiras, encaixes de clientes e agendamentos recorrentes (*Cadeira Cativa Semanal*).
+3. Efetue o **Checkout Expresso** com suporte a pagamentos mistos (dinheiro, PIX, cartão e créditos do Club dos Chefes).
+4. Emita o comprovante de pagamento e libere a vaga com segurança.
+👉 Consulte o roteiro em: [`TUTORIAIS_POR_ROLE.md#trilha-da-recepcao`](TUTORIAIS_POR_ROLE.md#1-trilha-da-recepção--operador-de-caixa)
 
-> **Dica:** Profissionais com experiência prévida em sistemas de gestão podem pular para módulos avançados, mas recomendamos ao menos uma leitura rápida do índice para garantir que nenhuma funcionalidade específica do SMG passe despercebida.
-
----
-
-## Estrutura de Cada Perfil
-
-Cada documento de perfil segue uma estrutura padrão para garantir consistência e facilitar a navegação:
-
-| Seção | Descrição |
-|-------|-----------|
-| **Índice** | Visão geral do perfil e navegação entre módulos |
-| **Objetivo** | O que o profissional será capaz de fazer ao concluir |
-| **Pré-requisitos** | Conhecimentos e acessos necessários antes de iniciar |
-| **Tempo Estimado** | Duração prevista para conclusão do treinamento |
-| **Módulos** | Conteúdo principal organizado em módulos temáticos |
-| **Checklist** | Itens de verificação para confirmar o domínio de cada módulo |
-| **FAQ** | Perguntas e respostas específicas do perfil |
-| **Erros Comuns** | Armadilhas frequentes e como evitá-las |
-| **Procedimentos** | Passo a passo detalhado das operações principais |
-| **Boas Práticas** | Recomendações de uso para maximizar os resultados |
-| **Fluxos** | Diagramas e sequências dos principais processos |
-| **Cenários** | Simulações reais para prática situacional |
-| **Exercícios** | Atividades práticas com gabarito |
+### 👔 Para Donos & Gerentes Gerais
+1. Monitore a saúde do negócio no **Cockpit Diário** com fuso de Brasília e 6 KPIs em tempo real.
+2. Realize o **Fechamento de Caixa** diário sem divergência entre saldo físico e contábil.
+3. Audite as comissões e deduções líquidas de taxas de maquininha.
+4. Gerencie os assinantes do **Club dos Chefes** e dispare mensagens automáticas de reengajamento via WhatsApp.
+👉 Consulte o roteiro em: [`TUTORIAIS_POR_ROLE.md#trilha-do-dono`](TUTORIAIS_POR_ROLE.md#3-trilha-do-dono--gerente-geral)
 
 ---
 
-## Versão
+## 4. Atalhos de Teclado Essenciais no Balcão
 
-| Campo | Valor |
-|-------|-------|
-| Versão | 1.0 |
-| Data | Julho de 2026 |
-| Plataforma | SMG — Sou.Manager |
-| Ambiente | Produção |
-
----
-
-*SMG — Sou.Manager © 2026. Todos os direitos reservados.*
+| Tecla de Atalho | Ação Executada | Onde funciona |
+|:---:|---|---|
+| **`N`** | Abre o modal de **Abertura Rápida de Comanda** | Qualquer tela do sistema |
+| **`Escape`** | Fecha qualquer modal aberto sem salvar alterações | Em qualquer modal |
+| **`Enter`** | Confirma a ação primária do formulário ativo | Em modais e formulários |
