@@ -4,6 +4,7 @@ import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { AuditAdjustmentButton } from '../components/audit';
+import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
 import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
@@ -492,10 +493,11 @@ const getLineStatusBucket = (line: CommissionLine) => {
 };
 
 const Commissions: React.FC = () => {
-    const { tenantId } = useAuth();
+    const { tenantId, user, accessRole } = useAuth();
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [showStatementModal, setShowStatementModal] = useState(false);
     const [commissionLines, setCommissionLines] = useState<CommissionLine[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [professionalFilter, setProfessionalFilter] = useState('all');
@@ -1076,6 +1078,13 @@ const Commissions: React.FC = () => {
                         }}
                         defaultAdjustmentType="commission_correction"
                     />
+                    <Button
+                        variant="secondary"
+                        leftIcon="account_balance_wallet"
+                        onClick={() => setShowStatementModal(true)}
+                    >
+                        Extrato do Barbeiro
+                    </Button>
                     <Button variant="secondary" leftIcon="download" onClick={exportCommissions}>
                         Exportar
                     </Button>
@@ -1451,6 +1460,15 @@ const Commissions: React.FC = () => {
                     </div>
                 )}
             </Modal>
+
+            <BarberCommissionStatementModal
+                isOpen={showStatementModal}
+                onClose={() => setShowStatementModal(false)}
+                tenantId={tenantId}
+                userRole={accessRole}
+                currentUserId={user?.id}
+                currentUserEmail={user?.email}
+            />
         </div>
     );
 };
