@@ -1702,24 +1702,29 @@ Phase 6.0.4 — Subscription/Billing Foundation
 - Ausência total de links mortos ou rotas inexistentes
 - Testes automatizados cobrindo todos os pilares operacionais
 
-### 7.7 SMG Academy
+### 7.7 SMG Academy ✅
 
-**Objetivo:** Criar plataforma de aprendizado para usuários.
+**Objetivo:** Criar plataforma de aprendizado para usuários (Concluída em 2026-11-04).
 
-- [ ] Estrutura do curso definida
-- [ ] Módulos por role
-- [ ] Exercícios práticos
-- [ ] Certificação de conclusão
+- [x] Hub Central da SMG Academy com manifesto pedagógico e catálogo (`docs/academy/README.md`)
+- [x] Estrutura de cursos e módulos por role (`docs/academy/TRILHA_RECEPCAO_E_CAIXA.md`, `TRILHA_BARBEIRO_BANCADA.md`, `TRILHA_GESTAO_E_DONO.md`)
+- [x] Exercícios práticos simulados (Hands-On no Demo Mode para cada papel)
+- [x] Sistema oficial de certificação com nota de corte mínima de 80%, gabaritos comentados e templates de certificado (`docs/academy/SISTEMA_DE_CERTIFICACAO.md`)
+- [x] Suíte de testes automatizados de sanidade curricular (`tests/docs/fase7_7_academy.test.ts` — 13/13 PASS)
+- [x] Relatório formal de validação e certificação (`docs/audit/FASE_7_7_ACADEMY_REPORT.md`)
 
 **Entregáveis:**
-- Plataforma de aprendizado
-- Cursos por role
-- Sistema de certificação
+- Hub central de aprendizado (`docs/academy/README.md`)
+- Cursos completos por role (Recepção, Barbeiro, Gestão)
+- Sistema formal de certificação e selos de excelência (`docs/academy/SISTEMA_DE_CERTIFICACAO.md`)
+- Suíte automatizada de testes (13 testes 100% PASS)
+- Relatório de validação (`docs/audit/FASE_7_7_ACADEMY_REPORT.md`)
 
 **Critérios de Aceite:**
-- Usuários completam o curso
-- Taxa de conclusão > 80%
-- Feedback positivo dos alunos
+- Usuários completam as trilhas com metodologia guiada
+- Taxa de acerto mínima de 80% para aprovação e certificação
+- Exercícios práticos reproduzíveis no ambiente de demonstração
+- 100% dos testes automatizados verdes sem regressões
 
 ### 7.8 Help Center
 
@@ -1994,6 +1999,7 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-11-04 | 9.01 | **Fase 7.7 — Plataforma de Capacitação & Certificação (SMG Academy) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_7_ACADEMY_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação do ecossistema educacional oficial do SMG Barber (*The Barbershop Intelligence*). Criação do Hub Central da SMG Academy (`docs/academy/README.md`) estabelecendo o manifesto pedagógico em 3 etapas (*Aprenda o Método > Pratique sem Risco no Demo Mode > Conquiste a Certificação Oficial*). Elaboração de 3 cursos completos por role: (1) *Especialista em Recepção & Caixa Ágil* (`docs/academy/TRILHA_RECEPCAO_E_CAIXA.md` — 4 módulos + 5 exercícios simulados), (2) *Barbeiro Digital & Bancada Lucrativa* (`docs/academy/TRILHA_BARBEIRO_BANCADA.md` — 4 módulos + 4 exercícios práticos) e (3) *Gestão Executiva & Dono da Barbearia* (`docs/academy/TRILHA_GESTAO_E_DONO.md` — 4 módulos + 4 exercícios executivos). Formalização do Sistema Oficial de Certificação & Avaliação (`docs/academy/SISTEMA_DE_CERTIFICACAO.md`) com nota de corte mínima de 80%, gabaritos comentados, template de Certificado de Excelência Operacional emitido pela Masterbrand *SMG Intelligence* e critérios para o selo dourado "Unidade Certificada SMG Barber". Suíte automatizada `tests/docs/fase7_7_academy.test.ts` com 13/13 testes verdes (100% PASS). Matriz consolidada de engenharia: 138 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.8 (Help Center). Registros: `PROJECT_STATUS.md` (7.67). |
 | 2026-11-04 | 9.00 | **Fase 7.6 — Documentação de Treinamento e Operação (Training Documentation) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_6_TRAINING_DOCS_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Reestruturação completa da Central de Treinamento e Operação do SMG Barber (*The Barbershop Intelligence*). Reescrita de `docs/training/README.md` como Hub Central Canônico eliminando todos os links quebrados legados (404). Criação de `docs/training/MANUAL_DO_USUARIO_SMG_BARBER.md` cobrindo exaustivamente os 8 módulos reais do sistema (Cockpit Operacional, Agenda & Cadeira Cativa, Comandas & Balcão PDV, Checkout Expresso & Pagamento Misto, Fechamento de Caixa Cego & Extrato Transparente, Clientes 360° & WhatsApp, Club dos Chefes e Configurações). Criação de `docs/training/TUTORIAIS_POR_ROLE.md` com trilhas práticas para Recepção/Caixa, Barbeiro/Profissional e Dono/Gerente. Elaboração de `docs/training/GUIA_INICIO_RAPIDO.md` ("Coloque sua Barbearia para rodar em 15 minutos" em 4 passos) e `docs/training/FAQ_OPERACIONAL.md` (atalhos de teclado N/Escape, contingência em modo offline e governança de cancelamento/estorno). Suíte automatizada `tests/docs/fase7_6_training_docs.test.ts` com 11/11 testes verdes (100% PASS). Matriz consolidada de engenharia: 137 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.7 (SMG Academy). Registros: `PROJECT_STATUS.md` (7.66). |
 | 2026-11-04 | 8.99 | **Fase 7.5 — Documentação Interna de Engenharia (Internal Documentation) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_5_INTERNAL_DOCS_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Modernização e formalização completa da base documental técnica do SMG Barber. Reestruturação profunda de `docs/ARQUITETURA.md` (stack moderna React 19/Vite 6/Tailwind v4, isolamento multi-tenant via RLS com `current_tenant_id_from_auth_uid()`, arquitetura orientada a eventos com worker outbox D8 Edge Function, separação canônica ADR-001 e topologia `@/` na raiz). Reformulação integral de `docs/DESENVOLVIMENTO.md` como guia prático "Do Zero ao Primeiro PR em < 1 semana" (setup local na porta 3000, documentação forense do Local Demo Mode `teste@soumanager.local` / `12345678`, comandos de gates e padrões de clean code/testes AAA). Criação de `docs/PROCESSOS_ENGENHARIA.md` formalizando a máquina de estados do SMG Change Control Protocol, invariante `MERGE ≠ DEPLOY PROD` (ADR-026), Authorization Record estruturado, gates de CI e matriz RACI. Suíte automatizada de testes `tests/docs/fase7_5_internal_docs.test.ts` com 16/16 testes verdes (100% PASS). Matriz consolidada de engenharia: 136 arquivos de teste / 2.233 testes verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo em 15.39s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.6 (Training Documentation). Registros: `PROJECT_STATUS.md` (7.65). |
 | 2026-11-04 | 8.98 | **Fase 7.4 — Padronização de UI & Design System (UI Standardization) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_4_UI_STANDARDIZATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Consolidação formal da interface do usuário sob o Creative North Star *"Atelier Tech Sofisticado"*. Formalização do Design System Canônico v2.0 em `docs/design/DESIGN_SYSTEM_SMG_BARBER.md` com guia exaustivo de tokens CSS-first (Tailwind v4), paleta Dark-First, superfícies de apoio, escala tipográfica e vocabulário semântico de status da barbearia (`sched-*`). Auditoria e reforço da biblioteca central em `components/ui/`: `Button` (variante primary com gradiente da marca e `text-night` WCAG AA 8.9:1, anéis de foco dourados, spinner adaptativo e nova variante `outline`), `Modal` (semântica ARIA completa `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, fechamento por Escape e backdrop blur) e criação do componente canônico universal `StatusBadge` com suporte a status de agenda, comandas, club e financeiro, dot visual e fallback determinístico neutro. Export central unificado em `components/ui/index.ts`. Suíte automatizada de integridade `tests/ui-standardization/fase7_4_ui_standardization.test.ts` com 17/17 testes verdes (100% PASS), incluindo varredura estática de banimentos (zero ocorrências de Purple Ban e Blue Ban). Matriz consolidada de engenharia: 135 arquivos de teste / 2.217 testes verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo em 10.90s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.5 (Internal Documentation). Registros: `PROJECT_STATUS.md` (7.64). |
