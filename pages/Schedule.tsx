@@ -519,12 +519,30 @@ const Schedule: React.FC = () => {
   }, [formData.serviceIds, servicesList]);
 
   useEffect(() => {
-    const shouldOpenNew = Boolean((location.state as { openNewAppointment?: boolean } | null)?.openNewAppointment);
-    if (!shouldOpenNew) return;
+    const navState = location.state as {
+      openNewAppointment?: boolean;
+      client?: string;
+      clientPhone?: string;
+      staffId?: string;
+      date?: string;
+      start?: number;
+    } | null;
+    if (!navState?.openNewAppointment) return;
 
     setEditingAppointmentId(null);
     setEditingComandaStatus(null);
-    setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+    setFormData(prev => ({
+      ...prev,
+      client: navState.client ?? '',
+      clientPhone: navState.clientPhone ?? '',
+      staffId: navState.staffId || prev.staffId,
+      date: navState.date || prev.date,
+      start: typeof navState.start === 'number' ? navState.start : prev.start,
+      service: '',
+      serviceIds: [],
+      duration: 1,
+      notes: '',
+    }));
     setServiceSearchTerm('');
     setIsModalOpen(true);
 

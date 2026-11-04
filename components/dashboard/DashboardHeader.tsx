@@ -28,6 +28,7 @@ interface DashboardHeaderProps {
   onOpenCash?: () => void;
   onCloseCash?: () => void;
   onOpenActivityTimeline?: () => void;
+  onOpenBarberStatement?: () => void;
 }
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
@@ -60,6 +61,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onOpenCash,
   onCloseCash,
   onOpenActivityTimeline,
+  onOpenBarberStatement,
 }) => {
   const { user } = useAuth();
   const [isPeriodOpen, setIsPeriodOpen] = useState(false);
@@ -270,6 +272,20 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               >
                 <span className="material-symbols-outlined text-base text-primary">history</span>
                 <span className="hidden sm:inline">Atividades</span>
+              </button>
+            )}
+
+            {/* Botão de Extrato de Comissões e Produtividade */}
+            {onOpenBarberStatement && (
+              <button
+                type="button"
+                onClick={onOpenBarberStatement}
+                title="Extrato de comissões e produtividade do profissional"
+                aria-label="Abrir extrato de comissões"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-primary dark:hover:text-primary transition-colors touch-manipulation active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined text-base text-primary">account_balance_wallet</span>
+                <span className="hidden sm:inline">Meu Extrato</span>
               </button>
             )}
           </div>
