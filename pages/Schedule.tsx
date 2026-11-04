@@ -60,6 +60,13 @@ import {
 import { scheduleDurationService } from '../services/scheduleDurationService';
 import { WaitlistModal } from '../components/schedule/WaitlistModal';
 import { waitlistService } from '../services/waitlistService';
+import { RecurringConfirmModal, type RecurringAppointmentInfo } from '../components/schedule/RecurringConfirmModal';
+import { recurringScheduleService } from '../src/modules/schedule/recurringScheduleService';
+import {
+  calculateProjectedDates,
+  parseLocalDate,
+  type RecurrenceFrequency,
+} from '../src/utils/recurringSchedule';
 
 interface DBStaff {
   id: string;
@@ -158,6 +165,11 @@ interface NewAppointmentForm {
   start: number;
   duration: number;
   notes: string;
+  isRecurring?: boolean;
+  recurrenceFrequency?: RecurrenceFrequency;
+  recurrenceOccurrences?: number;
+  recurrenceCustomDays?: number;
+  recurrenceEndDate?: string;
 }
 
 interface ScheduleBlockForm {
@@ -484,7 +496,14 @@ const Schedule: React.FC = () => {
     start: SCHEDULE_START_HOUR,
     duration: 1,
     notes: '',
+    isRecurring: false,
+    recurrenceFrequency: 'weekly',
+    recurrenceOccurrences: 4,
+    recurrenceCustomDays: 7,
+    recurrenceEndDate: '',
   });
+  const [cativaConfirmAppointment, setCativaConfirmAppointment] = useState<RecurringAppointmentInfo | null>(null);
+  const [isCativaConfirmModalOpen, setIsCativaConfirmModalOpen] = useState(false);
   const [serviceSearchTerm, setServiceSearchTerm] = useState('');
 
   const selectedServices = React.useMemo(
@@ -1953,6 +1972,49 @@ const Schedule: React.FC = () => {
       const newComandaId = result.comandaId;
       const createdTotalPrice = Number(result.totalPrice ?? finalPrice);
 
+      // Cadeira Cativa / Agendamento Recorrente: projetar sessões futuras
+      if (formData.isRecurring && !editingAppointmentId && tenantId) {
+        try {
+          const startDateParsed = parseLocalDate(formData.date);
+          const projected = calculateProjectedDates({
+            startDate: startDateParsed,
+            frequency: formData.recurrenceFrequency || 'weekly',
+            occurrences: formData.recurrenceOccurrences || 4,
+            customIntervalDays: formData.recurrenceCustomDays || 7,
+            endDate: formData.recurrenceEndDate ? parseLocalDate(formData.recurrenceEndDate) : undefined,
+          });
+
+          if (projected.length > 1) {
+            const futureDates = projected.slice(1);
+            const futureRows = futureDates.map((p) => {
+              const rowStart = new Date(`${p.date}T${String(startHours).padStart(2, '0')}:${String(Math.round(startMinutes)).padStart(2, '0')}:00`);
+              const rowEnd = new Date(rowStart.getTime() + Number(formData.duration) * 60 * 60 * 1000);
+              return {
+                tenant_id: tenantId,
+                client_id: clientId || null,
+                client_name: formData.client,
+                client_phone: formData.clientPhone || null,
+                staff_id: formData.staffId || null,
+                service_id: selectedServices[0]?.id || null,
+                service_ids: selectedServices.map((s) => s.id),
+                service_names: selectedServices.map((s) => s.name),
+                start_time: rowStart.toISOString(),
+                end_time: rowEnd.toISOString(),
+                total_price: finalPrice,
+                duration: Number(formData.duration),
+                status: 'pending' as const,
+                notes: formData.notes ? `${formData.notes} (Cadeira Cativa a confirmar)` : 'Cadeira Cativa (A Confirmar)',
+                is_recurring: true,
+              };
+            });
+
+            await recurringScheduleService.insertProjectedAppointments(futureRows, scheduleAppSlug);
+          }
+        } catch (cativaErr) {
+          console.error('Erro ao projetar sessões futuras de Cadeira Cativa:', cativaErr);
+        }
+      }
+
       setAppointments(prev => [...prev, {
         id: newAptId,
         clientId: clientId,
@@ -1971,6 +2033,7 @@ const Schedule: React.FC = () => {
         date: startTimeLine.toISOString(),
         source: null,
         channel: null,
+        isRecurring: formData.isRecurring || false,
       }]);
 
       if (newComandaId) {
@@ -2007,7 +2070,22 @@ const Schedule: React.FC = () => {
     setServiceSearchTerm('');
     setForceOverbook(false);
     setOverbookConflicts([]);
-    setFormData({ client: '', clientPhone: '', service: '', serviceIds: [], staffId: staffList[0]?.id ?? '', date: formData.date, start: SCHEDULE_START_HOUR, duration: 1, notes: '' });
+    setFormData({
+      client: '',
+      clientPhone: '',
+      service: '',
+      serviceIds: [],
+      staffId: staffList[0]?.id ?? '',
+      date: formData.date,
+      start: SCHEDULE_START_HOUR,
+      duration: 1,
+      notes: '',
+      isRecurring: false,
+      recurrenceFrequency: 'weekly',
+      recurrenceOccurrences: 4,
+      recurrenceCustomDays: 7,
+      recurrenceEndDate: '',
+    });
     fetchAppointments();
   };
 
@@ -2995,9 +3073,32 @@ Podemos confirmar? 😄`;
                                       <span className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">ENCAIXE</span>
                                     )}
                                     {apt.isRecurring && (
-                                      <span className="shrink-0 rounded bg-amber-500/90 text-white px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5" title="Horário Fixo Chef Club">
-                                        <span className="material-symbols-outlined text-[10px]">repeat</span> CLUBE
-                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCativaConfirmAppointment({
+                                            id: apt.id,
+                                            client: apt.client,
+                                            clientPhone: apt.clientPhone,
+                                            service: apt.service,
+                                            staffName: apt.staffName,
+                                            date: apt.date || apt.startTime,
+                                            time: getDecimalTimeLabel(apt.start),
+                                            status: apt.status,
+                                          });
+                                          setIsCativaConfirmModalOpen(true);
+                                        }}
+                                        className={`shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5 transition-transform hover:scale-105 active:scale-95 ${
+                                          apt.status === 'confirmed'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-amber-500 text-slate-950 font-black'
+                                        }`}
+                                        title="Cadeira Cativa — Clique para gerenciar confirmação semanal"
+                                      >
+                                        <span className="material-symbols-outlined text-[10px]">event_repeat</span>
+                                        {apt.status === 'confirmed' ? 'CATIVA ✅' : 'CATIVA ⏳'}
+                                      </button>
                                     )}
                                   </div>
                                   <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-xs">
@@ -3166,9 +3267,32 @@ Podemos confirmar? 😄`;
                                       </span>
                                     )}
                                     {apt.isRecurring && (
-                                      <span className="shrink-0 rounded bg-amber-500/90 text-white px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5" title="Horário Fixo Chef Club">
-                                        <span className="material-symbols-outlined text-[10px]">repeat</span> CLUBE
-                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCativaConfirmAppointment({
+                                            id: apt.id,
+                                            client: apt.client,
+                                            clientPhone: apt.clientPhone,
+                                            service: apt.service,
+                                            staffName: apt.staffName,
+                                            date: apt.date || apt.startTime,
+                                            time: getDecimalTimeLabel(apt.start),
+                                            status: apt.status,
+                                          });
+                                          setIsCativaConfirmModalOpen(true);
+                                        }}
+                                        className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5 transition-transform hover:scale-105 active:scale-95 ${
+                                          apt.status === 'confirmed'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-amber-500 text-slate-950 font-black'
+                                        }`}
+                                        title="Cadeira Cativa — Clique para gerenciar confirmação semanal"
+                                      >
+                                        <span className="material-symbols-outlined text-[10px]">event_repeat</span>
+                                        {apt.status === 'confirmed' ? 'CATIVA ✅' : 'CATIVA ⏳'}
+                                      </button>
                                     )}
                                     <div className="flex shrink-0 bg-black/20 rounded px-1 py-0.5">
                                       {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
@@ -3906,6 +4030,147 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
+          {/* Cadeira Cativa (Horário Fixo Recorrente) */}
+          {!editingAppointmentId && (
+            <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-lg">event_repeat</span>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                      Cadeira Cativa (Horário Recorrente)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Garante a vaga do cliente com confirmação semanal obrigatória da recepção.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.isRecurring}
+                    onChange={(e) => handleInputChange('isRecurring', e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+
+              {formData.isRecurring && (
+                <div className="pt-2 border-t border-slate-200 dark:border-white/10 space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">Frequência</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'weekly' as RecurrenceFrequency, label: 'Semanal (7d)' },
+                        { id: 'biweekly' as RecurrenceFrequency, label: 'Quinzenal (14d)' },
+                        { id: 'monthly' as RecurrenceFrequency, label: 'Mensal (28d)' },
+                        { id: 'custom' as RecurrenceFrequency, label: 'Personalizado' },
+                      ].map((freq) => (
+                        <button
+                          key={freq.id}
+                          type="button"
+                          onClick={() => handleInputChange('recurrenceFrequency', freq.id)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                            (formData.recurrenceFrequency || 'weekly') === freq.id
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/20'
+                          }`}
+                        >
+                          {freq.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {formData.recurrenceFrequency === 'custom' && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">Repetir a cada (dias)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="90"
+                        value={formData.recurrenceCustomDays || 7}
+                        onChange={(e) => handleInputChange('recurrenceCustomDays', Math.max(1, Number(e.target.value) || 1))}
+                        className="w-full sm:w-48 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">Horizonte de Sessões</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { count: 4, label: '4 sessões (~1 mês)' },
+                        { count: 8, label: '8 sessões (~2 meses)' },
+                        { count: 12, label: '12 sessões (~3 meses)' },
+                      ].map((item) => (
+                        <button
+                          key={item.count}
+                          type="button"
+                          onClick={() => handleInputChange('recurrenceOccurrences', item.count)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                            (formData.recurrenceOccurrences || 4) === item.count
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/20'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Prévia das datas projetadas */}
+                  {(() => {
+                    const parsedStart = parseLocalDate(formData.date);
+                    const projections = calculateProjectedDates({
+                      startDate: parsedStart,
+                      frequency: formData.recurrenceFrequency || 'weekly',
+                      occurrences: formData.recurrenceOccurrences || 4,
+                      customIntervalDays: formData.recurrenceCustomDays || 7,
+                      endDate: formData.recurrenceEndDate ? parseLocalDate(formData.recurrenceEndDate) : undefined,
+                    });
+
+                    return (
+                      <div className="p-3 bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">
+                            Datas Projetadas ({projections.length})
+                          </span>
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                            Semana a semana com WhatsApp
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                          {projections.map((p, idx) => {
+                            const [year, month, day] = p.date.split('-');
+                            const formatted = `${day}/${month}`;
+                            return (
+                              <span
+                                key={p.date}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold ${
+                                  idx === 0
+                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                }`}
+                              >
+                                {idx === 0 ? '🟢' : '⏳'} {formatted}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observações</label>
             <textarea
@@ -4347,6 +4612,40 @@ Podemos confirmar? 😄`;
 
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-3">Ações rápidas</p>
+              {selectedAppointmentDetails.isRecurring && (
+                <div className="mb-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-500 text-lg">event_repeat</span>
+                    <div>
+                      <p className="text-xs font-black uppercase text-amber-600 dark:text-amber-400">
+                        Cadeira Cativa {selectedAppointmentDetails.status === 'confirmed' ? '✅ Confirmada' : '⏳ A Confirmar'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Horário fixo semanal do cliente.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCativaConfirmAppointment({
+                        id: selectedAppointmentDetails.id,
+                        client: selectedAppointmentDetails.client,
+                        clientPhone: selectedAppointmentDetails.clientPhone,
+                        service: selectedAppointmentDetails.service,
+                        staffName: selectedAppointmentDetails.staffName,
+                        date: selectedAppointmentDetails.date || selectedAppointmentDetails.startTime,
+                        time: getDecimalTimeLabel(selectedAppointmentDetails.start),
+                        status: selectedAppointmentDetails.status,
+                      });
+                      setIsCativaConfirmModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-all shrink-0"
+                  >
+                    Gerenciar Semana
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button onClick={() => { if (selectedAppointmentDetails) handleEditAppointment(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Editar</button>
                 <button onClick={() => { if (selectedAppointmentDetails) handleAppointmentStatusChange(selectedAppointmentDetails, 'confirmed', 'Confirmado'); }} className="px-3 py-3 rounded-xl bg-sched-confirmed/15 text-sched-confirmed-strong text-sm font-bold hover:bg-sched-confirmed/25 transition-colors">Confirmar</button>
@@ -4845,6 +5144,45 @@ Podemos confirmar? 😄`;
         staffList={staffList.map((s) => ({ id: s.id, name: s.name }))}
         services={servicesList.map((s) => ({ id: s.id, name: s.name }))}
         onWaitlistUpdated={refreshWaitlistCount}
+      />
+
+      <RecurringConfirmModal
+        isOpen={isCativaConfirmModalOpen}
+        onClose={() => {
+          setIsCativaConfirmModalOpen(false);
+          setCativaConfirmAppointment(null);
+        }}
+        appointment={cativaConfirmAppointment}
+        onConfirmAppointment={async (appointmentId) => {
+          const success = await recurringScheduleService.confirmCativaAppointment(tenantId || '', appointmentId, appSlug as any);
+          if (success) {
+            setAppointments((prev) =>
+              prev.map((a) => (a.id === appointmentId ? { ...a, status: 'confirmed', color: statusColors['confirmed'] || a.color } : a))
+            );
+            setToast({
+              message: 'Cadeira Cativa confirmada com sucesso para esta semana!',
+              type: 'success',
+            });
+            fetchAppointments();
+          } else {
+            setToast({ message: 'Erro ao confirmar Cadeira Cativa.', type: 'error' });
+          }
+        }}
+        onReleaseAppointment={async (appointmentId) => {
+          const success = await recurringScheduleService.releaseCativaAppointment(tenantId || '', appointmentId, appSlug as any);
+          if (success) {
+            setAppointments((prev) =>
+              prev.map((a) => (a.id === appointmentId ? { ...a, status: 'cancelled', color: statusColors['cancelled'] || a.color } : a))
+            );
+            setToast({
+              message: 'Horário liberado apenas nesta semana. Próximas semanas mantidas!',
+              type: 'info',
+            });
+            fetchAppointments();
+          } else {
+            setToast({ message: 'Erro ao liberar horário.', type: 'error' });
+          }
+        }}
       />
     </div >
   );
