@@ -5,6 +5,8 @@
  * Extraídos de pages/Clients.tsx.
  */
 
+export type PreferredFrequency = 'weekly' | 'biweekly' | 'monthly';
+
 export interface Client {
   id: string;
   name: string;
@@ -16,6 +18,11 @@ export interface Client {
   status: string;
   avatar: string;
   birthday: string;
+  notes?: string;
+  preferred_frequency?: PreferredFrequency | null;
+  preferred_weekday?: number | null;
+  preferred_time?: string | null;
+  preferred_staff_id?: string | null;
 }
 
 export interface CreateClientInput {
@@ -23,6 +30,11 @@ export interface CreateClientInput {
   email: string;
   phone: string;
   birthday: string;
+  notes?: string;
+  preferred_frequency?: PreferredFrequency | null;
+  preferred_weekday?: number | null;
+  preferred_time?: string | null;
+  preferred_staff_id?: string | null;
 }
 
 export interface UpdateClientInput {
@@ -31,6 +43,11 @@ export interface UpdateClientInput {
   phone?: string;
   status?: string;
   birthday?: string;
+  notes?: string;
+  preferred_frequency?: PreferredFrequency | null;
+  preferred_weekday?: number | null;
+  preferred_time?: string | null;
+  preferred_staff_id?: string | null;
 }
 
 export interface ClientImportRow {
