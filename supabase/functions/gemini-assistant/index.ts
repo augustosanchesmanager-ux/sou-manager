@@ -71,9 +71,9 @@ Deno.serve(async (req: Request) => {
                 avgTicket: metrics.avgTicket || 0,
                 retention: metrics.retentionRate || 'N/A',
                 noShow: metrics.noShowRate || 0,
-                top: metrics.topService || 'Geral',
+                topService: metrics.topService || 'Geral',
             };
-            prompt = `Analise estes dados de barbearia (Faturamento R$ ${m.revenue}, Crescimento ${m.growth}%, Ticket R$ ${m.avgTicket}, Retenção ${m.retention}%, No-Show ${m.noShow}%, Top: ${m.top}) e dê um conselho estratégico curto em Português do Brasil.`;
+            prompt = `Analise estes dados de barbearia (Faturamento R$ ${m.revenue}, Crescimento ${m.growth}%, Ticket R$ ${m.avgTicket}, Retenção ${m.retention}%, No-Show ${m.noShow}%, Top: ${m.topService}) e dê um conselho estratégico curto em Português do Brasil.`;
         } else {
             const userQuestion = String(body.userQuestion || '').trim();
             if (!userQuestion) {

@@ -6,34 +6,23 @@ import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { LoadingBlock } from '../components/ui/Loading';
-import CustomerVouchersSection from '../components/customers/CustomerVouchersSection';
+import ClientProfile360Drawer, {
+    type UpcomingAppointmentSummary,
+    type StaffOption,
+    type OpenComandaSummary,
+} from '../components/customers/ClientProfile360Drawer';
 import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { formatCurrency } from '../shared/format/currency';
-import { clientRepository, RepositoryError } from '../domain/client';
+import { clientRepository, RepositoryError, type Client } from '../domain/client';
+import {
+    calculateAverageTicket,
+    calculatePreferredBarber,
+    type PreferredBarberSummary,
+} from '../src/utils/clientProfile';
 import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
-
-interface Client {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    last_visit: string;
-    last_service: string;
-    total_spent: number;
-    status: string;
-    avatar: string;
-    birthday: string;
-}
-
-interface OpenComandaSummary {
-    id: string;
-    total: number;
-    status: 'open';
-    created_at: string;
-}
 
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
@@ -104,7 +93,31 @@ const Clients: React.FC = () => {
     const [detailOpenComandas, setDetailOpenComandas] = useState<OpenComandaSummary[]>([]);
     const [detailOpenComandasCount, setDetailOpenComandasCount] = useState(0);
     const [detailOpenComandasLoading, setDetailOpenComandasLoading] = useState(false);
+    const [detailUpcomingAppointments, setDetailUpcomingAppointments] = useState<UpcomingAppointmentSummary[]>([]);
+    const [detailUpcomingLoading, setDetailUpcomingLoading] = useState(false);
+    const [detailPreferredBarber, setDetailPreferredBarber] = useState<PreferredBarberSummary | null>(null);
+    const [detailVisitsCount, setDetailVisitsCount] = useState(0);
+    const [detailAverageTicket, setDetailAverageTicket] = useState(0);
+    const [staffList, setStaffList] = useState<StaffOption[]>([]);
     const [chefClubMap, setChefClubMap] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!tenantId) {
+            setStaffList([]);
+            return;
+        }
+        supabase
+            .from('staff')
+            .select('id, name, avatar')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'active')
+            .order('name')
+            .then(({ data, error }) => {
+                if (!error && data) {
+                    setStaffList(data as StaffOption[]);
+                }
+            });
+    }, [tenantId]);
 
     const openClientDetails = useCallback(async (client: Client) => {
         setDetailClient(client);
@@ -112,9 +125,14 @@ const Clients: React.FC = () => {
         setDetailOpenComandas([]);
         setDetailOpenComandasCount(0);
         setDetailOpenComandasLoading(Boolean(tenantId));
+        setDetailUpcomingAppointments([]);
+        setDetailUpcomingLoading(Boolean(tenantId));
+        setDetailPreferredBarber(null);
+        setDetailVisitsCount(0);
+        setDetailAverageTicket(0);
 
         try {
-            const [clubSummary, openComandasResult] = await Promise.all([
+            const [clubSummary, openComandasResult, upcomingResult, pastResult] = await Promise.all([
                 fetchChefClubSummaryByClient(client.id, tenantId).catch((error) => {
                     console.error('Erro ao carregar resumo do Club dos Chefes:', error);
                     return null;
@@ -129,6 +147,27 @@ const Clients: React.FC = () => {
                         .order('created_at', { ascending: false })
                         .limit(3)
                     : Promise.resolve({ data: [], error: null, count: 0 }),
+                tenantId
+                    ? barberSupabase
+                        .from('appointments')
+                        .select('id, start_time, duration, service_name, staff_name, staff_id, status')
+                        .eq('tenant_id', tenantId)
+                        .eq('client_id', client.id)
+                        .gte('start_time', new Date().toISOString())
+                        .not('status', 'in', '("cancelled","no_show")')
+                        .order('start_time', { ascending: true })
+                        .limit(5)
+                    : Promise.resolve({ data: [], error: null }),
+                tenantId
+                    ? barberSupabase
+                        .from('appointments')
+                        .select('id, staff_id, staff_name, start_time, status')
+                        .eq('tenant_id', tenantId)
+                        .eq('client_id', client.id)
+                        .not('status', 'in', '("cancelled","no_show")')
+                        .order('start_time', { ascending: false })
+                        .limit(50)
+                    : Promise.resolve({ data: [], error: null }),
             ]);
 
             setDetailChefClub(clubSummary);
@@ -141,15 +180,64 @@ const Clients: React.FC = () => {
                 setDetailOpenComandas((openComandasResult.data || []) as OpenComandaSummary[]);
                 setDetailOpenComandasCount(openComandasResult.count || 0);
             }
+
+            if (upcomingResult.error) {
+                console.error('Erro ao buscar agendamentos futuros:', upcomingResult.error);
+                setDetailUpcomingAppointments([]);
+            } else {
+                setDetailUpcomingAppointments((upcomingResult.data || []) as UpcomingAppointmentSummary[]);
+            }
+
+            const pastAppointments = (pastResult.data || []) as { staff_id: string; staff_name: string }[];
+            const prefBarber = calculatePreferredBarber(
+                pastAppointments.map((a) => ({
+                    staffId: a.staff_id,
+                    staffName: a.staff_name,
+                }))
+            );
+            setDetailPreferredBarber(prefBarber);
+
+            const pastCount = pastAppointments.length || (client.last_visit ? 1 : 0);
+            setDetailVisitsCount(pastCount);
+            setDetailAverageTicket(calculateAverageTicket(client.total_spent || 0, pastCount));
         } catch (error) {
             console.error('Erro ao carregar detalhes do cliente:', error);
             setDetailChefClub(null);
             setDetailOpenComandas([]);
             setDetailOpenComandasCount(0);
+            setDetailUpcomingAppointments([]);
         } finally {
             setDetailOpenComandasLoading(false);
+            setDetailUpcomingLoading(false);
         }
     }, [barberSupabase, tenantId]);
+
+    const handleBookAppointment = useCallback((params?: { date?: string; time?: string; staffId?: string }) => {
+        if (!detailClient) return;
+        let decimalStart: number | undefined;
+        if (params?.time) {
+            const [hours, minutes] = params.time.split(':').map(Number);
+            if (Number.isFinite(hours)) {
+                decimalStart = hours + (Number.isFinite(minutes) ? minutes / 60 : 0);
+            }
+        }
+        setDetailClient(null);
+        navigate('/schedule', {
+            state: {
+                openNewAppointment: true,
+                client: detailClient.name,
+                clientPhone: detailClient.phone,
+                staffId: params?.staffId || detailClient.preferred_staff_id,
+                date: params?.date,
+                start: decimalStart,
+            },
+        });
+    }, [detailClient, navigate]);
+
+    const handleClientUpdated = useCallback((updated: Client) => {
+        setDetailClient(updated);
+        setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+    }, []);
 
     const fetchClients = useCallback(async () => {
         let loadingId: string | undefined;
@@ -671,137 +759,36 @@ const Clients: React.FC = () => {
                 </div>
             </LoadingBlock>
 
-            {/* Detail Modal */}
-            <Modal
+            {/* Perfil 360° do Cliente & Fidelização Drawer */}
+            <ClientProfile360Drawer
                 isOpen={!!detailClient}
                 onClose={() => setDetailClient(null)}
-                title="Detalhes do Cliente"
-                maxWidth="2xl"
-            >
-                {detailClient && (
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                            <div className="size-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-slate-200 dark:border-white/5">
-                                {detailClient.avatar ? (
-                                    <img src={detailClient.avatar} alt={detailClient.name} className="size-full object-cover" />
-                                ) : (
-                                    <div className="size-full flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-slate-400 text-2xl">person</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <h4 className="text-xl font-bold text-slate-900 dark:text-white">{detailClient.name}</h4>
-                                <p className={`text-xs font-bold uppercase ${detailClient.status === 'active' ? 'text-emerald-500' : 'text-slate-400'}`}>{detailClient.status === 'active' ? 'Ativo' : 'Inativo'}</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.phone || '-'}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Email</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{detailClient.email || '-'}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Aniversário</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.birthday ? formatDate(detailClient.birthday) : '-'}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Total Gasto</p>
-                                <p className="text-sm font-bold text-emerald-500">R$ {(detailClient.total_spent || 0).toFixed(2)}</p>
-                            </div>
-                            {detailOpenComandasLoading && (
-                                <div className="col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Verificando {orderPluralLower} abertos...</p>
-                                </div>
-                            )}
-                            {!detailOpenComandasLoading && detailOpenComandasCount > 0 && (
-                                <div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                                                Este cliente possui {orderLabelLower} aberto
-                                            </p>
-                                            <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                {detailOpenComandasCount === 1
-                                                    ? `1 ${orderLabelLower} em aberto`
-                                                    : `${detailOpenComandasCount} ${orderPluralLower} em aberto`}
-                                            </p>
-                                        </div>
-                                        <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-500/30 bg-white/70 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:bg-white/5 dark:text-amber-300">
-                                            <span className="material-symbols-outlined text-[12px]">receipt_long</span>
-                                            Aberta
-                                        </span>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {detailOpenComandas.map((comanda) => (
-                                            <div key={comanda.id} className="flex flex-col gap-2 rounded-lg bg-white/80 p-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                                                        {orderLabel} #{getDisplayId(comanda.id)}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                        {formatCurrency(comanda.total)} • {formatDateTime(comanda.created_at)} • Aberto
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setDetailClient(null);
-                                                        navigate(`/checkout/${comanda.id}`);
-                                                    }}
-                                                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-night transition hover:bg-primary/90"
-                                                >
-                                                    <span className="material-symbols-outlined text-[14px]">visibility</span>
-                                                    Ver {orderLabelLower}
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {!isEsteticaApp && detailChefClub && (
-                                <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                            <span className="material-symbols-outlined">workspace_premium</span>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] text-amber-600 font-black uppercase">Club dos Chefes</p>
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{detailChefClub.planName}</p>
-                                            <p className="text-[10px] text-slate-500 font-bold">Status: {detailChefClub.status === 'active' ? 'Ativo' : 'Pendente'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-black text-amber-600 leading-none">{detailChefClub.credits}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Créditos</p>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">{isEsteticaApp ? 'Último atendimento' : 'Última Visita'}</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(detailClient.last_visit)}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold">Último {serviceLabel}</p>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{detailClient.last_service || '-'}</p>
-                            </div>
-                            <CustomerVouchersSection
-                                tenantId={tenantId}
-                                customerId={detailClient.id}
-                                currentUserId={user?.id || null}
-                                onToast={setToast}
-                            />
-                        </div>
-                        <button onClick={() => { setDetailClient(null); navigate('/schedule'); }}
-                            className="w-full py-3 bg-primary text-night rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors mt-2">
-                            Agendar para este Cliente
-                        </button>
-                    </div>
-                )}
-            </Modal>
+                client={detailClient}
+                onClientUpdated={handleClientUpdated}
+                chefClub={detailChefClub}
+                openComandas={detailOpenComandas}
+                openComandasCount={detailOpenComandasCount}
+                openComandasLoading={detailOpenComandasLoading}
+                upcomingAppointments={detailUpcomingAppointments}
+                upcomingLoading={detailUpcomingLoading}
+                preferredBarber={detailPreferredBarber}
+                visitsCount={detailVisitsCount}
+                averageTicket={detailAverageTicket}
+                staffOptions={staffList}
+                tenantId={tenantId}
+                currentUserId={user?.id || null}
+                orderLabel={orderLabel}
+                orderLabelLower={orderLabelLower}
+                orderPluralLower={orderPluralLower}
+                serviceLabel={serviceLabel}
+                isEsteticaApp={isEsteticaApp}
+                onToast={setToast}
+                onOpenComanda={(comandaId) => {
+                    setDetailClient(null);
+                    navigate(`/checkout/${comandaId}`);
+                }}
+                onBookAppointment={handleBookAppointment}
+            />
 
             {/* Modal de Edição (Novo!) */}
             <Modal
