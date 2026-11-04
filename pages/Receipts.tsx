@@ -660,8 +660,8 @@ const Receipts: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${receipt.type === 'Salário' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
-                                            receipt.type === 'Fornecedor' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
-                                                receipt.type === 'Compra' ? 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20' :
+                                            receipt.type === 'Fornecedor' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/20' :
+                                                receipt.type === 'Compra' ? 'bg-primary/10 text-ink border-primary/25 dark:bg-primary/15 dark:text-primary-light dark:border-primary/30' :
                                                     'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/20'
                                             }`}>
                                             {receipt.type}

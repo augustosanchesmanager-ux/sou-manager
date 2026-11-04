@@ -27,11 +27,11 @@ const DEFAULT_METRICS: DashboardMetric[] = [
 const METRIC_COLORS: Record<string, string> = {
   emerald: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30',
   blue: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/30',
-  primary: 'bg-primary/10 text-primary border-primary/20',
+  primary: 'bg-primary/10 text-primary-dark border-primary/25 dark:bg-primary/15 dark:text-primary-light dark:border-primary/30',
   amber: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/30',
-  violet: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/30',
+  violet: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/30',
   red: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/30',
-  indigo: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/30',
+  indigo: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
 };
 
 const STORAGE_KEY = 'sou_manager_metrics_v1';
