@@ -260,16 +260,20 @@ describe('FASE 7.10: Product Certification (Certificação Master dos 10 Pilares
             expect(content).toContain('OpenCode / Antigravity');
         });
 
-        it('CERT-P10-003: os contratos de governança formal ADR-028 e Change Control devem estar ativos', () => {
-            const adr28Path = path.join(rootDir, 'docs', 'adr', 'ADR-028-smg-gate-formal-contract.md');
+        it('CERT-P10-003: os contratos de governança formal e Change Control devem estar ativos', () => {
+            const procPath = path.join(rootDir, 'docs', 'PROCESSOS_ENGENHARIA.md');
             const agentsPath = path.join(rootDir, 'AGENTS.md');
 
-            expect(fs.existsSync(adr28Path), 'ADR-028 deve existir').toBe(true);
+            expect(fs.existsSync(procPath), 'PROCESSOS_ENGENHARIA.md deve existir').toBe(true);
             expect(fs.existsSync(agentsPath), 'AGENTS.md deve existir').toBe(true);
 
             const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
             expect(agentsContent).toContain('MERGE ≠ DEPLOY PROD');
             expect(agentsContent).toContain('SMG Change Control Protocol');
+
+            const procContent = fs.readFileSync(procPath, 'utf-8');
+            expect(procContent).toContain('MERGE ≠ DEPLOY PROD');
+            expect(procContent).toContain('Authorization Record');
         });
     });
 });
