@@ -5,6 +5,10 @@ import {
   maskApiKey,
   extractBearerToken,
 } from './auth.ts';
+import {
+  handleAppointmentsRoute,
+  type AppointmentsDbClient,
+} from './routes/appointments.ts';
 import type {
   ApiKeyRecord,
   ApiErrorResponse,
@@ -152,7 +156,101 @@ Deno.serve(async (req: Request) => {
     return jsonResponse(req, successBody as unknown as Record<string, unknown>, 200, requestId);
   }
 
-  // 6. Rota não encontrada
+  // 6. Rota Autenticada: Agendamentos (/v1/appointments)
+  if (pathname === '/v1/appointments') {
+    const dbClient: AppointmentsDbClient = {
+      async getAppointments({ tenantId, startDate, endDate, barberId }) {
+        let query = adminClient
+          .from('appointments')
+          .select('id, tenant_id, client_name, client_phone, service_id, service_name, staff_id, staff_name, start_time, end_time, duration, price, status, source, created_at')
+          .eq('tenant_id', tenantId)
+          .order('start_time', { ascending: true });
+
+        if (startDate) {
+          query = query.gte('start_time', startDate);
+        }
+        if (endDate) {
+          query = query.lte('start_time', endDate);
+        }
+        if (barberId) {
+          query = query.eq('staff_id', barberId);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error fetching appointments:`, error);
+          throw error;
+        }
+        return data || [];
+      },
+
+      async getBarber(tenantId, barberId) {
+        const { data, error } = await adminClient
+          .from('staff')
+          .select('id, name')
+          .eq('tenant_id', tenantId)
+          .eq('id', barberId)
+          .maybeSingle();
+
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error fetching barber:`, error);
+          throw error;
+        }
+        return data || null;
+      },
+
+      async getService(tenantId, serviceId) {
+        const { data, error } = await adminClient
+          .from('services')
+          .select('id, name, price, duration_minutes')
+          .eq('tenant_id', tenantId)
+          .eq('id', serviceId)
+          .maybeSingle();
+
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error fetching service:`, error);
+          throw error;
+        }
+        return data || null;
+      },
+
+      async checkSlotOverlap({ tenantId, barberId, startTime, endTime }) {
+        const { data, error } = await adminClient
+          .from('appointments')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('staff_id', barberId)
+          .not('status', 'in', '("cancelled","no_show")')
+          .lt('start_time', endTime)
+          .gt('end_time', startTime)
+          .limit(1);
+
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error checking slot overlap:`, error);
+          throw error;
+        }
+        return Array.isArray(data) && data.length > 0;
+      },
+
+      async createAppointment(appointment) {
+        const { data, error } = await adminClient
+          .from('appointments')
+          .insert(appointment)
+          .select('id, tenant_id, client_name, client_phone, service_id, service_name, staff_id, staff_name, start_time, end_time, duration, price, status, source, created_at')
+          .single();
+
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error inserting appointment:`, error);
+          throw error;
+        }
+        return data;
+      },
+    };
+
+    return handleAppointmentsRoute(req, authResult.auth, dbClient, requestId);
+  }
+
+  // 7. Rota não encontrada
   const notFoundBody: ApiErrorResponse = {
     error: {
       code: 'NOT_FOUND',
