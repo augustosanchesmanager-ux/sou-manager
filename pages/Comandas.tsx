@@ -1534,6 +1534,7 @@ const Comandas: React.FC = () => {
             setReopenPinError(null);
             const { data: pinValidation, error: pinValidationError } = await supabase.rpc('validate_audit_pin', {
                 p_pin: reopenAuditPin,
+                p_tenant_id: effectiveTenantId,
             });
 
             if (pinValidationError) {
@@ -1547,7 +1548,7 @@ const Comandas: React.FC = () => {
             const pinResult = (pinValidation || {}) as { valid?: boolean; reason?: string };
             if (pinResult.valid !== true) {
                 const message = pinResult.reason === 'not_configured'
-                    ? 'Nenhum PIN gerencial configurado para o seu usuário. Defina um PIN de 6 a 8 dígitos antes de autorizar.'
+                    ? 'Nenhum PIN gerencial configurado para o seu usuário neste tenant. Acione o responsável pelo provisionamento.'
                     : pinResult.reason === 'invalid_format'
                         ? 'O PIN gerencial deve conter de 6 a 8 dígitos.'
                         : 'PIN gerencial inválido. Verifique e tente novamente.';

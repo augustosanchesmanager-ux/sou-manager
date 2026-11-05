@@ -2,58 +2,64 @@
 -- 20261105120000_add_audit_pin_and_retroactive_adjustment.sql
 --
 -- Frente: correção auditada de comanda fechada (estorno com competência).
--- Decisão do PO (2026-11-04/05):
+-- Decisão do PO (2026-11-04/05, revisada em 2026-11-05):
 --   1. ADR-035 permanece válido: valores de comanda paga só mudam via
 --      estorno/reabertura. Nada de edição silenciosa.
 --   2. O estorno passa a aceitar uma DATA DE COMPETÊNCIA escolhida pelo
 --      gerente (caixa atual ou caixa da data original).
---   3. PIN de autorização por usuário, hash em profiles.audit_pin, validado
---      exclusivamente no banco. O hash nunca é retornado ao frontend.
---   4. Se a competência cair em caixa CONFIRMADO, a alteração é permitida
---      mas marcada com transactions.retroactive_adjustment = true.
+--   3. PIN de autorização vive em public.manager_pins (user_id, tenant_id,
+--      pin_hash). O hash NUNCA é legível via API: RLS habilitado sem policy
+--      e sem GRANT para anon/authenticated. Somente as RPCs SECURITY DEFINER
+--      deste arquivo leem a coluna.
+--   4. Se a competência cair em caixa CONFIRMADO, a RPC EXIGE o PIN e marca
+--      transactions.retroactive_adjustment = true.
+--   5. Não existe RPC de provisionamento de PIN nesta frente. O PO insere o
+--      hash bcrypt manualmente no banco.
 --
--- NÃO APLICAR EM PRODUÇÃO SEM AUTORIZAÇÃO EXPLÍCITA DO PO.
+-- APLICAR SOMENTE EM STAGING. NÃO APLICAR EM PRODUÇÃO SEM AUTORIZAÇÃO
+-- EXPLÍCITA DO PO.
 -- ============================================================================
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- ── 1. PIN de autorização por usuário ───────────────────────────────────────
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS audit_pin TEXT;
+-- ── 1. PIN gerencial por usuário/tenant ─────────────────────────────────────
+-- Tabela isolada de propósito: profiles tem policy de SELECT por tenant, o que
+-- exporia o hash a colegas de trabalho e permitiria quebra offline de um PIN
+-- de 6 a 8 dígitos.
+CREATE TABLE IF NOT EXISTS public.manager_pins (
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tenant_id  UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  pin_hash   TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT manager_pins_pkey PRIMARY KEY (user_id, tenant_id),
+  CONSTRAINT manager_pins_pin_hash_not_blank CHECK (BTRIM(pin_hash) <> '')
+);
 
-COMMENT ON COLUMN public.profiles.audit_pin IS
-  'Hash bcrypt (pgcrypto crypt/gen_salt) do PIN gerencial de 6 a 8 digitos. '
-  'Escrita somente via RPC set_audit_pin (trigger bloqueia UPDATE direto). '
-  'RISCO RESIDUAL: a policy de SELECT de profiles permite leitura por pares do tenant; '
-  'a UI nunca seleciona esta coluna e o endurecimento do RLS e tratado no relatorio da frente.';
+COMMENT ON TABLE public.manager_pins IS
+  'PIN gerencial (hash bcrypt) por usuario e tenant. Acesso somente por RPC SECURITY DEFINER. '
+  'RLS habilitado sem policy e sem GRANT para anon/authenticated: qualquer SELECT via PostgREST e negado.';
 
--- Impede que o hash seja trocado por UPDATE direto no PostgREST. A RPC
--- set_audit_pin liga a flag transacional app.audit_pin_write antes do UPDATE.
-CREATE OR REPLACE FUNCTION public.guard_profile_audit_pin()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  IF NEW.audit_pin IS DISTINCT FROM OLD.audit_pin
-     AND COALESCE(current_setting('app.audit_pin_write', true), '') <> 'on' THEN
-    RAISE EXCEPTION 'audit_pin so pode ser alterado pela RPC set_audit_pin';
-  END IF;
-  RETURN NEW;
-END;
-$$;
+COMMENT ON COLUMN public.manager_pins.pin_hash IS
+  'Hash bcrypt produzido por crypt(pin, gen_salt(''bf'', 12)). Nunca retornado por API.';
 
-DROP TRIGGER IF EXISTS trg_guard_profile_audit_pin ON public.profiles;
-CREATE TRIGGER trg_guard_profile_audit_pin
-  BEFORE UPDATE OF audit_pin ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_audit_pin();
+ALTER TABLE public.manager_pins ENABLE ROW LEVEL SECURITY;
 
--- Verificador interno. Não é exposto ao PostgREST: somente as RPCs
--- SECURITY DEFINER abaixo podem executá-lo.
-CREATE OR REPLACE FUNCTION public.verify_audit_pin(p_user_id UUID, p_pin TEXT)
-RETURNS BOOLEAN
+-- RLS habilitado SEM policies já nega todo acesso. Os REVOKE abaixo removem os
+-- default privileges do schema public e garantem defesa em profundidade.
+REVOKE ALL ON TABLE public.manager_pins FROM PUBLIC;
+REVOKE ALL ON TABLE public.manager_pins FROM anon;
+REVOKE ALL ON TABLE public.manager_pins FROM authenticated;
+
+-- Verificador interno. Sem EXECUTE para anon/authenticated: chamado apenas
+-- pelas RPCs SECURITY DEFINER deste arquivo.
+CREATE OR REPLACE FUNCTION public.verify_audit_pin(
+  p_user_id   UUID,
+  p_tenant_id UUID,
+  p_pin       TEXT
+) RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, extensions
@@ -61,7 +67,7 @@ AS $$
 DECLARE
   v_hash TEXT;
 BEGIN
-  IF p_user_id IS NULL OR p_pin IS NULL THEN
+  IF p_user_id IS NULL OR p_tenant_id IS NULL OR p_pin IS NULL THEN
     RETURN false;
   END IF;
 
@@ -69,9 +75,10 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT p.audit_pin INTO v_hash
-  FROM public.profiles p
-  WHERE p.id = p_user_id;
+  SELECT mp.pin_hash INTO v_hash
+  FROM public.manager_pins mp
+  WHERE mp.user_id = p_user_id
+    AND mp.tenant_id = p_tenant_id;
 
   IF v_hash IS NULL OR BTRIM(v_hash) = '' THEN
     RETURN false;
@@ -81,14 +88,19 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, TEXT) FROM anon;
-REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, TEXT) FROM authenticated;
+REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, UUID, TEXT) FROM anon;
+REVOKE ALL ON FUNCTION public.verify_audit_pin(UUID, UUID, TEXT) FROM authenticated;
+
+COMMENT ON FUNCTION public.verify_audit_pin(UUID, UUID, TEXT) IS
+  'Verificador interno de PIN gerencial. Sem EXECUTE para anon/authenticated; uso restrito as RPCs SECURITY DEFINER.';
 
 -- Pré-validação usada pelo frontend para feedback imediato. Não substitui a
 -- checagem atômica feita dentro de finance_reverse_transaction.
-CREATE OR REPLACE FUNCTION public.validate_audit_pin(p_pin TEXT)
-RETURNS JSONB
+CREATE OR REPLACE FUNCTION public.validate_audit_pin(
+  p_pin       TEXT,
+  p_tenant_id UUID
+) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, extensions
@@ -101,9 +113,27 @@ BEGIN
     RAISE EXCEPTION 'Usuario autenticado obrigatorio';
   END IF;
 
-  SELECT p.audit_pin INTO v_hash
-  FROM public.profiles p
-  WHERE p.id = v_auth_uid;
+  IF p_tenant_id IS NULL THEN
+    RAISE EXCEPTION 'tenant_id obrigatorio';
+  END IF;
+
+  IF NOT (
+    COALESCE(public.current_is_super_admin_from_auth_uid(), false)
+    OR public.current_tenant_id_from_auth_uid() = p_tenant_id
+    OR EXISTS (
+      SELECT 1
+      FROM public.user_tenants ut
+      WHERE ut.user_id = v_auth_uid
+        AND ut.tenant_id = p_tenant_id
+    )
+  ) THEN
+    RAISE EXCEPTION 'Tenant nao autorizado';
+  END IF;
+
+  SELECT mp.pin_hash INTO v_hash
+  FROM public.manager_pins mp
+  WHERE mp.user_id = v_auth_uid
+    AND mp.tenant_id = p_tenant_id;
 
   IF v_hash IS NULL OR BTRIM(v_hash) = '' THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'not_configured');
@@ -118,65 +148,27 @@ BEGIN
   END IF;
 
   -- Throttle simples contra varredura de PIN. Não substitui lockout
-  -- persistente (GAP registrado no relatório da frente).
+  -- persistente (decisão do PO: lockout fica para frente futura).
   PERFORM pg_sleep(0.25);
   RETURN jsonb_build_object('valid', false, 'reason', 'invalid_pin');
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.validate_audit_pin(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.validate_audit_pin(TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.validate_audit_pin(TEXT, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.validate_audit_pin(TEXT, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.validate_audit_pin(TEXT, UUID) TO authenticated;
 
--- Autoatendimento: o próprio usuário define/troca seu PIN. Nenhum hash é
--- retornado. Exigir 6 a 8 dígitos reduz a superfície de força bruta.
-CREATE OR REPLACE FUNCTION public.set_audit_pin(p_pin TEXT)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-  v_auth_uid UUID := auth.uid();
-BEGIN
-  IF v_auth_uid IS NULL THEN
-    RAISE EXCEPTION 'Usuario autenticado obrigatorio';
-  END IF;
-
-  IF p_pin IS NULL OR p_pin !~ '^[0-9]{6,8}$' THEN
-    RAISE EXCEPTION 'PIN deve conter de 6 a 8 digitos';
-  END IF;
-
-  PERFORM set_config('app.audit_pin_write', 'on', true);
-
-  UPDATE public.profiles
-  SET audit_pin = crypt(p_pin, gen_salt('bf', 12)),
-      updated_at = now()
-  WHERE id = v_auth_uid;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Perfil nao encontrado';
-  END IF;
-
-  RETURN jsonb_build_object('success', true);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.set_audit_pin(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.set_audit_pin(TEXT) TO authenticated;
-
-COMMENT ON FUNCTION public.validate_audit_pin(TEXT) IS
-  'Valida o PIN gerencial do usuário autenticado. Retorna apenas { valid, reason }. Nunca retorna hash.';
-COMMENT ON FUNCTION public.set_audit_pin(TEXT) IS
-  'Define o PIN gerencial (6-8 dígitos) do usuário autenticado com bcrypt.';
+COMMENT ON FUNCTION public.validate_audit_pin(TEXT, UUID) IS
+  'Valida o PIN gerencial do usuario autenticado para o tenant informado. Retorna apenas { valid, reason }. Nunca retorna hash.';
 
 -- ── 2. Marca de ajuste retroativo em caixa fechado ──────────────────────────
 ALTER TABLE public.transactions
   ADD COLUMN IF NOT EXISTS retroactive_adjustment BOOLEAN NOT NULL DEFAULT false;
 
 COMMENT ON COLUMN public.transactions.retroactive_adjustment IS
-  'true quando o lançamento foi realizado com competência em um dia cujo cash_closings já está confirmed.';
+  'true quando o lancamento foi realizado com competencia em um dia cujo cash_closings ja esta confirmed.';
 
--- ── 3. finance_reverse_transaction com competência + PIN + flag ─────────────
+-- ── 3. finance_reverse_transaction com competência + PIN obrigatório ────────
 -- Remove a assinatura antiga (9 args) para não deixar um overload sem PIN.
 DROP FUNCTION IF EXISTS public.finance_reverse_transaction(
   UUID, UUID, TEXT, NUMERIC, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT
@@ -259,20 +251,12 @@ BEGIN
     RAISE EXCEPTION 'Tenant nao autorizado';
   END IF;
 
-  -- PIN é opcional nesta assinatura para não quebrar os fluxos existentes
-  -- (Cashflow/Receipts/AccountsReceivable). Quando enviado, é validado aqui,
-  -- na mesma transação, e não pode ser contornado pelo cliente.
-  IF v_audit_pin IS NOT NULL THEN
-    IF NOT public.verify_audit_pin(v_auth_uid, v_audit_pin) THEN
-      RAISE EXCEPTION 'PIN de autorizacao invalido';
-    END IF;
-  END IF;
-
   -- Data de competência (fuso do tenant). Não permite data futura.
-  SELECT COALESCE(NULLIF(BTRIM(t.timezone), ''), 'America/Sao_Paulo')
+  SELECT COALESCE(NULLIF(BTRIM(ts.timezone), ''), 'America/Sao_Paulo')
   INTO v_timezone
-  FROM public.tenants t
-  WHERE t.id = p_tenant_id;
+  FROM public.tenant_settings ts
+  WHERE ts.tenant_id = p_tenant_id
+  LIMIT 1;
   v_timezone := COALESCE(v_timezone, 'America/Sao_Paulo');
   v_business_date := (v_reversal_date AT TIME ZONE v_timezone)::date;
 
@@ -287,6 +271,21 @@ BEGIN
       AND cc.business_date = v_business_date
       AND cc.status = 'confirmed'
   ) INTO v_retroactive;
+
+  -- R-02: enforcement no banco. Se o dia da competência já está confirmado, o
+  -- PIN é obrigatório. Não existe caminho alternativo: a checagem roda antes
+  -- de qualquer escrita e o cliente não consegue pular esta RPC.
+  IF v_retroactive AND v_audit_pin IS NULL THEN
+    RAISE EXCEPTION 'Ajuste retroativo em caixa fechado exige PIN de gerente';
+  END IF;
+
+  -- Quando o PIN é enviado, é sempre validado na mesma transação, inclusive
+  -- nos fluxos que não são retroativos (defesa contra PIN inválido trafegado).
+  IF v_audit_pin IS NOT NULL THEN
+    IF NOT public.verify_audit_pin(v_auth_uid, p_tenant_id, v_audit_pin) THEN
+      RAISE EXCEPTION 'PIN de autorizacao invalido';
+    END IF;
+  END IF;
 
   IF v_key IS NOT NULL THEN
     SELECT fr.id, fr.reversal_transaction_id, fr.original_transaction_id
@@ -388,10 +387,11 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.finance_reverse_transaction(UUID, UUID, TEXT, NUMERIC, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.finance_reverse_transaction(UUID, UUID, TEXT, NUMERIC, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT, TEXT) FROM anon;
 GRANT EXECUTE ON FUNCTION public.finance_reverse_transaction(UUID, UUID, TEXT, NUMERIC, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT, TEXT) TO authenticated;
 
 COMMENT ON FUNCTION public.finance_reverse_transaction(UUID, UUID, TEXT, NUMERIC, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT, TEXT) IS
-  'Reversao financeira auditada. p_reversal_date define a competencia; p_audit_pin valida PIN gerencial quando informado; marca retroactive_adjustment quando o caixa do dia ja esta confirmed.';
+  'Reversao financeira auditada. p_reversal_date define a competencia; competencia em caixa confirmed exige p_audit_pin (R-02) e marca retroactive_adjustment.';
 
 NOTIFY pgrst, 'reload schema';
 
