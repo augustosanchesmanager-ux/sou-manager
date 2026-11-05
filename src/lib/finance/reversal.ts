@@ -26,6 +26,8 @@ export interface ReverseFinancialTransactionInput {
   refundMethod?: string | null;
   reversalDate?: string;
   idempotencyKey?: string | null;
+  /** PIN gerencial validado no banco dentro da mesma transação. */
+  auditPin?: string | null;
 }
 
 export interface ReverseFinancialTransactionResult {
@@ -66,6 +68,7 @@ export const reverseFinancialTransaction = async ({
   refundMethod,
   reversalDate,
   idempotencyKey,
+  auditPin,
 }: ReverseFinancialTransactionInput): Promise<ReverseFinancialTransactionResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para reversão financeira.');
   if (!originalTransactionId) throw new Error('transaction original obrigatória para reversão financeira.');
@@ -86,6 +89,7 @@ export const reverseFinancialTransaction = async ({
     refundMethod: refundMethod || null,
     reversalDate: reversalDate || new Date().toISOString(),
     idempotencyKey: key,
+    pinAuthorized: Boolean(auditPin?.trim()),
   });
   const { data, error } = await withReversalTimeout<any>(
     supabase.rpc('finance_reverse_transaction', {
@@ -98,6 +102,7 @@ export const reverseFinancialTransaction = async ({
       p_refund_method: refundMethod || null,
       p_reversal_date: reversalDate || new Date().toISOString(),
       p_idempotency_key: key,
+      p_audit_pin: auditPin?.trim() || null,
     }),
   );
 
