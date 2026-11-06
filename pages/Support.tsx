@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
-import { useRef } from 'react';
+import { GraduationCap, Headset } from 'lucide-react';
+import AcademyHub from '../components/academy/AcademyHub';
 
 interface Ticket {
     id: string;
@@ -25,6 +27,23 @@ interface TicketMessage {
 
 const Support: React.FC = () => {
     const { user, tenantId, accessRole } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get('tab');
+    const [activeTab, setActiveTab] = useState<'academy' | 'tickets'>(() => {
+        return tabParam === 'tickets' ? 'tickets' : 'academy';
+    });
+
+    useEffect(() => {
+        if (tabParam === 'tickets' || tabParam === 'academy') {
+            setActiveTab(tabParam);
+        }
+    }, [tabParam]);
+
+    const handleTabChange = (tab: 'academy' | 'tickets') => {
+        setActiveTab(tab);
+        setSearchParams({ tab });
+    };
+
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [messages, setMessages] = useState<TicketMessage[]>([]);
@@ -200,66 +219,107 @@ const Support: React.FC = () => {
         <div className="space-y-6 animate-fade-in max-w-5xl mx-auto pb-20">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Protocolo SOU-Support</span>
-                    </div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Central de Atendimento</h2>
-                    <p className="text-slate-500 mt-1 font-medium">Como podemos ajudar você hoje?</p>
-                </div>
+            {/* Navigation Tabs */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-white/10 pb-4">
                 <button
-                    onClick={() => setIsNewTicketModalOpen(true)}
-                    className="flex items-center gap-2 px-6 py-4 bg-amber-500 text-black rounded-2xl font-black text-sm hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/10 active:scale-95"
+                    type="button"
+                    onClick={() => handleTabChange('academy')}
+                    className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                        activeTab === 'academy'
+                            ? 'bg-[#A96F14] text-black shadow-lg shadow-amber-500/20'
+                            : 'bg-white/5 text-[#A89D8B] hover:text-white hover:bg-white/10 border border-white/5'
+                    }`}
                 >
-                    <span className="material-symbols-outlined text-lg">add_circle</span>
-                    Novo Chamado
+                    <GraduationCap size={18} />
+                    <span>SMG Academy (Cursos & Certificação)</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('tickets')}
+                    className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                        activeTab === 'tickets'
+                            ? 'bg-[#A96F14] text-black shadow-lg shadow-amber-500/20'
+                            : 'bg-white/5 text-[#A89D8B] hover:text-white hover:bg-white/10 border border-white/5'
+                    }`}
+                >
+                    <Headset size={18} />
+                    <span>Chamados de Suporte</span>
+                    {tickets.length > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            activeTab === 'tickets' ? 'bg-black text-[#E2A63B]' : 'bg-white/10 text-slate-300'
+                        }`}>
+                            {tickets.length}
+                        </span>
+                    )}
                 </button>
             </div>
 
-            <div className="space-y-4">
-                {isLoading ? (
-                    [1, 2, 3].map(i => <div key={i} className="h-28 bg-[#0a0a0a] rounded-3xl animate-pulse border border-white/5"></div>)
-                ) : tickets.length === 0 ? (
-                    <div className="bg-[#0a0a0a] p-16 rounded-3xl border border-white/10 text-center flex flex-col items-center shadow-2xl">
-                        <div className="size-20 rounded-2xl bg-amber-500/5 flex items-center justify-center mb-6 border border-amber-500/10">
-                            <span className="material-symbols-outlined text-5xl text-amber-500/30">support_agent</span>
-                        </div>
-                        <h3 className="text-xl font-bold text-white">Nenhum chamado aberto</h3>
-                        <p className="text-slate-500 mt-2 max-w-xs font-medium">Você ainda não possui solicitações ativas. Caso precise de assistência, estamos prontos para ajudar.</p>
-                    </div>
-                ) : (
-                    tickets.map(ticket => (
-                        <div
-                            key={ticket.id}
-                            onClick={() => viewTicket(ticket)}
-                            className="bg-[#0a0a0a] p-8 rounded-3xl border border-white/10 shadow-xl hover:border-amber-500/40 transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-                            <div className="flex items-center gap-6 relative z-10">
-                                <div className={`size-14 rounded-2xl flex items-center justify-center transition-all ${ticket.status === 'closed' ? 'bg-white/5 text-slate-500' : 'bg-amber-500/10 text-amber-500 shadow-lg shadow-amber-500/5'}`}>
-                                    <span className="material-symbols-outlined text-2xl">{ticket.status === 'closed' ? 'check_circle' : 'chat_bubble'}</span>
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h4 className="font-black text-white text-lg tracking-tight group-hover:text-amber-500 transition-colors uppercase">{ticket.subject}</h4>
-                                        {ticket.status === 'responded' && <div className="size-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></div>}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <p className="text-[10px] text-amber-500/50 font-black uppercase tracking-widest">ID: {ticket.id.slice(0, 8)}</p>
-                                        <span className="text-white/10">•</span>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</p>
-                                        <span className="text-white/10">•</span>
-                                        <div className="scale-75 origin-left">{getStatusBadge(ticket.status)}</div>
-                                    </div>
-                                </div>
+            {activeTab === 'academy' ? (
+                <AcademyHub />
+            ) : (
+                <>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black uppercase text-black tracking-widest">Protocolo SOU-Support</span>
                             </div>
-                            <span className="material-symbols-outlined text-white/5 group-hover:text-amber-500 group-hover:translate-x-1 transition-all">north_east</span>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Central de Atendimento</h2>
+                            <p className="text-slate-500 mt-1 font-medium">Como podemos ajudar você hoje?</p>
                         </div>
-                    ))
-                )}
-            </div>
+                        <button
+                            onClick={() => setIsNewTicketModalOpen(true)}
+                            className="flex items-center gap-2 px-6 py-4 bg-amber-500 text-black rounded-2xl font-black text-sm hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/10 active:scale-95"
+                        >
+                            <span className="material-symbols-outlined text-lg">add_circle</span>
+                            Novo Chamado
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        {isLoading ? (
+                            [1, 2, 3].map(i => <div key={i} className="h-28 bg-[#0a0a0a] rounded-3xl animate-pulse border border-white/5"></div>)
+                        ) : tickets.length === 0 ? (
+                            <div className="bg-[#0a0a0a] p-16 rounded-3xl border border-white/10 text-center flex flex-col items-center shadow-2xl">
+                                <div className="size-20 rounded-2xl bg-amber-500/5 flex items-center justify-center mb-6 border border-amber-500/10">
+                                    <span className="material-symbols-outlined text-5xl text-amber-500/30">support_agent</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-white">Nenhum chamado aberto</h3>
+                                <p className="text-slate-500 mt-2 max-w-xs font-medium">Você ainda não possui solicitações ativas. Caso precise de assistência, estamos prontos para ajudar.</p>
+                            </div>
+                        ) : (
+                            tickets.map(ticket => (
+                                <div
+                                    key={ticket.id}
+                                    onClick={() => viewTicket(ticket)}
+                                    className="bg-[#0a0a0a] p-8 rounded-3xl border border-white/10 shadow-xl hover:border-amber-500/40 transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                                    <div className="flex items-center gap-6 relative z-10">
+                                        <div className={`size-14 rounded-2xl flex items-center justify-center transition-all ${ticket.status === 'closed' ? 'bg-white/5 text-slate-500' : 'bg-amber-500/10 text-amber-500 shadow-lg shadow-amber-500/5'}`}>
+                                            <span className="material-symbols-outlined text-2xl">{ticket.status === 'closed' ? 'check_circle' : 'chat_bubble'}</span>
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <h4 className="font-black text-white text-lg tracking-tight group-hover:text-amber-500 transition-colors uppercase">{ticket.subject}</h4>
+                                                {ticket.status === 'responded' && <div className="size-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></div>}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-[10px] text-amber-500/50 font-black uppercase tracking-widest">ID: {ticket.id.slice(0, 8)}</p>
+                                                <span className="text-white/10">•</span>
+                                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</p>
+                                                <span className="text-white/10">•</span>
+                                                <div className="scale-75 origin-left">{getStatusBadge(ticket.status)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span className="material-symbols-outlined text-white/5 group-hover:text-amber-500 group-hover:translate-x-1 transition-all">north_east</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </>
+            )}
 
             {/* NEW TICKET MODAL */}
             <Modal

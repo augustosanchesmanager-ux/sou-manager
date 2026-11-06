@@ -13,6 +13,8 @@ import {
   Bell,
   Sparkles,
   LifeBuoy,
+  GraduationCap,
+  Headset,
   ChevronDown,
   ChevronRight,
   Menu,
@@ -117,6 +119,15 @@ const Sidebar: React.FC<SidebarProps> = ({
     Principal: true,
     Sistema: false,
   });
+
+  const isSupportRoute = location.pathname === '/support';
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(isSupportRoute);
+
+  useEffect(() => {
+    if (isSupportRoute) {
+      setIsHelpMenuOpen(true);
+    }
+  }, [isSupportRoute]);
 
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
 
@@ -574,17 +585,65 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
 
               {!isEsteticaApp && (
-                <Link
-                  to="/support"
-                  onClick={onClose}
-                  title={!showLabels ? 'Precisa de ajuda?' : ''}
-                  className={`flex items-center w-full rounded-lg text-[#6B6252]/80 dark:text-[#A89D8B]/80 hover:bg-[#EFE9D8] dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] transition-colors ${
-                    showLabels ? 'px-3 py-2' : 'p-2 justify-center'
-                  }`}
-                >
-                  <LifeBuoy size={18} className="shrink-0" />
-                  {showLabels && <span className="ml-3 text-sm">Precisa de ajuda?</span>}
-                </Link>
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!showLabels) {
+                        onClose();
+                        navigate('/support?tab=academy');
+                      } else {
+                        setIsHelpMenuOpen((prev) => !prev);
+                      }
+                    }}
+                    title={!showLabels ? 'Precisa de ajuda?' : ''}
+                    className={`flex items-center justify-between w-full rounded-lg text-[#6B6252]/80 dark:text-[#A89D8B]/80 hover:bg-[#EFE9D8] dark:hover:bg-[#262017] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] transition-colors cursor-pointer ${
+                      showLabels ? 'px-3 py-2' : 'p-2 justify-center'
+                    } ${isSupportRoute ? 'bg-[#EFE9D8]/60 dark:bg-[#262017]/60 text-[#1F1D1A] dark:text-[#F3EEE2] font-semibold' : ''}`}
+                  >
+                    <div className="flex items-center">
+                      <LifeBuoy size={18} className="shrink-0" />
+                      {showLabels && <span className="ml-3 text-sm">Precisa de ajuda?</span>}
+                    </div>
+                    {showLabels && (
+                      <ChevronDown
+                        size={15}
+                        className={`transition-transform duration-200 text-[#6B6252]/60 dark:text-[#A89D8B]/60 ${
+                          isHelpMenuOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    )}
+                  </button>
+
+                  {showLabels && isHelpMenuOpen && (
+                    <div className="mt-1 ml-4 pl-3 border-l border-[#EFE9D8] dark:border-[#262017] space-y-1">
+                      <Link
+                        to="/support?tab=academy"
+                        onClick={onClose}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          isSupportRoute && (location.search.includes('tab=academy') || !location.search.includes('tab='))
+                            ? 'bg-[#EFE9D8] dark:bg-[#262017] text-[#A96F14] dark:text-[#E2A63B]'
+                            : 'text-[#6B6252] dark:text-[#A89D8B] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] hover:bg-[#EFE9D8] dark:hover:bg-[#262017]'
+                        }`}
+                      >
+                        <GraduationCap size={15} className="shrink-0 text-[#A96F14] dark:text-[#E2A63B]" />
+                        <span>SMG Academy</span>
+                      </Link>
+                      <Link
+                        to="/support?tab=tickets"
+                        onClick={onClose}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          isSupportRoute && location.search.includes('tab=tickets')
+                            ? 'bg-[#EFE9D8] dark:bg-[#262017] text-[#A96F14] dark:text-[#E2A63B]'
+                            : 'text-[#6B6252] dark:text-[#A89D8B] hover:text-[#1F1D1A] dark:hover:text-[#F3EEE2] hover:bg-[#EFE9D8] dark:hover:bg-[#262017]'
+                        }`}
+                      >
+                        <Headset size={15} className="shrink-0 text-[#A96F14] dark:text-[#E2A63B]" />
+                        <span>Chamados de Suporte</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

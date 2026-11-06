@@ -56,9 +56,9 @@ export async function fetchBarberStatementData(params: {
   const { tenantId, staffId, startDate, endDate, commissionPercentage } = params;
   const barberSupabase = getScopedClient('barber');
 
-  // Ajusta limites para ISO completo considerando início e fim do dia
-  const startIso = new Date(`${startDate}T00:00:00`).toISOString();
-  const endIso = new Date(`${endDate}T23:59:59.999`).toISOString();
+  // Ajusta limites para ISO completo considerando início e fim do dia em fuso brasileiro (-03:00)
+  const startIso = `${startDate}T00:00:00.000-03:00`;
+  const endIso = `${endDate}T23:59:59.999-03:00`;
 
   // 1. Buscar comandas atribuídas diretamente ao profissional no período
   const { data: comandasData } = await barberSupabase
@@ -84,10 +84,41 @@ export async function fetchBarberStatementData(params: {
 
   const directItems = (staffItemsData || []) as unknown as RawComandaItemRow[];
 
+  // 2.1 Buscar itens onde o profissional atuou como participante/assistente
+  let participantItems: RawComandaItemRow[] = [];
+  try {
+    const { data: partData } = await barberSupabase
+      .from('service_execution_participants')
+      .select('comanda_item_id, staff_id, payout_value, role, payout_type')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staffId);
+
+    const participantItemIds = Array.from(
+      new Set((partData || []).map((p: any) => p.comanda_item_id).filter(Boolean))
+    );
+
+    if (participantItemIds.length > 0) {
+      const { data: pItemsData } = await barberSupabase
+        .from('comanda_items')
+        .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, created_at, services(name)')
+        .in('id', participantItemIds)
+        .gte('created_at', startIso)
+        .lte('created_at', endIso);
+
+      if (pItemsData) {
+        participantItems = pItemsData as unknown as RawComandaItemRow[];
+      }
+    }
+  } catch {
+    // Degradação graciosa
+  }
+
+  const allDirectItems = [...directItems, ...participantItems];
+
   // 3. Obter comandas de itens onde o profissional atuou mas comanda.staff_id != staffId
   const directComandaIds = new Set(staffComandas.map((c) => c.id));
   const externalComandaIds = Array.from(
-    new Set(directItems.map((it) => it.comanda_id).filter((id) => !directComandaIds.has(id)))
+    new Set(allDirectItems.map((it) => it.comanda_id).filter((id) => !directComandaIds.has(id)))
   );
 
   let externalComandas: RawComandaRow[] = [];

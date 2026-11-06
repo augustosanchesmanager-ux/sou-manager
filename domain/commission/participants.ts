@@ -73,6 +73,7 @@ export const buildInferredPrimaryParticipant = (
   comandaItemId: string,
   savedParticipants: ParticipantRow[],
   staffById: Map<string, { id: string; role: string; commission_rate?: number | null }>,
+  fallbackStaffId?: string | null,
 ): ParticipantRow | null => {
   const totalPayout = savedParticipants
     .filter((p) => p.affects_commission)
@@ -86,6 +87,28 @@ export const buildInferredPrimaryParticipant = (
 
   const savedStaffIds = new Set(savedParticipants.map((p) => p.staff_id || p.professional_id).filter(Boolean));
 
+  // Se há um profissional atribuído ao item/comanda, ele tem precedência absoluta
+  if (fallbackStaffId) {
+    if (savedStaffIds.has(fallbackStaffId)) return null;
+    const fallbackStaff = staffById.get(fallbackStaffId);
+    // Se o profissional atribuído não for comissionável (ex: gestor taxa 0%),
+    // NUNCA atribuir a um terceiro aleatório da barbearia.
+    if (!fallbackStaff || !isCommissionEligible(fallbackStaff)) {
+      return null;
+    }
+    return {
+      id: `inferred-${comandaItemId}-${fallbackStaff.id}`,
+      comanda_item_id: comandaItemId,
+      staff_id: fallbackStaff.id,
+      professional_id: fallbackStaff.id,
+      role: 'primary',
+      payout_type: 'percentage',
+      payout_value: remaining * 100,
+      affects_commission: true,
+    };
+  }
+
+  // Legado: se não há fallback staffId informado e restou cota, busca o primeiro comissionável
   for (const [, staff] of staffById) {
     if (savedStaffIds.has(staff.id)) continue;
     if (!isCommissionEligible(staff)) continue;
@@ -121,8 +144,9 @@ export const normalizeCommissionParticipants = (
   isShared: boolean;
   primaryStaffId: string | null;
 } => {
+  const fallbackStaffId = item.staff_id || comanda.staff_id || null;
+
   if (!rawParticipants || rawParticipants.length === 0) {
-    const fallbackStaffId = item.staff_id || comanda.staff_id;
     if (!fallbackStaffId) {
       return { participants: [], isShared: false, primaryStaffId: null };
     }
@@ -132,6 +156,9 @@ export const normalizeCommissionParticipants = (
       primaryStaffId: fallbackStaffId,
     };
   }
+
+  const rawPrimary = rawParticipants.find((p) => p.role === 'primary');
+  const rawPrimaryStaffId = rawPrimary?.staff_id || rawPrimary?.professional_id || null;
 
   const byStaffId = new Map<string, ParticipantRow>();
   for (const p of rawParticipants) {
@@ -149,12 +176,26 @@ export const normalizeCommissionParticipants = (
 
   const hasPrimary = unique.some((p) => p.role === 'primary' && p.affects_commission);
   if (!hasPrimary) {
-    const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById);
-    if (inferred) unique.push(inferred);
+    // Se o atendimento já teve um profissional principal não-comissionável (ex: gestor),
+    // ou se o fallbackStaffId não for comissionável, não inferir outro terceiro
+    const effectiveStaffId = fallbackStaffId || rawPrimaryStaffId;
+    const effectiveStaff = effectiveStaffId ? staffById.get(effectiveStaffId) : null;
+    const isEffectiveEligible = effectiveStaff ? isCommissionEligible(effectiveStaff) : false;
+
+    // Apenas infere se o fallback/primary for elegível, ou se não houver profissional identificado no item
+    if (!effectiveStaffId || isEffectiveEligible) {
+      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId);
+      if (inferred) unique.push(inferred);
+    }
   }
 
   const primaryParticipant = unique.find((p) => p.role === 'primary');
-  const primaryStaffId = primaryParticipant?.staff_id || primaryParticipant?.professional_id || null;
+  const primaryStaffId =
+    primaryParticipant?.staff_id ||
+    primaryParticipant?.professional_id ||
+    rawPrimaryStaffId ||
+    fallbackStaffId ||
+    null;
 
   const isShared = isSharedExecution(
     { service_id: item.service_id },

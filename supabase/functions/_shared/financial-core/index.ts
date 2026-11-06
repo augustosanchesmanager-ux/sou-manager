@@ -144,7 +144,7 @@ var hasPartialSavedPayout = (participant, itemValue) => {
   const rate = normalizePercentage(participant.payout_value);
   return rate > 0 && rate < 1;
 };
-var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffById) => {
+var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffById, fallbackStaffId) => {
   const totalPayout = savedParticipants.filter((p) => p.affects_commission).reduce((sum, p) => {
     const rate = normalizePercentage(p.payout_value);
     return sum + (p.payout_type === "fixed" ? p.payout_value : rate);
@@ -152,6 +152,23 @@ var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffBy
   const remaining = 1 - totalPayout;
   if (remaining <= 0.01) return null;
   const savedStaffIds = new Set(savedParticipants.map((p) => p.staff_id || p.professional_id).filter(Boolean));
+  if (fallbackStaffId) {
+    if (savedStaffIds.has(fallbackStaffId)) return null;
+    const fallbackStaff = staffById.get(fallbackStaffId);
+    if (!fallbackStaff || !isCommissionEligible(fallbackStaff)) {
+      return null;
+    }
+    return {
+      id: `inferred-${comandaItemId}-${fallbackStaff.id}`,
+      comanda_item_id: comandaItemId,
+      staff_id: fallbackStaff.id,
+      professional_id: fallbackStaff.id,
+      role: "primary",
+      payout_type: "percentage",
+      payout_value: remaining * 100,
+      affects_commission: true
+    };
+  }
   for (const [, staff] of staffById) {
     if (savedStaffIds.has(staff.id)) continue;
     if (!isCommissionEligible(staff)) continue;
@@ -169,8 +186,8 @@ var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffBy
   return null;
 };
 var normalizeCommissionParticipants = (item, comanda, rawParticipants, itemValue, staffById) => {
+  const fallbackStaffId = item.staff_id || comanda.staff_id || null;
   if (!rawParticipants || rawParticipants.length === 0) {
-    const fallbackStaffId = item.staff_id || comanda.staff_id;
     if (!fallbackStaffId) {
       return { participants: [], isShared: false, primaryStaffId: null };
     }
@@ -180,6 +197,8 @@ var normalizeCommissionParticipants = (item, comanda, rawParticipants, itemValue
       primaryStaffId: fallbackStaffId
     };
   }
+  const rawPrimary = rawParticipants.find((p) => p.role === "primary");
+  const rawPrimaryStaffId = rawPrimary?.staff_id || rawPrimary?.professional_id || null;
   const byStaffId = /* @__PURE__ */ new Map();
   for (const p of rawParticipants) {
     const sid = p.staff_id || p.professional_id;
@@ -194,11 +213,16 @@ var normalizeCommissionParticipants = (item, comanda, rawParticipants, itemValue
   const unique = Array.from(byStaffId.values());
   const hasPrimary = unique.some((p) => p.role === "primary" && p.affects_commission);
   if (!hasPrimary) {
-    const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById);
-    if (inferred) unique.push(inferred);
+    const effectiveStaffId = fallbackStaffId || rawPrimaryStaffId;
+    const effectiveStaff = effectiveStaffId ? staffById.get(effectiveStaffId) : null;
+    const isEffectiveEligible = effectiveStaff ? isCommissionEligible(effectiveStaff) : false;
+    if (!effectiveStaffId || isEffectiveEligible) {
+      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId);
+      if (inferred) unique.push(inferred);
+    }
   }
   const primaryParticipant = unique.find((p) => p.role === "primary");
-  const primaryStaffId = primaryParticipant?.staff_id || primaryParticipant?.professional_id || null;
+  const primaryStaffId = primaryParticipant?.staff_id || primaryParticipant?.professional_id || rawPrimaryStaffId || fallbackStaffId || null;
   const isShared = isSharedExecution(
     { service_id: item.service_id },
     unique.filter((p) => p.affects_commission)

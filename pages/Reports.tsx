@@ -87,6 +87,154 @@ const Reports: React.FC = () => {
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
 
+  // ─── Filtros Dinâmicos de Vendas ──────────────────────────────
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStaff, setSelectedStaff] = useState('all');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('all');
+  const [selectedChannel, setSelectedChannel] = useState<'all' | 'online' | 'balcao'>('all');
+  const [selectedClubMember, setSelectedClubMember] = useState<'all' | 'members' | 'non_members'>('all');
+
+  const availableStaff = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach((s) => s.staff_names.forEach((name) => { if (name) set.add(name); }));
+    return Array.from(set).sort();
+  }, [sales]);
+
+  const hasActiveDynamicFilters = Boolean(
+    searchTerm.trim() ||
+    selectedStaff !== 'all' ||
+    selectedPaymentMethod !== 'all' ||
+    selectedChannel !== 'all' ||
+    selectedClubMember !== 'all'
+  );
+
+  const resetDynamicFilters = useCallback(() => {
+    setSearchTerm('');
+    setSelectedStaff('all');
+    setSelectedPaymentMethod('all');
+    setSelectedChannel('all');
+    setSelectedClubMember('all');
+  }, []);
+
+  const filteredSales = useMemo(() => {
+    return sales.filter((sale) => {
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
+        const matchesClient = sale.client_name.toLowerCase().includes(term);
+        const matchesShortId = sale.short_id.toLowerCase().includes(term);
+        const matchesItems = sale.items_summary.toLowerCase().includes(term);
+        if (!matchesClient && !matchesShortId && !matchesItems) return false;
+      }
+
+      if (selectedStaff !== 'all') {
+        if (!sale.staff_names.includes(selectedStaff)) return false;
+      }
+
+      if (selectedPaymentMethod !== 'all') {
+        const hasMethod = sale.payment_badges.some((badge) => {
+          const l = badge.label.toLowerCase();
+          if (selectedPaymentMethod === 'pix') return l.includes('pix');
+          if (selectedPaymentMethod === 'dinheiro') return l.includes('dinheiro') || l.includes('cash');
+          if (selectedPaymentMethod === 'credito') return (l.includes('crédito') || l.includes('credito')) && !badge.isClubCredit;
+          if (selectedPaymentMethod === 'debito') return l.includes('débito') || l.includes('debito');
+          if (selectedPaymentMethod === 'clube') return badge.isClubCredit || l.includes('clube');
+          return true;
+        });
+        if (!hasMethod) return false;
+      }
+
+      if (selectedChannel !== 'all') {
+        if (sale.channel !== selectedChannel) return false;
+      }
+
+      if (selectedClubMember !== 'all') {
+        if (selectedClubMember === 'members' && !sale.is_club_member) return false;
+        if (selectedClubMember === 'non_members' && sale.is_club_member) return false;
+      }
+
+      return true;
+    });
+  }, [sales, searchTerm, selectedStaff, selectedPaymentMethod, selectedChannel, selectedClubMember]);
+
+  // Totalizadores rápidos calculados dinamicamente sobre as vendas filtradas
+  const periodTotals = useMemo(() => {
+    return filteredSales.reduce(
+      (acc, sale) => {
+        acc.cashRevenue += sale.cash_revenue;
+        acc.clubCreditVolume += sale.club_credit_volume;
+        acc.totalCommissions += sale.commission_generated;
+        acc.totalAttendances += 1;
+        return acc;
+      },
+      {
+        cashRevenue: 0,
+        clubCreditVolume: 0,
+        totalCommissions: 0,
+        totalAttendances: 0,
+      },
+    );
+  }, [filteredSales]);
+
+  // Exportação oficial em CSV (UTF-8 BOM para Excel brasileiro)
+  const exportToCsv = useCallback(() => {
+    if (filteredSales.length === 0) {
+      setToast({ msg: 'Nenhum registro para exportar com os filtros atuais.', type: 'error' });
+      return;
+    }
+
+    const escapeCSV = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+    const fmtNumber = (v: number) => v.toFixed(2).replace('.', ',');
+
+    const headers = [
+      'Comanda',
+      'Data Atendimento',
+      'Data Pagamento',
+      'Canal',
+      'Cliente',
+      'Assinante Clube',
+      'Profissionais',
+      'Itens',
+      'Forma de Pagamento',
+      'Valor Total (R$)',
+      'Receita Caixa (R$)',
+      'Volume Clube (R$)',
+      'Comissao Gerada (R$)',
+      'Status',
+    ];
+
+    const rows = filteredSales.map((s) => [
+      escapeCSV(s.short_id),
+      escapeCSV(fmtDateTime(s.attendance_date)),
+      escapeCSV(fmtDateTime(s.payment_date)),
+      escapeCSV(s.channel === 'online' ? 'Online' : 'Balcão'),
+      escapeCSV(s.client_name),
+      escapeCSV(s.is_club_member ? 'Sim' : 'Não'),
+      escapeCSV(s.staff_names.join(', ')),
+      escapeCSV(s.items_summary),
+      escapeCSV(s.payment_badges.map((b) => `${b.label} (${fmt(b.amount)})`).join(' + ')),
+      escapeCSV(fmtNumber(s.total)),
+      escapeCSV(fmtNumber(s.cash_revenue)),
+      escapeCSV(fmtNumber(s.club_credit_volume)),
+      escapeCSV(fmtNumber(s.commission_generated)),
+      escapeCSV(s.status),
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(';'), ...rows.map((r) => r.join(';'))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const fromStr = filters.dateFrom || 'inicio';
+    const toStr = filters.dateTo || 'fim';
+    link.setAttribute('download', `relatorio_vendas_${fromStr}_a_${toStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setToast({ msg: `Relatório CSV exportado com sucesso (${filteredSales.length} registros).`, type: 'success' });
+  }, [filteredSales, filters.dateFrom, filters.dateTo]);
+
   // KPIs vêm EXCLUSIVAMENTE do RPC canônico — zero recálculo local (§4.4/§4.5).
   const [kpi, setKpi] = useState<DashboardKpiFinancial | null>(null);
   const [kpiLoading, setKpiLoading] = useState(false);
@@ -212,24 +360,6 @@ const Reports: React.FC = () => {
     };
   }, [tenantId, activeTab, canonicalPeriod]);
 
-  // Totalizadores rápidos calculados diretamente sobre o período e regime selecionados
-  const periodTotals = useMemo(() => {
-    return sales.reduce(
-      (acc, sale) => {
-        acc.cashRevenue += sale.cash_revenue;
-        acc.clubCreditVolume += sale.club_credit_volume;
-        acc.totalCommissions += sale.commission_generated;
-        acc.totalAttendances += 1;
-        return acc;
-      },
-      {
-        cashRevenue: 0,
-        clubCreditVolume: 0,
-        totalCommissions: 0,
-        totalAttendances: 0,
-      },
-    );
-  }, [sales]);
 
   const tabs = [
     { id: 'chefclub', label: 'Clube dos Chefs', icon: 'workspace_premium' },
@@ -431,6 +561,113 @@ const Reports: React.FC = () => {
           </div>
         )}
 
+        {/* Barra de Filtros Dinâmicos e Exportação CSV */}
+        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 space-y-3 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">tune</span>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">Filtros Dinâmicos</h4>
+              {hasActiveDynamicFilters && (
+                <button
+                  type="button"
+                  onClick={resetDynamicFilters}
+                  className="text-xs font-bold text-primary hover:underline ml-2 flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={exportToCsv}
+                disabled={loading || filteredSales.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-night bg-primary hover:bg-primary-dark shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
+                title="Exportar registros filtrados para planilha CSV (formato Excel com acentos)"
+              >
+                <span className="material-symbols-outlined text-base">download</span>
+                <span>Exportar CSV ({filteredSales.length})</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
+            {/* 1. Busca textual */}
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar cliente, comanda ou item..."
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
+              />
+            </div>
+
+            {/* 2. Filtro por profissional */}
+            <div>
+              <select
+                value={selectedStaff}
+                onChange={(e) => setSelectedStaff(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
+              >
+                <option value="all">Todos os Profissionais</option>
+                {availableStaff.map((staffName) => (
+                  <option key={staffName} value={staffName}>
+                    {staffName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Filtro por forma de pagamento */}
+            <div>
+              <select
+                value={selectedPaymentMethod}
+                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
+              >
+                <option value="all">Todas as Formas</option>
+                <option value="pix">PIX</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="credito">Cartão de Crédito</option>
+                <option value="debito">Cartão de Débito</option>
+                <option value="clube">Crédito do Clube</option>
+              </select>
+            </div>
+
+            {/* 4. Filtro por canal */}
+            <div>
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value as any)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
+              >
+                <option value="all">Todos os Canais</option>
+                <option value="balcao">🏬 Balcão</option>
+                <option value="online">🌐 Online / Site</option>
+              </select>
+            </div>
+
+            {/* 5. Filtro por membro do clube */}
+            <div>
+              <select
+                value={selectedClubMember}
+                onChange={(e) => setSelectedClubMember(e.target.value as any)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
+              >
+                <option value="all">Todos os Clientes</option>
+                <option value="members">⭐ Assinantes do Clube</option>
+                <option value="non_members">Avulsos (Não assinantes)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* Tabela de Auditoria de Comandas */}
         <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -439,7 +676,9 @@ const Reports: React.FC = () => {
                 Auditoria de Comandas no Período
               </h4>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                {sales.length} {sales.length === 1 ? 'registro' : 'registros'}
+                {filteredSales.length === sales.length
+                  ? `${sales.length} ${sales.length === 1 ? 'registro' : 'registros'}`
+                  : `${filteredSales.length} de ${sales.length} registros`}
               </span>
             </div>
             <span className="text-[11px] font-semibold text-slate-500">
@@ -455,6 +694,18 @@ const Reports: React.FC = () => {
             <div className="text-center py-12">
               <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">receipt_long</span>
               <p className="text-sm font-semibold text-slate-500">Nenhuma comanda encontrada no período e regime selecionados</p>
+            </div>
+          ) : filteredSales.length === 0 ? (
+            <div className="text-center py-12">
+              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">filter_alt_off</span>
+              <p className="text-sm font-semibold text-slate-500">Nenhum atendimento corresponde aos filtros aplicados.</p>
+              <button
+                type="button"
+                onClick={resetDynamicFilters}
+                className="mt-2 text-xs font-bold text-primary hover:underline"
+              >
+                Limpar Filtros Dinâmicos
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -474,7 +725,7 @@ const Reports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map((sale) => (
+                  {filteredSales.map((sale) => (
                     <tr
                       key={sale.id}
                       className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
