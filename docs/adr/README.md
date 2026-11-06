@@ -43,7 +43,8 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-036](./ADR-036-payment-terminals-and-fee-snapshots.md) | Accepted | Cadastro de Maquininhas de Cartão e Snapshot Contábil de Taxas no Checkout (2026-10-21) |
 | [ADR-037](./ADR-037-bank-reconciliation-ofx.md) | Proposed | Conciliação Bancária Automática via Importação de Extratos OFX/CSV (2026-10-26) |
 | [ADR-038](./ADR-038-recurring-schedule-subscribers.md) | Accepted | Horário Fixo Recorrente para Assinantes Chef Club com Yield Management e Janela Rolante (2026-10-27) |
-| [ADR-039](./ADR-039-marketplace-and-extensions.md) | Accepted | Arquitetura de Marketplace e Catálogo de Extensões — Subfase 8.4 (2026-11-06) |
+| [ADR-039-PIN](./ADR-039-auditoria-e-competencia-retroativa-com-pin.md) | Proposed | Auditoria e Competência Retroativa com PIN de Gerente (2026-11-05) |
+| [ADR-039-MKT](./ADR-039-marketplace-and-extensions.md) | Accepted | Arquitetura de Marketplace e Catálogo de Extensões — Subfase 8.4 (2026-11-06) |
 | [ADR-040](./ADR-040-core-integrations-connectors.md) | Accepted | Arquitetura de Conectores e Integrações Core — Subfase 8.5 (2026-11-06) |
 | [ADR-041](./ADR-041-platform-billing-and-saas-metrics.md) | Accepted | Arquitetura de Faturamento da Plataforma SMG (Platform Billing) e Métricas de SaaS — Subfase 8.6 (2026-11-06) |
 | [ADR-042](./ADR-042-multi-language-and-internationalization-i18n.md) | Deferred | Arquitetura de Internacionalização e Multi-Idioma (i18n & L10n) — Congelada pelo PO (2026-11-06) |
