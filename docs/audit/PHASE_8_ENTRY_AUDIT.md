@@ -165,12 +165,13 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Conectores & Integrações Core | `tests/unit/integration-service.test.ts` | 13 | ✅ 100% PASS |
 | Billing Plataforma & SaaS Metrics | `tests/unit/platform-billing-service.test.ts` | 25 | ✅ 100% PASS |
 | Enterprise Features & Audit Logs | `tests/unit/enterprise-service.test.ts` | 25 | ✅ 100% PASS |
-| **Total Dedicado Fase 8** | **10 suítes** | **173** | **✅ 100% PASS** |
+| SaaS Certification Master | `tests/certification/fase8_11_saas_certification.test.ts` | 14 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **11 suítes** | **187** | **✅ 100% PASS** |
 
 ### 7.7 Matriz Consolidada Master (`npm run smg:verify`)
 - **Typecheck (`tsc --noEmit`):** 0 erros.
 - **Architecture Guard:** Baseline 222 rigorosamente preservada.
-- **Unit Tests:** 151 arquivos de teste executados com sucesso (0 falhas).
+- **Unit Tests:** 152 arquivos de teste executados com sucesso (0 falhas).
 - **Secrets Audit:** 0 credenciais expostas.
 - **Migration Security:** 197 migrações auditadas sem desativação ou regressão de RLS.
 - **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores, planos, assinaturas, faturas, logs corporativos e RPCs.
@@ -185,4 +186,9 @@ Em 2026-11-06, o PO Augusto deliberou formalmente o **congelamento até segunda 
   - `public.request_enterprise_data_export`: Abertura de ordem de exportação LGPD com auto-auditoria imediata no log corporativo sob categoria `compliance_lgpd` e TTL padrão de 7 dias.
 - **Camada de Aplicação:** Serviço `services/enterpriseService.ts` com paginação, filtros multidimensionais por severidade/categoria/data/ação, consulta de exportações e atualização de status/checksum de arquivos exportados.
 - **Cobertura de Testes:** 25 testes unitários dedicados em `tests/unit/enterprise-service.test.ts` (100% PASS).
+
+### 7.10 Subfase 8.11 — Certificação SaaS & Conclusão Integral da Fase 8 (`docs/certification/SAAS_CERTIFICATION.md`)
+- **Dossiê Master:** Certificado oficial de escalabilidade e prontidão comercial da plataforma nos 7 pilares oficiais: Arquitetura, UX/Valor Percebido, Segurança/RLS/Trilho Forense, Performance/Baseline, Treinamento (SMG Academy), Onboarding Ágil e Billing da Plataforma SaaS.
+- **Suíte de Testes:** `tests/certification/fase8_11_saas_certification.test.ts` com 14 testes cobrindo os 7 pilares (100% PASS).
+- **Declaração Formal:** Fase 8 (Commercial Scalability) 100% concluída localmente. Deploy em produção permanece condicionado ao gate físico desacoplado (`MERGE ≠ DEPLOY PROD`).
 
