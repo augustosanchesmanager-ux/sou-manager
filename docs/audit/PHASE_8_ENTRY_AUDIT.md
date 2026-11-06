@@ -139,7 +139,11 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
   - Truncamento seguro de `response_body` (máximo 1.024 caracteres).
   - Header de identificação e rastreio: `X-SMG-Delivery-Id`, `X-SMG-Event`, `User-Agent: SMG-Webhook-Dispatcher/1.0`.
 
-### 7.3 Matriz de Testes Unitários da Fase 8 (85 testes dedicados em `tests/unit/`)
+### 7.3 Subfase 8.4 — Marketplace & Extensões (`services/marketplaceService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.marketplace_extensions` (catálogo geral com status, categorias e escopos requeridos), `public.tenant_extensions` (instalações por barbearia com consentimento explícito e configurações isoladas em JSONB) e `public.extension_reviews` (avaliações de reputação 1 a 5 estrelas vinculadas a `auth.uid()`), sob políticas RLS estritas (migration local `20261106012000_phase_8_marketplace_and_extensions.sql`).
+- **Camada de Aplicação:** Serviço `services/marketplaceService.ts` implementando descoberta com filtros por categoria e busca textual, busca por slug, RPC canônica de instalação atômica `install_marketplace_extension` com fallback defensivo, desinstalação segura, atualização de configurações e sistema de avaliações.
+
+### 7.4 Matriz de Testes Unitários da Fase 8 (110 testes dedicados em `tests/unit/`)
 | Módulo Testado | Arquivo de Teste | Qtd Testes | Status |
 |----------------|------------------|:----------:|:------:|
 | Autenticação & Gateway | `tests/unit/api-gateway-auth.test.ts` | 20 | ✅ 100% PASS |
@@ -147,13 +151,15 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Comandas API | `tests/unit/api-gateway-comandas.test.ts` | 16 | ✅ 100% PASS |
 | Catálogo (Serviços e Produtos) | `tests/unit/api-gateway-catalog.test.ts` | 15 | ✅ 100% PASS |
 | Webhook Dispatcher & HMAC | `tests/unit/webhook-dispatcher.test.ts` | 21 | ✅ 100% PASS |
-| **Total Dedicado Fase 8** | **5 suítes** | **85** | **✅ 100% PASS** |
+| Contrato OpenAPI 3.1 & Docs | `tests/unit/openapi-spec.test.ts` | 9 | ✅ 100% PASS |
+| Marketplace & Extensões | `tests/unit/marketplace-service.test.ts` | 16 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **7 suítes** | **110** | **✅ 100% PASS** |
 
-### 7.4 Matriz Consolidada Master (`npm run smg:verify`)
+### 7.5 Matriz Consolidada Master (`npm run smg:verify`)
 - **Typecheck (`tsc --noEmit`):** 0 erros.
 - **Architecture Guard:** Baseline 222 rigorosamente preservada.
-- **Unit Tests:** 146 arquivos de teste executados com sucesso (0 falhas).
+- **Unit Tests:** 148 arquivos de teste executados com sucesso (0 falhas).
 - **Secrets Audit:** 0 credenciais expostas.
-- **Migration Security:** 193 migrações auditadas sem desativação ou regressão de RLS.
-- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas e tabelas outbox.
+- **Migration Security:** 194 migrações auditadas sem desativação ou regressão de RLS.
+- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas e RPCs.
 
