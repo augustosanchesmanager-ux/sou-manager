@@ -164,16 +164,25 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Marketplace & Extensões | `tests/unit/marketplace-service.test.ts` | 16 | ✅ 100% PASS |
 | Conectores & Integrações Core | `tests/unit/integration-service.test.ts` | 13 | ✅ 100% PASS |
 | Billing Plataforma & SaaS Metrics | `tests/unit/platform-billing-service.test.ts` | 25 | ✅ 100% PASS |
-| **Total Dedicado Fase 8** | **9 suítes** | **148** | **✅ 100% PASS** |
+| Enterprise Features & Audit Logs | `tests/unit/enterprise-service.test.ts` | 25 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **10 suítes** | **173** | **✅ 100% PASS** |
 
 ### 7.7 Matriz Consolidada Master (`npm run smg:verify`)
 - **Typecheck (`tsc --noEmit`):** 0 erros.
 - **Architecture Guard:** Baseline 222 rigorosamente preservada.
-- **Unit Tests:** 150 arquivos de teste executados com sucesso (0 falhas).
+- **Unit Tests:** 151 arquivos de teste executados com sucesso (0 falhas).
 - **Secrets Audit:** 0 credenciais expostas.
-- **Migration Security:** 196 migrações auditadas sem desativação ou regressão de RLS.
-- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores, planos, assinaturas, faturas e RPCs.
+- **Migration Security:** 197 migrações auditadas sem desativação ou regressão de RLS.
+- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores, planos, assinaturas, faturas, logs corporativos e RPCs.
 
 ### 7.8 Deliberação Estratégica do PO Augusto — Congelamento de Internacionalização (Subfases 8.7, 8.8 e 8.9)
 Em 2026-11-06, o PO Augusto deliberou formalmente o **congelamento até segunda ordem / postergação para versão futura** das subfases 8.7 (Multi Idioma), 8.8 (Multi Moeda) e 8.9 (Internacionalização). A decisão visa focar 100% da tração comercial e maturação operacional do **SMG Barber** no mercado nacional brasileiro (pt-BR e moeda BRL R$), evitando dispersão de esforço em múltiplos idiomas antes da expansão internacional consolidada. O **ADR-042** foi registrado com status **`DEFERRED`**.
+
+### 7.9 Subfase 8.10 — Enterprise Features: Trilho Forense & Portabilidade LGPD (`services/enterpriseService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.enterprise_audit_logs` (trilho forense corporativo com imutabilidade absoluta — append-only estrito sem permissão de UPDATE ou DELETE) e `public.enterprise_data_exports` (gestão transacional de ordens de exportação e conformidade LGPD Art. 18 com TTL configurável e expiração defensiva) na migration canônica `supabase/migrations/20261106040000_phase_8_enterprise_features_and_audit_logs.sql`.
+- **RPCs Seguras e Transacionais:**
+  - `public.record_enterprise_audit_event`: Registro corporativo com validação de multi-tenant contextual, separação por severidade (`info`, `warning`, `critical`) e categorias de governança (`security`, `financial`, `compliance_lgpd`, `operational`, `system`).
+  - `public.request_enterprise_data_export`: Abertura de ordem de exportação LGPD com auto-auditoria imediata no log corporativo sob categoria `compliance_lgpd` e TTL padrão de 7 dias.
+- **Camada de Aplicação:** Serviço `services/enterpriseService.ts` com paginação, filtros multidimensionais por severidade/categoria/data/ação, consulta de exportações e atualização de status/checksum de arquivos exportados.
+- **Cobertura de Testes:** 25 testes unitários dedicados em `tests/unit/enterprise-service.test.ts` (100% PASS).
 
