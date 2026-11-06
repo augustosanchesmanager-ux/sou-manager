@@ -174,3 +174,6 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 - **Migration Security:** 196 migrações auditadas sem desativação ou regressão de RLS.
 - **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores, planos, assinaturas, faturas e RPCs.
 
+### 7.8 Deliberação Estratégica do PO Augusto — Congelamento de Internacionalização (Subfases 8.7, 8.8 e 8.9)
+Em 2026-11-06, o PO Augusto deliberou formalmente o **congelamento até segunda ordem / postergação para versão futura** das subfases 8.7 (Multi Idioma), 8.8 (Multi Moeda) e 8.9 (Internacionalização). A decisão visa focar 100% da tração comercial e maturação operacional do **SMG Barber** no mercado nacional brasileiro (pt-BR e moeda BRL R$), evitando dispersão de esforço em múltiplos idiomas antes da expansão internacional consolidada. O **ADR-042** foi registrado com status **`DEFERRED`**.
+
