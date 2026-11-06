@@ -1,11 +1,11 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LandingSupportWidget from '../components/LandingSupportWidget';
 
 /**
- * Componente de animaÃ§Ã£o suave ativada pelo scroll do mouse.
- * Revela os elementos naturalmente quando entram no campo de visÃ£o.
+ * Componente de revelação fluida ativado pelo scroll do mouse.
+ * Aplica transição suave e natural com IntersectionObserver.
  */
 interface ScrollRevealProps {
   children: React.ReactNode;
@@ -25,8 +25,8 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({ children, className = '', d
         }
       },
       {
-        threshold: 0.12,
-        rootMargin: '0px 0px -40px 0px',
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px',
       }
     );
 
@@ -49,7 +49,7 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({ children, className = '', d
       className={`transition-all duration-1000 ease-out will-change-transform ${
         isVisible
           ? 'opacity-100 translate-y-0 scale-100'
-          : 'opacity-0 translate-y-14 scale-95'
+          : 'opacity-0 translate-y-16 scale-95'
       } ${className}`}
     >
       {children}
@@ -58,93 +58,93 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({ children, className = '', d
 };
 
 const NAV_LINKS = [
-  { label: 'SoluÃ§Ãµes', href: '#solucoes' },
-  { label: 'Arquitetura', href: '#arquitetura' },
-  { label: 'Cockpit', href: '#cockpit' },
-  { label: 'Clube dos Chefes', href: '#clube' },
-  { label: 'Planos', href: '#planos' },
-  { label: 'Ecossistema', href: '#ecossistema' },
+  { label: 'SISTEMA', href: '#solucoes' },
+  { label: 'ARQUITETURA', href: '#arquitetura' },
+  { label: 'COCKPIT', href: '#cockpit' },
+  { label: 'CLUBE DOS CHEFES', href: '#clube' },
+  { label: 'IA PREDITIVA', href: '#ia' },
+  { label: 'PLANOS', href: '#planos' },
 ];
 
-const ARCHITECTURE_LAYERS = [
+const ARCHITECTURE_CALLOUTS = [
   {
-    layer: 'Camada 01',
-    badge: 'OperaÃ§Ã£o de Bancada',
-    title: 'Cockpit Operacional de Bancada',
-    desc: 'Agenda milimÃ©trica multiprofissional em tempo real, fila dinÃ¢mica de cadeiras e abertura de comandas em dois cliques com catÃ¡logo inteligente.',
-    icon: 'calendar_clock',
+    id: '01',
+    side: 'left',
+    tag: '// CAMADA 01 · OPERACIONAL',
+    title: 'Cockpit de Bancada',
+    desc: 'Agenda multiprofissional em tempo real, fila dinâmica de cadeiras e abertura instantânea de comandas.',
   },
   {
-    layer: 'Camada 02',
-    badge: 'GovernanÃ§a & RLS',
-    title: 'Motor Financeiro & Rateio AuditÃ¡vel',
-    desc: 'Fechamento de caixa com conferÃªncia cega, suprimento, sangria e rateio de comissÃ£o desacoplado (norma ADR-001), eliminando atritos no pagamento da equipe.',
-    icon: 'account_balance_wallet',
+    id: '02',
+    side: 'left',
+    tag: '// CAMADA 02 · GOVERNANÇA',
+    title: 'Financeiro & Rateio Auditável',
+    desc: 'Fechamento de caixa com conferência cega, sangria, suprimento e rateio de comissão canônico (ADR-001).',
   },
   {
-    layer: 'Camada 03',
-    badge: 'Receita PrevisÃ­vel',
-    title: 'Clube dos Chefes & FidelizaÃ§Ã£o',
-    desc: 'Motor de recorrÃªncia integrado (MRR) com cobranÃ§a programada, controle rigoroso de crÃ©ditos e agendamento prioritÃ¡rio no portal do cliente.',
-    icon: 'loyalty',
+    id: '03',
+    side: 'right',
+    tag: '// CAMADA 03 · RECORRÊNCIA',
+    title: 'Clube dos Chefes',
+    desc: 'Assinaturas recorrentes no cartão com débito automático, controle de saldo de serviços e baixa na comanda.',
   },
   {
-    layer: 'Camada 04',
-    badge: 'InteligÃªncia Artificial',
-    title: 'BI Preditivo com IA Gemini',
-    desc: 'Monitoramento em tempo real do ciclo de retorno dos clientes, alerta de inatividade da bancada e projeÃ§Ãµes financeiras automatizadas.',
-    icon: 'psychology',
+    id: '04',
+    side: 'right',
+    tag: '// CAMADA 04 · INTELIGÊNCIA',
+    title: 'IA Preditiva com Gemini',
+    desc: 'Algoritmos que monitoram o ciclo de retorno dos clientes, previnem o cancelamento e orientam a ocupação.',
   },
 ];
 
 const MATURITY_PLANS = [
   {
-    level: 'NÃ­vel 1',
-    name: 'OperaÃ§Ã£o Essencial',
-    badge: 'EstruturaÃ§Ã£o',
-    desc: 'Para barbearias que desejam profissionalizar o atendimento, eliminar comandas de papel e controlar o caixa com seguranÃ§a.',
+    code: 'PLANO 01',
+    name: 'Operação Essencial',
+    badge: 'ESTRUTURAÇÃO',
+    desc: 'Para barbearias que desejam profissionalizar o balcão, aposentar papéis e gerenciar o caixa com exatidão.',
     features: [
-      'Agenda multiprofissional em tempo real com visÃ£o diÃ¡ria e semanal',
-      'Ponto de Venda (PDV) Ã¡gil integrado a comandas digitais',
-      'Cadastro detalhado e histÃ³rico completo de consumo dos clientes',
-      'GestÃ£o de estoque de produtos e insumos de bancada',
-      'Portal online para agendamentos externos sem intermediÃ¡rios',
-      'RelatÃ³rios operacionais de produÃ§Ã£o e faturamento diÃ¡rio',
+      'Agenda multiprofissional com visão diária e semanal em tempo real',
+      'Ponto de Venda (PDV) ágil integrado a comandas digitais',
+      'Cadastro detalhado e histórico completo de consumo dos clientes',
+      'Controle de estoque de produtos para venda e insumos de bancada',
+      'Portal web exclusivo para agendamento online do cliente',
+      'Relatórios de fechamento de caixa e conferência de turnos',
     ],
-    cta: 'Solicitar DemonstraÃ§Ã£o',
+    cta: 'SOLICITAR DEMONSTRAÇÃO',
     highlight: false,
   },
   {
-    level: 'NÃ­vel 2',
-    name: 'GestÃ£o & Clube Pro',
-    badge: 'Recomendado para Ateliers',
-    desc: 'O ecossistema definitivo para barbearias consolidadas que buscam previsibilidade financeira e retenÃ§Ã£o contÃ­nua.',
+    code: 'PLANO 02',
+    name: 'Gestão & Clube Pro',
+    badge: 'RECOMENDADO',
+    desc: 'O motor operacional completo para barbearias consolidadas que buscam receita previsível e retenção contínua.',
     features: [
-      'Todos os recursos do plano OperaÃ§Ã£o Essencial',
-      'MÃ³dulo completo do Clube dos Chefes com gestÃ£o de assinaturas',
-      'Fechamento de caixa com conferÃªncia cega e sangria auditÃ¡vel',
-      'CÃ¡lculo automatizado de rateio de comissÃµes (norma ADR-001)',
-      'GestÃ£o dinÃ¢mica de fila de espera e ocupaÃ§Ã£o de cadeiras',
-      'NotificaÃ§Ãµes e lembretes operacionais via WhatsApp',
-      'ImplantaÃ§Ã£o orientada com suporte prioritÃ¡rio especializado',
+      'Todos os recursos do plano Operação Essencial',
+      'Módulo Clube dos Chefes completo (Planos Recorrentes no Cartão)',
+      'Fechamento de caixa avançado com conferência cega e sangria',
+      'Cálculo automatizado de rateio de comissões (norma canônica ADR-001)',
+      'Controle dinâmico de fila de espera e atendimento por cadeira',
+      'Notificações de lembretes e confirmações automáticas via WhatsApp',
+      'Suporte prioritário na implantação e treinamento da equipe',
     ],
-    cta: 'Agendar DemonstraÃ§Ã£o Guiada',
+    cta: 'AGENDAR DEMONSTRAÇÃO GUIADA',
     highlight: true,
   },
   {
-    level: 'NÃ­vel 3',
-    name: 'Atelier Multi-Unidade & Enterprise',
-    badge: 'Escala & InteligÃªncia',
-    desc: 'SoluÃ§Ã£o de alta tecnologia com inteligÃªncia preditiva e autoatendimento para redes e operaÃ§Ãµes de grande porte.',
+    code: 'PLANO 03',
+    name: 'Atelier Multi-Unidade',
+    badge: 'ESCALA CORPORATIVA',
+    desc: 'Tecnologia de ponta com inteligência artificial preditiva e totem de autoatendimento para operações em expansão.',
     features: [
-      'Todos os recursos do plano GestÃ£o & Clube Pro',
-      'BI Preditivo com IA Gemini (retenÃ§Ã£o de clientes e projeÃ§Ãµes)',
-      'MÃ³dulo Totem / Kiosk de autoatendimento para recepÃ§Ã£o',
-      'Painel consolidado para administraÃ§Ã£o de mÃºltiplas filiais',
-      'Acesso Ã  API pÃºblica e webhooks para integraÃ§Ãµes externas',
-      'Acompanhamento executivo contÃ­nuo e parametrizaÃ§Ã£o sob medida',
+      'Todos os recursos do plano Gestão & Clube Pro',
+      'BI Preditivo com IA Gemini (Previsão de churn e horários ociosos)',
+      'Módulo Totem / Kiosk de autoatendimento para a recepção',
+      'Painel consolidado para gestão de múltiplas filiais',
+      'API pública e webhooks para integrações contábeis e externas',
+      'Acompanhamento executivo contínuo e parametrização personalizada',
     ],
-    cta: 'Falar com Consultor Executivo',
+    cta: 'FALAR COM CONSULTOR',
     highlight: false,
   },
 ];
@@ -153,7 +153,7 @@ const Landing: React.FC = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [activeNav, setActiveNav] = useState('SoluÃ§Ãµes');
+  const [activeNav, setActiveNav] = useState('SISTEMA');
 
   useEffect(() => {
     if (session) navigate('/dashboard');
@@ -161,7 +161,7 @@ const Landing: React.FC = () => {
 
   useEffect(() => {
     const onScroll = () => {
-      setScrolled(window.scrollY > 20);
+      setScrolled(window.scrollY > 25);
 
       const sections = NAV_LINKS.map(link => ({
         id: link.href.substring(1),
@@ -171,7 +171,7 @@ const Landing: React.FC = () => {
       const sectionsToSpy = [...sections].reverse();
       for (const section of sectionsToSpy) {
         const el = document.getElementById(section.id);
-        if (el && window.scrollY >= el.offsetTop - 140) {
+        if (el && window.scrollY >= el.offsetTop - 160) {
           setActiveNav(section.label);
           break;
         }
@@ -191,172 +191,154 @@ const Landing: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-night text-white font-sans selection:bg-primary/30">
+    <div className="min-h-screen bg-[#070605] text-white font-sans selection:bg-primary/30 relative overflow-x-hidden">
 
-      {/* â•â•â• NAVBAR â•â•â• */}
+      {/* Grid sutil de precisão técnica no fundo (estética Aphelion) */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-[0.035] -z-10"
+        style={{
+          backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+      />
+
+      {/* ═══ NAVBAR TELEMETRIA ATELIER ═══ */}
       <nav
         className={`fixed w-full top-0 z-50 transition-all duration-300 ${
           scrolled
-            ? 'bg-night/95 backdrop-blur-xl border-b border-border-dark py-3.5 shadow-2xl'
+            ? 'bg-[#070605]/95 backdrop-blur-xl border-b border-border-dark py-3.5 shadow-2xl'
             : 'bg-transparent py-6'
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
 
-          {/* Logotipo Oficial */}
-          <Link to="/" className="flex items-center gap-3.5 group">
-            <div className="relative size-10 rounded-xl overflow-hidden border border-border-dark bg-card-dark flex items-center justify-center p-1 shadow-smg-glow/30 transition-transform group-hover:scale-105">
-              <img
-                src="/branding/smg-barber-intelligence-logo.jpg"
-                alt="Logotipo SMG Barber Intelligence"
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base font-extrabold tracking-tight text-white flex items-center gap-1.5 font-display">
-                SMG
-                <span className="text-primary text-[10px] uppercase font-bold tracking-[0.2em] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
-                  Barber Intelligence
-                </span>
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
-                Plataforma Operacional Atelier Tech
-              </span>
-            </div>
+          {/* Logotipo Oficial Horizontal em PNG Transparente */}
+          <Link to="/" className="flex items-center group">
+            <img
+              src="/branding/smg-barber-intelligence-logo.png"
+              alt="SMG Barber Intelligence"
+              className="h-9 sm:h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+            />
           </Link>
 
-          {/* NavegaÃ§Ã£o Central */}
-          <div className="hidden lg:flex items-center gap-8">
+          {/* Links Centrais com Estilo Técnico */}
+          <div className="hidden lg:flex items-center gap-7">
             {NAV_LINKS.map(link => (
               <a
                 key={link.label}
                 href={link.href}
                 onClick={(e) => handleNavClick(e, link.href, link.label)}
-                className={`text-xs font-bold uppercase tracking-wider transition-colors relative py-1.5 ${
-                  activeNav === link.label ? 'text-primary' : 'text-slate-300 hover:text-white'
+                className={`text-[11px] font-mono tracking-[0.18em] transition-colors relative py-1.5 ${
+                  activeNav === link.label ? 'text-primary font-bold' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {link.label}
                 {activeNav === link.label && (
-                  <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(217,154,43,0.6)]" />
+                  <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(217,154,43,0.7)]" />
                 )}
               </a>
             ))}
           </div>
 
-          {/* AÃ§Ãµes / CTAs */}
-          <div className="flex items-center gap-4">
+          {/* Ações / CTAs */}
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               to="/portal"
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-primary transition-colors py-2 px-3 rounded-lg hover:bg-card-dark border border-transparent hover:border-border-dark"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-mono tracking-widest text-slate-400 hover:text-primary transition-colors py-2 px-3 rounded-lg hover:bg-card-dark border border-transparent hover:border-border-dark"
             >
-              <span className="material-symbols-outlined text-base">hub</span>
-              Portal
+              <span className="material-symbols-outlined text-sm text-primary">hub</span>
+              PORTAL
             </Link>
             <Link
               to="/login"
-              className="text-xs font-bold uppercase tracking-wider text-white hover:text-primary-light transition-colors px-4 py-2"
+              className="text-[11px] font-mono tracking-widest text-slate-300 hover:text-white transition-colors px-3 py-2"
             >
-              Acessar
+              ENTRAR
             </Link>
             <a
               href="https://wa.me/5511982073536?text=Ol%C3%A1%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
               target="_blank"
               rel="noreferrer"
-              className="px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-smg-glow hover:-translate-y-0.5 flex items-center gap-2"
+              className="px-4 sm:px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-[11px] font-mono font-bold tracking-widest uppercase rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5 flex items-center gap-2"
             >
-              <span>Agendar DemonstraÃ§Ã£o</span>
-              <span className="material-symbols-outlined text-sm font-black">arrow_forward</span>
+              <span>AGENDAR DEMO</span>
+              <span className="material-symbols-outlined text-xs font-black">arrow_forward</span>
             </a>
           </div>
         </div>
       </nav>
 
-      {/* â•â•â• HERO SECTION â•â•â• */}
-      <section id="solucoes" className="relative pt-36 pb-24 lg:pt-44 lg:pb-32 px-6 overflow-hidden">
-        {/* Luzes atmosfÃ©ricas difusas e integradas */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[520px] bg-primary/10 blur-[150px] pointer-events-none rounded-full" />
-        <div className="absolute top-16 right-0 w-[500px] h-[500px] bg-amber-500/10 blur-[140px] pointer-events-none rounded-full" />
+      {/* ═══ HERO SECTION (INSPIRADO NA REFERÊNCIA APHELION) ═══ */}
+      <section id="solucoes" className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 px-6 overflow-hidden min-h-[92vh] flex flex-col justify-between">
 
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        {/* Brilho atmosférico sutil no fundo */}
+        <div className="absolute top-1/3 right-1/4 w-[650px] h-[650px] bg-primary/10 blur-[160px] pointer-events-none rounded-full -z-10" />
 
-            {/* Coluna Esquerda: Mensagem Central */}
-            <div className="lg:col-span-6 flex flex-col justify-center">
+        <div className="max-w-7xl mx-auto w-full my-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
 
-              {/* Tag de ApresentaÃ§Ã£o */}
-              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-primary/30 bg-primary/10 self-start mb-6">
-                <span className="size-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[11px] font-bold text-primary-light uppercase tracking-[0.2em] font-display">
-                  SMG Barber Intelligence
+            {/* Flanco Esquerdo: Conteúdo Editorial e Tipografia Aphelion */}
+            <div className="lg:col-span-5 flex flex-col justify-center z-10">
+
+              {/* Eyebrow Técnico com traço */}
+              <div className="inline-flex items-center gap-2 mb-6">
+                <span className="w-6 h-px bg-primary" />
+                <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                  01 / PLATAFORMA OPERACIONAL DE ELITE
                 </span>
               </div>
 
-              {/* Headline Oficial */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight mb-6 font-display">
-                ALÃ‰M DO CORTE.<br />
+              {/* Headline em Destaque Absoluto com Ponto Final Colorido */}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.04] tracking-tight mb-6 font-display">
+                ALÉM DO CORTE.<br />
+                <span className="text-white">
+                  UMA GESTÃO
+                </span><br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
-                  UMA GESTÃƒO INTELIGENTE.
+                  INTELIGENTE
                 </span>
+                <span className="text-primary text-5xl lg:text-6xl">.</span>
               </h1>
 
-              {/* ParÃ¡grafo de Posicionamento */}
-              <p className="text-slate-300 text-base lg:text-lg leading-relaxed mb-8 max-w-xl font-medium">
-                InteligÃªncia operacional, governanÃ§a financeira auditÃ¡vel e recorrÃªncia previsÃ­vel para barbearias de alto padrÃ£o que dominam o mercado.
+              {/* Parágrafo em Português Brasileiro Fluente */}
+              <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-8 max-w-lg font-normal">
+                Engenharia de precisão para barbearias de alto padrão. Unificamos agenda multiprofissional, governança financeira auditável e motor de receita recorrente em uma plataforma de alta densidade.
               </p>
 
-              {/* Chamadas de AÃ§Ã£o */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-10">
+              {/* Chamadas de Ação com Estética de Telemetria */}
+              <div className="flex flex-col sm:flex-row gap-3.5 mb-8">
                 <a
-                  href="https://wa.me/5511982073536?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20SMG%20Barber%20Intelligence%20e%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada."
+                  href="https://wa.me/5511982073536?text=Ol%C3%A1%2C%20quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center gap-3 px-7 py-4 bg-primary hover:bg-primary-light text-night font-black text-sm uppercase tracking-wider rounded-xl transition-all shadow-smg-glow hover:-translate-y-0.5"
+                  className="flex items-center justify-center gap-2.5 px-6 py-3.5 bg-primary hover:bg-primary-light text-night font-mono font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5"
                 >
-                  <span>Agendar DemonstraÃ§Ã£o Guiada</span>
-                  <span className="material-symbols-outlined text-lg">calendar_month</span>
+                  <span>AGENDAR DEMONSTRAÇÃO</span>
+                  <span className="material-symbols-outlined text-sm font-black">arrow_forward</span>
                 </a>
                 <a
-                  href="#cockpit"
-                  onClick={(e) => handleNavClick(e, '#cockpit', 'Cockpit')}
-                  className="flex items-center justify-center gap-2.5 px-6 py-4 bg-card-dark hover:bg-surface-dark border border-border-dark text-white font-bold text-sm uppercase tracking-wider rounded-xl transition-all hover:border-primary/40"
+                  href="#arquitetura"
+                  onClick={(e) => handleNavClick(e, '#arquitetura', 'ARQUITETURA')}
+                  className="flex items-center justify-center gap-2 px-5 py-3.5 bg-transparent hover:bg-card-dark border border-border-dark text-slate-300 hover:text-white font-mono text-xs uppercase tracking-widest rounded-lg transition-all hover:border-primary/50"
                 >
-                  <span>Conhecer Cockpit Operacional</span>
-                  <span className="material-symbols-outlined text-lg text-primary">keyboard_arrow_down</span>
+                  <span>EXPLORAR SISTEMA</span>
+                  <span className="material-symbols-outlined text-sm text-primary">south</span>
                 </a>
               </div>
 
-              {/* Diferenciais Estruturais */}
-              <div className="pt-8 border-t border-border-dark/80 grid grid-cols-3 gap-6">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Isolamento</p>
-                  <p className="text-sm font-extrabold text-white mt-1">Multi-Tenant RLS</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">SeguranÃ§a nativa em banco</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Financeiro</p>
-                  <p className="text-sm font-extrabold text-white mt-1">ADR-001 CanÃ´nico</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Rateio e fechamento auditÃ¡veis</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">RecorrÃªncia</p>
-                  <p className="text-sm font-extrabold text-white mt-1">Clube dos Chefes</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">MRR e retenÃ§Ã£o contÃ­nua</p>
-                </div>
-              </div>
             </div>
 
-            {/* Coluna Direita: Imagem PNG Transparente Livre com Scroll Reveal */}
-            <div className="lg:col-span-6 relative flex items-center justify-center">
+            {/* Flanco Direito: CHIP EM DESTAQUE MASSIVO (BEM MAIOR E SEM CAIXA) */}
+            <div className="lg:col-span-7 relative flex items-center justify-center lg:justify-end">
 
-              {/* Brilho orgÃ¢nico sem borda ou modal */}
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-amber-500/15 to-transparent blur-[120px] pointer-events-none rounded-full -z-10" />
+              {/* Brilho radial sem moldura */}
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/15 via-amber-500/10 to-transparent blur-[140px] pointer-events-none rounded-full -z-10" />
 
-              <ScrollReveal delay={150} className="w-full flex items-center justify-center">
+              <ScrollReveal delay={100} className="w-full flex items-center justify-center lg:justify-end">
                 <img
                   src="/branding/smg-chip-hero.png"
-                  alt="Chip de Conectividade e InteligÃªncia SMG Barber"
-                  className="w-full max-w-[560px] h-auto object-contain drop-shadow-[0_0_45px_rgba(217,154,43,0.35)] hover:scale-105 transition-transform duration-700 ease-out"
+                  alt="Processador Neural SMG Barber Intelligence"
+                  className="w-full max-w-[720px] lg:max-w-[820px] xl:max-w-[920px] h-auto object-contain drop-shadow-[0_0_55px_rgba(217,154,43,0.38)] hover:scale-105 transition-transform duration-700 ease-out cursor-pointer"
                 />
               </ScrollReveal>
 
@@ -364,145 +346,122 @@ const Landing: React.FC = () => {
 
           </div>
         </div>
-      </section>
 
-      {/* â•â•â• FAIXA DE DIFERENCIAIS TÃ‰CNICOS â•â•â• */}
-      <section className="border-y border-border-dark bg-surface-dark/60 py-10 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-
-          <div className="flex items-start gap-4">
-            <div className="size-12 rounded-xl bg-card-dark border border-border-dark flex items-center justify-center text-primary shrink-0 shadow-sm">
-              <span className="material-symbols-outlined text-2xl">verified_user</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white mb-1">Isolamento Multi-Tenant RLS</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                SeguranÃ§a em nÃ­vel de banco de dados via PostgreSQL RLS. Blindagem absoluta de dados por unidade, sem risco de vazamento entre clientes.
-              </p>
-            </div>
+        {/* Telemetria de Rodapé da Seção (Estilo Aphelion: RANGE / CREW / LAUNCH) */}
+        <div className="max-w-7xl mx-auto w-full pt-8 mt-12 border-t border-border-dark grid grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">SEGURANÇA DE DADOS</p>
+            <p className="text-sm font-bold text-white mt-1">Isolamento Multi-Tenant</p>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">RLS Nativo no PostgreSQL</p>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div className="size-12 rounded-xl bg-card-dark border border-border-dark flex items-center justify-center text-primary shrink-0 shadow-sm">
-              <span className="material-symbols-outlined text-2xl">price_check</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white mb-1">Financeiro AuditÃ¡vel (ADR-001)</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                ComissÃ£o teÃ³rica e rateio efetivo de fechamento de caixa tratados como domÃ­nios independentes. Zero divergÃªncia contÃ¡bil entre a casa e a bancada.
-              </p>
-            </div>
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">GOVERNANÇA FINANCEIRA</p>
+            <p className="text-sm font-bold text-white mt-1">Conferência Cega (ADR-001)</p>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">Rateio Canônico sem Conflito</p>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div className="size-12 rounded-xl bg-card-dark border border-border-dark flex items-center justify-center text-primary shrink-0 shadow-sm">
-              <span className="material-symbols-outlined text-2xl">sync_saved_locally</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white mb-1">Motor Event-Driven Outbox</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Despacho assÃ­ncrono de eventos com idempotÃªncia garantida e retentativas automÃ¡ticas. Estabilidade operacional mesmo com oscilaÃ§Ãµes de conexÃ£o.
-              </p>
-            </div>
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">MOTOR DE RECORRÊNCIA</p>
+            <p className="text-sm font-bold text-white mt-1">Clube dos Chefes</p>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">Receita Previsível no Cartão</p>
           </div>
-
-          <div className="flex items-start gap-4">
-            <div className="size-12 rounded-xl bg-card-dark border border-border-dark flex items-center justify-center text-primary shrink-0 shadow-sm">
-              <span className="material-symbols-outlined text-2xl">touch_app</span>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white mb-1">Totem Kiosk & Portal Web</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Autoatendimento Ã¡gil para check-in na recepÃ§Ã£o via Totem dedicado e agendamento digital autÃ´nomo pelo portal do cliente.
-              </p>
-            </div>
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-slate-400">SINCRONIZAÇÃO</p>
+            <p className="text-sm font-bold text-white mt-1">Tempo Real Instantâneo</p>
+            <p className="text-[11px] text-emerald-400 font-mono mt-0.5">Supabase Realtime Ativo</p>
           </div>
-
         </div>
+
       </section>
 
-      {/* â•â•â• ARQUITETURA EM TODAS AS CAMADAS â•â•â• */}
-      <section id="arquitetura" className="py-24 lg:py-32 px-6 relative">
+      {/* ═══ SEÇÃO 02: ARQUITETURA EM 4 CAMADAS (ESTILO EXPLODED VIEW APHELION) ═══ */}
+      <section id="arquitetura" className="py-24 lg:py-36 px-6 relative border-t border-border-dark bg-[#080706]">
         <div className="max-w-7xl mx-auto">
 
-          <div className="text-center max-w-3xl mx-auto mb-20">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary-light text-[11px] font-bold uppercase tracking-[0.2em] mb-4">
-              Tecnologia de Ponta
+          {/* Cabeçalho da Seção */}
+          <div className="mb-20 text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="w-6 h-px bg-primary" />
+              <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                02 / ARQUITETURA DO SISTEMA
+              </span>
+              <span className="w-6 h-px bg-primary" />
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-6 font-display">
-              UMA PLATAFORMA INTELIGENTE,<br />
-              <span className="text-primary italic font-serif">EM TODAS AS CAMADAS.</span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-4 font-display">
+              UMA PLATAFORMA.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
+                QUATRO CAMADAS DE INTELIGÊNCIA.
+              </span>
             </h2>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              A potÃªncia do SMG Barber Intelligence reside em uma engenharia modular concebida para a rotina cirÃºrgica da barbearia: alta densidade, sincronizaÃ§Ã£o imediata e precisÃ£o contÃ¡bil.
+              O SMG Barber Intelligence opera sobre uma estrutura em camadas independentes, garantindo estabilidade na bancada e precisão contábil irretocável.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          {/* COMPOSIÇÃO EXPLODIDA: CHIP EM CAMADAS NO CENTRO + CALLOUTS TÉCNICOS */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
 
-            {/* Imagem PNG Transparente em Camadas com Scroll Reveal (Sem modal ou bordas) */}
-            <div className="lg:col-span-5 order-2 lg:order-1 relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-primary/15 blur-[120px] pointer-events-none rounded-full -z-10" />
-              <ScrollReveal delay={200} className="w-full flex items-center justify-center">
+            {/* Chamadas da Esquerda */}
+            <div className="lg:col-span-3 space-y-8 order-2 lg:order-1">
+              {ARCHITECTURE_CALLOUTS.filter(c => c.side === 'left').map(item => (
+                <ScrollReveal key={item.id} delay={150}>
+                  <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark hover:border-primary/50 transition-all duration-300">
+                    <p className="text-[10px] font-mono tracking-widest text-primary mb-1.5">{item.tag}</p>
+                    <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
+              ))}
+            </div>
+
+            {/* Imagem Central: CHIP EM CAMADAS BEM MAIOR E FLUTUANDO LIVRE */}
+            <div className="lg:col-span-6 relative flex items-center justify-center order-1 lg:order-2">
+              <div className="absolute inset-0 bg-primary/10 blur-[130px] pointer-events-none rounded-full -z-10" />
+              <ScrollReveal delay={100} className="w-full flex items-center justify-center">
                 <img
                   src="/branding/smg-layered-architecture.png"
-                  alt="Arquitetura de Camadas SMG Barber Intelligence"
-                  className="w-full max-w-[460px] h-auto object-contain drop-shadow-[0_0_50px_rgba(217,154,43,0.35)] hover:scale-105 transition-transform duration-700 ease-out"
+                  alt="Arquitetura Explodida em Camadas SMG Barber"
+                  className="w-full max-w-[560px] lg:max-w-[640px] h-auto object-contain drop-shadow-[0_0_60px_rgba(217,154,43,0.35)] hover:scale-105 transition-transform duration-700 ease-out"
                 />
               </ScrollReveal>
             </div>
 
-            {/* Lista Estruturada das Camadas */}
-            <div className="lg:col-span-7 order-1 lg:order-2 space-y-5">
-              {ARCHITECTURE_LAYERS.map((item, index) => (
-                <ScrollReveal key={item.layer} delay={index * 120}>
-                  <div className="bg-card-dark/80 backdrop-blur-md border border-border-dark hover:border-primary/40 rounded-2xl p-6 transition-all duration-300 group">
-                    <div className="flex items-center justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-night transition-colors">
-                          <span className="material-symbols-outlined text-xl">{item.icon}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                            {item.layer}
-                          </span>
-                          <h3 className="text-base font-extrabold text-white tracking-tight">
-                            {item.title}
-                          </h3>
-                        </div>
-                      </div>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded bg-surface-dark text-slate-300 border border-border-dark">
-                        {item.badge}
-                      </span>
-                    </div>
-                    <p className="text-slate-300 text-xs sm:text-sm leading-relaxed pl-13">
-                      {item.desc}
-                    </p>
+            {/* Chamadas da Direita */}
+            <div className="lg:col-span-3 space-y-8 order-3">
+              {ARCHITECTURE_CALLOUTS.filter(c => c.side === 'right').map(item => (
+                <ScrollReveal key={item.id} delay={250}>
+                  <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark hover:border-primary/50 transition-all duration-300">
+                    <p className="text-[10px] font-mono tracking-widest text-primary mb-1.5">{item.tag}</p>
+                    <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
                   </div>
                 </ScrollReveal>
               ))}
             </div>
 
           </div>
+
         </div>
       </section>
 
-      {/* â•â•â• SHOWCASE: COCKPIT OPERACIONAL (CÃ“DIGO NATIVO) â•â•â• */}
-      <section id="cockpit" className="py-24 px-6 bg-surface-dark/40 border-y border-border-dark relative">
+      {/* ═══ SEÇÃO 03: SHOWCASE COCKPIT OPERACIONAL (DADOS REAIS EM TEMPO REAL) ═══ */}
+      <section id="cockpit" className="py-24 px-6 border-t border-border-dark bg-[#070605] relative">
         <div className="max-w-7xl mx-auto">
 
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary-light text-[11px] font-bold uppercase tracking-[0.2em] mb-4">
-                DemonstraÃ§Ã£o Operacional
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px bg-primary" />
+                <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                  03 / TELEMETRIA OPERACIONAL
+                </span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight font-display">
-                O Cockpit que comanda a barbearia<br />
-                <span className="text-primary italic font-serif">sem pausas e sem ruÃ­do.</span>
+                CONTROLE TOTAL DA BANCADA.<br />
+                <span className="text-primary italic font-serif">Sem papéis, sem planilhas, sem atrito.</span>
               </h2>
             </div>
-            <p className="text-slate-400 text-xs sm:text-sm max-w-md leading-relaxed">
-              Desenvolvido para que donos, gerentes e recepcionistas dominem a operaÃ§Ã£o e a bancada em uma Ãºnica visÃ£o integrada e fluida.
+            <p className="text-slate-400 text-xs sm:text-sm max-w-md leading-relaxed font-normal">
+              Painel desenvolvido para proprietários, gerentes e profissionais dominarem o fluxo de atendimento em uma única tela de alta densidade.
             </p>
           </div>
 
@@ -518,54 +477,54 @@ const Landing: React.FC = () => {
                     <span className="size-3 rounded-full bg-amber-500/80" />
                     <span className="size-3 rounded-full bg-emerald-500/80" />
                   </div>
-                  <span className="text-xs font-bold text-slate-300 pl-2 border-l border-border-dark">
-                    Atelier Sanchez â€” BalcÃ£o Principal
+                  <span className="text-xs font-mono font-bold text-slate-300 pl-2 border-l border-border-dark">
+                    ATELIER SANCHEZ — UNIDADE PRINCIPAL
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs font-medium text-slate-300">
+                <div className="flex items-center gap-4 text-xs font-mono text-slate-300">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px]">
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Supabase Realtime Conectado
+                    SUPABASE REALTIME ATIVO
                   </span>
-                  <span className="text-slate-400">Hoje, 06 de Novembro</span>
+                  <span className="text-slate-400">06 DE NOVEMBRO</span>
                 </div>
               </div>
 
-              {/* Faixa de Indicadores Chave */}
+              {/* Faixa de Indicadores de Produção */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border-dark">
                 <div className="bg-night p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Faturamento do Dia</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">FATURAMENTO DO DIA</p>
                   <p className="text-2xl font-black text-white mt-1">R$ 4.850,00</p>
-                  <p className="text-[10px] text-emerald-400 mt-1 font-semibold">28 atendimentos concluÃ­dos</p>
+                  <p className="text-[11px] text-emerald-400 mt-1 font-medium">28 atendimentos concluídos</p>
                 </div>
                 <div className="bg-night p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Taxa de OcupaÃ§Ã£o</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">TAXA DE OCUPAÇÃO</p>
                   <p className="text-2xl font-black text-primary mt-1">94%</p>
-                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">Bancadas em alta performance</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Capacidade máxima da bancada</p>
                 </div>
                 <div className="bg-night p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ticket MÃ©dio</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">TICKET MÉDIO</p>
                   <p className="text-2xl font-black text-white mt-1">R$ 173,20</p>
-                  <p className="text-[10px] text-emerald-400 mt-1 font-semibold">Venda cruzada e produtos ativos</p>
+                  <p className="text-[11px] text-emerald-400 mt-1 font-medium">Venda cruzada de produtos ativa</p>
                 </div>
                 <div className="bg-night p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Clube dos Chefes</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">CLUBE DOS CHEFES</p>
                   <p className="text-2xl font-black text-amber-400 mt-1">142 Assinantes</p>
-                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">Faturamento recorrente garantido</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Faturamento mensal previsível</p>
                 </div>
               </div>
 
-              {/* Bancadas e Comanda Aberta */}
+              {/* Cadeiras em Atendimento e Comanda Aberta */}
               <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-card-dark/40">
 
                 {/* Coluna 1-8: Timeline de Cadeiras com Chips Atelier */}
                 <div className="lg:col-span-8 space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-border-dark">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Bancadas em Atendimento (Tempo Real)
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                      BANCADAS EM ATENDIMENTO
                     </span>
-                    <span className="text-[10px] font-semibold text-primary">3 barbeiros ativos</span>
+                    <span className="text-[10px] font-mono font-semibold text-primary">3 barbeiros ativos</span>
                   </div>
 
                   <div className="space-y-3">
@@ -579,16 +538,16 @@ const Landing: React.FC = () => {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-bold text-white">Guilherme Bastos</p>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              Cadeira 01
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              CADEIRA 01
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Rodrigo Sanches â€” Corte DegradÃª Navalhado + Barboterapia</p>
+                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Rodrigo Sanches — Corte Degradê Navalhado + Barboterapia</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-black text-primary">R$ 160,00</span>
-                        <p className="text-[10px] text-emerald-400 font-semibold">Em finalizaÃ§Ã£o (35 min)</p>
+                        <span className="text-xs font-mono font-black text-primary">R$ 160,00</span>
+                        <p className="text-[10px] text-emerald-400 font-medium">Em finalização (35 min)</p>
                       </div>
                     </div>
 
@@ -601,16 +560,16 @@ const Landing: React.FC = () => {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-bold text-white">Mateus Silva</p>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              Cadeira 02
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              CADEIRA 02
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Bruno Alcantara â€” Alinhamento ClÃ¡ssico de Barba (Membro Gold)</p>
+                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Bruno Alcantara — Alinhamento Clássico de Barba (Membro Gold)</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-black text-amber-400">Plano Clube</span>
-                        <p className="text-[10px] text-slate-400 font-semibold">Em andamento (15 min)</p>
+                        <span className="text-xs font-mono font-black text-amber-400">PLANO CLUBE</span>
+                        <p className="text-[10px] text-slate-400 font-medium">Em andamento (15 min)</p>
                       </div>
                     </div>
 
@@ -623,16 +582,16 @@ const Landing: React.FC = () => {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-bold text-white">Rafael Oliveira</p>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary-light border border-primary/20">
-                              Cadeira 03
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-primary/10 text-primary-light border border-primary/20">
+                              CADEIRA 03
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Eduardo Lima â€” Combo Chef + Pomada Matte Efeito Seco</p>
+                          <p className="text-xs text-slate-300 mt-0.5">Cliente: Eduardo Lima — Combo Chef + Pomada Matte</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-black text-primary">R$ 215,00</span>
-                        <p className="text-[10px] text-slate-400 font-semibold">Em andamento (20 min)</p>
+                        <span className="text-xs font-mono font-black text-primary">R$ 215,00</span>
+                        <p className="text-[10px] text-slate-400 font-medium">Em andamento (20 min)</p>
                       </div>
                     </div>
 
@@ -643,46 +602,46 @@ const Landing: React.FC = () => {
                 <div className="lg:col-span-4 bg-night p-5 rounded-xl border border-border-dark flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between pb-3 border-b border-border-dark">
-                      <span className="text-xs font-bold text-white">Comanda #1042</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                        Em Atendimento
+                      <span className="text-xs font-mono font-bold text-white">COMANDA #1042</span>
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        EM ATENDIMENTO
                       </span>
                     </div>
 
                     <div className="py-3 space-y-2 text-xs">
                       <div className="flex justify-between text-slate-300">
-                        <span>Corte DegradÃª Navalhado</span>
-                        <span className="font-semibold text-white">R$ 90,00</span>
+                        <span>Corte Degradê Navalhado</span>
+                        <span className="font-semibold text-white font-mono">R$ 90,00</span>
                       </div>
                       <div className="flex justify-between text-slate-300">
                         <span>Barboterapia com Toalha Quente</span>
-                        <span className="font-semibold text-white">R$ 70,00</span>
+                        <span className="font-semibold text-white font-mono">R$ 70,00</span>
                       </div>
                       <div className="flex justify-between text-slate-300">
                         <span>Pomada Matte Efeito Seco</span>
-                        <span className="font-semibold text-white">R$ 55,00</span>
+                        <span className="font-semibold text-white font-mono">R$ 55,00</span>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-border-dark text-xs space-y-1.5">
+                    <div className="pt-3 border-t border-border-dark text-xs space-y-1.5 font-mono">
                       <div className="flex justify-between text-slate-400">
-                        <span>Subtotal de ServiÃ§os e Produtos</span>
+                        <span>Subtotal</span>
                         <span>R$ 215,00</span>
                       </div>
                       <div className="flex justify-between text-emerald-400 font-semibold">
-                        <span>Rateio de ComissÃ£o (Profissional)</span>
+                        <span>Rateio da Bancada</span>
                         <span>R$ 88,00</span>
                       </div>
                       <div className="flex justify-between text-sm font-black text-white pt-1">
-                        <span>Margem LÃ­quida da Casa</span>
+                        <span>Margem da Casa</span>
                         <span className="text-primary font-black">R$ 127,00</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-border-dark">
-                    <div className="w-full py-2.5 rounded-lg bg-primary/15 text-primary-light border border-primary/30 text-center text-xs font-bold">
-                      Auditoria de Fechamento ADR-001 Ativa
+                    <div className="w-full py-2.5 rounded-lg bg-primary/15 text-primary-light border border-primary/30 text-center text-[11px] font-mono font-bold">
+                      AUDITORIA CANÔNICA ADR-001 ATIVA
                     </div>
                   </div>
                 </div>
@@ -695,178 +654,181 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* â•â•â• CLUBE DOS CHEFES (RECORRÃŠNCIA MRR) â•â•â• */}
-      <section id="clube" className="py-24 lg:py-32 px-6 relative overflow-hidden">
-
-        {/* Fundo imersivo com imagem editorial tratada e overlay dark-first */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-          <img
-            src="/bg-sobre.jpg"
-            alt="Ambiente de barbearia de alto padrÃ£o"
-            className="w-full h-full object-cover object-center opacity-20"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-night via-night/95 to-night" />
-        </div>
-
-        <div className="max-w-7xl mx-auto relative z-10">
+      {/* ═══ SEÇÃO 04: CLUBE DOS CHEFES (RECORRÊNCIA E PREVISIBILIDADE) ═══ */}
+      <section id="clube" className="py-24 lg:py-36 px-6 relative border-t border-border-dark bg-[#080706]">
+        <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 text-[11px] font-bold uppercase tracking-[0.2em] mb-6">
-                RecorrÃªncia PrevisÃ­vel
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px bg-primary" />
+                <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                  04 / MOTOR DE RECORRÊNCIA (MRR)
+                </span>
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-6 font-display">
-                O CLUBE DOS CHEFES.<br />
-                <span className="text-primary italic font-serif">RecorrÃªncia que blinda o faturamento.</span>
+                CLUBE DOS CHEFES.<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
+                  RECEITA PREVISÍVEL NO PRIMEIRO DIA DO MÊS.
+                </span>
               </h2>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
-                Converta clientes eventuais em membros recorrentes com cobranÃ§as automÃ¡ticas no cartÃ£o. O Clube dos Chefes administra limites de serviÃ§os, cortesias e fidelidade sem onerar o fluxo de caixa.
+                Converta clientes esporádicos em assinantes fiéis com cobranças automáticas no cartão de crédito. O Clube dos Chefes gerencia limites mensais de serviços, cortesias e controle de saldo sem desestruturar o fluxo de caixa.
               </p>
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+              <div className="space-y-5">
+                <div className="flex items-start gap-4">
+                  <div className="size-7 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5 border border-primary/30">
                     <span className="material-symbols-outlined text-sm font-bold">check</span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Receita PrevisÃ­vel no Primeiro Dia do MÃªs (MRR)</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Garante estabilidade financeira para cobrir despesas fixas da barbearia, independentemente da sazonalidade ou de feriados.</p>
+                    <h3 className="text-sm font-bold text-white">Estabilidade Financeira no Início do Mês</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      Receita recorrente garantida para custear aluguel e despesas fixas, blindando a barbearia contra períodos de chuva e feriados prolongados.
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3.5">
-                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <div className="flex items-start gap-4">
+                  <div className="size-7 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5 border border-primary/30">
                     <span className="material-symbols-outlined text-sm font-bold">check</span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Consumo e Baixa AutomÃ¡tica na Comanda</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">O barbeiro realiza o atendimento e a comanda debita os crÃ©ditos do assinante de forma transparente, calculando a comissÃ£o exata da bancada.</p>
+                    <h3 className="text-sm font-bold text-white">Débito Transparente na Comanda</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      Ao atender o assinante, a comanda debita a sessão do plano instantaneamente e calcula a comissão correspondente do profissional sem fricção.
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3.5">
-                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <div className="flex items-start gap-4">
+                  <div className="size-7 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5 border border-primary/30">
                     <span className="material-symbols-outlined text-sm font-bold">check</span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Agendamento VIP pelo Celular do Cliente</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">O associado acessa o portal exclusivo da barbearia, visualiza a grade do seu barbeiro preferido e reserva seu horÃ¡rio em instantes.</p>
+                    <h3 className="text-sm font-bold text-white">Agendamento Prioritário pelo Celular</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      O membro acessa o link direto da barbearia, consulta os horários livres do barbeiro de sua preferência e confirma o agendamento em segundos.
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* NÃ­veis de Membro Ilustrativos */}
+            {/* Níveis de Membro Ilustrativos */}
             <div className="lg:col-span-6 space-y-4">
-
               <ScrollReveal delay={100}>
-                <div className="bg-card-dark/90 backdrop-blur-md border border-border-dark p-6 rounded-2xl flex items-center justify-between">
+                <div className="bg-card-dark/80 backdrop-blur-md border border-border-dark p-6 rounded-xl flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="size-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                    <div className="size-11 rounded-lg bg-surface-dark border border-border-dark flex items-center justify-center text-slate-300">
                       <span className="material-symbols-outlined text-2xl">shield</span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">NÃ­vel 01</span>
-                      <h3 className="text-base font-black text-white">Plano ClÃ¡ssico</h3>
-                      <p className="text-xs text-slate-300">Cortes de cabelo programados com frequÃªncia quinzenal ou mensal</p>
+                      <span className="text-[10px] font-mono tracking-widest text-slate-400 uppercase">NÍVEL 01</span>
+                      <h3 className="text-base font-bold text-white">Plano Clássico</h3>
+                      <p className="text-xs text-slate-400">Cortes de cabelo regulares com frequência quinzenal ou mensal</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg">
-                    RecorrÃªncia
+                  <span className="text-[10px] font-mono font-bold text-primary uppercase tracking-wider bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-md">
+                    RECORRÊNCIA
                   </span>
                 </div>
               </ScrollReveal>
 
               <ScrollReveal delay={200}>
-                <div className="bg-card-dark/90 backdrop-blur-md border border-primary/40 p-6 rounded-2xl flex items-center justify-between shadow-smg-glow/20">
+                <div className="bg-card-dark/90 backdrop-blur-md border border-primary/50 p-6 rounded-xl flex items-center justify-between shadow-smg-glow/20">
                   <div className="flex items-center gap-4">
-                    <div className="size-12 rounded-xl bg-primary/20 border border-primary/40 flex items-center justify-center text-primary">
+                    <div className="size-11 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center text-primary">
                       <span className="material-symbols-outlined text-2xl">workspace_premium</span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary">NÃ­vel 02 â€¢ Mais Escolhido</span>
-                      <h3 className="text-base font-black text-white">Plano Gentleman</h3>
-                      <p className="text-xs text-slate-300">Cabelo alinhado, barba completa e bebida cortesia a cada visita</p>
+                      <span className="text-[10px] font-mono tracking-widest text-primary uppercase">NÍVEL 02 · MAIS ESCOLHIDO</span>
+                      <h3 className="text-base font-bold text-white">Plano Gentleman</h3>
+                      <p className="text-xs text-slate-300">Cabelo alinhado, barba completa e bebida cortesia a cada atendimento</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-night uppercase tracking-wider bg-primary px-3 py-1.5 rounded-lg font-black">
-                    VIP Club
+                  <span className="text-[10px] font-mono font-black text-night uppercase tracking-wider bg-primary px-3 py-1.5 rounded-md">
+                    VIP CLUB
                   </span>
                 </div>
               </ScrollReveal>
 
               <ScrollReveal delay={300}>
-                <div className="bg-card-dark/90 backdrop-blur-md border border-border-dark p-6 rounded-2xl flex items-center justify-between">
+                <div className="bg-card-dark/80 backdrop-blur-md border border-border-dark p-6 rounded-xl flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="size-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <div className="size-11 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
                       <span className="material-symbols-outlined text-2xl">diamond</span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">NÃ­vel 03</span>
-                      <h3 className="text-base font-black text-white">Black Chef Exclusive</h3>
-                      <p className="text-xs text-slate-300">ExperiÃªncia ilimitada de bancada, desconto especial em produtos e atendimento prioritÃ¡rio</p>
+                      <span className="text-[10px] font-mono tracking-widest text-amber-400 uppercase">NÍVEL 03</span>
+                      <h3 className="text-base font-bold text-white">Black Chef Exclusive</h3>
+                      <p className="text-xs text-slate-400">Experiência completa ilimitada, desconto em produtos e prioridade na bancada</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-amber-300 uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
-                    Atelier Top
+                  <span className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-md">
+                    ATELIER TOP
                   </span>
                 </div>
               </ScrollReveal>
-
             </div>
 
           </div>
         </div>
       </section>
 
-      {/* â•â•â• INTELIGÃŠNCIA ARTIFICIAL & GOVERNANÃ‡A â•â•â• */}
-      <section className="py-24 lg:py-32 px-6 bg-surface-dark/30 border-y border-border-dark relative">
+      {/* ═══ SEÇÃO 05: IA PREDITIVA COM O CÉREBRO NEURAL (BEM MAIOR E SEM CAIXA) ═══ */}
+      <section id="ia" className="py-24 lg:py-36 px-6 relative border-t border-border-dark bg-[#070605]">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
-            {/* Imagem PNG Transparente do CÃ©rebro Neural com Scroll Reveal (Sem modal ou bordas) */}
+            {/* Imagem do Cérebro Neural em Destaque Massivo (Sem Moldura) */}
             <div className="lg:col-span-6 relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-primary/15 blur-[130px] pointer-events-none rounded-full -z-10" />
-              <ScrollReveal delay={150} className="w-full flex items-center justify-center">
+              <div className="absolute inset-0 bg-primary/15 blur-[150px] pointer-events-none rounded-full -z-10" />
+              <ScrollReveal delay={100} className="w-full flex items-center justify-center">
                 <img
                   src="/branding/smg-ai-brain-barber.png"
-                  alt="CÃ©rebro Neural e GovernanÃ§a Preditiva SMG Barber Intelligence"
-                  className="w-full max-w-[520px] h-auto object-contain drop-shadow-[0_0_50px_rgba(217,154,43,0.35)] hover:scale-105 transition-transform duration-700 ease-out"
+                  alt="Inteligência Artificial Preditiva SMG Barber"
+                  className="w-full max-w-[620px] lg:max-w-[720px] h-auto object-contain drop-shadow-[0_0_60px_rgba(217,154,43,0.38)] hover:scale-105 transition-transform duration-700 ease-out cursor-pointer"
                 />
               </ScrollReveal>
             </div>
 
-            {/* ConteÃºdo de IA e GovernanÃ§a */}
+            {/* Texto Descritivo */}
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary-light text-[11px] font-bold uppercase tracking-[0.2em] mb-6">
-                InteligÃªncia Preditiva
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px bg-primary" />
+                <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                  05 / INTELIGÊNCIA ARTIFICIAL PREDITIVA
+                </span>
               </div>
-              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-6 font-display">
-                DESENVOLVIDA PARA QUEM EXIGE<br />
-                <span className="text-primary italic font-serif">PRECISÃƒO E RESULTADOS REAIS.</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-6 font-display">
+                DADOS QUE ANTECIPAM DECISÕES.<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
+                  MENOS PALPITES, MAIS LUCRO.
+                </span>
               </h2>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
-                Com o SMG Barber Intelligence, sua barbearia abandona palpites. Nossa inteligÃªncia analisa o histÃ³rico da operaÃ§Ã£o e traduz nÃºmeros complexos em orientaÃ§Ãµes prÃ¡ticas que impulsionam o lucro por cadeira.
+                Com o SMG Barber Intelligence, sua barbearia para de operar no escuro. Nossos algoritmos preditivos analisam o intervalo histórico de agendamentos e alertam sobre clientes em risco de esquecimento, maximizando a taxa de ocupação das bancadas.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-card-dark border border-border-dark">
-                  <div className="flex items-center gap-2.5 text-primary mb-2">
+                <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark">
+                  <div className="flex items-center gap-2.5 text-primary mb-2.5">
                     <span className="material-symbols-outlined text-xl">restore</span>
-                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Motor de Retorno</h3>
+                    <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">MOTOR DE RETORNO</h3>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Identifica clientes que ultrapassaram a janela habitual de corte e sugere mensagens de reengajamento no momento propÃ­cio da decisÃ£o.
+                    Identifica automaticamente clientes que ultrapassaram o ciclo médio de retorno e programa disparos pontuais no momento propício.
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-card-dark border border-border-dark">
-                  <div className="flex items-center gap-2.5 text-primary mb-2">
+                <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark">
+                  <div className="flex items-center gap-2.5 text-primary mb-2.5">
                     <span className="material-symbols-outlined text-xl">query_stats</span>
-                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">OcupaÃ§Ã£o da Bancada</h3>
+                    <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">OCUPAÇÃO DE BANCADA</h3>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Detecta horÃ¡rios de baixa demanda na grade semanal e orienta estratÃ©gias de preenchimento para manter os profissionais produzindo.
+                    Mapeia janelas ociosas na grade semanal dos profissionais e orienta ações estratégicas para evitar horários vazios na cadeira.
                   </p>
                 </div>
               </div>
@@ -876,20 +838,26 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* â•â•â• PLANOS POR MATURIDADE OPERACIONAL â•â•â• */}
-      <section id="planos" className="py-24 lg:py-32 px-6 relative">
+      {/* ═══ SEÇÃO 06: PLANOS POR MATURIDADE OPERACIONAL ═══ */}
+      <section id="planos" className="py-24 lg:py-36 px-6 relative border-t border-border-dark bg-[#080706]">
         <div className="max-w-7xl mx-auto">
 
           <div className="text-center max-w-3xl mx-auto mb-20">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary-light text-[11px] font-bold uppercase tracking-[0.2em] mb-4">
-              Investimento EstratÃ©gico
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="w-6 h-px bg-primary" />
+              <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
+                06 / PLANOS DE IMPLANTAÇÃO
+              </span>
+              <span className="w-6 h-px bg-primary" />
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-6 font-display">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight mb-4 font-display">
               MATURIDADE OPERACIONAL.<br />
-              <span className="text-primary italic font-serif">A escolha certa para cada estÃ¡gio.</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
+                A ESCOLHA EXATA PARA SEU MOMENTO.
+              </span>
             </h2>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Estruturas desenvolvidas para acompanhar a evoluÃ§Ã£o do seu negÃ³cio. Solicite um diagnÃ³stico guiado e conheÃ§a a configuraÃ§Ã£o ideal para a sua barbearia.
+              Estruturas concebidas para acompanhar a escala real da sua barbearia. Agende uma demonstração guiada e conheça a plataforma personalizada para seu estabelecimento.
             </p>
           </div>
 
@@ -899,19 +867,19 @@ const Landing: React.FC = () => {
                 <div
                   className={`flex flex-col p-8 sm:p-10 rounded-2xl relative transition-all duration-300 h-full ${
                     plan.highlight
-                      ? 'bg-gradient-to-b from-card-dark to-night border-2 border-primary/60 shadow-2xl shadow-primary/10'
-                      : 'bg-card-dark border border-border-dark'
+                      ? 'bg-gradient-to-b from-card-dark to-[#070605] border-2 border-primary/60 shadow-2xl shadow-primary/10'
+                      : 'bg-card-dark/80 border border-border-dark'
                   }`}
                 >
                   {plan.highlight && (
-                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-night text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-night text-[10px] font-mono font-black uppercase tracking-widest rounded-full shadow-lg">
                       {plan.badge}
                     </span>
                   )}
 
                   <div className="mb-6">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                      {plan.level}
+                    <span className="text-[10px] font-mono tracking-widest text-primary uppercase font-bold">
+                      {plan.code}
                     </span>
                     <h3 className="text-2xl font-black text-white mt-1 mb-3">{plan.name}</h3>
                     <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">{plan.desc}</p>
@@ -934,10 +902,10 @@ const Landing: React.FC = () => {
                     )}%20do%20SMG%20Barber%20Intelligence.`}
                     target="_blank"
                     rel="noreferrer"
-                    className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-wider text-center transition-all ${
+                    className={`w-full py-4 rounded-xl font-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
                       plan.highlight
                         ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
-                        : 'bg-surface-dark hover:bg-card-dark text-white border border-border-dark hover:border-primary/40'
+                        : 'bg-surface-dark hover:bg-card-dark text-white border border-border-dark hover:border-primary/50'
                     }`}
                   >
                     {plan.cta}
@@ -950,34 +918,34 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* â•â•â• ECOSSISTEMA SMG INTELLIGENCE â•â•â• */}
-      <section id="ecossistema" className="py-20 px-6 bg-surface-dark/60 border-y border-border-dark">
+      {/* ═══ SEÇÃO 07: ECOSSISTEMA SMG INTELLIGENCE ═══ */}
+      <section className="py-20 px-6 border-t border-border-dark bg-[#070605]">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-gradient-to-r from-card-dark to-night border border-border-dark rounded-2xl p-8 sm:p-12 flex flex-col lg:flex-row items-center justify-between gap-8">
+          <div className="bg-gradient-to-r from-card-dark to-[#0B0907] border border-border-dark rounded-2xl p-8 sm:p-12 flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="max-w-2xl">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary block mb-2">
-                Ecossistema SMG Intelligence
+              <span className="text-[10px] font-mono tracking-widest text-primary uppercase block mb-2 font-bold">
+                SUÍTE SMG INTELLIGENCE
               </span>
               <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-4 font-display">
-                Uma suÃ­te de gestÃ£o para negÃ³cios de serviÃ§os de alto padrÃ£o.
+                Tecnologia corporativa para negócios de serviços de alto valor.
               </h2>
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                AlÃ©m do <strong>SMG Barber Intelligence</strong>, o ecossistema SMG engloba a vertical <strong>Auto Control</strong> (para centros de estÃ©tica e serviÃ§os automotivos de precisÃ£o) e o <strong>Portal Unificado</strong> de membros e agendamentos.
+                Além do <strong>SMG Barber Intelligence</strong>, nosso ecossistema integra a vertical <strong>Auto Control</strong> (gestão automotiva de alta precisão) e o <strong>Portal Unificado</strong> de agendamentos e membros.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 shrink-0 w-full sm:w-auto">
               <Link
                 to="/portal"
-                className="px-6 py-3.5 bg-card-dark hover:bg-surface-dark border border-border-dark text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all text-center flex items-center justify-center gap-2"
+                className="px-6 py-3.5 bg-card-dark hover:bg-surface-dark border border-border-dark text-white text-xs font-mono font-bold uppercase tracking-wider rounded-xl transition-all text-center flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-base text-primary">hub</span>
-                <span>Acessar Portal SMG</span>
+                <span>ACESSAR PORTAL</span>
               </Link>
               <Link
                 to="/login"
-                className="px-6 py-3.5 bg-primary hover:bg-primary-light text-night text-xs font-black uppercase tracking-wider rounded-xl transition-all text-center shadow-smg-glow flex items-center justify-center gap-2"
+                className="px-6 py-3.5 bg-primary hover:bg-primary-light text-night text-xs font-mono font-black uppercase tracking-wider rounded-xl transition-all text-center shadow-smg-glow flex items-center justify-center gap-2"
               >
-                <span>Acessar Barbearia</span>
+                <span>ACESSAR BARBEARIA</span>
                 <span className="material-symbols-outlined text-base">login</span>
               </Link>
             </div>
@@ -985,46 +953,42 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* â•â•â• RODAPÃ‰ ATELIER â•â•â• */}
-      <footer className="bg-night border-t border-border-dark py-16 px-6">
+      {/* ═══ RODAPÉ TÉCNICO ATELIER ═══ */}
+      <footer className="bg-[#050403] border-t border-border-dark py-16 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-border-dark">
 
             <div className="md:col-span-5">
-              <div className="flex items-center gap-3.5 mb-4">
-                <div className="size-9 rounded-xl overflow-hidden border border-border-dark bg-card-dark p-1">
-                  <img
-                    src="/branding/smg-barber-intelligence-logo.jpg"
-                    alt="Logotipo SMG Barber Intelligence"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-sm font-extrabold text-white tracking-tight font-display">
-                  SMG Barber Intelligence
-                </span>
+              <div className="mb-5">
+                <img
+                  src="/branding/smg-barber-intelligence-logo.png"
+                  alt="SMG Barber Intelligence"
+                  className="h-10 w-auto object-contain"
+                />
               </div>
               <p className="text-slate-400 text-xs leading-relaxed max-w-sm mb-6">
-                Tecnologia, governanÃ§a contÃ¡bil e recorrÃªncia desenvolvidas para barbearias e ateliers que operam no topo do mercado.
+                Tecnologia, governança contábil e recorrência concebidas para barbearias e ateliers que operam no mais alto nível do mercado.
               </p>
-              <div className="flex items-center gap-3 text-xs text-slate-400">
-                <span className="size-2 rounded-full bg-emerald-400" />
-                <span>Plataforma Operacional Ativa</span>
+              <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>PLATAFORMA OPERACIONAL ATIVA</span>
               </div>
             </div>
 
             <div className="md:col-span-3 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-white">Plataforma</p>
+              <p className="text-xs font-mono font-bold uppercase tracking-widest text-white">NAVEGAÇÃO</p>
               <ul className="space-y-2 text-xs text-slate-400">
-                <li><a href="#solucoes" className="hover:text-primary transition-colors">SoluÃ§Ãµes</a></li>
+                <li><a href="#solucoes" className="hover:text-primary transition-colors">Sistema Operacional</a></li>
                 <li><a href="#arquitetura" className="hover:text-primary transition-colors">Arquitetura de Camadas</a></li>
-                <li><a href="#cockpit" className="hover:text-primary transition-colors">Cockpit Operacional</a></li>
+                <li><a href="#cockpit" className="hover:text-primary transition-colors">Cockpit de Bancada</a></li>
                 <li><a href="#clube" className="hover:text-primary transition-colors">Clube dos Chefes</a></li>
-                <li><a href="#planos" className="hover:text-primary transition-colors">Maturidade & Planos</a></li>
+                <li><a href="#ia" className="hover:text-primary transition-colors">IA Preditiva</a></li>
+                <li><a href="#planos" className="hover:text-primary transition-colors">Planos de Implantação</a></li>
               </ul>
             </div>
 
             <div className="md:col-span-4 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-white">Contato & DemonstraÃ§Ã£o</p>
+              <p className="text-xs font-mono font-bold uppercase tracking-widest text-white">CONTATO EXECUTIVO</p>
               <div className="space-y-2 text-xs text-slate-400">
                 <p className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-base">chat</span>
@@ -1034,25 +998,25 @@ const Landing: React.FC = () => {
                   <span className="material-symbols-outlined text-primary text-base">mail</span>
                   <span>sanches.augusto@outlook.com</span>
                 </p>
-                <p className="text-[11px] text-slate-400 pt-2">
-                  Atendimento executivo para proprietÃ¡rios e gestores de barbearias em todo o Brasil.
+                <p className="text-[11px] text-slate-400 pt-2 leading-relaxed">
+                  Atendimento especializado para proprietários e gestores de barbearias em todo o Brasil.
                 </p>
               </div>
             </div>
 
           </div>
 
-          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-            <p>Â© {new Date().getFullYear()} SMG Intelligence. Todos os direitos reservados.</p>
+          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-400">
+            <p>© {new Date().getFullYear()} SMG INTELLIGENCE. TODOS OS DIREITOS RESERVADOS.</p>
             <div className="flex items-center gap-6">
-              <Link to="/portal" className="hover:text-primary transition-colors">Portal SMG</Link>
-              <Link to="/login" className="hover:text-primary transition-colors">Acesso ao Sistema</Link>
+              <Link to="/portal" className="hover:text-primary transition-colors">PORTAL DO CLIENTE</Link>
+              <Link to="/login" className="hover:text-primary transition-colors">ACESSO RESTRITO</Link>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Widget Interativo de Atendimento PrÃ©-Venda Preservado */}
+      {/* Widget Interativo de Atendimento Pré-Venda */}
       <LandingSupportWidget />
     </div>
   );
