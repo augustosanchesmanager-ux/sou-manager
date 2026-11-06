@@ -30,6 +30,15 @@ import type { ComandaStatus } from '../shared/status/comanda';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
 import { createReversalKey, reverseFinancialTransaction } from '../src/lib/finance/reversal';
+import { cashClosingRepository } from '../domain/cashClosing/repository';
+import {
+  competenceDateToIso,
+  formatCompetenceDateLabel,
+  isAuditPinFormatValid,
+  isValidCompetenceDate,
+  normalizeAuditPin,
+  toLocalDateInput,
+} from '../src/lib/audit/competence';
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
 import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
 import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
@@ -527,6 +536,11 @@ const Comandas: React.FC = () => {
     const [reopenReasonNote, setReopenReasonNote] = useState('');
     const [reopenConfirmed, setReopenConfirmed] = useState(false);
     const [reopenIdempotencyKey, setReopenIdempotencyKey] = useState<string | null>(null);
+    const [reopenCompetenceDate, setReopenCompetenceDate] = useState<string>(() => toLocalDateInput(new Date()));
+    const [reopenAuditPin, setReopenAuditPin] = useState('');
+    const [reopenPinError, setReopenPinError] = useState<string | null>(null);
+    const [reopenCashClosed, setReopenCashClosed] = useState(false);
+    const [reopenCheckingCash, setReopenCheckingCash] = useState(false);
     const [reopening, setReopening] = useState(false);
     const [filtersModalOpen, setFiltersModalOpen] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -796,6 +810,49 @@ const Comandas: React.FC = () => {
         void loadHistory();
         return () => { isMounted = false; };
     }, [selectedComandaId, reopenComanda?.id, tenantId, canAccessSuperAdmin, appSlug, schema, financialHistoryByComandaId]);
+
+    // Sinaliza quando a competência escolhida cai em um caixa já confirmado.
+    useEffect(() => {
+        if (!reopenComanda || !reopenCompetenceDate) {
+            setReopenCashClosed(false);
+            setReopenCheckingCash(false);
+            return;
+        }
+
+        const effectiveTenantId = tenantId || reopenComanda.tenant_id || null;
+        if (!effectiveTenantId) {
+            setReopenCashClosed(false);
+            setReopenCheckingCash(false);
+            return;
+        }
+
+        let isMounted = true;
+        setReopenCheckingCash(true);
+
+        void (async () => {
+            try {
+                const closing = await cashClosingRepository.getByBusinessDate(
+                    effectiveTenantId,
+                    reopenCompetenceDate,
+                );
+
+                if (!isMounted) return;
+                setReopenCashClosed(closing?.status === 'confirmed');
+            } catch (error) {
+                if (!isMounted) return;
+                logSupabaseError('[Comandas] Falha ao verificar caixa confirmado da competencia', error, {
+                    comandaId: reopenComanda.id,
+                    businessDate: reopenCompetenceDate,
+                    tenantId: effectiveTenantId,
+                });
+                setReopenCashClosed(false);
+            } finally {
+                if (isMounted) setReopenCheckingCash(false);
+            }
+        })();
+
+        return () => { isMounted = false; };
+    }, [reopenComanda, reopenCompetenceDate, tenantId]);
 
     useEffect(() => {
         if (comandas.length === 0 || !tenantId) return;
@@ -1397,6 +1454,10 @@ const Comandas: React.FC = () => {
         setReopenReasonNote('');
         setReopenConfirmed(false);
         setReopenIdempotencyKey(createReversalKey(history.transactionId));
+        setReopenCompetenceDate(toLocalDateInput(new Date()));
+        setReopenAuditPin('');
+        setReopenPinError(null);
+        setReopenCashClosed(false);
     };
 
     const closeReopenPaidModal = () => {
@@ -1406,6 +1467,9 @@ const Comandas: React.FC = () => {
         setReopenReasonNote('');
         setReopenConfirmed(false);
         setReopenIdempotencyKey(null);
+        setReopenAuditPin('');
+        setReopenPinError(null);
+        setReopenCashClosed(false);
     };
 
     const handleConfirmReopenPaidComanda = async (openCheckoutAfter: boolean) => {
@@ -1434,6 +1498,18 @@ const Comandas: React.FC = () => {
             return;
         }
 
+        if (!isValidCompetenceDate(reopenCompetenceDate)) {
+            setToast({ message: 'Informe uma data de competência válida. A data não pode ser futura.', type: 'error' });
+            return;
+        }
+
+        if (!isAuditPinFormatValid(reopenAuditPin)) {
+            const message = 'O PIN gerencial deve conter de 6 a 8 dígitos.';
+            setReopenPinError(message);
+            setToast({ message, type: 'error' });
+            return;
+        }
+
         setReopening(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
@@ -1452,6 +1528,35 @@ const Comandas: React.FC = () => {
                 return;
             }
 
+            // Pré-validação no banco: feedback imediato e sem consumir a chave
+            // de idempotência. A checagem definitiva ocorre dentro da RPC de
+            // reversão, na mesma transação.
+            setReopenPinError(null);
+            const { data: pinValidation, error: pinValidationError } = await supabase.rpc('validate_audit_pin', {
+                p_pin: reopenAuditPin,
+                p_tenant_id: effectiveTenantId,
+            });
+
+            if (pinValidationError) {
+                logSupabaseError('[Comandas] Falha ao validar PIN gerencial', pinValidationError, {
+                    comandaId: reopenComanda.id,
+                });
+                setToast({ message: 'Não foi possível validar o PIN gerencial. Tente novamente.', type: 'error' });
+                return;
+            }
+
+            const pinResult = (pinValidation || {}) as { valid?: boolean; reason?: string };
+            if (pinResult.valid !== true) {
+                const message = pinResult.reason === 'not_configured'
+                    ? 'Nenhum PIN gerencial configurado para o seu usuário neste tenant. Acione o responsável pelo provisionamento.'
+                    : pinResult.reason === 'invalid_format'
+                        ? 'O PIN gerencial deve conter de 6 a 8 dígitos.'
+                        : 'PIN gerencial inválido. Verifique e tente novamente.';
+                setReopenPinError(message);
+                setToast({ message, type: 'error' });
+                return;
+            }
+
             const targetComandaId = reopenComanda.id;
             await reverseFinancialTransaction({
                 tenantId: effectiveTenantId,
@@ -1462,15 +1567,20 @@ const Comandas: React.FC = () => {
                 reasonType: reopenReasonType,
                 reasonNote: reopenReasonNote.trim(),
                 refundMethod: null,
-                reversalDate: new Date().toISOString(),
+                reversalDate: competenceDateToIso(reopenCompetenceDate) || new Date().toISOString(),
                 idempotencyKey: reopenIdempotencyKey || createReversalKey(history.transactionId),
+                auditPin: reopenAuditPin,
             });
 
             setReopenComanda(null);
+            const retroactiveNotice = reopenCashClosed;
             setReopenReasonType('baixa_indevida');
             setReopenReasonNote('');
             setReopenConfirmed(false);
             setReopenIdempotencyKey(null);
+            setReopenAuditPin('');
+            setReopenPinError(null);
+            setReopenCashClosed(false);
 
             if (openCheckoutAfter) {
                 setToast({
@@ -1482,7 +1592,7 @@ const Comandas: React.FC = () => {
             }
 
             setToast({
-                message: `Baixa estornada e ${orderLabelLower} reaberto para edição.`,
+                message: `Baixa estornada e ${orderLabelLower} reaberto para edição${retroactiveNotice ? ' (ajuste retroativo sinalizado)' : ''}.`,
                 type: 'success',
             });
             await fetchData();
@@ -2183,6 +2293,77 @@ const Comandas: React.FC = () => {
                                 </div>
                             </div>
 
+                            <div className="rounded-2xl border border-[#B88A44]/60 bg-[#14110B] p-4 text-[#F5E7C8] shadow-[inset_0_1px_0_rgba(184,138,68,0.25)]">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[18px] text-[#B88A44]">encrypted</span>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#B88A44]">
+                                        Autorização gerencial
+                                    </p>
+                                </div>
+                                <p className="mt-1 text-[11px] leading-relaxed text-[#C9B9A0]">
+                                    O estorno é lançado na data de competência abaixo. O PIN é validado no banco e nunca é exposto ao navegador.
+                                </p>
+
+                                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label htmlFor="reopen-competence-date" className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#B88A44]">
+                                            Data de competência
+                                        </label>
+                                        <input
+                                            id="reopen-competence-date"
+                                            type="date"
+                                            value={reopenCompetenceDate}
+                                            max={toLocalDateInput(new Date())}
+                                            onChange={(e) => setReopenCompetenceDate(e.target.value)}
+                                            disabled={reopening}
+                                            className="w-full rounded-xl border border-[#B88A44]/40 bg-[#1A1610] px-3 py-2.5 text-sm font-semibold text-[#F5E7C8] outline-none transition [color-scheme:dark] focus:border-[#B88A44] focus:ring-1 focus:ring-[#B88A44]/50"
+                                        />
+                                        <p className="mt-1 text-[10px] text-[#A79C8A]">
+                                            {isValidCompetenceDate(reopenCompetenceDate)
+                                                ? `Lançamento em ${formatCompetenceDateLabel(reopenCompetenceDate)}.`
+                                                : 'Informe uma data válida e não futura.'}
+                                            {reopenHistory?.date ? ` Data original: ${formatCompetenceDateLabel(toLocalDateInput(reopenHistory.date))}.` : ''}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="reopen-audit-pin" className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#B88A44]">
+                                            PIN do gestor
+                                        </label>
+                                        <input
+                                            id="reopen-audit-pin"
+                                            type="password"
+                                            inputMode="numeric"
+                                            autoComplete="one-time-code"
+                                            value={reopenAuditPin}
+                                            onChange={(e) => {
+                                                setReopenAuditPin(normalizeAuditPin(e.target.value));
+                                                setReopenPinError(null);
+                                            }}
+                                            disabled={reopening}
+                                            placeholder="••••••"
+                                            maxLength={8}
+                                            className="w-full rounded-xl border border-[#B88A44]/40 bg-[#1A1610] px-3 py-2.5 text-sm font-semibold tracking-[0.35em] text-[#F5E7C8] outline-none transition placeholder:text-[#6B6252] focus:border-[#B88A44] focus:ring-1 focus:ring-[#B88A44]/50"
+                                        />
+                                        <p className={`mt-1 text-[10px] ${reopenPinError ? 'font-semibold text-rose-300' : 'text-[#A79C8A]'}`}>
+                                            {reopenPinError || '6 a 8 dígitos. Validado no banco via RPC.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {reopenCashClosed && (
+                                    <div className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
+                                        <p className="font-bold">O caixa desta data já está fechado.</p>
+                                        <p className="mt-0.5">
+                                            A alteração será permitida e sinalizada como ajuste retroativo (<span className="font-mono">retroactive_adjustment</span>).
+                                        </p>
+                                    </div>
+                                )}
+                                {!reopenCashClosed && reopenCheckingCash && (
+                                    <p className="mt-2 text-[10px] text-[#A79C8A]">Verificando fechamento de caixa da data...</p>
+                                )}
+                            </div>
+
                             <div className="space-y-3">
                                 <div>
                                     <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">
@@ -2242,14 +2423,14 @@ const Comandas: React.FC = () => {
                                     variant="secondary"
                                     leftIcon="lock_open"
                                     onClick={() => handleConfirmReopenPaidComanda(false)}
-                                    disabled={reopening || !reopenReasonNote.trim() || !reopenConfirmed}
+                                    disabled={reopening || reopenCheckingCash || !reopenReasonNote.trim() || !reopenConfirmed || !isAuditPinFormatValid(reopenAuditPin) || !isValidCompetenceDate(reopenCompetenceDate)}
                                 >
                                     {reopening ? 'Processando...' : 'Apenas Estornar e Reabrir'}
                                 </Button>
                                 <Button
                                     leftIcon="point_of_sale"
                                     onClick={() => handleConfirmReopenPaidComanda(true)}
-                                    disabled={reopening || !reopenReasonNote.trim() || !reopenConfirmed}
+                                    disabled={reopening || reopenCheckingCash || !reopenReasonNote.trim() || !reopenConfirmed || !isAuditPinFormatValid(reopenAuditPin) || !isValidCompetenceDate(reopenCompetenceDate)}
                                 >
                                     {reopening ? 'Processando...' : 'Estornar e Abrir Checkout'}
                                 </Button>

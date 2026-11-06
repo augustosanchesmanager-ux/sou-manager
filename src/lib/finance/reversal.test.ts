@@ -140,6 +140,7 @@ describe('reverseFinancialTransaction — wrong_settlement comanda reopen', () =
       p_refund_method: null,
       p_reversal_date: '2026-10-19T15:00:00.000Z',
       p_idempotency_key: 'idem-reopen-1',
+      p_audit_pin: null,
     });
     expect(result).toEqual({
       success: true,
@@ -150,6 +151,31 @@ describe('reverseFinancialTransaction — wrong_settlement comanda reopen', () =
       message: 'Reversao financeira registrada com sucesso.',
     });
     expect(appEventBus.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('should_forward_trimmed_audit_pin_to_the_rpc_when_pin_is_provided', async () => {
+    // Arrange
+    const supabase = createMockSupabase();
+
+    // Act
+    await reverseFinancialTransaction({
+      tenantId: 'tenant-1',
+      originalTransactionId: 'tx-1',
+      supabase,
+      reversalType: 'wrong_settlement',
+      amount: 120,
+      reasonType: 'baixa_indevida',
+      reasonNote: 'Estorno com PIN gerencial',
+      reversalDate: '2026-10-19T15:00:00.000Z',
+      idempotencyKey: 'idem-reopen-pin',
+      auditPin: ' 123456 ',
+    });
+
+    // Assert
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'finance_reverse_transaction',
+      expect.objectContaining({ p_audit_pin: '123456' }),
+    );
   });
 
   it('should_throw_validation_error_when_reasonNote_or_amount_is_invalid', async () => {
