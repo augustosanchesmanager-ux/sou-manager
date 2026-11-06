@@ -17,19 +17,19 @@ const QUICK_REPLIES = [
 
 const SALE_RESPONSES: Record<string, string> = {
     'quais são os planos?':
-        '💰 Temos 3 planos pensados para o seu momento:\n\n1. **Gratuito**: Ideal para começar (agendamentos e clientes).\n2. **Profissional**: Gestão completa de vendas, financeiro e equipe.\n3. **Premium**: Para quem quer escala. Inclui BI Avançado, Automações e Suporte VIP.\n\nRole a página até a seção de **Preços** para ver os detalhes!',
+        '💰 Nossa arquitetura é estruturada por **Maturidade Operacional**:\n\n1. **Operação Essencial**: Agenda multi-profissional, PDV rápido e comandas digitais integradas.\n2. **Gestão & Clube Pro**: Adiciona o motor de recorrência do Clube dos Chefes, fechamento de caixa auditável e portal do cliente.\n3. **Atelier Multi-Unidade & Enterprise**: Inclui Totem Kiosk de autoatendimento, BI preditivo com IA Gemini e suporte de implantação sob medida.\n\nRole até a seção de **Planos** ou agende uma demonstração guiada!',
 
     'o sistema tem bi?':
-        '📊 Sim! No plano **Premium**, você tem acesso ao nosso Dashboard de **Business Intelligence** com **Insights de IA (Gemini)**. Ele analisa seu faturamento e usa o **Motor de Retorno Inteligente** para identificar clientes sumidos, sugerindo ações para seu time agir na hora certa.',
+        '📊 Sim! O **SMG Barber Intelligence** conta com camada de **Business Intelligence Preditivo** alimentada por **IA Gemini**. Ele audita o faturamento em tempo real, monitora o índice de retenção da bancada e identifica clientes com ciclo de retorno atrasado.',
 
     'como funciona o suporte?':
-        '🛠️ Nosso suporte é humanizado! No plano Profissional e Premium, você tem canal direto via WhatsApp e e-mail. No plano Premium, o suporte é prioritário.',
+        '🛠️ Nosso suporte é técnico e especializado no dia a dia da barbearia. Oferecemos implantação guiada, migração de dados e acompanhamento direto via WhatsApp com especialistas.',
 
     'posso testar grátis?':
-        '✨ Com certeza! Você pode começar agora mesmo no plano **Gratuito** para conhecer a interface. Não pedimos cartão de crédito para começar.',
+        '✨ Oferecemos **demonstrações guiadas personalizadas** com a estrutura da sua barbearia para que você experimente a densidade do cockpit operacional, a agenda e o Clube dos Chefes antes de tomar sua decisão.',
 
     'tem controle de estoque?':
-        '📦 Sim! Temos gestão completa de produtos e estoque. No plano **Premium**, o sistema conta com automação via Totem de Autoatendimento, facilitando a entrada e saída de produtos e o check-in rápido de clientes.',
+        '📦 Sim! O controle de produtos e insumos de bancada é sincronizado diretamente ao PDV e às Comandas, com rastreabilidade de custos e comissões automáticas no fechamento.',
 };
 
 function getSaleReply(userMsg: string): string {
@@ -37,7 +37,7 @@ function getSaleReply(userMsg: string): string {
     for (const [key, val] of Object.entries(SALE_RESPONSES)) {
         if (lower.includes(key) || key.includes(lower)) return val;
     }
-    return '🤖 Sou seu assistente virtual do **SMG | Sou.Manager | Barber**. Para dúvidas técnicas ou personalizadas, você também pode nos chamar no WhatsApp ou e-mail na seção de contato abaixo!';
+    return '🤖 Sou o assistente de admissão do **SMG Barber Intelligence**. Para agendar uma demonstração guiada ou tirar dúvidas sobre sua operação, use o botão de WhatsApp ou acesse os canais de contato abaixo!';
 }
 
 const LandingSupportWidget: React.FC = () => {
@@ -46,7 +46,7 @@ const LandingSupportWidget: React.FC = () => {
         {
             id: '1',
             role: 'assistant',
-            content: '👋 Bem-vindo ao **SMG | Sou.Manager | Barber**! Estou aqui para te ajudar a entender como podemos transformar sua barbearia.\n\nO que você gostaria de saber?',
+            content: '👋 Bem-vindo ao **SMG Barber Intelligence**! Sou o assistente operacional da plataforma.\n\nComo posso ajudar a estruturar a gestão da sua barbearia hoje?',
             timestamp: new Date(),
         },
     ]);
@@ -115,39 +115,40 @@ const LandingSupportWidget: React.FC = () => {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 size-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 ${isOpen
-                    ? 'bg-slate-700 hover:bg-slate-600'
-                    : 'bg-primary hover:bg-primary-light shadow-primary/40'
+                    ? 'bg-surface-dark border border-border-dark text-white hover:bg-card-dark'
+                    : 'bg-primary hover:bg-primary-light text-night font-bold shadow-primary/40'
                     }`}
+                aria-label="Atendimento comercial"
             >
-                <span className="material-symbols-outlined text-white text-2xl transition-transform duration-300">
+                <span className="material-symbols-outlined text-2xl transition-transform duration-300">
                     {isOpen ? 'close' : 'chat'}
                 </span>
                 {!isOpen && (
-                    <span className="absolute -top-1 -right-1 size-4 rounded-full bg-green-500 border-2 border-[#0E0C0A] animate-pulse" />
+                    <span className="absolute -top-1 -right-1 size-3.5 rounded-full bg-emerald-500 border-2 border-night animate-pulse" />
                 )}
             </button>
 
-            <div className={`fixed bottom-20 inset-x-3 sm:bottom-24 sm:inset-x-auto sm:right-6 z-50 w-auto sm:w-[350px] max-h-[500px] rounded-2xl overflow-hidden flex flex-col shadow-2xl shadow-black/60 border border-[#2E2720] transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-90 opacity-0 pointer-events-none'
+            <div className={`fixed bottom-20 inset-x-3 sm:bottom-24 sm:inset-x-auto sm:right-6 z-50 w-auto sm:w-[360px] max-h-[520px] rounded-2xl overflow-hidden flex flex-col shadow-2xl shadow-black/80 border border-border-dark transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-90 opacity-0 pointer-events-none'
                 }`}>
-                <div className="bg-[#1C1814] px-5 py-4 flex items-center gap-3 border-b border-[#2E2720]">
-                    <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-primary text-xl">smart_toy</span>
+                <div className="bg-card-dark px-5 py-4 flex items-center gap-3 border-b border-border-dark">
+                    <div className="size-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-xl">memory</span>
                     </div>
-                    <div className="flex-1">
-                        <p className="text-white text-sm font-bold">Assistente SMG | Sou.Manager | Barber</p>
-                        <p className="text-emerald-400 text-[10px] font-medium flex items-center gap-1">
-                            <span className="size-1.5 rounded-full bg-emerald-400 inline-block" />
-                            Dúvidas e Vendas
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-bold truncate">SMG Barber Intelligence</p>
+                        <p className="text-emerald-400 text-[10px] font-semibold flex items-center gap-1.5">
+                            <span className="size-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                            Assistente Operacional & Vendas
                         </p>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-[#0E0C0A] px-4 py-4 space-y-3 custom-scrollbar" style={{ maxHeight: '350px' }}>
+                <div className="flex-1 overflow-y-auto bg-night px-4 py-4 space-y-3 custom-scrollbar" style={{ maxHeight: '350px' }}>
                     {messages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[90%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                ? 'bg-primary text-night rounded-br-none'
-                                : 'bg-[#1C1814] text-slate-300 border border-[#2E2720] rounded-bl-none'
+                                ? 'bg-primary text-night font-medium rounded-br-none'
+                                : 'bg-card-dark text-slate-200 border border-border-dark rounded-bl-none'
                                 }`}>
                                 {renderContent(msg.content)}
                             </div>
@@ -155,10 +156,10 @@ const LandingSupportWidget: React.FC = () => {
                     ))}
                     {isTyping && (
                         <div className="flex justify-start">
-                            <div className="bg-[#1C1814] border border-[#2E2720] px-4 py-3 rounded-2xl rounded-bl-none flex items-center gap-1">
-                                <span className="size-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <span className="size-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <span className="size-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <div className="bg-card-dark border border-border-dark px-4 py-3 rounded-2xl rounded-bl-none flex items-center gap-1.5">
+                                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="size-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                         </div>
                     )}
@@ -166,12 +167,12 @@ const LandingSupportWidget: React.FC = () => {
                 </div>
 
                 {messages.length <= 2 && (
-                    <div className="bg-[#0E0C0A] px-4 pb-3 flex flex-wrap gap-1.5">
+                    <div className="bg-night px-4 pb-3 flex flex-wrap gap-1.5">
                         {QUICK_REPLIES.map(q => (
                             <button
                                 key={q}
                                 onClick={() => sendMessage(q)}
-                                className="text-[10px] px-3 py-1.5 rounded-full border border-primary/30 text-primary bg-primary/5 hover:bg-primary/15 transition-all"
+                                className="text-[10px] px-3 py-1.5 rounded-full border border-primary/30 text-primary-light bg-primary/10 hover:bg-primary/20 transition-all font-semibold"
                             >
                                 {q}
                             </button>
@@ -179,20 +180,20 @@ const LandingSupportWidget: React.FC = () => {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="bg-[#1C1814] border-t border-[#2E2720] px-3 py-3 flex items-center gap-2">
+                <form onSubmit={handleSubmit} className="bg-card-dark border-t border-border-dark px-3 py-3 flex items-center gap-2">
                     <input
                         type="text"
                         value={input}
                         onChange={e => setInput(e.target.value)}
-                        placeholder="Pergunte sobre os planos..."
-                        className="flex-1 bg-white/5 text-white text-sm px-4 py-2.5 rounded-xl border border-white/10 focus:border-primary focus:outline-none placeholder:text-slate-500 transition-all"
+                        placeholder="Tire suas dúvidas operacionais..."
+                        className="flex-1 bg-surface-dark text-white text-sm px-4 py-2.5 rounded-xl border border-border-dark focus:border-primary focus:outline-none placeholder:text-slate-500 transition-all"
                     />
                     <button
                         type="submit"
                         disabled={!input.trim()}
-                        className="size-10 rounded-xl bg-primary hover:bg-primary-light disabled:opacity-30 flex items-center justify-center transition-all"
+                        className="size-10 rounded-xl bg-primary hover:bg-primary-light text-night disabled:opacity-30 flex items-center justify-center transition-all font-bold"
                     >
-                        <span className="material-symbols-outlined text-white text-lg">send</span>
+                        <span className="material-symbols-outlined text-night text-lg">send</span>
                     </button>
                 </form>
             </div>

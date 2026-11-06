@@ -381,38 +381,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                 navigate('/dashboard');
               }
             }}
-            className={`flex items-center h-24 border-b border-[#EFE9D8] dark:border-[#262017] overflow-hidden shrink-0 cursor-pointer select-none ${
-              showLabels ? 'px-6' : 'justify-center'
+            className={`flex items-center justify-center h-24 sm:h-28 border-b border-[#EFE9D8] dark:border-[#262017] overflow-hidden shrink-0 cursor-pointer select-none transition-all ${
+              showLabels ? 'px-4' : 'px-2'
             }`}
           >
             {showLabels ? (
-              <div className="flex items-center space-x-3">
-                {/* Chip Logo Container */}
-                <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
-                  {/* Chip Base */}
-                  <div className="absolute w-8 h-8 bg-gradient-to-br from-[#F7E7C2] to-[#E8DFC9] dark:from-[#2D2417] dark:to-[#1E1810] rounded-lg shadow-sm border border-[#A96F14]/20 z-10"></div>
-                  {/* Chip Core */}
-                  <div className="absolute w-3.5 h-3.5 bg-gradient-to-br from-[#A96F14] to-[#7a4f0d] rounded-sm shadow-inner z-20"></div>
-                  {/* Simulated Circuits */}
-                  <div className="absolute w-full h-[2px] bg-[#A96F14] top-1/2 -translate-y-1/2 z-0 opacity-50"></div>
-                  <div className="absolute h-full w-[2px] bg-[#A96F14] left-1/2 -translate-x-1/2 z-0 opacity-50"></div>
-                </div>
-
-                <div className="flex flex-col">
-                  <div className="flex items-baseline space-x-1">
-                    <span className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-[#c28827] to-[#855307] dark:from-[#E2A63B] dark:to-[#A96F14] leading-none drop-shadow-sm display-font">
-                      SMG
-                    </span>
-                  </div>
-                  <span className="text-[0.6rem] font-bold tracking-widest text-[#A96F14] dark:text-[#E2A63B] uppercase mt-0.5 whitespace-nowrap">
-                    {productSubtitle}
-                  </span>
-                </div>
+              <div className="flex items-center justify-center w-full">
+                <img
+                  src="/branding/smg-barber-intelligence-logo.png"
+                  alt="SMG Barber Intelligence"
+                  className="h-16 sm:h-20 w-auto max-w-[245px] object-contain filter drop-shadow-[0_0_18px_rgba(245,158,11,0.35)] hover:scale-[1.02] transition-transform"
+                />
               </div>
             ) : (
-              <div className="relative w-10 h-10 flex items-center justify-center">
-                <div className="absolute w-8 h-8 bg-gradient-to-br from-[#F7E7C2] to-[#E8DFC9] dark:from-[#2D2417] dark:to-[#1E1810] rounded-lg shadow-sm border border-[#A96F14]/20 z-10"></div>
-                <div className="absolute w-3.5 h-3.5 bg-gradient-to-br from-[#A96F14] to-[#7a4f0d] rounded-sm shadow-inner z-20"></div>
+              <div className="relative w-14 h-14 flex items-center justify-center">
+                <img
+                  src="/branding/smg-chip-hero.png"
+                  alt="SMG"
+                  className="w-11 h-11 object-contain filter drop-shadow-[0_0_14px_rgba(245,158,11,0.45)]"
+                />
               </div>
             )}
           </div>

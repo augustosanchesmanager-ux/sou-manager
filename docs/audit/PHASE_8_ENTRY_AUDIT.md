@@ -147,7 +147,12 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 - **Modelagem SQL Canônica:** Tabelas `public.integration_providers` (catálogo de provedores nativos homologados em gateways de pagamento, ERPs fiscais e CRMs), `public.tenant_integrations` (conexões ativas por barbearia com credenciais sensíveis isoladas) e `public.integration_sync_logs` (trilho de auditoria com direção, status, latência e external_ref_id), sob políticas RLS estritas e seed nativo (Mercado Pago, Asaas, ContaAzul, Omie, RD Station) na migration local `20261106020000_phase_8_core_integrations_and_connectors.sql`.
 - **Camada de Aplicação:** Serviço `services/integrationService.ts` com RPC atômica `record_integration_sync_event` para registro de auditoria e atualização de timestamps/erros da integração, configuração segura por tenant, desativação de conectores e listagem filtrada de histórico de sincronização.
 
-### 7.5 Matriz de Testes Unitários da Fase 8 (123 testes dedicados em `tests/unit/`)
+### 7.5 Subfase 8.6 — Billing da Plataforma SMG & Métricas de SaaS (`services/platformBillingService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.platform_plans` (catálogo oficial de planos comerciais SaaS: Starter R$ 149, Pro R$ 299, Enterprise R$ 699), `public.platform_subscriptions` (assinaturas corporativas por barbearia com controle de ciclo, carência e cancelamento agendado) e `public.platform_invoices` (faturas emitidas pela SMG com numeração única, vencimentos, rastreio de pagamento Pix/Boleto e RPC idempotente de liquidação `settle_platform_invoice`), todas sob RLS rigoroso por `tenant_id` e privilégios restritos a Super-Admin (migration local `20261106030000_phase_8_platform_billing_and_subscriptions.sql`).
+- **RPC Executiva de SaaS:** `public.get_saas_executive_metrics()` com cálculo determinístico em tempo real de MRR normalizado, ARR ($\text{MRR} \times 12$), contagem e distribuição de assinantes por plano (`Starter`, `Pro`, `Enterprise`), montante de faturas em atraso e taxa de churn, protegido por checagem estrita de Super-Admin (`public.current_is_super_admin_from_auth_uid()`).
+- **Camada de Aplicação:** Serviço `services/platformBillingService.ts` provendo abstrações limpas para catálogo de planos, consulta de assinatura ativa do estabelecimento, criação e atualização atômica de contratos, cancelamento imediato ou no encerramento do período, faturamento corporativo e liquidação idempotente de faturas.
+
+### 7.6 Matriz de Testes Unitários da Fase 8 (148 testes dedicados em `tests/unit/`)
 | Módulo Testado | Arquivo de Teste | Qtd Testes | Status |
 |----------------|------------------|:----------:|:------:|
 | Autenticação & Gateway | `tests/unit/api-gateway-auth.test.ts` | 20 | ✅ 100% PASS |
@@ -158,13 +163,32 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Contrato OpenAPI 3.1 & Docs | `tests/unit/openapi-spec.test.ts` | 9 | ✅ 100% PASS |
 | Marketplace & Extensões | `tests/unit/marketplace-service.test.ts` | 16 | ✅ 100% PASS |
 | Conectores & Integrações Core | `tests/unit/integration-service.test.ts` | 13 | ✅ 100% PASS |
-| **Total Dedicado Fase 8** | **8 suítes** | **123** | **✅ 100% PASS** |
+| Billing Plataforma & SaaS Metrics | `tests/unit/platform-billing-service.test.ts` | 25 | ✅ 100% PASS |
+| Enterprise Features & Audit Logs | `tests/unit/enterprise-service.test.ts` | 25 | ✅ 100% PASS |
+| SaaS Certification Master | `tests/certification/fase8_11_saas_certification.test.ts` | 14 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **11 suítes** | **187** | **✅ 100% PASS** |
 
-### 7.6 Matriz Consolidada Master (`npm run smg:verify`)
+### 7.7 Matriz Consolidada Master (`npm run smg:verify`)
 - **Typecheck (`tsc --noEmit`):** 0 erros.
 - **Architecture Guard:** Baseline 222 rigorosamente preservada.
-- **Unit Tests:** 149 arquivos de teste executados com sucesso (0 falhas).
+- **Unit Tests:** 152 arquivos de teste executados com sucesso (0 falhas).
 - **Secrets Audit:** 0 credenciais expostas.
-- **Migration Security:** 195 migrações auditadas sem desativação ou regressão de RLS.
-- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores e RPCs.
+- **Migration Security:** 197 migrações auditadas sem desativação ou regressão de RLS.
+- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores, planos, assinaturas, faturas, logs corporativos e RPCs.
+
+### 7.8 Deliberação Estratégica do PO Augusto — Congelamento de Internacionalização (Subfases 8.7, 8.8 e 8.9)
+Em 2026-11-06, o PO Augusto deliberou formalmente o **congelamento até segunda ordem / postergação para versão futura** das subfases 8.7 (Multi Idioma), 8.8 (Multi Moeda) e 8.9 (Internacionalização). A decisão visa focar 100% da tração comercial e maturação operacional do **SMG Barber** no mercado nacional brasileiro (pt-BR e moeda BRL R$), evitando dispersão de esforço em múltiplos idiomas antes da expansão internacional consolidada. O **ADR-042** foi registrado com status **`DEFERRED`**.
+
+### 7.9 Subfase 8.10 — Enterprise Features: Trilho Forense & Portabilidade LGPD (`services/enterpriseService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.enterprise_audit_logs` (trilho forense corporativo com imutabilidade absoluta — append-only estrito sem permissão de UPDATE ou DELETE) e `public.enterprise_data_exports` (gestão transacional de ordens de exportação e conformidade LGPD Art. 18 com TTL configurável e expiração defensiva) na migration canônica `supabase/migrations/20261106040000_phase_8_enterprise_features_and_audit_logs.sql`.
+- **RPCs Seguras e Transacionais:**
+  - `public.record_enterprise_audit_event`: Registro corporativo com validação de multi-tenant contextual, separação por severidade (`info`, `warning`, `critical`) e categorias de governança (`security`, `financial`, `compliance_lgpd`, `operational`, `system`).
+  - `public.request_enterprise_data_export`: Abertura de ordem de exportação LGPD com auto-auditoria imediata no log corporativo sob categoria `compliance_lgpd` e TTL padrão de 7 dias.
+- **Camada de Aplicação:** Serviço `services/enterpriseService.ts` com paginação, filtros multidimensionais por severidade/categoria/data/ação, consulta de exportações e atualização de status/checksum de arquivos exportados.
+- **Cobertura de Testes:** 25 testes unitários dedicados em `tests/unit/enterprise-service.test.ts` (100% PASS).
+
+### 7.10 Subfase 8.11 — Certificação SaaS & Conclusão Integral da Fase 8 (`docs/certification/SAAS_CERTIFICATION.md`)
+- **Dossiê Master:** Certificado oficial de escalabilidade e prontidão comercial da plataforma nos 7 pilares oficiais: Arquitetura, UX/Valor Percebido, Segurança/RLS/Trilho Forense, Performance/Baseline, Treinamento (SMG Academy), Onboarding Ágil e Billing da Plataforma SaaS.
+- **Suíte de Testes:** `tests/certification/fase8_11_saas_certification.test.ts` com 14 testes cobrindo os 7 pilares (100% PASS).
+- **Declaração Formal:** Fase 8 (Commercial Scalability) 100% concluída localmente. Deploy em produção permanece condicionado ao gate físico desacoplado (`MERGE ≠ DEPLOY PROD`).
 

@@ -28,11 +28,11 @@ const Login: React.FC = () => {
         const normalizedMessage = rawMessage.toLowerCase();
 
         if (normalizedMessage.includes('invalid login credentials')) {
-            return 'E-mail ou senha invalidos. Revise os dados e tente novamente.';
+            return 'E-mail ou senha inválidos. Revise os dados e tente novamente.';
         }
 
         if (normalizedMessage.includes('erro no banco de dados ao encontrar o usuario')) {
-            return 'Não foi possível localizar este acesso no Auth do Supabase. Confirme o e-mail sem espaços e valide no painel do Supabase se o usuário ainda existe em Authentication > Users.';
+            return 'Não foi possível localizar este acesso no Auth do Supabase. Confirme o e-mail sem espaços e valide se o usuário existe.';
         }
 
         return rawMessage || 'Ocorreu um erro ao fazer login.';
@@ -97,177 +97,215 @@ const Login: React.FC = () => {
     const isElite = activeTab === 'elite';
     const isCentralPortal = isInstitutionalHostname(window.location.hostname);
     const subtitle = isElite
-        ? 'Area exclusiva para administradores do sistema.'
+        ? 'Área exclusiva para administradores da rede.'
         : (isCentralPortal
-            ? 'Entre no portal central e escolha qual sistema deseja acessar.'
-            : 'Acesse sua conta para entrar diretamente neste sistema.');
+            ? 'Entre no portal central para gerenciar suas unidades.'
+            : 'Continue para acessar sua conta.');
 
     return (
-        <div className={`min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden transition-all duration-700 ${isElite ? 'bg-[#050505]' : 'bg-background-light dark:bg-background-dark'}`}>
-            <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none transition-all duration-700 ${isElite ? 'bg-amber-500/10' : 'bg-primary/20'}`}></div>
+        <div className="min-h-screen bg-[#07090E] text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 relative overflow-hidden select-none font-sans">
+            {/* Ambient Lighting & Tech Grids */}
+            <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[130px] pointer-events-none" />
+            <div className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-slate-700/15 blur-[120px] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
-            {isElite && (
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
-            )}
+            {/* Main Split Card — Widescreen Frosted Glass */}
+            <div className="relative w-full max-w-5xl rounded-3xl border border-white/10 bg-[#0B0D14]/85 backdrop-blur-2xl shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_80px_rgba(245,158,11,0.06)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 z-10 transition-all duration-500">
 
-            <header className="mb-8 z-10 animate-fade-in">
-                <Logo size="lg" className={isElite ? 'filter brightness-125' : ''} />
-            </header>
-
-            <main className="w-full max-w-[440px] z-10">
-                <div className={`border rounded-2xl p-8 shadow-2xl backdrop-blur-sm transition-all duration-500 relative overflow-hidden ${isElite
-                    ? 'bg-black/80 border-amber-500/30 ring-1 ring-amber-500/20'
-                    : 'bg-white dark:bg-surface-dark border-slate-200 dark:border-border-dark'
-                    }`}>
-                    {isElite && (
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
-                    )}
-
-                    {isLocalhost && !showReset && (
-                        <div className="flex p-1 bg-slate-100 dark:bg-background-dark rounded-xl mb-8 border border-slate-200 dark:border-border-dark">
-                            <button
-                                onClick={() => setActiveTab('user')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${activeTab === 'user'
-                                    ? 'bg-white dark:bg-surface-dark text-primary shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-lg">person</span>
-                                Usuario
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('elite')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${activeTab === 'elite'
-                                    ? 'bg-black text-amber-500 shadow-lg shadow-amber-500/10 border border-amber-500/20'
-                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-lg">workspace_premium</span>
-                                Elite
-                            </button>
-                        </div>
-                    )}
-
-                    {!showReset ? (
-                        <>
-                            <div className="text-center mb-8">
-                                <h2 className={`text-xl font-bold transition-colors ${isElite ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
-                                    {isElite ? 'Acesso Restrito Elite' : 'Bem-vindo de volta'}
-                                </h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{subtitle}</p>
+                {/* Left Column (Col 1 to 7): The Modern Form */}
+                <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between relative z-10">
+                    <div>
+                        {/* Top Branding Bar — Centered & Highly Legible */}
+                        <div className="flex flex-col items-center justify-center mb-6 w-full text-center">
+                            <div className="flex items-center justify-center w-full py-2">
+                                <img
+                                    src="/branding/smg-barber-intelligence-logo.png"
+                                    alt="SMG Barber Intelligence"
+                                    className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] object-contain filter drop-shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:scale-[1.02] transition-transform"
+                                />
                             </div>
+                        </div>
 
-                            {isLocalDemoMode && !isElite && (
-                                <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
-                                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">Acesso de teste local</p>
-                                    <p className="mt-2 text-sm font-medium text-emerald-950 dark:text-emerald-100">E-mail: teste@soumanager.local</p>
-                                    <p className="text-sm font-medium text-emerald-950 dark:text-emerald-100">Senha: 12345678</p>
+                        {/* Localhost Tabs (Usuário / Elite) */}
+                        {isLocalhost && !showReset && (
+                            <div className="flex justify-center w-full mb-6">
+                                <div className="inline-flex p-1 bg-white/[0.04] border border-white/10 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('user')}
+                                        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
+                                            activeTab === 'user'
+                                                ? 'bg-white/10 text-white shadow-xs'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">person</span>
+                                        USUÁRIO
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('elite')}
+                                        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
+                                            activeTab === 'elite'
+                                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                                        ELITE
+                                    </button>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            <form onSubmit={handleLogin} className="space-y-6">
-                                {error && (
-                                    <div className={`text-xs p-3 rounded-lg text-center font-bold animate-fade-in border ${isElite
-                                        ? 'bg-amber-900/20 border-amber-500/20 text-amber-500'
-                                        : 'bg-red-500/10 border-red-500/20 text-red-500'
-                                        }`}>
-                                        {error}
+                        {!showReset ? (
+                            <>
+                                {/* Header Title */}
+                                <div className="mb-7">
+                                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                                        {isElite ? 'Acesso Restrito Elite' : 'Entrar'}
+                                    </h1>
+                                    <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
+                                        {subtitle}
+                                    </p>
+                                </div>
+
+                                {/* Local Demo Mode Quick Helper */}
+                                {isLocalDemoMode && !isElite && (
+                                    <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 flex items-center justify-between text-xs animate-fade-in">
+                                        <div>
+                                            <p className="font-mono font-bold text-[10px] tracking-wider uppercase text-emerald-400">Acesso Local de Demonstração</p>
+                                            <p className="text-slate-300 font-mono text-[11px] mt-0.5">teste@soumanager.local • 12345678</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setEmail('teste@soumanager.local');
+                                                setPassword('12345678');
+                                            }}
+                                            className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
+                                        >
+                                            Preencher
+                                        </button>
                                     </div>
                                 )}
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">E-mail</label>
-                                    <div className="relative group">
-                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'}`}>mail</span>
+                                <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
+                                    {error && (
+                                        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-start gap-2.5 text-xs text-red-400 animate-fade-in">
+                                            <span className="material-symbols-outlined text-base text-red-400 shrink-0 mt-0.5">error</span>
+                                            <span className="font-medium leading-relaxed">{error}</span>
+                                        </div>
+                                    )}
+
+                                    {/* Email Field */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-slate-300 block">
+                                            Email
+                                        </label>
                                         <input
                                             type="email"
                                             required
                                             autoComplete="email"
-                                            placeholder="seu@email.com"
+                                            placeholder="Digite seu email"
                                             value={email}
                                             onChange={(e) => setEmail(normalizeEmail(e.target.value))}
-                                            className={`w-full border rounded-lg py-3.5 pl-12 pr-4 text-sm outline-none transition-all ${isElite
-                                                ? 'bg-black/50 border-amber-500/20 text-amber-100 placeholder:text-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
-                                                : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'
-                                                }`}
+                                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-amber-400/60 rounded-xl py-3 px-3.5 text-sm text-white placeholder:text-slate-500 outline-none transition-all duration-200"
                                         />
                                     </div>
-                                </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">Senha</label>
-                                    <div className="relative group">
-                                        <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 group-focus-within:text-amber-500' : 'text-slate-400 dark:text-slate-500 group-focus-within:text-primary'}`}>lock</span>
-                                        <input
-                                            type={showPassword ? 'text' : 'password'}
-                                            required
-                                            autoComplete="current-password"
-                                            placeholder="........"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className={`w-full border rounded-lg py-3.5 pl-12 pr-12 text-sm outline-none transition-all ${isElite
-                                                ? 'bg-black/50 border-amber-500/20 text-amber-100 placeholder:text-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
-                                                : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary'
-                                                }`}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isElite ? 'text-amber-500/50 hover:text-amber-500' : 'text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
-                                        >
-                                            <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between text-sm">
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                        <input type="checkbox" className={`rounded border-slate-300 dark:border-border-dark bg-white dark:bg-background-dark focus:ring-primary ${isElite ? 'text-amber-500 ring-amber-500' : 'text-primary'}`} />
-                                        <span className={`transition-colors ${isElite ? 'text-slate-500 group-hover:text-amber-500/70' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-300'}`}>Lembrar de mim</span>
-                                    </label>
-                                    {!isElite && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowReset(true)}
-                                            className="text-primary hover:text-teal-700 dark:hover:text-teal-300 font-medium"
-                                        >
-                                            Esqueci minha senha
-                                        </button>
-                                    )}
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className={`w-full font-bold py-4 rounded-lg shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${isElite
-                                        ? 'bg-amber-600 hover:bg-amber-500 text-black shadow-amber-500/20'
-                                        : 'bg-primary hover:bg-primary-dark text-night shadow-primary/20'
-                                        }`}
-                                >
-                                    {loading ? 'Validando...' : (isElite ? 'Autenticar Elite' : (isCentralPortal ? 'Entrar na Plataforma' : 'Entrar no Sistema'))}
-                                    <span className="material-symbols-outlined text-lg">{isElite ? 'verified_user' : 'login'}</span>
-                                </button>
-                            </form>
-                        </>
-                    ) : (
-                        <div className="animate-fade-in">
-                            <div className="text-center mb-8">
-                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Recuperar Senha</h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Enviaremos um link de recuperacao para o seu e-mail.</p>
-                            </div>
-
-                            {!resetSent ? (
-                                <form onSubmit={handleResetPassword} className="space-y-6">
-                                    {error && (
-                                        <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs p-3 rounded-lg text-center font-bold">
-                                            {error}
+                                    {/* Password Field */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-medium text-slate-300">
+                                                Senha
+                                            </label>
+                                            {!isElite && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowReset(true)}
+                                                    className="text-xs text-slate-400 hover:text-amber-400 transition-colors"
+                                                >
+                                                    Esqueceu sua senha?
+                                                </button>
+                                            )}
                                         </div>
-                                    )}
-
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500 ml-1">E-mail</label>
                                         <div className="relative group">
-                                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-primary transition-colors">mail</span>
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                required
+                                                autoComplete="current-password"
+                                                placeholder="Digite sua senha"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-amber-400/60 rounded-xl py-3 pl-3.5 pr-11 text-sm text-white placeholder:text-slate-500 outline-none transition-all duration-200"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
+                                                aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                                            >
+                                                <span className="material-symbols-outlined text-lg leading-none">
+                                                    {showPassword ? 'visibility_off' : 'visibility'}
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Remember Me */}
+                                    <div className="flex items-center pt-0.5">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-400 hover:text-slate-300">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-white/20 bg-white/5 text-amber-500 focus:ring-0 focus:ring-offset-0"
+                                            />
+                                            <span>Lembrar de mim</span>
+                                        </label>
+                                    </div>
+
+                                    {/* Submit Button */}
+                                    <div className="pt-2">
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 ${
+                                                isElite
+                                                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-night hover:brightness-110 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
+                                                    : 'bg-white hover:bg-slate-100 text-night shadow-[0_0_20px_rgba(255,255,255,0.12)]'
+                                            }`}
+                                        >
+                                            {loading ? 'Validando...' : (isElite ? 'Autenticar Elite' : 'Entrar')}
+                                            <span className="material-symbols-outlined text-base">arrow_forward</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </>
+                        ) : (
+                            /* Password Reset Form */
+                            <div className="animate-fade-in">
+                                <div className="mb-7">
+                                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                                        Recuperar Senha
+                                    </h2>
+                                    <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
+                                        Enviaremos um link de recuperação diretamente para o seu e-mail cadastrado.
+                                    </p>
+                                </div>
+
+                                {!resetSent ? (
+                                    <form onSubmit={handleResetPassword} className="space-y-4 sm:space-y-5">
+                                        {error && (
+                                            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-start gap-2.5 text-xs text-red-400 animate-fade-in">
+                                                <span className="material-symbols-outlined text-base text-red-400 shrink-0 mt-0.5">error</span>
+                                                <span className="font-medium leading-relaxed">{error}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-slate-300 block">
+                                                Email Cadastrado
+                                            </label>
                                             <input
                                                 type="email"
                                                 required
@@ -275,57 +313,106 @@ const Login: React.FC = () => {
                                                 placeholder="seu@email.com"
                                                 value={resetEmail}
                                                 onChange={(e) => setResetEmail(normalizeEmail(e.target.value))}
-                                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg py-3.5 pl-12 pr-4 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] border border-white/10 focus:border-amber-400/60 rounded-xl py-3 px-3.5 text-sm text-white placeholder:text-slate-500 outline-none transition-all duration-200"
                                             />
                                         </div>
-                                    </div>
 
-                                    <button
-                                        type="submit"
-                                        disabled={resetLoading}
-                                        className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        {resetLoading ? 'Enviando...' : 'Enviar Link'}
-                                        <span className="material-symbols-outlined text-lg">send</span>
-                                    </button>
+                                        <div className="pt-2 space-y-3">
+                                            <button
+                                                type="submit"
+                                                disabled={resetLoading}
+                                                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide bg-white hover:bg-slate-100 text-night shadow-[0_0_20px_rgba(255,255,255,0.12)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {resetLoading ? 'Enviando...' : 'Enviar Link de Recuperação'}
+                                                <span className="material-symbols-outlined text-base">send</span>
+                                            </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowReset(false)}
-                                        className="w-full text-slate-500 hover:text-slate-900 dark:hover:text-white text-sm font-bold transition-colors"
-                                    >
-                                        Voltar para o Login
-                                    </button>
-                                </form>
-                            ) : (
-                                <div className="text-center py-4">
-                                    <div className="size-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <span className="material-symbols-outlined text-3xl">check_circle</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowReset(false)}
+                                                className="w-full text-slate-400 hover:text-white text-xs font-medium py-2 transition-colors text-center block"
+                                            >
+                                                Voltar para o Login
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="py-4 text-center">
+                                        <div className="size-14 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <span className="material-symbols-outlined text-3xl">check_circle</span>
+                                        </div>
+                                        <h3 className="text-lg font-bold text-white mb-1.5">E-mail enviado com sucesso</h3>
+                                        <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6 leading-relaxed">
+                                            Verifique sua caixa de entrada e siga as instruções contidas no e-mail para criar uma nova senha.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowReset(false)}
+                                            className="px-6 py-2.5 rounded-xl bg-white text-night font-bold text-xs hover:bg-slate-100 transition-colors"
+                                        >
+                                            Voltar ao Login
+                                        </button>
                                     </div>
-                                    <h3 className="font-bold text-slate-900 dark:text-white mb-2">E-mail enviado</h3>
-                                    <p className="text-sm text-slate-500 mb-6">Verifique sua caixa de entrada e siga as instrucoes para redefinir sua senha.</p>
-                                    <button
-                                        onClick={() => setShowReset(false)}
-                                        className="w-full bg-primary hover:bg-primary-dark text-night font-bold py-3 rounded-lg transition-all"
-                                    >
-                                        Entendi
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer Registration Link */}
+                    <div className="mt-8 pt-6 border-t border-white/5 text-center text-xs text-slate-400">
+                        Ainda não tem conta?{' '}
+                        <Link to="/register" className="text-white hover:text-amber-400 font-medium underline underline-offset-4 transition-colors">
+                            Se inscreva
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Right Column (Col 8 to 12): Cybernetic Brain Visual Flank */}
+                <div className="lg:col-span-5 relative hidden lg:flex flex-col items-center justify-between p-8 sm:p-10 bg-gradient-to-br from-[#0F131E]/90 via-[#0B0D14] to-[#06070B] border-l border-white/10 overflow-hidden">
+                    {/* Ambient Radial Golden Glow */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-amber-500/15 blur-[90px] pointer-events-none" />
+
+                    {/* Subtle dot matrix grid overlay (matching reference layout) */}
+                    <div className="absolute inset-0 bg-[radial-gradient(rgba(245,158,11,0.08)_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+
+                    {/* Top Status Header */}
+                    <div className="w-full flex items-center justify-between z-10">
+                        <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-amber-400/80">
+                            AI CORE ENGINE v2.6
+                        </span>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/50 border border-white/10 backdrop-blur-md">
+                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[10px] font-mono tracking-widest text-slate-300 uppercase">SYNCHRONIZED</span>
                         </div>
-                    )}
+                    </div>
 
-                    <div className="mt-8 pt-6 border-t border-slate-200 dark:border-border-dark text-center">
-                        <p className={`text-sm transition-colors ${isElite ? 'text-slate-600' : 'text-slate-600 dark:text-slate-500'}`}>
-                            Ainda não tem conta? <Link to="/register" className={`font-bold transition-colors ${isElite ? 'text-amber-500/70 hover:text-amber-500' : 'text-slate-900 dark:text-white hover:text-primary'}`}>Criar conta</Link>
+                    {/* The Golden Cyber Brain with Ambient Floating Glow */}
+                    <div className="relative w-full max-w-[340px] aspect-square flex items-center justify-center p-2 my-auto z-10">
+                        <img
+                            src="/branding/smg-ai-brain-barber.png"
+                            alt="SMG Barber Intelligence AI Core"
+                            className="w-full h-full object-contain filter drop-shadow-[0_0_35px_rgba(245,158,11,0.35)] transition-transform duration-700 ease-out hover:scale-105"
+                        />
+                    </div>
+
+                    {/* Bottom Telemetry HUD Card */}
+                    <div className="w-full z-10 p-4 rounded-2xl bg-black/60 border border-white/5 backdrop-blur-md">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                            <span>SISTEMA AUDITÁVEL</span>
+                            <span className="text-amber-400 font-bold">100% OPERACIONAL</span>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1 leading-relaxed font-sans">
+                            Inteligência neural aplicada à gestão financeira, comissionamento e agenda de barbearias de alto padrão.
                         </p>
                     </div>
                 </div>
-            </main>
 
-            <footer className="mt-8 text-center z-10">
-                <p className={`text-[10px] uppercase tracking-[0.2em] font-bold transition-colors ${isElite ? 'text-amber-500/30' : 'text-slate-500 dark:text-slate-600'}`}>
-                    {isElite ? 'Protocolo de segurança nível 5 ativado' : 'Portal de acesso SMG - Sou.Manager'}
+            </div>
+
+            {/* Bottom Security Protocol Notice */}
+            <footer className="mt-6 text-center z-10">
+                <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-slate-500">
+                    {isElite ? 'Protocolo de segurança nível 5 ativado' : 'SMG PLATFORM // ENCRYPTED AUTH PROTOCOL'}
                 </p>
             </footer>
         </div>

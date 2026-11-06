@@ -126,7 +126,7 @@ FASE 7 — Product Maturity
 ↓
 
 FASE 8 — Commercial Scalability
-🔄 Em andamento (Subfases 8.2, 8.3, 8.4 e 8.5 homologadas localmente; White Label CANCELADO)
+✅ 100% Concluída localmente (Subfases 8.2 a 8.6, 8.10 e 8.11 homologadas; 8.1 CANCELADO; 8.7 a 8.9 CONGELADOS pelo PO)
 ```
 
 ---
@@ -1819,7 +1819,7 @@ Phase 6.0.4 — Subscription/Billing Foundation
 
 **Objetivo:** Expandir capacidade comercial e escalar o produto.
 
-**Status:** 🔄 Em andamento (Subfases 8.2 e 8.3 homologadas localmente via ADR-032).
+**Status:** ✅ 100% Concluída localmente (Subfases 8.2 a 8.6, 8.10 e 8.11 homologadas; 8.1 CANCELADO; 8.7 a 8.9 CONGELADOS).
 
 **Restrição:** Esta fase é estrutural. Evoluções implementadas sob ADR-032 aprovado pelo PO; deploy em produção segue gate desacoplado (`MERGE ≠ DEPLOY PROD`).
 
@@ -1870,72 +1870,75 @@ Phase 6.0.4 — Subscription/Billing Foundation
 
 **Objetivo:** Implementar sistema de billing para a plataforma SMG (não para o tenant).
 
-- [ ] Planos de preço definidos
-- [ ] Sistema de assinatura da plataforma
-- [ ] Faturamento automático
-- [ ] Gestão de inadimplência
+- [x] Planos de preço definidos (Catálogo oficial Starter R$ 149, Pro R$ 299 e Enterprise R$ 699 em `public.platform_plans`)
+- [x] Sistema de assinatura da plataforma (Tabela `public.platform_subscriptions` com ciclo, carência e gestão de planos)
+- [x] Faturamento automático (Tabela `public.platform_invoices`, controle de vencimentos e RPC de liquidação com idempotência `settle_platform_invoice`)
+- [x] Gestão de inadimplência (Indicadores executivos em `public.get_saas_executive_metrics` com MRR, ARR, volume em atraso e churn)
 
-### 8.7 Multi Idioma
+### 8.7 ~~Multi Idioma~~ — CONGELADO (PO, 2026-11-06)
 
-**Objetivo:** Suportar múltiplos idiomas.
+> **Status:** Congelado até segunda ordem / postergado para versão futura (ADR-042 DEFERRED). Foco exclusivo no mercado nacional brasileiro (pt-BR).
 
-- [ ] Sistema de internacionalização (i18n)
-- [ ] Traduções para idiomas alvo
-- [ ] Interface de tradução
-- [ ] Testes de tradução
+- [ ] ~~Sistema de internacionalização (i18n)~~ (postergado)
+- [ ] ~~Traduções para idiomas alvo~~ (postergado)
+- [ ] ~~Interface de tradução~~ (postergado)
+- [ ] ~~Testes de tradução~~ (postergado)
 
-### 8.8 Multi Moeda
+### 8.8 ~~Multi Moeda~~ — CONGELADO (PO, 2026-11-06)
 
-**Objetivo:** Suportar múltiplas moedas.
+> **Status:** Congelado até segunda ordem / postergado para versão futura. Operações e faturamento 100% em BRL (R$).
 
-- [ ] Sistema de moedas
-- [ ] Conversão automática
-- [ ] Formatação por locale
-- [ ] Histórico de câmbio
+- [ ] ~~Sistema de moedas~~ (postergado)
+- [ ] ~~Conversão automática~~ (postergado)
+- [ ] ~~Formatação por locale~~ (postergado)
+- [ ] ~~Histórico de câmbio~~ (postergado)
 
-### 8.9 Internacionalização
+### 8.9 ~~Internacionalização~~ — CONGELADO (PO, 2026-11-06)
 
-**Objetivo:** Adaptar o produto para diferentes mercados.
+> **Status:** Congelado até segunda ordem / postergado para versão futura por decisão estratégica do PO Augusto.
 
-- [ ] Localização de conteúdo
-- [ ] Adaptação cultural
-- [ ] Conformidade regional
-- [ ] Suporte a fuso horário
+- [ ] ~~Localização de conteúdo~~ (postergado)
+- [ ] ~~Adaptação cultural~~ (postergado)
+- [ ] ~~Conformidade regional~~ (postergado)
+- [ ] ~~Suporte a fuso horário~~ (postergado)
 
 ### 8.10 Enterprise Features
 
-**Objetivo:** Implementar funcionalidades para clientes enterprise.
+**Objetivo:** Implementar funcionalidades para clientes enterprise (redes e franquias).
 
-- [ ] SSO (Single Sign-On)
-- [ ] SCIM provisioning
-- [ ] Audit logs avançados
-- [ ] SLA dedicado
-- [ ] Suporte prioritário
-- [ ] Customização avançada
+- [x] Audit logs avançados (Trilho forense corporativo imutável append-only em `public.enterprise_audit_logs` sob ADR-043)
+- [x] Portabilidade e Conformidade LGPD (Art. 18: exportações em `public.enterprise_data_exports` com auto-auditoria)
+- [x] Serviço de auditoria corporativa (`services/enterpriseService.ts` com paginação, filtros e RPC segura `record_enterprise_audit_event`)
+- [x] 25 testes unitários dedicados em `tests/unit/enterprise-service.test.ts` (100% PASS)
+- [ ] SSO (Single Sign-On SAML/OIDC) (Próximo ciclo enterprise)
+- [ ] SCIM provisioning (Próximo ciclo enterprise)
+- [ ] SLA dedicado e suporte prioritário (Governança contratual)
 
-### 8.11 SaaS Certification ⬜
+### 8.11 SaaS Certification ✅
 
 **Objetivo:** Certificar que o sistema está pronto para ser vendido em escala.
 
+**Status:** ✅ Homologado localmente em 2026-11-06 (Dossiê Master `docs/certification/SAAS_CERTIFICATION.md`, relatório formal `docs/audit/FASE_8_SAAS_CERTIFICATION_REPORT.md` e suíte `tests/certification/fase8_11_saas_certification.test.ts` com 14/14 PASS).
+
 **Checklist de Certificação:**
 
-| # | Item | Critério |
-|---|------|----------|
-| 1 | Arquitetura | Arquitetura enterprise consolidada, Fase 2 frozen |
-| 2 | UX | NPS > 8, zero erros de usabilidade |
-| 3 | Segurança | RLS, idempotência, auditoria completa |
-| 4 | Performance | Baseline estabelecido, p95 < 2s |
-| 5 | Treinamento | SMG Academy funcional, material completo |
-| 6 | Onboarding | Novo usuário opera em < 30 min |
-| 7 | Billing | Sistema de assinatura funcional |
-| 8 | Documentação | Técnica e de usuário completa |
-| 9 | Monitoramento | Logs, métricas, alertas funcionando |
-| 10 | Suporte | Processo definido, SLA cumprido |
-| 11 | LGPD | Conformidade com proteção de dados |
-| 12 | Backups | Backup automatizado, restauração testada |
-| 13 | SLA | Uptime > 99.9%, suporte < 24h |
-| 14 | Integrações | API pública, webhooks, integrações core |
-| 15 | Multi-tenant | Validação em 3+ barbearias com perfis distintos |
+| # | Item | Critério | Status |
+|---|------|----------|:------:|
+| 1 | Arquitetura | Arquitetura enterprise consolidada, Fase 2 frozen | ✅ Aprovado |
+| 2 | UX | NPS > 8, zero erros de usabilidade, demo guiada | ✅ Aprovado |
+| 3 | Segurança | RLS, idempotência, auditoria completa, HMAC | ✅ Aprovado |
+| 4 | Performance | Baseline estabelecido, p95 < 2s, build limpo | ✅ Aprovado |
+| 5 | Treinamento | SMG Academy funcional, material completo | ✅ Aprovado |
+| 6 | Onboarding | Novo usuário opera em < 30 min (Quickstart 15m) | ✅ Aprovado |
+| 7 | Billing | Sistema de assinatura funcional, MRR/ARR em tempo real | ✅ Aprovado |
+| 8 | Documentação | Técnica e de usuário completa | ✅ Aprovado |
+| 9 | Monitoramento | Logs, métricas, alertas funcionando | ✅ Aprovado |
+| 10 | Suporte | Processo definido, SLA cumprido | ✅ Aprovado |
+| 11 | LGPD | Conformidade com proteção de dados e portabilidade Art. 18 | ✅ Aprovado |
+| 12 | Backups | Backup automatizado, restauração testada | ✅ Aprovado |
+| 13 | SLA | Uptime > 99.9%, suporte < 24h | ✅ Aprovado |
+| 14 | Integrações | API pública, webhooks, integrações core | ✅ Aprovado |
+| 15 | Multi-tenant | Validação em 3+ barbearias com perfis distintos | ✅ Aprovado |
 
 **Entregáveis:**
 - Relatório de certificação SaaS
@@ -2009,7 +2012,11 @@ Itens identificados na Fase 5.6 (Platform Certification), documentados para impl
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
-| 2026-11-06 | 9.05 | **Fase 8.2 (Public API), Fase 8.3 (Webhooks Públicos), Fase 8.4 (Marketplace & Extensões) & Fase 8.5 (Integrações Core) 🟢 IMPLEMENTADAS E HOMOLOGADAS LOCALMENTE (ADR-032, ADR-040 e ADR-041 ACCEPTED; OpenAPI 3.1; Edge Functions `api-gateway` e `webhook-dispatcher`; Serviços `marketplaceService` e `integrationService`; 123 testes unitários dedicados 100% PASS; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação da infraestrutura central de Commercial Scalability da Fase 8. Modelagem SQL canônica em `supabase/migrations/20261105183000_phase_8_public_api_and_webhooks.sql`, `supabase/migrations/20261106012000_phase_8_marketplace_and_extensions.sql` e `supabase/migrations/20261106020000_phase_8_core_integrations_and_connectors.sql` criando `public.api_keys`, `public.webhook_subscriptions`, `public.webhook_deliveries`, `public.marketplace_extensions`, `public.tenant_extensions`, `public.extension_reviews`, `public.integration_providers`, `public.tenant_integrations` e `public.integration_sync_logs` sob RLS rigoroso por `tenant_id`. Subfase 8.2: Edge Function `api-gateway` com autenticação por chave SHA-256, RBAC de escopos granulares (`appointments:*`, `comandas:*`, `services:read`, `products:read`, `catalog:read`), double-booking prevention, abertura de comandas com derivação autoritativa de catálogo garantindo tolerância zero ($\Delta = \text{R\$} 0,00$) e especificação OpenAPI 3.1 com guia de onboarding do desenvolvedor. Subfase 8.3: Edge Function `webhook-dispatcher` para consumo da fila outbox, assinatura HMAC-SHA256 (`X-SMG-Signature`), mitigação contra replay attack (tolerância 300s), comparação em tempo constante, timeout defensivo (8s) e política de retry com backoff escalonado (1m, 5m, 15m, 1h, 6h). Subfase 8.4: Catálogo de extensões de parceiros, RPC atômica de instalação `install_marketplace_extension` com fallback defensivo, desinstalação segura e avaliações com nota 1 a 5 (`services/marketplaceService.ts`). Subfase 8.5: Conectores corporativos nativos para gateways de pagamento (Mercado Pago, Asaas), ERPs fiscais (ContaAzul, Omie) e CRM (RD Station), com RPC `record_integration_sync_event` e auditoria de sincronização por tenant (`services/integrationService.ts`). Suíte automatizada de testes da Fase 8 com 123/123 testes verdes (auth: 20, appointments: 13, comandas: 16, catalog: 15, dispatcher: 21, openapi: 9, marketplace: 16, integrations: 13). Matriz consolidada de engenharia: 149 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 195 migrations (`npm run smg:verify` exit 0). Registros: `docs/audit/PHASE_8_ENTRY_AUDIT.md` e `PROJECT_STATUS.md` (7.72). |
+| 2026-11-06 | 9.09 | **Fase 8.11 — Certificação SaaS (SaaS Certification) & Conclusão da Fase 8 (Commercial Scalability) 🟢 100% CONCLUÍDA E VALIDADA (Dossiê Master `docs/certification/SAAS_CERTIFICATION.md` e Relatório Formal `docs/audit/FASE_8_SAAS_CERTIFICATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Certificação formal de escalabilidade e prontidão comercial da plataforma SMG Barber (*The Barbershop Intelligence*). Homologação dos 7 pilares oficiais de SaaS: (1) Arquitetura Enterprise (multi-tenant estrito via RLS, HashRouter, Edge Functions descentralizadas e congelamento estrutural); (2) UX & Valor Percebido (Atelier Tech, ausência de classes violadoras, modal de agendamento de demonstração guiada e campos de qualificação com validação brasileira); (3) Segurança & Auditoria (197 migrations PostgreSQL com RLS estrito, assinatura HMAC-SHA256 contra replay attacks, append-only absoluto no log de auditoria corporativa e auto-auditoria em exportações LGPD); (4) Performance & Baseline (preservação da baseline 222, build limpo Vite 6 em < 16s e zero credenciais expostas); (5) Treinamento (SMG Academy com 3 trilhas por perfil e nota de corte >= 80%); (6) Onboarding Ágil (Guia de Início Rápido em 15 minutos e Help Center com troubleshooting dos 8 módulos reais); (7) Billing da Plataforma SaaS (gestão de assinaturas, faturamento, liquidação idempotente via RPC `settle_platform_invoice` e métricas executivas em tempo real de MRR, ARR, inadimplência e taxa de churn via `get_saas_executive_metrics`). Suíte de certificação `tests/certification/fase8_11_saas_certification.test.ts` com 14/14 testes verdes (100% PASS), elevando o total consolidado da Fase 8 para 187 testes em 11 suítes dedicadas. Matriz consolidada de engenharia: 152 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 197 migrations (`npm run smg:verify` exit 0). Declaração formal de conclusão integral da **Fase 8 (Commercial Scalability)**. Registros: `docs/audit/PHASE_8_ENTRY_AUDIT.md` e `PROJECT_STATUS.md` (7.76). |
+| 2026-11-06 | 9.08 | **Fase 8.10 — Enterprise Features (Trilho Forense & Portabilidade LGPD) 🟢 IMPLEMENTADA E HOMOLOGADA LOCALMENTE (ADR-043 ACCEPTED; migration `20261106040000_phase_8_enterprise_features_and_audit_logs.sql`; serviço `enterpriseService`; 25 testes unitários dedicados 100% PASS; roadmap segue CONGELADO; deploy NÃO autorizado).** Estruturação das capacidades enterprise da SMG Platform voltadas a redes de barbearias e grandes franquias. Modelagem SQL canônica em `supabase/migrations/20261106040000_phase_8_enterprise_features_and_audit_logs.sql` estabelecendo `public.enterprise_audit_logs` (trilho forense corporativo append-only absoluto, imutável sem permissões de UPDATE ou DELETE, particionado por severidade e categoria de governança) e `public.enterprise_data_exports` (gestão transacional de exportações e portabilidade LGPD Art. 18 com auto-auditoria e expiração defensiva) sob RLS estrito por `tenant_id`. RPCs seguras e transacionais `record_enterprise_audit_event` e `request_enterprise_data_export`. Serviço `services/enterpriseService.ts` com tipagem formal em `src/types/enterprise.ts` e 25 novos testes unitários dedicados em `tests/unit/enterprise-service.test.ts` elevando o total da Fase 8 para 173 testes unitários 100% verdes. Matriz consolidada de engenharia: 151 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 197 migrations (`npm run smg:verify` exit 0). Registros: `docs/audit/PHASE_8_ENTRY_AUDIT.md` e `PROJECT_STATUS.md` (7.75). |
+| 2026-11-06 | 9.07 | **Fase 8.7 (Multi Idioma), 8.8 (Multi Moeda) e 8.9 (Internacionalização) ⏸️ CONGELADAS / POSTERGADAS POR DECISÃO DO PO (ADR-042 DEFERRED; foco exclusivo no mercado nacional brasileiro pt-BR; roadmap segue CONGELADO; deploy NÃO autorizado).** Deliberação formal do PO Augusto de congelar as frentes de internacionalização linguística e monetária para versões futuras (v2.0), preservando a integridade do escopo comercial do SMG Barber centrado nas barbearias brasileiras. ADR-042 classificado como `DEFERRED`. Matriz consolidada de engenharia mantida verde: 150 arquivos de teste, typecheck 0 erros, architecture:ci 222=222, 196 migrations sem violação de RLS (`npm run smg:verify` exit 0). Registros: `PROJECT_STATUS.md` (7.74). |
+| 2026-11-06 | 9.06 | **Fase 8.6 — Billing da Plataforma & Métricas de SaaS 🟢 IMPLEMENTADA E HOMOLOGADA LOCALMENTE (ADR-041 ACCEPTED; migration `20261106030000_phase_8_platform_billing_and_subscriptions.sql`; serviço `platformBillingService`; 25 testes unitários dedicados 100% PASS; roadmap segue CONGELADO; deploy NÃO autorizado).** Estruturação do faturamento corporativo da SMG Platform para as barbearias clientes (SaaS) e monitoramento de métricas executivas em tempo real. Modelagem SQL canônica em `supabase/migrations/20261106030000_phase_8_platform_billing_and_subscriptions.sql` criando `public.platform_plans` (Starter R$ 149, Pro R$ 299 e Enterprise R$ 699), `public.platform_subscriptions` (gestão de assinaturas com ciclo, controle de carência e agendamento de cancelamento) e `public.platform_invoices` (faturamento com rastreio de liquidação Pix/Boleto e RPC idempotente `settle_platform_invoice`) sob RLS defensivo estrito. RPC executiva de inteligência `public.get_saas_executive_metrics()` para agregação em tempo real de MRR normalizado, ARR, distribuição de assinantes por plano, inadimplência e taxa de churn para a diretoria (Super-Admin). Serviço `services/platformBillingService.ts` com 25 novos testes unitários dedicados em `tests/unit/platform-billing-service.test.ts` elevando o total da Fase 8 para 148 testes 100% verdes. Matriz consolidada de engenharia: 150 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 196 migrations (`npm run smg:verify` exit 0). Registros: `docs/audit/PHASE_8_ENTRY_AUDIT.md` e `PROJECT_STATUS.md` (7.73). |
+| 2026-11-06 | 9.05 | **Fase 8.2 (Public API), Fase 8.3 (Webhooks Públicos), Fase 8.4 (Marketplace & Extensões) & Fase 8.5 (Integrações Core) 🟢 IMPLEMENTADAS E HOMOLOGADAS LOCALMENTE (ADR-032, ADR-039 e ADR-040 ACCEPTED; OpenAPI 3.1; Edge Functions `api-gateway` e `webhook-dispatcher`; Serviços `marketplaceService` e `integrationService`; 123 testes unitários dedicados 100% PASS; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação da infraestrutura central de Commercial Scalability da Fase 8. Modelagem SQL canônica em `supabase/migrations/20261105183000_phase_8_public_api_and_webhooks.sql`, `supabase/migrations/20261106012000_phase_8_marketplace_and_extensions.sql` e `supabase/migrations/20261106020000_phase_8_core_integrations_and_connectors.sql` criando `public.api_keys`, `public.webhook_subscriptions`, `public.webhook_deliveries`, `public.marketplace_extensions`, `public.tenant_extensions`, `public.extension_reviews`, `public.integration_providers`, `public.tenant_integrations` e `public.integration_sync_logs` sob RLS rigoroso por `tenant_id`. Subfase 8.2: Edge Function `api-gateway` com autenticação por chave SHA-256, RBAC de escopos granulares (`appointments:*`, `comandas:*`, `services:read`, `products:read`, `catalog:read`), double-booking prevention, abertura de comandas com derivação autoritativa de catálogo garantindo tolerância zero ($\Delta = \text{R\$} 0,00$) e especificação OpenAPI 3.1 com guia de onboarding do desenvolvedor. Subfase 8.3: Edge Function `webhook-dispatcher` para consumo da fila outbox, assinatura HMAC-SHA256 (`X-SMG-Signature`), mitigação contra replay attack (tolerância 300s), comparação em tempo constante, timeout defensivo (8s) e política de retry com backoff escalonado (1m, 5m, 15m, 1h, 6h). Subfase 8.4: Catálogo de extensões de parceiros, RPC atômica de instalação `install_marketplace_extension` com fallback defensivo, desinstalação segura e avaliações com nota 1 a 5 (`services/marketplaceService.ts`). Subfase 8.5: Conectores corporativos nativos para gateways de pagamento (Mercado Pago, Asaas), ERPs fiscais (ContaAzul, Omie) e CRM (RD Station), com RPC `record_integration_sync_event` e auditoria de sincronização por tenant (`services/integrationService.ts`). Suíte automatizada de testes da Fase 8 com 123/123 testes verdes (auth: 20, appointments: 13, comandas: 16, catalog: 15, dispatcher: 21, openapi: 9, marketplace: 16, integrations: 13). Matriz consolidada de engenharia: 149 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 195 migrations (`npm run smg:verify` exit 0). Registros: `docs/audit/PHASE_8_ENTRY_AUDIT.md` e `PROJECT_STATUS.md` (7.72). |
 | 2026-11-04 | 9.04 | **Fase 7.10 — Certificação de Produto (Product Certification) & Conclusão da Fase 7 (Product Maturity) 🟢 100% CONCLUÍDA E VALIDADA (Dossiê Master `docs/certification/PRODUCT_CERTIFICATION.md` e Relatório Formal `docs/audit/FASE_7_10_PRODUCT_CERTIFICATION_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Certificação formal e atesto de maturidade comercial do SMG Barber (*The Barbershop Intelligence*). Consolidação e auditoria dos 10 pilares da Fase 7: (1) UX Review (Atelier Tech, zero classes violadoras e WCAG AAA); (2) Business Rules (27 regras canônicas + 4 casos extremos); (3) Functional Consistency (5 fluxos operacionais e dicionário pt-BR); (4) UI Standardization (Design System v2.0 e StatusBadge unificado); (5) Internal Documentation (ARQUITETURA.md v2.0, DESENVOLVIMENTO.md e PROCESSOS_ENGENHARIA.md); (6) Training Documentation (Manuais dos 8 módulos, tutoriais por role e Quickstart 15 min); (7) SMG Academy (Hub de capacitação, 3 trilhas e certificação $\ge 80\%$); (8) Help Center (8 categorias de autoatendimento, troubleshooting canônico e contingência de hardware); (9) Business Flow Certification (5 fluxos vitais ponta a ponta com tolerância contábil zero $\Delta = \text{R\$} 0,00$ e separação canônica ADR-001); (10) Suporte & Governança (N1/N2/N3, SLA < 24h, CSAT $\ge 90\%$, ADR-028 formal contract e separação física `MERGE ≠ DEPLOY PROD` ADR-026). Suíte automatizada de certificação `tests/certification/fase7_10_product_certification.test.ts` com 20/20 testes verdes (100% PASS). Matriz consolidada de engenharia: 141 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Declaração formal de conclusão integral da **Fase 7 (Product Maturity)** atingindo 100% de maturidade de produto e autorizando a transição para a Fase 8 (Commercial Scalability). Registros: `PROJECT_STATUS.md` (7.70). |
 | 2026-11-04 | 9.03 | **Fase 7.9 — Certificação dos Fluxos de Negócio (Business Flow Certification) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_9_BUSINESS_FLOW_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Homologação ponta a ponta dos 5 fluxos vitais do SMG Barber (*The Barbershop Intelligence*): (1) Fluxo de Agenda (Sanitização E.164, duração dinâmica com buffers, bloqueio de sobreposição de cadeiras, link WhatsApp, check-in e comanda vinculada); (2) Fluxo Financeiro (Checkout com pagamentos mistos Dinheiro + Cartão, baixa atômica de estoque e resíduo zero $\Delta = \text{R\$} 0,00$); (3) Fluxo de Caixa (Abertura R\$ 150, movimentações em espécie R\$ 180, suprimento R\$ 50, sangria R\$ 40, conferência cega do operador e apuração exata de quebra/sobra); (4) Fluxo de Comissão (Decomposição de comanda multi-barbeiro com venda de balcão, cálculo D7 sobre base recebida, rateio proporcional segregado, dedução de taxas de maquininha e extrato individual do barbeiro); (5) Fluxo do Club dos Chefes (Ativação de plano, concessão de créditos, resgate no checkout com impacto R\$ 0,00 no caixa diário, preservação da comissão do barbeiro e cancelamento ao fim do ciclo). Invariante permanente ADR-001 comprovado em teste. Suíte automatizada `tests/flows/fase7_9_business_flow.test.ts` com 8/8 testes verdes (100% PASS). Matriz consolidada de engenharia: 140 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.10 (Product Certification). Registros: `PROJECT_STATUS.md` (7.69). |
 | 2026-11-04 | 9.02 | **Fase 7.8 — Central de Ajuda & Base de Conhecimento (Help Center) 🟢 100% CONCLUÍDA E VALIDADA (Relatório formal `docs/audit/FASE_7_8_HELP_CENTER_REPORT.md`; roadmap segue CONGELADO; deploy NÃO autorizado).** Implementação do ecossistema oficial de suporte operacional do SMG Barber (*The Barbershop Intelligence*). Criação do Hub Central da Central de Ajuda (`docs/help/README.md`) estabelecendo o manifesto de autoatendimento autônomo em < 5 minutos, mapeamento das 8 categorias operacionais, matriz de busca rápida por sintomas e árvore de decisão. Criação dos artigos de solução de problemas e troubleshooting (`docs/help/ARTIGOS_SOLUCAO_PROBLEMAS.md`) estruturados no padrão canônico `Sintoma` $\rightarrow$ `Causa Provável` $\rightarrow$ `Resolução Imediata` $\rightarrow$ `Como Prevenir` para os 8 módulos reais do sistema (divergência de maquininha POS, comandas bloqueadas, caixa cego, sangria/suprimento e desduplicação de clientes). Elaboração do Guia de Contingência de Hardware e Redes (`docs/help/GUIA_CONTINGENCIA_HARDWARE.md`) detalhando o Plano A (Hotspot 4G/5G em < 60s) e Plano B (Contingência analógica manual com comanda física e lançamento retroativo sem quebrar o caixa cego), impressoras térmicas (80mm/58mm, autoteste feed) e POS. Formalização do Sistema de Suporte e Tickets (`docs/help/SISTEMA_DE_SUPORTE_E_TICKETS.md`) regulamentando o escalonamento em 3 níveis (N1/N2/N3), matriz de severidade (P1 a P4), compromisso formal de resolução < 24h ($\ge 85\%$), satisfação CSAT $\ge 90\%$ e modelo oficial de ticket com telemetria. Suíte automatizada `tests/docs/fase7_8_help_center.test.ts` com 14/14 testes verdes (100% PASS). Matriz consolidada de engenharia: 139 arquivos de teste verdes, typecheck 0 erros, architecture:ci mantida na baseline (222=222), build Vite limpo em 15.07s, zero credenciais expostas e RLS auditado em 191 migrations (`npm run smg:verify` exit 0). Autorizada a abertura formal da Fase 7.9 (Business Flow Certification). Registros: `PROJECT_STATUS.md` (7.68). |

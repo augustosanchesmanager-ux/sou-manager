@@ -1,10 +1,10 @@
 # ADR-041 — Arquitetura de Marketplace e Catálogo de Extensões
 
-> **Status:** `ACCEPTED` (Aprovado formalmente pelo PO Augusto em 2026-11-06)  
-> **Data:** 2026-11-06  
-> **Decisores:** Augusto (PO) · Antigravity (Platform Architect)  
-> **Fase do Roadmap:** Fase 8 (Commercial Scalability) — Subfase 8.4 (Marketplace)  
-> **Contexto Técnico:** SMG Platform (SMG Barber) · Supabase PostgreSQL RLS · Edge Functions  
+> **Status:** `ACCEPTED` (Aprovado formalmente pelo PO Augusto em 2026-11-06)
+> **Data:** 2026-11-06
+> **Decisores:** Augusto (PO) · Antigravity (Platform Architect)
+> **Fase do Roadmap:** Fase 8 (Commercial Scalability) — Subfase 8.4 (Marketplace)
+> **Contexto Técnico:** SMG Platform (SMG Barber) · Supabase PostgreSQL RLS · Edge Functions
 
 ---
 
