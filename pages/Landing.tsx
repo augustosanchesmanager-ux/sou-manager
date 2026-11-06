@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LandingSupportWidget from '../components/LandingSupportWidget';
+import DemoBookingModal from '../components/DemoBookingModal';
 
 /**
  * Componente de revelação fluida ativado pelo scroll do mouse.
@@ -154,6 +155,13 @@ const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [activeNav, setActiveNav] = useState('SISTEMA');
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const [selectedDemoPlan, setSelectedDemoPlan] = useState<string | null>(null);
+
+  const openDemoBooking = (planName?: string) => {
+    setSelectedDemoPlan(planName || null);
+    setIsDemoModalOpen(true);
+  };
 
   useEffect(() => {
     if (session) navigate('/dashboard');
@@ -255,15 +263,14 @@ const Landing: React.FC = () => {
             >
               ENTRAR
             </Link>
-            <a
-              href="https://wa.me/5511982073536?text=Ol%C3%A1%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
-              target="_blank"
-              rel="noreferrer"
-              className="px-4 sm:px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-[11px] font-mono font-bold tracking-widest uppercase rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5 flex items-center gap-2"
+            <button
+              type="button"
+              onClick={() => openDemoBooking()}
+              className="px-4 sm:px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-[11px] font-mono font-bold tracking-widest uppercase rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
             >
               <span>AGENDAR DEMO</span>
               <span className="material-symbols-outlined text-xs font-black">arrow_forward</span>
-            </a>
+            </button>
           </div>
         </div>
       </nav>
@@ -307,15 +314,14 @@ const Landing: React.FC = () => {
 
               {/* Chamadas de Ação com Estética de Telemetria */}
               <div className="flex flex-col sm:flex-row gap-3.5 mb-8">
-                <a
-                  href="https://wa.me/5511982073536?text=Ol%C3%A1%2C%20quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2.5 px-6 py-3.5 bg-primary hover:bg-primary-light text-night font-mono font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5"
+                <button
+                  type="button"
+                  onClick={() => openDemoBooking()}
+                  className="flex items-center justify-center gap-2.5 px-6 py-3.5 bg-primary hover:bg-primary-light text-night font-mono font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-smg-glow hover:-translate-y-0.5 cursor-pointer"
                 >
                   <span>AGENDAR DEMONSTRAÇÃO</span>
                   <span className="material-symbols-outlined text-sm font-black">arrow_forward</span>
-                </a>
+                </button>
                 <a
                   href="#arquitetura"
                   onClick={(e) => handleNavClick(e, '#arquitetura', 'ARQUITETURA')}
@@ -838,7 +844,7 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* ═══ SEÇÃO 06: PLANOS POR MATURIDADE OPERACIONAL ═══ */}
+      {/* ═══ SEÇÃO 06: DEMONSTRAÇÃO & MATURIDADE OPERACIONAL ═══ */}
       <section id="planos" className="py-24 lg:py-36 px-6 relative border-t border-border-dark bg-[#080706]">
         <div className="max-w-7xl mx-auto">
 
@@ -846,7 +852,7 @@ const Landing: React.FC = () => {
             <div className="inline-flex items-center gap-2 mb-3">
               <span className="w-6 h-px bg-primary" />
               <span className="text-[11px] font-mono tracking-[0.22em] text-primary uppercase">
-                06 / PLANOS DE IMPLANTAÇÃO
+                06 / MATURIDADE OPERACIONAL & DEMONSTRAÇÃO
               </span>
               <span className="w-6 h-px bg-primary" />
             </div>
@@ -856,12 +862,12 @@ const Landing: React.FC = () => {
                 A ESCOLHA EXATA PARA SEU MOMENTO.
               </span>
             </h2>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Estruturas concebidas para acompanhar a escala real da sua barbearia. Agende uma demonstração guiada e conheça a plataforma personalizada para seu estabelecimento.
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
+              Não trabalhamos com pacotes engessados de prateleira. A tecnologia SMG Barber é dimensionada para a escala de cadeiras e o modelo de negócio da sua barbearia. Agende uma demonstração guiada e experimente ao vivo antes de qualquer decisão.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-14">
             {MATURITY_PLANS.map((plan, index) => (
               <ScrollReveal key={plan.name} delay={index * 150}>
                 <div
@@ -896,23 +902,42 @@ const Landing: React.FC = () => {
                     ))}
                   </div>
 
-                  <a
-                    href={`https://wa.me/5511982073536?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20plano%20${encodeURIComponent(
-                      plan.name
-                    )}%20do%20SMG%20Barber%20Intelligence.`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`w-full py-4 rounded-xl font-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
+                  <button
+                    type="button"
+                    onClick={() => openDemoBooking(plan.name)}
+                    className={`w-full py-4 rounded-xl font-mono font-bold text-xs uppercase tracking-widest text-center transition-all cursor-pointer ${
                       plan.highlight
-                        ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
+                        ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow hover:-translate-y-0.5'
                         : 'bg-surface-dark hover:bg-card-dark text-white border border-border-dark hover:border-primary/50'
                     }`}
                   >
                     {plan.cta}
-                  </a>
+                  </button>
                 </div>
               </ScrollReveal>
             ))}
+          </div>
+
+          {/* Faixa Explicativa de Construção de Valor */}
+          <div className="bg-[#0D0B09] border border-border-dark rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-1 text-center md:text-left">
+              <div className="inline-flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-sm">verified</span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">
+                  POR QUE NÃO COLOCAMOS VALORES NA PRATELEIRA?
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                Cada barbearia opera com uma dinâmica própria de profissionais, comissões e recorrência. Na demonstração guiada, configuramos um ambiente com os seus dados para você comprovar o ganho de produtividade e a economia gerada antes de receber sua proposta.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openDemoBooking()}
+              className="px-6 py-3.5 bg-primary/10 hover:bg-primary/20 border border-primary/50 hover:border-primary text-primary hover:text-white font-mono text-xs font-bold uppercase tracking-wider rounded-xl transition-all shrink-0 cursor-pointer"
+            >
+              AGENDAR DEMONSTRAÇÃO
+            </button>
           </div>
 
         </div>
@@ -1018,6 +1043,13 @@ const Landing: React.FC = () => {
 
       {/* Widget Interativo de Atendimento Pré-Venda */}
       <LandingSupportWidget />
+
+      {/* Modal Interativo de Agendamento de Demonstração */}
+      <DemoBookingModal
+        isOpen={isDemoModalOpen}
+        onClose={() => setIsDemoModalOpen(false)}
+        initialPlan={selectedDemoPlan}
+      />
     </div>
   );
 };
