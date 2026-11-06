@@ -36,6 +36,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-030](./ADR-030-payout-cycles-and-advances.md) | Accepted | Ciclos de Repasse, Gestão de Vales e Refatoração de Folha — SMG-PAYOUT-SCHEDULES (2026-10-03) |
 | [ADR-031](./ADR-031-unified-metric-card.md) | Proposed (Amendment-01) | Componente unificado de métricas + identidade creme/dourado claro (2026-10-06; Amd-01 2026-10-08) |
 | [ADR-032](./ADR-032-public-online-booking.md) | Proposed | Agendamento Online Público — Booking Web Anônimo (P.02-BOOKING-PUBLIC, 2026-10-09) |
+| [ADR-032-API](./ADR-032-public-api-and-webhooks.md) | Accepted | Public API Gateway e Webhooks Outbox com Assinatura Criptográfica HMAC (2026-11-05) |
 | [ADR-033](./ADR-033-commission-reopen-cycles-and-status-transition.md) | Accepted | Ciclos de Comissão em Comandas Reabertas e Transição de Status no Ledger D7/D8 (C1, 2026-10-20) |
 | [ADR-034](./ADR-034-item-granularity-in-commission-records.md) | Accepted | Granularidade por Item no Ledger de Comissões D7/D8 (C2, 2026-10-20) |
 | [ADR-035](./ADR-035-appointment-comanda-sync-and-post-checkout-lock.md) | Accepted | Sincronização Agendamento × Comanda e Trava Pós-Checkout (2026-10-20) |
@@ -43,6 +44,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-037](./ADR-037-bank-reconciliation-ofx.md) | Proposed | Conciliação Bancária Automática via Importação de Extratos OFX/CSV (2026-10-26) |
 | [ADR-038](./ADR-038-recurring-schedule-subscribers.md) | Accepted | Horário Fixo Recorrente para Assinantes Chef Club com Yield Management e Janela Rolante (2026-10-27) |
 | [ADR-039](./ADR-039-auditoria-e-competencia-retroativa-com-pin.md) | Proposed | Auditoria e Competência Retroativa com PIN de Gerente (2026-11-05) |
+| [ADR-041](./ADR-041-marketplace-and-extensions.md) | Accepted | Arquitetura de Marketplace e Catálogo de Extensões — Subfase 8.4 (2026-11-06) |
 
 ---
 
