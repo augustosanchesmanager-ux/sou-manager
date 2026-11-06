@@ -223,6 +223,29 @@ option {
   border-color: var(--color-primary);
 }
 
+/* ===== Code Pro Inspired Typography Classes ===== */
+.font-code-light {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200;
+  letter-spacing: 0.04em;
+}
+
+.font-code-reg {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.font-code-bold {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.font-code-mono {
+  font-family: 'Space Grotesk', monospace;
+}
+
 /* ===== SMG Estética: Aesthetic Intelligence theme ===== */
 .theme-estetica {
   --color-primary: #9B9368;
