@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
 import { isInstitutionalHostname } from '../src/lib/apps/publicUrl';
 
@@ -114,52 +115,46 @@ const Login: React.FC = () => {
                 {/* Left Column (Col 1 to 7): The Modern Form */}
                 <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between relative z-10">
                     <div>
-                        {/* Top Branding Bar */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <div className="size-9 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-night shadow-[0_0_18px_rgba(245,158,11,0.35)]">
-                                    <span className="material-symbols-outlined text-xl font-bold">memory</span>
-                                </div>
-                                <div className="leading-tight">
-                                    <span className="text-xs font-mono font-bold tracking-[0.2em] text-white block">SMG SOU.MANAGER</span>
-                                    <span className="text-[10px] font-mono tracking-[0.16em] text-amber-400 block -mt-0.5">BARBER INTELLIGENCE</span>
-                                </div>
-                            </div>
-
-                            {/* Mobile-only compact brain icon badge */}
-                            <div className="lg:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/10">
-                                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                <span className="text-[10px] font-mono tracking-wider text-slate-300">ONLINE</span>
+                        {/* Top Branding Bar — Centered & Highly Legible */}
+                        <div className="flex flex-col items-center justify-center mb-6 w-full text-center">
+                            <div className="flex items-center justify-center w-full py-2">
+                                <img
+                                    src="/branding/smg-barber-intelligence-logo.png"
+                                    alt="SMG Barber Intelligence"
+                                    className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] object-contain filter drop-shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:scale-[1.02] transition-transform"
+                                />
                             </div>
                         </div>
 
                         {/* Localhost Tabs (Usuário / Elite) */}
                         {isLocalhost && !showReset && (
-                            <div className="inline-flex p-1 bg-white/[0.04] border border-white/10 rounded-xl mb-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('user')}
-                                    className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
-                                        activeTab === 'user'
-                                            ? 'bg-white/10 text-white shadow-xs'
-                                            : 'text-slate-400 hover:text-white'
-                                    }`}
-                                >
-                                    <span className="material-symbols-outlined text-sm">person</span>
-                                    USUÁRIO
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('elite')}
-                                    className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
-                                        activeTab === 'elite'
-                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs'
-                                            : 'text-slate-400 hover:text-white'
-                                    }`}
-                                >
-                                    <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                                    ELITE
-                                </button>
+                            <div className="flex justify-center w-full mb-6">
+                                <div className="inline-flex p-1 bg-white/[0.04] border border-white/10 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('user')}
+                                        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
+                                            activeTab === 'user'
+                                                ? 'bg-white/10 text-white shadow-xs'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">person</span>
+                                        USUÁRIO
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('elite')}
+                                        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-mono font-bold tracking-wider rounded-lg transition-all ${
+                                            activeTab === 'elite'
+                                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                                        ELITE
+                                    </button>
+                                </div>
                             </div>
                         )}
 

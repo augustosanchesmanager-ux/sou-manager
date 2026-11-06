@@ -74,7 +74,7 @@ const ElectricModal: React.FC<ElectricModalProps> = ({ children, className = '',
       ref={ref}
       style={{ animationDelay: `${delay}ms` }}
       className={`card-stockholm will-change-transform ${
-        active ? 'animate-electric' : 'opacity-0 translate-y-8'
+        active ? 'animate-vulto' : 'opacity-0 -translate-x-28'
       } ${className}`}
     >
       {children}
@@ -396,24 +396,31 @@ const Landing: React.FC = () => {
         </div>
       </nav>
 
-      {/* ═══ TELA CHEIA INICIAL: IMAGEM PURA (SEM LOGO EM CIMA) + BOTÃO EXPLORAR ═══ */}
-      <section className="relative w-full h-screen flex flex-col justify-end items-center pb-16 px-6">
+      {/* ═══ TELA CHEIA INICIAL: IMAGEM PURA (SEM LOGO EM CIMA) + MINIMALIST SCROLL INDICATOR ═══ */}
+      <section className="relative w-full h-screen flex flex-col justify-end items-center pb-14 px-6 pointer-events-none">
 
-        {/* O BOTÃO EXPLORAR NO FINAL DA TELA INICIAL */}
-        <div className="z-20 flex flex-col items-center gap-3 text-center animate-fade-in">
+        {/* O BOTÃO EXPLORAR + ÍCONE DE MOUSE MINIMALISTA (STOCKHOLM REFERENCE) */}
+        <div className="z-20 flex flex-col items-center gap-4 text-center pointer-events-auto">
           <a
             href="#conteudo"
             onClick={handleExploreClick}
-            className="group inline-flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-night font-code-mono font-bold text-xs uppercase tracking-[0.25em] rounded-lg transition-all shadow-smg-glow hover:-translate-y-1 cursor-pointer"
+            className="group inline-flex items-center gap-3 px-8 py-3.5 bg-black/40 hover:bg-black/70 backdrop-blur-xl border border-white/15 hover:border-primary/50 text-white font-code-mono text-xs uppercase tracking-[0.25em] rounded-full transition-all shadow-2xl hover:shadow-primary/20 cursor-pointer"
           >
-            <span>EXPLORAR...</span>
-            <span className="material-symbols-outlined text-sm font-black transition-transform duration-300 group-hover:translate-y-1">
+            <span>EXPLORAR SISTEMA</span>
+            <span className="material-symbols-outlined text-xs text-primary transition-transform duration-300 group-hover:translate-y-0.5">
               arrow_downward
             </span>
           </a>
-          <p className="text-[10px] font-code-mono tracking-widest text-slate-400 uppercase">
-            ROLE O MOUSE OU CLIQUE PARA NAVEGAR
-          </p>
+
+          {/* Mouse Outline Minimalista como na referência */}
+          <div className="flex flex-col items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
+            <div className="w-5 h-8 rounded-full border border-white/30 flex justify-center pt-1.5">
+              <div className="w-1 h-2 rounded-full bg-primary animate-bounce" />
+            </div>
+            <span className="text-[8px] font-code-mono tracking-[0.3em] text-slate-400 uppercase">
+              SCROLL
+            </span>
+          </div>
         </div>
 
       </section>
@@ -426,69 +433,90 @@ const Landing: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[500px]">
 
             {/* Flanco Esquerdo: Manifesto Tecnológico */}
-            <div className="lg:col-span-5 card-hud p-8 rounded-2xl">
-              <span className="text-[10px] font-code-mono tracking-[0.25em] text-primary uppercase block mb-2">
-                // 01 · NÚCLEO OPERACIONAL
-              </span>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-code-bold text-white tracking-tight leading-[1.1] mb-4">
-                ALÉM DO CORTE.
-                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
-                  GESTÃO INTELIGENTE.
+            <div className="lg:col-span-5">
+              <div className="mb-6">
+                <span className="text-[10px] font-code-mono tracking-[0.3em] text-slate-400 uppercase block mb-1">
+                  // 01 · NÚCLEO OPERACIONAL
                 </span>
-              </h1>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-code-reg mb-6">
-                Engenharia de precisão para barbearias de alto padrão. Agenda multiprofissional em tempo real, fechamento de caixa auditável e motor de recorrência.
-              </p>
-              <div className="flex items-center gap-3">
-                <a
-                  href="https://wa.me/5511978496799?text=Ol%C3%A1%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-xs font-code-mono font-bold tracking-widest uppercase rounded-lg transition-all shadow-smg-glow"
-                >
-                  AGENDAR DEMO
-                </a>
-                <a
-                  href="#arquitetura"
-                  onClick={(e) => handleNavClick(e, '#arquitetura', 'ARQUITETURA')}
-                  className="px-4 py-2.5 text-xs font-code-mono text-slate-400 hover:text-white transition-colors"
-                >
-                  SISTEMA ↓
-                </a>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-code-light tracking-[0.16em] uppercase text-white flex items-center gap-3">
+                  <span>ALÉM DO CORTE</span>
+                  <span className="h-px w-10 bg-white/20 inline-block" />
+                </h1>
+                <p className="text-[11px] font-code-mono tracking-[0.25em] text-primary uppercase mt-1">
+                  GESTÃO INTELIGENTE & ATELIER
+                </p>
               </div>
+
+              <ElectricModal delay={0} className="p-7">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-slate-400 uppercase block text-right mb-2">
+                  01 · INTEGRADO
+                </span>
+                <p className="text-4xl font-code-light text-white my-2 tracking-tight">360°</p>
+                <h2 className="text-xs font-code-bold tracking-[0.2em] uppercase text-white mb-2">
+                  ENGENHARIA DE PRECISÃO
+                </h2>
+                <p className="text-xs text-slate-300 font-code-reg leading-relaxed mb-6">
+                  Engenharia de precisão para barbearias de alto padrão. Agenda multiprofissional em tempo real, fechamento de caixa auditável e motor de recorrência.
+                </p>
+                <div className="flex items-center justify-between border-t border-white/5 pt-4">
+                  <a
+                    href="https://wa.me/5511978496799?text=Ol%C3%A1%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-xs font-code-mono font-bold tracking-widest uppercase rounded-full transition-all shadow-smg-glow"
+                  >
+                    AGENDAR DEMO
+                  </a>
+                  <a
+                    href="#arquitetura"
+                    onClick={(e) => handleNavClick(e, '#arquitetura', 'ARQUITETURA')}
+                    className="text-xs font-code-mono text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
+                  >
+                    <span>SISTEMA</span>
+                    <span className="text-primary">—</span>
+                  </a>
+                </div>
+              </ElectricModal>
             </div>
 
             {/* Centro: CORREDOR 100% LIVRE PARA O 3D DA CADEIRA / CHIP */}
             <div className="hidden lg:block lg:col-span-3 pointer-events-none" />
 
-            {/* Flanco Direito: Telemetria Técnica e Indicadores */}
-            <div className="lg:col-span-4 space-y-3.5">
-              <div className="card-hud p-4 rounded-xl">
-                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
-                  <span>DISPONIBILIDADE DO SISTEMA</span>
+            {/* Flanco Direito: Modais com Ignição Elétrica */}
+            <div className="lg:col-span-4 space-y-4">
+              <ElectricModal delay={100} className="p-6">
+                <div className="flex items-center justify-between text-[9px] font-code-mono text-slate-400 mb-2">
+                  <span>DISPONIBILIDADE</span>
                   <span className="text-emerald-400 font-bold">99.8% UPTIME</span>
                 </div>
-                <p className="text-xs font-code-bold text-white">OPERAÇÃO EM TEMPO REAL</p>
-                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Sincronização instantânea entre recepção e bancada.</p>
-              </div>
-
-              <div className="card-hud p-4 rounded-xl">
-                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
-                  <span>GOVERNANÇA FINANCEIRA</span>
-                  <span className="text-primary font-bold">NORMA ADR-001</span>
+                <p className="text-3xl font-code-light text-white my-1">60 FPS</p>
+                <p className="text-xs font-code-bold tracking-widest uppercase text-white mb-1">
+                  OPERAÇÃO EM TEMPO REAL
+                </p>
+                <p className="text-[11px] text-slate-400 font-code-reg">
+                  Sincronização instantânea e contínua entre recepção e bancada.
+                </p>
+                <div className="border-t border-white/5 pt-3 mt-3 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  TELEMETRIA ATIVA —
                 </div>
-                <p className="text-xs font-code-bold text-white">FECHAMENTO AUDITÁVEL</p>
-                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Separação rigorosa entre comissão teórica e rateio de caixa.</p>
-              </div>
+              </ElectricModal>
 
-              <div className="card-hud p-4 rounded-xl">
-                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
-                  <span>MOTOR DE RECORRÊNCIA</span>
-                  <span className="text-amber-400 font-bold">MRR GARANTIDO</span>
+              <ElectricModal delay={200} className="p-6">
+                <div className="flex items-center justify-between text-[9px] font-code-mono text-slate-400 mb-2">
+                  <span>GOVERNANÇA</span>
+                  <span className="text-primary font-bold">NORMA CANÔNICA</span>
                 </div>
-                <p className="text-xs font-code-bold text-white">CLUBE DOS CHEFES INTEGRADO</p>
-                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Cobrança automática no cartão e baixa na comanda.</p>
-              </div>
+                <p className="text-3xl font-code-light text-primary my-1">ADR-001</p>
+                <p className="text-xs font-code-bold tracking-widest uppercase text-white mb-1">
+                  FECHAMENTO AUDITÁVEL
+                </p>
+                <p className="text-[11px] text-slate-400 font-code-reg">
+                  Separação matemática rigorosa entre comissão teórica e rateio de caixa.
+                </p>
+                <div className="border-t border-white/5 pt-3 mt-3 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  AUDITORIA —
+                </div>
+              </ElectricModal>
             </div>
 
           </div>
@@ -501,71 +529,87 @@ const Landing: React.FC = () => {
             {/* Flanco Esquerdo: Camadas 01 e 02 */}
             <div className="lg:col-span-4 space-y-4">
               <div className="mb-4">
-                <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
-                  // 02 · ARQUITETURA DO SISTEMA
+                <span className="text-[10px] font-code-mono tracking-[0.3em] text-slate-400 uppercase block mb-1">
+                  // 02 · ARQUITETURA
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight">
-                  UMA PLATAFORMA.
-                  <span className="block text-slate-400">QUATRO CAMADAS.</span>
+                <h2 className="text-2xl sm:text-3xl font-code-light tracking-[0.2em] uppercase text-white flex items-center gap-3">
+                  <span>PLATAFORMA</span>
+                  <span className="h-px w-10 bg-white/20 inline-block" />
                 </h2>
-                <p className="text-xs text-slate-400 font-code-reg mt-1">
-                  Módulos integrados sem atrito entre recepção e bancada.
+                <p className="text-[11px] font-code-mono tracking-[0.25em] text-primary uppercase mt-1">
+                  QUATRO CAMADAS INTEGRADAS
                 </p>
               </div>
 
-              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
-                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
-                  {ARCHITECTURE_CALLOUTS[0].tag}
-                </p>
-                <h3 className="text-base font-code-bold text-white mb-1.5">
+              <ElectricModal delay={0} className="p-6">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-slate-400 uppercase block text-right mb-1">
+                  01 · OPERACIONAL
+                </span>
+                <p className="text-4xl font-code-light text-white my-1.5">{ARCHITECTURE_CALLOUTS[0].code}</p>
+                <h3 className="text-xs font-code-bold tracking-widest uppercase text-white mb-1.5">
                   {ARCHITECTURE_CALLOUTS[0].title}
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg mb-3">
                   {ARCHITECTURE_CALLOUTS[0].desc}
                 </p>
-              </div>
+                <div className="border-t border-white/5 pt-2.5 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  DETALHES —
+                </div>
+              </ElectricModal>
 
-              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
-                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
-                  {ARCHITECTURE_CALLOUTS[1].tag}
-                </p>
-                <h3 className="text-base font-code-bold text-white mb-1.5">
+              <ElectricModal delay={150} className="p-6">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-slate-400 uppercase block text-right mb-1">
+                  02 · GOVERNANÇA
+                </span>
+                <p className="text-4xl font-code-light text-primary my-1.5">{ARCHITECTURE_CALLOUTS[1].code}</p>
+                <h3 className="text-xs font-code-bold tracking-widest uppercase text-white mb-1.5">
                   {ARCHITECTURE_CALLOUTS[1].title}
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg mb-3">
                   {ARCHITECTURE_CALLOUTS[1].desc}
                 </p>
-              </div>
+                <div className="border-t border-white/5 pt-2.5 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  DETALHES —
+                </div>
+              </ElectricModal>
             </div>
 
             {/* Centro: CORREDOR 100% LIVRE — O 3D DA CADEIRA FICA TOTALMENTE DESOBSTRUÍDO */}
             <div className="hidden lg:block lg:col-span-4 pointer-events-none" />
 
             {/* Flanco Direito: Camadas 03 e 04 */}
-            <div className="lg:col-span-4 space-y-4 lg:pt-12">
-              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
-                <p className="text-[10px] font-code-mono tracking-widest text-amber-400 mb-1">
-                  {ARCHITECTURE_CALLOUTS[2].tag}
-                </p>
-                <h3 className="text-base font-code-bold text-white mb-1.5">
+            <div className="lg:col-span-4 space-y-4 lg:pt-14">
+              <ElectricModal delay={100} className="p-6">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-amber-400 uppercase block text-right mb-1">
+                  03 · RECORRÊNCIA
+                </span>
+                <p className="text-4xl font-code-light text-amber-400 my-1.5">{ARCHITECTURE_CALLOUTS[2].code}</p>
+                <h3 className="text-xs font-code-bold tracking-widest uppercase text-white mb-1.5">
                   {ARCHITECTURE_CALLOUTS[2].title}
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg mb-3">
                   {ARCHITECTURE_CALLOUTS[2].desc}
                 </p>
-              </div>
+                <div className="border-t border-white/5 pt-2.5 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  DETALHES —
+                </div>
+              </ElectricModal>
 
-              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
-                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
-                  {ARCHITECTURE_CALLOUTS[3].tag}
-                </p>
-                <h3 className="text-base font-code-bold text-white mb-1.5">
+              <ElectricModal delay={250} className="p-6">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-slate-400 uppercase block text-right mb-1">
+                  04 · INTELIGÊNCIA
+                </span>
+                <p className="text-4xl font-code-light text-primary my-1.5">{ARCHITECTURE_CALLOUTS[3].code}</p>
+                <h3 className="text-xs font-code-bold tracking-widest uppercase text-white mb-1.5">
                   {ARCHITECTURE_CALLOUTS[3].title}
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg mb-3">
                   {ARCHITECTURE_CALLOUTS[3].desc}
                 </p>
-              </div>
+                <div className="border-t border-white/5 pt-2.5 text-[9px] font-code-mono text-slate-400 uppercase tracking-widest">
+                  DETALHES —
+                </div>
+              </ElectricModal>
             </div>
 
           </div>
@@ -578,59 +622,66 @@ const Landing: React.FC = () => {
             {/* Flanco Esquerdo: Gestão de Cadeiras em Tempo Real */}
             <div className="lg:col-span-5 space-y-4">
               <div className="mb-4">
-                <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
-                  // 03 · COCKPIT OPERACIONAL
+                <span className="text-[10px] font-code-mono tracking-[0.3em] text-slate-400 uppercase block mb-1">
+                  // 03 · COCKPIT DE BANCADA
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight">
-                  CONTROLE TOTAL DA BANCADA.
+                <h2 className="text-2xl sm:text-3xl font-code-light tracking-[0.2em] uppercase text-white flex items-center gap-3">
+                  <span>CONTROLE TOTAL</span>
+                  <span className="h-px w-10 bg-white/20 inline-block" />
                 </h2>
-                <p className="text-slate-400 text-xs font-code-reg mt-1">
-                  Visão unificada de atendimento por cadeira, fila dinâmica e comandas digitais.
+                <p className="text-[11px] font-code-mono tracking-[0.25em] text-primary uppercase mt-1">
+                  BANCADA EM TEMPO REAL
                 </p>
               </div>
 
-              <div className="card-hud p-4 rounded-xl space-y-2.5">
+              <ElectricModal delay={0} className="p-5 space-y-2.5">
                 <div className="flex items-center justify-between pb-2 border-b border-white/5 text-[10px] font-code-mono">
-                  <span className="text-slate-300 font-bold">CADEIRAS EM ATENDIMENTO</span>
+                  <span className="text-slate-300 font-bold uppercase tracking-widest">CADEIRAS ATIVAS</span>
                   <span className="text-emerald-400 flex items-center gap-1 font-bold">
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     AO VIVO
                   </span>
                 </div>
 
-                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-7 rounded-md bg-primary text-night font-bold text-xs flex items-center justify-center font-code-mono">01</div>
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center font-code-mono border border-primary/30">
+                      01
+                    </div>
                     <div>
-                      <p className="text-xs font-bold text-white">Guilherme Bastos</p>
+                      <p className="text-xs font-bold text-white tracking-wide">Guilherme Bastos</p>
                       <p className="text-[11px] text-slate-400 font-code-reg">Degradê Navalhado + Barboterapia</p>
                     </div>
                   </div>
                   <span className="text-xs font-code-mono font-bold text-primary">R$ 160,00</span>
                 </div>
 
-                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-7 rounded-md bg-emerald-500 text-night font-bold text-xs flex items-center justify-center font-code-mono">02</div>
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center font-code-mono border border-emerald-500/30">
+                      02
+                    </div>
                     <div>
-                      <p className="text-xs font-bold text-white">Mateus Silva</p>
+                      <p className="text-xs font-bold text-white tracking-wide">Mateus Silva</p>
                       <p className="text-[11px] text-slate-400 font-code-reg">Alinhamento Clássico (Membro Gold)</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-code-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">PLANO CLUBE</span>
+                  <span className="text-[9px] font-code-mono font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full">PLANO CLUBE</span>
                 </div>
 
-                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-7 rounded-md bg-amber-500 text-night font-bold text-xs flex items-center justify-center font-code-mono">03</div>
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center font-code-mono border border-amber-500/30">
+                      03
+                    </div>
                     <div>
-                      <p className="text-xs font-bold text-white">Rafael Oliveira</p>
+                      <p className="text-xs font-bold text-white tracking-wide">Rafael Oliveira</p>
                       <p className="text-[11px] text-slate-400 font-code-reg">Combo Chef + Pomada Matte</p>
                     </div>
                   </div>
                   <span className="text-xs font-code-mono font-bold text-primary">R$ 215,00</span>
                 </div>
-              </div>
+              </ElectricModal>
             </div>
 
             {/* Centro: CORREDOR LIVRE */}
@@ -640,23 +691,26 @@ const Landing: React.FC = () => {
             <div className="lg:col-span-5 space-y-4">
               {/* KPI HUD */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="card-hud p-3.5 rounded-xl">
-                  <p className="text-[9px] font-code-mono text-slate-400 uppercase">FATURAMENTO HOJE</p>
-                  <p className="text-lg font-code-bold text-white mt-0.5">R$ 4.850,00</p>
-                </div>
-                <div className="card-hud p-3.5 rounded-xl">
-                  <p className="text-[9px] font-code-mono text-slate-400 uppercase">OCUPAÇÃO BANCADA</p>
-                  <p className="text-lg font-code-bold text-primary mt-0.5">94%</p>
-                </div>
+                <ElectricModal delay={100} className="p-4">
+                  <span className="text-[8px] font-code-mono text-slate-400 uppercase tracking-widest block text-right">HOJE</span>
+                  <p className="text-2xl font-code-light text-white my-1">R$ 4.850</p>
+                  <p className="text-[10px] font-code-bold tracking-widest text-slate-300 uppercase">FATURAMENTO</p>
+                </ElectricModal>
+
+                <ElectricModal delay={180} className="p-4">
+                  <span className="text-[8px] font-code-mono text-slate-400 uppercase tracking-widest block text-right">BANCADA</span>
+                  <p className="text-2xl font-code-light text-primary my-1">94%</p>
+                  <p className="text-[10px] font-code-bold tracking-widest text-slate-300 uppercase">OCUPAÇÃO</p>
+                </ElectricModal>
               </div>
 
               {/* Comanda Digital */}
-              <div className="card-hud p-5 rounded-xl">
-                <div className="flex justify-between items-center pb-2.5 border-b border-white/5 text-xs font-code-mono">
-                  <span className="font-bold text-white">COMANDA #1042</span>
+              <ElectricModal delay={250} className="p-6">
+                <div className="flex justify-between items-center pb-3 border-b border-white/5 text-xs font-code-mono">
+                  <span className="font-bold text-white tracking-widest">COMANDA #1042</span>
                   <span className="text-primary text-[10px] font-bold">EM ATENDIMENTO</span>
                 </div>
-                <div className="py-3 space-y-2 text-xs text-slate-300 font-code-reg">
+                <div className="py-3.5 space-y-2 text-xs text-slate-300 font-code-reg">
                   <div className="flex justify-between">
                     <span>Corte Degradê Navalhado</span>
                     <span className="font-code-mono text-white">R$ 90,00</span>
@@ -670,11 +724,11 @@ const Landing: React.FC = () => {
                     <span className="font-code-mono text-white">R$ 55,00</span>
                   </div>
                 </div>
-                <div className="pt-2.5 border-t border-white/5 flex justify-between items-center text-xs font-code-mono font-bold">
-                  <span className="text-slate-400">TOTAL DA COMANDA</span>
-                  <span className="text-primary text-sm">R$ 215,00</span>
+                <div className="pt-3 border-t border-white/5 flex justify-between items-center text-xs font-code-mono font-bold">
+                  <span className="text-slate-400 tracking-widest uppercase">TOTAL DA COMANDA</span>
+                  <span className="text-primary text-base">R$ 215,00</span>
                 </div>
-              </div>
+              </ElectricModal>
             </div>
 
           </div>
@@ -685,96 +739,111 @@ const Landing: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[500px]">
 
             {/* Flanco Esquerdo: Proposta de Valor e Regras */}
-            <div className="lg:col-span-5 card-hud p-8 rounded-2xl">
-              <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-2">
-                // 04 · MOTOR DE RECORRÊNCIA
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight mb-3">
-                CLUBE DOS CHEFES.
-                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-primary to-amber-100">
-                  RECEITA PREVISÍVEL.
+            <div className="lg:col-span-5">
+              <div className="mb-4">
+                <span className="text-[10px] font-code-mono tracking-[0.3em] text-slate-400 uppercase block mb-1">
+                  // 04 · MOTOR DE RECORRÊNCIA
                 </span>
-              </h2>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-code-reg mb-5">
-                Assinaturas recorrentes no cartão com baixa automática de créditos diretamente na comanda, gerando fluxo financeiro garantido no início de cada mês.
-              </p>
-
-              <div className="space-y-3 text-xs text-slate-300 font-code-reg">
-                <div className="flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Cobrança mensal automatizada no cartão de crédito</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Controle de saldo de cortes e serviços na comanda</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Agendamento VIP pelo próprio celular do cliente</span>
-                </div>
+                <h2 className="text-2xl sm:text-3xl font-code-light tracking-[0.2em] uppercase text-white flex items-center gap-3">
+                  <span>CLUBE DOS CHEFES</span>
+                  <span className="h-px w-10 bg-white/20 inline-block" />
+                </h2>
+                <p className="text-[11px] font-code-mono tracking-[0.25em] text-amber-400 uppercase mt-1">
+                  RECEITA PREVISÍVEL MRR
+                </p>
               </div>
+
+              <ElectricModal delay={0} className="p-7">
+                <span className="text-[9px] font-code-mono tracking-[0.25em] text-slate-400 uppercase block text-right mb-2">
+                  AUTO COBRANÇA
+                </span>
+                <p className="text-4xl font-code-light text-amber-400 my-2 tracking-tight">100%</p>
+                <h3 className="text-xs font-code-bold tracking-widest uppercase text-white mb-2">
+                  ASSINATURAS RECORRENTES
+                </h3>
+                <p className="text-slate-300 text-xs leading-relaxed font-code-reg mb-5">
+                  Cobrança mensal no cartão com baixa automática de créditos diretamente na comanda, gerando fluxo financeiro garantido no início de cada mês.
+                </p>
+
+                <div className="space-y-3 text-xs text-slate-300 font-code-reg border-t border-white/5 pt-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+                    <span>Cobrança mensal automatizada no cartão de crédito</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+                    <span>Controle de saldo de cortes e serviços na comanda</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+                    <span>Agendamento VIP pelo próprio celular do cliente</span>
+                  </div>
+                </div>
+              </ElectricModal>
             </div>
 
             {/* Centro: CORREDOR LIVRE */}
             <div className="hidden lg:block lg:col-span-2 pointer-events-none" />
 
             {/* Flanco Direito: Níveis de Assinatura */}
-            <div className="lg:col-span-5 space-y-3">
-              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between transition-all">
+            <div className="lg:col-span-5 space-y-3.5">
+              <ElectricModal delay={100} className="p-5 flex items-center justify-between">
                 <div>
-                  <p className="font-code-mono text-[9px] text-slate-400">NÍVEL 01 · BÁSICO</p>
-                  <p className="font-code-bold text-sm text-white">Plano Clássico</p>
+                  <p className="font-code-mono text-[9px] text-slate-400 tracking-widest uppercase">NÍVEL 01 · BÁSICO</p>
+                  <p className="font-code-bold text-sm text-white tracking-wide mt-0.5">Plano Clássico</p>
                   <p className="text-slate-400 text-[11px] font-code-reg">Cortes programados no mês</p>
                 </div>
-                <span className="font-code-mono text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded">RECORRÊNCIA</span>
-              </div>
+                <span className="font-code-mono text-[10px] text-primary bg-primary/10 px-3 py-1 rounded-full">RECORRÊNCIA</span>
+              </ElectricModal>
 
-              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between border-primary/30 transition-all">
+              <ElectricModal delay={180} className="p-5 flex items-center justify-between border-primary/30">
                 <div>
-                  <p className="font-code-mono text-[9px] text-primary font-bold">NÍVEL 02 · MAIS ESCOLHIDO</p>
-                  <p className="font-code-bold text-sm text-white">Plano Gentleman</p>
+                  <p className="font-code-mono text-[9px] text-primary font-bold tracking-widest uppercase">NÍVEL 02 · MAIS ESCOLHIDO</p>
+                  <p className="font-code-bold text-sm text-white tracking-wide mt-0.5">Plano Gentleman</p>
                   <p className="text-slate-300 text-[11px] font-code-reg">Corte + Barba + Bebida Cortesia</p>
                 </div>
-                <span className="font-code-mono text-[10px] bg-primary text-night font-bold px-2.5 py-1 rounded">VIP CLUB</span>
-              </div>
+                <span className="font-code-mono text-[10px] bg-primary text-night font-bold px-3 py-1 rounded-full shadow-smg-glow">VIP CLUB</span>
+              </ElectricModal>
 
-              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between transition-all">
+              <ElectricModal delay={260} className="p-5 flex items-center justify-between">
                 <div>
-                  <p className="font-code-mono text-[9px] text-amber-400">NÍVEL 03 · PREMIUM</p>
-                  <p className="font-code-bold text-sm text-white">Black Chef Exclusive</p>
+                  <p className="font-code-mono text-[9px] text-amber-400 tracking-widest uppercase">NÍVEL 03 · PREMIUM</p>
+                  <p className="font-code-bold text-sm text-white tracking-wide mt-0.5">Black Chef Exclusive</p>
                   <p className="text-slate-400 text-[11px] font-code-reg">Experiência ilimitada na bancada</p>
                 </div>
-                <span className="font-code-mono text-[10px] text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded">ATELIER TOP</span>
-              </div>
+                <span className="font-code-mono text-[10px] text-amber-300 bg-amber-500/10 px-3 py-1 rounded-full">ATELIER TOP</span>
+              </ElectricModal>
             </div>
 
           </div>
         </section>
 
-        {/* ═══ SEÇÃO: PLANOS POR MATURIDADE OPERACIONAL ═══ */}
+        {/* ═══ SEÇÃO: PLANOS POR MATURIDADE OPERACIONAL (ALINHADA AO CANTO) ═══ */}
         <section id="planos" className="py-24 px-6 max-w-7xl mx-auto">
-          <div className="mb-14 text-center max-w-xl mx-auto">
-            <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
-              PLANOS DE IMPLANTAÇÃO
+          <div className="mb-14 max-w-xl">
+            <span className="text-[10px] font-code-mono tracking-[0.3em] text-slate-400 uppercase block mb-1">
+              // 05 · IMPLANTAÇÃO
             </span>
-            <h2 className="text-3xl font-code-bold text-white tracking-tight mb-2">
-              MATURIDADE OPERACIONAL.
+            <h2 className="text-2xl sm:text-3xl font-code-light tracking-[0.2em] uppercase text-white flex items-center gap-3">
+              <span>MATURIDADE OPERACIONAL</span>
+              <span className="h-px w-10 bg-white/20 inline-block" />
             </h2>
-            <p className="text-slate-400 text-xs font-code-reg">
-              Estrutura desenhada para cada estágio da sua barbearia.
+            <p className="text-slate-400 text-xs font-code-reg mt-1">
+              Estrutura sob medida para cada estágio da sua barbearia.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {MATURITY_PLANS.map((plan) => (
-              <div
+            {MATURITY_PLANS.map((plan, idx) => (
+              <ElectricModal
                 key={plan.name}
-                className={`card-hud flex flex-col p-6 sm:p-7 rounded-2xl relative transition-all duration-300 ${
-                  plan.highlight ? 'border-primary/40 shadow-smg-glow/20' : ''
+                delay={idx * 140}
+                className={`flex flex-col p-7 rounded-[28px] relative ${
+                  plan.highlight ? 'border-primary/50 shadow-smg-glow/30' : ''
                 }`}
               >
                 {plan.highlight && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-night text-[9px] font-code-mono font-bold uppercase tracking-widest rounded-full">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-night text-[9px] font-code-mono font-bold uppercase tracking-widest rounded-full shadow-smg-glow">
                     {plan.badge}
                   </span>
                 )}
@@ -783,7 +852,7 @@ const Landing: React.FC = () => {
                   <span className="text-[9px] font-code-mono tracking-widest text-primary uppercase">
                     {plan.code}
                   </span>
-                  <h3 className="text-lg font-code-bold text-white mt-0.5 mb-1">{plan.name}</h3>
+                  <h3 className="text-lg font-code-bold text-white mt-1 mb-1 tracking-wide">{plan.name}</h3>
                   <p className="text-slate-300 text-xs leading-relaxed font-code-reg">{plan.desc}</p>
                 </div>
 
@@ -804,7 +873,7 @@ const Landing: React.FC = () => {
                   )}%20do%20SMG%20Barber%20Intelligence.`}
                   target="_blank"
                   rel="noreferrer"
-                  className={`w-full py-3 rounded-lg font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
+                  className={`w-full py-3 rounded-full font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
                     plan.highlight
                       ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
                       : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
@@ -812,7 +881,7 @@ const Landing: React.FC = () => {
                 >
                   {plan.cta}
                 </a>
-              </div>
+              </ElectricModal>
             ))}
           </div>
         </section>
