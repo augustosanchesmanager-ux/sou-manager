@@ -13,6 +13,11 @@ import {
   handleComandasRoute,
   type ComandasDbClient,
 } from './routes/comandas.ts';
+import {
+  handleServicesRoute,
+  handleProductsRoute,
+  type CatalogDbClient,
+} from './routes/catalog.ts';
 import type {
   ApiKeyRecord,
   ApiErrorResponse,
@@ -460,7 +465,96 @@ Deno.serve(async (req: Request) => {
     return handleComandasRoute(req, authResult.auth, dbClient, requestId);
   }
 
-  // 8. Rota não encontrada
+  // 8. Rota Autenticada: Catálogo de Serviços (/v1/services)
+  if (pathname === '/v1/services') {
+    const catalogDbClient: CatalogDbClient = {
+      async getServices({ tenantId, includeInactive, category, limit, offset }) {
+        let query = adminClient
+          .from('services')
+          .select('id, tenant_id, name, category, price, duration, active, created_at', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .order('name', { ascending: true })
+          .range(offset, offset + limit - 1);
+
+        if (!includeInactive) {
+          query = query.eq('active', true);
+        }
+        if (category) {
+          query = query.eq('category', category);
+        }
+
+        const { data, count, error } = await query;
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error fetching services:`, error);
+          throw error;
+        }
+
+        const services = (data || []).map((s: any) => ({
+          id: s.id,
+          tenant_id: s.tenant_id,
+          name: s.name,
+          category: s.category || 'Geral',
+          price: Number(s.price ?? 0),
+          duration_minutes: s.duration || 30,
+          active: s.active ?? true,
+          created_at: s.created_at,
+        }));
+
+        return { services, totalCount: count ?? services.length };
+      },
+
+      async getProducts() {
+        return { products: [], totalCount: 0 };
+      },
+    };
+
+    return handleServicesRoute(req, authResult.auth, catalogDbClient, requestId);
+  }
+
+  // 9. Rota Autenticada: Catálogo de Produtos (/v1/products)
+  if (pathname === '/v1/products') {
+    const catalogDbClient: CatalogDbClient = {
+      async getServices() {
+        return { services: [], totalCount: 0 };
+      },
+
+      async getProducts({ tenantId, includeInactive, category: _category, limit, offset }) {
+        let query = adminClient
+          .from('products')
+          .select('id, tenant_id, name, description, sale_price, stock_quantity, active, created_at', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .order('name', { ascending: true })
+          .range(offset, offset + limit - 1);
+
+        if (!includeInactive) {
+          query = query.eq('active', true);
+        }
+
+        const { data, count, error } = await query;
+        if (error) {
+          console.error(`[API-GATEWAY] [${requestId}] Error fetching products:`, error);
+          throw error;
+        }
+
+        const products = (data || []).map((p: any) => ({
+          id: p.id,
+          tenant_id: p.tenant_id,
+          name: p.name,
+          description: p.description || undefined,
+          price: Number(p.sale_price ?? 0),
+          stock_quantity: p.stock_quantity ?? 0,
+          active: p.active ?? true,
+          created_at: p.created_at,
+        }));
+
+        return { products, totalCount: count ?? products.length };
+      },
+    };
+
+    return handleProductsRoute(req, authResult.auth, catalogDbClient, requestId);
+  }
+
+  // 10. Rota não encontrada
   const notFoundBody: ApiErrorResponse = {
     error: {
       code: 'NOT_FOUND',

@@ -13,7 +13,10 @@ export type ApiScope =
   | 'comandas:write'
   | 'financial:read'
   | 'customers:read'
-  | 'customers:write';
+  | 'customers:write'
+  | 'services:read'
+  | 'products:read'
+  | 'catalog:read';
 
 export const VALID_API_SCOPES: readonly ApiScope[] = [
   'appointments:read',
@@ -23,6 +26,9 @@ export const VALID_API_SCOPES: readonly ApiScope[] = [
   'financial:read',
   'customers:read',
   'customers:write',
+  'services:read',
+  'products:read',
+  'catalog:read',
 ] as const;
 
 export interface ApiKeyRecord {
