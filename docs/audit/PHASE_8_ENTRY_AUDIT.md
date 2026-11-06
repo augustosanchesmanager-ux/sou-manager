@@ -143,7 +143,11 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 - **Modelagem SQL Canônica:** Tabelas `public.marketplace_extensions` (catálogo geral com status, categorias e escopos requeridos), `public.tenant_extensions` (instalações por barbearia com consentimento explícito e configurações isoladas em JSONB) e `public.extension_reviews` (avaliações de reputação 1 a 5 estrelas vinculadas a `auth.uid()`), sob políticas RLS estritas (migration local `20261106012000_phase_8_marketplace_and_extensions.sql`).
 - **Camada de Aplicação:** Serviço `services/marketplaceService.ts` implementando descoberta com filtros por categoria e busca textual, busca por slug, RPC canônica de instalação atômica `install_marketplace_extension` com fallback defensivo, desinstalação segura, atualização de configurações e sistema de avaliações.
 
-### 7.4 Matriz de Testes Unitários da Fase 8 (110 testes dedicados em `tests/unit/`)
+### 7.4 Subfase 8.5 — Integrações Core & Conectores (`services/integrationService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.integration_providers` (catálogo de provedores nativos homologados em gateways de pagamento, ERPs fiscais e CRMs), `public.tenant_integrations` (conexões ativas por barbearia com credenciais sensíveis isoladas) e `public.integration_sync_logs` (trilho de auditoria com direção, status, latência e external_ref_id), sob políticas RLS estritas e seed nativo (Mercado Pago, Asaas, ContaAzul, Omie, RD Station) na migration local `20261106020000_phase_8_core_integrations_and_connectors.sql`.
+- **Camada de Aplicação:** Serviço `services/integrationService.ts` com RPC atômica `record_integration_sync_event` para registro de auditoria e atualização de timestamps/erros da integração, configuração segura por tenant, desativação de conectores e listagem filtrada de histórico de sincronização.
+
+### 7.5 Matriz de Testes Unitários da Fase 8 (123 testes dedicados em `tests/unit/`)
 | Módulo Testado | Arquivo de Teste | Qtd Testes | Status |
 |----------------|------------------|:----------:|:------:|
 | Autenticação & Gateway | `tests/unit/api-gateway-auth.test.ts` | 20 | ✅ 100% PASS |
@@ -153,13 +157,14 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Webhook Dispatcher & HMAC | `tests/unit/webhook-dispatcher.test.ts` | 21 | ✅ 100% PASS |
 | Contrato OpenAPI 3.1 & Docs | `tests/unit/openapi-spec.test.ts` | 9 | ✅ 100% PASS |
 | Marketplace & Extensões | `tests/unit/marketplace-service.test.ts` | 16 | ✅ 100% PASS |
-| **Total Dedicado Fase 8** | **7 suítes** | **110** | **✅ 100% PASS** |
+| Conectores & Integrações Core | `tests/unit/integration-service.test.ts` | 13 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **8 suítes** | **123** | **✅ 100% PASS** |
 
-### 7.5 Matriz Consolidada Master (`npm run smg:verify`)
+### 7.6 Matriz Consolidada Master (`npm run smg:verify`)
 - **Typecheck (`tsc --noEmit`):** 0 erros.
 - **Architecture Guard:** Baseline 222 rigorosamente preservada.
-- **Unit Tests:** 148 arquivos de teste executados com sucesso (0 falhas).
+- **Unit Tests:** 149 arquivos de teste executados com sucesso (0 falhas).
 - **Secrets Audit:** 0 credenciais expostas.
-- **Migration Security:** 194 migrações auditadas sem desativação ou regressão de RLS.
-- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas e RPCs.
+- **Migration Security:** 195 migrações auditadas sem desativação ou regressão de RLS.
+- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores e RPCs.
 
