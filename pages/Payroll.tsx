@@ -154,6 +154,7 @@ const Payroll: React.FC = () => {
             const professionals = await payout.listEligibleProfessionals(
                 tenantId,
                 getEffectiveCommissionRate,
+                { includeNonCommissioned: true },
             );
 
             const next: PayrollRow[] = [];
@@ -803,7 +804,7 @@ const Payroll: React.FC = () => {
 
                             <div>
                                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 ml-1">
-                                    Bônus / Diária Extra (R$)
+                                    Salário Fixo / Bônus / Diária Extra (R$)
                                 </label>
                                 <div className="relative">
                                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
@@ -819,7 +820,7 @@ const Payroll: React.FC = () => {
                                     />
                                 </div>
                                 <p className="text-[11px] text-slate-400 mt-1 ml-1">
-                                    Opcional. Acréscimos, metas ou diárias garantidas somam à margem líquida do período.
+                                    Salário base para colaboradores fixos, acréscimos, metas ou diárias garantidas somam à margem líquida do período.
                                 </p>
                             </div>
 
@@ -831,7 +832,7 @@ const Payroll: React.FC = () => {
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500">(+) Bônus / Diária Extra:</span>
+                                    <span className="text-slate-500">(+) Salário / Bônus / Adicionais:</span>
                                     <span className="font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                                         + {brl(activePreview.bonusesAdded)}
                                     </span>
@@ -867,7 +868,7 @@ const Payroll: React.FC = () => {
 
                             {isZeroBlocked && (
                                 <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/[0.02] p-3 text-xs text-slate-500">
-                                    Não há comissões liquidadas neste período. Informe um <strong>Bônus / Diária Extra</strong> acima de R$ 0,00 para gerar um acerto de diária garantida.
+                                    Não há comissões liquidadas neste período. Informe o <strong>Salário Fixo / Bônus / Diária Extra</strong> acima de R$ 0,00 para gerar o acerto.
                                 </div>
                             )}
 

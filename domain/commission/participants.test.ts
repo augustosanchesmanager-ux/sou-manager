@@ -207,6 +207,42 @@ describe('normalizeCommissionParticipants', () => {
     expect(result.isShared).toBe(true);
     expect(result.participants).toHaveLength(2);
   });
+
+  it('never infers third-party barber when primary staff is manager with rate 0', () => {
+    // Cenário Rubens (gestor taxa 0): atendeu como primary. Não deve criar comissão para outro barbeiro (Heron)
+    const raw = [
+      makeParticipant({ id: 'p1', staff_id: 'manager1', role: 'primary', payout_value: 100 }),
+    ];
+    const result = normalizeCommissionParticipants(
+      { id: 'item1', staff_id: 'manager1' },
+      { staff_id: 'manager1' },
+      raw,
+      100,
+      staffMap,
+    );
+    expect(result.participants).toHaveLength(0);
+    expect(result.primaryStaffId).toBe('manager1');
+    expect(result.isShared).toBe(false);
+  });
+
+  it('preserves assistant but does not infer manager portion to third-party barber', () => {
+    // Cenário Rubens (primary 70%) e staff2 (assistant 30%)
+    const raw = [
+      makeParticipant({ id: 'p1', staff_id: 'manager1', role: 'primary', payout_value: 70 }),
+      makeParticipant({ id: 'p2', staff_id: 'staff2', role: 'assistant', payout_value: 30 }),
+    ];
+    const result = normalizeCommissionParticipants(
+      { id: 'item1', staff_id: 'manager1' },
+      { staff_id: 'manager1' },
+      raw,
+      100,
+      staffMap,
+    );
+    // staff2 (assistant) deve ser mantido, mas a cota de 70% do gestor manager1 NÃO deve ir para staff1
+    expect(result.participants).toHaveLength(1);
+    expect(result.participants[0].staff_id).toBe('staff2');
+    expect(result.participants[0].role).toBe('assistant');
+  });
 });
 
 describe('getPrimaryParticipant', () => {

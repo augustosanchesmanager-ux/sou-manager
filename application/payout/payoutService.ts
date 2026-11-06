@@ -353,11 +353,12 @@ async getSettlementForPeriod(
 async listEligibleProfessionals(
     tenantId: string,
     resolveRate: (staff: StaffProfile) => number,
+    options?: { includeNonCommissioned?: boolean },
 ): Promise<StaffProfile[]> {
     const staff = await this.repository.listActiveProfessionals(tenantId);
     return staff
         .map((s) => ({ ...s, commissionRate: resolveRate(s) }))
-        .filter((s) => s.commissionRate > 0);
+        .filter((s) => (options?.includeNonCommissioned ? true : s.commissionRate > 0));
 }
 
 /**

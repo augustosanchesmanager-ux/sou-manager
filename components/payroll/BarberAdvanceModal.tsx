@@ -84,7 +84,9 @@ export const BarberAdvanceModal: React.FC<BarberAdvanceModalProps> = ({
         setLoadingStaff(true);
 
         service
-            .listEligibleProfessionals(tenantId, getEffectiveCommissionRate)
+            .listEligibleProfessionals(tenantId, getEffectiveCommissionRate, {
+                includeNonCommissioned: true,
+            })
             .then((list) => {
                 if (cancelled) return;
                 const mapped = list.map((s) => ({
