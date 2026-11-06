@@ -78,6 +78,24 @@ describe('PayoutService.listEligibleProfessionals', () => {
         expect(result[0].commissionRate).toBe(0.5);
     });
 
+    it('includes_non_commissioned_staff_when_option_is_true', async () => {
+        const staff: StaffProfile[] = [
+            { id: 'a', name: 'Ana', role: 'Barber', avatar: '', commissionRate: 0 },
+            { id: 'b', name: 'Bia', role: 'Receptionist', avatar: '', commissionRate: 0 },
+            { id: 'c', name: 'Cid', role: 'Manager', avatar: '', commissionRate: 0 },
+        ];
+        const service = new PayoutService(
+            makeRepository({ listActiveProfessionals: vi.fn().mockResolvedValue(staff) }) as never,
+        );
+
+        const result = await service.listEligibleProfessionals('t1', () => 0, {
+            includeNonCommissioned: true,
+        });
+
+        expect(result.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+        expect(result.map((r) => r.commissionRate)).toEqual([0, 0, 0]);
+    });
+
     it('returns_empty_when_tenant_has_no_active_staff', async () => {
         const service = new PayoutService(makeRepository() as never);
         expect(await service.listEligibleProfessionals('t1', () => 0.4)).toEqual([]);

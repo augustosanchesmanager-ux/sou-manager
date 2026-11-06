@@ -75,10 +75,17 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
           const matchingUser = list.find(
             (s) => s.id === currentUserId || (currentUserEmail && (s as any).email === currentUserEmail)
           );
+          // Se o usuário logado for gestor/admin com taxa 0%, mas houver barbeiro comissionado,
+          // permitir selecionar o barbeiro comissionado ou o matching
           if (matchingUser) {
             setSelectedStaffId(matchingUser.id);
-          } else if (list.length > 0) {
-            setSelectedStaffId(list[0].id);
+          } else {
+            const firstCommissioned = list.find((s) => Number(s.commission_rate || 0) > 0);
+            if (firstCommissioned) {
+              setSelectedStaffId(firstCommissioned.id);
+            } else if (list.length > 0) {
+              setSelectedStaffId(list[0].id);
+            }
           }
         }
       })
@@ -178,7 +185,7 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
                   >
                     {staffList.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} ({s.role})
+                        {s.name} ({s.role}) {Number(s.commission_rate || 0) > 0 ? `• ${s.commission_rate}%` : '• Fixo'}
                       </option>
                     ))}
                   </select>
@@ -231,7 +238,7 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
               {formatCurrency(summary.confirmedCommission)}
             </p>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-              Comandas liquidadas no caixa
+              {staffCommissionPercentage > 0 ? 'Comandas liquidadas no caixa' : 'Remuneração fixa / gestor'}
             </p>
           </div>
 
@@ -249,7 +256,7 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
               {formatCurrency(summary.pendingCommission)}
             </p>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-              Comandas abertas no balcão
+              {staffCommissionPercentage > 0 ? 'Comandas abertas no balcão' : 'Sem comissão percentual'}
             </p>
           </div>
 
@@ -345,10 +352,10 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
                       </td>
                       <td className="px-4 py-3 text-right font-black whitespace-nowrap">
                         <span className={it.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                          {formatCurrency(it.commissionValue)}
+                          {staffCommissionPercentage > 0 ? formatCurrency(it.commissionValue) : '—'}
                         </span>
                         <span className="text-[10px] font-normal text-slate-400 ml-1">
-                          ({it.commissionRate}%)
+                          {staffCommissionPercentage > 0 ? `(${it.commissionRate}%)` : '(Fixo)'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
