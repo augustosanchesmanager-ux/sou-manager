@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- MIGRATION: Phase 8 — Marketplace & Catálogo de Extensões (Subfase 8.4)
 -- Data: 2026-11-06
--- Referência: ADR-039 (ACCEPTED) & SMG Change Control Protocol
+-- Referência: ADR-041 (ACCEPTED) & SMG Change Control Protocol
 -- Autoridade: Augusto (PO) · Antigravity (Platform Architect)
 -- Invariantes: Isolamento multi-tenant estrito (tenant_id), RLS defensivo,
 --              vedação a service_role irrestrito no data path.

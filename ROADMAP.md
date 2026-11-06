@@ -1852,7 +1852,7 @@ Phase 6.0.4 — Subscription/Billing Foundation
 
 **Objetivo:** Criar marketplace de integrações e complementos.
 
-- [x] Arquitetura de marketplace (ADR-039 ACCEPTED e migration local `20261106012000`)
+- [x] Arquitetura de marketplace (ADR-041 ACCEPTED e migration local `20261106012000`)
 - [x] Sistema de review e aprovação (`public.extension_reviews`, moderação Super Admin e notas 1 a 5)
 - [x] Billing de marketplace (modelagem de `pricing_type` free, subscription e one_time em centavos BRL)
 - [x] Discovery e busca (`services/marketplaceService.ts` com filtros por categoria, busca textual e status de instalação)
