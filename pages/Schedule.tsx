@@ -2900,6 +2900,142 @@ Podemos confirmar? 😄`;
               <p className="text-[11px] text-ink-soft">{visibleBlockCount} bloqueio(s)</p>
             </div>
           </div>
+
+          {/* Week Day Pills Strip — Semana de Referência */}
+          <div className="pt-3 border-t border-line dark:border-border-dark space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-ink-soft flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-primary">date_range</span>
+                  <span>Semana de referência:</span>
+                </span>
+                <span className="text-xs font-bold text-ink dark:text-white capitalize">
+                  {weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a{' '}
+                  {weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                {/* Botão Semana Anterior */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(selectedDate.getDate() - 7);
+                    setSelectedDate(newDate);
+                  }}
+                  className="flex items-center justify-center p-1.5 rounded-lg border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
+                  title="Semana anterior"
+                  aria-label="Semana anterior"
+                >
+                  <span className="material-symbols-outlined text-base">chevron_left</span>
+                </button>
+
+                {/* Botão Hoje */}
+                {toDateKey(selectedDate) !== toDateKey(new Date()) && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(new Date())}
+                    className="px-2.5 py-1 text-xs font-bold text-primary hover:bg-gold-pale/50 dark:hover:bg-card-dark rounded-lg border border-primary/30 transition-colors"
+                  >
+                    Hoje
+                  </button>
+                )}
+
+                {/* Botão Próxima Semana */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(selectedDate.getDate() + 7);
+                    setSelectedDate(newDate);
+                  }}
+                  className="flex items-center justify-center p-1.5 rounded-lg border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
+                  title="Próxima semana"
+                  aria-label="Próxima semana"
+                >
+                  <span className="material-symbols-outlined text-base">chevron_right</span>
+                </button>
+
+                {/* Opção para ver outros dias do mês */}
+                <div className="relative flex items-center pl-1 border-l border-line dark:border-border-dark ml-0.5">
+                  <DatePickerInput
+                    value={getDateInputValue(selectedDate)}
+                    onChange={(e) => {
+                      const newDate = parseDateInputValue(e.target.value);
+                      if (newDate) setSelectedDate(newDate);
+                    }}
+                    className="sr-only"
+                    containerClassName="relative"
+                    buttonClassName="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-xs font-semibold text-ink-soft hover:text-ink dark:hover:text-white hover:border-primary/50 transition-colors"
+                    icon={
+                      <>
+                        <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
+                        <span className="hidden sm:inline">Ver outro dia do mês</span>
+                        <span className="sm:hidden">Outro dia</span>
+                      </>
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pills dos 7 dias da semana (Dia em cima, Número embaixo conforme solicitado) */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 min-w-[280px] sm:min-w-0">
+              {weekDays.map((day) => {
+                const dayKey = toDateKey(day);
+                const isSelected = dayKey === selectedDateKey;
+                const isToday = dayKey === toDateKey(new Date());
+                const rawWeekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').trim();
+                const weekdayLabel = rawWeekday.charAt(0).toUpperCase() + rawWeekday.slice(1, 3);
+                const dayNum = String(day.getDate()).padStart(2, '0');
+
+                return (
+                  <button
+                    key={dayKey}
+                    type="button"
+                    onClick={() => setSelectedDate(day)}
+                    className={`group flex flex-col items-center justify-center py-2 sm:py-3 px-1 sm:px-2 rounded-2xl transition-all select-none touch-manipulation ${
+                      isSelected
+                        ? 'bg-primary text-night shadow-sm ring-2 ring-primary/40 font-bold scale-[1.02]'
+                        : isToday
+                          ? 'bg-card dark:bg-surface-dark border-2 border-primary/50 text-ink dark:text-white hover:bg-gold-pale/30 dark:hover:bg-card-dark'
+                          : 'bg-card dark:bg-surface-dark border border-line dark:border-border-dark text-ink hover:border-primary/40 hover:bg-gold-pale/30 dark:hover:bg-card-dark'
+                    }`}
+                  >
+                    {/* Dot indicador superior */}
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full mb-1 transition-all ${
+                        isSelected
+                          ? 'bg-night/70'
+                          : isToday
+                            ? 'bg-primary'
+                            : 'bg-slate-300 dark:bg-white/20 group-hover:bg-primary/50'
+                      }`}
+                    />
+
+                    {/* Dia da semana (em cima) */}
+                    <span
+                      className={`text-[10px] sm:text-xs font-semibold tracking-wider ${
+                        isSelected ? 'text-night/80 font-bold' : 'text-ink-soft'
+                      }`}
+                    >
+                      {weekdayLabel}
+                    </span>
+
+                    {/* Número do dia (embaixo) */}
+                    <span
+                      className={`text-sm sm:text-lg font-bold font-sans tabular-nums mt-0.5 ${
+                        isSelected ? 'text-night font-black' : 'text-ink dark:text-white'
+                      }`}
+                    >
+                      {dayNum}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -3844,59 +3980,92 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
+          {/* Profissionais em Cards */}
           <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Profissional</label>
-            <div className="relative">
-              <select
-                value={formData.staffId}
-                disabled={isComandaLocked}
-                onChange={(e) => handleInputChange('staffId', e.target.value)}
-                className={`w-full border rounded-lg p-2.5 text-sm outline-none appearance-none ${
-                  isComandaLocked
-                    ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-50 dark:bg-[#1A1A1A] border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary'
-                }`}
-              >
-                {staffList.map(r => (
-                  <option key={r.id} value={r.id}>{r.name} - {getVisibleRoleLabel(r.role)}</option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase text-slate-500">Profissional</label>
+              {staffList.length > 2 && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1 sm:hidden">
+                  <span className="material-symbols-outlined text-[13px]">swipe</span>
+                  Arraste para o lado
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2.5 overflow-x-auto pb-2 pt-0.5 custom-scrollbar touch-pan-x sm:grid sm:grid-cols-2 md:grid-cols-3">
+              {staffList.map((r) => {
+                const isSelected = formData.staffId === r.id;
+                const roleLabel = getVisibleRoleLabel(r.role);
+
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={isComandaLocked}
+                    onClick={() => handleInputChange('staffId', r.id)}
+                    className={`group relative flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all shrink-0 min-w-[160px] sm:min-w-0 sm:shrink ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40 dark:bg-primary/15'
+                        : 'border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-[#1A1A1A] hover:border-slate-300 dark:hover:border-white/20'
+                    } ${isComandaLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'}`}
+                  >
+                    {/* Avatar ou Iniciais */}
+                    <div className="relative shrink-0">
+                      {r.avatar ? (
+                        <img
+                          src={r.avatar}
+                          alt={r.name}
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10"
+                        />
+                      ) : (
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${
+                            isSelected
+                              ? 'bg-primary text-night'
+                              : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          {r.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      {/* Check badge quando selecionado */}
+                      {isSelected && (
+                        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-night text-[10px] font-black shadow-xs">
+                          <span className="material-symbols-outlined text-[11px] leading-none">check</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-xs font-bold truncate ${
+                          isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        {r.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 capitalize truncate mt-0.5">
+                        {roleLabel}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
-            <DatePickerInput
-              value={formData.date}
-              onChange={(e) => handleInputChange('date', e.target.value)}
-              className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-            />
-          </div>
+          {/* Bloco Data e Horário de Início lado a lado */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
+              <DatePickerInput
+                value={formData.date}
+                onChange={(e) => handleInputChange('date', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
+              />
+            </div>
 
-          {!editingAppointmentId && (
-            <button
-              type="button"
-              onClick={() => setForceOverbook((current) => !current)}
-              className={`w-full rounded-lg border px-3 py-3 text-left transition-all ${
-                forceOverbook
-                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
-              }`}
-            >
-              <span className="flex items-center gap-2 text-sm font-black">
-                <span className="material-symbols-outlined text-base">event_repeat</span>
-                Encaixe
-              </span>
-              <span className="mt-1 block text-xs font-semibold opacity-80">
-                {forceOverbook
-                  ? 'Ativo: permite criar em horário ocupado e marca o agendamento como encaixe.'
-                  : 'Use para atender em um horário já ocupado.'}
-              </span>
-            </button>
-          )}
-
-          <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário de Início</label>
               <div className="relative">
@@ -3938,6 +4107,41 @@ Podemos confirmar? 😄`;
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
               </div>
             </div>
+          </div>
+
+          {/* Encaixe: abaixo dos dois horizontalmente */}
+          {!editingAppointmentId && (
+            <button
+              type="button"
+              onClick={() => setForceOverbook((current) => !current)}
+              className={`w-full rounded-lg border px-3 py-2.5 text-left transition-all ${
+                forceOverbook
+                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-black">
+                  <span className="material-symbols-outlined text-base">event_repeat</span>
+                  Encaixe
+                </span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                  forceOverbook
+                    ? 'border-amber-400 bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200'
+                    : 'border-slate-200 dark:border-white/10 text-slate-500'
+                }`}>
+                  {forceOverbook ? 'Ativo' : 'Opcional'}
+                </span>
+              </div>
+              <span className="mt-1 block text-xs font-semibold opacity-80">
+                {forceOverbook
+                  ? 'Ativo: permite criar em horário ocupado e marca o agendamento como encaixe.'
+                  : 'Use para atender em um horário já ocupado.'}
+              </span>
+            </button>
+          )}
+
+          <div className="space-y-4">
 
             {/* Frente 1.I: Duração Dinâmica, Chips Rápidos e Ajuste Fino */}
             <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-3.5 space-y-3">
