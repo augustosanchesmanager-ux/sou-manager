@@ -2677,51 +2677,6 @@ Podemos confirmar? 😄`;
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
-              {/* Seletor de Data */}
-              <div className="flex items-center rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
-                <button
-                  onClick={() => {
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(selectedDate.getDate() - (viewMode === 'week' ? 7 : 1));
-                    setSelectedDate(newDate);
-                  }}
-                  className="rounded-lg p-1.5 text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
-                  aria-label="Data anterior"
-                >
-                  <span className="material-symbols-outlined text-base">chevron_left</span>
-                </button>
-                <div className="flex min-w-0 items-center justify-center px-2.5 font-sans font-medium text-ink dark:text-white tabular-nums tracking-tight whitespace-nowrap text-xs sm:text-sm">
-                  {viewMode === 'week'
-                    ? visibleRangeLabel
-                    : formatDateDisplay(selectedDate)
-                  }
-                </div>
-                <button
-                  onClick={() => {
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(selectedDate.getDate() + (viewMode === 'week' ? 7 : 1));
-                    setSelectedDate(newDate);
-                  }}
-                  className="rounded-lg p-1.5 text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
-                  aria-label="Próxima data"
-                >
-                  <span className="material-symbols-outlined text-base">chevron_right</span>
-                </button>
-                <div className="relative flex items-center pl-1 border-l border-line dark:border-border-dark ml-1">
-                  <DatePickerInput
-                    value={getDateInputValue(selectedDate)}
-                    onChange={(e) => {
-                      const newDate = parseDateInputValue(e.target.value);
-                      if (newDate) setSelectedDate(newDate);
-                    }}
-                    className="sr-only"
-                    containerClassName="relative"
-                    buttonClassName="flex items-center justify-center size-7 rounded-lg text-ink-soft hover:text-primary hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
-                    icon={<span className="material-symbols-outlined text-base">calendar_today</span>}
-                  />
-                </div>
-              </div>
-
               {/* Ações */}
               <button
                 onClick={() => setShowQuickWalkInModal(true)}
@@ -2980,8 +2935,8 @@ Podemos confirmar? 😄`;
               </div>
             </div>
 
-            {/* Pills dos 7 dias da semana (Dia em cima, Número embaixo conforme solicitado) */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 min-w-[280px] sm:min-w-0">
+            {/* Pills dos 7 dias da semana (Formato Cápsula Elegante e Proporcional) */}
+            <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-3 overflow-x-auto py-1 px-1 custom-scrollbar">
               {weekDays.map((day) => {
                 const dayKey = toDateKey(day);
                 const isSelected = dayKey === selectedDateKey;
@@ -2995,28 +2950,28 @@ Podemos confirmar? 😄`;
                     key={dayKey}
                     type="button"
                     onClick={() => setSelectedDate(day)}
-                    className={`group flex flex-col items-center justify-center py-2 sm:py-3 px-1 sm:px-2 rounded-2xl transition-all select-none touch-manipulation ${
+                    className={`group w-12 sm:w-14 py-2 sm:py-2.5 rounded-2xl shrink-0 flex flex-col items-center justify-center transition-all select-none touch-manipulation cursor-pointer ${
                       isSelected
-                        ? 'bg-primary text-night shadow-sm ring-2 ring-primary/40 font-bold scale-[1.02]'
+                        ? 'bg-amber-400 text-night shadow-[0_0_18px_rgba(245,158,11,0.4)] scale-105 font-bold ring-2 ring-amber-400/60'
                         : isToday
-                          ? 'bg-card dark:bg-surface-dark border-2 border-primary/50 text-ink dark:text-white hover:bg-gold-pale/30 dark:hover:bg-card-dark'
-                          : 'bg-card dark:bg-surface-dark border border-line dark:border-border-dark text-ink hover:border-primary/40 hover:bg-gold-pale/30 dark:hover:bg-card-dark'
+                          ? 'bg-card dark:bg-[#12141A] border-2 border-primary/60 text-ink dark:text-white hover:border-primary'
+                          : 'bg-card dark:bg-[#12141A] border border-line dark:border-white/10 text-ink-soft hover:text-ink dark:hover:text-white hover:border-amber-500/40'
                     }`}
                   >
                     {/* Dot indicador superior */}
                     <span
                       className={`w-1.5 h-1.5 rounded-full mb-1 transition-all ${
                         isSelected
-                          ? 'bg-night/70'
+                          ? 'bg-night/80'
                           : isToday
                             ? 'bg-primary'
-                            : 'bg-slate-300 dark:bg-white/20 group-hover:bg-primary/50'
+                            : 'bg-slate-400/40 dark:bg-white/30 group-hover:bg-primary/60'
                       }`}
                     />
 
                     {/* Dia da semana (em cima) */}
                     <span
-                      className={`text-[10px] sm:text-xs font-semibold tracking-wider ${
+                      className={`text-[10px] sm:text-[11px] font-semibold tracking-wider ${
                         isSelected ? 'text-night/80 font-bold' : 'text-ink-soft'
                       }`}
                     >
@@ -3025,7 +2980,7 @@ Podemos confirmar? 😄`;
 
                     {/* Número do dia (embaixo) */}
                     <span
-                      className={`text-sm sm:text-lg font-bold font-sans tabular-nums mt-0.5 ${
+                      className={`text-sm sm:text-base font-bold font-sans tabular-nums mt-0.5 ${
                         isSelected ? 'text-night font-black' : 'text-ink dark:text-white'
                       }`}
                     >
@@ -3985,14 +3940,14 @@ Podemos confirmar? 😄`;
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold uppercase text-slate-500">Profissional</label>
               {staffList.length > 2 && (
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1 sm:hidden">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
                   <span className="material-symbols-outlined text-[13px]">swipe</span>
                   Arraste para o lado
                 </span>
               )}
             </div>
 
-            <div className="flex gap-2.5 overflow-x-auto pb-2 pt-0.5 custom-scrollbar touch-pan-x sm:grid sm:grid-cols-2 md:grid-cols-3">
+            <div className="flex gap-2.5 overflow-x-auto pb-2 pt-0.5 custom-scrollbar touch-pan-x">
               {staffList.map((r) => {
                 const isSelected = formData.staffId === r.id;
                 const roleLabel = getVisibleRoleLabel(r.role);
@@ -4003,7 +3958,7 @@ Podemos confirmar? 😄`;
                     type="button"
                     disabled={isComandaLocked}
                     onClick={() => handleInputChange('staffId', r.id)}
-                    className={`group relative flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all shrink-0 min-w-[160px] sm:min-w-0 sm:shrink ${
+                    className={`group relative flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border text-left transition-all shrink-0 min-w-[180px] sm:min-w-[210px] ${
                       isSelected
                         ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40 dark:bg-primary/15'
                         : 'border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-[#1A1A1A] hover:border-slate-300 dark:hover:border-white/20'
@@ -4039,13 +3994,14 @@ Podemos confirmar? 😄`;
 
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`text-xs font-bold truncate ${
+                        className={`text-xs sm:text-sm font-bold truncate leading-tight ${
                           isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-200'
                         }`}
+                        title={r.name}
                       >
                         {r.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 capitalize truncate mt-0.5">
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 capitalize truncate mt-0.5">
                         {roleLabel}
                       </p>
                     </div>
