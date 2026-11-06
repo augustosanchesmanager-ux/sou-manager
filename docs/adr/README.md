@@ -45,6 +45,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-038](./ADR-038-recurring-schedule-subscribers.md) | Accepted | Horário Fixo Recorrente para Assinantes Chef Club com Yield Management e Janela Rolante (2026-10-27) |
 | [ADR-039](./ADR-039-marketplace-and-extensions.md) | Accepted | Arquitetura de Marketplace e Catálogo de Extensões — Subfase 8.4 (2026-11-06) |
 | [ADR-040](./ADR-040-core-integrations-connectors.md) | Accepted | Arquitetura de Conectores e Integrações Core — Subfase 8.5 (2026-11-06) |
+| [ADR-041](./ADR-041-platform-billing-and-saas-metrics.md) | Accepted | Arquitetura de Faturamento da Plataforma SMG (Platform Billing) e Métricas de SaaS — Subfase 8.6 (2026-11-06) |
 
 ---
 
