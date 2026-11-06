@@ -1,0 +1,846 @@
+openapi: 3.1.0
+info:
+  title: SMG Barber — Public API
+  version: 1.0.0
+  description: |
+    API Pública oficial da plataforma SMG Barber (The Barbershop Intelligence).
+    Permite integrações externas seguras com barbearias para gestão de agendamentos, comandas e catálogo.
+    Todas as chamadas operam sob estrito isolamento multi-tenant, autenticação por API Key (SHA-256) e RBAC granular.
+  contact:
+    name: SMG Platform Architecture & Engineering
+    email: api-support@soumanager.com
+  license:
+    name: Proprietary
+servers:
+  - url: https://api.soumanager.com
+    description: Servidor de Produção (Live Environment)
+  - url: https://sandbox.api.soumanager.com
+    description: Servidor de Sandbox (Test Environment)
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /v1/health:
+    get:
+      tags:
+        - System
+      summary: Health check do Gateway
+      description: Retorna a integridade operacional da API e carimbo de data/hora atual.
+      security: []
+      responses:
+        '200':
+          description: Gateway operacional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2026-11-06T12:00:00.000Z'
+                  service:
+                    type: string
+                    example: smg-api-gateway
+
+  /v1/auth/verify:
+    get:
+      tags:
+        - Authentication
+      summary: Validação da API Key
+      description: Valida a autenticidade da chave enviada, tenant associado, ambiente e lista de escopos concedidos.
+      responses:
+        '200':
+          description: Chave de API válida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyAuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /v1/appointments:
+    get:
+      tags:
+        - Appointments
+      summary: Listar agendamentos
+      description: Retorna agendamentos do tenant autenticado, com filtro opcional por data e paginação.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: Data do agendamento no formato YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+            example: '2026-11-06'
+        - name: limit
+          in: query
+          required: false
+          description: Limite de registros (máx 100)
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Deslocamento para paginação
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Lista de agendamentos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentsListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+    post:
+      tags:
+        - Appointments
+      summary: Criar novo agendamento
+      description: Cria um agendamento com validação automática de sobreposição (double-booking) de cadeira e cliente no mesmo tenant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+      responses:
+        '201':
+          description: Agendamento criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /v1/comandas:
+    get:
+      tags:
+        - Comandas
+      summary: Listar comandas
+      description: Retorna comandas do tenant autenticado com itens detalhados e totalizadores consolidados.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtro por status da comanda
+          schema:
+            type: string
+            enum: [open, closed, cancelled]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Lista de comandas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComandasListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+    post:
+      tags:
+        - Comandas
+      summary: Criar nova comanda
+      description: Abre uma comanda vinculada ao tenant com itens. Se informados service_id ou product_id, os preços são derivados autoritativamente do catálogo garantindo tolerância contábil zero.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComandaRequest'
+      responses:
+        '201':
+          description: Comanda criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComandaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /v1/services:
+    get:
+      tags:
+        - Catalog
+      summary: Listar catálogo de serviços
+      description: Retorna serviços oferecidos pela barbearia (preços, durações e categorias).
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Cabelo
+        - name: include_inactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Lista de serviços
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicesListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /v1/products:
+    get:
+      tags:
+        - Catalog
+      summary: Listar catálogo de produtos
+      description: Retorna produtos comercializados no balcão da barbearia com preços de venda e estoque.
+      parameters:
+        - name: include_inactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Lista de produtos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductsListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+webhooks:
+  appointmentCreated:
+    post:
+      summary: Evento de criação de agendamento
+      description: Notifica o parceiro externo sempre que um agendamento for criado ou confirmado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEventPayload'
+      responses:
+        '200':
+          description: Evento recebido com sucesso
+
+  comandaClosed:
+    post:
+      summary: Evento de fechamento de comanda
+      description: Notifica o parceiro externo quando uma comanda for finalizada no PDV com seus valores e itens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEventPayload'
+      responses:
+        '200':
+          description: Evento recebido com sucesso
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Envio da API Key no cabeçalho Authorization (ex: Bearer smg_live_...)
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Envio alternativo da API Key no cabeçalho X-API-Key
+
+  responses:
+    BadRequestError:
+      description: Requisição inválida ou parâmetros ausentes
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: BAD_REQUEST
+              message: Parâmetro obrigatório ausente ou inválido.
+
+    UnauthorizedError:
+      description: Autenticação ausente ou inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Chave de API ausente ou inválida.
+
+    ForbiddenError:
+      description: Permissão insuficiente (escopo não atribuído à chave)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INSUFFICIENT_SCOPE
+              message: A chave de API não possui permissão para este recurso.
+
+    ConflictError:
+      description: Conflito de integridade de dados (ex: double-booking)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: CONFLICT
+              message: Horário indisponível para o profissional ou cliente selecionado.
+
+  schemas:
+    VerifyAuthResponse:
+      type: object
+      required:
+        - valid
+        - tenant_id
+        - environment
+        - key_prefix
+        - scopes
+      properties:
+        valid:
+          type: boolean
+          example: true
+        tenant_id:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        environment:
+          type: string
+          enum: [live, test]
+          example: live
+        key_prefix:
+          type: string
+          example: smg_live_a1b2
+        scopes:
+          type: array
+          items:
+            type: string
+          example: [appointments:read, appointments:write, comandas:read, comandas:write, catalog:read]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    Appointment:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - customer_name
+        - date
+        - start_time
+        - duration_minutes
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+          example: Carlos Silva
+        customer_phone:
+          type: string
+          example: '11999998888'
+        barber_id:
+          type: string
+          format: uuid
+          nullable: true
+        barber_name:
+          type: string
+          nullable: true
+        service_id:
+          type: string
+          format: uuid
+          nullable: true
+        service_name:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+          example: '2026-11-06'
+        start_time:
+          type: string
+          example: '14:30'
+        duration_minutes:
+          type: integer
+          example: 45
+        status:
+          type: string
+          enum: [scheduled, confirmed, in_progress, completed, cancelled]
+          example: scheduled
+        total_price:
+          type: number
+          format: float
+          example: 55.00
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AppointmentsListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    CreateAppointmentRequest:
+      type: object
+      required:
+        - customer_name
+        - date
+        - start_time
+        - duration_minutes
+      properties:
+        customer_name:
+          type: string
+          example: Roberto Santos
+        customer_phone:
+          type: string
+          example: '11988887777'
+        barber_id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+          example: '2026-11-07'
+        start_time:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: '10:00'
+        duration_minutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+          example: 40
+        total_price:
+          type: number
+          minimum: 0
+          example: 50.00
+        notes:
+          type: string
+          example: Agendado via App Parceiro
+
+    AppointmentResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Appointment'
+
+    ComandaItem:
+      type: object
+      required:
+        - id
+        - name
+        - quantity
+        - unit_price
+        - total_price
+      properties:
+        id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          example: Corte Clássico
+        quantity:
+          type: integer
+          example: 1
+        unit_price:
+          type: number
+          format: float
+          example: 55.00
+        total_price:
+          type: number
+          format: float
+          example: 55.00
+        barber_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    Comanda:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - customer_name
+        - status
+        - total
+        - items
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        appointment_id:
+          type: string
+          format: uuid
+          nullable: true
+        customer_id:
+          type: string
+          format: uuid
+          nullable: true
+        customer_name:
+          type: string
+          example: Lucas Oliveira
+        status:
+          type: string
+          enum: [open, closed, cancelled]
+          example: open
+        total:
+          type: number
+          format: float
+          example: 95.00
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComandaItem'
+
+    ComandasListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comanda'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    CreateComandaItemRequest:
+      type: object
+      required:
+        - quantity
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Pomada Matte
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+        unit_price:
+          type: number
+          minimum: 0
+          example: 40.00
+        barber_id:
+          type: string
+          format: uuid
+
+    CreateComandaRequest:
+      type: object
+      required:
+        - customer_name
+        - items
+      properties:
+        customer_name:
+          type: string
+          example: Marcos Ferreira
+        customer_id:
+          type: string
+          format: uuid
+        appointment_id:
+          type: string
+          format: uuid
+        notes:
+          type: string
+          example: Comanda iniciada pelo totem da recepção
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateComandaItemRequest'
+
+    ComandaResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Comanda'
+
+    ServiceItem:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - name
+        - category
+        - price
+        - duration_minutes
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Barba Terapia
+        category:
+          type: string
+          example: Barba
+        price:
+          type: number
+          format: float
+          example: 45.00
+        duration_minutes:
+          type: integer
+          example: 30
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+
+    ServicesListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    ProductItem:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - name
+        - price
+        - stock_quantity
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Óleo para Barba Wood & Spice
+        description:
+          type: string
+          nullable: true
+          example: Hidratação profunda com fragrância amadeirada
+        price:
+          type: number
+          format: float
+          example: 52.00
+        stock_quantity:
+          type: integer
+          example: 18
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+
+    ProductsListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    PaginationMetadata:
+      type: object
+      required:
+        - limit
+        - offset
+        - total
+      properties:
+        limit:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+        total:
+          type: integer
+          example: 142
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: BAD_REQUEST
+            message:
+              type: string
+              example: Descrição detalhada do erro em português.
+            details:
+              type: object
+              additionalProperties: true
+
+    WebhookEventPayload:
+      type: object
+      required:
+        - event
+        - timestamp
+        - delivery_id
+        - data
+      properties:
+        event:
+          type: string
+          example: appointment.created
+        timestamp:
+          type: integer
+          example: 1730851200
+        delivery_id:
+          type: string
+          format: uuid
+          example: 33333333-3333-3333-3333-333333333333
+        data:
+          type: object
+          additionalProperties: true

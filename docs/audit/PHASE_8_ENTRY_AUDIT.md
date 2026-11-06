@@ -104,4 +104,67 @@ Conforme as diretrizes de `docs/TAXONOMY.md` e os padrões de banco PostgreSQL d
 | Alinhamento arquitetural prévio | ✅ PASS | Princípio do isolamento RLS e não uso de `service_role` garantidos. |
 | Minuta de ADR correspondente | ✅ ACCEPTED | ADR-032 aprovado formalmente pelo PO Augusto em 2026-11-05. |
 
-**Veredito:** Autorizada a abertura formal e modelagem da Fase 8 através do **ADR-032 (ACCEPTED)**. Fase de modelagem SQL local iniciada.
+**Veredito:** Autorizada a abertura formal e modelagem da Fase 8 através do **ADR-032 (ACCEPTED)**. Fase de modelagem SQL local e implementação de Edge Functions concluídas com sucesso.
+
+---
+
+## 7. Evidências de Execução e Homologação Técnica (Subfases 8.2 e 8.3)
+
+### 7.1 Subfase 8.2 — Public API (`supabase/functions/api-gateway/`)
+- **Modelagem SQL Canônica:** Tabela `public.api_keys` com isolamento multi-tenant obrigatório por `tenant_id`, RLS estrito, chave hasheada em SHA-256 (`key_hash`), prefixo semântico visível (`key_prefix`), escopos em `TEXT[]` e quotas configuráveis (`rate_limit_rpm`). Migration local `20261105183000_phase_8_public_api_and_webhooks.sql`.
+- **Roteador e Endpoints Implementados:**
+  - `GET /v1/health`: Checagem operacional do gateway.
+  - `GET /v1/auth/verify`: Verificação de credencial, expiração e escopos atribuídos.
+  - `GET /v1/appointments` & `POST /v1/appointments`: Listagem filtrada por data e criação atômica com validação de double-booking de cadeira e cliente no mesmo tenant.
+  - `GET /v1/comandas` & `POST /v1/comandas`: Consulta detalhada com itens e abertura de comanda com derivação autoritativa de preços de catálogo (`services` e `products`) do tenant, garantindo resíduo zero contábil ($\Delta = \text{R\$} 0,00$).
+  - `GET /v1/services` & `GET /v1/products`: Descoberta de catálogo com suporte a escopos granulares (`services:read`, `products:read`) ou agrupados (`catalog:read`).
+- **Segurança e RBAC:** Validador `hasRequiredScope` com suporte a escopo único ou array alternativo; isolamento rigoroso por `tenant_id` injetado deterministicamente pelo contexto da API Key autenticada.
+
+### 7.2 Subfase 8.3 — Webhooks Outbox & Dispatcher (`supabase/functions/webhook-dispatcher/`)
+- **Modelagem SQL Canônica:** Tabelas `public.webhook_subscriptions` (assinaturas com segredo HMAC e lista de eventos) e `public.webhook_deliveries` (fila outbox com status, tentativas, timestamp de retry e payload JSONB), ambas sob políticas RLS estritas de tenant.
+- **Assinatura Criptográfica HMAC-SHA256:**
+  - Header canônico: `X-SMG-Signature: t={timestamp},v1={digestHex}` sobre a string `${timestamp}.${rawPayload}`.
+  - Geração via Web Crypto API nativa (`crypto.subtle`) compatível com Deno e Node.js 18+.
+  - Comparação em tempo constante (`constantTimeCompare`) para prevenção de timing attacks.
+  - Validador `verifyWebhookSignature` com janela de tolerância temporal (padrão 300s) mitigando replay attacks.
+- **Política de Retries com Backoff Exponencial Escalonado:**
+  - 1ª falha (attempts = 1): $+1\text{ minuto}$ ($+60\text{s}$)
+  - 2ª falha (attempts = 2): $+5\text{ minutos}$ ($+300\text{s}$)
+  - 3ª falha (attempts = 3): $+15\text{ minutos}$ ($+900\text{s}$)
+  - 4ª falha (attempts = 4): $+1\text{ hora}$ ($+3600\text{s}$)
+  - 5ª falha (attempts = 5): $+6\text{ horas}$ ($+21600\text{s}$)
+  - $\ge 6$ falhas: sem novos agendamentos (`next_retry_at = null`), transição definitiva para `status: 'failed'`.
+- **Garantias Operacionais de Despacho:**
+  - Timeout defensivo estrito de 8.000 ms via `AbortController` (retornando status 504 em caso de aborto).
+  - Truncamento seguro de `response_body` (máximo 1.024 caracteres).
+  - Header de identificação e rastreio: `X-SMG-Delivery-Id`, `X-SMG-Event`, `User-Agent: SMG-Webhook-Dispatcher/1.0`.
+
+### 7.3 Subfase 8.4 — Marketplace & Extensões (`services/marketplaceService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.marketplace_extensions` (catálogo geral com status, categorias e escopos requeridos), `public.tenant_extensions` (instalações por barbearia com consentimento explícito e configurações isoladas em JSONB) e `public.extension_reviews` (avaliações de reputação 1 a 5 estrelas vinculadas a `auth.uid()`), sob políticas RLS estritas (migration local `20261106012000_phase_8_marketplace_and_extensions.sql`).
+- **Camada de Aplicação:** Serviço `services/marketplaceService.ts` implementando descoberta com filtros por categoria e busca textual, busca por slug, RPC canônica de instalação atômica `install_marketplace_extension` com fallback defensivo, desinstalação segura, atualização de configurações e sistema de avaliações.
+
+### 7.4 Subfase 8.5 — Integrações Core & Conectores (`services/integrationService.ts`)
+- **Modelagem SQL Canônica:** Tabelas `public.integration_providers` (catálogo de provedores nativos homologados em gateways de pagamento, ERPs fiscais e CRMs), `public.tenant_integrations` (conexões ativas por barbearia com credenciais sensíveis isoladas) e `public.integration_sync_logs` (trilho de auditoria com direção, status, latência e external_ref_id), sob políticas RLS estritas e seed nativo (Mercado Pago, Asaas, ContaAzul, Omie, RD Station) na migration local `20261106020000_phase_8_core_integrations_and_connectors.sql`.
+- **Camada de Aplicação:** Serviço `services/integrationService.ts` com RPC atômica `record_integration_sync_event` para registro de auditoria e atualização de timestamps/erros da integração, configuração segura por tenant, desativação de conectores e listagem filtrada de histórico de sincronização.
+
+### 7.5 Matriz de Testes Unitários da Fase 8 (123 testes dedicados em `tests/unit/`)
+| Módulo Testado | Arquivo de Teste | Qtd Testes | Status |
+|----------------|------------------|:----------:|:------:|
+| Autenticação & Gateway | `tests/unit/api-gateway-auth.test.ts` | 20 | ✅ 100% PASS |
+| Agendamentos API | `tests/unit/api-gateway-appointments.test.ts` | 13 | ✅ 100% PASS |
+| Comandas API | `tests/unit/api-gateway-comandas.test.ts` | 16 | ✅ 100% PASS |
+| Catálogo (Serviços e Produtos) | `tests/unit/api-gateway-catalog.test.ts` | 15 | ✅ 100% PASS |
+| Webhook Dispatcher & HMAC | `tests/unit/webhook-dispatcher.test.ts` | 21 | ✅ 100% PASS |
+| Contrato OpenAPI 3.1 & Docs | `tests/unit/openapi-spec.test.ts` | 9 | ✅ 100% PASS |
+| Marketplace & Extensões | `tests/unit/marketplace-service.test.ts` | 16 | ✅ 100% PASS |
+| Conectores & Integrações Core | `tests/unit/integration-service.test.ts` | 13 | ✅ 100% PASS |
+| **Total Dedicado Fase 8** | **8 suítes** | **123** | **✅ 100% PASS** |
+
+### 7.6 Matriz Consolidada Master (`npm run smg:verify`)
+- **Typecheck (`tsc --noEmit`):** 0 erros.
+- **Architecture Guard:** Baseline 222 rigorosamente preservada.
+- **Unit Tests:** 149 arquivos de teste executados com sucesso (0 falhas).
+- **Secrets Audit:** 0 credenciais expostas.
+- **Migration Security:** 195 migrações auditadas sem desativação ou regressão de RLS.
+- **Multi-Tenant Invariant:** Rigorosamente assegurado em todas as rotas, tabelas, conectores e RPCs.
+
