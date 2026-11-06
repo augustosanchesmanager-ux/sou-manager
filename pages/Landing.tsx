@@ -14,29 +14,73 @@ const NAV_LINKS = [
 const ARCHITECTURE_CALLOUTS = [
   {
     id: '01',
+    code: '01',
     tag: '// 01 · OPERACIONAL',
     title: 'Cockpit de Bancada',
     desc: 'Agenda multiprofissional em tempo real, fila dinâmica de cadeiras e comandas ágeis.',
   },
   {
     id: '02',
+    code: 'ADR',
     tag: '// 02 · GOVERNANÇA',
     title: 'Fechamento Canônico',
     desc: 'Conferência cega de caixa, sangria, suprimento e rateio de comissão auditável (ADR-001).',
   },
   {
     id: '03',
+    code: 'MRR',
     tag: '// 03 · RECORRÊNCIA',
     title: 'Clube dos Chefes',
     desc: 'Assinaturas mensais no cartão com baixa automática de créditos diretamente na comanda.',
   },
   {
     id: '04',
+    code: 'IA',
     tag: '// 04 · INTELIGÊNCIA',
     title: 'IA Preditiva Gemini',
     desc: 'Diagnóstico contínuo de retenção, motor inteligente de retorno e ocupação da bancada.',
   },
 ];
+
+/**
+ * Componente de Modal Estilo Stockholm (Vidro Fumê Arredondado) com Ignição Elétrica Suave
+ */
+interface ElectricModalProps {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}
+
+const ElectricModal: React.FC<ElectricModalProps> = ({ children, className = '', delay = 0 }) => {
+  const [active, setActive] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setActive(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{ animationDelay: `${delay}ms` }}
+      className={`card-stockholm will-change-transform ${
+        active ? 'animate-electric' : 'opacity-0 translate-y-8'
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+};
 
 const MATURITY_PLANS = [
   {

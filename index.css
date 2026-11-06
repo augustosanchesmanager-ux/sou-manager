@@ -227,7 +227,7 @@ option {
 .font-code-light {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 300;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
 }
 
 .font-code-reg {
@@ -238,13 +238,99 @@ option {
 
 .font-code-bold {
   font-family: 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .font-code-mono {
   font-family: 'JetBrains Mono', 'Space Grotesk', monospace;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
+}
+
+/* ===== Stockholm / Scandinavian Atelier Dark Glass Modals ===== */
+.card-stockholm {
+  background: linear-gradient(180deg, rgba(26, 23, 20, 0.82) 0%, rgba(10, 9, 8, 0.94) 100%);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.15), 0 24px 60px rgba(0, 0, 0, 0.85);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-stockholm:hover {
+  border-color: rgba(217, 154, 43, 0.45);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.25), 0 28px 70px rgba(0, 0, 0, 0.95), 0 0 28px rgba(217, 154, 43, 0.18);
+  transform: translateY(-3px);
+}
+
+/* ===== Electrical Ignition & Power-Up Surge (Efeito Ligar por Eletricidade) ===== */
+@keyframes electric-power-up {
+  0% {
+    opacity: 0;
+    filter: brightness(0.2) blur(3px);
+    transform: translateY(32px) scale(0.96);
+    box-shadow: 0 0 0 rgba(217, 154, 43, 0);
+    border-color: rgba(255, 255, 255, 0.02);
+  }
+  25% {
+    opacity: 0.75;
+    filter: brightness(2.2) blur(0px);
+    box-shadow: 0 0 45px rgba(217, 154, 43, 0.8), inset 0 0 22px rgba(217, 154, 43, 0.4);
+    border-color: rgba(217, 154, 43, 0.95);
+  }
+  45% {
+    opacity: 0.88;
+    filter: brightness(0.9);
+    box-shadow: 0 0 18px rgba(217, 154, 43, 0.3);
+  }
+  65% {
+    opacity: 1;
+    filter: brightness(1.7);
+    box-shadow: 0 0 38px rgba(217, 154, 43, 0.65), inset 0 0 18px rgba(217, 154, 43, 0.3);
+    border-color: rgba(217, 154, 43, 0.85);
+  }
+  85% {
+    filter: brightness(1.15);
+    box-shadow: 0 0 24px rgba(217, 154, 43, 0.35);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+    transform: translateY(0) scale(1);
+    box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.15), 0 24px 60px rgba(0, 0, 0, 0.85);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.animate-electric {
+  animation: electric-power-up 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes electric-text-surge {
+  0% {
+    opacity: 0;
+    text-shadow: 0 0 0 rgba(217, 154, 43, 0);
+    transform: translateY(16px);
+  }
+  30% {
+    opacity: 0.85;
+    text-shadow: 0 0 18px rgba(217, 154, 43, 0.85), 0 0 32px rgba(255, 255, 255, 0.7);
+  }
+  60% {
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(217, 154, 43, 0.4);
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 1;
+    text-shadow: none;
+    transform: translateY(0);
+  }
+}
+
+.animate-electric-text {
+  animation: electric-text-surge 0.75s ease-out forwards;
 }
 
 .card-hud {
