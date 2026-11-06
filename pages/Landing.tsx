@@ -4,22 +4,27 @@ import { useAuth } from '../context/AuthContext';
 import LandingSupportWidget from '../components/LandingSupportWidget';
 
 /**
- * Player de Sequência de Frames (Canvas 24fps)
- * Renderiza os 40 quadros 3D da pasta /Loop em ciclo suave e contínuo.
+ * Player de Sequência de Frames em Tela Cheia (Canvas)
+ * Reproduz em ritmo cinematográfico suave (12fps) do frame 001 ao 041,
+ * e permanece estático no frame 041 até que o usuário clique em "EXPLORAR...".
  */
-const FrameSequencePlayer: React.FC = () => {
+interface FrameSequencePlayerProps {
+  onSequenceComplete?: () => void;
+}
+
+const FrameSequencePlayer: React.FC<FrameSequencePlayerProps> = ({ onSequenceComplete }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [loadedPercent, setLoadedPercent] = useState<number>(0);
 
   useEffect(() => {
     let animationFrameId: number;
     let isMounted = true;
-    const totalFrames = 40;
+    const totalFrames = 41;
     const images: HTMLImageElement[] = [];
     let loadedCount = 0;
     let currentFrame = 0;
     let lastTime = 0;
-    const fps = 24;
+    const fps = 12; // Ritmo mais lento e majestoso
     const interval = 1000 / fps;
 
     for (let i = 1; i <= totalFrames; i++) {
@@ -31,9 +36,10 @@ const FrameSequencePlayer: React.FC = () => {
         loadedCount++;
         setLoadedPercent(Math.round((loadedCount / totalFrames) * 100));
         if (loadedCount === 1 && canvasRef.current) {
-          const ctx = canvasRef.current.getContext('2d');
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           }
         }
       };
@@ -42,18 +48,29 @@ const FrameSequencePlayer: React.FC = () => {
 
     const render = (time: number) => {
       if (!isMounted) return;
+
       if (time - lastTime >= interval) {
         lastTime = time;
         const canvas = canvasRef.current;
+
         if (canvas && images[currentFrame] && images[currentFrame].complete) {
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(images[currentFrame], 0, 0, canvas.width, canvas.height);
           }
-          currentFrame = (currentFrame + 1) % totalFrames;
+
+          // Avança até o último frame (041) e para estático nele
+          if (currentFrame < totalFrames - 1) {
+            currentFrame++;
+          } else {
+            if (onSequenceComplete) {
+              onSequenceComplete();
+            }
+          }
         }
       }
+
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -63,18 +80,18 @@ const FrameSequencePlayer: React.FC = () => {
       isMounted = false;
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [onSequenceComplete]);
 
   return (
-    <div className="relative w-full max-w-3xl lg:max-w-4xl mx-auto aspect-video flex items-center justify-center">
+    <div className="relative w-full h-full flex items-center justify-center">
       <canvas
         ref={canvasRef}
-        width={1280}
-        height={720}
-        className="w-full h-full object-contain drop-shadow-[0_0_60px_rgba(217,154,43,0.32)]"
+        width={1672}
+        height={941}
+        className="w-full h-full max-h-[82vh] object-contain drop-shadow-[0_0_80px_rgba(217,154,43,0.35)] transition-transform duration-700"
       />
       {loadedPercent < 100 && (
-        <div className="absolute bottom-2 right-4 text-[10px] font-code-mono text-slate-500 tracking-widest">
+        <div className="absolute bottom-4 right-6 text-[10px] font-code-mono text-slate-500 tracking-widest uppercase">
           CARREGANDO {loadedPercent}%
         </div>
       )}
@@ -83,7 +100,7 @@ const FrameSequencePlayer: React.FC = () => {
 };
 
 /**
- * Componente de revelação fluida ativado pelo scroll do mouse.
+ * Componente de revelação suave com IntersectionObserver
  */
 interface ScrollRevealProps {
   children: React.ReactNode;
@@ -231,6 +248,7 @@ const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [activeNav, setActiveNav] = useState('SISTEMA');
+  const [hasExplored, setHasExplored] = useState(false);
 
   useEffect(() => {
     if (session) navigate('/dashboard');
@@ -238,7 +256,12 @@ const Landing: React.FC = () => {
 
   useEffect(() => {
     const onScroll = () => {
-      setScrolled(window.scrollY > 30);
+      if (window.scrollY > 40) {
+        setScrolled(true);
+        setHasExplored(true);
+      } else {
+        setScrolled(false);
+      }
 
       const sections = NAV_LINKS.map(link => ({
         id: link.href.substring(1),
@@ -269,6 +292,7 @@ const Landing: React.FC = () => {
 
   const handleExploreClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
+    setHasExplored(true);
     const target = document.getElementById('conteudo');
     if (target) {
       target.scrollIntoView({ behavior: 'smooth' });
@@ -278,21 +302,14 @@ const Landing: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#060504] text-white font-sans selection:bg-primary/30 relative overflow-x-hidden">
 
-      {/* Grid técnico no fundo */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03] -z-10"
-        style={{
-          backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }}
-      />
-
-      {/* ═══ NAVBAR TELEMETRIA ATELIER ═══ */}
+      {/* ═══ NAVBAR TELEMETRIA ATELIER (OCULTA NO PRIMEIRO MOMENTO, VISÍVEL AO EXPLORAR) ═══ */}
       <nav
-        className={`fixed w-full top-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? 'bg-[#060504]/95 backdrop-blur-xl border-b border-border-dark py-3 shadow-2xl'
-            : 'bg-transparent py-5'
+        className={`fixed w-full top-0 z-50 transition-all duration-700 ease-out ${
+          hasExplored
+            ? scrolled
+              ? 'bg-[#060504]/95 backdrop-blur-xl py-3 shadow-2xl opacity-100 translate-y-0'
+              : 'bg-transparent py-5 opacity-100 translate-y-0'
+            : 'opacity-0 -translate-y-12 pointer-events-none'
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
@@ -318,9 +335,6 @@ const Landing: React.FC = () => {
                 }`}
               >
                 {link.label}
-                {activeNav === link.label && (
-                  <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(217,154,43,0.7)]" />
-                )}
               </a>
             ))}
           </div>
@@ -329,7 +343,7 @@ const Landing: React.FC = () => {
           <div className="flex items-center gap-3">
             <Link
               to="/portal"
-              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-code-mono tracking-widest text-slate-400 hover:text-primary transition-colors py-2 px-3 rounded-lg hover:bg-card-dark border border-transparent hover:border-border-dark"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-code-mono tracking-widest text-slate-400 hover:text-primary transition-colors py-2 px-3 rounded-lg hover:bg-card-dark"
             >
               <span className="material-symbols-outlined text-sm text-primary">hub</span>
               PORTAL
@@ -353,93 +367,56 @@ const Landing: React.FC = () => {
         </div>
       </nav>
 
-      {/* ═══ HERO SECTION: SEQUÊNCIA 3D EM LOOP + BOTÃO EXPLORAR ═══ */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center pt-24 pb-12 px-6 overflow-hidden">
+      {/* ═══ HERO EM TELA CHEIA (PRIMEIRO MOMENTO: ANIMAÇÃO 3D ATÉ FRAME 041 + EXPLORAR) ═══ */}
+      <section className="relative w-screen h-screen flex flex-col justify-between items-center py-8 px-6 overflow-hidden">
 
-        {/* Brilho atmosférico central */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[650px] bg-primary/10 blur-[160px] pointer-events-none rounded-full -z-10" />
+        {/* Brilho de fundo suave */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-primary/10 blur-[180px] pointer-events-none rounded-full -z-10" />
 
-        <div className="max-w-5xl mx-auto w-full text-center flex flex-col items-center justify-center my-auto">
-
-          {/* Eyebrow Code Pro Light */}
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="w-6 h-px bg-primary" />
-            <span className="text-[11px] font-code-mono tracking-[0.25em] text-primary uppercase">
-              SMG BARBER INTELLIGENCE
-            </span>
-            <span className="w-6 h-px bg-primary" />
-          </div>
-
-          {/* Tipografia Code Pro: LIGHT + BOLD */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.08] mb-3">
-            <span className="font-code-light block text-slate-300">ALÉM DO CORTE.</span>
-            <span className="font-code-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
-              GESTÃO INTELIGENTE
-            </span>
-            <span className="text-primary font-code-bold">.</span>
-          </h1>
-
-          {/* PLAYER EM LOOP 3D DOS 40 FRAMES */}
-          <div className="w-full my-2 sm:my-4">
-            <FrameSequencePlayer />
-          </div>
-
-          {/* O BOTÃO EXPLORAR EM DESTAQUE */}
-          <div className="mt-2 flex flex-col items-center gap-3">
-            <a
-              href="#conteudo"
-              onClick={handleExploreClick}
-              className="group inline-flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-night font-code-mono font-bold text-xs uppercase tracking-[0.25em] rounded-lg transition-all shadow-smg-glow hover:-translate-y-1 cursor-pointer"
-            >
-              <span>EXPLORAR...</span>
-              <span className="material-symbols-outlined text-sm font-black transition-transform duration-300 group-hover:translate-y-1">
-                arrow_downward
-              </span>
-            </a>
-            <p className="text-[11px] font-code-mono tracking-widest text-slate-400">
-              CLIQUE PARA CONHECER A PLATAFORMA
-            </p>
-          </div>
-
+        {/* Logotipo Inicial no Topo da Tela Cheia */}
+        <div className="pt-2 z-20">
+          <img
+            src="/branding/smg-barber-intelligence-logo.png"
+            alt="SMG Barber Intelligence"
+            className="h-9 sm:h-11 w-auto object-contain mx-auto"
+          />
         </div>
 
-        {/* Telemetria de Rodapé da Seção */}
-        <div className="max-w-7xl mx-auto w-full pt-6 mt-8 border-t border-border-dark grid grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-          <div>
-            <p className="text-[10px] font-code-mono tracking-[0.2em] uppercase text-slate-400">SEGURANÇA</p>
-            <p className="text-sm font-bold text-white mt-0.5">Multi-Tenant RLS</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-code-mono tracking-[0.2em] uppercase text-slate-400">GOVERNANÇA</p>
-            <p className="text-sm font-bold text-white mt-0.5">Norma ADR-001</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-code-mono tracking-[0.2em] uppercase text-slate-400">RECORRÊNCIA</p>
-            <p className="text-sm font-bold text-white mt-0.5">Clube dos Chefes</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-code-mono tracking-[0.2em] uppercase text-slate-400">LATÊNCIA</p>
-            <p className="text-sm font-bold text-emerald-400 mt-0.5">Tempo Real</p>
-          </div>
+        {/* SEQUÊNCIA 3D EM TELA CHEIA ATÉ O FRAME 041 */}
+        <div className="w-full flex-1 flex items-center justify-center my-auto z-10">
+          <FrameSequencePlayer />
+        </div>
+
+        {/* O BOTÃO EXPLORAR EM DESTAQUE */}
+        <div className="pb-4 z-20 flex flex-col items-center gap-2 text-center">
+          <a
+            href="#conteudo"
+            onClick={handleExploreClick}
+            className="group inline-flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary-light text-night font-code-mono font-bold text-xs uppercase tracking-[0.25em] rounded-lg transition-all shadow-smg-glow hover:-translate-y-1 cursor-pointer"
+          >
+            <span>EXPLORAR...</span>
+            <span className="material-symbols-outlined text-sm font-black transition-transform duration-300 group-hover:translate-y-1">
+              arrow_downward
+            </span>
+          </a>
+          <p className="text-[10px] font-code-mono tracking-widest text-slate-400 uppercase">
+            CLIQUE PARA CONHECER A PLATAFORMA
+          </p>
         </div>
 
       </section>
 
-      {/* ═══ CONTEÚDO PRINCIPAL (REDUZIDO, DIRETO E ELEGANTE) ═══ */}
+      {/* ═══ CONTEÚDO PRINCIPAL (REVELADO AO CLICAR EM EXPLORAR, SEM LINHAS DE SEPARAÇÃO) ═══ */}
       <div id="conteudo">
 
         {/* ═══ SEÇÃO: ARQUITETURA EM 4 CAMADAS ═══ */}
-        <section id="arquitetura" className="py-24 lg:py-32 px-6 relative border-t border-border-dark bg-[#070605]">
+        <section id="arquitetura" className="py-24 lg:py-32 px-6 relative bg-[#060504]">
           <div className="max-w-7xl mx-auto">
 
             <div className="mb-16 text-center max-w-2xl mx-auto">
-              <div className="inline-flex items-center gap-2 mb-2">
-                <span className="w-5 h-px bg-primary" />
-                <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase">
-                  ARQUITETURA DO SISTEMA
-                </span>
-                <span className="w-5 h-px bg-primary" />
-              </div>
+              <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-2">
+                ARQUITETURA DO SISTEMA
+              </span>
               <h2 className="text-3xl sm:text-4xl font-code-bold text-white tracking-tight mb-3">
                 UMA PLATAFORMA. QUATRO CAMADAS.
               </h2>
@@ -455,7 +432,7 @@ const Landing: React.FC = () => {
               <div className="lg:col-span-3 space-y-6 order-2 lg:order-1">
                 {ARCHITECTURE_CALLOUTS.filter(c => c.side === 'left').map(item => (
                   <ScrollReveal key={item.id} delay={100}>
-                    <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark hover:border-primary/50 transition-all">
+                    <div className="p-5 rounded-xl bg-card-dark/80 hover:bg-card-dark transition-all">
                       <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">{item.tag}</p>
                       <h3 className="text-base font-bold text-white mb-1.5">{item.title}</h3>
                       <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
@@ -480,7 +457,7 @@ const Landing: React.FC = () => {
               <div className="lg:col-span-3 space-y-6 order-3">
                 {ARCHITECTURE_CALLOUTS.filter(c => c.side === 'right').map(item => (
                   <ScrollReveal key={item.id} delay={200}>
-                    <div className="p-5 rounded-xl bg-card-dark/80 border border-border-dark hover:border-primary/50 transition-all">
+                    <div className="p-5 rounded-xl bg-card-dark/80 hover:bg-card-dark transition-all">
                       <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">{item.tag}</p>
                       <h3 className="text-base font-bold text-white mb-1.5">{item.title}</h3>
                       <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
@@ -495,7 +472,7 @@ const Landing: React.FC = () => {
         </section>
 
         {/* ═══ SEÇÃO: COCKPIT OPERACIONAL (SIMPLIFICADO) ═══ */}
-        <section id="cockpit" className="py-20 px-6 border-t border-border-dark bg-[#060504]">
+        <section id="cockpit" className="py-20 px-6 bg-[#060504]">
           <div className="max-w-7xl mx-auto">
 
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
@@ -513,10 +490,10 @@ const Landing: React.FC = () => {
             </div>
 
             <ScrollReveal delay={100}>
-              <div className="rounded-xl border border-border-dark bg-night overflow-hidden shadow-2xl">
+              <div className="rounded-xl bg-night overflow-hidden shadow-2xl">
 
                 {/* Topbar */}
-                <div className="bg-card-dark px-5 py-3 border-b border-border-dark flex items-center justify-between text-xs font-code-mono">
+                <div className="bg-card-dark px-5 py-3 flex items-center justify-between text-xs font-code-mono">
                   <span className="text-slate-300 font-bold">ATELIER SANCHEZ — UNIDADE PRINCIPAL</span>
                   <span className="text-emerald-400 flex items-center gap-1.5">
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -525,20 +502,20 @@ const Landing: React.FC = () => {
                 </div>
 
                 {/* KPI Strip */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border-dark text-left">
-                  <div className="bg-night p-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 text-left">
+                  <div className="bg-card-dark p-4 rounded-lg">
                     <p className="text-[10px] font-code-mono text-slate-400 uppercase">FATURAMENTO HOJE</p>
                     <p className="text-xl font-bold text-white mt-0.5">R$ 4.850,00</p>
                   </div>
-                  <div className="bg-night p-4">
+                  <div className="bg-card-dark p-4 rounded-lg">
                     <p className="text-[10px] font-code-mono text-slate-400 uppercase">OCUPAÇÃO</p>
                     <p className="text-xl font-bold text-primary mt-0.5">94%</p>
                   </div>
-                  <div className="bg-night p-4">
+                  <div className="bg-card-dark p-4 rounded-lg">
                     <p className="text-[10px] font-code-mono text-slate-400 uppercase">TICKET MÉDIO</p>
                     <p className="text-xl font-bold text-white mt-0.5">R$ 173,20</p>
                   </div>
-                  <div className="bg-night p-4">
+                  <div className="bg-card-dark p-4 rounded-lg">
                     <p className="text-[10px] font-code-mono text-slate-400 uppercase">CLUBE DOS CHEFES</p>
                     <p className="text-xl font-bold text-amber-400 mt-0.5">142 Membros</p>
                   </div>
@@ -548,7 +525,7 @@ const Landing: React.FC = () => {
                 <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 bg-card-dark/30">
 
                   <div className="lg:col-span-8 space-y-2.5">
-                    <div className="bg-card-dark p-3.5 rounded-lg border border-border-dark flex items-center justify-between">
+                    <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#C98A1F' }}>
                           GB
@@ -561,7 +538,7 @@ const Landing: React.FC = () => {
                       <span className="text-xs font-code-mono font-bold text-primary">R$ 160,00</span>
                     </div>
 
-                    <div className="bg-card-dark p-3.5 rounded-lg border border-border-dark flex items-center justify-between">
+                    <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#10B981' }}>
                           MS
@@ -574,7 +551,7 @@ const Landing: React.FC = () => {
                       <span className="text-xs font-code-mono font-bold text-amber-400">PLANO CLUBE</span>
                     </div>
 
-                    <div className="bg-card-dark p-3.5 rounded-lg border border-border-dark flex items-center justify-between">
+                    <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#F59E0B' }}>
                           RO
@@ -588,9 +565,9 @@ const Landing: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-4 bg-night p-4 rounded-lg border border-border-dark flex flex-col justify-between">
+                  <div className="lg:col-span-4 bg-night p-4 rounded-lg flex flex-col justify-between">
                     <div>
-                      <div className="flex justify-between items-center pb-2 border-b border-border-dark text-xs font-code-mono">
+                      <div className="flex justify-between items-center pb-2 text-xs font-code-mono">
                         <span className="font-bold text-white">COMANDA #1042</span>
                         <span className="text-primary">EM ATENDIMENTO</span>
                       </div>
@@ -609,7 +586,7 @@ const Landing: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="pt-2 border-t border-border-dark flex justify-between text-xs font-code-mono font-bold">
+                    <div className="pt-2 flex justify-between text-xs font-code-mono font-bold">
                       <span className="text-slate-400">Total</span>
                       <span className="text-primary">R$ 215,00</span>
                     </div>
@@ -624,7 +601,7 @@ const Landing: React.FC = () => {
         </section>
 
         {/* ═══ SEÇÃO: CLUBE DOS CHEFES (RECORRÊNCIA MRR) ═══ */}
-        <section id="clube" className="py-20 lg:py-28 px-6 border-t border-border-dark bg-[#070605]">
+        <section id="clube" className="py-20 lg:py-28 px-6 bg-[#060504]">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
 
             <div className="lg:col-span-6">
@@ -656,16 +633,16 @@ const Landing: React.FC = () => {
 
             {/* 3 Níveis de Membro em Cards Enxutos */}
             <div className="lg:col-span-6 space-y-3">
-              <div className="p-4 rounded-lg bg-card-dark border border-border-dark flex items-center justify-between text-xs">
+              <div className="p-4 rounded-lg bg-card-dark flex items-center justify-between text-xs">
                 <div>
                   <p className="font-code-mono text-[10px] text-slate-400">NÍVEL 01</p>
                   <p className="font-bold text-white">Plano Clássico</p>
                   <p className="text-slate-400 text-[11px]">Cortes programados no mês</p>
                 </div>
-                <span className="font-code-mono text-[10px] text-primary border border-primary/30 px-2.5 py-1 rounded">RECORRÊNCIA</span>
+                <span className="font-code-mono text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded">RECORRÊNCIA</span>
               </div>
 
-              <div className="p-4 rounded-lg bg-card-dark border border-primary/50 flex items-center justify-between text-xs shadow-smg-glow/20">
+              <div className="p-4 rounded-lg bg-card-dark flex items-center justify-between text-xs shadow-smg-glow/20">
                 <div>
                   <p className="font-code-mono text-[10px] text-primary">NÍVEL 02 · MAIS ESCOLHIDO</p>
                   <p className="font-bold text-white">Plano Gentleman</p>
@@ -674,13 +651,13 @@ const Landing: React.FC = () => {
                 <span className="font-code-mono text-[10px] bg-primary text-night font-bold px-2.5 py-1 rounded">VIP CLUB</span>
               </div>
 
-              <div className="p-4 rounded-lg bg-card-dark border border-border-dark flex items-center justify-between text-xs">
+              <div className="p-4 rounded-lg bg-card-dark flex items-center justify-between text-xs">
                 <div>
                   <p className="font-code-mono text-[10px] text-amber-400">NÍVEL 03</p>
                   <p className="font-bold text-white">Black Chef Exclusive</p>
                   <p className="text-slate-400 text-[11px]">Experiência ilimitada na bancada</p>
                 </div>
-                <span className="font-code-mono text-[10px] text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded">ATELIER TOP</span>
+                <span className="font-code-mono text-[10px] text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded">ATELIER TOP</span>
               </div>
             </div>
 
@@ -688,7 +665,7 @@ const Landing: React.FC = () => {
         </section>
 
         {/* ═══ SEÇÃO: PLANOS POR MATURIDADE OPERACIONAL ═══ */}
-        <section id="planos" className="py-24 px-6 border-t border-border-dark bg-[#060504]">
+        <section id="planos" className="py-24 px-6 bg-[#060504]">
           <div className="max-w-7xl mx-auto">
 
             <div className="text-center max-w-xl mx-auto mb-16">
@@ -709,8 +686,8 @@ const Landing: React.FC = () => {
                   <div
                     className={`flex flex-col p-6 sm:p-8 rounded-xl relative transition-all duration-300 h-full ${
                       plan.highlight
-                        ? 'bg-gradient-to-b from-card-dark to-[#060504] border-2 border-primary/60 shadow-xl shadow-primary/10'
-                        : 'bg-card-dark/80 border border-border-dark'
+                        ? 'bg-gradient-to-b from-card-dark to-[#060504] shadow-xl shadow-primary/10'
+                        : 'bg-card-dark/80'
                     }`}
                   >
                     {plan.highlight && (
@@ -727,7 +704,7 @@ const Landing: React.FC = () => {
                       <p className="text-slate-300 text-xs leading-relaxed">{plan.desc}</p>
                     </div>
 
-                    <div className="flex-1 space-y-2.5 my-4 pt-4 border-t border-border-dark">
+                    <div className="flex-1 space-y-2.5 my-4 pt-4">
                       {plan.features.map(feat => (
                         <div key={feat} className="flex items-start gap-2.5 text-xs text-slate-300">
                           <span className="material-symbols-outlined text-primary text-sm shrink-0 mt-0.5">
@@ -747,7 +724,7 @@ const Landing: React.FC = () => {
                       className={`w-full py-3.5 rounded-lg font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
                         plan.highlight
                           ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
-                          : 'bg-surface-dark hover:bg-card-dark text-white border border-border-dark hover:border-primary/50'
+                          : 'bg-surface-dark hover:bg-card-dark text-white'
                       }`}
                     >
                       {plan.cta}
@@ -762,10 +739,10 @@ const Landing: React.FC = () => {
 
       </div>
 
-      {/* ═══ RODAPÉ TELEMETRIA ATELIER ═══ */}
-      <footer className="bg-[#040302] border-t border-border-dark py-14 px-6">
+      {/* ═══ RODAPÉ TELEMETRIA ATELIER (SEM LINHAS DE SEPARAÇÃO) ═══ */}
+      <footer className="bg-[#040302] py-14 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-border-dark">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10">
 
             <div className="md:col-span-5">
               <div className="mb-4">
