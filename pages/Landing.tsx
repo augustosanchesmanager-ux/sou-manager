@@ -374,241 +374,331 @@ const Landing: React.FC = () => {
 
       </section>
 
-      {/* ═══ CONTEÚDO QUE SOBE AO ROLAR O MOUSE (SEM LINHAS DE SEPARAÇÃO) ═══ */}
+      {/* ═══ CONTEÚDO QUE SOBE AO ROLAR O MOUSE (FLANCOS LATERAIS COM CENTRO LIVRE) ═══ */}
       <div id="conteudo" className="relative z-10">
 
-        {/* ═══ BLOCO DE INTRODUÇÃO (SURGE NA SUBIDA DO SCROLL) ═══ */}
-        <section className="py-28 px-6 text-center max-w-4xl mx-auto">
-          <div className="p-8 sm:p-12 rounded-2xl bg-card-dark/70 backdrop-blur-md shadow-2xl">
-            <span className="text-[10px] font-code-mono tracking-[0.25em] text-primary uppercase block mb-3">
-              SMG BARBER INTELLIGENCE
-            </span>
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.08] mb-6">
-              <span className="font-code-light block text-slate-300">ALÉM DO CORTE.</span>
-              <span className="font-code-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
-                GESTÃO INTELIGENTE
-              </span>
-              <span className="text-primary font-code-bold">.</span>
-            </h1>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto font-code-reg">
-              Engenharia de precisão para barbearias de alto padrão. Agenda multiprofissional em tempo real, fechamento de caixa auditável e motor de recorrência.
-            </p>
-          </div>
-        </section>
+        {/* ═══ BLOCO DE INTRODUÇÃO: FLANCOS LATERAIS COM CENTRO LIVRE PARA O 3D ═══ */}
+        <section className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[500px]">
 
-        {/* ═══ SEÇÃO: ARQUITETURA EM 4 CAMADAS ═══ */}
-        <section id="arquitetura" className="py-24 px-6 relative">
-          <div className="max-w-7xl mx-auto">
-
-            <div className="mb-16 text-center max-w-2xl mx-auto">
-              <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-2">
-                ARQUITETURA DO SISTEMA
+            {/* Flanco Esquerdo: Manifesto Tecnológico */}
+            <div className="lg:col-span-5 card-hud p-8 rounded-2xl">
+              <span className="text-[10px] font-code-mono tracking-[0.25em] text-primary uppercase block mb-2">
+                // 01 · NÚCLEO OPERACIONAL
               </span>
-              <h2 className="text-3xl sm:text-4xl font-code-bold text-white tracking-tight mb-3">
-                UMA PLATAFORMA. QUATRO CAMADAS.
-              </h2>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-code-reg">
-                Módulos integrados sem atrito operacional entre a recepção e a bancada.
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-code-bold text-white tracking-tight leading-[1.1] mb-4">
+                ALÉM DO CORTE.
+                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-light to-amber-200">
+                  GESTÃO INTELIGENTE.
+                </span>
+              </h1>
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-code-reg mb-6">
+                Engenharia de precisão para barbearias de alto padrão. Agenda multiprofissional em tempo real, fechamento de caixa auditável e motor de recorrência.
               </p>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://wa.me/5511978496799?text=Ol%C3%A1%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20guiada%20do%20SMG%20Barber%20Intelligence."
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-5 py-2.5 bg-primary hover:bg-primary-light text-night text-xs font-code-mono font-bold tracking-widest uppercase rounded-lg transition-all shadow-smg-glow"
+                >
+                  AGENDAR DEMO
+                </a>
+                <a
+                  href="#arquitetura"
+                  onClick={(e) => handleNavClick(e, '#arquitetura', 'ARQUITETURA')}
+                  className="px-4 py-2.5 text-xs font-code-mono text-slate-400 hover:text-white transition-colors"
+                >
+                  SISTEMA ↓
+                </a>
+              </div>
             </div>
 
-            {/* Grid Enxuto das 4 Camadas sem Linhas Harsh */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {ARCHITECTURE_CALLOUTS.map(item => (
-                <div key={item.id} className="p-6 rounded-xl bg-card-dark/80 backdrop-blur-md hover:bg-card-dark transition-all">
-                  <p className="text-[10px] font-code-mono tracking-widest text-primary mb-2">{item.tag}</p>
-                  <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
-                  <p className="text-xs text-slate-300 leading-relaxed font-code-reg">{item.desc}</p>
+            {/* Centro: CORREDOR 100% LIVRE PARA O 3D DA CADEIRA / CHIP */}
+            <div className="hidden lg:block lg:col-span-3 pointer-events-none" />
+
+            {/* Flanco Direito: Telemetria Técnica e Indicadores */}
+            <div className="lg:col-span-4 space-y-3.5">
+              <div className="card-hud p-4 rounded-xl">
+                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
+                  <span>DISPONIBILIDADE DO SISTEMA</span>
+                  <span className="text-emerald-400 font-bold">99.8% UPTIME</span>
                 </div>
-              ))}
+                <p className="text-xs font-code-bold text-white">OPERAÇÃO EM TEMPO REAL</p>
+                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Sincronização instantânea entre recepção e bancada.</p>
+              </div>
+
+              <div className="card-hud p-4 rounded-xl">
+                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
+                  <span>GOVERNANÇA FINANCEIRA</span>
+                  <span className="text-primary font-bold">NORMA ADR-001</span>
+                </div>
+                <p className="text-xs font-code-bold text-white">FECHAMENTO AUDITÁVEL</p>
+                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Separação rigorosa entre comissão teórica e rateio de caixa.</p>
+              </div>
+
+              <div className="card-hud p-4 rounded-xl">
+                <div className="flex items-center justify-between text-[10px] font-code-mono text-slate-400 mb-1">
+                  <span>MOTOR DE RECORRÊNCIA</span>
+                  <span className="text-amber-400 font-bold">MRR GARANTIDO</span>
+                </div>
+                <p className="text-xs font-code-bold text-white">CLUBE DOS CHEFES INTEGRADO</p>
+                <p className="text-[11px] text-slate-400 font-code-reg mt-0.5">Cobrança automática no cartão e baixa na comanda.</p>
+              </div>
             </div>
 
           </div>
         </section>
 
-        {/* ═══ SEÇÃO: COCKPIT OPERACIONAL EM TEMPO REAL ═══ */}
-        <section id="cockpit" className="py-20 px-6">
-          <div className="max-w-7xl mx-auto">
+        {/* ═══ SEÇÃO: ARQUITETURA EM 4 CAMADAS (FLANCOS LATERAIS COM CENTRO 100% LIVRE) ═══ */}
+        <section id="arquitetura" className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[550px]">
 
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-              <div>
+            {/* Flanco Esquerdo: Camadas 01 e 02 */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="mb-4">
                 <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
-                  COCKPIT EM TEMPO REAL
+                  // 02 · ARQUITETURA DO SISTEMA
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight">
+                  UMA PLATAFORMA.
+                  <span className="block text-slate-400">QUATRO CAMADAS.</span>
+                </h2>
+                <p className="text-xs text-slate-400 font-code-reg mt-1">
+                  Módulos integrados sem atrito entre recepção e bancada.
+                </p>
+              </div>
+
+              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
+                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
+                  {ARCHITECTURE_CALLOUTS[0].tag}
+                </p>
+                <h3 className="text-base font-code-bold text-white mb-1.5">
+                  {ARCHITECTURE_CALLOUTS[0].title}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                  {ARCHITECTURE_CALLOUTS[0].desc}
+                </p>
+              </div>
+
+              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
+                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
+                  {ARCHITECTURE_CALLOUTS[1].tag}
+                </p>
+                <h3 className="text-base font-code-bold text-white mb-1.5">
+                  {ARCHITECTURE_CALLOUTS[1].title}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                  {ARCHITECTURE_CALLOUTS[1].desc}
+                </p>
+              </div>
+            </div>
+
+            {/* Centro: CORREDOR 100% LIVRE — O 3D DA CADEIRA FICA TOTALMENTE DESOBSTRUÍDO */}
+            <div className="hidden lg:block lg:col-span-4 pointer-events-none" />
+
+            {/* Flanco Direito: Camadas 03 e 04 */}
+            <div className="lg:col-span-4 space-y-4 lg:pt-12">
+              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
+                <p className="text-[10px] font-code-mono tracking-widest text-amber-400 mb-1">
+                  {ARCHITECTURE_CALLOUTS[2].tag}
+                </p>
+                <h3 className="text-base font-code-bold text-white mb-1.5">
+                  {ARCHITECTURE_CALLOUTS[2].title}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                  {ARCHITECTURE_CALLOUTS[2].desc}
+                </p>
+              </div>
+
+              <div className="card-hud card-hud-hover p-5 rounded-xl transition-all">
+                <p className="text-[10px] font-code-mono tracking-widest text-primary mb-1">
+                  {ARCHITECTURE_CALLOUTS[3].tag}
+                </p>
+                <h3 className="text-base font-code-bold text-white mb-1.5">
+                  {ARCHITECTURE_CALLOUTS[3].title}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed font-code-reg">
+                  {ARCHITECTURE_CALLOUTS[3].desc}
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* ═══ SEÇÃO: COCKPIT OPERACIONAL (FLANCOS LATERAIS COM CENTRO LIVRE) ═══ */}
+        <section id="cockpit" className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[550px]">
+
+            {/* Flanco Esquerdo: Gestão de Cadeiras em Tempo Real */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="mb-4">
+                <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
+                  // 03 · COCKPIT OPERACIONAL
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight">
                   CONTROLE TOTAL DA BANCADA.
                 </h2>
+                <p className="text-slate-400 text-xs font-code-reg mt-1">
+                  Visão unificada de atendimento por cadeira, fila dinâmica e comandas digitais.
+                </p>
               </div>
-              <p className="text-slate-400 text-xs max-w-sm leading-relaxed font-code-reg">
-                Agenda, fila de cadeiras e comandas unificadas para dono, gerente e equipe.
-              </p>
+
+              <div className="card-hud p-4 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5 text-[10px] font-code-mono">
+                  <span className="text-slate-300 font-bold">CADEIRAS EM ATENDIMENTO</span>
+                  <span className="text-emerald-400 flex items-center gap-1 font-bold">
+                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    AO VIVO
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 rounded-md bg-primary text-night font-bold text-xs flex items-center justify-center font-code-mono">01</div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Guilherme Bastos</p>
+                      <p className="text-[11px] text-slate-400 font-code-reg">Degradê Navalhado + Barboterapia</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-code-mono font-bold text-primary">R$ 160,00</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 rounded-md bg-emerald-500 text-night font-bold text-xs flex items-center justify-center font-code-mono">02</div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Mateus Silva</p>
+                      <p className="text-[11px] text-slate-400 font-code-reg">Alinhamento Clássico (Membro Gold)</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-code-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">PLANO CLUBE</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-black/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 rounded-md bg-amber-500 text-night font-bold text-xs flex items-center justify-center font-code-mono">03</div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Rafael Oliveira</p>
+                      <p className="text-[11px] text-slate-400 font-code-reg">Combo Chef + Pomada Matte</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-code-mono font-bold text-primary">R$ 215,00</span>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-xl bg-card-dark/90 backdrop-blur-md overflow-hidden shadow-2xl">
+            {/* Centro: CORREDOR LIVRE */}
+            <div className="hidden lg:block lg:col-span-2 pointer-events-none" />
 
-              {/* Topbar */}
-              <div className="bg-night/80 px-5 py-3 flex items-center justify-between text-xs font-code-mono">
-                <span className="text-slate-300 font-bold">ATELIER SANCHEZ — UNIDADE PRINCIPAL</span>
-                <span className="text-emerald-400 flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  TEMPO REAL ATIVO
-                </span>
-              </div>
-
-              {/* KPI Strip */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 text-left">
-                <div className="bg-card-dark p-4 rounded-lg">
-                  <p className="text-[10px] font-code-mono text-slate-400 uppercase">FATURAMENTO HOJE</p>
-                  <p className="text-xl font-bold text-white mt-0.5">R$ 4.850,00</p>
+            {/* Flanco Direito: Comanda e KPIs */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* KPI HUD */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="card-hud p-3.5 rounded-xl">
+                  <p className="text-[9px] font-code-mono text-slate-400 uppercase">FATURAMENTO HOJE</p>
+                  <p className="text-lg font-code-bold text-white mt-0.5">R$ 4.850,00</p>
                 </div>
-                <div className="bg-card-dark p-4 rounded-lg">
-                  <p className="text-[10px] font-code-mono text-slate-400 uppercase">OCUPAÇÃO</p>
-                  <p className="text-xl font-bold text-primary mt-0.5">94%</p>
-                </div>
-                <div className="bg-card-dark p-4 rounded-lg">
-                  <p className="text-[10px] font-code-mono text-slate-400 uppercase">TICKET MÉDIO</p>
-                  <p className="text-xl font-bold text-white mt-0.5">R$ 173,20</p>
-                </div>
-                <div className="bg-card-dark p-4 rounded-lg">
-                  <p className="text-[10px] font-code-mono text-slate-400 uppercase">CLUBE DOS CHEFES</p>
-                  <p className="text-xl font-bold text-amber-400 mt-0.5">142 Membros</p>
+                <div className="card-hud p-3.5 rounded-xl">
+                  <p className="text-[9px] font-code-mono text-slate-400 uppercase">OCUPAÇÃO BANCADA</p>
+                  <p className="text-lg font-code-bold text-primary mt-0.5">94%</p>
                 </div>
               </div>
 
-              {/* Cadeiras e Comanda */}
-              <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 bg-card-dark/40">
-
-                <div className="lg:col-span-8 space-y-2.5">
-                  <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#C98A1F' }}>
-                        GB
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white">Guilherme Bastos · Cadeira 01</p>
-                        <p className="text-[11px] text-slate-300">Corte Degradê Navalhado + Barboterapia</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-code-mono font-bold text-primary">R$ 160,00</span>
+              {/* Comanda Digital */}
+              <div className="card-hud p-5 rounded-xl">
+                <div className="flex justify-between items-center pb-2.5 border-b border-white/5 text-xs font-code-mono">
+                  <span className="font-bold text-white">COMANDA #1042</span>
+                  <span className="text-primary text-[10px] font-bold">EM ATENDIMENTO</span>
+                </div>
+                <div className="py-3 space-y-2 text-xs text-slate-300 font-code-reg">
+                  <div className="flex justify-between">
+                    <span>Corte Degradê Navalhado</span>
+                    <span className="font-code-mono text-white">R$ 90,00</span>
                   </div>
-
-                  <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#10B981' }}>
-                        MS
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white">Mateus Silva · Cadeira 02</p>
-                        <p className="text-[11px] text-slate-300">Alinhamento Clássico (Membro Gold)</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-code-mono font-bold text-amber-400">PLANO CLUBE</span>
+                  <div className="flex justify-between">
+                    <span>Barboterapia com Toalha Quente</span>
+                    <span className="font-code-mono text-white">R$ 70,00</span>
                   </div>
-
-                  <div className="bg-card-dark p-3.5 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="size-8 rounded-lg flex items-center justify-center font-bold text-night text-xs" style={{ backgroundColor: '#F59E0B' }}>
-                        RO
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white">Rafael Oliveira · Cadeira 03</p>
-                        <p className="text-[11px] text-slate-300">Combo Chef + Pomada Matte</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-code-mono font-bold text-primary">R$ 215,00</span>
+                  <div className="flex justify-between">
+                    <span>Pomada Modeladora Matte</span>
+                    <span className="font-code-mono text-white">R$ 55,00</span>
                   </div>
                 </div>
-
-                <div className="lg:col-span-4 bg-night p-4 rounded-lg flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-center pb-2 text-xs font-code-mono">
-                      <span className="font-bold text-white">COMANDA #1042</span>
-                      <span className="text-primary">EM ATENDIMENTO</span>
-                    </div>
-                    <div className="py-2.5 space-y-1.5 text-[11px] text-slate-300">
-                      <div className="flex justify-between">
-                        <span>Corte Degradê</span>
-                        <span className="text-white">R$ 90,00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Barboterapia</span>
-                        <span className="text-white">R$ 70,00</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Pomada Matte</span>
-                        <span className="text-white">R$ 55,00</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pt-2 flex justify-between text-xs font-code-mono font-bold">
-                    <span className="text-slate-400">Total</span>
-                    <span className="text-primary">R$ 215,00</span>
-                  </div>
+                <div className="pt-2.5 border-t border-white/5 flex justify-between items-center text-xs font-code-mono font-bold">
+                  <span className="text-slate-400">TOTAL DA COMANDA</span>
+                  <span className="text-primary text-sm">R$ 215,00</span>
                 </div>
-
               </div>
-
             </div>
 
           </div>
         </section>
 
-        {/* ═══ SEÇÃO: CLUBE DOS CHEFES (RECORRÊNCIA MRR) ═══ */}
-        <section id="clube" className="py-20 lg:py-28 px-6">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        {/* ═══ SEÇÃO: CLUBE DOS CHEFES (FLANCOS LATERAIS COM CENTRO LIVRE) ═══ */}
+        <section id="clube" className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[500px]">
 
-            <div className="lg:col-span-6">
+            {/* Flanco Esquerdo: Proposta de Valor e Regras */}
+            <div className="lg:col-span-5 card-hud p-8 rounded-2xl">
               <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-2">
-                MOTOR DE RECORRÊNCIA
+                // 04 · MOTOR DE RECORRÊNCIA
               </span>
-              <h2 className="text-3xl sm:text-4xl font-code-bold text-white tracking-tight mb-4">
-                CLUBE DOS CHEFES. RECEITA PREVISÍVEL.
+              <h2 className="text-2xl sm:text-3xl font-code-bold text-white tracking-tight mb-3">
+                CLUBE DOS CHEFES.
+                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-primary to-amber-100">
+                  RECEITA PREVISÍVEL.
+                </span>
               </h2>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6 font-code-reg">
-                Assinaturas recorrentes no cartão com baixa automática diretamente na comanda, gerando fluxo financeiro garantido no início de cada mês.
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-code-reg mb-5">
+                Assinaturas recorrentes no cartão com baixa automática de créditos diretamente na comanda, gerando fluxo financeiro garantido no início de cada mês.
               </p>
 
-              <div className="space-y-3.5 text-xs text-slate-300 font-code-reg">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary text-base">check_circle</span>
+              <div className="space-y-3 text-xs text-slate-300 font-code-reg">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
                   <span>Cobrança mensal automatizada no cartão de crédito</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary text-base">check_circle</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
                   <span>Controle de saldo de cortes e serviços na comanda</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary text-base">check_circle</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
                   <span>Agendamento VIP pelo próprio celular do cliente</span>
                 </div>
               </div>
             </div>
 
-            {/* 3 Níveis de Membro em Cards Enxutos */}
-            <div className="lg:col-span-6 space-y-3">
-              <div className="p-4 rounded-lg bg-card-dark/80 backdrop-blur-md flex items-center justify-between text-xs">
+            {/* Centro: CORREDOR LIVRE */}
+            <div className="hidden lg:block lg:col-span-2 pointer-events-none" />
+
+            {/* Flanco Direito: Níveis de Assinatura */}
+            <div className="lg:col-span-5 space-y-3">
+              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between transition-all">
                 <div>
-                  <p className="font-code-mono text-[10px] text-slate-400">NÍVEL 01</p>
-                  <p className="font-bold text-white">Plano Clássico</p>
-                  <p className="text-slate-400 text-[11px]">Cortes programados no mês</p>
+                  <p className="font-code-mono text-[9px] text-slate-400">NÍVEL 01 · BÁSICO</p>
+                  <p className="font-code-bold text-sm text-white">Plano Clássico</p>
+                  <p className="text-slate-400 text-[11px] font-code-reg">Cortes programados no mês</p>
                 </div>
                 <span className="font-code-mono text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded">RECORRÊNCIA</span>
               </div>
 
-              <div className="p-4 rounded-lg bg-card-dark/90 backdrop-blur-md flex items-center justify-between text-xs shadow-smg-glow/20">
+              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between border-primary/30 transition-all">
                 <div>
-                  <p className="font-code-mono text-[10px] text-primary">NÍVEL 02 · MAIS ESCOLHIDO</p>
-                  <p className="font-bold text-white">Plano Gentleman</p>
-                  <p className="text-slate-300 text-[11px]">Corte + Barba + Bebida Cortesia</p>
+                  <p className="font-code-mono text-[9px] text-primary font-bold">NÍVEL 02 · MAIS ESCOLHIDO</p>
+                  <p className="font-code-bold text-sm text-white">Plano Gentleman</p>
+                  <p className="text-slate-300 text-[11px] font-code-reg">Corte + Barba + Bebida Cortesia</p>
                 </div>
                 <span className="font-code-mono text-[10px] bg-primary text-night font-bold px-2.5 py-1 rounded">VIP CLUB</span>
               </div>
 
-              <div className="p-4 rounded-lg bg-card-dark/80 backdrop-blur-md flex items-center justify-between text-xs">
+              <div className="card-hud card-hud-hover p-4 rounded-xl flex items-center justify-between transition-all">
                 <div>
-                  <p className="font-code-mono text-[10px] text-amber-400">NÍVEL 03</p>
-                  <p className="font-bold text-white">Black Chef Exclusive</p>
-                  <p className="text-slate-400 text-[11px]">Experiência ilimitada na bancada</p>
+                  <p className="font-code-mono text-[9px] text-amber-400">NÍVEL 03 · PREMIUM</p>
+                  <p className="font-code-bold text-sm text-white">Black Chef Exclusive</p>
+                  <p className="text-slate-400 text-[11px] font-code-reg">Experiência ilimitada na bancada</p>
                 </div>
                 <span className="font-code-mono text-[10px] text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded">ATELIER TOP</span>
               </div>
@@ -618,74 +708,68 @@ const Landing: React.FC = () => {
         </section>
 
         {/* ═══ SEÇÃO: PLANOS POR MATURIDADE OPERACIONAL ═══ */}
-        <section id="planos" className="py-24 px-6">
-          <div className="max-w-7xl mx-auto">
+        <section id="planos" className="py-24 px-6 max-w-7xl mx-auto">
+          <div className="mb-14 text-center max-w-xl mx-auto">
+            <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
+              PLANOS DE IMPLANTAÇÃO
+            </span>
+            <h2 className="text-3xl font-code-bold text-white tracking-tight mb-2">
+              MATURIDADE OPERACIONAL.
+            </h2>
+            <p className="text-slate-400 text-xs font-code-reg">
+              Estrutura desenhada para cada estágio da sua barbearia.
+            </p>
+          </div>
 
-            <div className="text-center max-w-xl mx-auto mb-16">
-              <span className="text-[10px] font-code-mono tracking-[0.2em] text-primary uppercase block mb-1">
-                PLANOS DE IMPLANTAÇÃO
-              </span>
-              <h2 className="text-3xl font-code-bold text-white tracking-tight mb-2">
-                MATURIDADE OPERACIONAL.
-              </h2>
-              <p className="text-slate-400 text-xs font-code-reg">
-                Estrutura desenhada para cada estágio da sua barbearia.
-              </p>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {MATURITY_PLANS.map((plan) => (
+              <div
+                key={plan.name}
+                className={`card-hud flex flex-col p-6 sm:p-7 rounded-2xl relative transition-all duration-300 ${
+                  plan.highlight ? 'border-primary/40 shadow-smg-glow/20' : ''
+                }`}
+              >
+                {plan.highlight && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-night text-[9px] font-code-mono font-bold uppercase tracking-widest rounded-full">
+                    {plan.badge}
+                  </span>
+                )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {MATURITY_PLANS.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={`flex flex-col p-6 sm:p-8 rounded-xl relative transition-all duration-300 h-full ${
+                <div className="mb-4">
+                  <span className="text-[9px] font-code-mono tracking-widest text-primary uppercase">
+                    {plan.code}
+                  </span>
+                  <h3 className="text-lg font-code-bold text-white mt-0.5 mb-1">{plan.name}</h3>
+                  <p className="text-slate-300 text-xs leading-relaxed font-code-reg">{plan.desc}</p>
+                </div>
+
+                <div className="flex-1 space-y-2.5 my-4 pt-3 border-t border-white/5">
+                  {plan.features.map(feat => (
+                    <div key={feat} className="flex items-start gap-2.5 text-xs text-slate-300 font-code-reg">
+                      <span className="material-symbols-outlined text-primary text-sm shrink-0 mt-0.5">
+                        check_circle
+                      </span>
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <a
+                  href={`https://wa.me/5511978496799?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20plano%20${encodeURIComponent(
+                    plan.name
+                  )}%20do%20SMG%20Barber%20Intelligence.`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`w-full py-3 rounded-lg font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
                     plan.highlight
-                      ? 'bg-gradient-to-b from-card-dark to-[#060504] shadow-xl shadow-primary/10'
-                      : 'bg-card-dark/80 backdrop-blur-md'
+                      ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
+                      : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
                   }`}
                 >
-                  {plan.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-night text-[9px] font-code-mono font-bold uppercase tracking-widest rounded-full">
-                      {plan.badge}
-                    </span>
-                  )}
-
-                  <div className="mb-4">
-                    <span className="text-[9px] font-code-mono tracking-widest text-primary uppercase">
-                      {plan.code}
-                    </span>
-                    <h3 className="text-xl font-bold text-white mt-0.5 mb-1.5">{plan.name}</h3>
-                    <p className="text-slate-300 text-xs leading-relaxed font-code-reg">{plan.desc}</p>
-                  </div>
-
-                  <div className="flex-1 space-y-2.5 my-4 pt-4">
-                    {plan.features.map(feat => (
-                      <div key={feat} className="flex items-start gap-2.5 text-xs text-slate-300 font-code-reg">
-                        <span className="material-symbols-outlined text-primary text-sm shrink-0 mt-0.5">
-                          check_circle
-                        </span>
-                        <span>{feat}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <a
-                    href={`https://wa.me/5511978496799?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20plano%20${encodeURIComponent(
-                      plan.name
-                    )}%20do%20SMG%20Barber%20Intelligence.`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`w-full py-3.5 rounded-lg font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
-                      plan.highlight
-                        ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
-                        : 'bg-surface-dark hover:bg-card-dark text-white'
-                    }`}
-                  >
-                    {plan.cta}
-                  </a>
-                </div>
-              ))}
-            </div>
-
+                  {plan.cta}
+                </a>
+              </div>
+            ))}
           </div>
         </section>
 
