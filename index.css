@@ -223,27 +223,41 @@ option {
   border-color: var(--color-primary);
 }
 
-/* ===== Code Pro Inspired Typography Classes ===== */
+/* ===== Minimalist High-Tech Typography (Space Grotesk + JetBrains Mono + Plus Jakarta Sans) ===== */
 .font-code-light {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 200;
-  letter-spacing: 0.04em;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.02em;
 }
 
 .font-code-reg {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 400;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
 }
 
 .font-code-bold {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .font-code-mono {
-  font-family: 'Space Grotesk', monospace;
+  font-family: 'JetBrains Mono', 'Space Grotesk', monospace;
+  letter-spacing: 0.12em;
+}
+
+.card-hud {
+  background: rgba(8, 7, 6, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+}
+
+.card-hud-hover:hover {
+  border-color: rgba(217, 154, 43, 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 24px rgba(217, 154, 43, 0.12);
 }
 
 /* ===== SMG Estética: Aesthetic Intelligence theme ===== */
