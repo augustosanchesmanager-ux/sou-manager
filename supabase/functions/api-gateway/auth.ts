@@ -69,16 +69,20 @@ export async function hashApiKey(token: string): Promise<string> {
 
 /**
  * Valida se uma chave de API contém o escopo necessário para a operação
+ * Suporta um escopo único ou array de escopos alternativos (basta atender a um deles)
  */
 export function hasRequiredScope(
   assignedScopes: ApiScope[],
-  requiredScope?: ApiScope
+  requiredScope?: ApiScope | ApiScope[]
 ): boolean {
   if (!requiredScope) {
     return true;
   }
   if (!Array.isArray(assignedScopes)) {
     return false;
+  }
+  if (Array.isArray(requiredScope)) {
+    return requiredScope.some((s) => assignedScopes.includes(s));
   }
   return assignedScopes.includes(requiredScope);
 }
@@ -89,7 +93,7 @@ export function hasRequiredScope(
 export function validateKeyRecord(
   record: ApiKeyRecord | null,
   environment: ApiEnvironment,
-  requiredScope?: ApiScope,
+  requiredScope?: ApiScope | ApiScope[],
   now: Date = new Date()
 ): AuthResult {
   if (!record) {
@@ -155,7 +159,7 @@ export function validateKeyRecord(
 export async function authenticateApiKey(
   authHeader: string | null | undefined,
   findRecordByHash: (hash: string) => Promise<ApiKeyRecord | null>,
-  requiredScope?: ApiScope,
+  requiredScope?: ApiScope | ApiScope[],
   now: Date = new Date()
 ): Promise<AuthResult> {
   // 1. Extrair token do header
