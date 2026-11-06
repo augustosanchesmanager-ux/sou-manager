@@ -32,12 +32,15 @@ A cobrança de mensalidades SaaS em uma arquitetura multi-tenant impõe desafios
 
 Fica estabelecida a arquitetura de **Platform Billing da SMG Platform** baseada em 4 pilares:
 
-### 3.1 Catálogo Oficial de Planos SaaS (`public.platform_plans`)
+### 3.1 Catálogo Oficial de Planos SaaS (`public.platform_plans`) & Diretriz de Percepção de Valor
+> **Emenda Estratégica do PO Augusto (2026-11-06):** A plataforma comercial **não adota tabela pública de preços fixos de prateleira**. A aquisição do cliente é 100% conduzida através de **Agendamento de Demonstração Guiada**, elevando a percepção de valor da tecnologia (Cockpit Operacional, Clube dos Chefes, Governança Financeira e IA Gemini) antes da apresentação da proposta comercial customizada por escala de cadeiras e volume.
+
 Definição dos planos comerciais da plataforma:
-- **Planos Canônicos:**
-  - `Starter`: Até 2 profissionais/cadeiras, agendamento e comandas básicas;
-  - `Pro`: Até 6 profissionais/cadeiras, Public API (300 RPM), Webhooks e relatórios avançados;
-  - `Enterprise`: Cadeiras ilimitadas, multi-unidade, SLA dedicado e concorrência customizada.
+- **Planos Canônicos de Maturidade:**
+  - `Starter / Operação Essencial`: Até 2 profissionais/cadeiras, agendamento, PDV e comandas básicas;
+  - `Pro / Gestão & Clube Pro`: Até 6 profissionais/cadeiras, Public API (300 RPM), Webhooks, Clube dos Chefes e relatórios fiscais;
+  - `Enterprise / Atelier Multi-Unidade`: Cadeiras ilimitadas, multi-unidade, SLA dedicado, Totem Kiosk e IA Preditiva.
+- **Precificação Flexível sob Medida:** O campo `price_cents` no banco representa a referência contratual customizada da assinatura acordada com cada barbearia na proposta comercial, nunca um valor engessado em vitrine pública.
 - **Ciclos de Cobrança (`billing_interval`):** `monthly` (mensal) ou `yearly` (anual com desconto).
 - **Limites e Quotas (`features` JSONB):** Quota de cadeiras (`max_staff`), requisições de API (`max_api_rpm`) e módulos inclusos.
 
