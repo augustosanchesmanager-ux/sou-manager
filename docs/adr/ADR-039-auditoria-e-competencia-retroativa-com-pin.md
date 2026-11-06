@@ -4,6 +4,8 @@
 
 **Date:** 2026-11-05
 
+**Revisão:** 2026-11-05 — R-04 revisado pelo PO: o PIN passa a ser cadastrado e trocado pelo próprio gestor em Configurações (seção **PIN Gerencial**).
+
 **Deciders:** PO (Augusto) + OpenCode
 
 **References:** ADR-001 (Commission vs Settlement), ADR-008 (Audit Strategy), ADR-012 (RPC EXECUTE grants), ADR-019 (Role Authorization), ADR-021 (RPC Tenant-Scoped Authorization), ADR-035 (Trava Pós-Checkout), frente `AUDIT-PIN-COMPETENCE`
@@ -82,18 +84,26 @@ A validação do PIN ocorre na mesma transação da escrita. Não existe caminho
 
 `validate_audit_pin` aplica `pg_sleep(0.25)` em falha de PIN. Lockout persistente (tabela de tentativas, janela, bloqueio temporal) fica registrado como evolução futura e **não** faz parte desta frente.
 
-### 6. Sem provisionamento pela UI (R-04)
+### 6. Autoatendimento do PIN em Configurações (R-04 revisado)
 
-Não existe RPC `set_audit_pin` nem tela de cadastro nesta frente. O provisionamento é operacional, feito pelo PO diretamente no banco:
+O PO revisou o R-04 em 2026-11-05: o gestor cadastra e troca o próprio PIN em **Configurações → PIN Gerencial**, sem depender de SQL manual. O provisionamento pelo PO continua possível apenas como reset operacional.
 
-```sql
-INSERT INTO public.manager_pins (user_id, tenant_id, pin_hash)
-VALUES ('<user_uuid>', '<tenant_uuid>', crypt('<pin_de_6_a_8_digitos>', gen_salt('bf', 12)))
-ON CONFLICT (user_id, tenant_id)
-DO UPDATE SET pin_hash = EXCLUDED.pin_hash, updated_at = now();
-```
+RPCs da migration `20261105190000_add_audit_pin_management.sql`:
 
-O PIN em claro nunca é persistido nem retornado por API.
+| RPC | Acesso | Contrato |
+|---|---|---|
+| `can_manage_audit_pin(user_id, tenant_id)` | interna | Helper `SECURITY DEFINER` sem `EXECUTE` para `anon`/`authenticated`. Espelha a autorização de `finance_reverse_transaction` (perfil, staff ou vínculo em `user_tenants`). |
+| `get_audit_pin_status(tenant_id)` | `authenticated` | Retorna somente `{ configured, updated_at }` do próprio `auth.uid()`. Nunca lê nem devolve `pin_hash`. |
+| `set_audit_pin(tenant_id, new_pin, current_pin)` | `authenticated` | Grava o PIN do próprio `auth.uid()`. Não aceita `p_user_id`. Exige `current_pin` quando já existe PIN. Hash bcrypt com custo 12. |
+
+Regras de operação:
+
+- PIN novo precisa casar com `^[0-9]{6,8}$`; o frontend normaliza para dígitos antes de enviar.
+- Quando já existe PIN, o PIN atual é obrigatório e verificado na mesma transação; erro aplica `pg_sleep(0.25)`.
+- `manager_pins` permanece **deny-all** para a API: a tabela continua sem policy e sem `GRANT` para `anon`/`authenticated`.
+- O alvo é sempre `auth.uid()`: um gestor não consegue sobrescrever o PIN de outro usuário.
+- A auditoria é gravada pela própria RPC em `audit_logs` (`table_name = 'manager_pins'`, `action = INSERT` na criação e `UPDATE` na troca), com apenas `{ configured, changed_by_user_id }`. O trigger genérico **não** é anexado a `manager_pins`, porque `to_jsonb(NEW)` gravaria o `pin_hash`.
+- O PIN em claro nunca é persistido, retornado por API ou exibido após o salvamento.
 
 ### 7. Auditoria reutiliza a infraestrutura existente
 
@@ -116,6 +126,7 @@ O PIN em claro nunca é persistido nem retornado por API.
 | Bloquear estorno em caixa confirmado | Impede correção legítima de erro operacional; a decisão do PO foi permitir com PIN e marcação explícita. |
 | Criar tabela de auditoria dedicada | Duplicaria `audit_logs`, violando a decisão de reutilizar a infraestrutura existente. |
 | Lockout persistente já nesta frente | Aumenta escopo e superfície de mudança; o PO optou por manter apenas o throttle de 250 ms. |
+| Provisionamento manual do PIN pelo PO (R-04 original) | Atrito operacional alto: todo gestor dependia de SQL para reabrir comanda. O PO revisou para autoatendimento em Configurações em 2026-11-05. |
 
 ---
 
@@ -125,16 +136,17 @@ O PIN em claro nunca é persistido nem retornado por API.
 
 - Correção contábil no dia correto, sem distorcer o caixa corrente.
 - Hash de PIN inacessível via API, inclusive para colegas do mesmo tenant.
+- Gestor cadastra e troca o próprio PIN em Configurações, sem depender de SQL manual.
 - Enforcement do PIN no banco, não contornável por chamada direta à RPC.
 - Ajuste retroativo em caixa fechado é permitido, mas sempre sinalizado e auditável.
 - Nenhuma alteração no cálculo de comissão (`domain/commission/`) nem no core D8.
 
 **Negativas / Cuidados**
 
-- Provisionamento de PIN é manual até existir uma frente de autoatendimento.
+- Sem recuperação de PIN esquecido na UI: o reset continua operacional, feito pelo PO no banco.
 - Sem lockout: um atacante com sessão autenticada pode tentar PINs com throttle de 250 ms por tentativa.
 - Fluxos que não passam por Comandas continuam podendo estornar sem PIN quando a competência é hoje (decisão consciente de compatibilidade).
-- `manager_pins` é negada por completo à API: qualquer funcionalidade futura de "meu PIN" exigirá RPC dedicada.
+- `manager_pins` permanece negada por completo à API: toda leitura/escrita passa exclusivamente pelas RPCs `get_audit_pin_status` e `set_audit_pin`.
 
 ---
 
@@ -146,15 +158,17 @@ O PIN em claro nunca é persistido nem retornado por API.
 4. `retroactive_adjustment = true` é obrigatório quando a competência cai em caixa confirmado.
 5. Nenhuma tabela de auditoria paralela a `audit_logs`.
 6. Toda operação permanece isolada por `tenant_id`.
+7. O gestor só altera o próprio PIN: `set_audit_pin` não aceita `p_user_id`.
 
 ---
 
 ## Rollout
 
-- Migration `supabase/migrations/20261105120000_add_audit_pin_and_retroactive_adjustment.sql`.
-- **Aplicada apenas em staging** em 2026-11-05, sob autorização do PO.
-- **Produção: não aplicada.** Promoção exige novo gate e autorização explícita (`MERGE ≠ DEPLOY PROD`, ADR-026).
-- Rollback: `DROP FUNCTION` das três funções novas, `DROP TABLE public.manager_pins`, `DROP COLUMN transactions.retroactive_adjustment` e restauração da assinatura anterior de `finance_reverse_transaction` (`20260515210804_finance_reverse_transaction_rpc.sql`).
+- Migration `supabase/migrations/20261105120000_add_audit_pin_and_retroactive_adjustment.sql` (competência e enforcement do PIN).
+- Migration `supabase/migrations/20261105190000_add_audit_pin_management.sql` (autoatendimento do PIN em Configurações).
+- **Aplicadas apenas em staging** em 2026-11-05, sob autorização do PO.
+- **Produção: não aplicadas.** Promoção exige novo gate e autorização explícita (`MERGE ≠ DEPLOY PROD`, ADR-026).
+- Rollback: `DROP FUNCTION` das RPCs novas (`can_manage_audit_pin`, `get_audit_pin_status`, `set_audit_pin`, `validate_audit_pin`, `verify_audit_pin`), `DROP TABLE public.manager_pins`, `DROP COLUMN transactions.retroactive_adjustment` e restauração da assinatura anterior de `finance_reverse_transaction` (`20260515210804_finance_reverse_transaction_rpc.sql`).
 
 ---
 
@@ -163,6 +177,6 @@ O PIN em claro nunca é persistido nem retornado por API.
 | ID | GAP | Encaminhamento |
 |---|---|---|
 | G-01 | Sem lockout persistente de tentativas de PIN | Frente futura, fora deste escopo (decisão do PO). |
-| G-02 | Sem tela/RPC de provisionamento de PIN | Operação manual pelo PO até nova frente. |
+| G-02 | Sem recuperação de PIN esquecido na UI | Reset operacional pelo PO no banco (decisão de escopo). O autoatendimento cobre cadastro e troca. |
 | G-03 | E2E real depende de credenciais de staging | Validado manualmente pelo PO no gate. |
 | G-04 | Fluxos fora de Comandas não enviam PIN | Mantido por compatibilidade; PIN obrigatório apenas em competência retroativa. |

@@ -5,7 +5,8 @@
  * - R-01: PIN em public.manager_pins, com RLS habilitado SEM policy e sem
  *   GRANT para anon/authenticated (leitura via API negada).
  * - R-02: competência em caixa confirmado exige p_audit_pin.
- * - R-04: não existe RPC set_audit_pin.
+ * - R-04: a migration original não declara set_audit_pin. O autoatendimento
+ *   foi autorizado depois pelo PO e vive em 20261105190000_add_audit_pin_management.sql.
  * - Nenhuma coluna de PIN em profiles.
  */
 
@@ -86,7 +87,7 @@ describe('AUDIT-PIN-COMPETENCE — migration security contract', () => {
     });
   });
 
-  describe('R-04 — sem provisionamento de PIN nesta frente', () => {
+  describe('R-04 — migration original sem provisionamento de PIN', () => {
     it('should_not_declare_set_audit_pin_when_migration_runs', () => {
       expect(sql).not.toContain('FUNCTION public.set_audit_pin');
       expect(sql).not.toContain('set_audit_pin(');
