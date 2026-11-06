@@ -1,6 +1,6 @@
 /**
  * Tipos do Ecossistema de Marketplace & Extensões (Subfase 8.4)
- * Referência: ADR-039 (ACCEPTED)
+ * Referência: ADR-041 (ACCEPTED)
  */
 
 export type MarketplaceExtensionCategory =
