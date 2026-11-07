@@ -1,4 +1,4 @@
-import { getScopedClient, supabase } from '../../../services/supabaseClient';
+import { supabase } from '../../../services/supabaseClient';
 import type { BarberStatementItem } from '../../utils/barberStatement';
 
 export interface StatementStaffMember {
@@ -13,9 +13,25 @@ interface RawComandaRow {
   id: string;
   client_id?: string | null;
   staff_id?: string | null;
-  status: 'open' | 'paid' | 'cancelled' | 'blocked';
+  appointment_id?: string | null;
+  status: string;
   total?: number | null;
-  paid_amount?: number | null;
+  created_at: string;
+  clients?: { name?: string | null } | null;
+}
+
+interface RawAppointmentRow {
+  id: string;
+  tenant_id: string;
+  staff_id: string;
+  client_id?: string | null;
+  client_name?: string | null;
+  service_id?: string | null;
+  service_name?: string | null;
+  price?: number | string | null;
+  status: string;
+  start_time: string;
+  end_time?: string | null;
   created_at: string;
   clients?: { name?: string | null } | null;
 }
@@ -28,6 +44,7 @@ interface RawComandaItemRow {
   unit_price?: number | null;
   quantity?: number | null;
   staff_id?: string | null;
+  created_at?: string;
   services?: { name?: string | null } | null;
 }
 
@@ -54,16 +71,33 @@ export async function fetchBarberStatementData(params: {
   commissionPercentage: number;
 }): Promise<BarberStatementItem[]> {
   const { tenantId, staffId, startDate, endDate, commissionPercentage } = params;
-  const barberSupabase = getScopedClient('barber');
 
   // Ajusta limites para ISO completo considerando início e fim do dia em fuso brasileiro (-03:00)
   const startIso = `${startDate}T00:00:00.000-03:00`;
   const endIso = `${endDate}T23:59:59.999-03:00`;
 
-  // 1. Buscar comandas atribuídas diretamente ao profissional no período
-  const { data: comandasData } = await barberSupabase
+  // 1. Buscar agendamentos do profissional no período
+  const { data: apptData } = await supabase
+    .from('appointments')
+    .select('id, tenant_id, staff_id, client_id, client_name, service_id, service_name, price, status, start_time, end_time, created_at, clients(name)')
+    .eq('tenant_id', tenantId)
+    .eq('staff_id', staffId)
+    .gte('start_time', startIso)
+    .lte('start_time', endIso)
+    .not('status', 'in', '("cancelled","no_show")')
+    .order('start_time', { ascending: false });
+
+  const staffAppointments = (apptData || []) as unknown as RawAppointmentRow[];
+  const appointmentIds = staffAppointments.map((a) => a.id);
+  const appointmentMap = new Map<string, RawAppointmentRow>();
+  for (const a of staffAppointments) {
+    appointmentMap.set(a.id, a);
+  }
+
+  // 2. Buscar comandas atribuídas diretamente ao profissional no período
+  const { data: directComandasData } = await supabase
     .from('comandas')
-    .select('id, client_id, staff_id, status, total, paid_amount, created_at, clients(name)')
+    .select('id, client_id, staff_id, appointment_id, status, total, created_at, clients(name)')
     .eq('tenant_id', tenantId)
     .eq('staff_id', staffId)
     .gte('created_at', startIso)
@@ -71,10 +105,25 @@ export async function fetchBarberStatementData(params: {
     .not('status', 'eq', 'cancelled')
     .order('created_at', { ascending: false });
 
-  const staffComandas = (comandasData || []) as unknown as RawComandaRow[];
+  const staffComandas = (directComandasData || []) as unknown as RawComandaRow[];
 
-  // 2. Buscar itens executados pelo profissional no período (inclusive em comandas abertas pela recepção)
-  const { data: staffItemsData } = await barberSupabase
+  // 2.1 Buscar comandas vinculadas aos agendamentos do profissional (mesmo se staff_id na comanda for nulo ou de recepção)
+  let appointmentComandas: RawComandaRow[] = [];
+  if (appointmentIds.length > 0) {
+    const { data: apptCmdData } = await supabase
+      .from('comandas')
+      .select('id, client_id, staff_id, appointment_id, status, total, created_at, clients(name)')
+      .eq('tenant_id', tenantId)
+      .in('appointment_id', appointmentIds)
+      .not('status', 'eq', 'cancelled');
+
+    if (apptCmdData) {
+      appointmentComandas = apptCmdData as unknown as RawComandaRow[];
+    }
+  }
+
+  // 3. Buscar itens executados pelo profissional no período (inclusive em comandas abertas pela recepção)
+  const { data: staffItemsData } = await supabase
     .from('comanda_items')
     .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, created_at, services(name)')
     .eq('tenant_id', tenantId)
@@ -84,10 +133,10 @@ export async function fetchBarberStatementData(params: {
 
   const directItems = (staffItemsData || []) as unknown as RawComandaItemRow[];
 
-  // 2.1 Buscar itens onde o profissional atuou como participante/assistente
+  // 3.1 Buscar itens onde o profissional atuou como participante/assistente
   let participantItems: RawComandaItemRow[] = [];
   try {
-    const { data: partData } = await barberSupabase
+    const { data: partData } = await supabase
       .from('service_execution_participants')
       .select('comanda_item_id, staff_id, payout_value, role, payout_type')
       .eq('tenant_id', tenantId)
@@ -98,7 +147,7 @@ export async function fetchBarberStatementData(params: {
     );
 
     if (participantItemIds.length > 0) {
-      const { data: pItemsData } = await barberSupabase
+      const { data: pItemsData } = await supabase
         .from('comanda_items')
         .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, created_at, services(name)')
         .in('id', participantItemIds)
@@ -115,17 +164,20 @@ export async function fetchBarberStatementData(params: {
 
   const allDirectItems = [...directItems, ...participantItems];
 
-  // 3. Obter comandas de itens onde o profissional atuou mas comanda.staff_id != staffId
-  const directComandaIds = new Set(staffComandas.map((c) => c.id));
+  // 4. Obter comandas de itens onde o profissional atuou mas que ainda não foram carregadas
+  const knownComandaIds = new Set([
+    ...staffComandas.map((c) => c.id),
+    ...appointmentComandas.map((c) => c.id),
+  ]);
   const externalComandaIds = Array.from(
-    new Set(allDirectItems.map((it) => it.comanda_id).filter((id) => !directComandaIds.has(id)))
+    new Set(allDirectItems.map((it) => it.comanda_id).filter((id) => !knownComandaIds.has(id)))
   );
 
   let externalComandas: RawComandaRow[] = [];
   if (externalComandaIds.length > 0) {
-    const { data: extData } = await barberSupabase
+    const { data: extData } = await supabase
       .from('comandas')
-      .select('id, client_id, staff_id, status, total, paid_amount, created_at, clients(name)')
+      .select('id, client_id, staff_id, appointment_id, status, total, created_at, clients(name)')
       .eq('tenant_id', tenantId)
       .in('id', externalComandaIds)
       .not('status', 'eq', 'cancelled');
@@ -135,18 +187,20 @@ export async function fetchBarberStatementData(params: {
   }
 
   // Mapa consolidado de todas as comandas relevantes
-  const allComandas = [...staffComandas, ...externalComandas];
+  const allComandas = [...staffComandas, ...appointmentComandas, ...externalComandas];
   const comandaMap = new Map<string, RawComandaRow>();
   for (const cmd of allComandas) {
-    comandaMap.set(cmd.id, cmd);
+    if (!comandaMap.has(cmd.id)) {
+      comandaMap.set(cmd.id, cmd);
+    }
   }
 
-  // 4. Buscar todos os itens das comandas do profissional (para não perder comandas abertas por ele)
+  // 5. Buscar todos os itens das comandas consolidadas
   const allComandaIds = Array.from(comandaMap.keys());
   let itemsByComandaId: Record<string, RawComandaItemRow[]> = {};
 
   if (allComandaIds.length > 0) {
-    const { data: allItemsData } = await barberSupabase
+    const { data: allItemsData } = await supabase
       .from('comanda_items')
       .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, services(name)')
       .in('comanda_id', allComandaIds);
@@ -161,13 +215,15 @@ export async function fetchBarberStatementData(params: {
     }
   }
 
-  // 5. Buscar registros oficiais de comissão no livro-razão para comandas pagas
-  const paidComandaIds = allComandas.filter((c) => c.status === 'paid').map((c) => c.id);
+  // 6. Buscar registros oficiais de comissão no livro-razão para comandas pagas
+  const paidComandaIds = Array.from(comandaMap.values())
+    .filter((c) => c.status === 'paid')
+    .map((c) => c.id);
   const recordsByItemId = new Map<string, any>();
   const recordsByComandaId = new Map<string, any>();
 
   if (paidComandaIds.length > 0) {
-    const { data: commRecords } = await barberSupabase
+    const { data: commRecords } = await supabase
       .from('commission_records')
       .select('id, comanda_id, comanda_item_id, staff_id, gross_value, net_value, commission_value, status, record_type')
       .eq('tenant_id', tenantId)
@@ -187,29 +243,44 @@ export async function fetchBarberStatementData(params: {
     }
   }
 
-  // 6. Montar itens consolidados do extrato
+  // 7. Montar itens consolidados do extrato
   const statementItems: BarberStatementItem[] = [];
   const processedItemIds = new Set<string>();
+  const processedAppointmentIds = new Set<string>();
 
-  for (const comanda of allComandas) {
-    const clientName = comanda.clients?.name || 'Consumidor Final';
+  for (const comanda of comandaMap.values()) {
+    const linkedAppt = comanda.appointment_id ? appointmentMap.get(comanda.appointment_id) : null;
+    if (comanda.appointment_id) {
+      processedAppointmentIds.add(comanda.appointment_id);
+    }
+
+    const clientName =
+      comanda.clients?.name ||
+      linkedAppt?.clients?.name ||
+      linkedAppt?.client_name ||
+      'Consumidor Final';
+
     const comandaItems = itemsByComandaId[comanda.id] || [];
     const isPaid = comanda.status === 'paid';
 
     // Filtrar itens que pertencem ao profissional:
     // (a) item explicitamente atribuído a este staff, OU
-    // (b) item sem staff_id atribuído mas a comanda é deste staff
+    // (b) item sem staff_id atribuído mas a comanda é deste staff, OU
+    // (c) item sem staff_id atribuído mas o agendamento vinculado é deste staff
     const relevantItems = comandaItems.filter(
-      (it) => it.staff_id === staffId || (!it.staff_id && comanda.staff_id === staffId)
+      (it) =>
+        it.staff_id === staffId ||
+        (!it.staff_id && comanda.staff_id === staffId) ||
+        (!it.staff_id && linkedAppt && linkedAppt.staff_id === staffId)
     );
 
     if (relevantItems.length === 0) {
-      // Se não há itens discriminados mas a comanda foi aberta para o profissional
-      if (comanda.staff_id === staffId) {
+      // Se não há itens discriminados mas a comanda/agendamento foi aberto para o profissional
+      if (comanda.staff_id === staffId || (linkedAppt && linkedAppt.staff_id === staffId)) {
         const commRec = recordsByComandaId.get(comanda.id);
         const gross = commRec
-          ? Number(commRec.net_value ?? commRec.gross_value ?? comanda.total ?? 0)
-          : Number(comanda.total) || 0;
+          ? Number(commRec.net_value ?? commRec.gross_value ?? comanda.total ?? linkedAppt?.price ?? 0)
+          : Number(comanda.total ?? linkedAppt?.price) || 0;
         const commValue = commRec
           ? Number(commRec.commission_value)
           : (gross * commissionPercentage) / 100;
@@ -217,9 +288,10 @@ export async function fetchBarberStatementData(params: {
         statementItems.push({
           id: `cmd-${comanda.id}`,
           comandaId: comanda.id,
-          createdAt: comanda.created_at,
+          appointmentId: comanda.appointment_id || undefined,
+          createdAt: linkedAppt?.start_time || comanda.created_at,
           clientName,
-          itemName: 'Atendimento Avulso',
+          itemName: linkedAppt?.service_name || 'Atendimento Avulso',
           itemType: 'service',
           grossValue: gross,
           commissionRate: commissionPercentage,
@@ -234,7 +306,7 @@ export async function fetchBarberStatementData(params: {
         processedItemIds.add(it.id);
 
         const commRec = recordsByItemId.get(it.id) || recordsByComandaId.get(comanda.id);
-        const itemName = it.services?.name || it.product_name || 'Serviço';
+        const itemName = it.services?.name || it.product_name || linkedAppt?.service_name || 'Serviço';
         const itemType = it.service_id ? 'service' : 'product';
 
         const gross = commRec
@@ -250,7 +322,8 @@ export async function fetchBarberStatementData(params: {
         statementItems.push({
           id: it.id,
           comandaId: comanda.id,
-          createdAt: comanda.created_at,
+          appointmentId: comanda.appointment_id || undefined,
+          createdAt: linkedAppt?.start_time || comanda.created_at,
           clientName,
           itemName,
           itemType,
@@ -263,6 +336,33 @@ export async function fetchBarberStatementData(params: {
       }
     }
   }
+
+  // 8. Conciliar agendamentos do profissional que ainda não possuem comanda aberta ou faturada
+  for (const appt of staffAppointments) {
+    if (processedAppointmentIds.has(appt.id)) continue;
+    processedAppointmentIds.add(appt.id);
+
+    const gross = Number(appt.price) || 0;
+    const commValue = (gross * commissionPercentage) / 100;
+    const clientName = appt.clients?.name || appt.client_name || 'Consumidor Final';
+
+    statementItems.push({
+      id: `appt-${appt.id}`,
+      appointmentId: appt.id,
+      createdAt: appt.start_time || appt.created_at,
+      clientName,
+      itemName: appt.service_name || 'Serviço Agendado',
+      itemType: 'service',
+      grossValue: gross,
+      commissionRate: commissionPercentage,
+      commissionValue: commValue,
+      comandaStatus: appt.status,
+      isPaid: false,
+    });
+  }
+
+  // Ordenar por data/horário decrescente
+  statementItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return statementItems;
 }
