@@ -359,16 +359,27 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            it.isPaid
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                          }`}
-                        >
-                          <span className="size-1.5 rounded-full bg-current" />
-                          {it.isPaid ? 'Pago' : 'Em Aberto'}
-                        </span>
+                        {it.isPaid || it.comandaStatus === 'paid' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="size-1.5 rounded-full bg-current" />
+                            Pago
+                          </span>
+                        ) : it.comandaStatus === 'open' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <span className="size-1.5 rounded-full bg-current" />
+                            Em Aberto
+                          </span>
+                        ) : it.comandaStatus === 'completed' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                            <span className="size-1.5 rounded-full bg-current" />
+                            Atendido
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+                            <span className="size-1.5 rounded-full bg-current" />
+                            Agendado
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -2663,7 +2663,7 @@ Podemos confirmar? 😄`;
       <section className="relative mb-6 rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 text-ink dark:text-white shadow-xs transition-colors">
         <div className="flex flex-col gap-5">
           {/* Top Row: Identity + Date Navigator + Primary Creation Actions */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 order-1">
             <div className="space-y-1.5 min-w-0">
               <div className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
                 <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
@@ -2704,7 +2704,7 @@ Podemos confirmar? 😄`;
           </div>
 
           {/* Middle Row: View Switchers & Secondary Controls */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line dark:border-border-dark">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line dark:border-border-dark order-3 lg:order-2">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
                 <button
@@ -2810,7 +2810,7 @@ Podemos confirmar? 😄`;
           </div>
 
           {/* Bottom Strip: 4 KPIs Alinhados com Linear/Stripe */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden">
+          <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden order-4 lg:order-3">
             <div className="p-3.5 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Atendimentos</span>
@@ -2857,7 +2857,7 @@ Podemos confirmar? 😄`;
           </div>
 
           {/* Week Day Pills Strip — Semana de Referência */}
-          <div className="pt-3 border-t border-line dark:border-border-dark space-y-2.5">
+          <div className="pt-3 border-t border-line dark:border-border-dark space-y-2.5 order-2 lg:order-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-ink-soft flex items-center gap-1.5">

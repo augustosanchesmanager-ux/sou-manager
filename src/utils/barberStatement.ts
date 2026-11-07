@@ -7,7 +7,8 @@
 
 export interface BarberStatementItem {
   id: string;
-  comandaId: string;
+  comandaId?: string | null;
+  appointmentId?: string | null;
   createdAt: string;
   clientName: string;
   itemName: string;
@@ -15,7 +16,7 @@ export interface BarberStatementItem {
   grossValue: number;
   commissionRate: number; // Percentual 0..100 (ex: 50 = 50%)
   commissionValue: number;
-  comandaStatus: 'open' | 'paid' | 'cancelled' | 'blocked';
+  comandaStatus: 'open' | 'paid' | 'cancelled' | 'blocked' | 'scheduled' | 'in_progress' | 'completed' | string;
   isPaid: boolean;
 }
 
@@ -70,6 +71,10 @@ export function calculateBarberStatementSummary(
     validItemsCount += 1;
     if (item.comandaId) {
       uniqueComandas.add(item.comandaId);
+    } else if (item.appointmentId) {
+      uniqueComandas.add(`appt-${item.appointmentId}`);
+    } else if (item.id) {
+      uniqueComandas.add(item.id);
     }
 
     const itemGross = Number.isFinite(item.grossValue) && item.grossValue > 0 ? item.grossValue : 0;
