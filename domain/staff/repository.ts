@@ -36,6 +36,7 @@ const toStaffMember = (row: Record<string, unknown>): StaffMember => ({
   avatar: (row.avatar as string) || '',
   commission_rate: (row.commission_rate as number) || 0,
   status: (row.status as string) || 'active',
+  working_hours: (row.working_hours as StaffMember['working_hours']) || null,
 });
 
 class StaffRepositoryImpl extends SupabaseRepository {

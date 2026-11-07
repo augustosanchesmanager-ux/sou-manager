@@ -5,6 +5,23 @@
  * Extraídos de pages/Team.tsx.
  */
 
+export interface DayWorkingHours {
+  open: string;
+  close: string;
+  break_start?: string | null;
+  break_end?: string | null;
+}
+
+export type StaffWorkingHours = {
+  monday?: DayWorkingHours | null;
+  tuesday?: DayWorkingHours | null;
+  wednesday?: DayWorkingHours | null;
+  thursday?: DayWorkingHours | null;
+  friday?: DayWorkingHours | null;
+  saturday?: DayWorkingHours | null;
+  sunday?: DayWorkingHours | null;
+} | null;
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -14,6 +31,7 @@ export interface StaffMember {
   avatar: string;
   commission_rate: number;
   status: string;
+  working_hours?: StaffWorkingHours;
 }
 
 export interface UpdateStaffInput {
@@ -24,4 +42,5 @@ export interface UpdateStaffInput {
   commission_rate?: number;
   status?: string;
   avatar?: string;
+  working_hours?: StaffWorkingHours;
 }

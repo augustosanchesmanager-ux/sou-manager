@@ -23,6 +23,7 @@ import {
   DashboardWidgets,
   TodayCashCard,
   DayTimeline,
+  DailySummaryExecutiveCard,
 } from '../components/dashboard';
 import ActivityTimelineModal from '../components/dashboard/ActivityTimelineModal';
 import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
@@ -263,6 +264,13 @@ const Dashboard: React.FC = () => {
       />
 
       {appSlug === 'barber' && tenantId && <OnboardingChecklist tenantId={tenantId} />}
+
+      {/* Central de Resumo Diário Executivo */}
+      <DailySummaryExecutiveCard
+        todayData={todayData}
+        loading={todayLoading && !todayData}
+        tenantName={tenantName}
+      />
 
       {/* Row 2: Operação Focada (Agenda do Dia Mais Longa + Movimento Financeiro com Mini-Timeline) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

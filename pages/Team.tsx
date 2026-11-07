@@ -12,6 +12,8 @@ import type { InvitationView } from '../domain/invitation/types';
 import { useBarberPayoutConfig } from '../src/hooks/usePayoutService';
 import type { PayoutFrequency } from '../domain/payout/types';
 import { PayoutCycleConfigFields } from '../components/payroll/PayoutCycleConfigModal';
+import { StaffScheduleModal } from '../components/staff/StaffScheduleModal';
+import type { StaffWorkingHours } from '../domain/staff/types';
 
 interface TeamMember {
     id: string;
@@ -22,6 +24,7 @@ interface TeamMember {
     avatar: string;
     commission_rate: number;
     status: string;
+    working_hours?: StaffWorkingHours;
 }
 
 const roles = ['manager', 'admin', 'barber', 'receptionist'];
@@ -90,6 +93,19 @@ const Team: React.FC = () => {
         allowAdvances: true,
     });
     const [loadingPayoutConfig, setLoadingPayoutConfig] = useState(false);
+    const [scheduleModalMember, setScheduleModalMember] = useState<TeamMember | null>(null);
+
+    const handleSaveStaffSchedule = async (workingHours: StaffWorkingHours) => {
+        if (!scheduleModalMember || !tenantId) return;
+        try {
+            await staffRepository.update(scheduleModalMember.id, { working_hours: workingHours }, tenantId);
+            setToast({ message: 'Horários de atendimento atualizados com sucesso!', type: 'success' });
+            fetchTeam();
+        } catch (err) {
+            console.error('Erro ao salvar horários:', err);
+            setToast({ message: 'Erro ao salvar horários de atendimento.', type: 'error' });
+        }
+    };
 
     // F2.1 (SEC-AUTHZ-CREATE-USER): somente superadmin pode atribuir o papel `admin`.
     // Gerentes criam apenas barber/receptionist (hierarquia enforcement no backend —
@@ -685,6 +701,10 @@ const Team: React.FC = () => {
                                                     className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Agenda">
                                                     <span className="material-symbols-outlined text-lg">calendar_month</span>
                                                 </button>
+                                                <button onClick={() => setScheduleModalMember(member)}
+                                                    className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors" title="Horários de Atendimento">
+                                                    <span className="material-symbols-outlined text-lg">schedule</span>
+                                                </button>
                                                 <button onClick={() => openEditModal(member)}
                                                     className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">
                                                     <span className="material-symbols-outlined text-lg">edit</span>
@@ -747,6 +767,11 @@ const Team: React.FC = () => {
                                     <span className="material-symbols-outlined text-sm">calendar_month</span>
                                     Agenda
                                 </button>
+                                <button onClick={() => setScheduleModalMember(member)}
+                                    className="p-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-xs font-bold transition-all flex items-center justify-center"
+                                    title="Horários de Atendimento">
+                                    <span className="material-symbols-outlined text-sm">schedule</span>
+                                </button>
                                 <button onClick={() => openEditModal(member)}
                                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-xs font-bold transition-all">
                                     <span className="material-symbols-outlined text-sm">edit</span>
@@ -757,6 +782,15 @@ const Team: React.FC = () => {
                     ))}
                 </div>
             )}
+
+            {/* Staff Schedule Modal */}
+            <StaffScheduleModal
+                isOpen={Boolean(scheduleModalMember)}
+                onClose={() => setScheduleModalMember(null)}
+                memberName={scheduleModalMember?.name || ''}
+                workingHours={scheduleModalMember?.working_hours || null}
+                onSave={handleSaveStaffSchedule}
+            />
 
             {/* Add/Edit Modal */}
             <Modal
