@@ -10,3 +10,4 @@ export { ClientBaseCard } from './ClientBaseCard';
 export { QuickActionsBar } from './QuickActionsBar';
 export { DayTimeline } from './DayTimeline';
 export { TodayKPICard, TodayKPIGrid } from './TodayKPICard';
+export { DailySummaryExecutiveCard } from './DailySummaryExecutiveCard';
