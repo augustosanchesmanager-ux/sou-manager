@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getBusinessLabels } from '../../src/lib/apps/businessLabels';
-import type { DashboardPeriod } from '../../src/modules/dashboard';
+import type { DashboardPeriod, DashboardMetrics } from '../../src/modules/dashboard';
 import { getTimeOfDayGreeting, formatDateInSaoPaulo } from '../../src/modules/dashboard/timezone';
 import { formatCurrency } from '../../shared/format/currency';
 
@@ -20,6 +20,7 @@ interface DashboardHeaderProps {
     cancelados: number;
     concluidos: number;
   } | null;
+  metrics?: DashboardMetrics;
   onKpiClick?: (type: string) => void;
   onNewAppointment: () => void;
   onOpenCheckout: () => void;
@@ -53,6 +54,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   pendingAppointmentsCount,
   returningClientsCount,
   todayKpis,
+  metrics,
   onKpiClick,
   onNewAppointment,
   onOpenCheckout,
@@ -118,6 +120,141 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       ariaLabel: `Ver ${returningClientsCount} retornos sugeridos`,
     },
   ];
+
+  const renderDeltaBadge = (growth: number | undefined) => {
+    if (typeof growth !== 'number' || isNaN(growth)) return null;
+    const isPositive = growth > 0;
+    const isZero = Math.abs(growth) < 0.1;
+
+    if (isZero) {
+      return (
+        <span className="text-[9px] font-semibold text-ink-soft">0%</span>
+      );
+    }
+
+    return (
+      <span
+        className={`inline-flex items-center text-[9px] font-bold ${
+          isPositive ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'
+        }`}
+      >
+        <span className="material-symbols-outlined text-[10px] leading-none">
+          {isPositive ? 'arrow_upward' : 'arrow_downward'}
+        </span>
+        {Math.abs(growth).toFixed(0)}%
+      </span>
+    );
+  };
+
+  const displayedKpis = useMemo(() => {
+    if (period === 'today') {
+      if (!todayKpis && !metrics) return null;
+      return [
+        {
+          key: 'totalToday',
+          label: 'Hoje',
+          value: String(todayKpis?.totalToday ?? metrics?.todayAppointments ?? 0),
+          icon: 'event',
+          tone: 'text-ink dark:text-white',
+          delta: metrics?.appointmentsGrowth,
+        },
+        {
+          key: 'faturamento',
+          label: 'Faturamento',
+          value: formatCurrency(todayKpis?.faturamento ?? metrics?.revenue ?? 0),
+          icon: 'payments',
+          tone: 'text-primary-dark dark:text-primary-light font-semibold',
+          delta: metrics?.revenueGrowth,
+        },
+        {
+          key: 'emAtendimento',
+          label: 'Na Cadeira',
+          value: String(todayKpis?.emAtendimento ?? 0),
+          icon: 'content_cut',
+          tone: 'text-amber-500',
+        },
+        {
+          key: 'pendentes',
+          label: 'Pendentes',
+          value: String(todayKpis?.pendentes ?? 0),
+          icon: 'schedule',
+          tone: 'text-primary',
+        },
+        {
+          key: 'cancelados',
+          label: 'Cancelados',
+          value: String(todayKpis?.cancelados ?? 0),
+          icon: 'cancel',
+          tone: 'text-danger',
+        },
+        {
+          key: 'concluidos',
+          label: 'Concluídos',
+          value: String(todayKpis?.concluidos ?? 0),
+          icon: 'task_alt',
+          tone: 'text-success',
+        },
+      ];
+    }
+
+    // Períodos comparativos: yesterday, week, month
+    if (!metrics && !todayKpis) return null;
+
+    const labelPeriodMap: Record<DashboardPeriod, string> = {
+      today: 'Hoje',
+      yesterday: 'Ontem',
+      week: 'Semana',
+      month: 'Mês',
+    };
+
+    return [
+      {
+        key: 'totalToday',
+        label: labelPeriodMap[period] || 'Atendimentos',
+        value: String(metrics?.todayAppointments ?? 0),
+        icon: 'event',
+        tone: 'text-ink dark:text-white',
+        delta: metrics?.appointmentsGrowth,
+      },
+      {
+        key: 'faturamento',
+        label: 'Faturamento',
+        value: formatCurrency(metrics?.revenue ?? 0),
+        icon: 'payments',
+        tone: 'text-primary-dark dark:text-primary-light font-semibold',
+        delta: metrics?.revenueGrowth,
+      },
+      {
+        key: 'avgTicket',
+        label: 'Ticket Médio',
+        value: formatCurrency(metrics?.avgTicket ?? 0),
+        icon: 'receipt_long',
+        tone: 'text-amber-500',
+        delta: metrics?.avgTicketGrowth,
+      },
+      {
+        key: 'netRevenue',
+        label: 'Receita Líq.',
+        value: formatCurrency(metrics?.netRevenue ?? 0),
+        icon: 'account_balance',
+        tone: 'text-primary',
+      },
+      {
+        key: 'retentionRate',
+        label: 'Retenção',
+        value: `${Math.round(metrics?.retentionRate ?? 0)}%`,
+        icon: 'person_search',
+        tone: 'text-emerald-500',
+      },
+      {
+        key: 'activeStaffPercent',
+        label: 'Equipe Ativa',
+        value: `${Math.round(metrics?.activeStaffPercent ?? 0)}%`,
+        icon: 'groups',
+        tone: 'text-sky-500',
+      },
+    ];
+  }, [period, todayKpis, metrics]);
 
   return (
     <section className="relative rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 shadow-sm transition-colors">
@@ -224,9 +361,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 aria-haspopup="listbox"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-ink dark:hover:text-white transition-colors"
               >
-                <span className="material-symbols-outlined text-base">calendar_month</span>
+                <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
                 <span>{PERIOD_LABELS[period]}</span>
-                <span className="text-[10px] opacity-70">({PERIOD_HINTS[period]})</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary-dark dark:text-primary font-medium">
+                  {PERIOD_HINTS[period]}
+                </span>
                 <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isPeriodOpen ? 'rotate-180' : ''}`}>
                   expand_more
                 </span>
@@ -235,7 +374,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               {isPeriodOpen && (
                 <div
                   role="listbox"
-                  className="absolute left-0 mt-1.5 w-44 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-[#1A1610] p-1.5 shadow-2xl z-50 animate-fade-in"
+                  className="absolute left-0 mt-1.5 w-56 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-[#1A1610] p-1.5 shadow-2xl z-50 animate-fade-in"
                 >
                   {(Object.entries(PERIOD_LABELS) as Array<[DashboardPeriod, string]>).map(([key, label]) => (
                     <button
@@ -253,7 +392,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                           : 'text-ink-soft hover:bg-gold-pale dark:hover:bg-white/5 hover:text-ink dark:hover:text-white'
                       }`}
                     >
-                      {label}
+                      <div className="flex items-center gap-1.5">
+                        <span>{label}</span>
+                        <span className="text-[10px] opacity-70">({PERIOD_HINTS[key]})</span>
+                      </div>
                       {period === key && <span className="material-symbols-outlined text-sm text-primary">check</span>}
                     </button>
                   ))}
@@ -291,53 +433,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
         </div>
 
-        {/* Métricas de Operação do Dia — Integradas no Lado Direito da Hero */}
-        {todayKpis ? (
+        {/* Métricas de Operação do Período — Integradas no Lado Direito da Hero */}
+        {displayedKpis ? (
           <div className="grid grid-cols-3 gap-2 sm:gap-2.5 w-full lg:w-auto shrink-0">
-            {[
-              {
-                key: 'totalToday',
-                label: 'Hoje',
-                value: String(todayKpis.totalToday),
-                icon: 'event',
-                tone: 'text-ink dark:text-white',
-              },
-              {
-                key: 'faturamento',
-                label: 'Faturamento',
-                value: formatCurrency(todayKpis.faturamento),
-                icon: 'payments',
-                tone: 'text-primary-dark dark:text-primary-light font-semibold',
-              },
-              {
-                key: 'emAtendimento',
-                label: 'Na Cadeira',
-                value: String(todayKpis.emAtendimento),
-                icon: 'content_cut',
-                tone: 'text-amber-500',
-              },
-              {
-                key: 'pendentes',
-                label: 'Pendentes',
-                value: String(todayKpis.pendentes),
-                icon: 'schedule',
-                tone: 'text-primary',
-              },
-              {
-                key: 'cancelados',
-                label: 'Cancelados',
-                value: String(todayKpis.cancelados),
-                icon: 'cancel',
-                tone: 'text-danger',
-              },
-              {
-                key: 'concluidos',
-                label: 'Concluídos',
-                value: String(todayKpis.concluidos),
-                icon: 'task_alt',
-                tone: 'text-success',
-              },
-            ].map((kpi) => (
+            {displayedKpis.map((kpi) => (
               <button
                 key={kpi.key}
                 type="button"
@@ -352,9 +451,12 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     {kpi.value}
                   </span>
                 </div>
-                <span className="mt-0.5 text-[10px] font-normal text-ink-soft leading-tight truncate max-w-[90px]">
-                  {kpi.label}
-                </span>
+                <div className="flex items-center justify-center gap-1 mt-0.5">
+                  <span className="text-[10px] font-normal text-ink-soft leading-tight truncate max-w-[80px]">
+                    {kpi.label}
+                  </span>
+                  {kpi.delta !== undefined && renderDeltaBadge(kpi.delta)}
+                </div>
               </button>
             ))}
           </div>
@@ -369,23 +471,21 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 aria-label={item.ariaLabel}
                 className="flex flex-col items-center justify-center rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark/60 p-4 min-w-[115px] sm:min-w-[130px] transition-all hover:border-primary/40 active:scale-95 touch-manipulation group text-center"
               >
-                <div className="w-full flex items-center justify-end">
-                  <span className={`material-symbols-outlined text-base ${item.tone}`}>{item.icon}</span>
-                </div>
-                <span className="my-1 font-sans text-3xl sm:text-4xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
+                <span className={`material-symbols-outlined text-xl sm:text-2xl ${item.tone} mb-1 group-hover:scale-110 transition-transform`}>
+                  {item.icon}
+                </span>
+                <span className="font-sans text-lg sm:text-xl font-bold text-ink dark:text-white tabular-nums">
                   {item.value}
                 </span>
-                <span className="text-xs font-normal text-ink-soft leading-tight text-center truncate max-w-[110px]">
+                <span className="text-[11px] font-medium text-ink-soft dark:text-muted-dark leading-tight mt-0.5">
                   {item.label}
                 </span>
               </button>
             ))}
           </div>
         )}
-
       </div>
     </section>
   );
 };
-
 export default DashboardHeader;

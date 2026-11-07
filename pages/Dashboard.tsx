@@ -247,6 +247,7 @@ const Dashboard: React.FC = () => {
         pendingAppointmentsCount={pendingAppointmentsCount}
         returningClientsCount={returningClients.length}
         todayKpis={todayData?.kpis ?? null}
+        metrics={data.metrics}
         onKpiClick={(type) => {
           if (type === 'faturamento') navigate('/comandas');
           if (type === 'totalToday' || type === 'emAtendimento' || type === 'pendentes' || type === 'cancelados' || type === 'concluidos') {
