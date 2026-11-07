@@ -37,6 +37,7 @@ DECLARE
   v_break_start_tz TIMESTAMPTZ;
   v_break_end_tz TIMESTAMPTZ;
   v_staff_list UUID[];
+  v_staff_id UUID;
   v_staff_record RECORD;
   v_barber_day JSONB;
   v_cand_record RECORD;
@@ -48,7 +49,7 @@ DECLARE
   v_seen_slots JSONB := '{}'::jsonb;
   v_next_limit TIMESTAMPTZ;
   v_gap_minutes NUMERIC;
-  v_tolerance_minutes INTEGER := 5; -- Tolerância inteligente para microjanelas
+  v_tolerance_minutes INTEGER := 5;
 BEGIN
   -- 1. Resolver Tenant por ID ou Slug
   IF p_tenant_identifier ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
@@ -66,9 +67,9 @@ BEGIN
   SELECT * INTO v_obs FROM public.online_booking_settings WHERE tenant_id = v_tenant_id;
 
   v_timezone := COALESCE(v_settings.timezone, 'America/Sao_Paulo');
-  v_horizon_days := COALESCE(v_obs.booking_horizon_days, 14);
-  v_min_notice := COALESCE(v_obs.min_booking_notice_minutes, 30);
-  v_interval := COALESCE(v_obs.slot_interval_minutes, v_settings.slot_interval_minutes, 30);
+  v_horizon_days := COALESCE(v_settings.booking_horizon_days, 14);
+  v_min_notice := COALESCE(v_settings.min_booking_notice_minutes, 30);
+  v_interval := COALESCE(v_settings.appointment_interval_minutes, 30);
   IF v_interval <= 0 THEN v_interval := 30; END IF;
 
   v_now := clock_timestamp();
@@ -89,11 +90,14 @@ BEGIN
     WHEN 6 THEN 'saturday'
   END;
 
-  -- Horário padrão da loja no dia
-  v_day_schedule := COALESCE(
-    v_obs.weekly_schedule -> v_day_key,
-    v_settings.business_hours -> v_day_key
-  );
+  -- Horário padrão da loja no dia (prioriza weekly_schedule se existir, senão business_hours)
+  v_day_schedule := NULL;
+  IF v_obs.id IS NOT NULL AND v_obs.weekly_schedule IS NOT NULL THEN
+    v_day_schedule := v_obs.weekly_schedule -> v_day_key;
+  END IF;
+  IF v_day_schedule IS NULL AND v_settings.business_hours IS NOT NULL THEN
+    v_day_schedule := v_settings.business_hours -> v_day_key;
+  END IF;
 
   -- Se a barbearia estiver fechada e não houver expediente geral
   v_shop_open := NULLIF(v_day_schedule ->> 'open', '')::time;
@@ -219,7 +223,6 @@ BEGIN
       END IF;
 
       -- Encontrar o próximo limite onde a janela livre termina
-      -- (pode ser o próximo agendamento, o próximo bloqueio, início do almoço ou o fechamento)
       SELECT LEAST(
         v_staff_close_tz,
         COALESCE(

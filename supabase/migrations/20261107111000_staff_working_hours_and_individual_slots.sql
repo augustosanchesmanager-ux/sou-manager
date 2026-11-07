@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Migration: 20261107111000_staff_working_hours_and_individual_slots.sql
--- Description: 
+-- Description: Adiciona coluna working_hours na tabela staff e atualiza RPC get_public_available_slots
 --   1. Adiciona coluna working_hours JSONB na tabela public.staff para permitir
 --      que cada profissional defina seus dias de atendimento, horários de entrada/saída
 --      e intervalos de almoço/descanso.
