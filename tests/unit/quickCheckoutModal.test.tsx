@@ -54,4 +54,67 @@ describe('QuickCheckoutModal: Modo Balcão Express', () => {
 
     expect(html).toBe('');
   });
+
+  it('should_render_club_credit_button_when_client_is_eligible_and_fully_covered', () => {
+    const html = renderToStaticMarkup(
+      <QuickCheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        comanda={{
+          ...mockComanda,
+          client_id: 'cli-vip-001',
+        }}
+        tenantId="tenant-test-123"
+        onSuccess={vi.fn()}
+        initialCreditEligibility={{
+          isClubMember: true,
+          subscriptionId: 'sub-vip-123',
+          planName: 'Plano Barba & Cabelo VIP',
+          totalAvailableCredits: 4,
+          totalUsedCredits: 1,
+          isFullyCoveredByCredits: true,
+          hasServicesToCover: true,
+          serviceBalances: [],
+        }}
+      />
+    );
+
+    expect(html).toContain('Membro VIP • Club dos Chefes');
+    expect(html).toContain('Plano Barba &amp; Cabelo VIP');
+    expect(html).toContain('4 créditos');
+    expect(html).toContain('Baixar com Crédito do Clube (R$ 0,00)');
+    expect(html).toContain('loyalty');
+  });
+
+  it('should_render_club_warning_message_when_client_is_member_but_not_covered', () => {
+    const html = renderToStaticMarkup(
+      <QuickCheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        comanda={{
+          ...mockComanda,
+          client_id: 'cli-vip-002',
+        }}
+        tenantId="tenant-test-123"
+        onSuccess={vi.fn()}
+        initialCreditEligibility={{
+          isClubMember: true,
+          subscriptionId: 'sub-vip-124',
+          planName: 'Plano Básico',
+          totalAvailableCredits: 0,
+          totalUsedCredits: 2,
+          isFullyCoveredByCredits: false,
+          hasServicesToCover: true,
+          serviceBalances: [],
+          reason: 'Assinante sem créditos disponíveis no momento.',
+        }}
+      />
+    );
+
+    expect(html).toContain('Membro VIP • Club dos Chefes');
+    expect(html).toContain('Plano Básico');
+    expect(html).toContain('0 créditos');
+    expect(html).toContain('Assinante sem créditos disponíveis no momento.');
+    expect(html).not.toContain('Baixar com Crédito do Clube (R$ 0,00)');
+  });
 });
