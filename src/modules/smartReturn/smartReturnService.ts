@@ -1,13 +1,14 @@
 /**
  * Smart Return Module - Service
- * Desacoplamento da camada de dados para o Motor de Retorno Inteligente.
- * Elimina chamadas .from() diretas na UI e encapsula as regras de inatividade e recall.
+ * Desacoplamento da camada de dados para o Motor de Retorno Inteligente e Segmentação RFM.
+ * Elimina chamadas .from() diretas na UI e encapsula as regras de inatividade, recall e RFM.
  */
 
 import { getClientForTable } from '../../../services/supabaseClient';
 import { normalizePhone } from '../../lib/utils/phone';
 import type {
   FetchSmartReturnParams,
+  RfmSegment,
   SmartReturnData,
   SmartReturnInactivityStatus,
   SmartReturnKPIs,
@@ -40,7 +41,9 @@ const getDaysDifference = (targetDate: Date, referenceDate: Date = new Date()): 
 };
 
 // Determina o status com base na régua de inatividade
-const determineInactivityStatus = (days: number): { status: SmartReturnInactivityStatus; label: string } => {
+export const determineInactivityStatus = (
+  days: number,
+): { status: SmartReturnInactivityStatus; label: string } => {
   if (days < 20) {
     return { status: 'up_to_date', label: 'No Prazo' };
   }
@@ -53,8 +56,33 @@ const determineInactivityStatus = (days: number): { status: SmartReturnInactivit
   return { status: 'inactive', label: 'Inativo' };
 };
 
+// Determina a segmentação RFM (Recência, Frequência e Valor)
+export const determineRfmSegment = (
+  days: number,
+  visits: number,
+  spent: number,
+): { segment: RfmSegment; label: string } => {
+  // Clientes com alto gasto e visitas frequentes
+  if (visits >= 4 && spent >= 200) {
+    if (days <= 35) {
+      return { segment: 'champion', label: 'VIP / Campeão' };
+    }
+    return { segment: 'at_risk', label: 'VIP em Risco' };
+  }
+  if (visits >= 2 && days <= 35) {
+    return { segment: 'loyal', label: 'Cliente Leal' };
+  }
+  if (visits <= 2 && days <= 20) {
+    return { segment: 'promising', label: 'Promissor' };
+  }
+  if (days > 60) {
+    return { segment: 'hibernating', label: 'Hibernando' };
+  }
+  return { segment: 'at_risk', label: 'Em Risco' };
+};
+
 export const fetchSmartReturnData = async (
-  params: FetchSmartReturnParams
+  params: FetchSmartReturnParams,
 ): Promise<SmartReturnData> => {
   const { tenantId, tenantSlug } = params;
   const shopName = params.shopName?.trim() || 'Barbearia';
@@ -62,7 +90,15 @@ export const fetchSmartReturnData = async (
   if (!tenantId) {
     return {
       records: [],
-      kpis: { totalClients: 0, upToDate: 0, attention: 0, risk: 0, inactive: 0 },
+      kpis: {
+        totalClients: 0,
+        upToDate: 0,
+        attention: 0,
+        risk: 0,
+        inactive: 0,
+        championsCount: 0,
+        atRiskRevenue: 0,
+      },
       publicBookingUrl: null,
       shopName,
     };
@@ -98,7 +134,7 @@ export const fetchSmartReturnData = async (
       .order('start_time', { ascending: false }),
     comandasClient
       .from('comandas')
-      .select('id, client_id, closed_at, status')
+      .select('id, client_id, closed_at, status, total')
       .eq('tenant_id', tenantId)
       .in('status', ['paid', 'closed'])
       .order('closed_at', { ascending: false }),
@@ -135,7 +171,7 @@ export const fetchSmartReturnData = async (
 
   // Set de clientes com agendamento futuro
   const upcomingClientIds = new Set<string>(
-    rawUpcoming.map((a: any) => a.client_id).filter(Boolean)
+    rawUpcoming.map((a: any) => a.client_id).filter(Boolean),
   );
 
   // Mapa de assinaturas ativas do Clube dos Chefes
@@ -170,7 +206,7 @@ export const fetchSmartReturnData = async (
     }
   });
 
-  // Processar comandas fechadas (caso haja comanda mais recente ou sem agendamento correspondente)
+  // Processar comandas fechadas
   rawComandas.forEach((cmd: any) => {
     if (!cmd.client_id || !cmd.closed_at) return;
     const cmdDate = new Date(cmd.closed_at);
@@ -184,6 +220,27 @@ export const fetchSmartReturnData = async (
         raw: cmd.closed_at,
       });
     }
+  });
+
+  // Mapa agregado de métricas RFM (Frequência e Valor Monetário)
+  const clientRfmMap = new Map<string, { visitsCount: number; totalSpent: number }>();
+
+  rawAppointments.forEach((apt: any) => {
+    if (!apt.client_id) return;
+    const cur = clientRfmMap.get(apt.client_id) || { visitsCount: 0, totalSpent: 0 };
+    cur.visitsCount += 1;
+    clientRfmMap.set(apt.client_id, cur);
+  });
+
+  rawComandas.forEach((cmd: any) => {
+    if (!cmd.client_id) return;
+    const cur = clientRfmMap.get(cmd.client_id) || { visitsCount: 0, totalSpent: 0 };
+    const val = Number(cmd.total) || 0;
+    cur.totalSpent += val;
+    if (!rawAppointments.some((a: any) => a.client_id === cmd.client_id)) {
+      cur.visitsCount += 1;
+    }
+    clientRfmMap.set(cmd.client_id, cur);
   });
 
   // 2. Construção dos registros enriquecidos
@@ -210,6 +267,16 @@ export const fetchSmartReturnData = async (
     const daysSinceLastVisit = getDaysDifference(visitDate, now);
     const { status, label: statusLabel } = determineInactivityStatus(daysSinceLastVisit);
 
+    const rfmStats = clientRfmMap.get(clientId) || { visitsCount: 0, totalSpent: 0 };
+    const totalVisits = Math.max(1, rfmStats.visitsCount);
+    const totalSpent = Math.round(rfmStats.totalSpent * 100) / 100;
+    const avgTicket = totalVisits > 0 ? Math.round((totalSpent / totalVisits) * 100) / 100 : 0;
+    const { segment: rfmSegment, label: rfmSegmentLabel } = determineRfmSegment(
+      daysSinceLastVisit,
+      totalVisits,
+      totalSpent,
+    );
+
     const rawPhone = client.phone || '';
     const { digits, isValid: isPhoneValid } = normalizePhone(rawPhone);
     const firstName = client.name ? client.name.trim().split(' ')[0] : 'Cliente';
@@ -220,7 +287,9 @@ export const fetchSmartReturnData = async (
       : '';
 
     let suggestedMessage = '';
-    if (status === 'attention') {
+    if (rfmSegment === 'champion') {
+      suggestedMessage = `Fala, ${firstName}! Você é um dos nossos clientes mais especiais aqui na ${shopName}. Já faz ${daysSinceLastVisit} dias desde seu último corte. Quer garantir sua cadeira nessa semana com horário reservado?${bookingNotice}`;
+    } else if (status === 'attention') {
       suggestedMessage = `Olá, ${firstName}! Aqui é da ${shopName}. Já faz ${daysSinceLastVisit} dias desde seu último atendimento. Que tal garantir seu horário para essa semana?${bookingNotice}`;
     } else if (status === 'risk') {
       suggestedMessage = `Olá, ${firstName}! Sentimos sua falta aqui na ${shopName}. Seu último corte foi há ${daysSinceLastVisit} dias. Vamos renovar o visual?${bookingNotice}`;
@@ -255,6 +324,11 @@ export const fetchSmartReturnData = async (
       clubPlanName,
       status,
       statusLabel,
+      totalVisits,
+      totalSpent,
+      avgTicket,
+      rfmSegment,
+      rfmSegmentLabel,
       hasUpcomingAppointment: upcomingClientIds.has(clientId),
       whatsAppUrl,
       suggestedMessage,
@@ -271,6 +345,10 @@ export const fetchSmartReturnData = async (
     attention: records.filter((r) => r.status === 'attention').length,
     risk: records.filter((r) => r.status === 'risk').length,
     inactive: records.filter((r) => r.status === 'inactive').length,
+    championsCount: records.filter((r) => r.rfmSegment === 'champion').length,
+    atRiskRevenue: records
+      .filter((r) => r.status === 'risk' || r.status === 'inactive')
+      .reduce((sum, r) => sum + r.totalSpent, 0),
   };
 
   return {

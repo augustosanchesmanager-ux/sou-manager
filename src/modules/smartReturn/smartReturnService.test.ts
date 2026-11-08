@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchSmartReturnData } from './smartReturnService';
+import { determineRfmSegment, fetchSmartReturnData } from './smartReturnService';
 import * as supabaseClientModule from '../../../services/supabaseClient';
 
 vi.mock('../../../services/supabaseClient', () => ({
@@ -303,5 +303,92 @@ describe('SmartReturnService', () => {
 
     // Assert
     expect(result.records[0].hasUpcomingAppointment).toBe(true);
+  });
+
+  describe('RFM Segmentation Logic', () => {
+    it('should_classify_as_champion_when_high_visits_and_high_spent_and_recent', () => {
+      // 10 dias de recência, 6 visitas e R$ 450 gastos
+      const res = determineRfmSegment(10, 6, 450);
+      expect(res.segment).toBe('champion');
+      expect(res.label).toBe('VIP / Campeão');
+    });
+
+    it('should_classify_as_at_risk_when_high_visits_and_spent_but_over_35_days', () => {
+      // 40 dias de recência, 5 visitas e R$ 300 gastos (VIP em risco)
+      const res = determineRfmSegment(40, 5, 300);
+      expect(res.segment).toBe('at_risk');
+      expect(res.label).toBe('VIP em Risco');
+    });
+
+    it('should_classify_as_loyal_when_regular_visits_and_recent', () => {
+      // 25 dias de recência, 3 visitas e R$ 120 gastos
+      const res = determineRfmSegment(25, 3, 120);
+      expect(res.segment).toBe('loyal');
+      expect(res.label).toBe('Cliente Leal');
+    });
+
+    it('should_classify_as_promising_when_few_visits_and_very_recent', () => {
+      // 10 dias de recência, 1 visita
+      const res = determineRfmSegment(10, 1, 50);
+      expect(res.segment).toBe('promising');
+      expect(res.label).toBe('Promissor');
+    });
+
+    it('should_classify_as_hibernating_when_over_60_days_without_visit', () => {
+      const res = determineRfmSegment(70, 2, 80);
+      expect(res.segment).toBe('hibernating');
+      expect(res.label).toBe('Hibernando');
+    });
+  });
+
+  describe('RFM Metrics & At-Risk Revenue KPI Calculation', () => {
+    it('should_aggregate_visits_and_spent_and_calculate_atRiskRevenue_correctly', async () => {
+      // Arrange:
+      // Cliente A (VIP / Campeão): 4 visitas, R$ 280 gastos, visita há 15 dias (No Prazo)
+      // Cliente B (Em Risco): 1 visita, R$ 75 gastos, visita há 45 dias (Em Risco)
+      const visitDateRecent = new Date(Date.now() - 15 * 86400000).toISOString();
+      const visitDateRisk = new Date(Date.now() - 45 * 86400000).toISOString();
+
+      setupMockQuery({
+        clients: [
+          { id: 'c-vip', name: 'Rodrigo VIP', phone: '11988880001', last_visit: visitDateRecent },
+          { id: 'c-risk', name: 'Carlos Risco', phone: '11988880002', last_visit: visitDateRisk },
+        ],
+        appointments: [
+          { id: 'apt-1', client_id: 'c-vip', start_time: visitDateRecent, status: 'completed' },
+          { id: 'apt-2', client_id: 'c-vip', start_time: visitDateRecent, status: 'completed' },
+          { id: 'apt-3', client_id: 'c-vip', start_time: visitDateRecent, status: 'completed' },
+          { id: 'apt-4', client_id: 'c-vip', start_time: visitDateRecent, status: 'completed' },
+          { id: 'apt-5', client_id: 'c-risk', start_time: visitDateRisk, status: 'completed' },
+        ],
+        comandas: [
+          { id: 'cmd-1', client_id: 'c-vip', closed_at: visitDateRecent, status: 'paid', total: 140 },
+          { id: 'cmd-2', client_id: 'c-vip', closed_at: visitDateRecent, status: 'paid', total: 140 },
+          { id: 'cmd-3', client_id: 'c-risk', closed_at: visitDateRisk, status: 'paid', total: 75 },
+        ],
+        customer_subscriptions: [],
+      });
+
+      // Act
+      const result = await fetchSmartReturnData({ tenantId });
+
+      // Assert
+      expect(result.records).toHaveLength(2);
+
+      const vipRecord = result.records.find((r) => r.id === 'c-vip')!;
+      expect(vipRecord.rfmSegment).toBe('champion');
+      expect(vipRecord.totalVisits).toBe(4);
+      expect(vipRecord.totalSpent).toBe(280);
+      expect(vipRecord.avgTicket).toBe(70);
+
+      const riskRecord = result.records.find((r) => r.id === 'c-risk')!;
+      expect(riskRecord.status).toBe('risk');
+      expect(riskRecord.totalVisits).toBe(1);
+      expect(riskRecord.totalSpent).toBe(75);
+
+      // KPIs
+      expect(result.kpis.championsCount).toBe(1);
+      expect(result.kpis.atRiskRevenue).toBe(75);
+    });
   });
 });
