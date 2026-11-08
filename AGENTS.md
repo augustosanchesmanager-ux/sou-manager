@@ -248,6 +248,7 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
 ### Mecânica real de deploy (Vercel `smg-barber`)
 
 - **(A) Produção = branch `main`.** O projeto está conectado ao repositório (`link.productionBranch = main`, `gitProviderOptions.createDeployments = enabled`). Os **preview builds** de PR/branch continuam ativos e **não devem ser desativados**.
+- **Previews de commit não assinado ficam `BLOCKED`.** Com `gitProviderOptions.requireVerifiedCommits = true`, commit cuja verificação no GitHub é `unverified` gera deployment em `BLOCKED` (nenhum preview é publicado e o check `Vercel – smg-barber` falha). Merge commits gerados pelo próprio GitHub são `verified` e passam. É mecanismo **distinto** do Ignored Build Step: um governa *se* o build acontece, o outro *se o artefato é publicado*.
 - **(B) O auto-deploy de produção é bloqueado por Ignored Build Step.** O comando roda antes do build e aborta **somente** produção:
 
   ```bash
