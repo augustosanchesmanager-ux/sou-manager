@@ -19,6 +19,7 @@ const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Automations = lazy(() => import('./pages/Automations'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
@@ -31,6 +32,7 @@ const ChefClubSubscriptions = lazy(() => import('./pages/ChefClubSubscriptions')
 const Clients = lazy(() => import('./pages/Clients'));
 const Comandas = lazy(() => import('./pages/Comandas'));
 const Commissions = lazy(() => import('./pages/Commissions'));
+const DailySummary = lazy(() => import('./pages/DailySummary'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Financial = lazy(() => import('./pages/Financial'));
@@ -293,6 +295,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
+            <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} />
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
@@ -313,6 +316,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
             <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+            <Route path="/daily-summary" element={<ManagerRoute><DailySummary /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
             <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />

@@ -8,6 +8,7 @@ import {
   Package,
   CircleDollarSign,
   BarChart3,
+  Bot,
   Settings,
   MonitorDot,
   Bell,
@@ -228,6 +229,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       type: 'group',
       items: [
         { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+        { name: 'Resumo Diário & Automações', icon: FileSpreadsheet, path: '/daily-summary', module: 'reports', hideFromEsteticaMenu: true },
         { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
         { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
       ],
@@ -238,6 +240,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       type: 'group',
       items: [
         { name: 'Geral da Unidade', icon: Settings, path: '/settings', module: 'settings' },
+        { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
         { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
         { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
         { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
